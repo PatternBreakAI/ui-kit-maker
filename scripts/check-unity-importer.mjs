@@ -2182,7 +2182,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/if \(posedCuts\.length\) ps2 = stripMarkedIcons\(ps2\)\.svg;/.test(src)
       || !/posedIcons: posedIconsPx/.test(src))
     errors.push("the POSED road stopped stripping marked icons / shipping posedIcons — board copies burn their swappables again");
-  if (!/\[Serializable\] class PBIconChild \{ public string name; public string file; public float dx; public float dy; public float w; public float h; public bool btn; public float wellR; public bool pinRight; public float rightGap; \}/.test(cs))
+  if (!/\[Serializable\] class PBIconChild \{ public string name; public string file; public float dx; public float dy; public float w; public float h; public bool btn; public float wellR; public bool pinRight; public float rightGap; public string nick; \}/.test(cs))
     errors.push("PBIconChild is missing from the importer — JsonUtility drops every un-burn seat row");
   if (!/public PBStyle seatInk; public float ringV; public PBIconChild\[\] iconSeats; \}/.test(cs))
     errors.push("PBAsset must carry iconSeats — without it JsonUtility drops the un-burn seats");
@@ -2218,6 +2218,26 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the un-burn apply road no longer honors the ledger (theirs skip / honest unburned count on real adds only)");
   if (!/Each seat seeds exactly once \(kit\.lock\.json > seededChildren\)/.test(cs))
     errors.push("the un-burn Console receipt no longer tells the one-shot truth");
+  /* the BOTTOMNAV's baked state indicators go live (editability paper cut
+     2): the selected ring and the notification plate are marked groups —
+     stripped from the bake, shipped as "Selected ring" / "Badge plate"
+     children — and the badge's live count RIDES its plate as one group. */
+  if (!/data-part="icon" data-icon="ring" data-icon-nick="Selected ring"/.test(bevelSrc)
+      || !/opacity="0\.9091"/.test(bevelSrc))
+    errors.push("the bottomnav selected ring is baked again (or lost its exact 0.78→0.98 bridge overlay) — a dev can never select another tab");
+  if (!/data-icon-nick="\$\{bNick\}"/.test(bevelSrc) || !/data-seat-rider="\$\{bName\}"/.test(bevelSrc))
+    errors.push("the bottomnav notification plate is baked again (or its count no longer rides the plate) — the fake badge can never be removed");
+  if (!/nick: gs0\[gi\]\.getAttribute\("data-icon-nick"\) \|\| null,/.test(src)
+      || !/\.\.\.\(mk\.nick \? \{ nick: mk\.nick \} : \{\}\),/.test(src)
+      || !/\.\.\.\(t\.getAttribute\("data-seat-rider"\) \? \{ rider: t\.getAttribute\("data-seat-rider"\)! \} : \{\}\),/.test(src))
+    errors.push("the export no longer carries the friendly child names (nick) or the badge count's rider through to the manifest");
+  if (!/public float strokeEmPct; public string rider; \}/.test(cs)
+      || !/static void AdoptSeatRiders\(GameObject host, PBAsset row\)/.test(cs)
+      || !/AdoptSeatRiders\(host, row\);/.test(cs)
+      || !/AdoptSeatRiders\(contents, rowUA\);/.test(cs))
+    errors.push("the importer no longer parents a rider word under its live plate (AdoptSeatRiders on fresh builds AND the kept-project un-burn)");
+  if (!/static string IconChildName\(PBIconChild ic\) \{ return !string\.IsNullOrEmpty\(ic\.nick\) \? ic\.nick : /.test(cs))
+    errors.push("the friendly child name (nick) no longer wins in IconChildName — Selected ring / Badge plate lose their names");
 }
 
 /* SLICE-2 pins (the position & styling punch list): the maker's Nudge
@@ -2253,7 +2273,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
       || !/const ddCaret0 = await iconSeatsOf\("dropdown", ddLabeled, "dropdown", "caret"\);/.test(src)
       || !/pinRight: true, rightGap: Math\.round\(\(shL\[2\] \/ 2 - \(c0\.dx \+ c0\.w \/ 2\)\) \* 10\) \/ 10/.test(src))
     errors.push("the dropdown caret is baked again (or lost its measured right-edge gap) — parity with the app's labeled render is gone");
-  if (!/public bool pinRight; public float rightGap; \}/.test(cs)
+  if (!/public bool pinRight; public float rightGap; public string nick; \}/.test(cs)
       || !/crt\.anchoredPosition = new Vector2\(-\(airR \+ ic\.rightGap \+ ic\.w \/ 2f\), 0f\);/.test(cs)
       || !/WireIconChildren\(go, root, m, "dropdown"\);/.test(cs))
     errors.push("the importer no longer pins the live caret to the right edge (PBIconChild.pinRight / DropdownPrefab wiring)");

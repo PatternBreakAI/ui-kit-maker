@@ -210,6 +210,11 @@ interface AssetMeta {
      *  the "flatter/thinner than the app" delta on the HUD voices. Width is
      *  % of an em; color carries its own alpha (0-100). Absent = no rim. */
     stroke?: string; strokeA?: number; strokeEmPct?: number;
+    /** the icon seat this word RIDES (data-seat-rider = the seat's name):
+     *  the importer parents the word under that live child so both move,
+     *  disable or delete as ONE group (the bottomnav badge's plate +
+     *  count). Absent = the word sits on the Words tree as ever. */
+    rider?: string;
   }[];
   /** The piece's content-text recipe for its DRESSED seats (same shape the
    *  gauges ship as gauge.ink) — effects only; each seat carries its fill. */
@@ -255,7 +260,11 @@ interface AssetMeta {
      *  RECT's right edge and keeps `rightGap` design px between the
      *  drawn shell's right edge and its own box — the app's constant
      *  caret gap survives every nine-slice stretch. dx is unused. */
-    pinRight?: boolean; rightGap?: number }[];
+    pinRight?: boolean; rightGap?: number;
+    /** friendly child name (data-icon-nick) — a seat that IS a named
+     *  thing in the dev's world ("Selected ring", "Badge plate") wears
+     *  that name in the Hierarchy instead of the generic "Icon <name>". */
+    nick?: string }[];
 }
 
 export interface EngineExportState {
@@ -407,7 +416,7 @@ export interface ExportBoardItemData {
       size in board px. The scene rebuilds each as a live, Inspector-
       swappable Image child on the placed root, so posed copies obey the
       law exactly like the family prefabs. */
-  posedIcons?: { name: string; file: string; dx: number; dy: number; w: number; h: number; btn?: boolean; wellR?: number }[];
+  posedIcons?: { name: string; file: string; dx: number; dy: number; w: number; h: number; btn?: boolean; wellR?: number; nick?: string }[];
   /** render-variant overlay (trophy ~gold) — the importer swaps the
       matching variant sprite onto the placed prefab; null = stock */
   ov?: string | null;
@@ -472,12 +481,12 @@ export interface ExportBoardData {
    ancestors, filters and clips kept, so the sprite is the app's exact
    pixels) and strip the groups from the shipping bake. ── */
 const ICON_DRAWABLE_SEL = "path,rect,circle,ellipse,line,polyline,polygon,text,image,use";
-function markedIconOnlySvgs(svgIn: string): { name: string; btn: boolean; well: number[] | null; svg: string }[] {
+function markedIconOnlySvgs(svgIn: string): { name: string; btn: boolean; well: number[] | null; nick: string | null; svg: string }[] {
   try {
     const dom0 = new DOMParser().parseFromString(svgIn, "image/svg+xml");
     const gs0 = Array.from(dom0.querySelectorAll('[data-part="icon"]'));
     if (!gs0.length) return [];
-    const out: { name: string; btn: boolean; well: number[] | null; svg: string }[] = [];
+    const out: { name: string; btn: boolean; well: number[] | null; nick: string | null; svg: string }[] = [];
     for (let gi = 0; gi < gs0.length; gi++) {
       const dom = new DOMParser().parseFromString(svgIn, "image/svg+xml");
       const gs = Array.from(dom.querySelectorAll('[data-part="icon"]'));
@@ -490,6 +499,7 @@ function markedIconOnlySvgs(svgIn: string): { name: string; btn: boolean; well: 
         name: gs0[gi].getAttribute("data-icon") ?? (gs0.length > 1 ? `icon${gi + 1}` : "glyph"),
         btn: gs0[gi].getAttribute("data-icon-btn") === "1",
         well: gs0[gi].getAttribute("data-icon-well")?.split(" ").map(Number) ?? null,
+        nick: gs0[gi].getAttribute("data-icon-nick") || null,
         svg: new XMLSerializer().serializeToString(dom.documentElement),
       });
     }
@@ -1567,7 +1577,7 @@ export async function collectExportBoards(st: {
              posedLabel. This retires round 27's "the posed pixels carry
              the styled icon" stand-down: the icon rides LIVE on posed
              copies now, per the law. */
-          const posedCuts: { name: string; btn: boolean; well: number[] | null; box: [number, number, number, number]; svg: string }[] = [];
+          const posedCuts: { name: string; btn: boolean; well: number[] | null; nick: string | null; box: [number, number, number, number]; svg: string }[] = [];
           {
             const shD9 = /data-shell="([-\d. ]+)"/.exec(ps2)?.[1].split(" ").map(Number);
             const sh09 = /data-shell0="([-\d. ]+)"/.exec(ps2)?.[1].split(" ").map(Number);
@@ -1651,6 +1661,7 @@ export async function collectExportBoards(st: {
                   w: r1p(cut.box[2] * kx2), h: r1p(cut.box[3] * ky2),
                   ...(cut.btn ? { btn: true } : {}),
                   ...(cut.well ? { wellR: r1p(cut.well[2] * Math.min(kx2, ky2)) } : {}),
+                  ...(cut.nick ? { nick: cut.nick } : {}),
                 });
               }
             }
@@ -2777,6 +2788,9 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         fillMode, fill, fill2,
         fillOpacity: Math.max(0, Math.min(100, fillOpacity)),
         ...(strokeRim ? { stroke: strokeRim.hex, strokeA: strokeRim.a, strokeEmPct: strokeRim.emPct } : {}),
+        // a word marked to RIDE an icon seat travels with that live child
+        // (the bottomnav badge count on its plate) — see AssetMeta.rider
+        ...(t.getAttribute("data-seat-rider") ? { rider: t.getAttribute("data-seat-rider")! } : {}),
       });
       if (seats.length >= 40) break; // sanity cap
     }
@@ -3058,6 +3072,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         w: r1(bw9), h: r1(bh9),
         ...(mk.btn ? { btn: true } : {}),
         ...(mk.well ? { wellR: r1(mk.well[2]) } : {}),
+        ...(mk.nick ? { nick: mk.nick } : {}),
       });
     }
     return seats.length ? seats : null;
@@ -3940,7 +3955,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         ring: "Progress ring — the percent readout is a LIVE seat. Display piece.",
         avatarframe: "Avatar frame — the level chip's number is a LIVE seat and the portrait a LIVE masked Image child: drop YOUR sprite on the Portrait child and the frame clips it round. Display piece.",
         claimbtn: "Claim button — a REAL button (the Shop's Claim All presses and fires onClick); the word is a LIVE seat, the gift glyph a LIVE Image child, and CLAIM copies celebrate (ClaimBurst).",
-        bottomnav: "Bottom nav bar — one placeable piece; the item words are LIVE seats and every tab glyph a LIVE Image child (swap any sprite in the Inspector). Wire your own per-item buttons over it (the bar itself is not one button).",
+        bottomnav: "Bottom nav bar — one placeable piece; the item words are LIVE seats and every tab glyph a LIVE Image child (swap any sprite in the Inspector). The Selected ring child IS the selection: move it a cell over (one cell pitch) or disable it. The Badge plate child carries its live count with it — move, restyle or delete the pair as one. Wire your own per-item buttons over it (the bar itself is not one button).",
       };
       const universalIds: KitComponentId[] = [
         ...UNIVERSAL_ROAD,
@@ -9178,7 +9193,7 @@ namespace PatternBreak {
      gauge contract; the importer multiplies by the prefab's live rect.
      Readers gate on text non-empty AND ffs > 0 (px-era rows and
      JsonUtility's default-constructed nested objects both read 0). */
-  [Serializable] class PBSeat { public string text; public float fx; public float fy; public float ffs; public float midEm; public string anchor; public int row; public bool kit; public bool dressed; public int weight; public bool italic; public float spacingEmPct; public string fillMode; public string fill; public string fill2; public float fillOpacity; public string stroke; public float strokeA; public float strokeEmPct; }
+  [Serializable] class PBSeat { public string text; public float fx; public float fy; public float ffs; public float midEm; public string anchor; public int row; public bool kit; public bool dressed; public int weight; public bool italic; public float spacingEmPct; public string fillMode; public string fill; public string fill2; public float fillOpacity; public string stroke; public float strokeA; public float strokeEmPct; public string rider; }
   /* the piece's kit icon beside its words (round 26 — the chip's star):
      center offset from the shell center in design px, rendered size, the
      shipped white glyph, and the app's ink. s 0 / file "" on older
@@ -9192,7 +9207,7 @@ namespace PatternBreak {
      per swappable icon/image the app drew — its own full-color sprite,
      box center vs the shell center (design px, y down), box size. btn =
      a REAL small-button plate; wellR > 0 = circular-masked image well. */
-  [Serializable] class PBIconChild { public string name; public string file; public float dx; public float dy; public float w; public float h; public bool btn; public float wellR; public bool pinRight; public float rightGap; }
+  [Serializable] class PBIconChild { public string name; public string file; public float dx; public float dy; public float w; public float h; public bool btn; public float wellR; public bool pinRight; public float rightGap; public string nick; }
   [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public PBTrack track; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelInk; public string labelInk2; public float leading; public string labelText; public PBIconSeat icon; public PBGauge gauge; public PBChart chart; public PBLoot loot; public PBSeat[] textSeats; public PBStyle seatInk; public float ringV; public PBIconChild[] iconSeats; }
   [Serializable] class PBStyleOutline { public string color; public string color2; public float width; }
   [Serializable] class PBStyleGlow { public string color; public float size; public float opacity; }
@@ -14386,7 +14401,10 @@ namespace PatternBreak {
        (the booster card's qty pill); wellR rows become a circle-masked
        Portrait well (drop ANY sprite on the Portrait child and the
        frame clips it round). */
-    static string IconChildName(PBIconChild ic) { return ic.wellR > 0.5f ? "Portrait Well" : (ic.btn ? NiceName(ic.name) + " button" : "Icon " + ic.name); }
+    /* a seat with a friendly name (nick) IS that thing in the Hierarchy —
+       "Selected ring", "Badge plate" — everything else keeps the generic
+       icon grammar */
+    static string IconChildName(PBIconChild ic) { return !string.IsNullOrEmpty(ic.nick) ? ic.nick : (ic.wellR > 0.5f ? "Portrait Well" : (ic.btn ? NiceName(ic.name) + " button" : "Icon " + ic.name)); }
     static List<string> WireIconChildren(GameObject go, string root, PBManifest m, string fam) {
       return WireIconChildrenRow(go, root, m, LabelRow(m, fam));
     }
@@ -14435,6 +14453,12 @@ namespace PatternBreak {
           if (ic.btn) { var bb = cgo.AddComponent<Button>(); bb.targetGraphic = ii; }
         }
         cgo.transform.SetParent(go.transform, false);
+        /* converged children join a tree that may already carry Words —
+           picture ink draws UNDER the words (the app's own stack), so
+           slot in before that sibling; fresh builds have no Words yet
+           and keep their order untouched */
+        var wSibIC = go.transform.Find("Words");
+        if (wSibIC != null) cgo.transform.SetSiblingIndex(wSibIC.GetSiblingIndex());
         var crt = cgo.GetComponent<RectTransform>();
         float fxC = (row.shell.x + row.shell.w / 2f + ic.dx * psIC) / bsIC.rect.width;
         float fyC = 1f - (row.shell.y + row.shell.h / 2f + ic.dy * psIC) / bsIC.rect.height;
@@ -16093,9 +16117,6 @@ namespace PatternBreak {
       return h;
     }
     static float SeatFs(PBSeat seat, float rootH) { return Mathf.Max(1f, seat.ffs * rootH); }
-    // a seat's HUMAN name: the string without rich-text tags (round-10
-    // field: a GameObject literally named "<color=#4ADE80>THR</color>…")
-    static string PlainWord(string s) { return s == null ? "" : System.Text.RegularExpressions.Regex.Replace(s, "<[^>]+>", ""); }
     static Vector2 SeatBox(PBSeat seat, float fs) {
       var plain = System.Text.RegularExpressions.Regex.Replace(seat.text ?? "", "<[^>]+>", "");
       // generous, glyph-safe box centered on the seat — overflow shows, never reflows
@@ -16389,7 +16410,38 @@ namespace PatternBreak {
         if (face != null) t.font = face;
         DressSeatText(t, seat, face, mat, rootH, aboardWeight, true);
       }
+      AdoptSeatRiders(host, row);
 #endif
+    }
+    /* a seat marked to RIDE an icon child (the bottomnav badge: plate +
+       live count travel as ONE movable group): the word keeps its exact
+       drawn place (worldPositionStays) but belongs to the plate now, so
+       moving, disabling or deleting the plate carries the count with it.
+       Name-matched against the seat's own word — a count the dev retyped
+       no longer matches and stays where the dev left it, theirs. Guard-
+       free on purpose: on the 2022.3 rung no Words tree exists and this
+       is a clean no-op. */
+    // a seat's HUMAN name: the string without rich-text tags (round-10
+    // field: a GameObject literally named "<color=#4ADE80>THR</color>…").
+    // Lives OUTSIDE the TMP guard — AdoptSeatRiders below runs on both rungs.
+    static string PlainWord(string s) { return s == null ? "" : System.Text.RegularExpressions.Regex.Replace(s, "<[^>]+>", ""); }
+    static void AdoptSeatRiders(GameObject host, PBAsset row) {
+      if (host == null || row == null || row.textSeats == null || row.iconSeats == null) return;
+      var wordsTR = host.transform.Find("Words");
+      if (wordsTR == null) return;
+      foreach (var seatR in row.textSeats) {
+        if (seatR == null || string.IsNullOrEmpty(seatR.rider)) continue;
+        Transform plateT = null;
+        foreach (var icR in row.iconSeats)
+          if (icR != null && icR.name == seatR.rider) { plateT = host.transform.Find(IconChildName(icR)); break; }
+        if (plateT == null) continue;
+        var wantN = PlainWord(seatR.text);
+        Transform wordT = null;
+        foreach (var rtW in wordsTR.GetComponentsInChildren<RectTransform>(true))
+          if (rtW != wordsTR && rtW.gameObject.name == wantN) { wordT = rtW; break; }
+        if (wordT == null || wordT.parent == plateT) continue;
+        wordT.SetParent(plateT, true);
+      }
     }
     static bool TextSeatsStale(GameObject asset, PBManifest m, string root, int pngScale) {
 #if UNITY_2023_2_OR_NEWER
@@ -19098,6 +19150,10 @@ namespace PatternBreak {
             var addedUA = WireIconChildrenRow(contents, root, m, rowUA, theirsUA);
             if (addedUA.Count > 0) {
               foreach (var anUA in addedUA) unburnLedger.Add(keyUA + anUA);
+              /* a rider word already living on the Words tree moves onto
+                 its just-landed plate (the badge count follows the plate
+                 on kept projects too) */
+              AdoptSeatRiders(contents, rowUA);
               unburned++; changed = true;
             }
           }

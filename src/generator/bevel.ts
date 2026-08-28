@@ -8478,14 +8478,26 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       // badge recipe, leaning a whisper toward the kit's glow (countbadge)
       const badgeC = dimN ? "#9AA0AB" : hexMix("#FF3B4A", glow, 0.12);
       let cells = "";
+      let nBadge = 0;
       for (let i = 0; i < n; i++) {
         const cx0 = x0 + i * (cellW + gap);
         const on = i === selN;
         const hotN = on && (state === "hover" || state === "pressed");
-        cells += `<path d="${roundRect(cx0, y0, cellW, cellH, cellR)}" fill="${wellFill}" opacity="${on ? 0.98 : 0.78}"${on ? ` stroke="${glow}" stroke-width="${((hotN ? 3.6 : 3) * k).toFixed(1)}"${!dimN ? ` style="filter: drop-shadow(0 0 ${((hotN ? 8 : 6) * k).toFixed(1)}px ${hexRgba(glow, hotN ? 0.9 : 0.7)})"` : ""}` : ` stroke="${hexRgba(darken(bevel, 0.4), 0.6)}" stroke-width="1.2"`} data-cell="${i}"/>`;
+        /* EVERY cell wears the same resting well — the active dress (the
+           brighter fill, the glow ring, the wash) rides the marked
+           "Selected ring" group below, so the engine export strips it
+           into a live, movable child (the un-burn law: a baked selection
+           could never select another tab). The 0.9091 overlay bridges the
+           resting 0.78 fill to the active 0.98 exactly — source-over is
+           associative: 1−(1−0.78)(1−0.9091) = 0.98 — so the app look is
+           unchanged and recomposition stays exact. */
+        cells += `<path d="${roundRect(cx0, y0, cellW, cellH, cellR)}" fill="${wellFill}" opacity="0.78" stroke="${hexRgba(darken(bevel, 0.4), 0.6)}" stroke-width="1.2" data-cell="${i}"/>`;
         // the active well BRIGHTENS: a glow wash inside the well, deepening
         // through hover/pressed like the dialogue choices do
-        if (on) cells += `<path d="${roundRect(cx0, y0, cellW, cellH, cellR)}" fill="${hexRgba(glow, state === "pressed" ? 0.3 : state === "hover" ? 0.24 : 0.16)}"/>`;
+        if (on) cells += `<g data-part="icon" data-icon="ring" data-icon-nick="Selected ring">`
+          + `<path d="${roundRect(cx0, y0, cellW, cellH, cellR)}" fill="${wellFill}" opacity="0.9091" stroke="${glow}" stroke-width="${((hotN ? 3.6 : 3) * k).toFixed(1)}"${!dimN ? ` style="filter: drop-shadow(0 0 ${((hotN ? 8 : 6) * k).toFixed(1)}px ${hexRgba(glow, hotN ? 0.9 : 0.7)})"` : ""}/>`
+          + `<path d="${roundRect(cx0, y0, cellW, cellH, cellR)}" fill="${hexRgba(glow, state === "pressed" ? 0.3 : state === "hover" ? 0.24 : 0.16)}"/>`
+          + `</g>`;
         // per-cell glyph slots — Factory keeps the stock loadout (the
         // wheels' honesty rule); names resolve by lowercasing
         const pickN = opts.slots?.[`g${i + 1}`];
@@ -8506,9 +8518,18 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         // quests; a typed 0 (or emptying a typed count) clears it
         const bRaw = (opts.slots?.[`b${i + 1}`] ?? (i === 1 ? "3" : "")).trim().slice(0, 3);
         if (bRaw && bRaw !== "0") {
+          /* the notification PLATE is marked swappable ink too (the un-burn
+             law: a baked badge could never be removed) — the plate strips
+             into a live "Badge plate" child and the live count RIDES it
+             (data-seat-rider), so plate + count move or disable as one
+             group in the engine. Per-cell names keep multi-badge bars
+             collision-free; the factory single badge reads plain. */
           const bcx = cx0 + cellW - 8 * k, bcy = y0 + 8 * k, brN = 15 * k;
-          cells += `<g data-badge="${i}"><circle cx="${bcx.toFixed(1)}" cy="${bcy.toFixed(1)}" r="${brN.toFixed(1)}" fill="${badgeC}" stroke="rgba(255,255,255,${dimN ? 0.55 : 0.92})" stroke-width="${(2.2 * k).toFixed(1)}"${!dimN ? ` style="filter: drop-shadow(0 0 ${(3.5 * k).toFixed(1)}px ${hexRgba(badgeC, 0.6)})"` : ""}/>` +
-            `<text x="${bcx.toFixed(1)}" y="${(bcy + 0.5).toFixed(1)}" font-family="Inter, sans-serif" font-size="${((bRaw.length > 1 ? 14 : 17) * k).toFixed(1)}" font-weight="900" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">${esc(bRaw)}</text></g>`;
+          nBadge++;
+          const bName = nBadge === 1 ? "badge" : `badge${i + 1}`;
+          const bNick = nBadge === 1 ? "Badge plate" : `Badge plate ${i + 1}`;
+          cells += `<g data-part="icon" data-icon="${bName}" data-icon-nick="${bNick}" data-badge="${i}"><circle cx="${bcx.toFixed(1)}" cy="${bcy.toFixed(1)}" r="${brN.toFixed(1)}" fill="${badgeC}" stroke="rgba(255,255,255,${dimN ? 0.55 : 0.92})" stroke-width="${(2.2 * k).toFixed(1)}"${!dimN ? ` style="filter: drop-shadow(0 0 ${(3.5 * k).toFixed(1)}px ${hexRgba(badgeC, 0.6)})"` : ""}/></g>` +
+            `<text x="${bcx.toFixed(1)}" y="${(bcy + 0.5).toFixed(1)}" font-family="Inter, sans-serif" font-size="${((bRaw.length > 1 ? 14 : 17) * k).toFixed(1)}" font-weight="900" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central" data-seat-rider="${bName}">${esc(bRaw)}</text>`;
         }
       }
       return inject(track.replace("<svg ", '<svg data-bottomnav="1" '), cells);
