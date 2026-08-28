@@ -32,7 +32,7 @@ const DEMO: Application[] = [
   { id: "d1", status: "pending", schoolEmail: "kira@cinema.usc.edu", accountEmail: "kira@gmail.com", idUrl: "demo", note: null, createdAt: new Date(Date.now() - 36e5 * 5).toISOString(), reviewedAt: null },
   { id: "d2", status: "pending", schoolEmail: "j.tan@polyu.edu.hk", accountEmail: "jtan@outlook.com", idUrl: "demo.pdf", note: null, createdAt: new Date(Date.now() - 36e5 * 30).toISOString(), reviewedAt: null },
   { id: "d3", status: "approved", schoolEmail: "amara@risd.edu", accountEmail: null, idUrl: null, note: null, createdAt: new Date(Date.now() - 864e5 * 3).toISOString(), reviewedAt: new Date(Date.now() - 864e5 * 2).toISOString() },
-  { id: "d4", status: "rejected", schoolEmail: "sales@notaschool.biz", accountEmail: null, idUrl: null, note: "Domain is a parked commercial site — no institution behind it.", createdAt: new Date(Date.now() - 864e5 * 6).toISOString(), reviewedAt: new Date(Date.now() - 864e5 * 5).toISOString() },
+  { id: "d4", status: "rejected", schoolEmail: "sales@notaschool.biz", accountEmail: null, idUrl: null, note: "Domain is a parked commercial site; no institution behind it.", createdAt: new Date(Date.now() - 864e5 * 6).toISOString(), reviewedAt: new Date(Date.now() - 864e5 * 5).toISOString() },
 ];
 const isDemo = () => import.meta.env.DEV && /[?&]demo=1/.test(window.location.hash);
 
@@ -87,22 +87,22 @@ function PendingCard({ app, onDecided }: { app: Application; onDecided: () => vo
       {app.idUrl ? (
         isPdf ? (
           <a className="fd-review__doc fd-review__doc--pdf" href={app.idUrl} target="_blank" rel="noreferrer">
-            <ExternalLink size={15} strokeWidth={2.2} /> Open the ID (PDF) — link lives ten minutes
+            <ExternalLink size={15} strokeWidth={2.2} /> Open the ID (PDF) · link lives ten minutes
           </a>
         ) : (
-          <a className="fd-review__doc" href={app.idUrl} target="_blank" rel="noreferrer" title="Open full size — link lives ten minutes">
+          <a className="fd-review__doc" href={app.idUrl} target="_blank" rel="noreferrer" title="Open full size · link lives ten minutes">
             {isDemo()
               ? <span className="fd-review__demoimg">ID document preview</span>
               : <img src={app.idUrl} alt={`ID document for ${app.schoolEmail}`} />}
           </a>
         )
       ) : (
-        <p className="fd-rfine">No document on this application — it may have been uploaded before the review flow existed. Decide from the email alone, or ask them to re-apply.</p>
+        <p className="fd-rfine">No document on this application. It may have been uploaded before the review flow existed. Decide from the email alone, or ask them to re-apply.</p>
       )}
 
       <label className="fd-field">
-        <span>Note <i className="fd-review__opt">optional — kept on the record, shown to nobody else</i></span>
-        <input type="text" value={note} maxLength={400} placeholder="e.g. ID expires next June — flag at renewal"
+        <span>Note <i className="fd-review__opt">optional: kept on the record, shown to nobody else</i></span>
+        <input type="text" value={note} maxLength={400} placeholder="e.g. ID expires next June; flag at renewal"
           onChange={(e) => setNote(e.target.value)} />
       </label>
 
@@ -114,7 +114,7 @@ function PendingCard({ app, onDecided }: { app: Application; onDecided: () => vo
           {busy === "reject" ? <Loader2 size={15} strokeWidth={2.4} className="fd-spin" /> : <XCircle size={15} strokeWidth={2.2} />} Reject
         </button>
       </div>
-      <p className="fd-rfine"><ShieldCheck size={12} strokeWidth={2.2} /> Deciding deletes the ID document — that's the promise the form makes, kept in the same call.</p>
+      <p className="fd-rfine"><ShieldCheck size={12} strokeWidth={2.2} /> Deciding deletes the ID document; that's the promise the form makes, kept in the same call.</p>
       {err && <p className="fd-pricing__err">{err}</p>}
     </section>
   );
@@ -171,7 +171,7 @@ export function ReviewPage() {
         <h1>Application review</h1>
         <p className="fd-pricing__sub">
           Student &amp; educator applications. Approving unlocks the $15.99 rate on that
-          account's checkout — the plan itself only changes when they buy.
+          account's checkout; the plan itself only changes when they buy.
         </p>
 
         {!live ? (
@@ -184,7 +184,7 @@ export function ReviewPage() {
         ) : admin === null ? (
           <section className="fd-studentcard"><p><Loader2 size={15} strokeWidth={2.4} className="fd-spin" /> Checking your account…</p></section>
         ) : !admin ? (
-          <section className="fd-studentcard"><p>Reviewing applications is an admin task — this account doesn't have that role.</p></section>
+          <section className="fd-studentcard"><p>Reviewing applications is an admin task; this account doesn't have that role.</p></section>
         ) : (
           <>
             <div className="fd-review__bar">
@@ -204,7 +204,7 @@ export function ReviewPage() {
             {apps !== null && pending.length === 0 && !err && (
               <section className="fd-studentcard">
                 <p className="fd-studentcard__ok"><CheckCircle2 size={18} strokeWidth={2.2} /> All caught up</p>
-                <p>New applications appear here the moment they're filed. The signed links on this page live ten minutes — hit Refresh for fresh ones.</p>
+                <p>New applications appear here the moment they're filed. The signed links on this page live ten minutes; hit Refresh for fresh ones.</p>
               </section>
             )}
 
@@ -222,7 +222,7 @@ export function ReviewPage() {
                     {a.note && <span className="fd-review__note">{a.note}</span>}
                   </div>
                 ))}
-                <p className="fd-rfine">Decided rows keep the school address, the date and the note — never the document.</p>
+                <p className="fd-rfine">Decided rows keep the school address, the date and the note, never the document.</p>
               </section>
             )}
           </>

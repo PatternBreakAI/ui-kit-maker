@@ -51,7 +51,7 @@ const PRO: Row[] = [
   { label: "Unity, press-Play ready: wired prefabs, styled live text, baked hero fonts" },
   { label: "Cloud saves & named projects" },
   { label: "Share links included" },
-  { label: "Commercial licence — sell what you ship" },
+  { label: "Commercial licence: sell what you ship" },
 ];
 
 /* Student restricts the LICENCE, not the tool.
@@ -82,7 +82,7 @@ const STUDENT: Row[] = [
   { label: "Coursework, portfolio & non-commercial release" },
   { label: "Selling what you build needs Pro", on: false },
   { label: "Monthly preset packs are a Pro perk", on: false },
-  { label: "Personal and non-transferable — verified yearly", note: true },
+  { label: "Personal and non-transferable, verified yearly", note: true },
 ];
 
 const PROOF = [
@@ -265,7 +265,7 @@ export function PricingPage() {
             your design; exports of YOUR kit are the paid unlock. */}
         <p className="fd-pricing__fine">
           Signing up is free, and it's a real step up from Explorer: the full kit, unlimited
-          boards, cloud saves, your settings file, community publishing — and the free{" "}
+          boards, cloud saves, your settings file, community publishing, and the free{" "}
           <b>Unity test kit</b>, a stock evaluation ZIP (the same for everyone) that proves
           the whole import pipeline in your engine before you pay. Exporting your own
           designs is what Pro and Student add.
@@ -281,7 +281,7 @@ export function PricingPage() {
           Paid plans are annual. You'll be charged $29.99 for Pro (or $15.99 for a verified
           Student plan) today, plus applicable tax, and the plan renews automatically every
           12 months at the then-current annual price unless you cancel. Cancel anytime from
-          your account — cancelling stops the next charge and your access runs to the end of
+          your account. Cancelling stops the next charge and your access runs to the end of
           the term. Student eligibility may be re-verified before a renewal.
         </p>
 

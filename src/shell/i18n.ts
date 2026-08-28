@@ -125,9 +125,9 @@ const EN: Table = {
   privLbl: "Private",
   shareLink: "Share link",
   faqTitle: "Questions, answered",
-  faqSub: "The product, the controls, your files, your money, and what's coming — in plain words. Search anything.",
-  faqSearch: "Search the FAQ — try “svg”, “private”, “gloss”, “licence”…",
-  faqEnNote: "Answers are English-first for now — translations are coming in waves.",
+  faqSub: "The product, the controls, your files, your money, and what's coming, in plain words. Search anything.",
+  faqSearch: "Search the FAQ: try “svg”, “private”, “gloss”, “licence”…",
+  faqEnNote: "Answers are English-first for now; translations are coming in waves.",
 };
 
 const ZH: Table = {
@@ -224,9 +224,9 @@ const ZH: Table = {
   privLbl: "私密",
   shareLink: "分享链接",
   faqTitle: "有问必答",
-  faqSub: "产品、控件、文件、费用与未来计划 — 用平实的语言。任意搜索。",
-  faqSearch: "搜索常见问题 — 试试 “svg”、“私密”、“光泽”、“许可”…",
-  faqEnNote: "答案目前以英文为主 — 翻译将分批推出。",
+  faqSub: "产品、控件、文件、费用与未来计划，用平实的语言。任意搜索。",
+  faqSearch: "搜索常见问题：试试 “svg”、“私密”、“光泽”、“许可”…",
+  faqEnNote: "答案目前以英文为主，翻译将分批推出。",
 };
 
 const FR: Table = {
@@ -323,9 +323,9 @@ const FR: Table = {
   privLbl: "Privé",
   shareLink: "Lien de partage",
   faqTitle: "Questions, réponses",
-  faqSub: "Le produit, les réglages, vos fichiers, votre argent et la suite — en mots simples. Cherchez tout.",
-  faqSearch: "Cherchez dans la FAQ — essayez « svg », « privé », « brillance », « licence »…",
-  faqEnNote: "Les réponses sont d'abord en anglais — les traductions arrivent par vagues.",
+  faqSub: "Le produit, les réglages, vos fichiers, votre argent et la suite, en mots simples. Cherchez tout.",
+  faqSearch: "Cherchez dans la FAQ : essayez « svg », « privé », « brillance », « licence »…",
+  faqEnNote: "Les réponses sont d'abord en anglais ; les traductions arrivent par vagues.",
 };
 
 const ES: Table = {
@@ -422,9 +422,9 @@ const ES: Table = {
   privLbl: "Privado",
   shareLink: "Enlace para compartir",
   faqTitle: "Preguntas, respondidas",
-  faqSub: "El producto, los controles, tus archivos, tu dinero y lo que viene — en palabras claras. Busca lo que sea.",
-  faqSearch: "Busca en la FAQ — prueba “svg”, “privado”, “brillo”, “licencia”…",
-  faqEnNote: "Las respuestas están primero en inglés — las traducciones llegan por oleadas.",
+  faqSub: "El producto, los controles, tus archivos, tu dinero y lo que viene, en palabras claras. Busca lo que sea.",
+  faqSearch: "Busca en la FAQ: prueba “svg”, “privado”, “brillo”, “licencia”…",
+  faqEnNote: "Las respuestas están primero en inglés; las traducciones llegan por oleadas.",
 };
 
 const IT: Table = {
@@ -521,9 +521,9 @@ const IT: Table = {
   privLbl: "Privato",
   shareLink: "Link di condivisione",
   faqTitle: "Domande e risposte",
-  faqSub: "Il prodotto, i controlli, i tuoi file, i tuoi soldi e cosa arriva — in parole semplici. Cerca qualsiasi cosa.",
-  faqSearch: "Cerca nella FAQ — prova “svg”, “privato”, “lucido”, “licenza”…",
-  faqEnNote: "Le risposte sono per ora in inglese — le traduzioni arrivano a ondate.",
+  faqSub: "Il prodotto, i controlli, i tuoi file, i tuoi soldi e cosa arriva, in parole semplici. Cerca qualsiasi cosa.",
+  faqSearch: "Cerca nella FAQ: prova “svg”, “privato”, “lucido”, “licenza”…",
+  faqEnNote: "Le risposte sono per ora in inglese; le traduzioni arrivano a ondate.",
 };
 
 const DE: Table = {
@@ -620,9 +620,9 @@ const DE: Table = {
   privLbl: "Privat",
   shareLink: "Teilen-Link",
   faqTitle: "Fragen, beantwortet",
-  faqSub: "Das Produkt, die Regler, deine Dateien, dein Geld und was kommt — in klaren Worten. Durchsuche alles.",
-  faqSearch: "FAQ durchsuchen — versuch „svg“, „privat“, „Glanz“, „Lizenz“…",
-  faqEnNote: "Die Antworten sind vorerst auf Englisch — Übersetzungen folgen in Wellen.",
+  faqSub: "Das Produkt, die Regler, deine Dateien, dein Geld und was kommt, in klaren Worten. Durchsuche alles.",
+  faqSearch: "FAQ durchsuchen: versuch „svg“, „privat“, „Glanz“, „Lizenz“…",
+  faqEnNote: "Die Antworten sind vorerst auf Englisch; Übersetzungen folgen in Wellen.",
 };
 
 const JA: Table = {
@@ -719,9 +719,9 @@ const JA: Table = {
   privLbl: "非公開",
   shareLink: "共有リンク",
   faqTitle: "質問に答えます",
-  faqSub: "製品・コントロール・ファイル・料金・今後の予定 — わかりやすい言葉で。何でも検索。",
-  faqSearch: "FAQを検索 — 「svg」「非公開」「光沢」「ライセンス」など…",
-  faqEnNote: "回答は現在英語が中心です — 翻訳は順次追加されます。",
+  faqSub: "製品・コントロール・ファイル・料金・今後の予定。わかりやすい言葉で。何でも検索。",
+  faqSearch: "FAQを検索：「svg」「非公開」「光沢」「ライセンス」など…",
+  faqEnNote: "回答は現在英語が中心です。翻訳は順次追加されます。",
 };
 
 const TABLES: Record<Locale, Table> = { en: EN, zh: ZH, fr: FR, es: ES, it: IT, de: DE, ja: JA };

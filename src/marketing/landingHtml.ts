@@ -55,8 +55,9 @@ export const LANDING_HTML = `</head>
       <div class="shell hero2">
         <div class="hero2-copy">
           <div class="eyebrow reveal-in e1">BROWSER-BASED GAME UI TOOL</div>
-          <h1 class="h1b reveal-in e2">Design a <br>UI kit in <br><span class="seconds-grad">seconds!</span></h1>
-          <p class="hero2-sub reveal-in e3">Tweak a real button right here — color, shape, shine — then push it into a whole production-ready kit. Every pixel comes from a <em class="hl hl-w">deterministic</em> engine, <em class="hl">not AI</em>, so what you make is <em class="hl hl-w">yours</em> to ship, sell, and own.</p>
+          <h1 class="h1b reveal-in e2">Design one <br>button. <br><span class="seconds-grad">Ship the whole <br>game UI.</span></h1>
+          <p class="hero2-lede reveal-in e3">Custom game-UI kits, already working in Unity.</p>
+          <p class="hero2-sub reveal-in e3">Tweak a real button right here, then push it into 115+ coordinated components: four real states, editable text and live prefabs, all in your art direction. Every pixel comes from a <em class="hl hl-w">deterministic</em> engine, <em class="hl">not AI</em>, so what you make is <em class="hl hl-w">yours</em> to ship in any game or product you sell.*</p>
           <div class="hero2-actions reveal-in e4">
             <a class="cta primary" href="#generator" data-cta="open-generator">Open the generator →</a>
             <button class="cta" type="button" data-cta="sign-in">Sign in</button>
@@ -121,7 +122,7 @@ export const LANDING_HTML = `</head>
                 <div class="b2-pieces" id="b2Pieces"></div>
               </div>
             </div>
-            <div class="bd-call" id="bdCall" hidden aria-hidden="true"><b id="bdCall1">TEST YOUR DESIGNS</b><span id="bdCall2">See it in context — your kit, over real screens.</span></div>
+            <div class="bd-call" id="bdCall" hidden aria-hidden="true"><b id="bdCall1">TEST YOUR DESIGNS</b><span id="bdCall2">See it in context: your kit, over real screens.</span></div>
             <div class="pv-ship" id="pvShip" hidden>
               <div class="ship-wrap">
               <div class="ship-card">
@@ -130,12 +131,12 @@ export const LANDING_HTML = `</head>
                 <div class="ship-rows">
                   <div class="ship-row" style="--i:0"><em>✓</em><b>engine/</b><span>unity.json · unreal.json</span></div>
                   <div class="ship-row" style="--i:1"><em>✓</em><b>web/</b><span>kit.html · kit.css</span></div>
-                  <div class="ship-row" style="--i:2"><em>✓</em><b>vector/</b><span>SVG — every component</span></div>
+                  <div class="ship-row" style="--i:2"><em>✓</em><b>vector/</b><span>SVG · every component</span></div>
                   <!-- cross-lane touch (app session, 2026-08-17): the NEVER-listed fixed-scale PNG claim corrected (owner-authorized) -->
                   <div class="ship-row" style="--i:3"><em>✓</em><b>raster/</b><span>PNG up to @4×</span></div>
                   <div class="ship-row" style="--i:4"><em>✓</em><b>boards/</b><span>board-1.png · 1920 × 1080</span></div>
                 </div>
-                <div class="ship-line" id="shipLineTxt">Yours to ship — in any game or product you sell.*</div>
+                <div class="ship-line" id="shipLineTxt">Yours to ship, in any game or product you sell.*</div>
               </div>
               <div class="ship-list">
                 <div class="ship-list-head"><b>⇣</b><span id="shipCount">0 / 0</span></div>
@@ -144,8 +145,8 @@ export const LANDING_HTML = `</head>
               </div>
 
               <div class="ship-end" id="shipEnd" hidden>
-                <b class="se-flash" id="seFlash">GG — KIT SHIPPED.</b>
-                <span class="se-sub" id="seSub">Master, kit, board, out the door — now make one that's really yours.</span>
+                <b class="se-flash" id="seFlash">GG. KIT SHIPPED.</b>
+                <span class="se-sub" id="seSub">Master, kit, board, out the door. Now make one that's really yours.</span>
                 <div class="se-cta" id="seOpen" role="button" tabindex="0" aria-label="Open the generator"></div>
                 <div class="se-row">
                   <button type="button" class="se-ghost" id="seAgain">MAKE ANOTHER</button>
@@ -237,7 +238,7 @@ export const LANDING_HTML = `</head>
     <section class="stats-band" aria-label="What you get">
       <div class="shell">
         <div class="sb-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.6"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg><span><b id="sb1t">1 MASTER COMPONENT</b><i id="sb1s">Infinite variations.</i></span></div>
-        <div class="sb-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m12 2 9 5-9 5-9-5z"/><path d="M3 12l9 5 9-5M3 17l9 5 9-5"/></svg><span><b id="sb2t">46 COMPONENTS</b><i id="sb2s">Every essential.</i></span></div>
+        <div class="sb-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m12 2 9 5-9 5-9-5z"/><path d="M3 12l9 5 9-5M3 17l9 5 9-5"/></svg><span><b id="sb2t">115+ COMPONENTS</b><i id="sb2s">Every essential.</i></span></div>
         <div class="sb-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg><span><b id="sb3t">4 STATES</b><i id="sb3s">Always in sync.</i></span></div>
         <div class="sb-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 16V5M8 8l4-4 4 4M4 21h16"/></svg><span><b id="sb4t">EXPORT ANYWHERE</b><i id="sb4s">Engines, web, PNG, SVG.</i></span></div>
       </div>
@@ -322,7 +323,7 @@ export const LANDING_HTML = `</head>
                 </div>
               </div>
             </div>
-            <figcaption><b>The Editor.</b> Every dial from the hero — and a hundred more. States live on the right, presets one click away.</figcaption>
+            <figcaption><b>The Editor.</b> Every dial from the hero, and a hundred more. States live on the right, presets one click away.</figcaption>
           </figure>
 
           <!-- 2 · THE KIT SHEET -->
@@ -334,7 +335,7 @@ export const LANDING_HTML = `</head>
                   <span class="af-chip">DESIGN SYSTEM</span>
                   <b>The Hero Chisel Kit</b>
                   <div class="af-stats"><span><b>5</b> LEVELS</span><span><b>90+</b> COMPONENTS</span><span><b>20+</b> ASSEMBLIES</span></div>
-                  <span class="af-export">⭳ Export — Engine kit (ZIP)</span>
+                  <span class="af-export">⭳ Export · Engine kit (ZIP)</span>
                 </div>
                 <div class="af-explode" aria-hidden="true">
                   <i class="x1"></i><i class="x2"></i><i class="x3"></i><i class="x4"></i>
@@ -342,7 +343,7 @@ export const LANDING_HTML = `</head>
                 </div>
               </div>
             </div>
-            <figcaption><b>The Kit.</b> Your design becomes a living guideline sheet — layers, roles, and every component documented.</figcaption>
+            <figcaption><b>The Kit.</b> Your design becomes a living guideline sheet: layers, roles, and every component documented.</figcaption>
           </figure>
 
           <!-- 3 · THE BOARD -->
@@ -358,7 +359,7 @@ export const LANDING_HTML = `</head>
                 <div class="af-slots"><i></i><i></i><i></i><i></i></div>
               </div>
             </div>
-            <figcaption><b>The Board — the big payoff.</b> Stage your kit over real screens, tune the backdrop, export artboards.</figcaption>
+            <figcaption><b>The Board: the big payoff.</b> Stage your kit over real screens, tune the backdrop, export artboards.</figcaption>
           </figure>
 
           <!-- 4 · SHIPPED HUD (full bleed) -->
@@ -396,7 +397,7 @@ export const LANDING_HTML = `</head>
               </div>
               <div class="exp-view" id="expView"></div>
             </div>
-            <figcaption><b>Yours, in every format — roll over each one.</b> Engine-ready structure for Unity and Unreal, layered vectors for design tools, clean HTML for the web.</figcaption>
+            <figcaption><b>Yours, in every format. Roll over each one.</b> Engine-ready structure for Unity and Unreal, layered vectors for design tools, clean HTML for the web.</figcaption>
           </figure>
         </div>
       </div>
@@ -426,7 +427,7 @@ export const LANDING_HTML = `</head>
       <div class="compat-band reveal" id="compatBand">
         <div class="compat-track" id="compatTrack"></div>
       </div>
-      <p class="compat-hint reveal" id="compatHint">Roll over a logo — here's how your kit lands there.</p>
+      <p class="compat-hint reveal" id="compatHint">Roll over a logo. Here's how your kit lands there.</p>
     </section>
 
     <section class="ownership-section" aria-labelledby="ownershipTitle">
@@ -435,11 +436,12 @@ export const LANDING_HTML = `</head>
         <div class="ownership-copy reveal">
           <div class="ownership-badge">Yours, for real</div>
           <h2 id="ownershipTitle">No AI. No templates. <em>No gray areas.</em></h2>
-          <p>Every kit is drawn by a deterministic design engine — not a model trained on other people’s work. Nothing is scraped, nothing is “in the style of” someone else. What you make is unique to your settings, and it’s yours to ship, sell, and call your own.</p>
+          <p>Every kit is drawn by a deterministic design engine, not a model trained on other people’s work. Nothing is scraped, nothing is “in the style of” someone else. What you make is unique to your settings, and it’s yours to ship, sell, and call your own.</p>
           <ul class="own-proof">
-            <li id="ownR1">Every kit ships with its own recipe — every colour, token, and type setting written out, plus a settings file that loads straight back into the app.</li>
+            <li id="ownR1">Every kit ships with its own recipe: every colour, token, and type setting written out, plus a settings file that loads straight back into the app.</li>
             <li id="ownR2">Every typeface the kit uses is named, linked, and free for commercial use.</li>
           </ul>
+          <p class="own-tech" id="ownTech">Powered by a deterministic parametric design engine with true app-to-Unity parity.</p>
           <p class="own-lic" id="ownLic"></p>
         </div>
         <div class="ownership-seal reveal" aria-hidden="true">
@@ -458,7 +460,7 @@ export const LANDING_HTML = `</head>
         <div class="math-header reveal">
           <p class="section-label" id="cmLbl">PLAYER-MADE</p>
           <h2 class="section-title" id="cmTitle">Built by players. <em>Yours to remix.</em></h2>
-          <p class="cm-sub" id="cmSub">Open any kit, remix everything — every card is drawn live in your browser from the kit's real settings, by the same engine you just played with.</p>
+          <p class="cm-sub" id="cmSub">Open any kit, remix everything. Every card is drawn live in your browser from the kit's real settings, by the same engine you just played with.</p>
         </div>
         <div class="cm-cards" id="cmCards"></div>
         <div class="cm-ctarow reveal">
@@ -483,7 +485,7 @@ export const LANDING_HTML = `</head>
             <span class="step-ghost" aria-hidden="true">01</span>
             <span class="step-tag">STEP 01</span>
             <h3>Design the master</h3>
-            <p>Tune one component — silhouette, material, type, and its four states.</p>
+            <p>Tune one component: silhouette, material, type, and its four states.</p>
             <div class="sv-master">
               <div class="sv-hero" data-eng="hero" aria-hidden="true"></div>
               <div class="states-tabs sv-tabs" id="svTabs" role="tablist" aria-label="Master states">
@@ -523,7 +525,7 @@ export const LANDING_HTML = `</head>
             <span class="step-ghost" aria-hidden="true">03</span>
             <span class="step-tag">STEP 03</span>
             <h3>Export or share</h3>
-            <p>Download an engine kit, HTML, SVG, or PNG — or publish a live link.</p>
+            <p>Download an engine kit, HTML, SVG, or PNG, or publish a live link.</p>
             <div class="sv-export" aria-hidden="true">
               <div class="sv-x"><i>PNG</i><span>PNG</span><em>›</em></div>
               <div class="sv-x"><i>SVG</i><span>SVG</span><em>›</em></div>
@@ -534,7 +536,7 @@ export const LANDING_HTML = `</head>
             <span class="step-foot">[ READY FOR EVERYWHERE ]</span>
           </article>
         </div>
-        <p class="steps-iter reveal" id="stepsIter">And it never locks: pop back to the master, turn a dial, and the whole system re-flows — kit, boards, exports. Iterate toward what’s best for the whole. (Also, it’s just fun to keep playing.)</p>
+        <p class="steps-iter reveal" id="stepsIter">And it never locks: pop back to the master, turn a dial, and the whole system re-flows: kit, boards, exports. Iterate toward what’s best for the whole. (Also, it’s just fun to keep playing.)</p>
       </div>
     </section>
 
@@ -553,7 +555,7 @@ export const LANDING_HTML = `</head>
           <div class="f2-float f2-hud f2-h5" aria-hidden="true"><small>PROGRESS</small><span class="f2-art f2-art--wide" id="f2HudProg"></span><b>72%</b></div>
           <div class="final2-content">
             <p class="f2-eyebrow" id="f2Eyebrow">THREE MOVES. ONE COMPLETE SYSTEM.</p>
-            <h2 id="finalTitle">Start building —<br><span class="f2-grad">nothing to install.</span></h2>
+            <h2 id="finalTitle">Start building.<br><span class="f2-grad">Nothing to install.</span></h2>
             <p class="f2-sub" id="finalSub">The editor runs entirely in your browser. Start with <b class="f2-hl">Free Explorer</b>, then upgrade when you’re ready for the full production toolkit.</p>
             <button class="f2-cta" type="button" data-cta="open-generator"><i>⚡</i><span id="f2CtaTxt">START BUILDING</span><em>→</em></button>
             <div class="f2-feats">
@@ -563,7 +565,7 @@ export const LANDING_HTML = `</head>
               <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><b id="fin4t">YOURS TO SHIP</b><i id="fin4s">Sell &amp; own*</i></div>
             </div>
             <!-- cross-lane touch (app session, 2026-08-17): Gate Round — free-PNG-export claim retired; exports are paid -->
-            <p class="f2-free"><span class="f2-check">✓</span> <span id="f2Free">Selected kits free to play — exporting your designs is the Pro unlock.</span></p>
+            <p class="f2-free"><span class="f2-check">✓</span> <span id="f2Free">Selected kits free to play. Exporting your designs is the Pro unlock.</span></p>
           </div>
         </div>
       </div>
@@ -578,7 +580,7 @@ export const LANDING_HTML = `</head>
 <img class="brand-mark" src="data:image/png;base64,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" alt="" width="26" height="26">
             <span><strong>UI Kit Maker</strong> by PatternBreak</span>
           </div>
-          <p class="footer-tag" id="fpTag">Game-ready UI kits from one master component — drawn by a deterministic engine, never scraped.</p>
+          <p class="footer-tag" id="fpTag">Game-ready UI kits from one master component, drawn by a deterministic engine, never scraped.</p>
           <p class="footer-copy" id="fpCopy">© 2026 PatternBreak. All rights reserved.</p>
           <p class="footer-copy" title="Which build this page is running">build ${__BUILD_STAMP__}</p>
         </div>
@@ -600,7 +602,7 @@ export const LANDING_HTML = `</head>
         </nav>
         <div class="footer-col footer-colnews">
           <h4 id="fpNewsH">STAY IN THE LOOP</h4>
-          <p class="footer-newsp" id="fpNewsP">New components, presets, and features — a short email now and then. No spam, unsubscribe anytime.</p>
+          <p class="footer-newsp" id="fpNewsP">New components, presets, and features. A short email now and then. No spam, unsubscribe anytime.</p>
           <form class="footer-news" id="fpForm" novalidate>
             <input type="email" id="fpEmail" placeholder="you@studio.com" autocomplete="email" aria-label="Email address">
             <input type="text" id="fpHp" class="fp-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
