@@ -1178,7 +1178,10 @@ const releaseBgAsset = (id: string, remaining: () => BoardDef[]) => {
    (bgData) and drops session-bound object URLs and vault keys — the file
    works on any machine. Bundled paths (/backdrops/…) and https URLs ride
    as they are. Import is the mirror: bgData lands back in the vault under
-   a fresh key, every id is re-minted, and board history starts clean. */
+   a fresh key, board history starts clean, and the doc's own well-formed
+   ids ride along (the boardstamp filenames derive from them — see the id
+   contract at importBoards); only absent, foreign or duplicated ids mint
+   fresh. */
 const bgDataUrlOk = (s: string) => /^data:image\/(png|jpeg|webp|gif|avif);base64,[A-Za-z0-9+/=]+$/.test(s);
 const blobToDataUrl = (blob: Blob) => new Promise<string>((res, rej) => {
   const r = new FileReader();
@@ -1218,20 +1221,45 @@ export async function exportableBoards(bs: BoardDef[], opts?: { cloudRefs?: bool
    looking at (review catch: "B's kit with A's boards"). Every call takes
    a ticket; only the newest may write. */
 let importTicket = 0;
+/* ── the ID CONTRACT on the project-doc road (editability round, paper
+   cut 3): the Unity export names every boardstamp bake by its item's id
+   (sidOf), so re-minting ids on every open renamed the WHOLE corpus each
+   session — a kept Unity project ate a ~140-file orphan warning wall and
+   dead megabytes per update, and the importer's "re-exports overwrite
+   them in place" promise went silently false across sessions. A saved
+   doc's own ids are therefore PRESERVED when they wear the house mint
+   shape (lowercase base36 — the only shape safe in the DOM attribute
+   selectors and zip paths they feed) and are unique within the incoming
+   doc; everything else — absent (hand-built files), foreign shapes,
+   duplicates — mints fresh exactly as before. This is safe because the
+   import REPLACES the board state wholesale (selection and history reset
+   with it), so a preserved id can collide with nothing outside its own
+   doc — and the local-storage road (loadBoards) has preserved ids
+   verbatim since boards shipped, so every board rig already runs on
+   kept ids after a plain browser reload. */
+const boardIdOk = /^ab[a-z0-9]{1,32}$/;
+const itemIdOk = /^bd[a-z0-9]{1,32}$/;
 export async function importBoards(raw: unknown): Promise<boolean> {
   if (!Array.isArray(raw) || !raw.length) return false;
   const ticket = ++importTicket;
   const stamp = Date.now().toString(36);
   const boards: BoardDef[] = [];
+  const seenIds = new Set<string>();
+  const claimId = (want: unknown, ok: RegExp, mint: string): string => {
+    let id = typeof want === "string" && ok.test(want) && !seenIds.has(want) ? want : mint;
+    while (seenIds.has(id)) id += "x"; // same-doc duplicate → deterministic fresh name
+    seenIds.add(id);
+    return id;
+  };
   for (const [bi, rb] of (raw as unknown[]).entries()) {
     if (!rb || typeof rb !== "object") continue;
     const b = JSON.parse(JSON.stringify(rb)) as BoardDef & { bgData?: string; bgRef?: string };
-    b.id = "ab" + stamp + bi.toString(36);
+    b.id = claimId(b.id, boardIdOk, "ab" + stamp + bi.toString(36));
     b.name = typeof b.name === "string" ? b.name.slice(0, 40) : `Board ${bi + 1}`;
     b.aspect = b.aspect === "mobile" ? "mobile" : "169";
     b.items = Array.isArray(b.items)
       ? b.items.filter((it) => it && typeof it === "object")
-        .map((it, i) => ({ ...it, id: "bd" + stamp + bi.toString(36) + "i" + i.toString(36) }))
+        .map((it, i) => ({ ...it, id: claimId((it as BoardItem).id, itemIdOk, "bd" + stamp + bi.toString(36) + "i" + i.toString(36)) }))
       : [];
     // strings that end up in CSS url() get the same strictness as
     // loadKitPayload's travelling stage: known-safe shapes only
