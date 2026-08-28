@@ -9018,7 +9018,7 @@ namespace PatternBreak {
       Transform parent = null;
       if (ctxGo != null) parent = ctxGo.transform;
       // FindAnyObjectByType: the non-deprecated finder on every rung we ship
-      // (2022.3+); FindFirstObjectByType went CS0618 on Unity 6000.5
+      // (2022.3+); the First-flavored finder went CS0618 on Unity 6000.5
       if (parent == null) { var cv = UnityEngine.Object.FindAnyObjectByType<Canvas>(); if (cv != null) parent = cv.transform; }
       if (parent != null) go.transform.SetParent(parent, false);
       var prt = go.transform as RectTransform;
@@ -9144,9 +9144,9 @@ namespace PatternBreak {
          Unity's warning is exactly that asset (and the tripwire will
          block the save and name the flusher's stack) */
       try {
-        /* reference-identity dedup — GetInstanceID() is obsolete-as-ERROR on
-           Unity 6000.5+ (GetEntityId), and GetEntityId doesn't exist below it;
-           a HashSet of the objects themselves is version-proof */
+        /* reference-identity dedup — the instance-id API is obsolete-as-ERROR
+           on Unity 6000.5+ and its successor doesn't exist below it; a
+           HashSet of the objects themselves is version-proof */
         var seen = new HashSet<UnityEngine.Object>();
         foreach (var oA in Resources.FindObjectsOfTypeAll<ScriptableObject>()) findings += ReportDirtyPackageAsset(oA, seen);
         foreach (var oA in Resources.FindObjectsOfTypeAll<Material>()) findings += ReportDirtyPackageAsset(oA, seen);
