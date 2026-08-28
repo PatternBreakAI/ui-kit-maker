@@ -8703,7 +8703,10 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          <linearGradient id="${gid2}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient></defs>` +
         (showAvatar
           ? `<path d="${roundRect(sx, sy2, slotS, slotS, 10 * k)}" fill="${wellFill}" opacity="0.92"/>` +
-            (opts.icon === null ? "" : themedIcon(icon, sx + slotS * 0.2, sy2 + slotS * 0.2, slotS * 0.6, glow, 2))
+            // the portrait glyph is marked swappable ink (maximum-editability
+            // law): the engine export strips it and ships it as a live Image
+            // child — drop YOUR portrait sprite on it; the well plate stays
+            (opts.icon === null ? "" : `<g data-part="icon" data-icon="portrait">${themedIcon(icon, sx + slotS * 0.2, sy2 + slotS * 0.2, slotS * 0.6, glow, 2)}</g>`)
           : "") +
         `<g clip-path="url(#${gid2}c)">` +
         contentText(title, tx, 30 + titleBase + ((R2.titleDy ?? 0) + (R2.blockDy ?? 0) + (opts.textOy ?? 0)) * k, fsT, { keepCase: true, track: R2.titleTrack ?? 0, opacity: dim }) +
@@ -8723,18 +8726,25 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
               const trackH = 16 * k, mercH = 10 * k, gapM = (trackH - mercH) / 2;
               const mercW = Math.max(0, fillW2 - gapM * 2);
               const rfx = barFx(gid2, tx + gapM, barY, mercW, mercH, mercH / 2);
+              // the mercury is marked swappable ink (maximum-editability
+              // law): the engine export strips it into a live Image child
+              // (stretch it to your value, or swap the sprite); the sunken
+              // track stays anatomy
               return `<defs>${rfx.defs}</defs><path d="${roundRect(tx, barY - gapM, barW, trackH, trackH / 2)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.8)}" stroke="rgba(0,0,0,0.35)" stroke-width="1"/>` +
-                (mercW > 1 ? `${rfx.open}<path d="${roundRect(tx + gapM, barY, mercW, mercH, mercH / 2)}" fill="url(#${gid2})" opacity="${dim}"/>${rfx.close}${rfx.over}` : "");
+                (mercW > 1 ? `<g data-part="icon" data-icon="barfill">${rfx.open}<path d="${roundRect(tx + gapM, barY, mercW, mercH, mercH / 2)}" fill="url(#${gid2})" opacity="${dim}"/>${rfx.close}${rfx.over}</g>` : "");
             })()
           : "") +
+        // the trailing action is marked swappable ink (maximum-editability
+        // law): the engine export strips it and ships it as a live Image
+        // child — per-copy poses (locked/check/alert) ride the posed road
         (!showAction ? ""
-          : ov === "locked"
+          : `<g data-part="icon" data-icon="action">${ov === "locked"
             ? iconGroup(STOCK_ICONS.lock, 39 + w - 52 * k, 30 + h / 2 - 14 * k, 28 * k, "rgba(255,255,255,0.75)", { strokeWidth: 2.2 * iconWK })
             : ov === "check"
               ? iconGroup(STOCK_ICONS.check, 39 + w - 52 * k, 30 + h / 2 - 14 * k, 28 * k, glow, { strokeWidth: 2.6 * iconWK })
               : ov === "alert"
                 ? iconGroup(STOCK_ICONS.warning, 39 + w - 52 * k, 30 + h / 2 - 14 * k, 28 * k, hexMix(glow, "#FFFFFF", 0.3), { strokeWidth: 2.2 * iconWK })
-                : iconGroup(STOCK_ICONS.forward, 39 + w - 48 * k, 30 + h / 2 - 12 * k, 24 * k, "rgba(255,255,255,0.6)", { strokeWidth: 2.4 * iconWK }));
+                : iconGroup(STOCK_ICONS.forward, 39 + w - 48 * k, 30 + h / 2 - 12 * k, 24 * k, "rgba(255,255,255,0.6)", { strokeWidth: 2.4 * iconWK })}</g>`);
       return inject(track, parts);
     }
     case "joystick": {

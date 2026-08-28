@@ -3362,7 +3362,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     { id: "input", family: "input", h: 124, usage: "Input field surface (well included). Nothing is baked into it — the placeholder ships as a live text layer on the prefab, and the value and caret are engine widgets." },
     { id: "panel", family: "panel", h: 380, usage: "Container / window. Content is engine layout." },
     { id: "header", family: "header-banner", h: 158, usage: "Header banner. Title is live engine text." },
-    { id: "datarow", family: "list-row", h: 128, usage: "List row surface. Portrait, texts and bar are separate engine elements." },
+    { id: "datarow", family: "list-row", h: 128, usage: "Data row — the app's own catalog name (the prefab is DataRow). Portrait, mini-progress mercury and the trailing action are LIVE Image children; title and subtitle are live seats; the well plate and bar track stay anatomy." },
     { id: "slot", family: "item-slot", h: 128, usage: "Item slot frame + well. Item icon and count are engine content." },
   ];
   /* the prefab's DEFAULT rect wears the kit's WORDS — see PREF_LABEL at
@@ -3386,8 +3386,14 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
        no way to take it off (owner: "I didn't realize the text would be
        burned into the image"). It ships as a live text layer on the prefab
        instead: editable, or deletable in one keystroke. */
+    /* the DATA ROW bakes WITH its app anatomy now (slice 4a — owner: "is
+       this the same as a Data row? it's missing some stuff"): portrait
+       well, mini progress and trailing action render like the app draws
+       them; the swappable parts (portrait glyph, mercury, action) are
+       marked icon ink and ride the un-burn into live children. Words
+       stay ghosted-live as always. */
     const rowOpts: Record<string, unknown> = n.id === "datarow"
-      ? { row: { title: "", sub: "", avatar: false, progress: false, action: false } as never }
+      ? { row: { title: "", sub: "" } as never, icon: resolveKitIcon(st.kitIcons?.datarow, undefined) }
       : n.id === "input" ? { placeholder: false } : {};
     /* LABELED-GEOMETRY bake: a fluid silhouette redraws its decorated ends
        at whatever width its words need — baked labeless, the shell hugged
@@ -3525,10 +3531,15 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
        with the maker's words and the SAME toggles as this bake (portrait,
        bar and action stay separate engine elements) */
     const rowSeats = n.id === "datarow"
-      ? textSeatsOf("datarow", fullSvg, { row: { avatar: false, progress: false, action: false } }, ghost(slim))
+      ? textSeatsOf("datarow", fullSvg, { row: {} }, ghost(slim))
       : {};
-    await addPng(`${n.family}/base.9.png`, fullSvg,
-      { component: n.family, part: "base", nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: n.usage, ...(famFlip ? { flip: true } : {}), ...(pref ?? {}), ...(labelMeta ?? {}), ...(word !== undefined ? { labelText: word } : {}), ...(iconMeta ? { icon: iconMeta } : {}), ...rowSeats }, true, swap ? n.family : undefined);
+    /* the data row's marked parts leave the pixels (the un-burn) — each
+       ships as its own sprite + live seat; every other NINE family's
+       bake passes through byte-identical (no marked groups). */
+    const nineIconSeats = n.id === "datarow" ? await iconSeatsOf(n.id, fullSvg, n.family) : null;
+    const nineBaseSvg = nineIconSeats ? stripIconInk(fullSvg).svg : fullSvg;
+    await addPng(`${n.family}/base.9.png`, nineBaseSvg,
+      { component: n.family, part: "base", nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: n.usage, ...(famFlip ? { flip: true } : {}), ...(pref ?? {}), ...(labelMeta ?? {}), ...(word !== undefined ? { labelText: word } : {}), ...(iconMeta ? { icon: iconMeta } : {}), ...rowSeats, ...(nineIconSeats ? { iconSeats: nineIconSeats } : {}) }, true, swap ? n.family : undefined);
     /* the glyph itself ships white and tintable beside the kit — custom
        library picks included, so the prefab never hunts a stock file */
     if (iconMeta && chipIconDef) {
@@ -3552,7 +3563,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           { component: "chip", part: "icon-stroke", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "The chip glyph's OUTLINE pass, white — the prefab tints it to the kit's outline ink and layers it under the fill (the Stroke (echo) child). Padded canvas: the wider pen needs the air." });
       }
     }
-    const flatSvg = shell(n.id, wordOpts, ghost((c) => { slim(c); flat(c); }));
+    const flatSvg0 = shell(n.id, wordOpts, ghost((c) => { slim(c); flat(c); }));
+    const flatSvg = nineIconSeats ? stripIconInk(flatSvg0).svg : flatSvg0;
     await addPng(`${n.family}/base-flat.9.png`, flatSvg,
       { component: n.family, part: "base-flat", nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "Flat variant (no gloss/specular/pattern) — tint freely or layer your own effects above it." }, true);
     /* interactive pieces ship their DESIGNED states for engine Sprite Swap —
@@ -3572,7 +3584,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         for (const fG of Object.values(c.stateDesigns)) if (fG?.transparency) fG.transparency = { ...fG.transparency, content: 0 };
       };
       for (const stName of ["hover", "pressed", "disabled"] as const) {
-        await addPng(`${n.family}/base-${stName}.9.png`, stateShell(n.id, stName, wordOpts, undefined, true, word !== undefined ? ghostStates : undefined),
+        await addPng(`${n.family}/base-${stName}.9.png`, (nineIconSeats ? (sv9: string) => stripIconInk(sv9).svg : (sv9: string) => sv9)(stateShell(n.id, stName, wordOpts, undefined, true, word !== undefined ? ghostStates : undefined)),
           { component: n.family, part: `base-${stName}`, nineSlice: slice, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: `The kit's designed ${stName} state — Sprite Swap slot: ${SWAP[stName]}. Same nine-slice and coordinate space as base (union-cropped together). Glow and lift stay engine-composed (fx/fx-glow.png, a small translate).` }, true, n.family);
       }
     }
@@ -9436,7 +9448,7 @@ namespace PatternBreak {
     // panels & frames
     [MenuItem("GameObject/UI Kit Maker/Panel", false, 50)] static void PBGoPanel(MenuCommand c) { PlaceKitPrefab("Panel", c); }
     [MenuItem("GameObject/UI Kit Maker/Header Banner", false, 51)] static void PBGoHeader(MenuCommand c) { PlaceKitPrefab("HeaderBanner", c); }
-    [MenuItem("GameObject/UI Kit Maker/List Row", false, 52)] static void PBGoRow(MenuCommand c) { PlaceKitPrefab("ListRow", c); }
+    [MenuItem("GameObject/UI Kit Maker/Data Row", false, 52)] static void PBGoRow(MenuCommand c) { PlaceKitPrefab("DataRow", "ListRow", c); }
     [MenuItem("GameObject/UI Kit Maker/Item Slot", false, 53)] static void PBGoSlot(MenuCommand c) { PlaceKitPrefab("ItemSlot", c); }
     [MenuItem("GameObject/UI Kit Maker/Scroll View", false, 54)] static void PBGoScroll(MenuCommand c) { PlaceKitPrefab("ScrollView", c); }
     // showpieces
@@ -10432,6 +10444,7 @@ namespace PatternBreak {
         EnsureGradientPreset(root, manifest);
 #endif
         ShelveGlyphPrefabs(root); // root-level glyphs move BEFORE the rebuild — no Glyphs/ twins beside originals
+        RenameDataRowPrefab(root); // and the rename valet, so a rebuild can't mint ListRow beside DataRow
         GeneratePrefabs(root, manifest);
         Debug.Log("UI Kit Maker: regenerated the example prefabs under " + root + "/Prefabs.");
       }
@@ -10781,8 +10794,8 @@ namespace PatternBreak {
           ("BUTTONS", new[] { "ButtonPrimary", "ButtonSecondary", "ButtonSmall", "Iconbtn", "Chip", "Endturn", "Keycap", "Pricebtn", "Claimbtn", "Ghost" }),
           ("CHOICE CONTROLS & FIELDS", new[] { "Checkbox", "Radio", "CheckboxToggle", "RadioToggle", "Switch", "Input", "Dropdown", "Joystick", "JoystickGhost", "Firebutton" }),
           ("SLIDERS & PROGRESS", new[] { "Slider", "ProgressBar", "SegmentMeter", "VsBar", "EmblemBar", "HealthGlobe", "Ring", "SeasonTrack" }),
-          ("NAVIGATION & CHROME", new[] { "Tab", "TabBack", "Bottomnav", "HeaderBanner", "Panel", "ListRow", "ItemSlot", "ScrollView", "Badge", "CountBadge", "Avatarframe" }),
-          ("HUD & DATA", new[] { "Timer", "Resource", "Currency", "Movecounter", "Qtybadge", "MoveCounter", "Achievement", "Leaderboard", "LapTimes", "Telemetry", "Minimap" }),
+          ("NAVIGATION & CHROME", new[] { "Tab", "TabBack", "Bottomnav", "HeaderBanner", "Panel", "DataRow", "ItemSlot", "ScrollView", "Badge", "CountBadge", "Avatarframe" }),
+          ("HUD & DATA", new[] { "Timer", "Resource", "Currency", "Movecounter", "Qtybadge", "Orb", "Achievement", "Leaderboard", "LapTimes", "Telemetry", "Minimap" }),
           ("GAUGES", new[] { "Speedo", "SpeedoArc", "RevMeter" }),
           ("GAME SYSTEMS", new[] { "Levelnode", "Dailycell", "Boostercard", "Rewardcard", "Gifticon", "Trophyicon", "Gearicon", "LootTag", "RarityFrame", "Circuit", "Startlights" }),
         };
@@ -10790,6 +10803,11 @@ namespace PatternBreak {
         foreach (var p in prefabs) if (!byName.ContainsKey(p.name)) byName[p.name] = p;
         var claimed = new HashSet<string>();
         foreach (var sec in SECTIONS) foreach (var n in sec.names) claimed.Add(n);
+        /* zero overlaps (slice 4b): the extras MoveCounter picture twin
+           stays a Prefabs/ flavor — the universal Movecounter (live
+           seats, posed skins) is the family's one shelf spot. Claimed
+           without a section = never shelved, never resurrected by MORE. */
+        claimed.Add("MoveCounter");
         /* the glyph rack and the kit's board art shelve as their own
            chapters, names gathered from their folders (any count) */
         var glyphNames = new List<string>();
@@ -11999,7 +12017,7 @@ namespace PatternBreak {
             }
           } else {
             // composed rigs publish under their own prefab names
-            var pfName = NiceName(it.component);
+            var pfName = PrefabNameOf(it.component);
             if (it.component == "progress") pfName = "ProgressBar";
             else if (it.component == "speedo") pfName = "Speedo";
             else if (it.component == "speedo2") pfName = "SpeedoArc";
@@ -12023,6 +12041,8 @@ namespace PatternBreak {
             if (it.component != null && it.component.StartsWith("glyph"))
               pf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/Glyphs/" + pfName + ".prefab");
             if (pf == null) pf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/" + pfName + ".prefab");
+            // a kept project mid-heal may still hold the pre-rename file
+            if (pf == null && it.component == "list-row") pf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/ListRow.prefab");
             /* a STRETCHED piece smears its face pattern through the
                nine-slice center (owner: "look at how the pattern inside
                the button scales") — the tiled-face build is made for
@@ -14231,6 +14251,10 @@ namespace PatternBreak {
     /* one prefab per component family (owner: "a ton of prefabs") — any
        family shipping a base sprite gets one; state variants wire a
        Button with the kit's own hover/pressed/disabled recipes. */
+    /* the PREFAB name speaks the APP's catalog language (slice 4a — the
+       owner does not recognize "List Row"; the app calls the family
+       "Data row"). One seam for builder, placement and the rename valet. */
+    static string PrefabNameOf(string family) { return family == "list-row" ? "DataRow" : NiceName(family); }
     static string NiceName(string family) {
       var sb = new System.Text.StringBuilder();
       bool up = true;
@@ -17776,6 +17800,11 @@ namespace PatternBreak {
          each carries a README note naming what a dev swaps */
       if (PicturePrefab(dir, root, pngScale, m, "circuit/circuit-track.png", "Circuit", false)) any = true;
       if (PicturePrefab(dir, root, pngScale, m, "startlights/startlights-base.png", "Startlights", false)) any = true;
+      /* the glow orb joins the shelf (slice 4b — Playground has
+         EVERYTHING): it ships lit + off sprites but had no prefab and no
+         catalog spot. One placeable piece, lit by default — swap the
+         sprite to orb-off in the Inspector for the dark pose. */
+      if (PicturePrefab(dir, root, pngScale, m, "orb/orb-lit.png", "Orb", false)) any = true;
       /* the gauges are LIVE bones: needle + seated readout on a GaugeDial */
       if (GaugePrefab(dir, root, pngScale, m, "speedo", "Speedo", "speedo/speedo-face.png")) any = true;
       if (GaugePrefab(dir, root, pngScale, m, "speedo2", "SpeedoArc", "speedo2/speedo2-face.png")) any = true;
@@ -17847,7 +17876,7 @@ namespace PatternBreak {
           if (!AssetDatabase.IsValidFolder(glyphDir)) AssetDatabase.CreateFolder(dir, "Glyphs");
           famDir2 = glyphDir;
         }
-        if (FamilyPrefab(famDir2, root, a, NiceName(a.component), label, pngScale, kitFont, m)) {
+        if (FamilyPrefab(famDir2, root, a, PrefabNameOf(a.component), label, pngScale, kitFont, m)) {
           any = true;
           if (famDir2 == glyphDir) anyGlyph = true;
         }
@@ -18125,10 +18154,32 @@ namespace PatternBreak {
       if (shelfMisses.Count > 0)
         Debug.LogWarning("UI Kit Maker: " + shelfMisses.Count + " glyph prefab(s) stayed at the Prefabs root (" + string.Join(", ", shelfMisses.ToArray()) + ") — a file with that name already lives in Prefabs/Glyphs, or the move was refused. Nothing was overwritten.");
     }
+    /* ── the DATA ROW rename valet (slice 4a): kept projects' ListRow
+       .prefab MOVES to DataRow.prefab — MoveAsset keeps the GUID, so
+       every scene instance and reference follows untouched (the glyph-
+       shelving precedent). Ours beyond doubt: the file sits in Prefabs/,
+       and the piece draws a sprite under this kit's assets/list-row/.
+       A collision at the target keeps the original, out loud. ── */
+    static void RenameDataRowPrefab(string root) {
+      var dirR = root + "/Prefabs";
+      var oldP = dirR + "/ListRow.prefab";
+      if (!File.Exists(oldP)) return;
+      if (File.Exists(dirR + "/DataRow.prefab")) {
+        Debug.LogWarning("UI Kit Maker: ListRow.prefab stays put — a DataRow.prefab already lives beside it. Nothing was overwritten; delete or rename one of them and re-import.");
+        return;
+      }
+      var assetR = AssetDatabase.LoadAssetAtPath<GameObject>(oldP);
+      var imgR = assetR != null ? BodyImage(assetR) : null;
+      var spR = imgR != null && imgR.sprite != null ? AssetDatabase.GetAssetPath(imgR.sprite).Replace("\\\\", "/") : null;
+      if (spR == null || !spR.StartsWith(root + "/assets/list-row/")) return; // not ours — a dev's file keeps its name
+      if (string.IsNullOrEmpty(AssetDatabase.MoveAsset(oldP, dirR + "/DataRow.prefab")))
+        Debug.Log("UI Kit Maker: ListRow.prefab is now DataRow.prefab — the app's own catalog name (same file, same GUID; every scene reference follows).");
+    }
     static void MaintainExamplePrefabs(string root, PBManifest m, PBLock prevLock) {
       var dir = root + "/Prefabs";
       if (!AssetDatabase.IsValidFolder(dir)) return;
       ShelveGlyphPrefabs(root); // the owner's folder call, healed on every import
+      RenameDataRowPrefab(root); // the owner's language, healed on every import
       int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0, reseeded = 0, wordKept = 0, rebodied = 0, mapGrafted = 0, padTuned = 0, rigGrafted = 0, sinkTuned = 0, barRigged = 0, pieceBound = 0, ddRigged = 0, unburned = 0;
       /* the ROOT-RECT ownership ledger (F5 — the resize pass was the one
          maintenance heal with NO ours-vs-theirs guard): rects we last

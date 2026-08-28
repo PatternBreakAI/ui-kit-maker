@@ -659,7 +659,10 @@ if (!/if \(f2\.shadow\) f2\.shadow = \{ \.\.\.f2\.shadow, opacity: 0 \};/.test(s
   const savedNames = new Set([
     ...[...cs.matchAll(/SaveAsPrefabAsset\((?:go|inst|contents\w*), dir \+ "\/([A-Za-z]+)\.prefab"\)/g)].map((x) => x[1]),
     // families saved via goName = NiceName(component) — the catalog sections list them
-    ...[...cs.matchAll(/"(ButtonPrimary|ButtonSecondary|ButtonSmall|Endturn|Keycap|Pricebtn|Iconbtn|Chip|Tab|TabBack|Checkbox|Radio|CheckboxToggle|RadioToggle|Switch|Input|Joystick|JoystickGhost|ProgressBar|SegmentMeter|VsBar|EmblemBar|Slider|HealthGlobe|SeasonTrack|CountBadge|Badge|Panel|HeaderBanner|ListRow|ItemSlot|ScrollView|Dropdown|Timer|HeroLabel)"/g)].map((x) => x[1]),
+    ...[...cs.matchAll(/"(ButtonPrimary|ButtonSecondary|ButtonSmall|Endturn|Keycap|Pricebtn|Iconbtn|Chip|Tab|TabBack|Checkbox|Radio|CheckboxToggle|RadioToggle|Switch|Input|Joystick|JoystickGhost|ProgressBar|SegmentMeter|VsBar|EmblemBar|Slider|HealthGlobe|SeasonTrack|CountBadge|Badge|Panel|HeaderBanner|DataRow|ItemSlot|ScrollView|Dropdown|Timer|HeroLabel)"/g)].map((x) => x[1]),
+    // the pre-rename address still answers as a PlaceKitPrefab altName
+    // (kept projects mid-heal) — the rename valet moves it on import
+    "ListRow",
   ]);
   for (const n of menuNames)
     if (!savedNames.has(n))
@@ -2241,6 +2244,30 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
       || !/if \(m != null && m\.menu != null && m\.menu\.items != null && m\.menu\.items\.Length > 0\) return; \/\/ the maker's own menu wins/.test(cs)
       || !/"Low", "Medium", "High", "Ultra"/.test(cs))
     errors.push("the demo dropdowns' honest domain options are gone (SeedDropdownDomain / the Graphics table / the maker-override gate)");
+}
+
+/* SLICE-4 pins: the data row speaks the app's name and carries the app's
+   anatomy; the Playground shelf is complete with zero overlaps. */
+{
+  if (!/static string PrefabNameOf\(string family\) \{ return family == "list-row" \? "DataRow" : NiceName\(family\); \}/.test(cs)
+      || !/FamilyPrefab\(famDir2, root, a, PrefabNameOf\(a\.component\), label, pngScale, kitFont, m\)/.test(cs)
+      || !/var pfName = PrefabNameOf\(it\.component\);/.test(cs))
+    errors.push("the data row prefab no longer speaks the app's name (PrefabNameOf list-row → DataRow) — the owner's one-language mandate");
+  if (!/static void RenameDataRowPrefab\(string root\)/.test(cs)
+      || !/RenameDataRowPrefab\(root\); \/\/ the owner's language, healed on every import/.test(cs)
+      || !/RenameDataRowPrefab\(root\); \/\/ and the rename valet, so a rebuild can't mint ListRow beside DataRow/.test(cs)
+      || !/if \(pf == null && it\.component == "list-row"\) pf = AssetDatabase\.LoadAssetAtPath<GameObject>\(root \+ "\/Prefabs\/ListRow\.prefab"\);/.test(cs))
+    errors.push("the ListRow→DataRow rename valet (GUID-keeping MoveAsset + old-address fallback) is missing");
+  if (!/\? \{ row: \{ title: "", sub: "" \} as never, icon: resolveKitIcon\(st\.kitIcons\?\.datarow, undefined\) \}/.test(src)
+      || !/const nineIconSeats = n\.id === "datarow" \? await iconSeatsOf\(n\.id, fullSvg, n\.family\) : null;/.test(src))
+    errors.push("the data row bakes bare again (row parts off / no un-burn seats) — 'it's missing some stuff' returns");
+  if (!/data-icon="portrait"/.test(bevelSrc) || !/data-icon="action"/.test(bevelSrc) || !/data-icon="barfill"/.test(bevelSrc))
+    errors.push("the data row's swappable parts (portrait/action/mercury) lost their icon markers in bevel");
+  if (!/PicturePrefab\(dir, root, pngScale, m, "orb\/orb-lit\.png", "Orb", false\)/.test(cs)
+      || !/"Qtybadge", "Orb", "Achievement"/.test(cs))
+    errors.push("the glow orb fell off the Playground shelf (no prefab or no HUD & DATA spot)");
+  if (!/claimed\.Add\("MoveCounter"\);/.test(cs))
+    errors.push("the MoveCounter twin is back on the shelf — the universal Movecounter must be the family's one spot (zero overlaps)");
 }
 
 if (errors.length) {
