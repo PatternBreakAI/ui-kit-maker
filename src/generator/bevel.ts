@@ -6069,10 +6069,19 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          is a plain gradient panel; Unity's filled Image crops it to the
          health value inside the glass circle's mask. */
       if (opts.part === "liquid") {
+        /* PRE-CLIPPED to the well circle (slice-2 field: "aliasing at the
+           liquid's bottom"): the old full-rect panel leaned on Unity's
+           stencil Mask for its silhouette, and a stencil is binary — the
+           circular bottom edge shipped jagged. The disc bakes its own
+           anti-aliased edge (and rides the dilation road like every
+           sprite), so the Mask stays as a safety net but no longer
+           DRAWS the edge. Same gradient, same meniscus strip, same
+           well-box anchoring — fillAmount scissors the disc bottom-up
+           exactly as it scissored the panel. */
         const gid9 = "hgl" + UID++;
         return `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-label="globe liquid">
-<defs><linearGradient id="${gid9}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(glow, 0.5)}"/><stop offset="0.35" stop-color="${glow}"/><stop offset="1" stop-color="${darken(glow, 0.35)}"/></linearGradient></defs>
-<rect width="256" height="256" fill="url(#${gid9})"/><rect width="256" height="9" fill="${lighten(glow, 0.55)}" opacity="0.55"/></svg>`;
+<defs><linearGradient id="${gid9}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(glow, 0.5)}"/><stop offset="0.35" stop-color="${glow}"/><stop offset="1" stop-color="${darken(glow, 0.35)}"/></linearGradient><clipPath id="${gid9}c"><circle cx="128" cy="128" r="128"/></clipPath></defs>
+<g clip-path="url(#${gid9}c)"><rect width="256" height="256" fill="url(#${gid9})"/><rect width="256" height="9" fill="${lighten(glow, 0.55)}" opacity="0.55"/></g></svg>`;
       }
       const partG = opts.part; // "rim" | "glass" | undefined = whole globe
       const totalG = dG + padG * 2;

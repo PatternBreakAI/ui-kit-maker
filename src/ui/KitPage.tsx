@@ -1736,7 +1736,9 @@ export function KitPage() {
             // the maker's own words ride into the bones prefabs' live text
             kitLabels: st.kitLabels, kitNoText: st.kitNoText, kitSubs: st.kitSubs, kitVals: st.kitVals, kitSlotVals: st.kitSlotVals,
             // per-piece icon overrides — the chip bake and the notices' icon-credit walk read these
-            kitIcons: st.kitIcons },
+            kitIcons: st.kitIcons,
+            // the maker's text-nudge dials — labels bake and seat where the maker pushed them (engine-lane slice 2; cross-lane one-liner, called out in the PR)
+            kitTextOy: st.kitTextOy, kitTextOx: st.kitTextOx },
           scope === "full" ? () => buildSpriteSheetBytes(sheetEntries(st), `${name} — visual catalog`, st.cfg.type.font, fdef2?.css ?? null,
             (d, t) => setEngineProg({ done: d, total: t, label: "catalog" })) : undefined,
           grant.licence,

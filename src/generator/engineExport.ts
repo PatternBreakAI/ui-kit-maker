@@ -300,6 +300,13 @@ export interface EngineExportState {
    *  and the shipped glyph honor them; absent = the stock default, so
    *  older callers keep the app's own look. */
   kitIcons?: Partial<Record<KitComponentId, IconDef | "none">>;
+  /** The per-piece TEXT NUDGE dials (the app's Nudge X/Y sliders, keyed
+   *  `family:size` in the workspace). The app passes them into every
+   *  render as textOy/textOx; the export must too, or every nudged label
+   *  bakes and SEATS at the un-nudged position (slice-2 field: the owner
+   *  pulled the badge count up 18px in the app and Unity kept it low). */
+  kitTextOy?: Partial<Record<string, number>>;
+  kitTextOx?: Partial<Record<string, number>>;
 }
 
 /* ── Boards→Scenes: the board document, serialized for the importer ──
@@ -625,6 +632,11 @@ export async function collectExportBoards(st: {
    *  pixels through it and travel the big-glyph road (optional: older
    *  callers ship no logos). */
   userAssets?: { id: string; name: string; ref: string; w: number; h: number }[];
+  /** The maker's text-nudge dials — the Board stage renders with them
+   *  (textOy/textOx per family:size), so posed bakes and posed label
+   *  seats must too (slice-2: the badge's −18 arrived un-nudged). */
+  kitTextOy?: Partial<Record<string, number>>;
+  kitTextOx?: Partial<Record<string, number>>;
 }): Promise<ExportBoardData[]> {
   const { captureVideoPoster } = await import("./bgvault");
   /* exports are SELF-CONTAINED: refs resolve to real pixels here — vault
@@ -1179,6 +1191,8 @@ export async function collectExportBoards(st: {
         icon: resolveKitIcon(st.kitIcons?.[id], undefined),
         // kitNoText → deliberate "" (wordless render), never heal-to-stock
         label: st.kitNoText?.[id] ? "" : (b.label ?? st.kitLabels[id]), stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
+        // the Board stage renders with the maker's text nudges — every bake must too
+        textOy: st.kitTextOy?.[`${id}:${st.kitSizes[id] ?? "l"}`], textOx: st.kitTextOx?.[`${id}:${st.kitSizes[id] ?? "l"}`],
         themedText: !!st.kitDesigns?.[id]?.type || !!st.kitTextFill[id],
       });
       const sw = parseFloat(/width="([\d.]+)"/.exec(svg)?.[1] ?? "200");
@@ -1329,6 +1343,8 @@ export async function collectExportBoards(st: {
             const svgC0 = renderKit(calmK, idBase, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], {
               icon: resolveKitIcon(st.kitIcons?.[id], undefined),
               label: st.kitNoText?.[id] ? "" : (b.label ?? st.kitLabels[id]), stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
+              // the Board stage renders with the maker's text nudges — every bake must too
+              textOy: st.kitTextOy?.[`${id}:${st.kitSizes[id] ?? "l"}`], textOx: st.kitTextOx?.[`${id}:${st.kitSizes[id] ?? "l"}`],
               themedText: !!st.kitDesigns?.[id]?.type || !!st.kitTextFill[id],
             });
             let stillC = svgC0
@@ -1476,7 +1492,7 @@ export async function collectExportBoards(st: {
            (round 27, the owner's scene chip: a posed bake it never needed,
            wearing a second star). Chip only — every other family's sprite
            bakes iconless and its baseline must keep measuring that. */
-        const natural = renderKit(shellCfg(cfgP), idBase, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], { label: PREF_LABEL[idBase] !== undefined ? (st.kitNoText?.[idBase] ? "" : (st.kitLabels[idBase] ?? PREF_LABEL[idBase])) : "", icon: idBase === "chip" ? resolveKitIcon(st.kitIcons?.[idBase], undefined) : null });
+        const natural = renderKit(shellCfg(cfgP), idBase, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], { label: PREF_LABEL[idBase] !== undefined ? (st.kitNoText?.[idBase] ? "" : (st.kitLabels[idBase] ?? PREF_LABEL[idBase])) : "", icon: idBase === "chip" ? resolveKitIcon(st.kitIcons?.[idBase], undefined) : null, textOy: st.kitTextOy?.[`${idBase}:${st.kitSizes[idBase] ?? "l"}`], textOx: st.kitTextOx?.[`${idBase}:${st.kitSizes[idBase] ?? "l"}`] });
         const nb = shellBoxOf(natural);
         const poseAspect = ph > 0 ? pw / ph : 1;
         const natAspect = nb && nb[3] > 0 ? nb[2] / nb[3] : poseAspect;
@@ -1506,6 +1522,8 @@ export async function collectExportBoards(st: {
           let ps2 = renderKit(shellCfg(cfgP), idBase, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], {
             icon: resolveKitIcon(st.kitIcons?.[id], undefined),
             label: st.kitNoText?.[id] ? "" : (b.label ?? st.kitLabels[id]), stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
+            // the Board stage renders with the maker's text nudges — every bake must too
+            textOy: st.kitTextOy?.[`${id}:${st.kitSizes[id] ?? "l"}`], textOx: st.kitTextOx?.[`${id}:${st.kitSizes[id] ?? "l"}`],
             themedText: !!st.kitDesigns?.[id]?.type || !!st.kitTextFill[id],
           });
           /* the copy's OWN label metrics, parsed BEFORE the strip — this
@@ -1651,6 +1669,8 @@ export async function collectExportBoards(st: {
               let ssv = renderKit(shellCfg(cfgP), idBase, st.kitSizes[id] ?? "l", stN, b.v ?? st.kitVals[id], st.kitShapes[id], {
                 icon: resolveKitIcon(st.kitIcons?.[id], undefined),
                 label: st.kitNoText?.[id] ? "" : (b.label ?? st.kitLabels[id]), stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
+                // the Board stage renders with the maker's text nudges — every bake must too
+                textOy: st.kitTextOy?.[`${id}:${st.kitSizes[id] ?? "l"}`], textOx: st.kitTextOx?.[`${id}:${st.kitSizes[id] ?? "l"}`],
                 themedText: !!st.kitDesigns?.[id]?.type || !!st.kitTextFill[id],
               });
               const domS = new DOMParser().parseFromString(ssv, "image/svg+xml");
@@ -1710,6 +1730,8 @@ export async function collectExportBoards(st: {
           let shSvg = renderKit(cSh, idBase, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], {
             icon: resolveKitIcon(st.kitIcons?.[id], undefined),
             label: st.kitNoText?.[id] ? "" : (b.label ?? st.kitLabels[id]), stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
+            // the Board stage renders with the maker's text nudges — every bake must too
+            textOy: st.kitTextOy?.[`${id}:${st.kitSizes[id] ?? "l"}`], textOx: st.kitTextOx?.[`${id}:${st.kitSizes[id] ?? "l"}`],
             themedText: !!st.kitDesigns?.[id]?.type || !!st.kitTextFill[id],
           });
           const domSh = new DOMParser().parseFromString(shSvg, "image/svg+xml");
@@ -1766,6 +1788,8 @@ export async function collectExportBoards(st: {
           let artSvg = renderKit(cSh2, idBase, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], {
             icon: resolveKitIcon(st.kitIcons?.[id], undefined),
             label: st.kitNoText?.[id] ? "" : (b.label ?? st.kitLabels[id]), stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
+            // the Board stage renders with the maker's text nudges — every bake must too
+            textOy: st.kitTextOy?.[`${id}:${st.kitSizes[id] ?? "l"}`], textOx: st.kitTextOx?.[`${id}:${st.kitSizes[id] ?? "l"}`],
             themedText: !!st.kitDesigns?.[id]?.type || !!st.kitTextFill[id],
           });
           artSvg = artSvg
@@ -2489,6 +2513,15 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   const innerC = base.effects["Inner Fill"] ?? lighten(bevelC, 0.15);
   const wellC = darken(innerC, 0.72);
 
+  /* the maker's TEXT NUDGE dials, exactly as the app passes them into its
+     own renders (keyed family:size) — every export render carries them so
+     labels bake and SEAT where the maker pushed them (slice-2 field: the
+     badge count the owner pulled up 18px arrived low in Unity) */
+  const nudgeOf = (id: KitComponentId): { textOy?: number; textOx?: number } => {
+    const key = `${id}:${effKitSize(st.kitSizes[id])}`;
+    const oy = st.kitTextOy?.[key], ox = st.kitTextOx?.[key];
+    return { ...(oy !== undefined ? { textOy: oy } : {}), ...(ox !== undefined ? { textOx: ox } : {}) };
+  };
   /* content-free shell render: no label, no icon, no baked values; the
      cast shadow and contact pool are stripped (the engine owns shadows) */
   const shell = (id: KitComponentId, opts: Record<string, unknown> = {}, mutate?: (c: GenConfig) => void, value?: number) => {
@@ -2499,7 +2532,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     for (const s of Object.values(c.states)) s.glow = 0;
     mutate?.(c);
     // icon-fx chains split for the raster road (round 26 — the square halo)
-    return splitFilterChains(renderKit(c, id, effKitSize(st.kitSizes[id]), "default", value, st.kitShapes[id], { label: "", icon: null, ...opts }));
+    return splitFilterChains(renderKit(c, id, effKitSize(st.kitSizes[id]), "default", value, st.kitShapes[id], { label: "", icon: null, ...nudgeOf(id), ...opts }));
   };
   const flat = (c: GenConfig) => {
     c.candy.gloss.on = false;
@@ -2558,7 +2591,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     for (const s of Object.values(c.states)) s.glow = 0;
     for (const f of Object.values(c.stateDesigns)) if (f) calm(f);
     // icon-fx chains split for the raster road (round 26 — the square halo)
-    return splitFilterChains(renderKit(c, id, effKitSize(st.kitSizes[id]), state, value, st.kitShapes[id], { label: "", icon: null, ...opts }));
+    return splitFilterChains(renderKit(c, id, effKitSize(st.kitSizes[id]), state, value, st.kitShapes[id], { label: "", icon: null, ...nudgeOf(id), ...opts }));
   };
 
   /* ── the piece's CONTENT-TEXT dress (bevel's contentText): fill mode,
@@ -2763,6 +2796,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     sub: st.kitSubs?.[id],
     slots: st.kitSlotVals?.[id],
     themedText: !!st.kitDesigns?.[id]?.type || !!st.kitTextFill[id],
+    ...nudgeOf(id), // the seat render nudges like the app's own
   });
   const textSeatsOf = (id: KitComponentId, bakeSvg: string, extra: KitOpts = {}, mutate?: (c: GenConfig) => void, bakeValue?: number, useVal: "user" | "bake" = "user"): Pick<AssetMeta, "textSeats" | "seatInk"> => {
     try {
@@ -2833,7 +2867,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       c.candy.contact.opacity = 0;
       for (const s of Object.values(c.states)) s.glow = 0;
       mutate?.(c);
-      const svg2 = renderKit(c, id, effKitSize(st.kitSizes[id]), "default", undefined, st.kitShapes[id], { icon: null, label: word, ...extra });
+      const svg2 = renderKit(c, id, effKitSize(st.kitSizes[id]), "default", undefined, st.kitShapes[id], { icon: null, label: word, ...nudgeOf(id), ...extra });
       const lg = svg2.slice(svg2.indexOf('data-part="label"'));
       const tm = /<text x="(-?[\d.]+)" y="(-?[\d.]+)" font-size="([\d.]+)"/.exec(lg);
       const s0m = /data-shell0="([-\d. ]+)"/.exec(svg2) ?? /data-shell="([-\d. ]+)"/.exec(svg2);
@@ -3734,6 +3768,63 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     };
     const leadingRow = (id: KitComponentId, stName?: "hover" | "pressed" | "disabled") =>
       STACKED_LABEL_PROPS.has(id) && leadingOf(id, stName) !== 100 ? { leading: leadingOf(id, stName) } : {};
+    /* the labeled PROPS' live words finally dress and seat like the app
+       (slice-2 field, owner: "Keycap not respecting app text styling" —
+       the prop rows shipped labelText alone, so Unity guessed size, ink
+       and seat):
+       - keycap rides the full labelSeatOf road (build's own label
+         machinery draws it — middle-anchored, nudge-aware);
+       - pricebtn ships SIZE + INK only — its price is start-anchored
+         beside the coin, and the centered label machinery must not
+         adopt a start-x as a center;
+       - endturn (stacked) measures the STACK's visual midpoint off both
+         rendered lines (parseTextSeats' own cap-mid discipline) — the
+         first line's y alone would seat the whole stack half a line
+         high. */
+    const propLabelSeat = (id: KitComponentId, word: string | undefined): Partial<Pick<AssetMeta, "labelDx" | "labelDy" | "labelFs" | "labelInk" | "labelInk2">> => {
+      if (word === undefined) return {};
+      try {
+        if (id === "keycap") {
+          const mK = labelSeatOf(id, word);
+          return {
+            ...(mK.labelDx !== undefined ? { labelDx: mK.labelDx } : {}),
+            ...(mK.labelDy !== undefined ? { labelDy: mK.labelDy } : {}),
+            ...(mK.labelFs !== undefined ? { labelFs: mK.labelFs } : {}),
+            ...(mK.labelInk !== undefined ? { labelInk: mK.labelInk } : {}),
+            ...(mK.labelInk2 !== undefined ? { labelInk2: mK.labelInk2 } : {}),
+          };
+        }
+        const c = clone(pieceCfg(id));
+        c.stateDesigns = {};
+        c.shadow.opacity = 0;
+        c.candy.contact.opacity = 0;
+        for (const s of Object.values(c.states)) s.glow = 0;
+        const svg2 = renderKit(c, id, effKitSize(st.kitSizes[id]), "default", 0, st.kitShapes[id], { icon: null, label: word, ...nudgeOf(id) });
+        const seats2 = parseTextSeats(svg2, c.type.font) ?? [];
+        const kitSeats = seats2.filter((s2) => s2.kit && s2.ffs > 1);
+        if (!kitSeats.length) return {};
+        const fs2 = Math.max(...kitSeats.map((s2) => s2.ffs));
+        const inkSeat = kitSeats[0];
+        const ink = inkSeat.fill && !inkSeat.fill.startsWith("url(")
+          ? { labelInk: inkSeat.fill.toUpperCase(), ...(inkSeat.fillMode === "gradient" && inkSeat.fill2 ? { labelInk2: inkSeat.fill2.toUpperCase() } : {}) }
+          : {};
+        if (id === "pricebtn") return { labelFs: Math.round(fs2 * 10) / 10, ...ink };
+        /* endturn: the stack's visual midpoint vs the DRAWN shell center —
+           parseTextSeats accumulates the headroom translate into fy, so
+           the reference frame must be drawn too (raw shell0 double-counts
+           the rise: the first cut shipped dy 49.8 for a true +2) */
+        const s0p = (/data-shell="([-\d. ]+)"/.exec(svg2) ?? /data-shell0="([-\d. ]+)"/.exec(svg2))?.[1].split(" ").map(Number);
+        if (!s0p || s0p.length !== 4) return { labelFs: Math.round(fs2 * 10) / 10, ...ink };
+        const ys = kitSeats.map((s2) => s2.fy);
+        const midY = (Math.min(...ys) + Math.max(...ys)) / 2;
+        return {
+          labelDx: 0,
+          labelDy: Math.round((midY - (s0p[1] + s0p[3] / 2)) * 10) / 10,
+          labelFs: Math.round(fs2 * 10) / 10,
+          ...ink,
+        };
+      } catch { return {}; }
+    };
     for (const p of PROPS) {
       if (!shipProp(p.id)) continue;
       const propWord = PROP_WORD[p.id] !== undefined ? (st.kitLabels?.[p.id] ?? PROP_WORD[p.id]) : undefined;
@@ -3750,7 +3841,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       const baseSvgP = unburnP ? stripIconInk(stripWordInk(baseFullP).svg).svg : baseFullP;
       const seatsP = unburnP ? textSeatsOf(p.id, baseSvgP, { label: "" }, undefined, p.value, "bake") : {};
       await addPng(`${p.id}/base.png`, baseSvgP,
-        { component: p.id, part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: p.usage, ...(propWord !== undefined ? { labelText: propWord } : {}), ...leadingRow(p.id), ...(iconSeatsP ? { iconSeats: iconSeatsP } : {}), ...seatsP }, true, p.id);
+        { component: p.id, part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: p.usage, ...(propWord !== undefined ? { labelText: propWord } : {}), ...propLabelSeat(p.id, propWord), ...leadingRow(p.id), ...(iconSeatsP ? { iconSeats: iconSeatsP } : {}), ...seatsP }, true, p.id);
       for (const stName of p.states)
         await addPng(`${p.id}/base-${stName}.png`, unburnP ? stripIconInk(stripWordInk(stateShell(p.id, stName, {}, p.value)).svg).svg : stateShell(p.id, stName, {}, p.value),
           { component: p.id, part: `base-${stName}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
@@ -4151,7 +4242,19 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       ti++;
     }
     if (!traces.length) return null;
-    return { x0: Math.round(zx0 * PNG_SCALE), y0: Math.round(zy0 * PNG_SCALE), x1: Math.round(zx1 * PNG_SCALE), y1: Math.round(zy1 * PNG_SCALE), traces };
+    /* the RISE (slice-2 field, owner: "graphs sit ~100px high"): the
+       data-chart stamp and the grid/trace ATTRS are raw-frame numbers,
+       but every drawn pixel rides build's headroom translate — the
+       drawn shell sits (data-shell.y − data-shell0.y) BELOW the raw
+       frame. The zone must speak the DRAWN frame like the text seats
+       (which accumulate ancestor translates) or the live traces float
+       exactly that rise above the baked grid. Measured on Brightside:
+       37 design px = 74 file px — the manifest's 0% line now lands on
+       the sprite's own bottom grid row. */
+    const shDc = /data-shell="([-\d. ]+)"/.exec(baseSvg)?.[1].split(" ").map(Number);
+    const sh0c = /data-shell0="([-\d. ]+)"/.exec(baseSvg)?.[1].split(" ").map(Number);
+    const riseC = shDc && sh0c && shDc.length === 4 && sh0c.length === 4 ? shDc[1] - sh0c[1] : 0;
+    return { x0: Math.round(zx0 * PNG_SCALE), y0: Math.round((zy0 + riseC) * PNG_SCALE), x1: Math.round(zx1 * PNG_SCALE), y1: Math.round((zy1 + riseC) * PNG_SCALE), traces };
   }
   /* the loot tag's tier dress geometry off the frame render's stamp */
   function lootOf(frameSvg: string): AssetMeta["loot"] {
@@ -4235,7 +4338,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       };
     }
   } catch { /* measurement is an upgrade, not a dependency — prefab falls back to full stretch */ }
-  await addPng("globe/liquid.png", shell("healthglobe", { part: "liquid" }, undefined, 0), { component: "globe", part: "liquid", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Health-globe liquid panel — Filled (Vertical) Image masked by the glass. The prefab anchors it to the visible well, so fillAmount 0..1 IS the health, brim to floor." });
+  await addPng("globe/liquid.png", shell("healthglobe", { part: "liquid" }, undefined, 0), { component: "globe", part: "liquid", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Health-globe liquid — a PRE-CLIPPED disc (its circular edge is anti-aliased in the pixels; the glass Mask is just a safety net). Filled (Vertical); the prefab anchors it to the visible well, so fillAmount 0..1 IS the health, brim to floor." });
   /* the baked sheet stays for older scenes and the catalog — the wired
      prefab now builds from the parts below instead */
   await addPng("seasontrack/base.png", shell("seasontrack", { part: "shell" }), { component: "seasontrack", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Season track, baked flat (legacy sheet) — the SeasonTrack prefab now builds LIVE tier cells from the board/well/node/spine parts beside this file." });
@@ -17178,7 +17281,21 @@ namespace PatternBreak {
       }
       var bgRt = go.GetComponent<RectTransform>();
       var mrt = markGo.GetComponent<RectTransform>();
-      mrt.anchorMin = new Vector2(0.5f, 0.5f); mrt.anchorMax = new Vector2(0.5f, 0.5f);
+      /* slice-2 field (owner: "radio + checkbox toggle marks sit low",
+         optical judgment granted): the sprite's rect center is NOT the
+         face's — the extrusion and crop air below the shell pull it down
+         (Brightside: 9.5 design px). The app centers its mark on the
+         SHELL box, and the shell box IS the face silhouette (extrusion
+         draws below it) — so the mark anchors on the manifest shell
+         center, the same seam every label and icon child already rides. */
+      var mAnchor = new Vector2(0.5f, 0.5f);
+      if (m != null && m.assets != null && bg != null && bg.rect.width > 2f && bg.rect.height > 2f)
+        foreach (var aT in m.assets)
+          if (aT != null && aT.file == "assets/" + bgPath && aT.shell != null && aT.shell.w > 4f) {
+            mAnchor = new Vector2((aT.shell.x + aT.shell.w / 2f) / bg.rect.width, 1f - (aT.shell.y + aT.shell.h / 2f) / bg.rect.height);
+            break;
+          }
+      mrt.anchorMin = mAnchor; mrt.anchorMax = mAnchor;
       mrt.anchoredPosition = Vector2.zero;
       mrt.sizeDelta = bgRt.sizeDelta * markScale; // the app's own mark proportion
       var tog = go.AddComponent<Toggle>();
@@ -18630,7 +18747,7 @@ namespace PatternBreak {
            untouched. */
         bool wantSelectRoot = asset.GetComponent<KitPiece>() == null;
         if (!wantWiring && !wantDress && !wantFx && !wantUnswap && !wantResize && !wantSpecAdd && !wantSpecCut && !wantPad && !wantShape && !wantFbLift && !wantFaceRects
-            && !wantWipeAdd && !wantWipeCut && !wantEdgeAdd && !wantEdgeCut && !wantGauge && !wantSeats && !wantSeatLabel && !wantWordSeed && !wantBody && !wantGlowPad && !wantSinkFix && !wantIconAdd && !wantIconStroke && !wantSelectRoot) continue;
+            && !wantWipeAdd && !wantWipeCut && !wantEdgeAdd && !wantEdgeCut && !wantGauge && !wantSeats && !wantSeatLabel && !wantWordSeed && !wantBody && !wantGlowPad && !wantSinkFix && !wantIconAdd && !wantIconStroke && !wantUnburn && !wantSelectRoot) continue;
         var contents = PrefabUtility.LoadPrefabContents(path);
         try {
           bool changed = false;

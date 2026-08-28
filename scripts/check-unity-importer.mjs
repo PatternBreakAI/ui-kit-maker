@@ -2195,6 +2195,32 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the avatar's circle-masked Portrait well structure is missing (Mask + hidden mask graphic)");
   if (!/if \(wantUnburn\) \{/.test(cs) || !/un-burned/.test(cs))
     errors.push("the kept-project un-burn convergence (wantUnburn + its Console receipt) is missing from the maintenance pass");
+  if (!/&& !wantUnburn && !wantSelectRoot\) continue;/.test(cs))
+    errors.push("the maintenance skip-gate no longer counts wantUnburn — a kept project whose only need is un-burning would be skipped");
+}
+
+/* SLICE-2 pins (the position & styling punch list): the maker's Nudge
+   dials travel into every export render, the labeled props ship real
+   label metrics, the chart zone speaks the DRAWN frame, the toggle
+   marks anchor on the face, and the globe liquid is a pre-clipped disc. */
+{
+  if (!/const nudgeOf = \(id: KitComponentId\)/.test(src)
+      || !/\{ label: "", icon: null, \.\.\.nudgeOf\(id\), \.\.\.opts \}/.test(src)
+      || !/\.\.\.nudgeOf\(id\), \/\/ the seat render nudges like the app's own/.test(src)
+      || !/icon: null, label: word, \.\.\.nudgeOf\(id\), \.\.\.extra \}/.test(src))
+    errors.push("the text-nudge dials (kitTextOy/Ox) no longer ride the export renders — nudged labels bake un-nudged again (the badge-sits-low field)");
+  if (!/textOy: st\.kitTextOy\?\.\[`\$\{id\}:\$\{st\.kitSizes\[id\] \?\? "l"\}`\]/.test(src))
+    errors.push("the POSED road stopped nudging its renders — board copies of nudged families bake un-nudged");
+  if (!/const propLabelSeat = \(id: KitComponentId, word: string \| undefined\)/.test(src)
+      || !/\.\.\.propLabelSeat\(p\.id, propWord\)/.test(src))
+    errors.push("the labeled props (keycap/endturn/pricebtn) ship no label metrics again — Unity guesses size, ink and seat (the keycap field)");
+  if (!/const riseC = shDc && sh0c && shDc\.length === 4 && sh0c\.length === 4 \? shDc\[1\] - sh0c\[1\] : 0;/.test(src)
+      || !/y0: Math\.round\(\(zy0 \+ riseC\) \* PNG_SCALE\)/.test(src))
+    errors.push("the chart zone lost its rise correction — telemetry/laptimes traces float the headroom above the baked grid again (the ~100px field)");
+  if (!/mAnchor = new Vector2\(\(aT\.shell\.x \+ aT\.shell\.w \/ 2f\) \/ bg\.rect\.width, 1f - \(aT\.shell\.y \+ aT\.shell\.h \/ 2f\) \/ bg\.rect\.height\);/.test(cs))
+    errors.push("the toggle mark anchors on the sprite rect again — checkbox/radio marks sit low (the extrusion pulls the rect center off the face)");
+  if (!/<clipPath id="\$\{gid9\}c"><circle cx="128" cy="128" r="128"\/><\/clipPath>/.test(bevelSrc))
+    errors.push("the globe liquid lost its pre-clip — the stencil Mask draws the circular edge again (aliased bottom)");
 }
 
 if (errors.length) {
