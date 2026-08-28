@@ -5438,6 +5438,11 @@ namespace PatternBreak {
         if (ch == null) continue;
         var n = ch.name;
         if (n == "Body" || n == "Posed art" || n == "Template" || n == "Weapon") continue;
+        /* an adopted glyph's cast shadow (board scenes seat it just under
+           the glyph so it draws slot < shadow < glyph, the app's order) —
+           shadows stay GROUNDED while the face and content travel, the
+           same doctrine as every scene-sibling shadow */
+        if (n.EndsWith(" Shadow (art)")) continue;
         if (ch.gameObject.hideFlags != HideFlags.None) continue; // runtime decor moves itself
         var r = ch as RectTransform;
         if (r != null) list.Add(r);
@@ -11287,6 +11292,9 @@ namespace PatternBreak {
         // every placed root, in board draw order — the icon-adoption pass
         // below reads this to find glyphs stacked over interactive pieces
         var placedRoots = new List<KeyValuePair<PBBoardItem, RectTransform>>();
+        // each item's grounded cast-shadow sibling — the icon-adoption pass
+        // must carry a glyph's shadow along or it draws OVER the adopted glyph
+        var placedShadows = new Dictionary<PBBoardItem, RectTransform>();
         if (bd.items != null) foreach (var it in bd.items) {
           GameObject inst = null; RectTransform rt = null; RectTransform shadowRt = null;
           bool liveStamp = false; // a live-text stamp seats on its measured ink box below
@@ -11993,6 +12001,7 @@ namespace PatternBreak {
           }
           placed++;
           placedRoots.Add(new KeyValuePair<PBBoardItem, RectTransform>(it, rt));
+          if (shadowRt != null) placedShadows[it] = shadowRt;
         }
         /* ── ICON ADOPTION (the third parked-icon field strike): on the
            board, an "item button" is a COMPOSITION — an interactive frame
@@ -12006,8 +12015,21 @@ namespace PatternBreak {
            prefab). The glyph now becomes a CHILD of the interactive piece
            whose shell its center sits in: rider discovery finds it as
            content, and press/hover/disabled carry it with the face —
-           exactly the app's one group. Its cast shadow stays a grounded
-           scene sibling like every other shadow. Non-interactive stacks
+           exactly the app's one group.
+           THE FOURTH FIELD STRIKE (the owner's "magnet outside its box",
+           fresh project): moving ONLY the glyph inverted its shadow's draw
+           order. Unity renders depth-first, so the glyph — now inside the
+           HOST's subtree, which sits EARLIER among the siblings — started
+           drawing before its own cast-shadow sibling: the soft dark
+           glyph-shaped bake (bigger than the slot, blurred well past it)
+           painted OVER the crisp glyph and read as a smeared second magnet
+           hanging out of its box. Every rect in the serialized hierarchy
+           was exact — the rect-only ports could never see a draw-order
+           defect. App truth is slot face < shadow < glyph, so the shadow
+           follows the glyph INTO the host, seated one sibling below it,
+           world pose kept; PushRiders skips " Shadow (art)" children so
+           press travel still leaves the shadow grounded, exactly the
+           sibling-shadow doctrine one level deeper. Non-interactive stacks
            (a glyph on a panel) keep their scene seats untouched. ── */
         for (int ai2 = 0; ai2 < placedRoots.Count; ai2++) {
           var aIt = placedRoots[ai2].Key; var aRt = placedRoots[ai2].Value;
@@ -12040,6 +12062,21 @@ namespace PatternBreak {
           aRt.anchorMin = new Vector2(0.5f, 0.5f); aRt.anchorMax = new Vector2(0.5f, 0.5f);
           aRt.sizeDelta = keepSize;
           aRt.position = keepPos;
+          /* the glyph's cast shadow rides along, seated one sibling BELOW
+             the glyph — left behind as a scene sibling it drew OVER the
+             adopted icon (the fourth strike, see the pass comment). Same
+             world-pose-kept re-anchor as the glyph; PushRiders leaves
+             " Shadow (art)" children grounded through press travel. */
+          RectTransform shAd;
+          if (placedShadows.TryGetValue(aIt, out shAd) && shAd != null) {
+            var shKeepSize = shAd.rect.size;
+            shAd.SetParent(host, true);
+            shAd.SetSiblingIndex(aRt.GetSiblingIndex()); // just under the glyph
+            var shKeepPos = shAd.position;
+            shAd.anchorMin = new Vector2(0.5f, 0.5f); shAd.anchorMax = new Vector2(0.5f, 0.5f);
+            shAd.sizeDelta = shKeepSize;
+            shAd.position = shKeepPos;
+          }
           /* button content never eats the button's own click (the glyph
              rack ships raycast-off already; a big-glyph drop may not) */
           foreach (var gAd in aRt.GetComponentsInChildren<Image>(true)) gAd.raycastTarget = false;
