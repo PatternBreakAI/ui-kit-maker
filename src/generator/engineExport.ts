@@ -8850,7 +8850,7 @@ layers**, and the importer builds them as ready prefabs in their own
 folder — **Prefabs/Tiled face/** — so the two flavors never blur
 together: \`Prefabs/\` is the plain drag-in pieces, \`Prefabs/Tiled face/\`
 is the stretch-safe pattern flavor of the same names (panel, header,
-both buttons, list row, item slot). The buttons in there carry the same
+both buttons, data row, item slot). The buttons in there carry the same
 live label and engine-side states (glow, lift, label ink) as their
 plain siblings — no sprite swap, because swapping one layer of a
 layered build would double the pattern.
@@ -8983,9 +8983,13 @@ text, wearing its tier dress LIVE — the left rarity stripe and the gem
 are tinted children (Stripe / Gem); re-tint them from your item data
 with the tier colors in kit-manifest.json > rarity.
 
-**Dropdown**: the closed shell with its chevron, your value word as a
-live label. The open-menu plate and the row highlight/check layers
-ship in assets/dropdown/ when you build the open state.
+**Dropdown**: a fully working dropdown, not bones — press it in Play
+mode and the styled open menu drops, already built (menu plate, row
+highlight, check, scroll when the list runs long). Your value word is
+the live caption, the chevron is the live **Icon caret** child (swap or
+move it in the Inspector), and the open menu's colors and options are
+yours to edit — they travel in \`kit-manifest.json > menu\`, with the
+maker's typed items seeding the option list.
 
 **RarityFrame**: wears the first tier's frame and its live tier word;
 every other tier sits beside it in assets/rarityframe/ — swap the
@@ -10462,6 +10466,7 @@ namespace PatternBreak {
 #endif
         ShelveGlyphPrefabs(root); // root-level glyphs move BEFORE the rebuild — no Glyphs/ twins beside originals
         RenameDataRowPrefab(root); // and the rename valet, so a rebuild can't mint ListRow beside DataRow
+        RenameDataRowTiledFace(root); // the tiled twin's valet rides along, same reason
         RenameArtShelf(root); // BigGlyphs → Art before a rebuild can mint twins
         GeneratePrefabs(root, manifest);
         Debug.Log("UI Kit Maker: regenerated the example prefabs under " + root + "/Prefabs.");
@@ -15269,7 +15274,11 @@ namespace PatternBreak {
       var over = S(root + "/assets/" + fam + "/" + fam + "-base-over.9.png");
       var tile = S(root + "/assets/fx/fx-face-tile.png");
       if (under == null || over == null || tile == null) return false;
-      var goName = NiceName(fam) + " (tiled face)";
+      /* the app's own catalog name — through the SAME seam the scene road
+         resolves with (PrefabNameOf), or a patterned kit's stretched
+         list-row copies look up "DataRow (tiled face)" and silently fall
+         back to the base while the builder minted "ListRow (tiled face)" */
+      var goName = PrefabNameOf(fam) + " (tiled face)";
       var go = ImageObject(goName, under, pngScale);
       var ui = go.GetComponent<Image>();
       ui.type = Image.Type.Sliced;
@@ -18270,11 +18279,36 @@ namespace PatternBreak {
       if (string.IsNullOrEmpty(AssetDatabase.MoveAsset(oldP, dirR + "/DataRow.prefab")))
         Debug.Log("UI Kit Maker: ListRow.prefab is now DataRow.prefab — the app's own catalog name (same file, same GUID; every scene reference follows).");
     }
+    /* the TILED TWIN's valet (the DataRow rename missed it): kept
+       patterned projects hold "ListRow (tiled face).prefab" while the
+       scene road looks up "DataRow (tiled face)" through PrefabNameOf —
+       the stretched list-row copies silently fell back to the base face.
+       Same GUID-keeping move, same ours-check (the tiled root wears the
+       list-row base-under), same stand-down on a name collision. Runs
+       right after the base valet, BEFORE GenerateMissingPrefabs — so the
+       staged rebuild can never mint the DataRow-named twin beside the
+       dev's kept file. */
+    static void RenameDataRowTiledFace(string root) {
+      var dirT = root + "/Prefabs/Tiled face";
+      var oldT = dirT + "/ListRow (tiled face).prefab";
+      if (!File.Exists(oldT)) return;
+      if (File.Exists(dirT + "/DataRow (tiled face).prefab")) {
+        Debug.LogWarning("UI Kit Maker: 'ListRow (tiled face).prefab' stays put — a 'DataRow (tiled face).prefab' already lives beside it. Nothing was overwritten; delete or rename one of them and re-import.");
+        return;
+      }
+      var assetT = AssetDatabase.LoadAssetAtPath<GameObject>(oldT);
+      var imgT = assetT != null ? BodyImage(assetT) : null;
+      var spT = imgT != null && imgT.sprite != null ? AssetDatabase.GetAssetPath(imgT.sprite).Replace("\\\\", "/") : null;
+      if (spT == null || !spT.StartsWith(root + "/assets/list-row/")) return; // not ours — a dev's file keeps its name
+      if (string.IsNullOrEmpty(AssetDatabase.MoveAsset(oldT, dirT + "/DataRow (tiled face).prefab")))
+        Debug.Log("UI Kit Maker: 'ListRow (tiled face)' is now 'DataRow (tiled face)' — the app's one name on the stretch-safe flavor too (same file, same GUID); patterned kits' stretched data-row copies pick it up on the next scene build.");
+    }
     static void MaintainExamplePrefabs(string root, PBManifest m, PBLock prevLock) {
       var dir = root + "/Prefabs";
       if (!AssetDatabase.IsValidFolder(dir)) return;
       ShelveGlyphPrefabs(root); // the owner's folder call, healed on every import
       RenameDataRowPrefab(root); // the owner's language, healed on every import
+      RenameDataRowTiledFace(root); // and its stretch-safe twin — the scene road's one name
       RenameArtShelf(root); // BigGlyphs → Art, the class's name everywhere
       int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0, reseeded = 0, wordKept = 0, rebodied = 0, mapGrafted = 0, padTuned = 0, rigGrafted = 0, sinkTuned = 0, barRigged = 0, pieceBound = 0, ddRigged = 0, unburned = 0;
       /* the ROOT-RECT ownership ledger (F5 — the resize pass was the one

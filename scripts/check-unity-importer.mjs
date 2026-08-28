@@ -2306,6 +2306,16 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the glow orb fell off the Playground shelf (no prefab or no HUD & DATA spot)");
   if (!/claimed\.Add\("MoveCounter"\);/.test(cs))
     errors.push("the MoveCounter twin is back on the shelf — the universal Movecounter must be the family's one spot (zero overlaps)");
+  /* the TILED TWIN (editability paper cut 4): the stretch-safe builder
+     names through the same PrefabNameOf seam the scene road resolves
+     with, and the kept-project valet renames the old twin GUID-keeping —
+     BEFORE the staged rebuild, so no DataRow-named twin can mint. */
+  if (!/var goName = PrefabNameOf\(fam\) \+ " \(tiled face\)";/.test(cs))
+    errors.push("the tiled-face builder no longer names through PrefabNameOf — patterned kits' stretched data-row copies silently fall back to the base face again");
+  if (!/static void RenameDataRowTiledFace\(string root\)/.test(cs)
+      || !/RenameDataRowTiledFace\(root\); \/\/ and its stretch-safe twin — the scene road's one name/.test(cs)
+      || !/RenameDataRowTiledFace\(root\); \/\/ the tiled twin's valet rides along, same reason/.test(cs))
+    errors.push("the tiled twin's rename valet is missing (or no longer runs before the staged rebuild on both roads)");
 }
 
 /* SLICE-5 pins (owner decision): the big-glyph class is "Art" on every
