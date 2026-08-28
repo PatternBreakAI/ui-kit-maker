@@ -121,6 +121,10 @@ interface AssetMeta {
    *  is tintable (near-white letterforms), and the styled-SDF rung takes
    *  it always — HeroLabel stacks keep their painted layer pixels. */
   labelInk?: string; labelInk2?: string;
+  /** The ring rig's STAGED fill (fill rows only, 0..1) — the app's own
+   *  staged value; the importer sets the Radial360 fillAmount from it so
+   *  the prefab lands wearing exactly the pose the maker staged. */
+  ringV?: number;
   /** The Leading dial, resolved per row (base = the resting design;
    *  base-<state> rows = that state's fork-first per-key read — bevel's
    *  endturn rule verbatim), as the app's raw percentage. Emitted ONLY on
@@ -3640,13 +3644,42 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           : {};
         const interactive = UNIVERSAL_INTERACTIVE.has(uid);
         const famFlipU = isFlipShape(st.kitShapes[uid] ?? KIT_SHAPE[uid] ?? st.cfg.shape);
+        /* ── the RING RIG ATOMS (owner field: the baked 62% could only
+           ever say 62, and anything that re-cut it angularly smudged the
+           cut edges): track / rotationally-uniform fill / end cap, all on
+           ONE exact square canvas (crop=false — the Radial360 wedge and
+           the cap rotations pivot on the canvas center, so the frame IS
+           the geometry). The "62%" seat rides the TRACK row in the same
+           full-canvas frame — the rig's root wears the track, and
+           SeatRowOf resolves seats by the sprite actually worn; the base
+           bake stays for compatibility but carries no seats here, or the
+           words would double. */
+        const ringRig = uid === "ring";
+        if (ringRig) {
+          const trackSvg = shell(uid, { ...uOpts, part: "track" }, undefined, uVal);
+          const seatsTrack = textSeatsOf(uid, trackSvg, { icon: resolveKitIcon(st.kitIcons?.[uid], undefined) }, undefined, uVal);
+          await addPng(`${uid}/track.png`, trackSvg, {
+            component: uid, part: "track", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+            usage: "Progress ring track — the rig's ground circle; the generated Ring prefab is LIVE (drive the Fill child's fillAmount or KitRingFill.SetValue).",
+            ...seatsTrack,
+          }, false);
+          await addPng(`${uid}/fill.png`, shell(uid, { ...uOpts, part: "fill" }, undefined, uVal), {
+            component: uid, part: "fill", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+            usage: "Progress ring fill — full circle, rotationally uniform shading: Image Filled / Radial360 (origin Top, clockwise) cuts it clean at ANY value.",
+            ringV: Math.max(0, Math.min(1, uVal ?? 0.62)),
+          }, false);
+          await addPng(`${uid}/cap.png`, shell(uid, { ...uOpts, part: "cap" }, undefined, uVal), {
+            component: uid, part: "cap", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+            usage: "Progress ring end cap — full-canvas, parked at 12 o'clock; KitRingFill rotates a copy to the fill's head angle (radial shading stays true under rotation).",
+          }, false);
+        }
         await addPng(`${uid}/base.png`, strippedU.svg, {
           component: uid, part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
           usage: UNIVERSAL_USAGE[uid] ?? "Kit glyph piece — placeable art in the kit's own material. Not a button; scale freely (Preserve Aspect).",
           ...(famFlipU ? { flip: true } : {}),
           ...(uLabelMeta ?? {}),
           ...(uWord !== undefined ? { labelText: uWord } : {}),
-          ...seatsU,
+          ...(ringRig ? {} : seatsU),
         }, true, interactive ? uid : undefined);
         if (interactive) {
           for (const stName of ["hover", "pressed", "disabled"] as const) {
@@ -4863,6 +4896,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Runtime/PatternBreakRadarDemo.cs", data: RADAR_DEMO_RUNTIME });
   files.push({ path: "Runtime/PatternBreakSeasonTrack.cs", data: SEASON_TRACK_RUNTIME });
   files.push({ path: "Runtime/PatternBreakStateFx.cs", data: STATE_FX_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakRingFill.cs", data: RING_FILL_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitTrace.cs", data: KIT_TRACE_RUNTIME });
   files.push({ path: "Runtime/PatternBreakSafeArea.cs", data: SAFE_AREA_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitPiece.cs", data: KIT_PIECE_RUNTIME });
@@ -4934,6 +4968,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     "Runtime/PatternBreakPopNumber.cs", "Runtime/PatternBreakRadarDemo.cs",
     "Runtime/PatternBreakClaimBurst.cs", "Runtime/PatternBreakInvGrid.cs",
     "Runtime/PatternBreakStateFx.cs", "Runtime/UIKitGlintInk.shader",
+    "Runtime/PatternBreakRingFill.cs",
     "Runtime/PatternBreakKitTrace.cs",
     "Runtime/PatternBreakSafeArea.cs",
     "Runtime/PatternBreakKitPiece.cs",
@@ -5369,6 +5404,51 @@ export async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Arr
    as "engine-composed" in the README and never actually built, so a Unity
    rollover was a quiet face swap (owner: "I'm not getting the glows on
    hover… it's impossible for me to know" whether it hovered). */
+/* the LIVE progress ring's driver (Unity field round: the baked 62% could
+   only ever say 62, and an angular cut through baked shading smudged both
+   cut edges). The rig: a rotationally uniform fill circle cut by Image
+   Filled/Radial360 (origin Top, clockwise) over the track, with two
+   full-rect round-cap children rotated about the canvas center — the cap
+   art is parked at 12 o'clock with radial shading, so a pure rotation
+   lands it at any angle with its shading still true. This component keeps
+   the head cap glued to the fill angle: set fillAmount (Inspector or
+   code) or call SetValue and the caps follow. */
+const RING_FILL_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+
+namespace PatternBreak {
+  [AddComponentMenu("UI Kit Maker/Kit Ring Fill")]
+  [ExecuteAlways]
+  public class KitRingFill : MonoBehaviour {
+    [Tooltip("The Radial360 fill image. Drive its fillAmount (or call SetValue) and the caps follow.")]
+    public Image fill;
+    [Tooltip("Round end-cap parked at the fill's fixed start (12 o'clock).")]
+    public RectTransform capStart;
+    [Tooltip("Round end-cap riding the fill's head — rotated to the fill angle; its radial shading stays true under rotation.")]
+    public RectTransform capHead;
+    float wrote = float.NaN;
+    public void SetValue(float v) {
+      if (fill != null) fill.fillAmount = Mathf.Clamp01(v);
+      Apply();
+    }
+    public void Apply() {
+      if (fill == null) return;
+      float v = Mathf.Clamp01(fill.fillAmount);
+      bool show = v > 0.005f; // the app hides the arc (and so its caps) at zero
+      if (capHead != null) {
+        if (capHead.gameObject.activeSelf != show) capHead.gameObject.SetActive(show);
+        capHead.localRotation = Quaternion.Euler(0f, 0f, -v * 360f); // the fill runs clockwise from the top
+      }
+      if (capStart != null && capStart.gameObject.activeSelf != show) capStart.gameObject.SetActive(show);
+      wrote = v;
+    }
+    void OnEnable() { Apply(); }
+    // change-guarded follow: a quiet frame compares one float and writes nothing
+    void LateUpdate() { if (fill != null && !Mathf.Approximately(fill.fillAmount, wrote)) Apply(); }
+  }
+}
+`;
+
 const STATE_FX_RUNTIME = `using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
@@ -8697,7 +8777,7 @@ namespace PatternBreak {
      rendered box side); strokeS 0 / strokeFile "" = no outline pass and
      the seat wears the single flat image exactly as before. */
   [Serializable] class PBIconSeat { public float dx; public float dy; public float s; public string file; public string ink; public string strokeFile; public string strokeInk; public float strokeS; }
-  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public PBTrack track; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelInk; public string labelInk2; public float leading; public string labelText; public PBIconSeat icon; public PBGauge gauge; public PBChart chart; public PBLoot loot; public PBSeat[] textSeats; public PBStyle seatInk; }
+  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public PBTrack track; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelInk; public string labelInk2; public float leading; public string labelText; public PBIconSeat icon; public PBGauge gauge; public PBChart chart; public PBLoot loot; public PBSeat[] textSeats; public PBStyle seatInk; public float ringV; }
   [Serializable] class PBStyleOutline { public string color; public string color2; public float width; }
   [Serializable] class PBStyleGlow { public string color; public float size; public float opacity; }
   [Serializable] class PBStyleShadow { public string color; public float x; public float y; public float blur; public float opacity; }
@@ -11940,6 +12020,10 @@ namespace PatternBreak {
             }
             /* the gauges are LIVE instances now (the mandate) — set the
                board's staged Value on the dial */
+            /* the live progress ring strikes the board's pose too — the
+               copy's staged value drives the Radial360 cut and the caps */
+            var krS = inst.GetComponent<KitRingFill>();
+            if (krS != null && it.value > 0f) krS.SetValue(Mathf.Clamp01(it.value));
             var gdS = inst.GetComponent<GaugeDial>();
             if (gdS != null && it.value > 0f) { gdS.value = Mathf.Clamp01(it.value); gdS.Apply(); }
             var ktS = inst.GetComponent<KitTimer>();
@@ -13742,6 +13826,59 @@ namespace PatternBreak {
         go.GetComponent<RectTransform>().sizeDelta = new Vector2(rw, rh);
       } else if (pngScale > 0)
         go.GetComponent<RectTransform>().sizeDelta = new Vector2(baseSp.rect.width / pngScale, baseSp.rect.height / pngScale);
+      /* ── the PROGRESS RING goes LIVE (owner field: the baked 62% could
+         only ever say 62, and an angular cut through its baked shading
+         smudged both cut edges): when the export ships the rig atoms
+         (ring-track / ring-fill / ring-cap — one square canvas, ring
+         dead-center), the root wears the TRACK, a Radial360 child cuts
+         the ROTATIONALLY UNIFORM fill at the staged value, and two
+         full-rect cap children rotate about the canvas center to the cut
+         angles (their shading is radial, so rotation keeps it true).
+         KitRingFill glues the head cap to fillAmount — drive either and
+         the ring animates clean at ANY value. The "62%" seat rides the
+         track row (SeatRowOf resolves by the sprite the root wears).
+         Older zips without the atoms keep the static-bake road. */
+      if (baseAsset.component == "ring") {
+        var ringTrackSp = S(root + "/assets/ring/ring-track.png");
+        var ringFillSp = S(root + "/assets/ring/ring-fill.png");
+        var ringCapSp = S(root + "/assets/ring/ring-cap.png");
+        if (ringTrackSp != null && ringFillSp != null) {
+          img.sprite = ringTrackSp;
+          img.type = Image.Type.Simple;
+          img.preserveAspect = false; // the rig children stretch with the rect — resize warps them together, never apart
+          if (pngScale > 0) go.GetComponent<RectTransform>().sizeDelta = new Vector2(ringTrackSp.rect.width / pngScale, ringTrackSp.rect.height / pngScale);
+          PBAsset ringFillRow = null;
+          foreach (var aRg in m.assets) if (aRg != null && aRg.component == "ring" && aRg.part == "fill") { ringFillRow = aRg; break; }
+          var ringFillGo = new GameObject("Fill", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+          ringFillGo.transform.SetParent(go.transform, false);
+          StretchFull(ringFillGo.GetComponent<RectTransform>());
+          var ringFillImg = ringFillGo.GetComponent<Image>();
+          ringFillImg.sprite = ringFillSp;
+          ringFillImg.type = Image.Type.Filled;
+          ringFillImg.fillMethod = Image.FillMethod.Radial360;
+          ringFillImg.fillOrigin = (int)Image.Origin360.Top;
+          ringFillImg.fillClockwise = true;
+          ringFillImg.fillAmount = ringFillRow != null && ringFillRow.ringV > 0f ? Mathf.Clamp01(ringFillRow.ringV) : 0.62f;
+          ringFillImg.raycastTarget = false;
+          RectTransform ringCapA = null, ringCapB = null;
+          if (ringCapSp != null) {
+            for (int cRg = 0; cRg < 2; cRg++) {
+              var capGo = new GameObject(cRg == 0 ? "Cap Start" : "Cap Head", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+              capGo.transform.SetParent(go.transform, false);
+              StretchFull(capGo.GetComponent<RectTransform>());
+              var capImg = capGo.GetComponent<Image>();
+              capImg.sprite = ringCapSp;
+              capImg.raycastTarget = false;
+              if (cRg == 0) ringCapA = (RectTransform)capGo.transform; else ringCapB = (RectTransform)capGo.transform;
+            }
+          }
+          var ringKrf = go.AddComponent<KitRingFill>();
+          ringKrf.fill = ringFillImg;
+          ringKrf.capStart = ringCapA;
+          ringKrf.capHead = ringCapB;
+          ringKrf.Apply();
+        }
+      }
       var famDir = Path.GetDirectoryName(basePath).Replace("\\\\", "/");
       var hover = State(famDir, "hover");
       var pressed = State(famDir, "pressed");

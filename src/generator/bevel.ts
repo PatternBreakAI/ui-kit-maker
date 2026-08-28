@@ -9167,6 +9167,34 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const label2 = opts.label ?? `${Math.round(v2 * 100)}%`;
       const dim = state === "disabled" ? 0.4 : 1;
       const total2 = d2 + pad2 * 2;
+      /* ── ENGINE ATOMS (Unity field round: the ring goes LIVE — a baked
+         62% can only ever say 62, and an angular cut through the baked
+         shading smudges the cut edges). Three part renders on the SAME
+         square canvas, ring dead-center, so the engine's Radial360 wedge
+         pivots exactly on the ring:
+         track — the well circle alone, flat.
+         fill  — the FULL fill ring, ROTATIONALLY UNIFORM: the display
+                 gradient is diagonal (a different hue at every angle), so
+                 an engine cut at an arbitrary value would slice through
+                 it and read as a dirty wedge. The engine cut instead
+                 wears the same two hues as a RADIAL ramp across the
+                 stroke band (inner = bevel hue, outer = glow) — constant
+                 at every angle by construction, clean at any cut.
+         cap   — one round end-cap parked at the TOP seat, full canvas,
+                 wearing the same radial band shading; the importer
+                 rotates full-rect copies about the canvas center to the
+                 cut angles, which keeps the shading radially true at any
+                 angle. No blur, no glow spill on any atom — soft light
+                 is exactly what an angular cut turns into smudge. */
+      if (opts.part === "track" || opts.part === "fill" || opts.part === "cap") {
+        const band = `<radialGradient id="${gid3}r" gradientUnits="userSpaceOnUse" cx="${cx3}" cy="${cy3}" r="${(r2 + stroke2 / 2).toFixed(2)}"><stop offset="${((r2 - stroke2 / 2) / (r2 + stroke2 / 2)).toFixed(4)}" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></radialGradient>`;
+        const inner = opts.part === "track"
+          ? `<circle cx="${cx3}" cy="${cy3}" r="${r2}" fill="none" stroke="${wellFill}" stroke-width="${stroke2}"/>`
+          : opts.part === "fill"
+            ? `<defs>${band}</defs><circle cx="${cx3}" cy="${cy3}" r="${r2}" fill="none" stroke="url(#${gid3}r)" stroke-width="${stroke2}"/>`
+            : `<defs>${band}</defs><circle cx="${cx3}" cy="${(cy3 - r2).toFixed(2)}" r="${(stroke2 / 2).toFixed(2)}" fill="url(#${gid3}r)"/>`;
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${total2}" height="${total2}" viewBox="0 0 ${total2} ${total2}" role="img" aria-label="progress ring ${opts.part}">${inner}</svg>`;
+      }
       return `<svg xmlns="http://www.w3.org/2000/svg" width="${total2}" height="${total2}" viewBox="0 0 ${total2} ${total2}" role="img" aria-label="progress ring">
 <defs>
   <linearGradient id="${gid3}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient>
