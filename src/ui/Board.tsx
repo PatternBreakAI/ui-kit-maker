@@ -1512,14 +1512,17 @@ export function BoardView({ playing }: { playing: boolean }) {
               <div>
                 {/* owner rename 2026-08-28: this class is uploaded artwork
                     (the engine dresses geometry; these are pixels brought IN)
-                    — "Uploads" here, "Art" in the Unity export */}
-                <div className="bd-cat">Uploads <span className="bd-cat-note">AI-generated</span></div>
+                    — "Uploads" here, "Art" in the Unity export. Provenance
+                    is PER-ITEM (owner correction, same day: uploads aren't
+                    always AI-generated) — the note rides only entries whose
+                    registry row says so, never the whole group. */}
+                <div className="bd-cat">Uploads</div>
                 <div className="bd-grid">
                   {items.map((g) => (
-                    <button key={g.id} className="bd-asset" title={`Add ${g.name} to ${act?.name ?? "the board"}`}
+                    <button key={g.id} className="bd-asset" title={`Add ${g.name} to ${act?.name ?? "the board"}${g.ai ? " · AI-generated" : ""}`}
                       onClick={() => useGen.getState().addBigGlyphToBoard(g.id)}>
                       <span><img src={bigGlyphThumb(g.id)} alt={g.name} loading="lazy" style={{ maxWidth: "100%", maxHeight: 64 }} /></span>
-                      <i>{g.name}</i>
+                      <i>{g.name}{g.ai ? <span className="bd-cat-note"> AI</span> : null}</i>
                     </button>
                   ))}
                 </div>
