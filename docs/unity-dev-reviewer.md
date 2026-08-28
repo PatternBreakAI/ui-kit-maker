@@ -24,6 +24,10 @@ resize the Game view to weird aspects.
    selecting grabs the whole piece; nothing is secretly a picture; words
    are editable TMP; icons/labels travel with states; hitboxes match the
    art.
+   **The maximum-editability law (owner, 2026-08-28):** no icon, image, or
+   word burned into component art — every swappable thing is a live child
+   a dev can retarget in the Inspector without visiting the app. Any
+   burned-in swappable is a finding.
 3. **Deletability** — they WILL delete demo content. Removing any scene
    item or prefab must not break others (no hidden cross-references,
    no shared-material surprises).
