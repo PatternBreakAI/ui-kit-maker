@@ -7909,6 +7909,21 @@ ${hasBoards ? `
   download again and extract over the same spot. Everything you placed
   restyles where it stands, and words you typed in Unity are kept.
 
+> **Seeing "assets located in immutable packages were unexpectedly
+> altered" in the status bar?** That is Unity reporting that a file
+> inside **Library/PackageCache** (a read-only package) no longer
+> matches the package it came from. The kit never writes there: every
+> kit file lives under **Assets/**, and the kit even carries a tripwire
+> that BLOCKS any save aimed into an immutable package and prints who
+> tried (Unity's own TextMeshPro font-asset upgrade is the usual
+> culprit — it re-stamps package-resident font assets the moment they
+> load). On import the kit also audits the package caches and names any
+> already-altered file in the Console. To heal the package, close
+> Unity, delete that package's folder under **Library/PackageCache**,
+> and reopen — Unity re-extracts it clean. If the warning returns, run
+> **Tools > PatternBreak > Audit Immutable Packages** and send us the
+> Console lines it prints — they name the exact file and the writer.
+
 ---
 
 **Remix this kit:** https://uikitmaker.com/?src=unity-asset-store — restyle every piece, retype every word, re-export; the new zip drops over this folder and heals in place.
@@ -9108,6 +9123,76 @@ namespace PatternBreak {
       foreach (var guid in manifests) ImportKit(AssetDatabase.GUIDToAssetPath(guid));
     }
 
+    /* ── the IMMUTABLE-PACKAGE ALTERATION AUDIT (round 37) — the evidence
+       arm of the tripwire. The tripwire blocks and names package-bound
+       SAVES as they happen; this audit names what the tripwire cannot
+       see: package assets already DIRTY in memory (the flush-in-waiting)
+       and files already ALTERED on disk inside an immutable package's
+       cache (drift that landed through a non-save road, or in a session
+       before this kit existed). The kit itself only ever writes under
+       Assets/ — this is a reporter and changes nothing. */
+    const string AuditPkgMenu = "Tools/PatternBreak/Audit Immutable Packages";
+    [MenuItem(AuditPkgMenu, false, 901)]
+    public static void AuditImmutablePackages() { AuditImmutablePackagesNow(true); }
+    public static void AuditImmutablePackagesNow(bool always) {
+      if (!always && SessionState.GetBool("pbPkgAudited", false)) return;
+      SessionState.SetBool("pbPkgAudited", true);
+      int findings = 0;
+      /* 1 · loaded-and-dirty package assets — if anything flushes one,
+         Unity's warning is exactly that asset (and the tripwire will
+         block the save and name the flusher's stack) */
+      try {
+        var seen = new HashSet<int>();
+        foreach (var oA in Resources.FindObjectsOfTypeAll<ScriptableObject>()) findings += ReportDirtyPackageAsset(oA, seen);
+        foreach (var oA in Resources.FindObjectsOfTypeAll<Material>()) findings += ReportDirtyPackageAsset(oA, seen);
+      } catch (Exception) { }
+      /* 2 · drift already ON DISK: files written well after their
+         immutable package landed in Library/PackageCache. The median
+         write time is the package's own extraction beat; a small set of
+         far-newer files is the alteration Unity's status warning
+         reports. A wholesale newer tree is a re-resolve, not drift. */
+      try {
+        foreach (var pkgA in UnityEditor.PackageManager.PackageInfo.GetAllRegisteredPackages()) {
+          if (pkgA == null || pkgA.source == UnityEditor.PackageManager.PackageSource.Embedded || pkgA.source == UnityEditor.PackageManager.PackageSource.Local) continue;
+          var rp = pkgA.resolvedPath;
+          if (string.IsNullOrEmpty(rp) || !Directory.Exists(rp)) continue;
+          string[] pkgFiles;
+          try { pkgFiles = Directory.GetFiles(rp, "*", SearchOption.AllDirectories); } catch (Exception) { continue; }
+          if (pkgFiles.Length == 0 || pkgFiles.Length > 20000) continue;
+          var times = new List<long>(pkgFiles.Length);
+          foreach (var fA in pkgFiles) { try { times.Add(File.GetLastWriteTimeUtc(fA).Ticks); } catch (Exception) { times.Add(0L); } }
+          times.Sort();
+          long median = times[times.Count / 2];
+          var rpN = rp.Replace("\\\\", "/");
+          var newer = new List<string>();
+          foreach (var fA in pkgFiles) {
+            try { if (File.GetLastWriteTimeUtc(fA).Ticks > median + TimeSpan.TicksPerMinute * 2) newer.Add(fA.Replace("\\\\", "/").Substring(rpN.Length + 1)); }
+            catch (Exception) { }
+          }
+          if (newer.Count > 0 && newer.Count <= pkgFiles.Length / 4) {
+            findings++;
+            Debug.LogWarning("UI Kit Maker package audit: '" + pkgA.name + "' (immutable) carries " + newer.Count + " file(s) written well after the package landed — this drift is what Unity's 'assets located in immutable packages were unexpectedly altered' warning reports: "
+              + string.Join(", ", newer.GetRange(0, Math.Min(10, newer.Count)).ToArray()) + (newer.Count > 10 ? " …" : "")
+              + "\\nThe kit only ever writes under Assets/ (its tripwire blocks and names any save aimed into an immutable package). To heal the package, delete its Library/PackageCache entry and let Unity re-resolve, or restore it from version control.");
+          }
+        }
+      } catch (Exception) { }
+      if (always && findings == 0)
+        Debug.Log("UI Kit Maker package audit: no dirty package assets in memory and no altered files in any immutable package's cache. If the status bar still shows the 'immutable packages… altered' warning, the drift predates this session and was already healed or lives outside the caches this audit can see — if it returns, send the Console entry that names the asset.");
+    }
+    static int ReportDirtyPackageAsset(UnityEngine.Object oA, HashSet<int> seen) {
+      try {
+        if (oA == null || !EditorUtility.IsDirty(oA)) return 0;
+        var pA = AssetDatabase.GetAssetPath(oA);
+        if (string.IsNullOrEmpty(pA) || !pA.Replace("\\\\", "/").StartsWith("Packages/")) return 0;
+        var pkgA = UnityEditor.PackageManager.PackageInfo.FindForAssetPath(pA);
+        if (pkgA == null || pkgA.source == UnityEditor.PackageManager.PackageSource.Embedded || pkgA.source == UnityEditor.PackageManager.PackageSource.Local) return 0;
+        if (!seen.Add(oA.GetInstanceID())) return 0;
+        Debug.LogWarning("UI Kit Maker package audit: the package asset '" + pA + "' (" + oA.GetType().Name + ") is DIRTY in memory — something modified it after it loaded (TextMeshPro's font-asset version upgrade does this to package-resident assets). If anything flushes it, Unity's 'assets located in immutable packages were unexpectedly altered' warning is exactly this asset; the kit's tripwire will block that save and name the flusher. The kit itself never writes into Packages/.");
+        return 1;
+      } catch (Exception) { return 0; }
+    }
+
     /* ── Round 19 (P0) — REFLECTION ONLY past this line. The Input
        System's editor-behavior API varies by package version: a DIRECT
        reference to the InputSettings editor-behavior enum failed to
@@ -9816,6 +9901,20 @@ namespace PatternBreak {
         Debug.Log(line);
       if (missing > 0)
         Debug.LogWarning("UI Kit Maker: " + missing + " sprites named in " + mPath + " were not found on disk — keep the export's assets folder next to kit-manifest.json, named exactly 'assets'.");
+      /* ── the IMMUTABLE-PACKAGE ALTERATION AUDIT (round 37: the warning
+         that SURVIVED the tripwire in a fresh field project). The
+         tripwire can only stand in front of AssetDatabase SAVES; Unity's
+         status warning fires on CONTENT DRIFT in Library/PackageCache,
+         which also arrives by roads no save callback ever sees — .meta /
+         import-settings re-serialization inside the cache, an upgrader
+         writing files directly, or a flush in a session BEFORE this kit's
+         scripts existed. This audit turns the next field report into
+         evidence instead of a guess: it names (1) every loaded package
+         asset that is DIRTY in memory — the flush the tripwire would
+         block — and (2) every file already altered on disk inside an
+         immutable package's cache. A pure reporter: it writes nothing.
+         Once per editor session, after the import settles. */
+      EditorApplication.delayCall += () => AuditImmutablePackagesNow(false);
       /* ── the PHONE HEADS-UP (the landscape-Game-view defense, importer
          half): a portrait kit meets Unity's default Full HD Game view as
          a ~5× width-match blowup. Register a matching Fixed Resolution
