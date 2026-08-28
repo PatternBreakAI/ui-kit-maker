@@ -3988,14 +3988,15 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
       ${iconDef ? `<g data-part="icon">` : ""}${iconDef ? (inheritTypo
         ? `<g${iconFilter ? ` style="filter:${iconFilter}"` : ""}${IC.opacity < 100 ? ` opacity="${(IC.opacity / 100).toFixed(2)}"` : ""}>${
             T2.outline.on && !disabled && (IC.outlineWidth ?? T2.outline.width) > 0.01
-              ? iconGroup(iconDef, iconX, iconY, iconSize, T2.outline.color2 ? `url(#${id}og)` : P(T2.outline.color), { strokeWidth: IC.strokeWidth / 10 + (IC.outlineWidth ?? T2.outline.width) * 0.85, rotation: IC.rotation })
+              ? iconGroup(iconDef, iconX, iconY, iconSize, T2.outline.color2 ? `url(#${id}og)` : P(T2.outline.color), { strokeWidth: IC.strokeWidth / 10 + (IC.outlineWidth ?? T2.outline.width) * 0.85, rotation: IC.rotation, fillWeight: IC.strokeWidth / 24 })
               : ""
-          }${iconGroup(iconDef, iconX, iconY, iconSize, !disabled && T2.fillMode === "gradient" ? `url(#${id}tg)` : iconColor, { strokeWidth: IC.strokeWidth / 10, rotation: IC.rotation })}</g>`
+          }${iconGroup(iconDef, iconX, iconY, iconSize, !disabled && T2.fillMode === "gradient" ? `url(#${id}tg)` : iconColor, { strokeWidth: IC.strokeWidth / 10, rotation: IC.rotation, fillWeight: IC.strokeWidth / 24 })}</g>`
         : iconGroup(iconDef, iconX, iconY, iconSize, iconColor, {
             strokeWidth: IC.strokeWidth / 10,
             opacity: (IC.opacity / 100),
             rotation: IC.rotation,
             filter: iconFilter,
+            fillWeight: IC.strokeWidth / 24,
           })) : ""}${iconDef ? `</g>` : ""}
     </g>
     ${C.gloss.layer === "above" && LO ? `<g id="${id}_gloss" data-part="gloss" opacity="${(T.interior / 100).toFixed(2)}" clip-path="url(#${id}fc)"${C.gloss.blend && C.gloss.blend !== "normal" ? ` style="mix-blend-mode:${C.gloss.blend}"` : ""}>${gloss}</g>` : ""}
@@ -4748,20 +4749,20 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
        to edit the xy of the middle icon"). */
     const xI = xI0 + (pin ? 0 : (cfg.icon.ox || 0) * k), yI = yI0 + (pin ? 0 : (cfg.icon.oy || 0) * k);
     const T4 = cfg.type;
-    if (state === "disabled") return iconGroup(defI, xI, yI, sI, "#A7AAB4", { strokeWidth: swI * iconWK });
+    if (state === "disabled") return iconGroup(defI, xI, yI, sI, "#A7AAB4", { strokeWidth: swI * iconWK, fillWeight: iconWK });
     // a CUSTOM icon color (the Icon block's un-inherited well) beats the
     // type treatment in every self-drawn site — same contract as built icons
     // the icon's own outline width outranks the type's when set; 0 = no border
     const owI = cfg.icon.outlineWidth ?? T4.outline.width;
     if (cfg.icon.color) {
-      const outlC = T4.outline.on && owI > 0.01 ? iconGroup(defI, xI, yI, sI, T4.outline.color, { strokeWidth: swI * iconWK + owI * 0.8 }) : "";
-      return outlC + iconGroup(defI, xI, yI, sI, cfg.icon.color, { strokeWidth: swI * iconWK });
+      const outlC = T4.outline.on && owI > 0.01 ? iconGroup(defI, xI, yI, sI, T4.outline.color, { strokeWidth: swI * iconWK + owI * 0.8, fillWeight: iconWK }) : "";
+      return outlC + iconGroup(defI, xI, yI, sI, cfg.icon.color, { strokeWidth: swI * iconWK, fillWeight: iconWK });
     }
     const gidI = "ti" + UID++;
     const grad = T4.fillMode === "gradient" ? `<defs><linearGradient id="${gidI}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${T4.fill}"/><stop offset="1" stop-color="${T4.fill2}"/></linearGradient></defs>` : "";
     const fillI = T4.fillMode === "gradient" ? `url(#${gidI})` : T4.fillMode === "solid" ? T4.fill : tone;
-    const outl = T4.outline.on && owI > 0.01 ? iconGroup(defI, xI, yI, sI, T4.outline.color, { strokeWidth: swI * iconWK + owI * 0.8 }) : "";
-    return grad + outl + iconGroup(defI, xI, yI, sI, fillI, { strokeWidth: swI * iconWK });
+    const outl = T4.outline.on && owI > 0.01 ? iconGroup(defI, xI, yI, sI, T4.outline.color, { strokeWidth: swI * iconWK + owI * 0.8, fillWeight: iconWK }) : "";
+    return grad + outl + iconGroup(defI, xI, yI, sI, fillI, { strokeWidth: swI * iconWK, fillWeight: iconWK });
   };
 
   /* Emblem treatment for the showcase pieces (card back, booster pack):
