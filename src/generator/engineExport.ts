@@ -9017,7 +9017,9 @@ namespace PatternBreak {
       var go = (GameObject)PrefabUtility.InstantiatePrefab(pf);
       Transform parent = null;
       if (ctxGo != null) parent = ctxGo.transform;
-      if (parent == null) { var cv = UnityEngine.Object.FindFirstObjectByType<Canvas>(); if (cv != null) parent = cv.transform; }
+      // FindAnyObjectByType: the non-deprecated finder on every rung we ship
+      // (2022.3+); FindFirstObjectByType went CS0618 on Unity 6000.5
+      if (parent == null) { var cv = UnityEngine.Object.FindAnyObjectByType<Canvas>(); if (cv != null) parent = cv.transform; }
       if (parent != null) go.transform.SetParent(parent, false);
       var prt = go.transform as RectTransform;
       if (prt != null) prt.anchoredPosition = Vector2.zero;
@@ -9142,7 +9144,10 @@ namespace PatternBreak {
          Unity's warning is exactly that asset (and the tripwire will
          block the save and name the flusher's stack) */
       try {
-        var seen = new HashSet<int>();
+        /* reference-identity dedup — GetInstanceID() is obsolete-as-ERROR on
+           Unity 6000.5+ (GetEntityId), and GetEntityId doesn't exist below it;
+           a HashSet of the objects themselves is version-proof */
+        var seen = new HashSet<UnityEngine.Object>();
         foreach (var oA in Resources.FindObjectsOfTypeAll<ScriptableObject>()) findings += ReportDirtyPackageAsset(oA, seen);
         foreach (var oA in Resources.FindObjectsOfTypeAll<Material>()) findings += ReportDirtyPackageAsset(oA, seen);
       } catch (Exception) { }
@@ -9180,14 +9185,14 @@ namespace PatternBreak {
       if (always && findings == 0)
         Debug.Log("UI Kit Maker package audit: no dirty package assets in memory and no altered files in any immutable package's cache. If the status bar still shows the 'immutable packages… altered' warning, the drift predates this session and was already healed or lives outside the caches this audit can see — if it returns, send the Console entry that names the asset.");
     }
-    static int ReportDirtyPackageAsset(UnityEngine.Object oA, HashSet<int> seen) {
+    static int ReportDirtyPackageAsset(UnityEngine.Object oA, HashSet<UnityEngine.Object> seen) {
       try {
         if (oA == null || !EditorUtility.IsDirty(oA)) return 0;
         var pA = AssetDatabase.GetAssetPath(oA);
         if (string.IsNullOrEmpty(pA) || !pA.Replace("\\\\", "/").StartsWith("Packages/")) return 0;
         var pkgA = UnityEditor.PackageManager.PackageInfo.FindForAssetPath(pA);
         if (pkgA == null || pkgA.source == UnityEditor.PackageManager.PackageSource.Embedded || pkgA.source == UnityEditor.PackageManager.PackageSource.Local) return 0;
-        if (!seen.Add(oA.GetInstanceID())) return 0;
+        if (!seen.Add(oA)) return 0;
         Debug.LogWarning("UI Kit Maker package audit: the package asset '" + pA + "' (" + oA.GetType().Name + ") is DIRTY in memory — something modified it after it loaded (TextMeshPro's font-asset version upgrade does this to package-resident assets). If anything flushes it, Unity's 'assets located in immutable packages were unexpectedly altered' warning is exactly this asset; the kit's tripwire will block that save and name the flusher. The kit itself never writes into Packages/.");
         return 1;
       } catch (Exception) { return 0; }

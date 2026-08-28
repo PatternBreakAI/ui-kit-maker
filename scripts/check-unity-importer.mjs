@@ -134,6 +134,20 @@ else {
   }
 }
 
+/* Unity 6000.5 turned two long-stable Object APIs obsolete — GetInstanceID
+   as ERROR (CS0619 → the whole importer dies; the replacement GetEntityId
+   does not exist on older rungs) and FindFirstObjectByType as warning.
+   The field found both the hard way. Ban them in the emitted C# outright:
+   dedup by reference identity, find with FindAnyObjectByType (2022.3+). */
+{
+  const banned = [
+    [/\bGetInstanceID\s*\(/, "GetInstanceID() — CS0619 ERROR on Unity 6000.5+ and GetEntityId is missing below it; dedup/track by object reference instead"],
+    [/\bFindFirstObjectByType\b/, "FindFirstObjectByType — deprecated (CS0618) on Unity 6000.5+; use FindAnyObjectByType (available on every shipped rung)"],
+  ];
+  for (const [re, msg] of banned)
+    if (re.test(cs)) errors.push(`emitted C# uses ${msg}`);
+}
+
 /* round-12 ordering invariants: pinned board words are placement-self-
    sufficient. The field lost its BOOST three times to import-order trust;
    these keep the contract honest at build time.
