@@ -1510,7 +1510,10 @@ export function BoardView({ playing }: { playing: boolean }) {
             if (!items.length) return null;
             return (
               <div>
-                <div className="bd-cat">Big glyphs <span className="bd-cat-note">AI-generated</span></div>
+                {/* owner rename 2026-08-28: this class is uploaded artwork
+                    (the engine dresses geometry; these are pixels brought IN)
+                    — "Uploads" here, "Art" in the Unity export */}
+                <div className="bd-cat">Uploads <span className="bd-cat-note">AI-generated</span></div>
                 <div className="bd-grid">
                   {items.map((g) => (
                     <button key={g.id} className="bd-asset" title={`Add ${g.name} to ${act?.name ?? "the board"}`}
