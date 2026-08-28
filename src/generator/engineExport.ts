@@ -250,7 +250,12 @@ interface AssetMeta {
    *  `btn` marks a plate that is a REAL small button (boostercard's qty
    *  pill); `wellR` (design px) marks a circular-masked image well (the
    *  avatar's portrait) — the importer builds mask + swappable Portrait. */
-  iconSeats?: { name: string; file: string; dx: number; dy: number; w: number; h: number; btn?: boolean; wellR?: number }[];
+  iconSeats?: { name: string; file: string; dx: number; dy: number; w: number; h: number; btn?: boolean; wellR?: number;
+    /** right-edge pin (the dropdown's caret): the child anchors to the
+     *  RECT's right edge and keeps `rightGap` design px between the
+     *  drawn shell's right edge and its own box — the app's constant
+     *  caret gap survives every nine-slice stretch. dx is unused. */
+    pinRight?: boolean; rightGap?: number }[];
 }
 
 export interface EngineExportState {
@@ -2997,9 +3002,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     } catch { return { svg: svgIn, labelStripped: false, seatsStripped: 0 }; }
   };
   const stripIconInk = stripMarkedIcons;
-  const iconSeatsOf = async (uid: KitComponentId, fullSvg: string, spritePrefix?: string): Promise<NonNullable<AssetMeta["iconSeats"]> | null> => {
+  const iconSeatsOf = async (uid: KitComponentId, fullSvg: string, spritePrefix?: string, nameOverride?: string): Promise<NonNullable<AssetMeta["iconSeats"]> | null> => {
     const cuts = markedIconOnlySvgs(fullSvg);
     if (!cuts.length) return null;
+    if (nameOverride && cuts.length === 1) cuts[0].name = nameOverride;
     /* the DRAWN shell frame — the raster measures drawn pixels, so the
        seat must speak the drawn frame (rasterQueue's own shellBox rule);
        a well attr is authored in raw (pre-riseDy) coordinates and shifts
@@ -4076,19 +4082,39 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
        the glyph (the raster clamp still guards the center strip) */
     const ddSlice = sliceOf("dropdown", 110);
     ddSlice.right = Math.max(ddSlice.right, Math.round(80 * PNG_SCALE));
+    /* THE CARET GOES LIVE (slice 3a — caret parity + the law). The
+       value-free shell hand-drew its own chevron (glow ink, 39px, 45px
+       off the right edge) while the APP dresses the caret through
+       build's icon machinery (kit ink, its own pen and size) at a
+       CONSTANT gap from the shell's right edge (Brightside: 79px,
+       label-length invariant — measured). Cut the caret from the app's
+       LABELED render — those exact pixels — strip the bake, and pin the
+       live child to the right edge at the measured gap, so the base
+       piece AND every stretched variant keep the app's own caret
+       everywhere the dropdown appears. */
+    const ddLabeled = shell("dropdown", { icon: undefined, label: st.kitLabels?.dropdown ?? "SELECT OPTION" }, slim);
+    const ddCaret0 = await iconSeatsOf("dropdown", ddLabeled, "dropdown", "caret");
+    let ddIconSeats: AssetMeta["iconSeats"];
+    {
+      const shL = (/data-shell="([-\d. ]+)"/.exec(ddLabeled) ?? /data-shell0="([-\d. ]+)"/.exec(ddLabeled))?.[1].split(" ").map(Number);
+      if (ddCaret0 && ddCaret0.length === 1 && shL && shL.length === 4) {
+        const c0 = ddCaret0[0];
+        ddIconSeats = [{ ...c0, pinRight: true, rightGap: Math.round((shL[2] / 2 - (c0.dx + c0.w / 2)) * 10) / 10 }];
+      }
+    }
     /* no base-hover/pressed here on purpose: the dropdown is a COMPOSED
        control with no generated prefab, and its emphasis already ships as
        the row-highlight and row-check layers below. Three more full-size
        sprites nobody wires isn't free — a full kit is already 134 MB of
        uncompressed texture. */
-    await addPng("dropdown/base.9.png", ddSvg,
+    await addPng("dropdown/base.9.png", ddIconSeats ? stripIconInk(ddSvg).svg : ddSvg,
       { component: "dropdown", part: "base", nineSlice: ddSlice,
-        pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Closed dropdown shell, chevron included (as designed, safe inside the right cap). The value word arrives as live text on the Dropdown prefab.",
-        ...labelSeatOf("dropdown", st.kitLabels?.dropdown ?? "SELECT OPTION", { icon: undefined }, slim) }, true,
-      /* the caret's cap is a FLOOR, not an estimate: the measured-slice
-         pass replaced the widened border with bare curvature (120 < the
-         caret's 136px reach) and stretched copies sheared the chevron's
-         left tip — the guard now survives measurement (sliceMin). */
+        pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Closed dropdown shell, bare — the caret is a LIVE Image child on the Dropdown prefab (the app's own glyph, right-edge pinned; swap the sprite in the Inspector) and the value word arrives as live text.",
+        ...labelSeatOf("dropdown", st.kitLabels?.dropdown ?? "SELECT OPTION", { icon: undefined }, slim),
+        ...(ddIconSeats ? { iconSeats: ddIconSeats } : {}) }, true,
+      /* the caret's cap survives as a FLOOR: the live caret occupies the
+         right cap's air, and the border keeps the stretch zone away from
+         its seat (the old baked-shear guard, re-purposed). */
       undefined, { sliceMin: { right: Math.round(80 * PNG_SCALE) } });
     /* the OPEN-MENU voice comes from ONE resolver (resolveMenuStyle — the
        app's own open-state road, dials included), and the metrics come
@@ -9154,7 +9180,7 @@ namespace PatternBreak {
      per swappable icon/image the app drew — its own full-color sprite,
      box center vs the shell center (design px, y down), box size. btn =
      a REAL small-button plate; wellR > 0 = circular-masked image well. */
-  [Serializable] class PBIconChild { public string name; public string file; public float dx; public float dy; public float w; public float h; public bool btn; public float wellR; }
+  [Serializable] class PBIconChild { public string name; public string file; public float dx; public float dy; public float w; public float h; public bool btn; public float wellR; public bool pinRight; public float rightGap; }
   [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public PBTrack track; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelInk; public string labelInk2; public float leading; public string labelText; public PBIconSeat icon; public PBGauge gauge; public PBChart chart; public PBLoot loot; public PBSeat[] textSeats; public PBStyle seatInk; public float ringV; public PBIconChild[] iconSeats; }
   [Serializable] class PBStyleOutline { public string color; public string color2; public float width; }
   [Serializable] class PBStyleGlow { public string color; public float size; public float opacity; }
@@ -12591,6 +12617,13 @@ namespace PatternBreak {
               }
             }
 #endif
+            /* HONEST DEMO OPTIONS (slice 3b — owner: the Pause screen's
+               GRAPHICS dropdown shipped language rows): a demo dropdown's
+               menu speaks its own caption's domain. A small seat-word →
+               options table covers the demo scenes; the maker's own
+               typed menu items (manifest > menu.items) always win, and
+               unknown captions keep the kit's default list. */
+            if (it.component == "dropdown") SeedDropdownDomain(inst, it.label, m);
             // rows of keycaps/tabs become working select groups (below)
             if ((it.component == "keycap" || it.component == "tab") && inst.GetComponent<Button>() != null)
               selectRows.Add(new KeyValuePair<PBBoardItem, GameObject>(it, inst));
@@ -14366,9 +14399,18 @@ namespace PatternBreak {
         var crt = cgo.GetComponent<RectTransform>();
         float fxC = (row.shell.x + row.shell.w / 2f + ic.dx * psIC) / bsIC.rect.width;
         float fyC = 1f - (row.shell.y + row.shell.h / 2f + ic.dy * psIC) / bsIC.rect.height;
-        crt.anchorMin = crt.anchorMax = new Vector2(fxC, fyC);
         crt.pivot = new Vector2(0.5f, 0.5f);
-        crt.anchoredPosition = Vector2.zero;
+        if (ic.pinRight) {
+          /* right-edge pin (the caret): a constant design-px gap from the
+             drawn shell's right edge — the app's own spacing survives
+             every nine-slice stretch (a fraction anchor would drift) */
+          crt.anchorMin = crt.anchorMax = new Vector2(1f, fyC);
+          float airR = (bsIC.rect.width - (row.shell.x + row.shell.w)) / psIC;
+          crt.anchoredPosition = new Vector2(-(airR + ic.rightGap + ic.w / 2f), 0f);
+        } else {
+          crt.anchorMin = crt.anchorMax = new Vector2(fxC, fyC);
+          crt.anchoredPosition = Vector2.zero;
+        }
         crt.sizeDelta = new Vector2(ic.w, ic.h);
       }
     }
@@ -15405,6 +15447,9 @@ namespace PatternBreak {
       if (sp == null) return false;
       var go = ImageObject("Dropdown", sp, pngScale);
       go.GetComponent<Image>().type = Image.Type.Sliced;
+      /* the live caret (slice 3a): the app's own glyph, right-edge pinned
+         at the measured gap — swap the sprite in the Inspector */
+      WireIconChildren(go, root, m, "dropdown");
       AddLabel(go, LabelWordOf(m, "dropdown", DefaultLabel("dropdown")), kitFont, root, m, "dropdown");
       ShellRaycastPad(go, "dropdown", m);
       BuildDropdownRig(go, root, pngScale, m, kitFont);
@@ -15590,6 +15635,51 @@ namespace PatternBreak {
       ddC.options.Clear();
       foreach (var oDD in optsDD) ddC.options.Add(new Dropdown.OptionData(oDD));
       ddC.SetValueWithoutNotify(0);
+#endif
+    }
+    /* HONEST DEMO OPTIONS (slice 3b): the demo scenes' dropdowns speak
+       their caption's domain — the seat-word → options table below, kept
+       small and explicit. The caption's own trailing word (after "·")
+       picks the selected row when it names an option; the maker's typed
+       menu items (manifest > menu.items) always override; any other
+       caption keeps the kit's default list untouched. The caption TMP
+       re-asserts the app's word after the value strike, so "Graphics ·
+       High" keeps reading exactly as the board drew it. */
+    static readonly string[] GraphicsOptions = new string[] { "Low", "Medium", "High", "Ultra" };
+    static void SeedDropdownDomain(GameObject inst, string caption, PBManifest m) {
+      if (inst == null || string.IsNullOrEmpty(caption)) return;
+      if (m != null && m.menu != null && m.menu.items != null && m.menu.items.Length > 0) return; // the maker's own menu wins
+      var cUp = caption.ToUpperInvariant();
+      string[] opts = null;
+      int sel = -1;
+      if (cUp.Contains("GRAPHIC") || cUp.Contains("QUALITY")) { opts = GraphicsOptions; sel = 2; } // High
+      if (opts == null) return;
+      // the caption's own trailing word picks the row when it names one
+      int dotAt = caption.LastIndexOf('·');
+      if (dotAt >= 0) {
+        var tail = caption.Substring(dotAt + 1).Trim();
+        for (int i = 0; i < opts.Length; i++) if (string.Equals(opts[i], tail, System.StringComparison.OrdinalIgnoreCase)) { sel = i; break; }
+      }
+#if UNITY_2023_2_OR_NEWER
+      var ddS = inst.GetComponent<TMP_Dropdown>();
+      if (ddS == null) return;
+      ddS.options.Clear();
+      foreach (var oS in opts) ddS.options.Add(new TMP_Dropdown.OptionData(oS));
+      ddS.SetValueWithoutNotify(sel);
+      ddS.RefreshShownValue();
+      /* the board's own words stand — through the stack's owner when the
+         caption rides a HeroLabel (a bare .text write desyncs the echo) */
+      var hlS = inst.GetComponentInChildren<HeroLabel>(true);
+      if (hlS != null) hlS.SetText(caption);
+      else if (ddS.captionText != null) ddS.captionText.text = caption;
+#else
+      var ddS = inst.GetComponent<Dropdown>();
+      if (ddS == null) return;
+      ddS.options.Clear();
+      foreach (var oS in opts) ddS.options.Add(new Dropdown.OptionData(oS));
+      ddS.SetValueWithoutNotify(sel);
+      ddS.RefreshShownValue();
+      if (ddS.captionText != null) ddS.captionText.text = caption;
 #endif
     }
     /* the classic dial with its needle as a LIVE layer — rotate the

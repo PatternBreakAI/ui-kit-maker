@@ -10102,7 +10102,11 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
            export widens the sprite's right border to shield the glyph. */
         const w2 = 560 * k, h2 = 110 * k;
         const track2 = build(cfg, state, { x: 39, y: 30, h: h2, fs: 32 * k, iconSize: 0 }, { label: "", iconDef: null, shapeOverride: sov, fixedW: w2 });
-        return inject(track2, iconGroup(STOCK_ICONS.chevron, 39 + w2 - 56 * k, 30 + h2 / 2 - 13 * k, 26 * k, glow, { strokeWidth: 2.6 * iconWK }));
+        /* marked swappable ink (maximum-editability law): the engine
+           export strips this stand-in chevron and ships the LIVE caret
+           cut from the app's own labeled render instead (build's icon
+           machinery — kit ink and geometry), pinned to the right edge */
+        return inject(track2, `<g data-part="icon" data-icon="caret">${iconGroup(STOCK_ICONS.chevron, 39 + w2 - 56 * k, 30 + h2 / 2 - 13 * k, 26 * k, glow, { strokeWidth: 2.6 * iconWK })}</g>`);
       }
       const btn = build(cfg, state, { x: 39, y: 30, h: 110 * k, fs: 32 * k, iconSize: bare ? 0 : 30 * k }, { label: opts.label ?? "Select option", iconDef: bare ? null : STOCK_ICONS.chevron, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx, fixedW: opts.label === "" ? 560 * k : undefined });
       if (state !== "pressed") return btn;

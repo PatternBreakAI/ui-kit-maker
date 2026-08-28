@@ -2179,7 +2179,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/if \(posedCuts\.length\) ps2 = stripMarkedIcons\(ps2\)\.svg;/.test(src)
       || !/posedIcons: posedIconsPx/.test(src))
     errors.push("the POSED road stopped stripping marked icons / shipping posedIcons — board copies burn their swappables again");
-  if (!/\[Serializable\] class PBIconChild \{ public string name; public string file; public float dx; public float dy; public float w; public float h; public bool btn; public float wellR; \}/.test(cs))
+  if (!/\[Serializable\] class PBIconChild \{ public string name; public string file; public float dx; public float dy; public float w; public float h; public bool btn; public float wellR; public bool pinRight; public float rightGap; \}/.test(cs))
     errors.push("PBIconChild is missing from the importer — JsonUtility drops every un-burn seat row");
   if (!/public PBStyle seatInk; public float ringV; public PBIconChild\[\] iconSeats; \}/.test(cs))
     errors.push("PBAsset must carry iconSeats — without it JsonUtility drops the un-burn seats");
@@ -2221,6 +2221,26 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the toggle mark anchors on the sprite rect again — checkbox/radio marks sit low (the extrusion pulls the rect center off the face)");
   if (!/<clipPath id="\$\{gid9\}c"><circle cx="128" cy="128" r="128"\/><\/clipPath>/.test(bevelSrc))
     errors.push("the globe liquid lost its pre-clip — the stencil Mask draws the circular edge again (aliased bottom)");
+}
+
+/* SLICE-3 pins: the dropdown's caret rides LIVE (cut from the app's own
+   labeled render, right-edge pinned at the measured gap), and the demo
+   scenes' dropdowns seed honest domain options (Graphics · High) with
+   the maker's typed menu items always overriding. */
+{
+  if (!/const ddLabeled = shell\("dropdown", \{ icon: undefined, label: st\.kitLabels\?\.dropdown \?\? "SELECT OPTION" \}, slim\);/.test(src)
+      || !/const ddCaret0 = await iconSeatsOf\("dropdown", ddLabeled, "dropdown", "caret"\);/.test(src)
+      || !/pinRight: true, rightGap: Math\.round\(\(shL\[2\] \/ 2 - \(c0\.dx \+ c0\.w \/ 2\)\) \* 10\) \/ 10/.test(src))
+    errors.push("the dropdown caret is baked again (or lost its measured right-edge gap) — parity with the app's labeled render is gone");
+  if (!/public bool pinRight; public float rightGap; \}/.test(cs)
+      || !/crt\.anchoredPosition = new Vector2\(-\(airR \+ ic\.rightGap \+ ic\.w \/ 2f\), 0f\);/.test(cs)
+      || !/WireIconChildren\(go, root, m, "dropdown"\);/.test(cs))
+    errors.push("the importer no longer pins the live caret to the right edge (PBIconChild.pinRight / DropdownPrefab wiring)");
+  if (!/static void SeedDropdownDomain\(GameObject inst, string caption, PBManifest m\)/.test(cs)
+      || !/if \(it\.component == "dropdown"\) SeedDropdownDomain\(inst, it\.label, m\);/.test(cs)
+      || !/if \(m != null && m\.menu != null && m\.menu\.items != null && m\.menu\.items\.Length > 0\) return; \/\/ the maker's own menu wins/.test(cs)
+      || !/"Low", "Medium", "High", "Ultra"/.test(cs))
+    errors.push("the demo dropdowns' honest domain options are gone (SeedDropdownDomain / the Graphics table / the maker-override gate)");
 }
 
 if (errors.length) {
