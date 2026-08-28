@@ -9263,7 +9263,7 @@ namespace PatternBreak {
      scene FILES (the seededLabels precedent, applied to .unity bytes):
      only a scene byte-identical to our own last save may auto-rebuild. */
   [Serializable] class PBSceneShaEntry { public string scene; public string sha; }
-  [Serializable] class PBLock { public string slug; public int kitVersion; public string generatorVersion; public string imported; public bool prefabsGenerated; public PBLockEntry[] files; public string[] orphans; public PBSeedEntry[] seededLabels; public bool variantsPending; public PBVariantEntry[] seededVariants; public bool chartsSeeded; public string[] pendingScenes; public int[] pendingMissing; public PBSceneShaEntry[] sceneShas; public PBRectEntry[] authoredRects; }
+  [Serializable] class PBLock { public string slug; public int kitVersion; public string generatorVersion; public string imported; public bool prefabsGenerated; public PBLockEntry[] files; public string[] orphans; public PBSeedEntry[] seededLabels; public bool variantsPending; public PBVariantEntry[] seededVariants; public bool chartsSeeded; public string[] pendingScenes; public int[] pendingMissing; public PBSceneShaEntry[] sceneShas; public PBRectEntry[] authoredRects; public string[] seededChildren; }
   /* the example-prefab root rects WE last authored (family prefab name →
      size) — MaintainExamplePrefabs' resize pass converges only rects
      still matching this ledger; anything else is the dev's. */
@@ -9918,6 +9918,7 @@ namespace PatternBreak {
 
       faceStarved = 0; // per-pass: labels/seats that wanted the kit face and couldn't have it
       passAuthoredRects = null; // per-pass: maintenance publishes the rect ledger it authored
+      passSeededChildren = null; // ditto the un-burn's seeded-children ledger
       int applied = 0, already = 0, missing = 0, fresh = 0, restyled = 0, same = 0;
       try {
         AssetDatabase.StartAssetEditing();
@@ -10281,6 +10282,7 @@ namespace PatternBreak {
          like the variant ledger — their passes rewrite them in place */
       receipt.sceneShas = prev != null ? prev.sceneShas : null;
       receipt.authoredRects = passAuthoredRects != null ? passAuthoredRects : (prev != null ? prev.authoredRects : null);
+      receipt.seededChildren = passSeededChildren != null ? passSeededChildren : (prev != null ? prev.seededChildren : null);
       File.WriteAllText(lockPath, JsonUtility.ToJson(receipt, true));
 
       var kitName = string.IsNullOrEmpty(manifest.kit) ? (string.IsNullOrEmpty(manifest.slug) ? "kit" : manifest.slug) : manifest.kit;
@@ -14385,18 +14387,28 @@ namespace PatternBreak {
        Portrait well (drop ANY sprite on the Portrait child and the
        frame clips it round). */
     static string IconChildName(PBIconChild ic) { return ic.wellR > 0.5f ? "Portrait Well" : (ic.btn ? NiceName(ic.name) + " button" : "Icon " + ic.name); }
-    static void WireIconChildren(GameObject go, string root, PBManifest m, string fam) {
-      WireIconChildrenRow(go, root, m, LabelRow(m, fam));
+    static List<string> WireIconChildren(GameObject go, string root, PBManifest m, string fam) {
+      return WireIconChildrenRow(go, root, m, LabelRow(m, fam));
     }
-    static void WireIconChildrenRow(GameObject go, string root, PBManifest m, PBAsset row) {
-      if (go == null || row == null || row.iconSeats == null || row.iconSeats.Length == 0) return;
+    static List<string> WireIconChildrenRow(GameObject go, string root, PBManifest m, PBAsset row) {
+      return WireIconChildrenRow(go, root, m, row, null);
+    }
+    /* the ledgered road (the un-burn's ONE-SHOT law): seats named in
+       "theirs" were seeded once before and are the dev's now — deleted or
+       renamed since — so they are never rebuilt. Returns the child names
+       actually ADDED this call, so the caller can record them in the
+       seeded-children ledger and count honestly. */
+    static List<string> WireIconChildrenRow(GameObject go, string root, PBManifest m, PBAsset row, HashSet<string> theirs) {
+      var addedIC = new List<string>();
+      if (go == null || row == null || row.iconSeats == null || row.iconSeats.Length == 0) return addedIC;
       var bodyIC = BodyImage(go);
       var bsIC = bodyIC != null ? bodyIC.sprite : null;
-      if (bsIC == null || row.shell == null || row.shell.w < 4f || bsIC.rect.width < 2f || bsIC.rect.height < 2f) return;
+      if (bsIC == null || row.shell == null || row.shell.w < 4f || bsIC.rect.width < 2f || bsIC.rect.height < 2f) return addedIC;
       float psIC = m != null && m.pngScale > 0 ? m.pngScale : 2f;
       foreach (var ic in row.iconSeats) {
         if (ic == null || string.IsNullOrEmpty(ic.file) || ic.w < 1f || ic.h < 1f) continue;
         string cn = IconChildName(ic);
+        if (theirs != null && theirs.Contains(cn)) continue; // seeded once already — the dev's seat now, gone or renamed by their hand
         if (go.transform.Find(cn) != null) continue;
         var sp = S(root + "/" + ic.file);
         if (sp == null) continue;
@@ -14439,7 +14451,9 @@ namespace PatternBreak {
           crt.anchoredPosition = Vector2.zero;
         }
         crt.sizeDelta = new Vector2(ic.w, ic.h);
+        addedIC.Add(cn);
       }
+      return addedIC;
     }
     static bool FamilyPrefab(string dir, string root, PBAsset baseAsset, string goName, string label, int pngScale, Font kitFont, PBManifest m) {
       var basePath = root + "/" + baseAsset.file;
@@ -16001,6 +16015,11 @@ namespace PatternBreak {
        didn't run; the receipt then carries the previous ledger forward) —
        see MaintainExamplePrefabs' resize guard (F5) */
     static PBRectEntry[] passAuthoredRects;
+    /* the un-burn's SEEDED-CHILDREN ledger this pass authored, as
+       "prefabRelPath|childName" keys (null = maintenance didn't run; the
+       receipt then carries the previous ledger forward) — see the
+       one-shot un-burn trigger in MaintainExamplePrefabs */
+    static string[] passSeededChildren;
     static bool seatSpaceWarned;
     static PBAsset SeatRowOf(GameObject host, PBManifest m, string root) {
       if (host == null || m == null || m.assets == null) return null;
@@ -18217,6 +18236,23 @@ namespace PatternBreak {
       if (prevLock != null && prevLock.authoredRects != null)
         foreach (var re in prevLock.authoredRects)
           if (re != null && !string.IsNullOrEmpty(re.prefab)) rectLedger[re.prefab] = new Vector2(re.w, re.h);
+      /* the un-burn SEEDED-CHILDREN ledger (the editability blocker: the
+         old trigger keyed on child-name ABSENCE alone, so a deleted child
+         resurrected every import and a renamed one grew a canonical twin).
+         Every "prefabRelPath|childName" seat the un-burn ever seeded — or
+         adopted at first sight — lives in kit.lock.json > seededChildren.
+         Entries are never removed: seeding is ONCE per prefab/child, and
+         after it the seat belongs to the dev (chartsSeeded's one-shot
+         contract, per seat). prevFilesU carries the PREVIOUS import's
+         file table for the migration call in the trigger below. */
+      var unburnLedger = new HashSet<string>();
+      if (prevLock != null && prevLock.seededChildren != null)
+        foreach (var scU in prevLock.seededChildren) if (!string.IsNullOrEmpty(scU)) unburnLedger.Add(scU);
+      HashSet<string> prevFilesU = null;
+      if (prevLock != null && prevLock.files != null) {
+        prevFilesU = new HashSet<string>();
+        foreach (var pfU in prevLock.files) if (pfU != null && !string.IsNullOrEmpty(pfU.file)) prevFilesU.Add(pfU.file);
+      }
       float armedSink = 0f;
 #if UNITY_2023_2_OR_NEWER
       var face = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
@@ -18621,16 +18657,39 @@ namespace PatternBreak {
            place; an existing Icon — ours or the dev's — stays untouched
            (WireIconSeat is idempotent on the name). */
         bool wantIconAdd = false, wantIconStroke = false;
-        /* the UN-BURN convergence trigger: any iconSeats row whose live
-           child is missing on this prefab (born before the law, or the
-           sprite arrived on a later refresh) */
+        /* the UN-BURN convergence trigger — ONE-SHOT per prefab/child
+           (the editability blocker): a seat converges only if it has
+           NEVER been seeded on this prefab (the seededChildren ledger).
+           Walked here, in order:
+           - child PRESENT → adopt into the ledger at first sight. The
+             migration: prefabs already converged by pre-ledger importers
+             (which re-ran the un-burn every import) and children built
+             at prefab GENERATION carry no entry yet — presence records
+             them without double-seeding, and their later delete/rename
+             is honored.
+           - absent but LEDGERED → the dev deleted or renamed it after
+             seeding; theirs forever, never re-added, never twinned.
+           - absent, unledgered, but its sprite ALREADY shipped in the
+             previous import (the lock's file table) → the pre-ledger
+             importer converged it back then, so this absence is also
+             the dev's deletion; adopt as theirs, don't rebuild.
+           - only a seat whose sprite is genuinely NEW to this project
+             (prefab born before the law, or the sprite arrived with
+             this refresh) still seeds — once, recorded at the apply. */
         bool wantUnburn = false;
         {
           var rowU0 = LabelRow(m, famName);
-          if (!tiledBuild && rowU0 != null && rowU0.iconSeats != null && rowU0.iconSeats.Length > 0)
-            foreach (var icU0 in rowU0.iconSeats)
-              if (icU0 != null && !string.IsNullOrEmpty(icU0.file) && icU0.w >= 1f
-                  && asset.transform.Find(IconChildName(icU0)) == null) { wantUnburn = true; break; }
+          if (!tiledBuild && rowU0 != null && rowU0.iconSeats != null && rowU0.iconSeats.Length > 0) {
+            var keyU0 = (path.StartsWith(root + "/") ? path.Substring(root.Length + 1) : path) + "|";
+            foreach (var icU0 in rowU0.iconSeats) {
+              if (icU0 == null || string.IsNullOrEmpty(icU0.file) || icU0.w < 1f || icU0.h < 1f) continue;
+              string cnU0 = IconChildName(icU0);
+              if (asset.transform.Find(cnU0) != null) { unburnLedger.Add(keyU0 + cnU0); continue; }
+              if (unburnLedger.Contains(keyU0 + cnU0)) continue;
+              if (prevFilesU != null && prevFilesU.Contains(icU0.file)) { unburnLedger.Add(keyU0 + cnU0); continue; }
+              wantUnburn = true;
+            }
+          }
         }
         {
           var rowIc0 = LabelRow(m, famName);
@@ -19020,14 +19079,27 @@ namespace PatternBreak {
             WireIconSeat(contents, root, m, famName);
             if (contents.transform.Find("Icon") != null) { wired++; changed = true; }
           }
-          /* the UN-BURN convergence (maximum-editability law): stripped
-             bakes land by path on refresh, and prefabs born before the
-             law gain their live picture children in place. Idempotent
-             per child name — an existing child, ours or the dev's, is
-             never touched. */
+          /* the UN-BURN convergence (maximum-editability law, ONE-SHOT):
+             stripped bakes land by path on refresh, and prefabs born
+             before the law gain their live picture children in place —
+             once. Ledgered seats (present, or deleted/renamed by the dev
+             after seeding) are handed to the wire road as THEIRS and
+             skipped; every real add is recorded, and the receipt count
+             moves only when a child was actually built. A seat whose
+             sprite hasn't imported yet stays unrecorded and heals on a
+             later pass. */
           if (wantUnburn) {
-            WireIconChildren(contents, root, m, famName);
-            unburned++; changed = true;
+            var keyUA = (path.StartsWith(root + "/") ? path.Substring(root.Length + 1) : path) + "|";
+            var rowUA = LabelRow(m, famName);
+            var theirsUA = new HashSet<string>();
+            if (rowUA != null && rowUA.iconSeats != null)
+              foreach (var icUA in rowUA.iconSeats)
+                if (icUA != null && unburnLedger.Contains(keyUA + IconChildName(icUA))) theirsUA.Add(IconChildName(icUA));
+            var addedUA = WireIconChildrenRow(contents, root, m, rowUA, theirsUA);
+            if (addedUA.Count > 0) {
+              foreach (var anUA in addedUA) unburnLedger.Add(keyUA + anUA);
+              unburned++; changed = true;
+            }
           }
           /* round 27: the pristine fill-only Icon steps down and the
              layered seat (Stroke (echo) + Fill) takes its place — the
@@ -19156,6 +19228,11 @@ namespace PatternBreak {
           ledgerOut.Add(re2);
         }
         passAuthoredRects = ledgerOut.ToArray();
+        /* and the un-burn's seeded-children ledger — additive only, so a
+           seat seeded (or adopted) once is remembered forever */
+        var seededOut = new string[unburnLedger.Count];
+        unburnLedger.CopyTo(seededOut);
+        passSeededChildren = seededOut;
       }
       if (wired > 0)
         Debug.Log("UI Kit Maker: wired hover/press/disabled states onto " + wired + " example prefab(s) from an earlier kit version — press Play and mouse over them. Copies already placed in scenes (the Playground included) picked the wiring up automatically.");
@@ -19170,7 +19247,7 @@ namespace PatternBreak {
       if (purgedGhosts > 0)
         Debug.Log("UI Kit Maker: purged dead script reference(s) on " + purgedGhosts + " prefab(s) (a script identity change from a delete-and-redrop) — the state wiring was rebuilt fresh alongside.");
       if (unburned > 0)
-        Debug.Log("UI Kit Maker: un-burned " + unburned + " prefab(s) — icons and images the art used to bake in now ride as live, Inspector-swappable children at the exact app seats (the stripped sprites landed with this refresh). A child you renamed, re-sprited or deleted is yours and stays untouched.");
+        Debug.Log("UI Kit Maker: un-burned " + unburned + " prefab(s) — icons and images the art used to bake in now ride as live, Inspector-swappable children at the exact app seats (the stripped sprites landed with this refresh). Each seat seeds exactly once (kit.lock.json > seededChildren) — a child you rename, re-sprite or delete after that is yours: it is never rebuilt, never duplicated, never brought back.");
       if (unswapped > 0)
         Debug.Log("UI Kit Maker: corrected the state transition on " + unswapped + " tiled-face prefab(s) — a full-material sprite swap doubles the layered pattern, so their states now ride the engine glow/lift instead. Clicks unchanged.");
       if (resized > 0)

@@ -2186,8 +2186,8 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("PBIconChild is missing from the importer — JsonUtility drops every un-burn seat row");
   if (!/public PBStyle seatInk; public float ringV; public PBIconChild\[\] iconSeats; \}/.test(cs))
     errors.push("PBAsset must carry iconSeats — without it JsonUtility drops the un-burn seats");
-  if (!/static void WireIconChildren\(GameObject go, string root, PBManifest m, string fam\)/.test(cs)
-      || !/static void WireIconChildrenRow\(GameObject go, string root, PBManifest m, PBAsset row\)/.test(cs)
+  if (!/static List<string> WireIconChildren\(GameObject go, string root, PBManifest m, string fam\)/.test(cs)
+      || !/static List<string> WireIconChildrenRow\(GameObject go, string root, PBManifest m, PBAsset row\)/.test(cs)
       || !/WireIconChildren\(go, root, m, baseAsset\.component\);/.test(cs))
     errors.push("the importer no longer rebuilds live icon children on family prefabs (WireIconChildren)");
   if (!/WireIconChildrenRow\(sgo, root, m, sockRow\);/.test(cs))
@@ -2200,6 +2200,24 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the kept-project un-burn convergence (wantUnburn + its Console receipt) is missing from the maintenance pass");
   if (!/&& !wantUnburn && !wantSelectRoot\) continue;/.test(cs))
     errors.push("the maintenance skip-gate no longer counts wantUnburn — a kept project whose only need is un-burning would be skipped");
+  /* the un-burn's ONE-SHOT law (editability blocker): a seat seeds once,
+     is recorded in kit.lock.json > seededChildren, and is never re-added
+     — a deleted child stays deleted, a renamed child never grows a
+     canonical twin, and unburned++ only counts real adds. */
+  if (!/public PBRectEntry\[\] authoredRects; public string\[\] seededChildren; \}/.test(cs))
+    errors.push("PBLock lost the seededChildren ledger — the un-burn resurrects deleted children and twins renamed ones again");
+  if (!/receipt\.seededChildren = passSeededChildren != null \? passSeededChildren : \(prev != null \? prev\.seededChildren : null\);/.test(cs))
+    errors.push("the receipt no longer carries the seeded-children ledger forward — one import without maintenance would amnesia every seeded seat");
+  if (!/if \(asset\.transform\.Find\(cnU0\) != null\) \{ unburnLedger\.Add\(keyU0 \+ cnU0\); continue; \}/.test(cs)
+      || !/if \(unburnLedger\.Contains\(keyU0 \+ cnU0\)\) continue;/.test(cs)
+      || !/if \(prevFilesU != null && prevFilesU\.Contains\(icU0\.file\)\) \{ unburnLedger\.Add\(keyU0 \+ cnU0\); continue; \}/.test(cs))
+    errors.push("the un-burn trigger lost its one-shot ledger walk (adopt-present / skip-ledgered / migrate-shipped) — deletes resurrect and renames twin again");
+  if (!/if \(theirs != null && theirs\.Contains\(cn\)\) continue;/.test(cs)
+      || !/var addedUA = WireIconChildrenRow\(contents, root, m, rowUA, theirsUA\);/.test(cs)
+      || !/if \(addedUA\.Count > 0\) \{/.test(cs))
+    errors.push("the un-burn apply road no longer honors the ledger (theirs skip / honest unburned count on real adds only)");
+  if (!/Each seat seeds exactly once \(kit\.lock\.json > seededChildren\)/.test(cs))
+    errors.push("the un-burn Console receipt no longer tells the one-shot truth");
 }
 
 /* SLICE-2 pins (the position & styling punch list): the maker's Nudge
