@@ -236,6 +236,21 @@ interface AssetMeta {
    *  prefab then layers Stroke (echo) under Fill — the label's own echo
    *  grammar. Absent on kits whose icon carries no visible outline. */
   icon?: { dx: number; dy: number; s: number; file: string; ink: string; strokeFile?: string; strokeInk?: string; strokeS?: number } | null;
+  /** THE UN-BURN (maximum-editability law, 2026-08-28: "no icon, image,
+   *  or word burned into component art"). Families whose render marks
+   *  swappable picture ink with data-part="icon" bake STRIPPED — the
+   *  word-strip discipline applied to pictures — and every marked group
+   *  ships as its own full-color sprite (the app's exact pixels) plus
+   *  this seat row: box CENTER offset from the shell CENTER in design px
+   *  (y down — the labelDx discipline, frame-invariant) and the box's
+   *  design-px size. The importer rebuilds each as a live, Inspector-
+   *  swappable Image child at the exact app seat; state skins strip
+   *  identically, so the live child rides the press with no baked twin
+   *  beneath (StateFx's rider discovery already carries any child).
+   *  `btn` marks a plate that is a REAL small button (boostercard's qty
+   *  pill); `wellR` (design px) marks a circular-masked image well (the
+   *  avatar's portrait) — the importer builds mask + swappable Portrait. */
+  iconSeats?: { name: string; file: string; dx: number; dy: number; w: number; h: number; btn?: boolean; wellR?: number }[];
 }
 
 export interface EngineExportState {
@@ -373,6 +388,14 @@ export interface ExportBoardItemData {
       (y down) — the scene seats the live words exactly where this copy
       drew them, not where the stock bake did */
   posedLabelDx?: number; posedLabelDy?: number;
+  /** THE UN-BURN, posed (maximum-editability law): the copy's marked
+      icon/image groups strip from the posed bake (and its state skins)
+      and each ships as its own per-copy sprite; these seats are box
+      CENTER offsets from the SHELL center in board px (y down) + box
+      size in board px. The scene rebuilds each as a live, Inspector-
+      swappable Image child on the placed root, so posed copies obey the
+      law exactly like the family prefabs. */
+  posedIcons?: { name: string; file: string; dx: number; dy: number; w: number; h: number; btn?: boolean; wellR?: number }[];
   /** render-variant overlay (trophy ~gold) — the importer swaps the
       matching variant sprite onto the placed prefab; null = stock */
   ov?: string | null;
@@ -427,6 +450,48 @@ export interface ExportBoardData {
   /** baked sprite files for this board (type stamps, saved assets, big
       glyphs) — pushed into the zip beside bg */
   stampFiles: { file: string; bytes: Uint8Array }[];
+}
+
+/* ── THE UN-BURN's marked-group hands (maximum-editability law,
+   2026-08-28), shared by the family road (downloadEngineExport) and the
+   posed road (collectExportBoards): renders mark swappable picture ink
+   with data-part="icon"; these extract each marked group as an
+   ICON-ONLY document (everything else's drawable ink removed — defs,
+   ancestors, filters and clips kept, so the sprite is the app's exact
+   pixels) and strip the groups from the shipping bake. ── */
+const ICON_DRAWABLE_SEL = "path,rect,circle,ellipse,line,polyline,polygon,text,image,use";
+function markedIconOnlySvgs(svgIn: string): { name: string; btn: boolean; well: number[] | null; svg: string }[] {
+  try {
+    const dom0 = new DOMParser().parseFromString(svgIn, "image/svg+xml");
+    const gs0 = Array.from(dom0.querySelectorAll('[data-part="icon"]'));
+    if (!gs0.length) return [];
+    const out: { name: string; btn: boolean; well: number[] | null; svg: string }[] = [];
+    for (let gi = 0; gi < gs0.length; gi++) {
+      const dom = new DOMParser().parseFromString(svgIn, "image/svg+xml");
+      const gs = Array.from(dom.querySelectorAll('[data-part="icon"]'));
+      const keep = gs[gi];
+      if (!keep) continue;
+      for (const g of gs) if (g !== keep && !g.contains(keep) && !keep.contains(g)) g.remove();
+      for (const el of Array.from(dom.querySelectorAll(ICON_DRAWABLE_SEL)))
+        if (!el.closest("defs") && !keep.contains(el)) el.remove();
+      out.push({
+        name: gs0[gi].getAttribute("data-icon") ?? (gs0.length > 1 ? `icon${gi + 1}` : "glyph"),
+        btn: gs0[gi].getAttribute("data-icon-btn") === "1",
+        well: gs0[gi].getAttribute("data-icon-well")?.split(" ").map(Number) ?? null,
+        svg: new XMLSerializer().serializeToString(dom.documentElement),
+      });
+    }
+    return out;
+  } catch { return []; }
+}
+function stripMarkedIcons(svgIn: string): { svg: string; iconsStripped: number } {
+  try {
+    const dom = new DOMParser().parseFromString(svgIn, "image/svg+xml");
+    const gs = Array.from(dom.querySelectorAll('[data-part="icon"]'));
+    if (!gs.length) return { svg: svgIn, iconsStripped: 0 };
+    for (const g of gs) g.remove();
+    return { svg: new XMLSerializer().serializeToString(dom.documentElement), iconsStripped: gs.length };
+  } catch { return { svg: svgIn, iconsStripped: 0 }; }
 }
 
 const dataUrlBytes = (u: string): { bytes: Uint8Array; ext: string } | null => {
@@ -1360,6 +1425,7 @@ export async function collectExportBoards(st: {
       let posedBox: { w: number; h: number; dx: number; dy: number } | null = null;
       let posedStates: { hover?: string; pressed?: string; disabled?: string } | null = null;
       let posedLabelPx: { dx: number; dy: number } | null = null;
+      let posedIconsPx: NonNullable<ExportBoardItemData["posedIcons"]> | null = null;
       /* PURE-TYPE pieces never pose (round 14 — the owner's boardstamps
          full of blank PNGs): the timer's render IS its label, so a
          label-stripped pose bake is transparent by construction — four
@@ -1468,6 +1534,37 @@ export async function collectExportBoards(st: {
           }
           // icon-fx chains split for the raster road (round 26 — the square halo)
           ps2 = splitFilterChains(ps2);
+          /* THE UN-BURN, posed (maximum-editability law): the copy's
+             marked icon/image groups leave these pixels too. Each group's
+             icon-only render + drawn alpha box is cut NOW — the same
+             pixels the full render draws, so the recomposition is exact —
+             then the groups strip, and the crop below measures the
+             STRIPPED art (the family road's own union-crop discipline).
+             Seats convert to board px inside the crop block, exactly like
+             posedLabel. This retires round 27's "the posed pixels carry
+             the styled icon" stand-down: the icon rides LIVE on posed
+             copies now, per the law. */
+          const posedCuts: { name: string; btn: boolean; well: number[] | null; box: [number, number, number, number]; svg: string }[] = [];
+          {
+            const shD9 = /data-shell="([-\d. ]+)"/.exec(ps2)?.[1].split(" ").map(Number);
+            const sh09 = /data-shell0="([-\d. ]+)"/.exec(ps2)?.[1].split(" ").map(Number);
+            const riseDy9 = shD9 && sh09 && shD9.length === 4 && sh09.length === 4 ? shD9[1] - sh09[1] : 0;
+            const vbm9 = /viewBox="(-?[\d.]+) (-?[\d.]+)/.exec(ps2);
+            for (const cut of markedIconOnlySvgs(ps2)) {
+              let boxI: [number, number, number, number] | null = null;
+              if (cut.well && cut.well.length === 3 && cut.well.every(Number.isFinite)) {
+                boxI = [cut.well[0] - cut.well[2], cut.well[1] - cut.well[2] + riseDy9, cut.well[2] * 2, cut.well[2] * 2];
+              } else if (vbm9) {
+                const abI = await svgAlphaBox(cut.svg, 2, 8).catch(() => null);
+                if (abI) {
+                  const padI = 2;
+                  boxI = [+vbm9[1] + abI.x0 / 2 - padI, +vbm9[2] + abI.y0 / 2 - padI, (abI.x1 - abI.x0 + 1) / 2 + padI * 2, (abI.y1 - abI.y0 + 1) / 2 + padI * 2];
+                }
+              }
+              if (boxI && boxI[2] > 1 && boxI[3] > 1) posedCuts.push({ ...cut, box: boxI });
+            }
+            if (posedCuts.length) ps2 = stripMarkedIcons(ps2).svg;
+          }
           /* crop to the DRAWN box, not the shell box — the extrusion (and
              bloom) reach past the shell, and a shell-tight crop cut the
              extrusion's bottom off in the scene (owner: "bottom extrusion
@@ -1510,6 +1607,30 @@ export async function collectExportBoards(st: {
             };
             // shell-center offsets are frame-invariant → straight to board px
             if (posedLabelRaw) posedLabelPx = { dx: posedLabelRaw.dx * kx2, dy: posedLabelRaw.dy * ky2 };
+            /* the posed icon cuts become per-copy sprites + board-px
+               seats (the posedLabel discipline: shell-center offsets ×
+               the shell→board ratio) */
+            if (posedCuts.length) {
+              const r1p = (n9: number) => Math.round(n9 * 10) / 10;
+              posedIconsPx = [];
+              for (const cut of posedCuts) {
+                const fI = `boardstamps/${slug}-p${sidFor()}-ic-${cut.name}.png`;
+                const sprI = cut.svg
+                  .replace(/viewBox="[^"]+"/, `viewBox="${cut.box[0].toFixed(1)} ${cut.box[1].toFixed(1)} ${cut.box[2].toFixed(1)} ${cut.box[3].toFixed(1)}"`)
+                  .replace(/width="[\d.]+"/, `width="${cut.box[2].toFixed(1)}"`)
+                  .replace(/height="[\d.]+"/, `height="${cut.box[3].toFixed(1)}"`);
+                const { bytes: pbI } = await svgToPngBytes(sprI, 2);
+                stampFiles.push({ file: fI, bytes: pbI });
+                posedIconsPx.push({
+                  name: cut.name, file: fI,
+                  dx: r1p((cut.box[0] + cut.box[2] / 2 - (pb3[0] + pb3[2] / 2)) * kx2),
+                  dy: r1p((cut.box[1] + cut.box[3] / 2 - (pb3[1] + pb3[3] / 2)) * ky2),
+                  w: r1p(cut.box[2] * kx2), h: r1p(cut.box[3] * ky2),
+                  ...(cut.btn ? { btn: true } : {}),
+                  ...(cut.well ? { wellR: r1p(cut.well[2] * Math.min(kx2, ky2)) } : {}),
+                });
+              }
+            }
           }
           const { bytes: pbp } = await svgToPngBytes(ps2, 2);
           const poseSid = sidFor();
@@ -1534,6 +1655,9 @@ export async function collectExportBoards(st: {
               });
               const domS = new DOMParser().parseFromString(ssv, "image/svg+xml");
               for (const nS of Array.from(domS.querySelectorAll('[data-part="label"]'))) nS.remove();
+              // the law rides the posed state skins too — the live icon
+              // children must never press over a baked twin
+              if (posedCuts.length) for (const gS of Array.from(domS.querySelectorAll('[data-part="icon"]'))) gS.remove();
               ssv = new XMLSerializer().serializeToString(domS.documentElement)
                 .replace(/<animate(?:Transform|Motion)?\b[^>]*\/>/g, "")
                 .replace(/<animate(?:Transform|Motion)?\b[^>]*>[\s\S]*?<\/animate(?:Transform|Motion)?>/g, "");
@@ -1733,6 +1857,9 @@ export async function collectExportBoards(st: {
           ...(posedStates.pressed ? { posedPressed: posedStates.pressed } : {}),
           ...(posedStates.disabled ? { posedDisabled: posedStates.disabled } : {}),
         } : {}),
+        /* THE UN-BURN, posed: this copy's live icon children — per-copy
+           sprites + board-px seats (the scene rebuilds each swappable) */
+        ...(posed && posedIconsPx && posedIconsPx.length ? { posedIcons: posedIconsPx } : {}),
         /* the grounded cast shadow — its own art sibling in the scene */
         ...(shadowMeta ? {
           shadow: shadowMeta.file,
@@ -2789,6 +2916,112 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     pngQueue.push({ path: famPath(path), svg, crop, group, sliceMin: extras?.sliceMin ?? null, meta: { ...meta, nineSlice: meta.nineSlice ? { ...meta.nineSlice } : null } });
     return Promise.resolve();
   };
+  /* ── THE UN-BURN (maximum-editability law, 2026-08-28) ──────────────
+     No icon, image, or word burned into component art. Renders mark
+     swappable picture ink with data-part="icon" (build()'s own icon
+     group; the custom chrome families stamp theirs by hand), and these
+     two hands make the law real at bake time:
+     - stripIconInk: exactly the marked groups leave the pixels — the
+       stripWordInk discipline applied to pictures, applied to base AND
+       every state skin so the live child never rides a baked twin;
+     - iconSeatsOf: per marked group, an ICON-ONLY render (everything
+       else's drawable ink removed; defs, ancestors, filters and clips
+       kept) is measured at the raster (its drawn alpha box — the same
+       pixels the full bake draws, so the recomposition is exact by
+       construction) and shipped as its own full-color sprite beside a
+       manifest seat in shell-center design px (the labelDx discipline).
+     The importer rebuilds each group as a live, Inspector-swappable
+     Image child at the exact app seat. */
+  const stripWordInk = (svgIn: string): { svg: string; labelStripped: boolean; seatsStripped: number } => {
+    try {
+      const dom = new DOMParser().parseFromString(svgIn, "image/svg+xml");
+      let labelStripped = false;
+      for (const n of Array.from(dom.querySelectorAll('[data-part="label"]'))) {
+        if ((n.textContent ?? "").trim()) labelStripped = true;
+        n.remove();
+      }
+      let seatsStripped = 0;
+      for (const t of Array.from(dom.querySelectorAll("text"))) {
+        const fs = parseFloat(t.getAttribute("font-size") ?? "0");
+        const str0 = (t.textContent ?? "").replace(/\s+/g, " ").trim();
+        if (!(fs > 1) || !str0) continue;
+        let warped = !!t.querySelector("textPath");
+        let ghosted = false;
+        for (let p: Element | null = t; p && p.tagName.toLowerCase() !== "svg"; p = p.parentElement) {
+          const tf = p.getAttribute("transform") ?? "";
+          if (/rotate|skew|matrix|scale/.test(tf)) warped = true;
+          if (p.getAttribute("opacity") === "0") ghosted = true;
+        }
+        // exactly parseTextSeats' acceptance: words that can't be
+        // clean TMP seats (rotated ribbons, path riders) STAY BAKED
+        if (warped || ghosted) continue;
+        t.remove();
+        seatsStripped++;
+        if (seatsStripped >= 40) break; // the seat parser's own cap
+      }
+      return { svg: new XMLSerializer().serializeToString(dom.documentElement), labelStripped, seatsStripped };
+    } catch { return { svg: svgIn, labelStripped: false, seatsStripped: 0 }; }
+  };
+  const stripIconInk = stripMarkedIcons;
+  const iconSeatsOf = async (uid: KitComponentId, fullSvg: string, spritePrefix?: string): Promise<NonNullable<AssetMeta["iconSeats"]> | null> => {
+    const cuts = markedIconOnlySvgs(fullSvg);
+    if (!cuts.length) return null;
+    /* the DRAWN shell frame — the raster measures drawn pixels, so the
+       seat must speak the drawn frame (rasterQueue's own shellBox rule);
+       a well attr is authored in raw (pre-riseDy) coordinates and shifts
+       by the drawn-vs-raw delta */
+    const shD = /data-shell="([-\d. ]+)"/.exec(fullSvg)?.[1].split(" ").map(Number);
+    const sh0 = /data-shell0="([-\d. ]+)"/.exec(fullSvg)?.[1].split(" ").map(Number);
+    const s0 = shD ?? sh0;
+    const vbm = /viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/.exec(fullSvg);
+    if (!s0 || s0.length !== 4 || !vbm) return null;
+    const [vx, vy] = [+vbm[1], +vbm[2]];
+    const riseDy = shD && sh0 && shD.length === 4 && sh0.length === 4 ? shD[1] - sh0[1] : 0;
+    const r1 = (n: number) => Math.round(n * 10) / 10;
+    const seats: NonNullable<AssetMeta["iconSeats"]> = [];
+    for (let gi = 0; gi < cuts.length; gi++) {
+      const mk = cuts[gi];
+      const only = mk.svg;
+      /* the crop frame: a marked WELL crops to the well circle exactly
+         (the masked child stretches the sprite over the well rect 1:1);
+         everything else crops to its drawn alpha box + 2px of AA air */
+      let bx: number, by: number, bw9: number, bh9: number;
+      if (mk.well && mk.well.length === 3 && mk.well.every(Number.isFinite)) {
+        const [wcx, wcy, wr] = mk.well;
+        bx = wcx - wr; by = wcy - wr + riseDy; bw9 = wr * 2; bh9 = wr * 2;
+      } else {
+        const ab = await svgAlphaBox(only, PNG_SCALE, 8).catch(() => null);
+        if (!ab) continue;
+        const pad = 2;
+        bx = vx + ab.x0 / PNG_SCALE - pad;
+        by = vy + ab.y0 / PNG_SCALE - pad;
+        bw9 = (ab.x1 - ab.x0 + 1) / PNG_SCALE + pad * 2;
+        bh9 = (ab.y1 - ab.y0 + 1) / PNG_SCALE + pad * 2;
+      }
+      if (!(bw9 > 1) || !(bh9 > 1)) continue;
+      const spr = only
+        .replace(/viewBox="[^"]+"/, `viewBox="${bx.toFixed(1)} ${by.toFixed(1)} ${bw9.toFixed(1)} ${bh9.toFixed(1)}"`)
+        .replace(/ width="[\d.]+"/, ` width="${Math.ceil(bw9)}"`)
+        .replace(/ height="[\d.]+"/, ` height="${Math.ceil(bh9)}"`);
+      const pathIc = `${spritePrefix ?? uid}/icon-${mk.name}.png`;
+      await addPng(pathIc, spr, {
+        component: spritePrefix ?? uid, part: `icon-${mk.name}`, nineSlice: null,
+        pivot: { x: 0.5, y: 0.5 }, tintable: false,
+        usage: mk.well
+          ? "The frame's placeholder portrait — the prefab's masked Portrait child wears it; drop YOUR sprite on that child and the frame clips it round."
+          : "This piece's swappable art, exactly as the app draws it — the prefab wears it as a live Image child; swap the sprite in the Inspector (icons/* fit the same seat).",
+      }, false);
+      seats.push({
+        name: mk.name, file: `assets/${famPath(pathIc)}`,
+        dx: r1(bx + bw9 / 2 - (s0[0] + s0[2] / 2)),
+        dy: r1(by + bh9 / 2 - (s0[1] + s0[3] / 2)),
+        w: r1(bw9), h: r1(bh9),
+        ...(mk.btn ? { btn: true } : {}),
+        ...(mk.well ? { wellR: r1(mk.well[2]) } : {}),
+      });
+    }
+    return seats.length ? seats : null;
+  };
   /* families whose prefabs swap states, so they are the ones that get an
      aura sprite — kept beside the manifest's stateFx list, which drives the
      runtime that fades it */
@@ -3358,7 +3591,17 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      the halo's full reach on every side; the tight crop then hugs the
      REAL falloff, and the widened crop margin (24 raster px past the
      alpha-8 tail) carries it to true zero inside the file. */
-  await addPng("emblembar/socket.png", padSvg(shell("emblembar", { overlay: "dock", icon: undefined }, slim), 64), { component: "emblembar", part: "socket", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The docked emblem socket — the prefab seats it at the track's left end, over the fill. Drop your own art in its well." }, 24);
+  /* THE UN-BURN (maximum-editability law): the socket used to bake the
+     emblem glyph into its pixels ("drop your own art in its well" meant
+     painting over it). Now the glyph — the app's own themed pass, glow
+     halo included — strips out and rides the socket as a LIVE Image
+     child; the seat lands on the SOCKET row (the sprite the child sits
+     on), not the family base. */
+  {
+    const sockFull = padSvg(shell("emblembar", { overlay: "dock", icon: resolveKitIcon(st.kitIcons?.emblembar, undefined) }, slim), 64);
+    const sockSeats = await iconSeatsOf("emblembar", sockFull);
+    await addPng("emblembar/socket.png", sockSeats ? stripIconInk(sockFull).svg : sockFull, { component: "emblembar", part: "socket", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The docked emblem socket, bare — the emblem is a LIVE Image child on the wired EmblemBar prefab (swap the sprite in the Inspector, or drop your own art in the well).", ...(sockSeats ? { iconSeats: sockSeats } : {}) }, 24);
+  }
   /* the settings controls, COMPONENT-TRUE (owner: "let's get those
      settings screens working this round") — the REAL slider and toggle
      pieces split into rig layers: track, full-run mercury, candy knob.
@@ -3400,7 +3643,16 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   await addPng("orb/lit.png", shell("orb", {}, undefined, 1), { component: "orb", part: "lit", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Glow orb, lit — streaks, statuses, day markers." });
   await addPng("orb/off.png", shell("orb", {}, undefined, 0), { component: "orb", part: "off", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Glow orb, off (dark glass)." });
   await addPng("badge/base.png", shell("badge"), { component: "badge", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Badge / medallion shell — the count arrives as live text on the Badge prefab (your app number, editable).", ...labelSeatOf("badge", st.kitLabels?.badge ?? "12") });
-  await addPng("iconbtn/base.png", shell("iconbtn", { icon: resolveKitIcon(st.kitIcons?.iconbtn, undefined) }), { component: "iconbtn", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Icon button wearing the kit's own glyph. Want it bare for your own icons? Set this piece's icon to 'none' on uikitmaker.com and re-export." });
+  /* THE UN-BURN (maximum-editability law) reverses the universal round's
+     "icons stay in the pixels" call for the icon button too: the base
+     bakes BARE (the app's per-family pick still seeds the default sprite
+     through the live seat), and the glyph — the kit's own themed pass,
+     exactly as the app draws it — rides an Inspector-swappable child. */
+  {
+    const ibFull = shell("iconbtn", { icon: resolveKitIcon(st.kitIcons?.iconbtn, undefined) });
+    const ibSeats = await iconSeatsOf("iconbtn", ibFull);
+    await addPng("iconbtn/base.png", stripIconInk(ibFull).svg, { component: "iconbtn", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Icon button shell — the glyph is a LIVE Image child on the Iconbtn prefab (your app pick seeds it; swap the sprite in the Inspector, icons/* fit the same seat).", ...(ibSeats ? { iconSeats: ibSeats } : {}) });
+  }
   await addPng("iconbtn/base-plain.png", shell("iconbtn", { icon: null }), { component: "iconbtn", part: "base-plain", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Icon button shell, NO glyph baked — drop any icons/* on top for close/X, back, settings buttons." });
 
   /* ── states for the OTHER controls people actually point at. Only the
@@ -3428,7 +3680,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   };
   for (const s of STATEFUL) {
     for (const stName of ["hover", "pressed", "disabled"] as const) {
-      await addPng(`${s.family}/base-${stName}.png`, stateShell(s.id, stName, s.opts, s.value),
+      // the law rides the state skins too: marked icon ink (iconbtn's
+      // glyph) strips here as well, so the live child never presses over
+      // a baked twin. Unmarked families pass through byte-identical.
+      await addPng(`${s.family}/base-${stName}.png`, stripIconInk(stateShell(s.id, stName, s.opts, s.value)).svg,
         { component: s.family, part: `base-${stName}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
           usage: `${SWAP_USAGE[stName]} state — wire as Sprite Swap beside base.png.` });
     }
@@ -3455,7 +3710,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       { id: "firebutton", states: [], value: 0, usage: "Fire button with quick-select carousel, full pose baked (reference/thumbnail). The WORKING piece is the Firebutton prefab: bare dome + chambers + live icons/ glyphs — swipe left/right cycles the armed weapon." },
       { id: "endturn", states: ["hover", "pressed", "disabled"], value: 0, usage: "End-turn button, bare shell — the label is LIVE text and the countdown ring is endturn-arc (Filled/Radial360, drive fillAmount)." },
       { id: "keycap", states: ["hover", "pressed", "disabled"], usage: "Key prompt cap, bare — the key glyph is LIVE text. Single-char width; wide keys (SPACE) stretch poorly, scale instead." },
-      { id: "pricebtn", states: ["hover", "pressed", "disabled"], usage: "Price button — coin and ribbon plate baked (v1: ribbon words too), the PRICE is live text." },
+      { id: "pricebtn", states: ["hover", "pressed", "disabled"], usage: "Price button — EVERYTHING editable: the PRICE is live text, the ribbon word a live seat, and the coin + ribbon plate are live Image children (swap either sprite in the Inspector)." },
     ];
     /* the labeled props' words: the maker's own (kitLabels) with the
        importer's stock as fallback — mirror of DefaultLabel */
@@ -3482,10 +3737,22 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     for (const p of PROPS) {
       if (!shipProp(p.id)) continue;
       const propWord = PROP_WORD[p.id] !== undefined ? (st.kitLabels?.[p.id] ?? PROP_WORD[p.id]) : undefined;
-      await addPng(`${p.id}/base.png`, shell(p.id, {}, undefined, p.value),
-        { component: p.id, part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: p.usage, ...(propWord !== undefined ? { labelText: propWord } : {}), ...leadingRow(p.id) }, true, p.id);
+      /* THE UN-BURN reaches the price button (maximum-editability law:
+         "EVERYTHING editable"): the coin and the ribbon PLATE are marked
+         icon ink — stripped, shipped as live Image children — and the
+         ribbon WORD (a clean unrotated seat, unlike the claim button's
+         tilted AD ribbon) leaves the pixels for a live TMP seat. The
+         PRICE stays the label machinery's live word, so the seat render
+         mutes it (label "") — two writers on one word would double it. */
+      const unburnP = p.id === "pricebtn";
+      const baseFullP = shell(p.id, {}, undefined, p.value);
+      const iconSeatsP = unburnP ? await iconSeatsOf(p.id, baseFullP) : null;
+      const baseSvgP = unburnP ? stripIconInk(stripWordInk(baseFullP).svg).svg : baseFullP;
+      const seatsP = unburnP ? textSeatsOf(p.id, baseSvgP, { label: "" }, undefined, p.value, "bake") : {};
+      await addPng(`${p.id}/base.png`, baseSvgP,
+        { component: p.id, part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: p.usage, ...(propWord !== undefined ? { labelText: propWord } : {}), ...leadingRow(p.id), ...(iconSeatsP ? { iconSeats: iconSeatsP } : {}), ...seatsP }, true, p.id);
       for (const stName of p.states)
-        await addPng(`${p.id}/base-${stName}.png`, stateShell(p.id, stName, {}, p.value),
+        await addPng(`${p.id}/base-${stName}.png`, unburnP ? stripIconInk(stripWordInk(stateShell(p.id, stName, {}, p.value)).svg).svg : stateShell(p.id, stName, {}, p.value),
           { component: p.id, part: `base-${stName}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
             usage: `${SWAP_USAGE[stName]} state — wire as Sprite Swap beside base.png.`, ...leadingRow(p.id, stName) }, true, p.id);
       if (p.id === "trophyicon") for (const fin of ["gold", "silver", "bronze"] as const)
@@ -3541,57 +3808,30 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
        then exactly the word ink leaves the pixels — build labels by their
        data-part group (the posed road's own discipline) and seat texts by
        parseTextSeats' own acceptance rule, so the strip and the live seats
-       can never disagree about which words re-render live. Icons stay IN
-       every universal bake (none of these families has a live icon-child
-       slot — the chip/iconbtn road is separate). Interactive families bake
+       can never disagree about which words re-render live. ICONS LEAVE
+       the pixels too now (maximum-editability law, 2026-08-28 — this
+       reverses the universal round's "icons stay in the pixels" call):
+       every data-part="icon" group ships as its own sprite + a live
+       Inspector-swappable child at the exact app seat (iconSeatsOf +
+       stripIconInk, base and state skins alike). Interactive families bake
        hover/pressed/disabled beside base on ONE union crop (Sprite Swap
        registration); display families and the glyph rack ship base alone —
        placeable art, never fake buttons. ── */
     {
-      const stripWordInk = (svgIn: string): { svg: string; labelStripped: boolean; seatsStripped: number } => {
-        try {
-          const dom = new DOMParser().parseFromString(svgIn, "image/svg+xml");
-          let labelStripped = false;
-          for (const n of Array.from(dom.querySelectorAll('[data-part="label"]'))) {
-            if ((n.textContent ?? "").trim()) labelStripped = true;
-            n.remove();
-          }
-          let seatsStripped = 0;
-          for (const t of Array.from(dom.querySelectorAll("text"))) {
-            const fs = parseFloat(t.getAttribute("font-size") ?? "0");
-            const str0 = (t.textContent ?? "").replace(/\s+/g, " ").trim();
-            if (!(fs > 1) || !str0) continue;
-            let warped = !!t.querySelector("textPath");
-            let ghosted = false;
-            for (let p: Element | null = t; p && p.tagName.toLowerCase() !== "svg"; p = p.parentElement) {
-              const tf = p.getAttribute("transform") ?? "";
-              if (/rotate|skew|matrix|scale/.test(tf)) warped = true;
-              if (p.getAttribute("opacity") === "0") ghosted = true;
-            }
-            // exactly parseTextSeats' acceptance: words that can't be
-            // clean TMP seats (rotated ribbons, path riders) STAY BAKED
-            if (warped || ghosted) continue;
-            t.remove();
-            seatsStripped++;
-            if (seatsStripped >= 40) break; // the seat parser's own cap
-          }
-          return { svg: new XMLSerializer().serializeToString(dom.documentElement), labelStripped, seatsStripped };
-        } catch { return { svg: svgIn, labelStripped: false, seatsStripped: 0 }; }
-      };
       const UNIVERSAL_USAGE: Partial<Record<KitComponentId, string>> = {
         qtybadge: "Quantity badge — the count is LIVE text on the prefab (per-copy counts ride posed skins). Display piece: no button wiring by design.",
         levelnode: "Level-map node — a REAL button (Sprite Swap states); the level number is LIVE text. Star/lock poses ride per-copy posed skins.",
-        dailycell: "Daily reward cell — a REAL button; the day word is a LIVE seat. Claimed/today/locked poses ride per-copy posed skins.",
-        boostercard: "Booster card — a REAL button; name/effect words are LIVE seats (per-copy content rides posed skins).",
-        resource: "Resource chip — the count is a LIVE seat; the coin art stays in the bake (no live icon slot). Display piece.",
-        currency: "Currency chip — the count is a LIVE seat. Display piece.",
+        dailycell: "Daily reward cell — a REAL button; the day word is a LIVE seat and the reward glyph a LIVE Image child (swap the sprite in the Inspector). Claimed/today/locked poses ride per-copy posed skins.",
+        boostercard: "Booster card — a REAL button; name/effect words are LIVE seats, the glyph a LIVE Image child, and the qty pill a REAL small-button child with its live count over it (per-copy content rides posed skins).",
+        resource: "Resource chip — the count is a LIVE seat and the medallion is a LIVE Image child (swap the sprite in the Inspector). Display piece.",
+        currency: "Currency chip — the count is a LIVE seat and the coin a LIVE Image child (swap the sprite in the Inspector). Display piece.",
         ghost: "Ghost button — the labeled button family, live word + Sprite Swap states, exactly like the primary.",
         movecounter: "Move counter — caption and count are LIVE seats. Display piece (pinned chrome in the app: it never presses).",
-        rewardcard: "Reward card — a REAL button; name and quantity are LIVE seats (per-copy content rides posed skins).",
+        rewardcard: "Reward card — a REAL button; name and quantity are LIVE seats and the reward glyph a LIVE Image child (per-copy content rides posed skins).",
         ring: "Progress ring — the percent readout is a LIVE seat. Display piece.",
-        avatarframe: "Avatar frame — the level chip's number is a LIVE seat. Drop your portrait in the well. Display piece.",
-        claimbtn: "Claim button — a REAL button (the Shop's Claim All presses and fires onClick); the word is a LIVE seat and CLAIM copies celebrate (ClaimBurst).",
-        bottomnav: "Bottom nav bar — one placeable piece; the item words are LIVE seats. Wire your own per-item buttons over it (the bar itself is not one button).",
+        avatarframe: "Avatar frame — the level chip's number is a LIVE seat and the portrait a LIVE masked Image child: drop YOUR sprite on the Portrait child and the frame clips it round. Display piece.",
+        claimbtn: "Claim button — a REAL button (the Shop's Claim All presses and fires onClick); the word is a LIVE seat, the gift glyph a LIVE Image child, and CLAIM copies celebrate (ClaimBurst).",
+        bottomnav: "Bottom nav bar — one placeable piece; the item words are LIVE seats and every tab glyph a LIVE Image child (swap any sprite in the Inspector). Wire your own per-item buttons over it (the bar itself is not one button).",
       };
       const universalIds: KitComponentId[] = [
         ...UNIVERSAL_ROAD,
@@ -3673,19 +3913,34 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
             usage: "Progress ring end cap — full-canvas, parked at 12 o'clock; KitRingFill rotates a copy to the fill's head angle (radial shading stays true under rotation).",
           }, false);
         }
-        await addPng(`${uid}/base.png`, strippedU.svg, {
+        /* THE UN-BURN (maximum-editability law): marked icon ink leaves
+           the pixels too — each group ships as its own sprite + a live
+           seat on the base row (iconSeatsOf), and the state skins strip
+           identically so the live child rides the press with no baked
+           twin beneath. */
+        const iconSeatsU = isArt ? null : await iconSeatsOf(uid, fullU);
+        const baseSvgU = iconSeatsU ? stripIconInk(strippedU.svg).svg : strippedU.svg;
+        // the avatar's circular mask — the masked Portrait child clips ANY
+        // sprite a dev drops in to the frame's own aperture
+        if (iconSeatsU?.some((s9) => (s9.wellR ?? 0) > 0.5))
+          await addPng(`${uid}/mask.png`, svgWrap(256, 256, `<circle cx="128" cy="128" r="128" fill="#FFFFFF"/>`), {
+            component: uid, part: "mask", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true,
+            usage: "The portrait well's circular mask — the prefab's Portrait Well child wears it (Mask, graphic hidden) so any sprite on the Portrait child clips to the frame's aperture.",
+          }, false);
+        await addPng(`${uid}/base.png`, baseSvgU, {
           component: uid, part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
           usage: UNIVERSAL_USAGE[uid] ?? "Kit glyph piece — placeable art in the kit's own material. Not a button; scale freely (Preserve Aspect).",
           ...(famFlipU ? { flip: true } : {}),
           ...(uLabelMeta ?? {}),
           ...(uWord !== undefined ? { labelText: uWord } : {}),
           ...(ringRig ? {} : seatsU),
+          ...(iconSeatsU ? { iconSeats: iconSeatsU } : {}),
         }, true, interactive ? uid : undefined);
         if (interactive) {
           for (const stName of ["hover", "pressed", "disabled"] as const) {
             let sSvg: string;
             try { sSvg = stateShell(uid, stName, uOpts, uVal); } catch { continue; }
-            await addPng(`${uid}/base-${stName}.png`, stripWordInk(sSvg).svg, {
+            await addPng(`${uid}/base-${stName}.png`, stripIconInk(stripWordInk(sSvg).svg).svg, {
               component: uid, part: `base-${stName}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
               usage: `${SWAP_USAGE[stName]} state — Sprite Swap beside base.png (the generated prefab wires it). Union-cropped with base, so the press pose stays registered.`,
             }, true, uid);
@@ -8792,7 +9047,12 @@ namespace PatternBreak {
      rendered box side); strokeS 0 / strokeFile "" = no outline pass and
      the seat wears the single flat image exactly as before. */
   [Serializable] class PBIconSeat { public float dx; public float dy; public float s; public string file; public string ink; public string strokeFile; public string strokeInk; public float strokeS; }
-  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public PBTrack track; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelInk; public string labelInk2; public float leading; public string labelText; public PBIconSeat icon; public PBGauge gauge; public PBChart chart; public PBLoot loot; public PBSeat[] textSeats; public PBStyle seatInk; public float ringV; }
+  /* the UN-BURN's live picture seats (maximum-editability law): one row
+     per swappable icon/image the app drew — its own full-color sprite,
+     box center vs the shell center (design px, y down), box size. btn =
+     a REAL small-button plate; wellR > 0 = circular-masked image well. */
+  [Serializable] class PBIconChild { public string name; public string file; public float dx; public float dy; public float w; public float h; public bool btn; public float wellR; }
+  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public PBTrack track; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelInk; public string labelInk2; public float leading; public string labelText; public PBIconSeat icon; public PBGauge gauge; public PBChart chart; public PBLoot loot; public PBSeat[] textSeats; public PBStyle seatInk; public float ringV; public PBIconChild[] iconSeats; }
   [Serializable] class PBStyleOutline { public string color; public string color2; public float width; }
   [Serializable] class PBStyleGlow { public string color; public float size; public float opacity; }
   [Serializable] class PBStyleShadow { public string color; public float x; public float y; public float blur; public float opacity; }
@@ -8844,7 +9104,7 @@ namespace PatternBreak {
      name; false: the asset's clean original, shared). JsonUtility gives
      every row a default instance — an empty id means "not a big glyph". */
   [Serializable] class PBBig { public string id; public string name; public string sprite; public bool fx; }
-  [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float artW; public float artH; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string stampMask; public bool bakedFallback; public int stampLive; public float stampFs; public string stampInk; public string stampSplashInk; public string stampCase; public float stampDx; public float stampDy; public float stampW; public float stampH; public string posed; public float posedW; public float posedH; public float posedDx; public float posedDy; public string posedHover; public string posedPressed; public string posedDisabled; public float posedLabelDx; public float posedLabelDy; public string shadow; public float shadowW; public float shadowH; public float shadowDx; public float shadowDy; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; public PBBig big; }
+  [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float artW; public float artH; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string stampMask; public bool bakedFallback; public int stampLive; public float stampFs; public string stampInk; public string stampSplashInk; public string stampCase; public float stampDx; public float stampDy; public float stampW; public float stampH; public string posed; public float posedW; public float posedH; public float posedDx; public float posedDy; public string posedHover; public string posedPressed; public string posedDisabled; public float posedLabelDx; public float posedLabelDy; public string shadow; public float shadowW; public float shadowH; public float shadowDx; public float shadowDy; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; public PBBig big; public PBIconChild[] posedIcons; }
   [Serializable] class PBBoardBg { public string file; public float opacity; public float blur; public float saturation; public float hue; public float brightness; public float contrast; public float noise; public string overlay; public float overlayStrength; public string overlayBlend; public bool original; }
   [Serializable] class PBBoard { public string name; public int w; public int h; public PBBoardBg bg; public PBBoardItem[] items; }
   [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public string seatSpace; public string[] stagedFamilies; public PBWell globeWell; public PBSeasonGeo seasonTrack; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBTimerBlock timer; public PBMenu menu; public PBRarity rarity; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; }
@@ -9594,6 +9854,9 @@ namespace PatternBreak {
             if (itR == null) continue;
             foreach (var fR in new string[] { itR.stamp, itR.stampMask, itR.posed, itR.posedHover, itR.posedPressed, itR.posedDisabled, itR.shadow })
               if (!string.IsNullOrEmpty(fR)) stampsInUse.Add(fR);
+            // the UN-BURN's per-copy icon sprites are in use too
+            if (itR.posedIcons != null) foreach (var fIc in itR.posedIcons)
+              if (fIc != null && !string.IsNullOrEmpty(fIc.file)) stampsInUse.Add(fIc.file);
             /* a USED big glyph keeps BOTH its files: this copy's sprite
                (stamp already carries it, belt-and-braces here) and the
                asset's CLEAN original — the BigGlyphs prefab wears that
@@ -11817,6 +12080,48 @@ namespace PatternBreak {
                    a frame this shell-box rect no longer matches. */
                 var wdPos = inst.transform.Find("Words");
                 if (wdPos != null) wdPos.gameObject.SetActive(false);
+                /* THE UN-BURN, posed (maximum-editability law): the
+                   prefab's live icon children speak the FAMILY sprite's
+                   frame, so they stand down like Icon/Words — and the
+                   copy's OWN live icons rebuild here from posedIcons:
+                   per-copy sprites at board-px shell-center seats, on
+                   the ROOT (shell frame), so StateFx's riders carry
+                   them through the press exactly like the words. */
+                foreach (Transform chIc in inst.transform)
+                  if (chIc.name.StartsWith("Icon ") || chIc.name == "Portrait Well" || chIc.name.EndsWith(" button"))
+                    chIc.gameObject.SetActive(false);
+                if (it.posedIcons != null) foreach (var pIc in it.posedIcons) {
+                  if (pIc == null || string.IsNullOrEmpty(pIc.file) || pIc.w < 1f || pIc.h < 1f) continue;
+                  var pIcSp = S(root + "/" + pIc.file);
+                  if (pIcSp == null) { missing++; continue; }
+                  GameObject pIcGo;
+                  if (pIc.wellR > 0.5f) {
+                    pIcGo = new GameObject(IconChildName(pIc) + " (copy)", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Mask));
+                    var pMi = pIcGo.GetComponent<Image>();
+                    var pMaskSp = S(root + "/assets/" + it.component + "/" + it.component + "-mask.png");
+                    pMi.sprite = pMaskSp != null ? pMaskSp : pIcSp;
+                    pMi.raycastTarget = false;
+                    pIcGo.GetComponent<Mask>().showMaskGraphic = false;
+                    var pPort = new GameObject("Portrait", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+                    pPort.transform.SetParent(pIcGo.transform, false);
+                    var pPi = pPort.GetComponent<Image>();
+                    pPi.sprite = pIcSp; pPi.raycastTarget = false;
+                    StretchFull(pPort.GetComponent<RectTransform>());
+                  } else {
+                    pIcGo = new GameObject(IconChildName(pIc) + " (copy)", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+                    var pIi = pIcGo.GetComponent<Image>();
+                    pIi.sprite = pIcSp;
+                    pIi.raycastTarget = pIc.btn;
+                    pIi.preserveAspect = false;
+                    if (pIc.btn) { var pBb = pIcGo.AddComponent<Button>(); pBb.targetGraphic = pIi; }
+                  }
+                  pIcGo.transform.SetParent(inst.transform, false);
+                  var pIcRt = pIcGo.GetComponent<RectTransform>();
+                  pIcRt.anchorMin = pIcRt.anchorMax = new Vector2(0.5f, 0.5f);
+                  pIcRt.pivot = new Vector2(0.5f, 0.5f);
+                  pIcRt.anchoredPosition = new Vector2(pIc.dx, -pIc.dy); // board y runs down
+                  pIcRt.sizeDelta = new Vector2(pIc.w, pIc.h);
+                }
                 /* the dropdown's open-list TEMPLATE was built in PREFAB
                    frame units — this root now IS the shell box at BOARD
                    scale, so the list docks at the rect's own bottom and
@@ -13905,6 +14210,65 @@ namespace PatternBreak {
       icRt.anchoredPosition = Vector2.zero;
       icRt.sizeDelta = new Vector2(rowIc.icon.s, rowIc.icon.s);
     }
+    /* ── THE UN-BURN (maximum-editability law, 2026-08-28): no icon or
+       image baked into component art. The manifest's iconSeats rows are
+       the pictures the app drew — each shipped as its own sprite — and
+       this rebuilds every one as a live, Inspector-swappable child at
+       the exact app seat (shell-center offsets, the label-seat
+       discipline). Children ride StateFx's press travel like any other
+       content. Idempotent per child name: an existing child — ours or
+       the dev's — is never touched. btn rows become REAL small buttons
+       (the booster card's qty pill); wellR rows become a circle-masked
+       Portrait well (drop ANY sprite on the Portrait child and the
+       frame clips it round). */
+    static string IconChildName(PBIconChild ic) { return ic.wellR > 0.5f ? "Portrait Well" : (ic.btn ? NiceName(ic.name) + " button" : "Icon " + ic.name); }
+    static void WireIconChildren(GameObject go, string root, PBManifest m, string fam) {
+      WireIconChildrenRow(go, root, m, LabelRow(m, fam));
+    }
+    static void WireIconChildrenRow(GameObject go, string root, PBManifest m, PBAsset row) {
+      if (go == null || row == null || row.iconSeats == null || row.iconSeats.Length == 0) return;
+      var bodyIC = BodyImage(go);
+      var bsIC = bodyIC != null ? bodyIC.sprite : null;
+      if (bsIC == null || row.shell == null || row.shell.w < 4f || bsIC.rect.width < 2f || bsIC.rect.height < 2f) return;
+      float psIC = m != null && m.pngScale > 0 ? m.pngScale : 2f;
+      foreach (var ic in row.iconSeats) {
+        if (ic == null || string.IsNullOrEmpty(ic.file) || ic.w < 1f || ic.h < 1f) continue;
+        string cn = IconChildName(ic);
+        if (go.transform.Find(cn) != null) continue;
+        var sp = S(root + "/" + ic.file);
+        if (sp == null) continue;
+        GameObject cgo;
+        if (ic.wellR > 0.5f) {
+          cgo = new GameObject(cn, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Mask));
+          var mi = cgo.GetComponent<Image>();
+          var maskSp = S(root + "/assets/" + row.component + "/" + row.component + "-mask.png");
+          mi.sprite = maskSp != null ? maskSp : sp;
+          mi.raycastTarget = false;
+          cgo.GetComponent<Mask>().showMaskGraphic = false;
+          var pgo = new GameObject("Portrait", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+          pgo.transform.SetParent(cgo.transform, false);
+          var pi = pgo.GetComponent<Image>();
+          pi.sprite = sp;
+          pi.raycastTarget = false;
+          StretchFull(pgo.GetComponent<RectTransform>());
+        } else {
+          cgo = new GameObject(cn, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+          var ii = cgo.GetComponent<Image>();
+          ii.sprite = sp;
+          ii.raycastTarget = ic.btn;
+          ii.preserveAspect = false; // the seat IS the sprite's own box — 1:1 by construction
+          if (ic.btn) { var bb = cgo.AddComponent<Button>(); bb.targetGraphic = ii; }
+        }
+        cgo.transform.SetParent(go.transform, false);
+        var crt = cgo.GetComponent<RectTransform>();
+        float fxC = (row.shell.x + row.shell.w / 2f + ic.dx * psIC) / bsIC.rect.width;
+        float fyC = 1f - (row.shell.y + row.shell.h / 2f + ic.dy * psIC) / bsIC.rect.height;
+        crt.anchorMin = crt.anchorMax = new Vector2(fxC, fyC);
+        crt.pivot = new Vector2(0.5f, 0.5f);
+        crt.anchoredPosition = Vector2.zero;
+        crt.sizeDelta = new Vector2(ic.w, ic.h);
+      }
+    }
     static bool FamilyPrefab(string dir, string root, PBAsset baseAsset, string goName, string label, int pngScale, Font kitFont, PBManifest m) {
       var basePath = root + "/" + baseAsset.file;
       var baseSp = S(basePath);
@@ -14093,6 +14457,9 @@ namespace PatternBreak {
          shell-relative seat and its own white glyph; the prefab wears it
          as a swappable tinted child exactly where the app drew it. */
       WireIconSeat(go, root, m, baseAsset.component);
+      /* the UN-BURN's live picture children (iconSeats rows) — every icon
+         and image the app drew, rebuilt swappable at the exact app seat */
+      WireIconChildren(go, root, m, baseAsset.component);
       if (baseAsset.component == "badge" && label == null) {
         var glyph = S(root + "/assets/icons/star.png");
         if (glyph == null) glyph = S(root + "/assets/icons/gem.png");
@@ -14632,6 +14999,13 @@ namespace PatternBreak {
         var srt = sgo.GetComponent<RectTransform>();
         srt.anchorMin = new Vector2(0f, 0.5f); srt.anchorMax = new Vector2(0f, 0.5f);
         srt.anchoredPosition = new Vector2(shellX + D * 0.46f, upS);
+        /* the UN-BURN: the socket bakes bare now — its emblem (glow halo
+           and all, the app's exact pixels) rides as a live, Inspector-
+           swappable child seated by the SOCKET row, the sprite this
+           child actually wears */
+        PBAsset sockRow = null;
+        if (m != null && m.assets != null) foreach (var aS in m.assets) if (aS != null && aS.component == "emblembar" && aS.part == "socket") { sockRow = aS; break; }
+        WireIconChildrenRow(sgo, root, m, sockRow);
       }
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/EmblemBar.prefab");
       UnityEngine.Object.DestroyImmediate(go);
@@ -17548,7 +17922,7 @@ namespace PatternBreak {
       var dir = root + "/Prefabs";
       if (!AssetDatabase.IsValidFolder(dir)) return;
       ShelveGlyphPrefabs(root); // the owner's folder call, healed on every import
-      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0, reseeded = 0, wordKept = 0, rebodied = 0, mapGrafted = 0, padTuned = 0, rigGrafted = 0, sinkTuned = 0, barRigged = 0, pieceBound = 0, ddRigged = 0;
+      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0, reseeded = 0, wordKept = 0, rebodied = 0, mapGrafted = 0, padTuned = 0, rigGrafted = 0, sinkTuned = 0, barRigged = 0, pieceBound = 0, ddRigged = 0, unburned = 0;
       /* the ROOT-RECT ownership ledger (F5 — the resize pass was the one
          maintenance heal with NO ours-vs-theirs guard): rects we last
          authored, carried in kit.lock.json > authoredRects. A rect still
@@ -17964,6 +18338,17 @@ namespace PatternBreak {
            place; an existing Icon — ours or the dev's — stays untouched
            (WireIconSeat is idempotent on the name). */
         bool wantIconAdd = false, wantIconStroke = false;
+        /* the UN-BURN convergence trigger: any iconSeats row whose live
+           child is missing on this prefab (born before the law, or the
+           sprite arrived on a later refresh) */
+        bool wantUnburn = false;
+        {
+          var rowU0 = LabelRow(m, famName);
+          if (!tiledBuild && rowU0 != null && rowU0.iconSeats != null && rowU0.iconSeats.Length > 0)
+            foreach (var icU0 in rowU0.iconSeats)
+              if (icU0 != null && !string.IsNullOrEmpty(icU0.file) && icU0.w >= 1f
+                  && asset.transform.Find(IconChildName(icU0)) == null) { wantUnburn = true; break; }
+        }
         {
           var rowIc0 = LabelRow(m, famName);
           bool seatIc0 = !tiledBuild && rowIc0 != null && rowIc0.icon != null && rowIc0.icon.s > 2f
@@ -18352,6 +18737,15 @@ namespace PatternBreak {
             WireIconSeat(contents, root, m, famName);
             if (contents.transform.Find("Icon") != null) { wired++; changed = true; }
           }
+          /* the UN-BURN convergence (maximum-editability law): stripped
+             bakes land by path on refresh, and prefabs born before the
+             law gain their live picture children in place. Idempotent
+             per child name — an existing child, ours or the dev's, is
+             never touched. */
+          if (wantUnburn) {
+            WireIconChildren(contents, root, m, famName);
+            unburned++; changed = true;
+          }
           /* round 27: the pristine fill-only Icon steps down and the
              layered seat (Stroke (echo) + Fill) takes its place — the
              ownership check above already cleared this prefab. */
@@ -18492,6 +18886,8 @@ namespace PatternBreak {
         Debug.Log("UI Kit Maker: rebuilt " + healed + " HeroLabel prefab(s) to the echo construction (one text, layer inks) — words preserved; placed copies healed with it.");
       if (purgedGhosts > 0)
         Debug.Log("UI Kit Maker: purged dead script reference(s) on " + purgedGhosts + " prefab(s) (a script identity change from a delete-and-redrop) — the state wiring was rebuilt fresh alongside.");
+      if (unburned > 0)
+        Debug.Log("UI Kit Maker: un-burned " + unburned + " prefab(s) — icons and images the art used to bake in now ride as live, Inspector-swappable children at the exact app seats (the stripped sprites landed with this refresh). A child you renamed, re-sprited or deleted is yours and stays untouched.");
       if (unswapped > 0)
         Debug.Log("UI Kit Maker: corrected the state transition on " + unswapped + " tiled-face prefab(s) — a full-material sprite swap doubles the layered pattern, so their states now ride the engine glow/lift instead. Clicks unchanged.");
       if (resized > 0)

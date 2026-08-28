@@ -5833,9 +5833,13 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const pr = Math.min(sw, sh) / 2 - bw - 2.5 * k;
       const gidA = "av" + UID++;
       const lvl = Math.max(1, Math.min(99, Math.round((value ?? 0.12) * 99)));
+      /* the PROFILE IMAGE is marked swappable ink (maximum-editability law):
+         the engine export strips it from the frame bake and ships it as a
+         live masked Image child — the well circle rides data-icon-well so
+         the export can seat the mask exactly on the frame's own aperture */
       const parts = `<defs><clipPath id="${gidA}"><circle cx="${ccx.toFixed(1)}" cy="${ccy.toFixed(1)}" r="${pr.toFixed(1)}"/></clipPath></defs>
         <circle cx="${ccx.toFixed(1)}" cy="${ccy.toFixed(1)}" r="${pr.toFixed(1)}" fill="${wellFill}"/>
-        <g clip-path="url(#${gidA})" opacity="${state === "disabled" ? 0.4 : 1}">
+        <g data-part="icon" data-icon="portrait" data-icon-well="${ccx.toFixed(1)} ${ccy.toFixed(1)} ${pr.toFixed(1)}" clip-path="url(#${gidA})" opacity="${state === "disabled" ? 0.4 : 1}">
           <circle cx="${ccx.toFixed(1)}" cy="${(ccy - pr * 0.28).toFixed(1)}" r="${(pr * 0.34).toFixed(1)}" fill="rgba(255,255,255,0.4)"/>
           <ellipse cx="${ccx.toFixed(1)}" cy="${(ccy + pr * 0.75).toFixed(1)}" rx="${(pr * 0.62).toFixed(1)}" ry="${(pr * 0.5).toFixed(1)}" fill="rgba(255,255,255,0.4)"/>
         </g>
@@ -5871,11 +5875,13 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const coinX = 39 + inset + coinR + 10 * k;
       const amt = opts.label ?? Math.round(clamp(value ?? 0.125, 0, 1) * 9999).toLocaleString("en-US");
       const gidC = "cu" + UID++;
-      const coin = `<defs><radialGradient id="${gidC}" cx="0.35" cy="0.3" r="0.95"><stop offset="0" stop-color="#FFF3B0"/><stop offset="0.55" stop-color="#FACC15"/><stop offset="1" stop-color="#B45309"/></radialGradient></defs>
+      // the semantic coin is marked swappable ink (maximum-editability law):
+      // the engine export strips it and ships it as a live Image child
+      const coin = `<g data-part="icon" data-icon="coin"><defs><radialGradient id="${gidC}" cx="0.35" cy="0.3" r="0.95"><stop offset="0" stop-color="#FFF3B0"/><stop offset="0.55" stop-color="#FACC15"/><stop offset="1" stop-color="#B45309"/></radialGradient></defs>
         <circle cx="${coinX.toFixed(1)}" cy="${cy.toFixed(1)}" r="${coinR.toFixed(1)}" fill="url(#${gidC})" stroke="#92400E" stroke-width="1.6"/>
         <circle cx="${coinX.toFixed(1)}" cy="${cy.toFixed(1)}" r="${(coinR * 0.66).toFixed(1)}" fill="none" stroke="#92400E" stroke-width="1.1" opacity="0.6"/>
         ${STOCK_ICONS.star ? iconGroup(STOCK_ICONS.star, coinX - coinR * 0.45, cy - coinR * 0.45, coinR * 0.9, "#92400E", { strokeWidth: 2.4 * iconWK }) : ""}
-        <ellipse cx="${(coinX - coinR * 0.3).toFixed(1)}" cy="${(cy - coinR * 0.42).toFixed(1)}" rx="${(coinR * 0.34).toFixed(1)}" ry="${(coinR * 0.18).toFixed(1)}" fill="#FFFFFF" opacity="0.65"/>`;
+        <ellipse cx="${(coinX - coinR * 0.3).toFixed(1)}" cy="${(cy - coinR * 0.42).toFixed(1)}" rx="${(coinR * 0.34).toFixed(1)}" ry="${(coinR * 0.18).toFixed(1)}" fill="#FFFFFF" opacity="0.65"/></g>`;
       return inject(shell.replace("<svg ", '<svg data-currency="1" '),
         coin + contentText(amt, coinX + coinR + 14 * k, cy + 1, 28 * k * typeK, { keepCase: true }));
     }
@@ -7423,10 +7429,12 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const [sx, sy, sw, sh] = shellM[1].split(" ").map(Number);
       const ccx = sx + sw / 2;
       const ic = opts.icon ?? STOCK_ICONS.gift;
+      // the reward glyph is marked swappable ink (maximum-editability law):
+      // the engine export strips it and ships it as a live Image child
       let over = infoText(opts.label ?? "DAY 4", ccx, sy + 22 * k, 15 * k, "middle", 800) +
-        (ic ? (claimed || locked9
+        (ic ? `<g data-part="icon" data-icon="glyph">${claimed || locked9
           ? iconGroup(ic, ccx - 27 * k, sy + sh / 2 - 22 * k, 54 * k, "#A7AAB4", { strokeWidth: 2 * iconWK })
-          : themedIcon(ic, ccx - 27 * k, sy + sh / 2 - 22 * k, 54 * k, hexMix(glow, "#FFFFFF", 0.25), 2.2)) : "");
+          : themedIcon(ic, ccx - 27 * k, sy + sh / 2 - 22 * k, 54 * k, hexMix(glow, "#FFFFFF", 0.25), 2.2)}</g>` : "");
       if (claimed) {
         over += `<circle cx="${(sx + sw - 12 * k).toFixed(1)}" cy="${(sy + 12 * k).toFixed(1)}" r="${(15 * k).toFixed(1)}" fill="#4ADE80" stroke="rgba(255,255,255,0.9)" stroke-width="2"/>` +
           iconGroup(STOCK_ICONS.check, sx + sw - 21 * k, sy + 3 * k, 18 * k, "#0B3B21", { strokeWidth: 3.4 * iconWK });
@@ -7711,9 +7719,11 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const wcx = sx + sw / 2;
       const well = `<circle cx="${wcx.toFixed(1)}" cy="${(sy + sh * 0.38).toFixed(1)}" r="${(sw * 0.3).toFixed(1)}" fill="${wellFill}" opacity="0.9"/>`;
       const icR = opts.icon !== undefined ? opts.icon : STOCK_ICONS.gem;
+      // the reward glyph is marked swappable ink (maximum-editability law):
+      // the engine export strips it and ships it as a live Image child
       const face = mystery
         ? `<text x="${wcx.toFixed(1)}" y="${(sy + sh * 0.38).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(46 * k).toFixed(1)}" font-weight="900" fill="rgba(255,255,255,0.5)" text-anchor="middle" dominant-baseline="central">?</text>`
-        : (icR ? wellGlyph(icR, wcx, sy + sh * 0.38, sw * 0.38, lighten(tier.c, 0.2)) : "");
+        : (icR ? `<g data-part="icon" data-icon="glyph">${wellGlyph(icR, wcx, sy + sh * 0.38, sw * 0.38, lighten(tier.c, 0.2))}</g>` : "");
       const nameR = contentText(mystery ? "???" : (opts.label ?? "SUN SHARD").slice(0, 14), wcx, sy + sh - inset - 52 * k, 20 * k * typeK, { anchor: "middle" });
       /* the qty pill lays the tier tint at 25% over the card FACE — on a
          pale face the lightened tier ink dissolves into it (Brightside:
@@ -7749,8 +7759,10 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       // the glyph well — the reward card's dark dish, same seat
       const well = `<circle cx="${wcx.toFixed(1)}" cy="${wcy.toFixed(1)}" r="${(sw * 0.28).toFixed(1)}" fill="${wellFill}" opacity="0.9"/>`;
       // wellGlyph honors the WHOLE Icons panel — size, rotation, fx, colors
+      // …and is marked swappable ink (maximum-editability law): the engine
+      // export strips it and ships it as a live Image child
       const icBC = opts.icon !== undefined ? opts.icon : STOCK_ICONS.hammer;
-      const face = icBC ? wellGlyph(icBC, wcx, wcy, sw * 0.36, hexMix(glow, "#FFFFFF", 0.3)) : "";
+      const face = icBC ? `<g data-part="icon" data-icon="glyph">${wellGlyph(icBC, wcx, wcy, sw * 0.36, hexMix(glow, "#FFFFFF", 0.3))}</g>` : "";
       // name — the themed display voice on the card FACE
       const nmBC = (opts.label ?? "HAMMER").slice(0, 14);
       const availBC = sw - insetBC * 2 - 8 * k;
@@ -7764,7 +7776,10 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const qTxt = `×${qn}`;
       const chW = (34 + qTxt.length * 12) * k, chH = 30 * k;
       const chY = sy + sh - insetBC - chH - 8 * k;
-      const qty = `<rect x="${(wcx - chW / 2).toFixed(1)}" y="${chY.toFixed(1)}" width="${chW.toFixed(1)}" height="${chH.toFixed(1)}" rx="${(chH / 2).toFixed(1)}" fill="${bevel}" stroke="${darken(bevel, 0.4)}" stroke-width="1.4" opacity="${dimBC ? 0.5 : 1}"/>` +
+      /* the qty PILL PLATE is marked swappable ink too (maximum-editability
+         law, data-icon-btn): the export strips it and ships it as a real
+         small-button child; the count stays a live word seat over it */
+      const qty = `<g data-part="icon" data-icon="qtybtn" data-icon-btn="1"><rect x="${(wcx - chW / 2).toFixed(1)}" y="${chY.toFixed(1)}" width="${chW.toFixed(1)}" height="${chH.toFixed(1)}" rx="${(chH / 2).toFixed(1)}" fill="${bevel}" stroke="${darken(bevel, 0.4)}" stroke-width="1.4" opacity="${dimBC ? 0.5 : 1}"/></g>` +
         `<text x="${wcx.toFixed(1)}" y="${(chY + chH / 2 + 0.5).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(17 * k).toFixed(1)}" font-weight="800" fill="${paleG(bevel) ? darken(bevel, 0.68) : "#FFFFFF"}" text-anchor="middle" dominant-baseline="central" opacity="${dimBC ? 0.6 : 1}">${esc(qTxt)}</text>`;
       return inject(shell.replace("<svg ", '<svg data-boostercard="1" '), well + face + name + effect9 + qty);
     }
@@ -7791,14 +7806,18 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       let innerB = "";
       if (ad) {
         const pr = 19 * k, px = sx + 34 * k;
-        innerB += `<circle cx="${px.toFixed(1)}" cy="${cyB.toFixed(1)}" r="${pr.toFixed(1)}" fill="${hexRgba("#FFFFFF", 0.16)}" stroke="rgba(255,255,255,0.5)" stroke-width="1.6"/>` +
-          (STOCK_ICONS.play ? themedIcon(STOCK_ICONS.play, px - 9 * k, cyB - 10 * k, 20 * k, "#FFFFFF", 2.6) : "") +
+        // the play badge is marked swappable ink (maximum-editability law):
+        // the engine export strips it and ships it as a live Image child
+        innerB += `<g data-part="icon" data-icon="glyph"><circle cx="${px.toFixed(1)}" cy="${cyB.toFixed(1)}" r="${pr.toFixed(1)}" fill="${hexRgba("#FFFFFF", 0.16)}" stroke="rgba(255,255,255,0.5)" stroke-width="1.6"/>` +
+          (STOCK_ICONS.play ? themedIcon(STOCK_ICONS.play, px - 9 * k, cyB - 10 * k, 20 * k, "#FFFFFF", 2.6) : "") + `</g>` +
           contentText((opts.label ?? "2× REWARD").slice(0, 14), px + pr + 12 * k, cyB + 1, 24 * k * typeK, {});
         const rw = 64 * k, rh = 26 * k;
         innerB += `<g transform="rotate(8 ${(sx + sw - 18 * k).toFixed(1)} ${(sy + 4 * k).toFixed(1)})"><rect x="${(sx + sw - rw - 4 * k).toFixed(1)}" y="${(sy - rh * 0.45).toFixed(1)}" width="${rw.toFixed(1)}" height="${rh.toFixed(1)}" rx="${(7 * k).toFixed(1)}" fill="${CHEST_TIERS.Gold}" stroke="${darken(CHEST_TIERS.Gold, 0.4)}" stroke-width="1.4"/><text x="${(sx + sw - rw / 2 - 4 * k).toFixed(1)}" y="${(sy + rh * 0.05).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(14 * k).toFixed(1)}" font-weight="900" letter-spacing="0.08em" fill="#3A2A08" text-anchor="middle" dominant-baseline="central">AD ×2</text></g>`;
       } else {
         const gx = sx + 30 * k;
-        innerB += (STOCK_ICONS.gift ? themedIcon(STOCK_ICONS.gift, gx, cyB - 14 * k, 28 * k, dimB ? "#A7AAB4" : glow, 2.2) : "") +
+        // the gift glyph is marked swappable ink (maximum-editability law):
+        // the engine export strips it and ships it as a live Image child
+        innerB += (STOCK_ICONS.gift ? `<g data-part="icon" data-icon="glyph">${themedIcon(STOCK_ICONS.gift, gx, cyB - 14 * k, 28 * k, dimB ? "#A7AAB4" : glow, 2.2)}</g>` : "") +
           contentText((opts.label ?? "CLAIM ALL").slice(0, 14), gx + 40 * k, cyB + 1, 25 * k * typeK, {});
       }
       return inject(shell.replace("<svg ", '<svg data-claimbtn="1" '), innerB);
@@ -7897,14 +7916,17 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const cy = sy + 59 * k;
       const coinR = 24 * k, coinX = sx + 34 * k;
       const gidP0 = "pb" + UID++;
-      const coin = `<defs><radialGradient id="${gidP0}" cx="0.35" cy="0.3" r="0.95"><stop offset="0" stop-color="#FFF3B0"/><stop offset="0.55" stop-color="#FACC15"/><stop offset="1" stop-color="#B45309"/></radialGradient></defs>
+      /* coin and ribbon plate are marked swappable ink (maximum-editability
+         law): the engine export strips both and ships each as a live Image
+         child; the ribbon word joins the price as live text */
+      const coin = `<g data-part="icon" data-icon="coin"><defs><radialGradient id="${gidP0}" cx="0.35" cy="0.3" r="0.95"><stop offset="0" stop-color="#FFF3B0"/><stop offset="0.55" stop-color="#FACC15"/><stop offset="1" stop-color="#B45309"/></radialGradient></defs>
         <circle cx="${coinX.toFixed(1)}" cy="${cy.toFixed(1)}" r="${coinR.toFixed(1)}" fill="url(#${gidP0})" stroke="#92400E" stroke-width="1.6"/>
         <circle cx="${coinX.toFixed(1)}" cy="${cy.toFixed(1)}" r="${(coinR * 0.64).toFixed(1)}" fill="none" stroke="#92400E" stroke-width="1" opacity="0.6"/>
-        <ellipse cx="${(coinX - coinR * 0.3).toFixed(1)}" cy="${(cy - coinR * 0.4).toFixed(1)}" rx="${(coinR * 0.32).toFixed(1)}" ry="${(coinR * 0.17).toFixed(1)}" fill="#FFFFFF" opacity="0.65"/>`;
+        <ellipse cx="${(coinX - coinR * 0.3).toFixed(1)}" cy="${(cy - coinR * 0.4).toFixed(1)}" rx="${(coinR * 0.32).toFixed(1)}" ry="${(coinR * 0.17).toFixed(1)}" fill="#FFFFFF" opacity="0.65"/></g>`;
       const price = contentText(opts.label ?? "$4.99", coinX + coinR + 14 * k, cy + 1, 34 * k * typeK, { keepCase: true });
       const ribW = 108 * k, ribH = 26 * k;
       const ribbon = `<g${state !== "disabled" ? ` style="filter: drop-shadow(0 1.5px 2px rgba(6,10,18,0.4))"` : ""}>
-        <rect x="${(sx + sw / 2 - ribW / 2).toFixed(1)}" y="${(sy - ribH * 0.44).toFixed(1)}" width="${ribW.toFixed(1)}" height="${ribH.toFixed(1)}" rx="${(ribH / 2).toFixed(1)}" fill="#FACC15" stroke="#92400E" stroke-width="1.4"/>
+        <g data-part="icon" data-icon="ribbon"><rect x="${(sx + sw / 2 - ribW / 2).toFixed(1)}" y="${(sy - ribH * 0.44).toFixed(1)}" width="${ribW.toFixed(1)}" height="${ribH.toFixed(1)}" rx="${(ribH / 2).toFixed(1)}" fill="#FACC15" stroke="#92400E" stroke-width="1.4"/></g>
         <text x="${(sx + sw / 2).toFixed(1)}" y="${(sy - ribH * 0.44 + ribH / 2 + 0.5).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(13 * k).toFixed(1)}" font-weight="900" letter-spacing="0.1em" fill="#7C2D12" text-anchor="middle" dominant-baseline="central">${esc((opts.slots?.ribbon ?? "BEST VALUE").slice(0, 16))}</text></g>`;
       return inject(shell.replace("<svg ", '<svg data-pricebtn="1" '), coin + price + ribbon);
     }
@@ -8460,7 +8482,9 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const pickN = opts.slots?.[`g${i + 1}`];
         const icN = (pickN && pickN !== "Factory" && STOCK_ICONS[pickN.toLowerCase()]) || STOCK_ICONS[cellsDef[i].ic];
         const icx = cx0 + cellW / 2;
-        if (icN) cells += themedIcon(icN, icx - 20 * k, y0 + 12 * k, 40 * k, on ? hexMix(glow, "#FFFFFF", 0.35) : "rgba(255,255,255,0.72)", 2.2);
+        // every tab glyph is marked swappable ink (maximum-editability law):
+        // the engine export strips them and ships each as a live Image child
+        if (icN) cells += `<g data-part="icon" data-icon="tab${i + 1}">${themedIcon(icN, icx - 20 * k, y0 + 12 * k, 40 * k, on ? hexMix(glow, "#FFFFFF", 0.35) : "rgba(255,255,255,0.72)", 2.2)}</g>`;
         /* captions sit on the DARK cell wells — the HUD voice (white with
            the tight understroke) holds legible on every kit, pale-faced
            Brightside included; the active caption alone takes the glow
@@ -8584,10 +8608,12 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const icon = opts.icon ?? STOCK_ICONS.gem;
       const dim = state === "disabled" ? 0.45 : 1;
       const vx = 39 + 20 * k + cMr + medR * 2;
+      // the medallion is marked swappable ink (maximum-editability law):
+      // the engine export strips it and ships it as a live Image child
       const parts =
         (noIcon ? "" :
-          candyKnob(39 + 6 * k + cMr + medR, cy, medR, bevel) +
-          themedIcon(icon, 39 + 6 * k + cMr + medR - medR * 0.52, cy - medR * 0.52, medR * 1.04, darken(bevel, 0.55), 2.4)) +
+          `<g data-part="icon" data-icon="medallion">${candyKnob(39 + 6 * k + cMr + medR, cy, medR, bevel) +
+          themedIcon(icon, 39 + 6 * k + cMr + medR - medR * 0.52, cy - medR * 0.52, medR * 1.04, darken(bevel, 0.55), 2.4)}</g>`) +
         (noIcon
           ? contentText(`${val}${maxTxt}`, 39 + (w - (opts.addBtn ? 46 * k : 0)) / 2, cy + 1, fsV * typeK, { anchor: "middle", keepCase: true, opacity: dim })
           : contentText(val, vx, cy + 1, fsV * typeK, { keepCase: true, opacity: dim }) +

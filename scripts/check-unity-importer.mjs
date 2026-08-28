@@ -357,8 +357,8 @@ if (!/asset\.transform\.Find\("Fill Area"\) == null/.test(cs) || !/barRigged\+\+
 /* round-21 slice C: the VS bar + emblem bar leave the baked-stamp road,
    and the segment meter lights its cells. */
 if (!/addPng\("vsbar\/track\.9\.png", shell\("vsbar", \{ overlay: "track" \}/.test(src)
-    || !/addPng\("emblembar\/socket\.png", padSvg\(shell\("emblembar", \{ overlay: "dock"/.test(src))
-  errors.push("the vsbar/emblembar dressed part assets are missing from the export (round 21; the socket rides padSvg since round 27)");
+    || !/addPng\("emblembar\/socket\.png", sockSeats \? stripIconInk\(sockFull\)\.svg : sockFull/.test(src))
+  errors.push("the vsbar/emblembar dressed part assets are missing from the export (round 21; the socket bakes BARE + live emblem child since the un-burn round)");
 if (!/vsbar: "vsbar", emblembar: "emblembar"/.test(src))
   errors.push("vsbar/emblembar must ride PREFAB_FAMILY (live placement) — without it they fall back to dead baked stamps (round 21)");
 if (!/static bool VsBarPrefab\(/.test(cs) || !/static bool EmblemBarPrefab\(/.test(cs) || !/static bool SegBarPrefab\(/.test(cs))
@@ -516,8 +516,8 @@ if (!/it2\.component == "joystick" && it2\.ov == "ghost"/.test(cs) || !/ghost st
    prefab's own clean file. */
 if (!/class PBBig \{ public string id; public string name; public string sprite; public bool fx; \}/.test(cs))
   errors.push("PBBig (the manifest's big-glyph row) is missing from the importer (round 23)");
-if (!/public float\[\] cells; public int cellSel = -1; public PBBig big; \}/.test(cs))
-  errors.push("PBBoardItem must carry the big field — without it JsonUtility drops every big-glyph row (round 23)");
+if (!/public float\[\] cells; public int cellSel = -1; public PBBig big; public PBIconChild\[\] posedIcons; \}/.test(cs))
+  errors.push("PBBoardItem must carry the big field and the un-burn's posedIcons — without them JsonUtility drops those rows (rounds 23 + un-burn)");
 if (!/static string BigGlyphPrefabName\(PBBig bg\)/.test(cs))
   errors.push("BigGlyphPrefabName is missing — builder and placement must derive the prefab file name from ONE helper or they diverge (round 23)");
 if (!/static bool BigGlyphPrefabs\(/.test(cs) || !/if \(BigGlyphPrefabs\(dir, root, m\)\) any = true;/.test(cs))
@@ -917,10 +917,10 @@ if (!/icon: idBase === "chip" \? resolveKitIcon\(st\.kitIcons\?\.\[idBase\], und
    icon-fx chain then rendered into the canvas edge. The bake now pads
    its canvas for the chain's full reach and hands the tight crop a
    wider margin so the falloff hits true zero inside the file. */
-if (!/padSvg\(shell\("emblembar", \{ overlay: "dock", icon: undefined \}, slim\), 64\)/.test(src))
-  errors.push("the emblem socket bake must pad its canvas (padSvg 64) — the icon-fx halo clips at glowPadOf's zeroed-state 0px pad (round 27)");
-if (!/typeof q\.crop === "number" \? q\.crop : undefined/.test(src) || !/Drop your own art in its well\." \}, 24\);/.test(src))
-  errors.push("the socket must ride the numeric-margin crop road (tight crop, margin 24) so the halo tail reaches alpha 0 (round 27)");
+if (!/padSvg\(shell\("emblembar", \{ overlay: "dock", icon: resolveKitIcon\(st\.kitIcons\?\.emblembar, undefined\) \}, slim\), 64\)/.test(src))
+  errors.push("the emblem socket bake must pad its canvas (padSvg 64) with the maker's own emblem pick aboard — the icon-fx halo clips at glowPadOf's zeroed-state 0px pad (round 27; pick honored since the un-burn round)");
+if (!/typeof q\.crop === "number" \? q\.crop : undefined/.test(src) || !/\.\.\.\(sockSeats \? \{ iconSeats: sockSeats \} : \{\}\) \}, 24\);/.test(src))
+  errors.push("the socket must ride the numeric-margin crop road (tight crop, margin 24) so the halo tail reaches alpha 0 (round 27), carrying its un-burn iconSeats");
 
 /* round-27 item 3: v1 fill-only Icons converge to the layered seat —
    ONLY when provably ours and untouched (childless, our sprite, our
@@ -2155,6 +2155,46 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the update dialog stopped saying hand edits are LOST — 'redone' reads as re-applied (reviewer P6)");
   if (!/fontNotesMarkdown\(kitFontFamilies\(st\.cfg\), primaryFontFile \? "bundled" : "linked"\)/.test(src))
     errors.push("the Unity zip's recipe README lost its bundled-fonts paragraph — the SVG pack's install text is another format's story (reviewer P7)");
+}
+
+/* THE UN-BURN (maximum-editability law, 2026-08-28): no icon, image, or
+   word burned into component art — every swappable thing a live
+   Inspector-editable child. These pins keep the whole chain standing:
+   the marked-group extraction, the stripped bakes (base AND state
+   skins), the manifest seats, the importer's live children (family
+   prefabs, the emblem socket, POSED board copies), and the kept-project
+   convergence with its receipt. */
+{
+  if (!/function markedIconOnlySvgs\(svgIn: string\)/.test(src)
+      || !/function stripMarkedIcons\(svgIn: string\)/.test(src))
+    errors.push("the un-burn's marked-group hands (markedIconOnlySvgs / stripMarkedIcons) are missing from the export");
+  if (!/const iconSeatsU = isArt \? null : await iconSeatsOf\(uid, fullU\);/.test(src)
+      || !/stripIconInk\(stripWordInk\(sSvg\)\.svg\)\.svg/.test(src))
+    errors.push("the universal road stopped stripping marked icon ink (base and/or state skins) — burned swappables are back");
+  if (!/const ibSeats = await iconSeatsOf\("iconbtn", ibFull\);/.test(src)
+      || !/stripIconInk\(stateShell\(s\.id, stName, s\.opts, s\.value\)\)\.svg/.test(src))
+    errors.push("the icon button's glyph is baked again (base or state skins) — the law reversed the universal round's call on purpose");
+  if (!/const iconSeatsP = unburnP \? await iconSeatsOf\(p\.id, baseFullP\) : null;/.test(src))
+    errors.push("the price button's un-burn (coin + ribbon plate live, ribbon word a seat) is missing from the PROPS road");
+  if (!/if \(posedCuts\.length\) ps2 = stripMarkedIcons\(ps2\)\.svg;/.test(src)
+      || !/posedIcons: posedIconsPx/.test(src))
+    errors.push("the POSED road stopped stripping marked icons / shipping posedIcons — board copies burn their swappables again");
+  if (!/\[Serializable\] class PBIconChild \{ public string name; public string file; public float dx; public float dy; public float w; public float h; public bool btn; public float wellR; \}/.test(cs))
+    errors.push("PBIconChild is missing from the importer — JsonUtility drops every un-burn seat row");
+  if (!/public PBStyle seatInk; public float ringV; public PBIconChild\[\] iconSeats; \}/.test(cs))
+    errors.push("PBAsset must carry iconSeats — without it JsonUtility drops the un-burn seats");
+  if (!/static void WireIconChildren\(GameObject go, string root, PBManifest m, string fam\)/.test(cs)
+      || !/static void WireIconChildrenRow\(GameObject go, string root, PBManifest m, PBAsset row\)/.test(cs)
+      || !/WireIconChildren\(go, root, m, baseAsset\.component\);/.test(cs))
+    errors.push("the importer no longer rebuilds live icon children on family prefabs (WireIconChildren)");
+  if (!/WireIconChildrenRow\(sgo, root, m, sockRow\);/.test(cs))
+    errors.push("the emblem socket lost its live emblem child (WireIconChildrenRow on the socket row)");
+  if (!/if \(it\.posedIcons != null\) foreach \(var pIc in it\.posedIcons\)/.test(cs))
+    errors.push("posed board copies no longer rebuild their live icon children from posedIcons");
+  if (!/typeof\(Image\), typeof\(Mask\)\)/.test(cs) || !/showMaskGraphic = false;/.test(cs))
+    errors.push("the avatar's circle-masked Portrait well structure is missing (Mask + hidden mask graphic)");
+  if (!/if \(wantUnburn\) \{/.test(cs) || !/un-burned/.test(cs))
+    errors.push("the kept-project un-burn convergence (wantUnburn + its Console receipt) is missing from the maintenance pass");
 }
 
 if (errors.length) {
