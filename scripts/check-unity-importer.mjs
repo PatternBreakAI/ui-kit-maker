@@ -2656,6 +2656,15 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("FireButtonPrefab no longer seats the armed glyph on the app's emitted seat (themed + fireW-gated, heuristic fallback for old zips) — the main icon sits low again (round 44, item 15)");
   if (!/if \(oursBox && oursNudge/.test(cs) || !/wFixRt\.anchoredPosition = new Vector2\(fbSeatDx, -fbSeatDy\);/.test(cs))
     errors.push("the kept-project Weapon seat convergence is gone (or lost its ours-only gate) — field kits never pick up the exact armed seat, or a dev-moved Weapon gets clobbered");
+  // S2 — Data Row arrow REMOVAL (owner decision, item 7): the trailing
+  // action renders ONLY as per-copy poses; the default forward arrow is
+  // gone for good (its color was uncontrollable from the app)
+  if (/iconGroup\(STOCK_ICONS\.forward, 39 \+ w - 48 \* k/.test(bevelSrc))
+    errors.push("the data row's default forward arrow came back — the owner removed it (round 44, item 7: color uncontrollable through the app)");
+  if (!/: ov === "locked"\n\s*\? `<g data-part="icon" data-icon="action">/.test(bevelSrc))
+    errors.push("the data row's posed action badges (locked/check/alert) lost their marked-group grammar — posed board copies would bake or vanish");
+  if (!/No trailing arrow ships \(owner ruling\)/.test(src))
+    errors.push("the data row's usage no longer states the arrow ruling — the manifest would promise a live action child that never ships");
 }
 
 if (errors.length) {

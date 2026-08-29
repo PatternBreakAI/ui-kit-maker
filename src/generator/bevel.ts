@@ -8885,17 +8885,21 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
                 (mercW > 1 ? `<g data-part="icon" data-icon="barfill">${rfx.open}<path d="${roundRect(tx + gapM, barY, mercW, mercH, mercH / 2)}" fill="url(#${gid2})" opacity="${dim}"/>${rfx.close}${rfx.over}</g>` : "");
             })()
           : "") +
-        // the trailing action is marked swappable ink (maximum-editability
-        // law): the engine export strips it and ships it as a live Image
-        // child — per-copy poses (locked/check/alert) ride the posed road
+        /* the trailing action ships ONLY as per-copy poses (locked/check/
+           alert — marked swappable ink, the posed road cuts them live).
+           The DEFAULT white forward arrow is GONE (round 44 owner
+           decision: its color is uncontrollable from the app — "remove
+           the right arrow icon from the data row entirely"). The right
+           lane's spacing stands, so titles, clip and bar keep their
+           geometry to the pixel. */
         (!showAction ? ""
-          : `<g data-part="icon" data-icon="action">${ov === "locked"
-            ? iconGroup(STOCK_ICONS.lock, 39 + w - 52 * k, 30 + h / 2 - 14 * k, 28 * k, "rgba(255,255,255,0.75)", { strokeWidth: 2.2 * iconWK })
+          : ov === "locked"
+            ? `<g data-part="icon" data-icon="action">${iconGroup(STOCK_ICONS.lock, 39 + w - 52 * k, 30 + h / 2 - 14 * k, 28 * k, "rgba(255,255,255,0.75)", { strokeWidth: 2.2 * iconWK })}</g>`
             : ov === "check"
-              ? iconGroup(STOCK_ICONS.check, 39 + w - 52 * k, 30 + h / 2 - 14 * k, 28 * k, glow, { strokeWidth: 2.6 * iconWK })
+              ? `<g data-part="icon" data-icon="action">${iconGroup(STOCK_ICONS.check, 39 + w - 52 * k, 30 + h / 2 - 14 * k, 28 * k, glow, { strokeWidth: 2.6 * iconWK })}</g>`
               : ov === "alert"
-                ? iconGroup(STOCK_ICONS.warning, 39 + w - 52 * k, 30 + h / 2 - 14 * k, 28 * k, hexMix(glow, "#FFFFFF", 0.3), { strokeWidth: 2.2 * iconWK })
-                : iconGroup(STOCK_ICONS.forward, 39 + w - 48 * k, 30 + h / 2 - 12 * k, 24 * k, "rgba(255,255,255,0.6)", { strokeWidth: 2.4 * iconWK })}</g>`);
+                ? `<g data-part="icon" data-icon="action">${iconGroup(STOCK_ICONS.warning, 39 + w - 52 * k, 30 + h / 2 - 14 * k, 28 * k, hexMix(glow, "#FFFFFF", 0.3), { strokeWidth: 2.2 * iconWK })}</g>`
+                : "");
       return inject(track, parts);
     }
     case "joystick": {

@@ -3570,7 +3570,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     { id: "input", family: "input", h: 124, usage: "Input field surface (well included). Nothing is baked into it — the placeholder ships as a live text layer on the prefab, and the value and caret are engine widgets." },
     { id: "panel", family: "panel", h: 380, usage: "Container / window. Content is engine layout." },
     { id: "header", family: "header-banner", h: 158, usage: "Header banner. Title is live engine text." },
-    { id: "datarow", family: "list-row", h: 128, usage: "Data row — the app's own catalog name (the prefab is DataRow). Portrait, mini-progress mercury and the trailing action are LIVE Image children; title and subtitle are live seats; the well plate and bar track stay anatomy." },
+    { id: "datarow", family: "list-row", h: 128, usage: "Data row — the app's own catalog name (the prefab is DataRow). Portrait and mini-progress mercury are LIVE Image children; title and subtitle are live seats; the well plate and bar track stay anatomy. No trailing arrow ships (owner ruling) — posed copies (locked/check/alert) still carry their live badges." },
     { id: "slot", family: "item-slot", h: 128, usage: "Item slot frame + well. Item icon and count are engine content." },
   ];
   /* the prefab's DEFAULT rect wears the kit's WORDS — see PREF_LABEL at
