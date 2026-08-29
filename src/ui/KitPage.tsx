@@ -658,14 +658,16 @@ function PieceInner(p: PieceOpts & { caption: string; ambient?: boolean }) {
           onClick={(e) => {
             e.stopPropagation();
             if (!vectorOk) { openGate("export"); return; }
-            const { cfg: c, kitShapes: ks, kitDesigns: kd, kitTextOy: ko, kitTextOx: kx, kitTextFill: kf, kitSlotVals: kv, kitVals: kval } = useGen.getState();
+            const { cfg: c, kitShapes: ks, kitDesigns: kd, kitTextOy: ko, kitTextOx: kx, kitTextFill: kf, kitSlotVals: kv, kitVals: kval, kitIcons: kic } = useGen.getState();
             const variant = p.caption.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
             // a clone exports through its base component wearing the
             // clone-keyed reads; the file is named after the caption —
-            // which IS the clone's name on a clone card
+            // which IS the clone's name on a clone card. The icon resolves
+            // through the picker override, like the card itself — a swapped
+            // glyph must ride into the downloaded SVG, not revert to stock.
             downloadSvg(
               renderKit(applyKitTextFill(applyKitDesign(c, kd[p.id]), kf[p.id]), baseOf(p.id), size, p.baseState ?? "default", kval[p.id] ?? p.value, ks[p.id],
-                { label: p.label, segments: p.segments, icon: p.icon, expand: true, textOy: ko[`${p.id}:${size}`], textOx: kx[`${p.id}:${size}`], slots: kv[p.id], themedText: !!kd[p.id]?.type || !!kf[p.id] }),
+                { label: p.label, segments: p.segments, icon: resolveKitIcon(kic[p.id], p.icon), expand: true, textOy: ko[`${p.id}:${size}`], textOx: kx[`${p.id}:${size}`], slots: kv[p.id], themedText: !!kd[p.id]?.type || !!kf[p.id] }),
               `kit-${variant}-${size}.svg`
             );
           }}>

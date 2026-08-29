@@ -7262,8 +7262,12 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     case "heartmeter": {
       /* Casual · heart meter — lives WITH the refill economy: filled candy
          hearts, the next-heart timer, and the add knob. EDITING CONTRACT:
-         value = hearts full (0..1 → 0..5); label = the timer text; hearts
-         are semantic red; the shell takes states natively. */
+         value = hearts full (0..1 → 0..5); label = the timer text; the pip
+         glyph answers the standard icon picker (owner: "should be able to
+         edit icons in app") — factory keeps the filled candy heart, a pick
+         re-glyphs all five pips in the meter's semantic red, and remove
+         falls back to the factory heart (a meter without pips isn't one;
+         the booster precedent). */
       const w = 470 * k, h = 108 * k;
       const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 116 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const inset = bw + 6 * k;
@@ -7273,11 +7277,17 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const HEARTR = "#FF4D6D";
       const hs9 = 40 * k, gapH = 8 * k;
       const hx0 = 39 + inset + 14 * k;
+      const icH = opts.icon ?? null;
       let hearts = "";
       for (let i = 0; i < nH; i++) {
         const hx = hx0 + i * (hs9 + gapH);
         const on = i < fullH;
-        hearts += `<g transform="translate(${hx.toFixed(1)} ${(cy - hs9 / 2).toFixed(1)}) scale(${(hs9 / 24).toFixed(3)})"${on && state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(HEARTR, 0.6)})"` : ""}>
+        hearts += icH
+          ? iconGroup(icH, hx, cy - hs9 / 2, hs9, on ? HEARTR : "rgba(120,128,148,0.38)", {
+              strokeWidth: 2.6 * iconWK,
+              filter: on && state !== "disabled" ? `drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(HEARTR, 0.6)})` : undefined,
+            })
+          : `<g transform="translate(${hx.toFixed(1)} ${(cy - hs9 / 2).toFixed(1)}) scale(${(hs9 / 24).toFixed(3)})"${on && state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(HEARTR, 0.6)})"` : ""}>
           <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" fill="${on ? HEARTR : "rgba(120,128,148,0.3)"}" stroke="${on ? darken(HEARTR, 0.35) : "rgba(255,255,255,0.28)"}" stroke-width="1.6" stroke-linejoin="round"/>
           ${on ? `<ellipse cx="8" cy="7.4" rx="3" ry="1.8" fill="#FFFFFF" opacity="0.55"/>` : ""}
         </g>`;
@@ -7954,16 +7964,20 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       /* Casual · energy meter — the bolt, ten cells in a sunken container
          (negative-space canon), the count in adaptive ink. EDITING
          CONTRACT: value = energy (0..1 → 0..30 shown / 10 cells); label =
-         the count text; bolt is semantic gold. */
+         the count text; the badge glyph answers the standard icon picker
+         (owner: "should be able to edit icons in app") — factory keeps the
+         semantic-gold bolt, a pick wears the same gold-over-dark dress,
+         remove falls back to the bolt (the booster precedent). */
       const w = 470 * k, h = 108 * k;
       const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 116 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const inset = bw + 6 * k;
       const cy = 30 + h / 2;
       const vE = clamp(value ?? 0.8, 0, 1);
       const GOLD = "#FACC15";
-      const bolt = STOCK_ICONS.zap
-        ? iconGroup(STOCK_ICONS.zap, 39 + inset + 12 * k, cy - 17 * k, 34 * k, "rgba(8,12,22,0.65)", { strokeWidth: 2.4 * iconWK + 2.4 }) +
-          iconGroup(STOCK_ICONS.zap, 39 + inset + 12 * k, cy - 17 * k, 34 * k, GOLD, { strokeWidth: 2.4 * iconWK })
+      const icE = opts.icon ?? STOCK_ICONS.zap;
+      const bolt = icE
+        ? iconGroup(icE, 39 + inset + 12 * k, cy - 17 * k, 34 * k, "rgba(8,12,22,0.65)", { strokeWidth: 2.4 * iconWK + 2.4 }) +
+          iconGroup(icE, 39 + inset + 12 * k, cy - 17 * k, 34 * k, GOLD, { strokeWidth: 2.4 * iconWK })
         : "";
       const nCe = 10;
       const cellsX = 39 + inset + 60 * k, cellsW = w - inset * 2 - 60 * k - 96 * k;
