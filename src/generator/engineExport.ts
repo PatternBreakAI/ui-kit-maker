@@ -4189,13 +4189,13 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         equipselector: "Equipment selector — every carousel item's glyph is a LIVE Image child and the armed name a LIVE seat; the carousel pose bakes at the staged position. Display piece.",
         streakmeter: "Streak meter — the label is a LIVE seat and the Ignition glyph a LIVE Image child that IGNITES: the StreakIgnite rig swaps in the lit pose and pulses when you drive its value to full (both poses ship). Display piece.",
         waypoint: "Waypoint — the objective letter and distance are LIVE seats on the diamond. Spatial piece: it reads over live footage. Display piece.",
-        capturemeter: "Capture point — the point letter is a LIVE seat; the capture ring bakes at the staged share (per-copy values ride posed skins). Display piece.",
+        capturemeter: "Capture point — LIVE: the point letter is a LIVE seat and the capture ring a Radial360 rig (drive the Fill child's fillAmount or KitRingFill.SetValue — the end caps ride the head, clean at any value). Display piece.",
         respawn: "Respawn timer — heading and seconds are LIVE seats (drive the seconds from your own countdown; per-copy poses ride posed skins). Display piece.",
         weaponwheel: "Weapon wheel — all six chamber glyphs are LIVE Image children and the hub/tag words LIVE seats; the cylinder pose bakes at the staged rotation. Display piece.",
         crosshair: "Crosshair — shell-free spatial art with the dark understroke; scale freely (Preserve Aspect). Display piece.",
         hitmarker: "Hit marker — shell-free spatial art; flash it from your own hit events. Display piece.",
         dmgarc: "Damage direction arc — shell-free spatial art; rotate the piece to the threat bearing. Display piece.",
-        buffframe: "Buff frame — the effect glyph is a LIVE Image child (swap the sprite in the Inspector); the cooldown sweep bakes at the staged share. Display piece.",
+        buffframe: "Buff frame — the effect glyph is a LIVE Image child and the countdown FUNCTIONS: KitBuffSweep drives the spent-share sweep and its glowing hand from time remaining (Value 0..1, the app's own dial); the timer readout is a LIVE seat. Display piece.",
         hotbar: "Hotbar — every stocked slot glyph is a LIVE Image child and the indices/counts are LIVE seats; the selection ring bakes on the staged cell (per-copy selections ride posed skins). Display piece.",
         lives: "Lives — candy-heart value pips; the count bakes at the staged value and per-copy counts ride posed skins. Display piece.",
         heartmeter: "Heart meter — every pip is a LIVE Image child answering the app's icon picker (swap any sprite in the Inspector); timer text and the add cap's mark are LIVE seats. Display piece.",
@@ -4304,23 +4304,27 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
            SeatRowOf resolves seats by the sprite actually worn; the base
            bake stays for compatibility but carries no seats here, or the
            words would double. */
-        const ringRig = uid === "ring";
+        /* round 44 (owner item 4: "mercury bleed at the edge — same class
+           as the earlier circular progress fix"): the capture meter joins
+           the ring rig — same atoms, same importer road. */
+        const ringRig = uid === "ring" || uid === "capturemeter";
         if (ringRig) {
+          const rigNoun = uid === "ring" ? "Progress ring" : "Capture ring";
           const trackSvg = shell(uid, { ...uOpts, part: "track" }, undefined, uVal);
           const seatsTrack = textSeatsOf(uid, trackSvg, { icon: resolveKitIcon(st.kitIcons?.[uid], undefined) }, undefined, uVal);
           await addPng(`${uid}/track.png`, trackSvg, {
             component: uid, part: "track", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
-            usage: "Progress ring track — the rig's ground circle; the generated Ring prefab is LIVE (drive the Fill child's fillAmount or KitRingFill.SetValue).",
+            usage: `${rigNoun} track — the rig's ground circle; the generated prefab is LIVE (drive the Fill child's fillAmount or KitRingFill.SetValue).`,
             ...seatsTrack,
           }, false);
           await addPng(`${uid}/fill.png`, shell(uid, { ...uOpts, part: "fill" }, undefined, uVal), {
             component: uid, part: "fill", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
-            usage: "Progress ring fill — full circle, rotationally uniform shading: Image Filled / Radial360 (origin Top, clockwise) cuts it clean at ANY value.",
-            ringV: Math.max(0, Math.min(1, uVal ?? 0.62)),
+            usage: `${rigNoun} fill — full circle, rotationally uniform shading: Image Filled / Radial360 (origin Top, clockwise) cuts it clean at ANY value.`,
+            ringV: Math.max(0, Math.min(1, uVal ?? (uid === "ring" ? 0.62 : 0.55))),
           }, false);
           await addPng(`${uid}/cap.png`, shell(uid, { ...uOpts, part: "cap" }, undefined, uVal), {
             component: uid, part: "cap", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
-            usage: "Progress ring end cap — full-canvas, parked at 12 o'clock; KitRingFill rotates a copy to the fill's head angle (radial shading stays true under rotation).",
+            usage: `${rigNoun} end cap — full-canvas, parked at 12 o'clock; KitRingFill rotates a copy to the fill's head angle (radial shading stays true under rotation).`,
           }, false);
         }
         /* THE UN-BURN (maximum-editability law): marked icon ink leaves
@@ -4341,6 +4345,18 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
             component: uid, part: "mask", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true,
             usage: "The portrait well's circular mask — the prefab's Portrait Well child wears it (Mask, graphic hidden) so any sprite on the Portrait child clips to the frame's aperture.",
           }, false);
+        /* ── the BUFF SWEEP ATOMS (round 44, owner item 2: "the countdown
+           clock cannot be burned into the button shape — it has to
+           FUNCTION"): the rig root wears a sweep-less PLATE while
+           base.png keeps the baked pose BYTE-IDENTICAL (old importers
+           and kept prefabs keep today's look; the ring's compatibility
+           rule). The plate shares base's crop group so both frames — and
+           the base row's icon seats — line up by construction; the timer
+           seat rides the PLATE row (SeatRowOf reads the worn sprite).
+           The sweep trio bakes on its own face-centered square canvas
+           (crop=false — the Radial360 wedge and the hand rotation pivot
+           on the canvas center). */
+        const buffRig = uid === "buffframe";
         await addPng(`${uid}/base.png`, baseSvgU, {
           component: uid, part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
           usage: UNIVERSAL_USAGE[uid] ?? (GLYPH_BUTTONS.has(uid)
@@ -4349,9 +4365,36 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           ...(famFlipU ? { flip: true } : {}),
           ...(uLabelMeta ?? {}),
           ...(uWord !== undefined ? { labelText: uWord } : {}),
-          ...(ringRig ? {} : seatsU),
+          ...(ringRig || buffRig ? {} : seatsU),
           ...(iconSeatsU ? { iconSeats: iconSeatsU } : {}),
-        }, true, interactive ? uid : undefined);
+        }, true, interactive || buffRig ? uid : undefined);
+        if (buffRig) {
+          const stripBuffSweep = (sv: string): string => {
+            try {
+              const dom = new DOMParser().parseFromString(sv, "image/svg+xml");
+              for (const n9 of Array.from(dom.querySelectorAll("[data-buffsweep]"))) n9.remove();
+              return new XMLSerializer().serializeToString(dom.documentElement);
+            } catch { return sv; }
+          };
+          await addPng(`${uid}/plate.png`, stripBuffSweep(baseSvgU), {
+            component: uid, part: "plate", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+            usage: "Buff frame, sweep-less — the LIVE rig's face (the generated prefab wears it; base.png keeps the baked pose for older importers).",
+            ...seatsU,
+          }, true, uid);
+          await addPng(`${uid}/sweep.png`, shell(uid, { ...uOpts, part: "sweep" }, undefined, uVal), {
+            component: uid, part: "sweep", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+            usage: "Cooldown sweep at 100% spent — pre-clipped to the silhouette; Image Filled / Radial360 (origin Top, clockwise) cuts the app's pie at ANY value (KitBuffSweep drives it from time remaining).",
+            ringV: Math.max(0, Math.min(1, uVal ?? 0.65)),
+          }, false);
+          await addPng(`${uid}/sweephand.png`, shell(uid, { ...uOpts, part: "sweephand" }, undefined, uVal), {
+            component: uid, part: "sweephand", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+            usage: "The sweep's glowing head line, parked at 12 o'clock — KitBuffSweep rotates it to the sweep edge (the window Mask clips it to the face).",
+          }, false);
+          await addPng(`${uid}/sweepmask.png`, shell(uid, { ...uOpts, part: "sweepmask" }, undefined, uVal), {
+            component: uid, part: "sweepmask", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+            usage: "The face silhouette, opaque — the Sweep Window's Mask graphic (hidden), so the rotating hand clips exactly like the app's face clip.",
+          }, false);
+        }
         /* the streak meter's LIT ignition pose (owner: "should ignite") —
            the same marked group cut from a FULL-streak render, shipped
            beside the ghost cut; the importer's StreakIgniteWire hands both
@@ -5711,6 +5754,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Runtime/PatternBreakSeasonTrack.cs", data: SEASON_TRACK_RUNTIME });
   files.push({ path: "Runtime/PatternBreakStateFx.cs", data: STATE_FX_RUNTIME });
   files.push({ path: "Runtime/PatternBreakRingFill.cs", data: RING_FILL_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakBuffSweep.cs", data: BUFF_SWEEP_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitTrace.cs", data: KIT_TRACE_RUNTIME });
   files.push({ path: "Runtime/PatternBreakSafeArea.cs", data: SAFE_AREA_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitPiece.cs", data: KIT_PIECE_RUNTIME });
@@ -5784,6 +5828,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     "Runtime/PatternBreakStreakIgnite.cs", "Runtime/PatternBreakComboPop.cs",
     "Runtime/PatternBreakStateFx.cs", "Runtime/UIKitGlintInk.shader",
     "Runtime/PatternBreakRingFill.cs",
+    "Runtime/PatternBreakBuffSweep.cs",
     "Runtime/PatternBreakKitTrace.cs",
     "Runtime/PatternBreakSafeArea.cs",
     "Runtime/PatternBreakKitPiece.cs",
@@ -6260,6 +6305,47 @@ namespace PatternBreak {
     void OnEnable() { Apply(); }
     // change-guarded follow: a quiet frame compares one float and writes nothing
     void LateUpdate() { if (fill != null && !Mathf.Approximately(fill.fillAmount, wrote)) Apply(); }
+  }
+}
+`;
+
+/* the BUFF FRAME'S LIVE COUNTDOWN (round 44, owner: "the countdown clock
+   cannot be burned into the button shape — it has to FUNCTION, wired for
+   developer use"): value = time REMAINING, the app's own dial. The rig
+   drives the Radial360 spent-share disc (pre-clipped to the silhouette in
+   its pixels) and rotates the glowing hand to the sweep edge; a fresh
+   buff (spent ≤ 0.01) shows no sweep, exactly like the app. */
+const BUFF_SWEEP_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+
+namespace PatternBreak {
+  [AddComponentMenu("UI Kit Maker/Buff Sweep")]
+  [ExecuteAlways]
+  public class KitBuffSweep : MonoBehaviour {
+    [Tooltip("Time REMAINING 0..1 — the app's dial: 1 = fresh buff (no sweep), 0 = expired (fully dark). Drive it from your own effect timer.")]
+    [Range(0f, 1f)] public float value = 0.65f;
+    [Tooltip("The Radial360 sweep image — the SPENT share, eating clockwise from 12 o'clock (generated).")]
+    public Image sweep;
+    [Tooltip("The glowing sweep edge, parked at 12 o'clock; rotates to the sweep head (generated).")]
+    public RectTransform hand;
+    float wrote = float.NaN;
+    public void SetValue(float v) { value = Mathf.Clamp01(v); Apply(); }
+    public void Apply() {
+      float spent = 1f - Mathf.Clamp01(value);
+      bool show = spent > 0.01f; // the app hides the sweep on a fresh buff
+      if (sweep != null) {
+        sweep.fillAmount = spent;
+        if (sweep.enabled != show) sweep.enabled = show;
+      }
+      if (hand != null) {
+        if (hand.gameObject.activeSelf != show) hand.gameObject.SetActive(show);
+        hand.localRotation = Quaternion.Euler(0f, 0f, -spent * 360f); // clockwise from the top
+      }
+      wrote = value;
+    }
+    void OnEnable() { Apply(); }
+    // change-guarded follow: a quiet frame compares one float and writes nothing
+    void LateUpdate() { if (!Mathf.Approximately(value, wrote)) Apply(); }
   }
 }
 `;
@@ -13219,6 +13305,10 @@ namespace PatternBreak {
                copy's staged value drives the Radial360 cut and the caps */
             var krS = inst.GetComponent<KitRingFill>();
             if (krS != null && it.value > 0f) krS.SetValue(Mathf.Clamp01(it.value));
+            // the buff frame's live sweep strikes the board pose too —
+            // its value is time REMAINING, the app's own dial semantics
+            var bswS = inst.GetComponent<KitBuffSweep>();
+            if (bswS != null && it.value > 0f) bswS.SetValue(Mathf.Clamp01(it.value));
             var gdS = inst.GetComponent<GaugeDial>();
             if (gdS != null && it.value > 0f) { gdS.value = Mathf.Clamp01(it.value); gdS.Apply(); }
             var ktS = inst.GetComponent<KitTimer>();
@@ -15148,17 +15238,21 @@ namespace PatternBreak {
          the ring animates clean at ANY value. The "62%" seat rides the
          track row (SeatRowOf resolves by the sprite the root wears).
          Older zips without the atoms keep the static-bake road. */
-      if (baseAsset.component == "ring") {
-        var ringTrackSp = S(root + "/assets/ring/ring-track.png");
-        var ringFillSp = S(root + "/assets/ring/ring-fill.png");
-        var ringCapSp = S(root + "/assets/ring/ring-cap.png");
+      /* round 44 (owner item 4): the CAPTURE METER joins the ring rig —
+         same atoms, same wiring, same live value (the arc's baked glow
+         bleed at the edge was the field flag; the atoms carry none). */
+      if (baseAsset.component == "ring" || baseAsset.component == "capturemeter") {
+        var famRg = baseAsset.component;
+        var ringTrackSp = S(root + "/assets/" + famRg + "/" + famRg + "-track.png");
+        var ringFillSp = S(root + "/assets/" + famRg + "/" + famRg + "-fill.png");
+        var ringCapSp = S(root + "/assets/" + famRg + "/" + famRg + "-cap.png");
         if (ringTrackSp != null && ringFillSp != null) {
           img.sprite = ringTrackSp;
           img.type = Image.Type.Simple;
           img.preserveAspect = false; // the rig children stretch with the rect — resize warps them together, never apart
           if (pngScale > 0) go.GetComponent<RectTransform>().sizeDelta = new Vector2(ringTrackSp.rect.width / pngScale, ringTrackSp.rect.height / pngScale);
           PBAsset ringFillRow = null;
-          foreach (var aRg in m.assets) if (aRg != null && aRg.component == "ring" && aRg.part == "fill") { ringFillRow = aRg; break; }
+          foreach (var aRg in m.assets) if (aRg != null && aRg.component == famRg && aRg.part == "fill") { ringFillRow = aRg; break; }
           var ringFillGo = new GameObject("Fill", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
           ringFillGo.transform.SetParent(go.transform, false);
           StretchFull(ringFillGo.GetComponent<RectTransform>());
@@ -15307,6 +15401,68 @@ namespace PatternBreak {
       /* the UN-BURN's live picture children (iconSeats rows) — every icon
          and image the app drew, rebuilt swappable at the exact app seat */
       WireIconChildren(go, root, m, baseAsset.component);
+      /* ── the BUFF FRAME's countdown FUNCTIONS (round 44, owner: "the
+         countdown clock cannot be burned into the button shape"): with
+         the sweep atoms aboard, the root wears the sweep-less PLATE
+         (base.png stays the baked-pose face for old zips and kept
+         prefabs — the ring's compatibility rule), and the sweep rebuilds
+         LIVE above the glyph child: a face-centered square window whose
+         Mask wears the face stencil, holding the Radial360 spent-share
+         disc (pixels pre-clipped to the silhouette) and the glowing hand
+         parked at 12 o'clock. KitBuffSweep drives both from time
+         remaining — the app's own dial — and the board road strikes each
+         copy's pose. Sits AFTER the icon children so the sweep dims the
+         glyph exactly like the app's draw order. */
+      if (baseAsset.component == "buffframe") {
+        var bfPlate = S(root + "/assets/buffframe/buffframe-plate.png");
+        var bfSweep = S(root + "/assets/buffframe/buffframe-sweep.png");
+        var bfMask = S(root + "/assets/buffframe/buffframe-sweepmask.png");
+        var bfHand = S(root + "/assets/buffframe/buffframe-sweephand.png");
+        if (bfPlate != null && bfSweep != null) {
+          var bodyBf = BodyImage(go);
+          if (bodyBf != null) bodyBf.sprite = bfPlate;
+          PBAsset bfRow = null;
+          foreach (var aBf in m.assets) if (aBf != null && aBf.component == "buffframe" && aBf.part == "sweep") { bfRow = aBf; break; }
+          var winGo = new GameObject("Sweep Window", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+          winGo.transform.SetParent(go.transform, false);
+          Vector2 shlBf;
+          ShellCenterAnchor(winGo, go, "buffframe", m, out shlBf);
+          var winRt = winGo.GetComponent<RectTransform>();
+          float sideBf = pngScale > 0 ? bfSweep.rect.width / pngScale : bfSweep.rect.width;
+          winRt.sizeDelta = new Vector2(sideBf, sideBf);
+          var winImg = winGo.GetComponent<Image>();
+          winImg.raycastTarget = false;
+          Mask winMask = null;
+          if (bfMask != null) {
+            winImg.sprite = bfMask;
+            winMask = winGo.AddComponent<Mask>();
+            winMask.showMaskGraphic = false;
+          } else winImg.enabled = false;
+          var swGo = new GameObject("Sweep", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+          swGo.transform.SetParent(winGo.transform, false);
+          StretchFull(swGo.GetComponent<RectTransform>());
+          var swImg = swGo.GetComponent<Image>();
+          swImg.sprite = bfSweep; swImg.raycastTarget = false;
+          swImg.type = Image.Type.Filled;
+          swImg.fillMethod = Image.FillMethod.Radial360;
+          swImg.fillOrigin = (int)Image.Origin360.Top;
+          swImg.fillClockwise = true;
+          RectTransform handRt = null;
+          if (bfHand != null && winMask != null) {
+            var hGo = new GameObject("Sweep Hand", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            hGo.transform.SetParent(winGo.transform, false);
+            StretchFull(hGo.GetComponent<RectTransform>());
+            var hImg = hGo.GetComponent<Image>();
+            hImg.sprite = bfHand; hImg.raycastTarget = false;
+            handRt = (RectTransform)hGo.transform;
+          }
+          var bsw = go.AddComponent<KitBuffSweep>();
+          bsw.sweep = swImg;
+          bsw.hand = handRt;
+          bsw.value = bfRow != null && bfRow.ringV > 0f ? Mathf.Clamp01(bfRow.ringV) : 0.65f;
+          bsw.Apply();
+        }
+      }
       if (baseAsset.component == "badge" && label == null) {
         var glyph = S(root + "/assets/icons/star.png");
         if (glyph == null) glyph = S(root + "/assets/icons/gem.png");

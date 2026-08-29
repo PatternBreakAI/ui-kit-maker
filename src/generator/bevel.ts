@@ -5928,14 +5928,40 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const spent = 1 - vB;
       const R = Math.max(sw, sh);
       const secs = (8 * vB).toFixed(1);
+      /* ── ENGINE ATOMS (round 44, owner: "the countdown clock cannot be
+         burned into the button shape — it has to FUNCTION"): the sweep
+         goes live. Three part renders on a FACE-CENTERED square window
+         (the Radial360 wedge and the hand rotation pivot on the canvas
+         center), the real face path lifted from the build's own fc clip:
+         sweep     — the spent share at 100%: the whole face dark, pixels
+                     pre-clipped to the silhouette; Unity's Radial360 cut
+                     of it IS the app's pie at any value.
+         sweephand — the glowing head line parked at 12 o'clock; the rig
+                     rotates it to the sweep edge (masked to the face).
+         sweepmask — the face silhouette, opaque: the window's Mask, so
+                     the rotating hand clips like the app's fc clip. */
+      if (opts.part === "sweep" || opts.part === "sweephand" || opts.part === "sweepmask") {
+        const dFaceM = fcRef ? new RegExp(`<clipPath id="${fcRef}"><path d="([^"]+)"`).exec(shell)?.[1] : null;
+        if (!dFaceM) return shell; // no face path — no atoms; the bake stands
+        const sideB = Math.ceil(Math.max(sw, sh) + 8);
+        const bx0 = ccx - sideB / 2, by0 = ccy - sideB / 2;
+        const innerB = opts.part === "sweep"
+          ? `<g clip-path="url(#bfc9)"><rect x="${bx0.toFixed(1)}" y="${by0.toFixed(1)}" width="${sideB}" height="${sideB}" fill="rgba(6,10,18,0.62)"/></g>`
+          : opts.part === "sweephand"
+            ? `<line x1="${ccx.toFixed(1)}" y1="${ccy.toFixed(1)}" x2="${ccx.toFixed(1)}" y2="${by0.toFixed(1)}" stroke="${glow}" stroke-width="${(2.4 * k).toFixed(1)}" style="filter: drop-shadow(0 0 3px ${hexRgba(glow, 0.7)})"/>`
+            : `<g clip-path="url(#bfc9)"><rect x="${bx0.toFixed(1)}" y="${by0.toFixed(1)}" width="${sideB}" height="${sideB}" fill="#FFFFFF"/></g>`;
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${sideB}" height="${sideB}" viewBox="${bx0.toFixed(1)} ${by0.toFixed(1)} ${sideB} ${sideB}" role="img" aria-label="buff ${opts.part}"><defs><clipPath id="bfc9"><path d="${dFaceM}"/></clipPath></defs>${innerB}</svg>`;
+      }
       let sweep = "";
       if (spent > 0.01 && state !== "disabled" && fcRef) {
         const a1 = -Math.PI / 2, a2 = a1 + spent * Math.PI * 2;
         const large = spent > 0.5 ? 1 : 0;
-        sweep = `<g clip-path="url(#${fcRef})">
+        // marked for the engine export (data-buffsweep): the PLATE bake
+        // strips this group — the live rig redraws it from the atoms
+        sweep = `<g data-buffsweep="1"><g clip-path="url(#${fcRef})">
           <path d="M ${ccx.toFixed(1)} ${ccy.toFixed(1)} L ${(ccx + R * Math.cos(a1)).toFixed(1)} ${(ccy + R * Math.sin(a1)).toFixed(1)} A ${R.toFixed(1)} ${R.toFixed(1)} 0 ${large} 1 ${(ccx + R * Math.cos(a2)).toFixed(1)} ${(ccy + R * Math.sin(a2)).toFixed(1)} Z" fill="rgba(6,10,18,0.62)"/>
           <line x1="${ccx.toFixed(1)}" y1="${ccy.toFixed(1)}" x2="${(ccx + R * Math.cos(a2)).toFixed(1)}" y2="${(ccy + R * Math.sin(a2)).toFixed(1)}" stroke="${glow}" stroke-width="${(2.4 * k).toFixed(1)}" style="filter: drop-shadow(0 0 3px ${hexRgba(glow, 0.7)})"/>
-        </g>`;
+        </g></g>`;
       }
       const timer = `<text x="${ccx.toFixed(1)}" y="${(sy + sh - 14 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(21 * k).toFixed(1)}" font-weight="800" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central" style="paint-order: stroke; stroke: rgba(0,0,0,0.55); stroke-width: 3px">${secs}s</text>`;
       return inject(shell.replace("<svg ", '<svg data-buffframe="1" '), glyph + sweep + timer);
@@ -6945,6 +6971,30 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const gidC0 = "cpm" + UID++;
       const hotC9 = state === "hover" || state === "pressed";
       const totalC = dCp + padCp * 2;
+      /* ── ENGINE ATOMS (round 44, owner: "mercury bleed at the edge —
+         same class as the earlier circular progress fix"): the ring rig,
+         generalized from the ring family verbatim. Three part renders on
+         the SAME square canvas, ring dead-center:
+         track — core disc + well ring, no arc, no letter (the letter is
+                 a live seat riding the track row);
+         fill  — the FULL capture ring, ROTATIONALLY UNIFORM: the display
+                 gradient is diagonal, so an engine cut at an arbitrary
+                 value would slice through it; the engine cut wears the
+                 same two hues as a RADIAL ramp across the stroke band
+                 (inner = the lit hue, outer = glow) — clean at any cut.
+         cap   — one round end-cap parked at the TOP seat; KitRingFill
+                 rotates a full-rect copy to the head angle.
+         No drop-shadow on any atom — the baked glow IS the smudge the
+         owner flagged at the arc's edge. */
+      if (opts.part === "track" || opts.part === "fill" || opts.part === "cap") {
+        const bandC = `<radialGradient id="${gidC0}b" gradientUnits="userSpaceOnUse" cx="${cCp}" cy="${cCp}" r="${(rCp + ringWc / 2).toFixed(2)}"><stop offset="${((rCp - ringWc / 2) / (rCp + ringWc / 2)).toFixed(4)}" stop-color="${lighten(glow, 0.35)}"/><stop offset="1" stop-color="${glow}"/></radialGradient>`;
+        const innerC = opts.part === "track"
+          ? `<defs><radialGradient id="${gidC0}c" cx="0.5" cy="0.42" r="0.85"><stop offset="0" stop-color="${darken(effect(cfg.effects, "Inner Fill"), 0.6)}"/><stop offset="1" stop-color="${darken(effect(cfg.effects, "Inner Fill"), 0.85)}"/></radialGradient></defs><circle cx="${cCp}" cy="${cCp}" r="${(rCp - ringWc - 3).toFixed(1)}" fill="url(#${gidC0}c)"/><circle cx="${cCp}" cy="${cCp}" r="${rCp.toFixed(1)}" fill="none" stroke="${wellFill}" stroke-width="${ringWc.toFixed(1)}"/>`
+          : opts.part === "fill"
+            ? `<defs>${bandC}</defs><circle cx="${cCp}" cy="${cCp}" r="${rCp.toFixed(1)}" fill="none" stroke="url(#${gidC0}b)" stroke-width="${ringWc.toFixed(1)}"/>`
+            : `<defs>${bandC}</defs><circle cx="${cCp}" cy="${(cCp - rCp).toFixed(2)}" r="${(ringWc / 2).toFixed(2)}" fill="url(#${gidC0}b)"/>`;
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${totalC}" height="${totalC}" viewBox="0 0 ${totalC} ${totalC}" role="img" aria-label="capture meter ${opts.part}">${innerC}</svg>`;
+      }
       return `<svg xmlns="http://www.w3.org/2000/svg" width="${totalC}" height="${totalC}" viewBox="0 0 ${totalC} ${totalC}" data-capturemeter="1" role="img" aria-label="capture ${Math.round(vC9 * 100)}%">
 <defs><linearGradient id="${gidC0}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${lighten(glow, 0.35)}"/><stop offset="1" stop-color="${glow}"/></linearGradient>
 <radialGradient id="${gidC0}c" cx="0.5" cy="0.42" r="0.85"><stop offset="0" stop-color="${darken(effect(cfg.effects, "Inner Fill"), 0.6)}"/><stop offset="1" stop-color="${darken(effect(cfg.effects, "Inner Fill"), 0.85)}"/></radialGradient></defs>

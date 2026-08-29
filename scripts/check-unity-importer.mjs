@@ -2670,6 +2670,36 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/data-icon="claimbadge" data-icon-nick="Claimed badge"/.test(bevelSrc)
       || !/data-icon="lockbadge" data-icon-nick="Lock badge"/.test(bevelSrc))
     errors.push("the daily cell's claimed/lock badges lost their marked-ink grammar — the checkmark burns back into the background (round 44, item 6)");
+  // S4 — the capture meter joins the ring rig (item 4: "mercury bleed at
+  // the edge — same class as the earlier circular progress fix")
+  if (!/const ringRig = uid === "ring" \|\| uid === "capturemeter";/.test(src))
+    errors.push("the capture meter left the ring-rig emission — its arc bakes static (glow bleed and all) again (round 44, item 4)");
+  if (!/if \(baseAsset\.component == "ring" \|\| baseAsset\.component == "capturemeter"\) \{/.test(cs)
+      || !/var ringTrackSp = S\(root \+ "\/assets\/" \+ famRg \+ "\/" \+ famRg \+ "-track\.png"\);/.test(cs))
+    errors.push("FamilyPrefab's ring rig no longer serves the capture meter — its prefab ships a dead bake again (round 44, item 4)");
+  // the capture atoms carry NO baked glow — the bleed the owner flagged
+  if (!/opts\.part === "track" \|\| opts\.part === "fill" \|\| opts\.part === "cap"/.test(bevelSrc.slice(bevelSrc.indexOf('case "capturemeter"'), bevelSrc.indexOf('case "respawn"'))))
+    errors.push("the capture meter's part renders (track/fill/cap) are gone from bevel — the ring-rig emission would ship the full bake as every atom");
+  // S4 — the buff frame's countdown FUNCTIONS (item 2)
+  if (!/<g data-buffsweep="1"><g clip-path="url\(#\$\{fcRef\}\)">/.test(bevelSrc))
+    errors.push("the buff frame's sweep lost its data-buffsweep marker — the plate can't strip it and the live rig double-draws (round 44, item 2)");
+  if (!/opts\.part === "sweep" \|\| opts\.part === "sweephand" \|\| opts\.part === "sweepmask"/.test(bevelSrc))
+    errors.push("the buff frame's sweep atoms (sweep/sweephand/sweepmask) are gone from bevel (round 44, item 2)");
+  if (!/const buffRig = uid === "buffframe";/.test(src) || !/await addPng\(`\$\{uid\}\/plate\.png`, stripBuffSweep\(baseSvgU\), \{/.test(src))
+    errors.push("the buff frame's plate/atom emission is gone — base.png must stay the byte-identical baked pose while the rig wears the sweep-less plate (round 44, item 2)");
+  if (!/var bfPlate = S\(root \+ "\/assets\/buffframe\/buffframe-plate\.png"\);/.test(cs)
+      || !/var bsw = go\.AddComponent<KitBuffSweep>\(\);/.test(cs)
+      || !/winMask\.showMaskGraphic = false;/.test(cs))
+    errors.push("FamilyPrefab's buff-sweep rig is gone (plate swap + masked window + KitBuffSweep) — the countdown burns back into the face (round 44, item 2)");
+  if (!/public class KitBuffSweep : MonoBehaviour \{/.test(cs.includes("KitBuffSweep") ? cs : "") && !/const BUFF_SWEEP_RUNTIME = `using UnityEngine;/.test(src))
+    errors.push("the KitBuffSweep runtime is missing");
+  // the IdleShine lesson: every runtime ships SHARED or the editor
+  // assembly can't resolve it (CS0246) — both registrations, always
+  if (!/files\.push\(\{ path: "Runtime\/PatternBreakBuffSweep\.cs", data: BUFF_SWEEP_RUNTIME \}\);/.test(src)
+      || !/"Runtime\/PatternBreakBuffSweep\.cs",/.test(src))
+    errors.push("PatternBreakBuffSweep.cs must ride BOTH files.push and sharedScripts (the IdleShine CS0246 lesson)");
+  if (!/var bswS = inst\.GetComponent<KitBuffSweep>\(\);/.test(cs))
+    errors.push("board copies no longer strike the buff frame's staged pose (KitBuffSweep board line)");
 }
 
 if (errors.length) {
