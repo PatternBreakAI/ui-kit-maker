@@ -34,9 +34,12 @@ export type TierCaps = {
   /** Canvas zoom ceiling (1 = 100%). Vectors scale forever — the cap is the
       hi-res-screenshot deterrent for non-paying tiers. */
   zoomMax: number;
-  /** How many starter presets are usable; the rest render locked. */
+  /** How many starter presets are usable. Infinity for every tier since the
+      free-play round (owner mandate, 2026-08-26) — the monthly preset PACKS
+      stay Pro, but that gate lives on the shared library, not here. */
   presetLimit: number;
-  /** How many kit components render; the rest show as locked teasers. */
+  /** How many kit components render. Infinity for every tier since the
+      free-play round — the guest teaser road is retired. */
   kitComponents: number;
   /** PNG export scale ceiling. Gate Round: PNG export itself is paid-only
       now — the guest/free values only label the locked row. */
@@ -64,9 +67,16 @@ export const EXPORT_KINDS: Record<Tier, ExportKind[]> = {
   pro: ["svg", "html", "sheet", "gamekit", "engine"],
 };
 
+/* FREE-PLAY ROUND (owner mandate, 2026-08-26): every play tool is free —
+   guests get the full kit, all starter presets, unlimited boards, and the
+   free tier's 150% zoom. The ladder is play free → sign up to save → pay
+   to export. Guest zoom equalizes with free and NOTHING more: the zoom
+   ceiling is the hi-res-screenshot deterrent that protects pay-to-export,
+   so the 4× stays paid, as do pngScaleMax, vectorExports and every row of
+   EXPORT_KINDS (server-enforced). */
 export const TIER_CAPS: Record<Tier, TierCaps> = {
-  guest:   { zoomMax: 1.0, presetLimit: 4, kitComponents: 5, pngScaleMax: 1, vectorExports: false },
-  free:    { zoomMax: 1.5, presetLimit: 9, kitComponents: Infinity, pngScaleMax: 1, vectorExports: false },
+  guest:   { zoomMax: 1.5, presetLimit: Infinity, kitComponents: Infinity, pngScaleMax: 1, vectorExports: false },
+  free:    { zoomMax: 1.5, presetLimit: Infinity, kitComponents: Infinity, pngScaleMax: 1, vectorExports: false },
   student: { zoomMax: 4,   presetLimit: Infinity, kitComponents: Infinity, pngScaleMax: 4, vectorExports: true },
   pro:     { zoomMax: 4,   presetLimit: Infinity, kitComponents: Infinity, pngScaleMax: 4, vectorExports: true },
 };
@@ -105,10 +115,12 @@ export function canExport(tier: Tier, kind: ExportKind): boolean {
   return EXPORT_KINDS[tier].includes(kind);
 }
 
-/** The one-line upgrade story for each gate, in the product's voice. */
+/** The one-line upgrade story for each gate, in the product's voice.
+    Free-play round: the guest line pitches SAVING, never play features —
+    guests already have the whole playground. */
 export const UPGRADE_LINES: Record<Tier, string> = {
-  guest: "Sign in free — unlock the full kit, 150% zoom and two preset packs.",
-  free: "Go Pro — every preset, vector exports and unlimited zoom.",
+  guest: "Sign in free — save your kits to your account and keep them on any device.",
+  free: "Go Pro — export everything you design: SVG, HTML, sprite sheets, the Unity engine kit, and 4× zoom.",
   student: "Selling what you build? Pro carries the commercial licence.",
   pro: "",
 };

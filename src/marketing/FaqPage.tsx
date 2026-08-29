@@ -193,8 +193,12 @@ const FAQ: FaqCat[] = [
     name: "Plans & billing",
     items: [
       {
+        q: "Can I try it without an account?",
+        a: "Yes — the whole playground is free with no account: every component, all the starter presets, unlimited boards, the full editor. The ladder is deliberately simple: **play free**, **sign up free to save** (your work follows your account to any device — signed out, it lives only in this browser), and **pay to export** what you design.",
+      },
+      {
         q: "What's free, and what does Pro add?",
-        a: "Free is the real editor — full kit, cloud saves, unlimited boards, your settings file, your kits join the community, and the stock **Unity test kit** to prove the import pipeline. Exporting your own designs is the paid unlock: **Pro** ($29.99/year) adds every export format — PNG up to 4×, layered SVG, HTML, game kit, engine ZIP — plus every preset pack, private kits, and the commercial licence. **Student/Educator** ($15.99/year) is the same tool as Pro under an education licence.",
+        a: "Playing is free for everyone, account or not — the full kit, every starter preset, unlimited boards. A free **account** is the save step: cloud saves across devices, named projects, your kits join the community, your settings file, and the stock **Unity test kit** to prove the import pipeline. Exporting your own designs is the paid unlock: **Pro** ($29.99/year) adds every export format — PNG up to 4×, layered SVG, HTML, game kit, engine ZIP — plus every preset pack, private kits, and the commercial licence. **Student/Educator** ($15.99/year) is the same tool as Pro under an education licence.",
       },
       {
         q: "How does the student rate work?",

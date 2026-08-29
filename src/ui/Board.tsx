@@ -529,20 +529,14 @@ export function BoardView({ playing }: { playing: boolean }) {
     applyBoardItemPatches, removeBoardItems, transformBoardItems,
     userAssets, addUserAssetToBoard, boardShadowLast,
   } = useGen();
-  /* ── the Gate Round's two board rules (owner mandate, 2026-08-17) ──
-     · exports (board PNG, piece SVG/PNG) are paid — these composites
-       render entirely in the browser, so the gate is client-side by
-       nature; the modal carries the pitch (sign-up for guests, Pro +
-       the free Unity test kit for accounts).
-     · guests get exactly ONE board — the second add opens the sign-up
-       pitch instead. Existing extra boards keep working; only ADDING
-       is gated, so nobody's saved desk is wrecked by the flip. */
+  /* ── the board's one gate (free-play round, owner mandate 2026-08-26) ──
+     exports (board PNG, piece SVG/PNG) are paid — these composites
+     render entirely in the browser, so the gate is client-side by
+     nature; the modal carries the pitch (sign-up for guests, Pro +
+     the free Unity test kit for accounts). Boards themselves are open:
+     guests add as many as they like — the old one-board guard is gone. */
   const paidTier = tier === "student" || tier === "pro";
   const guardExport = (run: () => void) => { if (paidTier) run(); else openGate("export"); };
-  const guardAddBoard = (run: () => void) => {
-    if (tier === "guest" && useGen.getState().boards.length >= 1) { openGate("board"); return; }
-    run();
-  };
   /* ── starter landing (owner design, field notes #3: "would be nice if it
      asked me") ── picking a starter on a board that already has pieces no
      longer piles on silently: a small modal offers Fresh board / Replace
@@ -1678,7 +1672,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                   </button>
                   <button className="bd-abtool" aria-label={`Duplicate ${bd.name}`}
                     title={`Duplicate ${bd.name} — pieces, backdrop and darkroom dials, a running start for the next screen`}
-                    onClick={() => guardAddBoard(() => duplicateBoard(bd.id))}>
+                    onClick={() => duplicateBoard(bd.id)}>
                     <Copy size={12} strokeWidth={2.2} />
                   </button>
                   <button className="bd-abtool" aria-label={`Clear ${bd.name}`}
@@ -1869,13 +1863,13 @@ export function BoardView({ playing }: { playing: boolean }) {
                   <button className="bd-addtab bd-addtab--r"
                     title={`Add a ${sideAspect === "mobile" ? "mobile" : "16:9"} board beside ${bd.name}${sideAspect !== bd.aspect ? " — the row rescales so both fit" : ""}`}
                     aria-label={`Add a board to the right of ${bd.name}`}
-                    onClick={() => guardAddBoard(() => addBoardAfter(bd.id, { aspect: sideAspect }))}>
+                    onClick={() => addBoardAfter(bd.id, { aspect: sideAspect })}>
                     <Plus size={14} strokeWidth={2.2} />
                   </button>
                 )}
                 <button className="bd-addtab bd-addtab--b" title={`Add a board below ${bd.name}`}
                   aria-label={`Add a board below ${bd.name}`}
-                  onClick={() => guardAddBoard(() => addBoardAfter(row[row.length - 1].id, { aspect: bd.aspect, nl: true }))}>
+                  onClick={() => addBoardAfter(row[row.length - 1].id, { aspect: bd.aspect, nl: true })}>
                   <Plus size={14} strokeWidth={2.2} />
                 </button>
                 </div>
@@ -1886,7 +1880,7 @@ export function BoardView({ playing }: { playing: boolean }) {
               </div>
             );
           })}
-          <button className="bd-addboard-inline" onClick={() => guardAddBoard(addBoard)}><Plus size={14} strokeWidth={2.2} /> Add board</button>
+          <button className="bd-addboard-inline" onClick={addBoard}><Plus size={14} strokeWidth={2.2} /> Add board</button>
         </div>
       </div>
 
@@ -1908,7 +1902,7 @@ export function BoardView({ playing }: { playing: boolean }) {
               </span>
               <span className="bd-pagename">{bd.name}</span>
               <span className="bd-pagectl">
-                <button title={`Duplicate ${bd.name}`} onClick={(e) => { e.stopPropagation(); guardAddBoard(() => duplicateBoard(bd.id)); }}><Copy size={11} strokeWidth={2.4} /></button>
+                <button title={`Duplicate ${bd.name}`} onClick={(e) => { e.stopPropagation(); duplicateBoard(bd.id); }}><Copy size={11} strokeWidth={2.4} /></button>
                 <button title="Move up" disabled={i === 0} onClick={(e) => { e.stopPropagation(); moveBoard(bd.id, -1); }}><ArrowUp size={11} strokeWidth={2.4} /></button>
                 <button title="Move down" disabled={i === boards.length - 1} onClick={(e) => { e.stopPropagation(); moveBoard(bd.id, 1); }}><ArrowDown size={11} strokeWidth={2.4} /></button>
                 <button title={`Delete ${bd.name}`} className="danger"
@@ -1918,7 +1912,7 @@ export function BoardView({ playing }: { playing: boolean }) {
               </span>
             </div>
           ))}
-          <button className="bd-addboard" onClick={() => guardAddBoard(addBoard)}><Plus size={13} strokeWidth={2.2} /> Add board</button>
+          <button className="bd-addboard" onClick={addBoard}><Plus size={13} strokeWidth={2.2} /> Add board</button>
         </div>
 
         {selIdsAll.length > 1 ? (
@@ -2446,7 +2440,7 @@ export function BoardView({ playing }: { playing: boolean }) {
             <p className="lootsub">
               <b>{starterAsk}</b> is ready to deal. Where should it land?
             </p>
-            <button className="lootclaim" onClick={() => { const t = starterAsk; setStarterAsk(null); guardAddBoard(() => applyStarter(t, "fresh")); }}>
+            <button className="lootclaim" onClick={() => { const t = starterAsk; setStarterAsk(null); applyStarter(t, "fresh"); }}>
               <Plus size={15} strokeWidth={2.4} /> A FRESH BOARD
             </button>
             <button className="lootclaim" onClick={() => { const t = starterAsk; setStarterAsk(null); applyStarter(t, "replace"); }}>

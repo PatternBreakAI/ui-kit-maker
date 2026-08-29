@@ -2646,12 +2646,8 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
 @keyframes fxComboPop { 0% { transform: scale(1); } 18% { transform: scale(0.82) rotate(-3deg); } 55% { transform: scale(1.32) rotate(2deg); } 100% { transform: scale(1); } }
 @media (prefers-reduced-motion: reduce) { .fx-burstwrap i { animation: none; display: none; } .fx-igniting svg { animation: none; } .fx-combopop svg { animation: none; } }
 
-/* ── in-app lock dressing (kit teasers, presets, export menus) ─── */
-.kp-lockpiece { display: grid; place-items: center; }
-.kp-lockcard { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; width: 100%; min-height: 96px; border: 1.5px dashed var(--line2); border-radius: 14px; background: var(--soft); color: var(--ink3); cursor: pointer; font: inherit; padding: 14px 10px; }
-.kp-lockcard:hover { border-color: var(--accent, #6366f1); color: var(--ink2); }
-.kp-lockcard span { font-size: 12px; font-weight: 600; }
-.kp-lockcard em { font-style: normal; font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--accent, #6366f1); font-weight: 700; }
+/* ── in-app lock dressing (presets, export menus) — the kit-teaser
+   .kp-lockpiece/.kp-lockcard road retired with the free-play round ─── */
 .presetcard.lockedp .presetart { opacity: .38; filter: saturate(.35); }
 .presetcard.lockedp .presetname { color: var(--ink3); display: inline-flex; align-items: center; gap: 4px; justify-content: center; }
 .presetcard.lockedp:hover { border-color: var(--accent, #6366f1); }
@@ -2757,9 +2753,9 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
 }
 
 /* ── the gate modal (Gate Round) — the loot chrome, resized for a pitch:
-   what a locked export or a guest's second board opens instead of a hard
-   navigation. Guest: the sign-up perks. Free: Pro, with the Unity test
-   kit as the free counter-offer. ── */
+   what a locked export opens instead of a hard navigation. Guest: the
+   sign-up-to-keep perks. Free: Pro, with the Unity test kit as the free
+   counter-offer. ── */
 .gatemodal { width: min(480px, 94vw); padding-bottom: 24px; }
 .gatemodal .lootsub { margin-bottom: 16px; }
 .gatemodal .lootclaim { display: inline-flex; align-items: center; justify-content: center; gap: 8px; margin-top: 14px; height: 48px; font-size: 13.5px; }
