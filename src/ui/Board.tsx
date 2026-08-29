@@ -707,6 +707,9 @@ export function BoardView({ playing }: { playing: boolean }) {
   useEffect(() => idleOnce(() => setTrayReady(true)), []);
   // rolling over a tray thumbnail previews the asset large in a viewport
   const [preview, setPreview] = useState<{ name: string; svg: string } | null>(null);
+  /* Round 45 · B4 (owner): the Uploads group folds under a caret and
+     starts CLOSED on every visit — searching auto-opens it for matches */
+  const [uploadsOpen, setUploadsOpen] = useState(false);
   /* in-place words: the item whose text is being edited on the stage
      (owner: "I need a way to edit the text here on in the right menu" —
      this is the "here"). Double-click opens it; Enter/Escape/blur close.
@@ -1502,6 +1505,13 @@ export function BoardView({ playing }: { playing: boolean }) {
               return terms.every((t) => hay.includes(t));
             });
             if (!items.length) return null;
+            /* Round 45 · B4 (owner): the Uploads group folds under a caret,
+               CLOSED by default — 71 tiles of brought-in art shouldn't lead
+               the drawer. Everyone sees the group (the set is released in
+               code, no admin gate); a live search that matches upload items
+               opens the fold for those results, since the maker asked for
+               them by name. */
+            const open = uploadsOpen || terms.length > 0;
             return (
               <div>
                 {/* owner rename 2026-08-28: this class is uploaded artwork
@@ -1510,7 +1520,12 @@ export function BoardView({ playing }: { playing: boolean }) {
                     is PER-ITEM (owner correction, same day: uploads aren't
                     always AI-generated) — the note rides only entries whose
                     registry row says so, never the whole group. */}
-                <div className="bd-cat">Uploads</div>
+                <button className="bd-cat bd-catfold" aria-expanded={open}
+                  title={open ? "Fold the Uploads away" : `Show the ${items.length} upload tiles`}
+                  onClick={() => setUploadsOpen((v) => !v)}>
+                  Uploads <span className="bd-cat-note">{items.length}</span> {open ? "▾" : "▸"}
+                </button>
+                {open && (
                 <div className="bd-grid">
                   {items.map((g) => (
                     <button key={g.id} className="bd-asset" title={`Add ${g.name} to ${act?.name ?? "the board"}${g.ai ? " · AI-generated" : ""}`}
@@ -1520,6 +1535,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                     </button>
                   ))}
                 </div>
+                )}
               </div>
             );
           })()}
