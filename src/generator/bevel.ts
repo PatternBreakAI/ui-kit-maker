@@ -9108,13 +9108,22 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
           themedIcon(ic, sx - mic / 2, sy - mic / 2, mic, icTone, 2.2, true);
       });
       /* overlay "plain" = the swipe rig's dome: pad, ticks and candy dome
-         with NO baked glyph and NO satellites — the runtime deals those */
+         with NO baked glyph and NO satellites — the runtime deals those.
+         The bare render carries the ARMED GLYPH's exact seat (round 44
+         field: "the main icon sits low" — the importer's hand heuristic
+         drifted off this math): center = the app's own icon-box center,
+         box = the glyph SPRITE side (icF grown by the glyph bake's
+         32%-a-side canvas padding), raw render px; the emission re-speaks
+         it shell-relative on the dome row (fireDx/fireDy/fireW). */
       const bare9 = opts.overlay === "plain";
-      return inject(track,
+      const gsA9 = Math.round(dF9 * 0.5), gpadA9 = Math.ceil(gsA9 * 0.32);
+      const fireSeat9 = ` data-fireseat="${cx9.toFixed(1)} ${(cy9 + sink + krF * 0.14).toFixed(1)} ${(icF * (gsA9 + 2 * gpadA9) / gsA9).toFixed(1)}"`;
+      const dome9 = inject(track,
         `<path d="${roundRect(x9 + inset9, y9 + inset9, dF9 - inset9 * 2, dF9 - inset9 * 2, (dF9 - inset9 * 2) / 2)}" fill="${wellFill}" opacity="0.94"/>
          ${ticks}` +
         candyKnob(cx9, cy9 + sink, krF, knobC) +
         (bare9 ? "" : armedIc + sats));
+      return bare9 ? dome9.replace("<svg ", `<svg${fireSeat9} `) : dome9;
     }
     case "slot": {
       /* Portrait / item slot — square frame with stackable status overlays.

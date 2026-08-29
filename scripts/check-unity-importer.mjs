@@ -1212,43 +1212,52 @@ if (!/outer 18%\*\* of the frame/.test(src) || !/80%\+ of a dimension\*\*/.test(
     errors.push("the Editor asmdef must declare Unity.TextMeshPro (and its documented companions) — the TMPro.-qualified standard outside the guards rides on that declaration");
 }
 
-/* ── LEADING TRAVELS (the End Turn line-gap round): the app stacks the
-   endturn's two lines at fs · 0.73em · leading/100 (bevel, fork-first
-   per key — a fork snapshot without the key falls through to the dial),
-   and the export must carry the resolved dial or Unity's LIVE label
-   re-typesets at TMP's default line height forever (owner: "Leading did
-   not work on the End Turn button"). The plumb: manifest rows (base +
-   per-state, ≠100 only so factory kits stay byte-identical) →
-   PBAsset.leading → ONE importer seam, LeadingLineSpacing =
-   0.73 * (leading − 100) — TMP lineSpacing is em*100 of font size, so
-   the app's delta-from-factory maps exactly and absent/100 (the old-zip
-   0-gate) keeps today's look untouched. Convergence rides the redress
-   with a still-at-0 gate, mirrored probe and dresser. ── */
+/* ── LEADING TRAVELS (the End Turn line-gap round; ABSOLUTE since round
+   44): the app stacks the endturn's two lines at fs · 0.73em ·
+   leading/100 CENTER TO CENTER (bevel, fork-first per key — a fork
+   snapshot without the key falls through to the dial), and the export
+   must carry the resolved dial or Unity's LIVE label re-typesets at
+   TMP's default line height forever (owner: "Leading did not work on
+   the End Turn button"; round 44 field: "leading between lines is off
+   in Unity; correct in the app" — the old DELTA mapping rode on the
+   face's natural line height, which is NOT the app's stack). The plumb:
+   manifest rows (base + per-state, ALWAYS on stacked props — the
+   absolute rebase needs factory 100 too) → PBAsset.leading → ONE
+   importer seam, LeadingLineSpacing(row, face) =
+   (0.73 · leading/100 − lineHeight/pointSize) · 100 — TMP's line
+   advance is natural + lineSpacing/100 em, so the app's gap lands
+   exactly on any face; absent rows (old zips, JsonUtility 0) map to 0
+   and a faceless call keeps the old delta. Convergence rides the
+   redress with a still-at-0 gate, mirrored probe and dresser, the want
+   read off the label's own live face. ── */
 if (!/const lead = fsW \* 0\.73 \* \(\(leadT\.leading \?\? cfg\.type\.leading \?\? 100\) \/ 100\);/.test(bevelSrc))
   errors.push("the app's endturn leading rule (fs * 0.73em * leading/100, fork-first per key) moved — the importer's 0.73 mapping is derived from it, re-derive BOTH together");
 if (!/const STACKED_LABEL_PROPS = new Set<KitComponentId>\(\["endturn"\]\);/.test(src))
   errors.push("STACKED_LABEL_PROPS (the stacked multi-line label set the Leading emission rides) is missing — future stacked labels inherit the plumb through it");
 if (!/\(stName \? c\.stateDesigns\?\.\[stName\]\?\.type\?\.leading : undefined\) \?\? c\.type\.leading \?\? 100/.test(src))
   errors.push("the export's leading resolution must mirror bevel's fork-first PER-KEY read — a wholesale fork read masks the dial at 100% the moment a state is designed (the app's own End Turn lesson)");
-if (!/leadingOf\(id, stName\) !== 100 \? \{ leading: leadingOf\(id, stName\) \} : \{\}/.test(src))
-  errors.push("the leading row must emit ONLY when non-factory (≠ 100) — factory kits stay byte-identical, and the importer's 0-gate is the old-zip contract");
+if (!/STACKED_LABEL_PROPS\.has\(id\) \? \{ leading: leadingOf\(id, stName\) \} : \{\}/.test(src))
+  errors.push("the leading row must emit on EVERY stacked-prop row, factory 100 included (round 44) — the importer's absolute rebase needs the factory value, and a ≠100 gate re-parks factory stacks at TMP's natural height");
 if (!/public float labelFs; public string labelInk; public string labelInk2; public float leading; public string labelText;/.test(cs))
   errors.push("PBAsset must carry the leading field — JsonUtility silently drops the manifest row without it");
-if (!/static float LeadingLineSpacing\(PBAsset row\)/.test(cs)
-    || !/return row != null && row\.leading > 0f \? 0\.73f \* \(row\.leading - 100f\) : 0f;/.test(cs))
-  errors.push("LeadingLineSpacing (the ONE seam: 0.73 * (leading − 100), 0-gated so absent/factory rows leave TMP's natural line height — today's look) is missing or its formula drifted");
-if (!/hlLead\.lineSpacing = lsp; hlLead\.SetText\(text\);/.test(cs))
-  errors.push("the hero-stack birth must apply the Leading (set, then re-Apply via SetText — BuildHeroStack's construction-order rule)");
-if (!/if \(lsp != 0f\) t\.lineSpacing = lsp;/.test(cs))
-  errors.push("the solo baked-label birth must apply the Leading (0-gated)");
-if (!/if \(tLead != null && lspT != 0f\) tLead\.lineSpacing = lspT;/.test(cs))
-  errors.push("the styled-SDF label rung must apply the Leading (one seam, one number)");
+if (!/static float LeadingLineSpacing\(PBAsset row, TMPro\.TMP_FontAsset face\)/.test(cs)
+    || !/float natural = face != null && face\.faceInfo\.pointSize > 0f \? face\.faceInfo\.lineHeight \/ face\.faceInfo\.pointSize : 0f;/.test(cs)
+    || !/if \(natural <= 0f\) return 0\.73f \* \(row\.leading - 100f\);/.test(cs)
+    || !/return \(0\.73f \* row\.leading \/ 100f - natural\) \* 100f;/.test(cs))
+  errors.push("LeadingLineSpacing (the ONE seam, ABSOLUTE since round 44: (0.73·leading/100 − face natural)·100, 0-gated for absent rows, delta fallback for faceless calls) is missing or its formula drifted");
+if (!/float lsp = LeadingLineSpacing\(lrow, layersFa\);/.test(cs) || !/hlLead\.lineSpacing = lsp; hlLead\.SetText\(text\);/.test(cs))
+  errors.push("the hero-stack birth must apply the Leading rebased on ITS face (layersFa; set, then re-Apply via SetText — BuildHeroStack's construction-order rule)");
+if (!/float lspSolo = LeadingLineSpacing\(lrow, solo\);/.test(cs) || !/if \(lspSolo != 0f\) t\.lineSpacing = lspSolo;/.test(cs))
+  errors.push("the solo baked-label birth must apply the Leading rebased on the solo face (0-gated)");
+if (!/float lspT = LeadingLineSpacing\(lrowA, face\);/.test(cs) || !/if \(tLead != null && lspT != 0f\) tLead\.lineSpacing = lspT;/.test(cs))
+  errors.push("the styled-SDF label rung must apply the Leading (one seam, one number, its own face)");
 if (!/if \(lrowA != null && lrowA\.leading > 0f\) t\.lineSpacing = lrowA\.leading \/ 100f;/.test(cs))
   errors.push("the legacy Text rung must carry the dial as its line-height multiplier (0-gated; factory 100 ⇒ 1.0 = Unity's default)");
-if (!/\(hlLd != null && hlLd\.lineSpacing == 0f\) \|\| \(tmLd != null && tmLd\.lineSpacing == 0f\)\) wantDress = true;/.test(cs))
-  errors.push("the redress probe must converge a still-at-0 lineSpacing when the manifest resolves a Leading (and ONLY then — hand-tuned values are the maker's)");
-if (!/newHl\.lineSpacing = keepLineSpacing != 0f \? keepLineSpacing : LeadingLineSpacing\(LabelRow\(m, famName\)\);/.test(cs))
-  errors.push("the redress restore must mirror the probe's gate (hand-tuned survives verbatim; still-at-0 adopts the manifest) — probe and dresser disagreeing is an infinite re-dress");
+if (!/float wantLsp = LeadingLineSpacing\(probeRow, faceLd != null \? faceLd\.font : null\);/.test(cs)
+    || !/\(hlLd != null && hlLd\.lineSpacing == 0f\) \|\| \(tmLd != null && tmLd\.lineSpacing == 0f\)\) wantDress = true;/.test(cs))
+  errors.push("the redress probe must converge a still-at-0 lineSpacing when the manifest resolves a Leading — the absolute want read off the label's own live face (and ONLY still-at-0 — hand-tuned values are the maker's)");
+if (!/newHl\.lineSpacing = keepLineSpacing != 0f \? keepLineSpacing : LeadingLineSpacing\(LabelRow\(m, famName\), tmNw != null \? tmNw\.font : null\);/.test(cs))
+  errors.push("the redress restore must mirror the probe's gate (hand-tuned survives verbatim; still-at-0 adopts the manifest, face-rebased) — probe and dresser disagreeing is an infinite re-dress");
 
 /* ── round-31 (store packaging · slice 1): Third-Party Notices.txt.
    The Asset Store requires third-party components to carry notices. The
@@ -2196,7 +2205,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/var famRowSD = LabelRow\(m, it\.component\);/.test(cs)
       || !/var tSD = inst\.transform\.Find\(IconChildName\(icSD\)\);/.test(cs))
     errors.push("posed copies no longer stand down nick-named family children by the manifest — the Shop bottomnav's Selected ring blobs over MAP again (round 40)");
-  if (!/public PBStyle seatInk; public float ringV; public PBIconChild\[\] iconSeats; \}/.test(cs))
+  if (!/public PBStyle seatInk; public float ringV; public PBIconChild\[\] iconSeats;/.test(cs))
     errors.push("PBAsset must carry iconSeats — without it JsonUtility drops the un-burn seats");
   if (!/static List<string> WireIconChildren\(GameObject go, string root, PBManifest m, string fam\)/.test(cs)
       || !/static List<string> WireIconChildrenRow\(GameObject go, string root, PBManifest m, PBAsset row\)/.test(cs)
@@ -2617,6 +2626,36 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the LTS seat road is gone — the seat-worded catalog ships word-BARE on 2022.3 against the docs");
   if (!/static bool SeatRect\(RectTransform rt, PBSeat seat, TMPro\.TMP_FontAsset face, float rootH, bool inRow, float rowFy, bool apply\)/.test(cs))
     errors.push("SeatRect fell back inside the styled guard (or lost its qualified signature) — the LTS seat road can't place words");
+}
+
+/* ── ROUND 44 · S1 (parity seats — owner field round): the dialoguebox
+   speaker rides the app's exact fy (the edge clamp is for FREE seats;
+   a rider's plate is its own inside-the-art guarantee), kept kits heal
+   the clamp-parked rider provably-ours, and the fire button's armed
+   glyph sits on the app's own emitted seat instead of a hand estimate. */
+{
+  // 1) SeatRect: rider seats are EXEMPT from the top/bottom edge clamp
+  if (!/float fyC = string\.IsNullOrEmpty\(seat\.rider\) && rootH > fs \* 1\.3f \? Mathf\.Clamp\(seat\.fy, \(fs \* 0\.62f\) \/ rootH, 1f - \(fs \* 0\.62f\) \/ rootH\) : seat\.fy;/.test(cs))
+    errors.push("SeatRect's rider clamp exemption is gone — the dialoguebox speaker (and every edge-plate rider) parks ~12px off the app's seat again (round 44, item 8)");
+  // 2) the adopted-rider rect heal: ONLY a word still at the old clamped
+  //    spot moves (provably ours); the maker's travel stays theirs
+  if (!/float fyOld9 = rootH > fsR9 \* 1\.3f \? Mathf\.Clamp\(seat\.fy, edge9, 1f - edge9\) : seat\.fy;/.test(cs)
+      || !/if \(\(cur9 - oldP9\)\.sqrMagnitude < 0\.5f\) \{/.test(cs)
+      || !/if \(apply\) srt\.position = hostRt9\.TransformPoint\(new Vector3\(oldP9\.x, r9\.yMin \+ \(1f - seat\.fy\) \* r9\.height \+ lift9, oldP9\.z\)\);/.test(cs))
+    errors.push("the adopted-rider clamp heal is gone (or lost its provably-ours gate) — kept kits keep the speaker parked low forever, or a dev-moved rider gets re-seated (round 44, item 8)");
+  // 3) the fire seat plumb: bevel stamp → manifest row → prefab + converge
+  if (!/data-fireseat="\$\{cx9\.toFixed\(1\)\} \$\{\(cy9 \+ sink \+ krF \* 0\.14\)\.toFixed\(1\)\} \$\{\(icF \* \(gsA9 \+ 2 \* gpadA9\) \/ gsA9\)\.toFixed\(1\)\}"/.test(bevelSrc))
+    errors.push("the bare dome render no longer stamps data-fireseat (center + padded glyph-sprite box) — the exact armed seat can't reach the manifest (round 44, item 15)");
+  if (!/fireDx: r1\(fsM\[0\] - \(shM\[0\] \+ shM\[2\] \/ 2\)\), fireDy: r1\(fsM\[1\] - \(shM\[1\] \+ shM\[3\] \/ 2\)\), fireW: r1\(fsM\[2\]\)/.test(src))
+    errors.push("the emission no longer re-speaks data-fireseat shell-center relative onto the dome row (fireDx/fireDy/fireW)");
+  if (!/public PBIconChild\[\] iconSeats; public float fireDx; public float fireDy; public float fireW; \}/.test(cs))
+    errors.push("PBAsset lost the fireDx/fireDy/fireW fields — JsonUtility drops the armed seat silently");
+  if (!/if \(themed && rowFS != null && rowFS\.fireW > 1f\) \{/.test(cs)
+      || !/wRt\.sizeDelta = new Vector2\(rowFS\.fireW, rowFS\.fireW\);/.test(cs)
+      || !/wRt\.anchoredPosition \+= new Vector2\(rowFS\.fireDx, -rowFS\.fireDy\);/.test(cs))
+    errors.push("FireButtonPrefab no longer seats the armed glyph on the app's emitted seat (themed + fireW-gated, heuristic fallback for old zips) — the main icon sits low again (round 44, item 15)");
+  if (!/if \(oursBox && oursNudge/.test(cs) || !/wFixRt\.anchoredPosition = new Vector2\(fbSeatDx, -fbSeatDy\);/.test(cs))
+    errors.push("the kept-project Weapon seat convergence is gone (or lost its ours-only gate) — field kits never pick up the exact armed seat, or a dev-moved Weapon gets clobbered");
 }
 
 if (errors.length) {

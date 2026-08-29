@@ -125,16 +125,27 @@ interface AssetMeta {
    *  staged value; the importer sets the Radial360 fillAmount from it so
    *  the prefab lands wearing exactly the pose the maker staged. */
   ringV?: number;
+  /** The fire button's ARMED-GLYPH seat (round 44 field: "the main icon
+   *  sits low" — the importer's hand heuristic drifted): parsed from the
+   *  bare dome render's own data-fireseat stamp, on the dome row only.
+   *  fireDx/fireDy = the glyph BOX center from the shell center (design
+   *  px, y down — the labelDx discipline); fireW = the glyph SPRITE's box
+   *  side (the app's icF grown by the glyph bake's 32%-a-side canvas
+   *  padding, Size dial included). Absent (JsonUtility 0) on old zips —
+   *  the importer keeps its heuristic there. */
+  fireDx?: number; fireDy?: number; fireW?: number;
   /** The Leading dial, resolved per row (base = the resting design;
    *  base-<state> rows = that state's fork-first per-key read — bevel's
-   *  endturn rule verbatim), as the app's raw percentage. Emitted ONLY on
-   *  stacked multi-line label rows (STACKED_LABEL_PROPS — endturn today)
-   *  and ONLY when non-factory (≠ 100), so a factory kit's manifest stays
-   *  byte-identical. The importer maps it onto the live label as
-   *  TMP lineSpacing = 0.73 * (leading − 100): the app's gap is
-   *  fs·0.73em·leading/100, so the DELTA from factory is 0.73em per 100%
-   *  — riding TMP's em*100 spacing units on top of the face's natural
-   *  line height, which IS today's look at factory (absent/100 ⇒ 0). */
+   *  endturn rule verbatim), as the app's raw percentage. Emitted on
+   *  stacked multi-line label rows (STACKED_LABEL_PROPS — endturn today),
+   *  ALWAYS — factory 100 included (round 44 field: "leading between
+   *  lines is off in Unity" — the old delta mapping left factory stacks
+   *  at TMP's natural line height, looser than the app's 0.73em). The
+   *  importer maps it ABSOLUTELY onto the live label:
+   *  lineSpacing = (0.73·leading/100 − face lineHeight/pointSize) · 100
+   *  — the app's center-to-center gap is fs·0.73em·leading/100, and the
+   *  spacing rebases TMP's own line advance onto exactly that. Absent
+   *  rows (old zips — JsonUtility 0) still map to 0: natural height. */
   leading?: number;
   /** The gauge READOUT seat, parsed from the face render's geo stamp
    *  (data-gauge) in file px at pngScale: number center x/y + font size,
@@ -3969,10 +3980,12 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
        export must carry the resolved value or Unity's LIVE label
        re-typesets at TMP's default line height forever). Emission is the
        raw dial percentage, per row, fork-first per key — bevel's endturn
-       read verbatim — and only when ≠ 100 so factory kits stay
-       byte-identical. Future stacked labels join this set and inherit
-       the whole plumb (manifest row → PBAsset.leading → the importer's
-       LeadingLineSpacing seam). */
+       read verbatim — ALWAYS, factory 100 included (round 44 field:
+       "leading between lines is off in Unity" — the importer's mapping is
+       ABSOLUTE now, and rebasing TMP's natural line height onto the app's
+       0.73em stack needs the factory value too). Future stacked labels
+       join this set and inherit the whole plumb (manifest row →
+       PBAsset.leading → the importer's LeadingLineSpacing seam). */
     const STACKED_LABEL_PROPS = new Set<KitComponentId>(["endturn"]);
     const leadingOf = (id: KitComponentId, stName?: "hover" | "pressed" | "disabled") => {
       const c = pieceCfg(id);
@@ -3982,7 +3995,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       return (stName ? c.stateDesigns?.[stName]?.type?.leading : undefined) ?? c.type.leading ?? 100;
     };
     const leadingRow = (id: KitComponentId, stName?: "hover" | "pressed" | "disabled") =>
-      STACKED_LABEL_PROPS.has(id) && leadingOf(id, stName) !== 100 ? { leading: leadingOf(id, stName) } : {};
+      STACKED_LABEL_PROPS.has(id) ? { leading: leadingOf(id, stName) } : {};
     /* the labeled PROPS' live words finally dress and seat like the app
        (slice-2 field, owner: "Keycap not respecting app text styling" —
        the prop rows shipped labelText alone, so Unity guessed size, ink
@@ -4078,9 +4091,22 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
            each waiting-weapon chamber as its own bare sprite. The glyphs
            ride icons/ (sword, zap, flask, shield — tintable) and the
            FireButton runtime deals and re-deals them as the swipe cycles. */
-        await addPng("firebutton/dome.png", shell("firebutton", { overlay: "plain" }, undefined, 0),
+        /* the ARMED GLYPH's exact seat (round 44 field: "the main icon
+           sits low"): the bare render stamps data-fireseat in raw render
+           px; re-speak it shell-CENTER relative (the labelDx discipline —
+           raw-frame shell0 pairs with the raw-frame seat, and the rise
+           shifts both equally, so drawn-frame offsets fall out exact). */
+        const domeSvg44 = shell("firebutton", { overlay: "plain" }, undefined, 0);
+        const fireSeat44 = (() => {
+          const fsM = /data-fireseat="([-\d. ]+)"/.exec(domeSvg44)?.[1].split(" ").map(Number);
+          const shM = (/data-shell0="([-\d. ]+)"/.exec(domeSvg44) ?? /data-shell="([-\d. ]+)"/.exec(domeSvg44))?.[1].split(" ").map(Number);
+          if (!fsM || fsM.length !== 3 || !fsM.every(Number.isFinite) || !shM || shM.length !== 4 || !(fsM[2] > 1)) return {};
+          const r1 = (n: number) => Math.round(n * 10) / 10;
+          return { fireDx: r1(fsM[0] - (shM[0] + shM[2] / 2)), fireDy: r1(fsM[1] - (shM[1] + shM[3] / 2)), fireW: r1(fsM[2]) };
+        })();
+        await addPng("firebutton/dome.png", domeSvg44,
           { component: "firebutton", part: "dome", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
-            usage: "Fire dome, bare — the armed glyph is a live icons/ layer on the FireButton prefab; swipe left/right cycles it." }, true, "firebutton-dome");
+            usage: "Fire dome, bare — the armed glyph is a live icons/ layer on the FireButton prefab; swipe left/right cycles it.", ...fireSeat44 }, true, "firebutton-dome");
         for (const stName of ["pressed", "disabled"] as const)
           await addPng(`firebutton/dome-${stName}.png`, stateShell("firebutton", stName, { overlay: "plain" }, 0),
             { component: "firebutton", part: `dome-${stName}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
@@ -9725,7 +9751,7 @@ namespace PatternBreak {
        posed pixels with its plate — rebuilt as live TMP ON the live child
        (wordDx/wordDy = word center from the CHILD center, board px). */
     public string word; public float wordFs; public float wordDx; public float wordDy; public string wordInk; public int wordW; }
-  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public PBTrack track; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelInk; public string labelInk2; public float leading; public string labelText; public PBIconSeat icon; public PBGauge gauge; public PBChart chart; public PBLoot loot; public PBSeat[] textSeats; public PBStyle seatInk; public float ringV; public PBIconChild[] iconSeats; }
+  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public PBTrack track; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelInk; public string labelInk2; public float leading; public string labelText; public PBIconSeat icon; public PBGauge gauge; public PBChart chart; public PBLoot loot; public PBSeat[] textSeats; public PBStyle seatInk; public float ringV; public PBIconChild[] iconSeats; public float fireDx; public float fireDy; public float fireW; }
   [Serializable] class PBStyleOutline { public string color; public string color2; public float width; }
   [Serializable] class PBStyleGlow { public string color; public float size; public float opacity; }
   [Serializable] class PBStyleShadow { public string color; public float x; public float y; public float blur; public float opacity; }
@@ -14473,11 +14499,12 @@ namespace PatternBreak {
       ShellSeatLabel(go, parent, family, m);
       var layersFa = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Layers.asset");
       var strokeInk = InkMaterial(root, "Stroke");
-      // the Leading dial (stacked multi-line labels — endturn): 0 = factory
-      float lsp = LeadingLineSpacing(lrow);
       if (layersFa != null && strokeInk != null) {
         var prt = parent.GetComponent<RectTransform>();
         BuildHeroStack(go, text, root, ls, prt != null ? prt.rect.height : 0f, layersFa, strokeInk);
+        // the Leading dial (stacked multi-line labels — endturn), rebased
+        // absolutely on THIS rung's face; 0 = the row ships no leading
+        float lsp = LeadingLineSpacing(lrow, layersFa);
         if (lsp != 0f) {
           // set AFTER the stack settles, then re-Apply through SetText —
           // BuildHeroStack's own construction order rule
@@ -14499,7 +14526,8 @@ namespace PatternBreak {
       // …except master-voiced words on a tintable (near-white) atlas:
       // the family's resolved ink rides as a vertex tint (the WHITE-header fix)
       ApplyFamilyInk(t, m, family, true);
-      if (lsp != 0f) t.lineSpacing = lsp;
+      float lspSolo = LeadingLineSpacing(lrow, solo);
+      if (lspSolo != 0f) t.lineSpacing = lspSolo;
     }
 #endif
     /* the label WE generated is the child GameObject named "Label" — a
@@ -14816,8 +14844,9 @@ namespace PatternBreak {
         // seat on the CONTENT zone, not the sprite rect (see AddBakedLabel)
         var lr0 = FindOurLabelRoot(parent);
         if (lr0 != null) ShellSeatLabel(lr0, parent, family, m);
-        // the Leading dial rides this rung too (one seam, one number)
-        float lspT = LeadingLineSpacing(lrowA);
+        // the Leading dial rides this rung too (one seam, one number,
+        // rebased on this rung's own face)
+        float lspT = LeadingLineSpacing(lrowA, face);
         var tLead = lr0 != null ? lr0.GetComponent<TextMeshProUGUI>() : null;
         if (tLead != null && lspT != 0f) tLead.lineSpacing = lspT;
         // the family's RESOLVED ink beats the master style on SDF glyphs
@@ -15380,16 +15409,22 @@ namespace PatternBreak {
     }
     /* the LEADING dial's TMP form — ONE seam for every label birth and the
        maintenance convergence, so they can never disagree. The app stacks
-       a multi-line label (endturn) at fs · 0.73em · leading/100; the
-       manifest ships the resolved percentage on the base row only when it
-       isn't factory. TMP lineSpacing is em*100 relative to the font size,
-       so the app's DELTA from factory maps exactly:
-         lineSpacing = 0.73 * (leading − 100)
-       (220% ⇒ +87.6 = +0.876em — the app's own 0.73em · 1.2). Factory and
-       absent rows (JsonUtility zero — the old-zip 0-gate) map to 0: TMP's
-       natural line height, today's look, untouched. */
-    static float LeadingLineSpacing(PBAsset row) {
-      return row != null && row.leading > 0f ? 0.73f * (row.leading - 100f) : 0f;
+       a multi-line label (endturn) at fs · 0.73em · leading/100 CENTER TO
+       CENTER; the manifest ships the resolved percentage on stacked label
+       rows, factory 100 included. The old delta mapping (0.73·(leading−100))
+       rode ON TOP of the face's natural line height — which is NOT the
+       app's stack (round 44 field: "leading between lines is off in
+       Unity; correct in the app"). The mapping is ABSOLUTE now: TMP's
+       line advance is lineHeight/pointSize em + lineSpacing/100 em, so
+         lineSpacing = (0.73 · leading/100 − lineHeight/pointSize) · 100
+       lands the app's gap exactly, on any face. Absent rows (old zips —
+       JsonUtility zero) map to 0: natural height, untouched; a faceless
+       call keeps the old delta so behavior never regresses past today. */
+    static float LeadingLineSpacing(PBAsset row, TMPro.TMP_FontAsset face) {
+      if (row == null || row.leading <= 0f) return 0f;
+      float natural = face != null && face.faceInfo.pointSize > 0f ? face.faceInfo.lineHeight / face.faceInfo.pointSize : 0f;
+      if (natural <= 0f) return 0.73f * (row.leading - 100f);
+      return (0.73f * row.leading / 100f - natural) * 100f;
     }
     /* the label's anchor-shift off the shell box, in sprite-rect fractions —
        shared by the seat below and the redress probe, so they can never
@@ -16744,8 +16779,12 @@ namespace PatternBreak {
       // edge-hugging seats stay INSIDE: clamp the center so the glyph
       // box can never cross the rect's top/bottom (round-10 field: the
       // telemetry header rides ~8px under the sprite top — half a TMP
-      // metric away from poking out)
-      float fyC = rootH > fs * 1.3f ? Mathf.Clamp(seat.fy, (fs * 0.62f) / rootH, 1f - (fs * 0.62f) / rootH) : seat.fy;
+      // metric away from poking out). A RIDER's word is exempt (round 44
+      // field: "Elder Rowan sits a bit low" — the dialoguebox speaker tab
+      // hugs the sprite's top edge BY DESIGN, and the clamp dragged its
+      // word ~12px down the sheet before adoption froze it there): the
+      // plate's own drawn geometry is the inside-the-art guarantee.
+      float fyC = string.IsNullOrEmpty(seat.rider) && rootH > fs * 1.3f ? Mathf.Clamp(seat.fy, (fs * 0.62f) / rootH, 1f - (fs * 0.62f) / rootH) : seat.fy;
       var c = inRow ? new Vector2(seat.fx, 0.5f) : new Vector2(seat.fx, 1f - fyC);
       /* TMP centers a middle-aligned rect on the LINE middle; a seat from
          a baseline-anchored node marks the CAP middle (midEm, measured).
@@ -17019,6 +17058,31 @@ namespace PatternBreak {
            plate carries the word wherever the dev moves the pair — that
            travel is the feature, not drift */
         if (!adopted && srt != null && !SeatRect(srt, seat, face, rootH, inRow, inRow ? rowFy[seat.row] : 0f, apply)) drift = true;
+        else if (adopted && srt != null) {
+          /* round 44 ("Elder Rowan sits a bit low"): the ONE rect heal an
+             adopted rider takes is PROVABLY-OURS — the old edge clamp
+             (retired for riders in SeatRect) parked edge-plate words low,
+             and adoption froze that spot into every kept kit. A word
+             still sitting EXACTLY where the clamped math put it (in the
+             host frame) re-seats on the app's own fy; any other spot is
+             the maker's travel and stays theirs, as ever. */
+          float fsR9 = SeatFs(seat, rootH);
+          float edge9 = (fsR9 * 0.62f) / rootH;
+          float fyOld9 = rootH > fsR9 * 1.3f ? Mathf.Clamp(seat.fy, edge9, 1f - edge9) : seat.fy;
+          var hostRt9 = host.transform as RectTransform;
+          if (fyOld9 != seat.fy && hostRt9 != null) {
+            var r9 = hostRt9.rect;
+            float lift9 = 0f;
+            if (seat.midEm > 0f && face != null && face.faceInfo.pointSize > 0f)
+              lift9 = ((face.faceInfo.ascentLine + face.faceInfo.descentLine) * 0.5f / face.faceInfo.pointSize - seat.midEm) * fsR9;
+            var oldP9 = new Vector3(r9.xMin + seat.fx * r9.width, r9.yMin + (1f - fyOld9) * r9.height + lift9, 0f);
+            var cur9 = hostRt9.InverseTransformPoint(srt.position);
+            if ((cur9 - oldP9).sqrMagnitude < 0.5f) {
+              drift = true;
+              if (apply) srt.position = hostRt9.TransformPoint(new Vector3(oldP9.x, r9.yMin + (1f - seat.fy) * r9.height + lift9, oldP9.z));
+            }
+          }
+        }
         if (t.text != seat.text || t.gameObject.name != PlainWord(seat.text)) {
           drift = true;
           if (apply) { t.gameObject.name = PlainWord(seat.text); t.text = seat.text; }
@@ -18235,10 +18299,23 @@ namespace PatternBreak {
       Vector2 shlF;
       float domeShellW = ShellCenterAnchor(wGo, go, "firebutton", m, out shlF) ? Mathf.Min(shlF.x, shlF.y) : domeW;
       var wRt = wGo.GetComponent<RectTransform>();
-      wRt.sizeDelta = new Vector2(domeShellW, domeShellW) * (themed ? 0.62f : 0.52f);
-      // the app seats the armed glyph a touch BELOW the dome's center
-      // (cy + kr·0.14) — the up-nudge read off-center (owner)
-      wRt.anchoredPosition += new Vector2(0f, -domeShellW * 0.045f);
+      /* round 44 ("the main icon sits low"): the app's OWN armed seat when
+         the dome row ships it — fireDx/fireDy from the shell center
+         (design px == prefab units), fireW the themed glyph SPRITE's box
+         (canvas padding + Size dial already in the number). The hand
+         heuristic stays only for old zips without the seat, and for the
+         flat icons/ fallback (tight canvas — the padded box would balloon
+         it). */
+      var rowFS = ShellRowOf(go, "firebutton", m);
+      if (themed && rowFS != null && rowFS.fireW > 1f) {
+        wRt.sizeDelta = new Vector2(rowFS.fireW, rowFS.fireW);
+        wRt.anchoredPosition += new Vector2(rowFS.fireDx, -rowFS.fireDy);
+      } else {
+        wRt.sizeDelta = new Vector2(domeShellW, domeShellW) * (themed ? 0.62f : 0.52f);
+        // the app seats the armed glyph a touch BELOW the dome's center
+        // (cy + kr·0.14) — the up-nudge read off-center (owner)
+        wRt.anchoredPosition += new Vector2(0f, -domeShellW * 0.045f);
+      }
       fb.weapon = wIm;
       // waiting chambers, tangent to the dome's upper-left arc
       var chambers = new Image[3];
@@ -19242,7 +19319,7 @@ namespace PatternBreak {
       RenameDataRowPrefab(root); // the owner's language, healed on every import
       RenameDataRowTiledFace(root); // and its stretch-safe twin — the scene road's one name
       RenameArtShelf(root); // BigGlyphs → Art, the class's name everywhere
-      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0, reseeded = 0, wordKept = 0, rebodied = 0, mapGrafted = 0, padTuned = 0, rigGrafted = 0, sinkTuned = 0, barRigged = 0, pieceBound = 0, ddRigged = 0, unburned = 0, retiredIc = 0;
+      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, glyphSeated = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0, reseeded = 0, wordKept = 0, rebodied = 0, mapGrafted = 0, padTuned = 0, rigGrafted = 0, sinkTuned = 0, barRigged = 0, pieceBound = 0, ddRigged = 0, unburned = 0, retiredIc = 0;
       /* the ROOT-RECT ownership ledger (F5 — the resize pass was the one
          maintenance heal with NO ours-vs-theirs guard): rects we last
          authored, carried in kit.lock.json > authoredRects. A rect still
@@ -19868,6 +19945,7 @@ namespace PatternBreak {
            Converge OUR stale defaults only — any other number is the
            maker's own tune and stays. */
         bool wantFbLift = false; float fbWant = 0f;
+        bool wantFbSeat = false; float fbSeatDx = 0f, fbSeatDy = 0f, fbSeatW = 0f;
         {
           var fbNow = asset.GetComponent<FireButton>();
           if (fbNow != null && famName == "firebutton") {
@@ -19889,6 +19967,23 @@ namespace PatternBreak {
               || Mathf.Approximately(fbNow.pressedLift, fbRow)
               || Mathf.Approximately(fbNow.pressedLift, fbRow - shellMin * 0.016f);
             if (fbStale && !Mathf.Approximately(fbNow.pressedLift, fbWant)) wantFbLift = true;
+            /* round 44 ("the main icon sits low"): the armed glyph
+               converges onto the app's own emitted seat — but only a
+               Weapon still wearing OUR heuristic geometry (0.62/0.52 ×
+               shell box, the −0.045 × shell nudge, no x drift) moves;
+               any other rect is the maker's hand and stays. */
+            if (rowFb != null && rowFb.fireW > 1f && fbNow.weapon != null) {
+              var wRtC = fbNow.weapon.rectTransform;
+              bool oursBox = Mathf.Abs(wRtC.sizeDelta.x - shellMin * 0.62f) < 0.75f
+                || Mathf.Abs(wRtC.sizeDelta.x - shellMin * 0.52f) < 0.75f;
+              bool oursNudge = Mathf.Abs(wRtC.anchoredPosition.x) < 0.05f
+                && Mathf.Abs(wRtC.anchoredPosition.y + shellMin * 0.045f) < 0.75f;
+              fbSeatDx = rowFb.fireDx; fbSeatDy = rowFb.fireDy; fbSeatW = rowFb.fireW;
+              var wantSz = new Vector2(fbSeatW, fbSeatW);
+              var wantAp = new Vector2(fbSeatDx, -fbSeatDy);
+              if (oursBox && oursNudge
+                  && ((wRtC.sizeDelta - wantSz).sqrMagnitude > 0.01f || (wRtC.anchoredPosition - wantAp).sqrMagnitude > 0.01f)) wantFbSeat = true;
+            }
           }
         }
         /* the ENGINE-COMPOSED specular converges too: a kit that ships
@@ -19985,13 +20080,17 @@ namespace PatternBreak {
                freshly dialed Leading; a hand-tuned nonzero value is the
                maker's and is never re-lost — and a dial turned BACK to
                factory leaves a nonzero value standing for the same reason.
+               Round 44: the want is ABSOLUTE now (rebased on the label's
+               own live face), so a factory-leading stack still parked at
+               natural height converges onto the app's 0.73em look too.
                The redress restore mirrors this gate exactly (probe and
                dresser disagreeing is an infinite re-dress). */
             if (!wantDress) {
-              float wantLsp = LeadingLineSpacing(probeRow);
+              var hlLd = probeRoot.GetComponent<HeroLabel>();
+              var tmLd = hlLd == null ? probeRoot.GetComponentInChildren<TextMeshProUGUI>(true) : null;
+              var faceLd = hlLd != null ? probeRoot.GetComponentInChildren<TextMeshProUGUI>(true) : tmLd;
+              float wantLsp = LeadingLineSpacing(probeRow, faceLd != null ? faceLd.font : null);
               if (wantLsp != 0f) {
-                var hlLd = probeRoot.GetComponent<HeroLabel>();
-                var tmLd = hlLd == null ? probeRoot.GetComponentInChildren<TextMeshProUGUI>(true) : null;
                 if ((hlLd != null && hlLd.lineSpacing == 0f) || (tmLd != null && tmLd.lineSpacing == 0f)) wantDress = true;
               }
             }
@@ -20028,7 +20127,7 @@ namespace PatternBreak {
            editor-only; a prefab already carrying it (or a dev's own) is
            untouched. */
         bool wantSelectRoot = asset.GetComponent<KitPiece>() == null;
-        if (!wantWiring && !wantDress && !wantFx && !wantUnswap && !wantResize && !wantSpecAdd && !wantSpecCut && !wantPad && !wantShape && !wantFbLift && !wantFaceRects
+        if (!wantWiring && !wantDress && !wantFx && !wantUnswap && !wantResize && !wantSpecAdd && !wantSpecCut && !wantPad && !wantShape && !wantFbLift && !wantFbSeat && !wantFaceRects
             && !wantWipeAdd && !wantWipeCut && !wantEdgeAdd && !wantEdgeCut && !wantGauge && !wantSeats && !wantSeatLabel && !wantWordSeed && !wantBody && !wantGlowPad && !wantSinkFix && !wantIconAdd && !wantIconStroke && !wantUnburn && !wantIconRetire && !wantSelectRoot) continue;
         var contents = PrefabUtility.LoadPrefabContents(path);
         try {
@@ -20095,6 +20194,21 @@ namespace PatternBreak {
           if (wantFbLift) {
             var fbFix = contents.GetComponent<FireButton>();
             if (fbFix != null) { fbFix.pressedLift = fbWant; pressArmed++; changed = true; }
+          }
+          if (wantFbSeat) {
+            var fbSeatC = contents.GetComponent<FireButton>();
+            var wFix = fbSeatC != null ? fbSeatC.weapon : null;
+            if (wFix != null) {
+              /* re-run the shell anchor first — the sprite re-adoption may
+                 have re-cropped the dome, and the old anchor fraction
+                 speaks the old crop's shell */
+              Vector2 shlFix;
+              ShellCenterAnchor(wFix.gameObject, contents, "firebutton", m, out shlFix);
+              var wFixRt = wFix.rectTransform;
+              wFixRt.sizeDelta = new Vector2(fbSeatW, fbSeatW);
+              wFixRt.anchoredPosition = new Vector2(fbSeatDx, -fbSeatDy);
+              glyphSeated++; changed = true;
+            }
           }
           if (wantFaceRects) {
             foreach (Transform chF in contents.transform) {
@@ -20299,9 +20413,11 @@ namespace PatternBreak {
                   /* lineSpacing: a hand-tuned value survives verbatim; a
                      still-at-default 0 adopts the manifest's Leading (the
                      birth just applied it — restoring the same want is
-                     idempotent). The probe's gate, mirrored. */
+                     idempotent; the absolute want reads the fresh label's
+                     own face). The probe's gate, mirrored. */
                   newHl.spacing = keepSpacing; newHl.wordSpacing = keepWordSpacing;
-                  newHl.lineSpacing = keepLineSpacing != 0f ? keepLineSpacing : LeadingLineSpacing(LabelRow(m, famName));
+                  var tmNw = newRoot.GetComponentInChildren<TextMeshProUGUI>(true);
+                  newHl.lineSpacing = keepLineSpacing != 0f ? keepLineSpacing : LeadingLineSpacing(LabelRow(m, famName), tmNw != null ? tmNw.font : null);
                   newHl.SetText(newHl.text);
                 }
               }
@@ -20374,6 +20490,8 @@ namespace PatternBreak {
         Debug.Log("UI Kit Maker: corrected the Image mode on " + reshaped + " sprite layer(s) — border-less art was marked Sliced (Unity: \\"This Image doesn't have a border\\"), which stretches round pieces into ovals when resized. They now draw Simple with Preserve Aspect, so any rect keeps the drawn shape.");
       if (pressArmed > 0)
         Debug.Log("UI Kit Maker: armed the fire button's press sink — the armed glyph now rides the dome's full pressed trip (kit press lift + the dome's designed sink) instead of floating in place. Tune it anytime via Pressed Lift on the FireButton component.");
+      if (glyphSeated > 0)
+        Debug.Log("UI Kit Maker: re-seated the fire button's armed glyph on the app's own icon seat — the old placement was a hand estimate that sat the icon low; the kit now ships the exact center and size the app draws. A Weapon you moved or resized yourself is never touched.");
       if (faceRects > 0)
         Debug.Log("UI Kit Maker: re-converged the layer stack on " + faceRects + " tiled-face prefab(s) — an overlay child had drifted off the full-stretch contract, painting its gloss/edge art beside the piece instead of over it. All three layers ride one rect again.");
       if (idled > 0)
