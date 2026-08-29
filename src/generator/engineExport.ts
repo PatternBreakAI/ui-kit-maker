@@ -4842,7 +4842,12 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     await addPng("seasontrack/well-premium.png", shell("seasontrack", { part: "well-premium" }), { component: "seasontrack", part: "well-premium", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "One reward well, premium lane — the gold-trimmed slot, exactly as the app draws it. Instanced per tier below the spine." }, true);
     await addPng("seasontrack/node.png", shell("seasontrack", { part: "node" }), { component: "seasontrack", part: "node", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Spine node, not yet reached — the level number is live engine text on top." }, true);
     await addPng("seasontrack/node-lit.png", shell("seasontrack", { part: "node-lit" }), { component: "seasontrack", part: "node-lit", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Spine node, reached — SeasonTrack swaps it in up to the current tier." }, true);
-    await addPng("seasontrack/spine.9.png", shell("seasontrack", { part: "spine" }), { component: "seasontrack", part: "spine", nineSlice: { left: 16, right: 16, top: 4, bottom: 4 }, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The level rail — sliced; SeasonTrack stretches it node 1 to node N, with the kit's progress fill (assets/progress) riding above." }, true);
+    await addPng("seasontrack/spine.9.png", shell("seasontrack", { part: "spine" }), { component: "seasontrack", part: "spine", nineSlice: { left: 16, right: 16, top: 4, bottom: 4 }, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The level rail — sliced; SeasonTrack stretches it node 1 to node N, with the run (seasontrack-run.9.png) riding above." }, true);
+    /* the RUN atom (round 44, item 14): the app's own progress strip —
+       the rig used to squash the 44px-bordered progress mercury into the
+       rail's thin band and Unity's border crush mangled the caps right
+       on the line. This atom slices true at rail height. */
+    await addPng("seasontrack/run.9.png", shell("seasontrack", { part: "run" }), { component: "seasontrack", part: "run", nineSlice: { left: 12, right: 12, top: 4, bottom: 4 }, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The progress RUN — the app's own glow strip on the rail, sliced; SeasonTrack stretches it to the current tier (drive SetProgress)." }, false);
   }
   /* its own component id so the wired Minimap prefab (RadarDemo sweep +
      blips) can find its shell box in the manifest; the file stays in
@@ -8491,6 +8496,8 @@ namespace PatternBreak {
     public Sprite nodeLitSprite;
     public Sprite spineSprite;
     public Sprite fillSprite;
+    [Tooltip("The app's own progress strip, sliced to rail height (round 44) — preferred over fillSprite, whose big mercury borders crushed on the thin rail.")]
+    public Sprite runSprite;
     public Sprite claimedCheck;
     [Header("Layout — fractions of this rect, measured from the kit's art on import")]
     [Range(0f, 1f)] public float trackX0 = 0.22f;
@@ -8647,12 +8654,17 @@ namespace PatternBreak {
       srt.offsetMin = new Vector2(-spineH, -spineH * 0.5f); // the drawn rail overhangs the end nodes by its own height
       srt.offsetMax = new Vector2(spineH, spineH * 0.5f);
       srt.SetSiblingIndex(0);
-      /* the run: the kit's own progress fill, seated ON the rail */
+      /* the run ON the rail: the dedicated run atom when the kit ships it
+         (round 44, item 14 — its borders slice true at rail height); the
+         old progress-mercury stand-in only for atom-less zips */
       var fill = Img(own, "Fill");
-      fill.sprite = fillSprite; fill.type = Image.Type.Sliced;
-      fill.enabled = fillSprite != null;
+      var runSp = runSprite != null ? runSprite : fillSprite;
+      fill.sprite = runSp; fill.type = Image.Type.Sliced;
+      fill.enabled = runSp != null;
       float run = n > 1 ? Mathf.Clamp01((cur - 1 + Mathf.Clamp01(tierProgress)) / (n - 1f)) : 1f;
-      float fillH = spineH * 0.62f; // the app draws the run just inside the rail
+      // the app draws the run just inside the rail; the run atom carries
+      // its own drawn height (glow halo included)
+      float fillH = runSprite != null ? runSprite.rect.size.y * spriteScale : spineH * 0.62f;
       var frt = fill.rectTransform;
       frt.anchorMin = new Vector2(TierX(0, n), spineY);
       frt.anchorMax = new Vector2(Mathf.Lerp(TierX(0, n), TierX(n - 1, n), run), spineY);
@@ -18837,6 +18849,7 @@ namespace PatternBreak {
       c.nodeLitSprite = S(pre + "node-lit.png");
       c.spineSprite = S(pre + "spine.9.png");
       c.fillSprite = S(root + "/assets/progress/progress-fill.9.png");
+      c.runSprite = S(pre + "run.9.png"); // round 44: the rail-height run atom
       c.claimedCheck = S(root + "/assets/icons/check.png");
       c.spriteScale = 1f / Mathf.Max(1, pngScale);
       Font kitFont = null;
@@ -19567,6 +19580,58 @@ namespace PatternBreak {
                 retracked++;
               }
             } finally { PrefabUtility.UnloadPrefabContents(contentsST); }
+            continue;
+          }
+        }
+        /* round 44 (item 14 — "objectives STILL not sitting on the
+           line"): a kept SeasonTrack already on the live rig froze
+           whatever this component carried at its own first import — new
+           art atoms (the rail-height run) and geometry corrections could
+           never reach the field. Converge OURS-ONLY:
+           - art: wire runSprite when it is still empty and the atom
+             ships (a reference is ours to fill exactly once — a dev who
+             swapped it later keeps their sprite; one who nulled a WIRED
+             field left a wired-then-cleared state we cannot tell from
+             never-wired, so the run wires and they may re-clear);
+           - geometry: only a component still wearing the CLASS DEFAULTS
+             on all six layout dials (provably never wired, pre-geo era)
+             takes the manifest's measured fractions — a single moved
+             slider keeps all six as the maker's. */
+        if (asset.GetComponent<SeasonTrack>() != null && spritePath.EndsWith("/seasontrack-board.9.png")) {
+          var stK0 = asset.GetComponent<SeasonTrack>();
+          var runSpK = S(root + "/assets/seasontrack/seasontrack-run.9.png");
+          bool wantStRun = stK0.runSprite == null && runSpK != null;
+          bool stDefaults = Mathf.Approximately(stK0.trackX0, 0.22f) && Mathf.Approximately(stK0.trackX1, 0.93f)
+            && Mathf.Approximately(stK0.spineY, 0.5f) && Mathf.Approximately(stK0.laneFreeY, 0.74f)
+            && Mathf.Approximately(stK0.lanePremY, 0.26f) && Mathf.Approximately(stK0.laneLabelX, 0.05f);
+          bool wantStGeo = stDefaults && m != null && m.seasonTrack != null && (m.seasonTrack.x1 - m.seasonTrack.x0) > 0.01f;
+          if (wantStRun || wantStGeo) {
+            var contentsSK = PrefabUtility.LoadPrefabContents(path);
+            try {
+              var stK = contentsSK.GetComponent<SeasonTrack>();
+              if (stK != null) {
+                if (wantStRun) stK.runSprite = runSpK;
+                if (wantStGeo) {
+                  var geoK = m.seasonTrack;
+                  PBAsset boardRowK = null;
+                  foreach (var aK in m.assets) if (aK != null && aK.component == "seasontrack" && aK.part == "board" && aK.shell != null) { boardRowK = aK; break; }
+                  var boardSpK = rootImg != null ? rootImg.sprite : null;
+                  if (boardRowK != null && boardSpK != null && boardSpK.rect.width > 4f) {
+                    var shK = boardRowK.shell;
+                    float WK = boardSpK.rect.width, HK = boardSpK.rect.height;
+                    stK.trackX0 = Mathf.Clamp01((shK.x + geoK.x0 * shK.w) / WK);
+                    stK.trackX1 = Mathf.Clamp01((shK.x + geoK.x1 * shK.w) / WK);
+                    stK.spineY = Mathf.Clamp01((HK - shK.y - shK.h + geoK.spineY * shK.h) / HK);
+                    stK.laneFreeY = Mathf.Clamp01((HK - shK.y - shK.h + geoK.laneFreeY * shK.h) / HK);
+                    stK.lanePremY = Mathf.Clamp01((HK - shK.y - shK.h + geoK.lanePremY * shK.h) / HK);
+                    stK.laneLabelX = Mathf.Clamp01((shK.x + geoK.labelX * shK.w) / WK);
+                  }
+                }
+                stK.Rebuild();
+                PrefabUtility.SaveAsPrefabAsset(contentsSK, path);
+                retracked++;
+              }
+            } finally { PrefabUtility.UnloadPrefabContents(contentsSK); }
             continue;
           }
         }

@@ -2700,6 +2700,25 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("PatternBreakBuffSweep.cs must ride BOTH files.push and sharedScripts (the IdleShine CS0246 lesson)");
   if (!/var bswS = inst\.GetComponent<KitBuffSweep>\(\);/.test(cs))
     errors.push("board copies no longer strike the buff frame's staged pose (KitBuffSweep board line)");
+  // S5 — the season track's RUN atom + kept-rig convergence (item 14).
+  // The reproduction proved the geometry EXACT at generation (marker
+  // seats to 0.2px); the real drops were the crushed mercury stand-in
+  // and kept prefabs frozen at their first import.
+  if (!/data-seasontrack-part="run"/.test(bevelSrc))
+    errors.push("the season track's run atom left bevel — the rig squashes the 44px-bordered mercury into the rail again (round 44, item 14)");
+  if (!/await addPng\("seasontrack\/run\.9\.png", shell\("seasontrack", \{ part: "run" \}\)/.test(src))
+    errors.push("the run atom stopped shipping (seasontrack/run.9.png)");
+  // the SeasonTrack runtime lives in its own shared file (SEASON_TRACK_
+  // RUNTIME), so its pins read the TS source, not the importer template
+  if (!/public Sprite runSprite;/.test(src) || !/var runSp = runSprite != null \? runSprite : fillSprite;/.test(src)
+      || !/float fillH = runSprite != null \? runSprite\.rect\.size\.y \* spriteScale : spineH \* 0\.62f;/.test(src))
+    errors.push("SeasonTrack no longer prefers the run atom (fillSprite crush returns) — round 44, item 14");
+  if (!/c\.runSprite = S\(pre \+ "run\.9\.png"\);/.test(cs))
+    errors.push("WireSeasonTrack no longer wires the run atom");
+  if (!/spritePath\.EndsWith\("\/seasontrack-board\.9\.png"\)/.test(cs)
+      || !/bool wantStRun = stK0\.runSprite == null && runSpK != null;/.test(cs)
+      || !/bool stDefaults = Mathf\.Approximately\(stK0\.trackX0, 0\.22f\)/.test(cs))
+    errors.push("the kept-rig SeasonTrack convergence is gone (run wire + defaults-only geometry) — field kits freeze at their first import forever (round 44, item 14)");
 }
 
 if (errors.length) {

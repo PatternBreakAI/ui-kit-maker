@@ -8497,6 +8497,18 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
 <rect x="${pad9}" y="${pad9}" width="${sw9.toFixed(1)}" height="${sh9.toFixed(1)}" rx="${(5 * k).toFixed(1)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.8)}"/>
 </svg>`;
       }
+      /* the RUN — the app's own progress strip ON the rail, as its own
+         sliced atom (round 44, item 14: the rig used to squash the
+         progress mercury — a 44px-bordered bar — into the rail's 6k
+         strip, and Unity's border crush mangled the run's caps right on
+         the line). Same glow fill, same rounded ends, same soft halo the
+         app draws; borders small enough to slice true at rail height. */
+      if (opts.part === "run") {
+        const rh9 = 6 * k, rw9 = 240 * k, pad9 = 8;
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${(rw9 + pad9 * 2).toFixed(0)}" height="${(rh9 + pad9 * 2).toFixed(0)}" viewBox="0 0 ${(rw9 + pad9 * 2).toFixed(0)} ${(rh9 + pad9 * 2).toFixed(0)}" data-seasontrack-part="run" role="img" aria-label="season track run">
+<rect x="${pad9}" y="${pad9}" width="${rw9.toFixed(1)}" height="${rh9.toFixed(1)}" rx="${(3 * k).toFixed(1)}" fill="${glow}" style="filter: drop-shadow(0 0 2.5px ${hexRgba(glow, 0.6)})"/>
+</svg>`;
+      }
       const shell = build(cfg, state, { x: 42, y: 33, h, fs: 0, iconSize: 0, tokenH: 150 }, { pinDesign: true, iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const inset = bw + 10 * k;
       const vS1 = clamp(value ?? 0.5, 0, 1);
