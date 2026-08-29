@@ -4193,7 +4193,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         dmgnumber: "Damage number — the tilted digits stay in the art by the warped-stamp contract (rotation IS the art; per-copy magnitudes ride posed skins). Scale freely. Display piece.",
         equipslot: "Equipment slot — the ghost silhouette showing what belongs is a LIVE Image child; the app's icon picker steers it and the Inspector swaps it. Display piece.",
         skillnode: "Skill-tree node — a REAL button (Sprite Swap states); the skill glyph is a LIVE Image child. Learned/locked poses ride per-copy posed skins.",
-        ammo: "Ammo counter — both counts are LIVE seats; the round pictos are anatomy. Display piece.",
+        ammo: "Ammo counter — LIVE: the three bars are ONE thirds meter (KitCellMeter — drive Value or SetValue; bars go dark left→right as ammo depletes) and both counts are LIVE seats. Display piece.",
         killfeed: "Kill-feed row — killer and victim are LIVE seats and the weapon glyph a LIVE Image child (swap the sprite in the Inspector). Stack rows in a vertical layout. Display piece.",
         magazine: "Magazine — round pips bake at the staged count and the readout is a LIVE seat (per-copy counts ride posed skins). Display piece.",
         equipselector: "Equipment selector — every carousel item's glyph is a LIVE Image child and the armed name a LIVE seat; the carousel pose bakes at the staged position. Display piece.",
@@ -4209,7 +4209,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         hotbar: "Hotbar — every stocked slot glyph is a LIVE Image child and the indices/counts are LIVE seats; the selection ring bakes on the staged cell (per-copy selections ride posed skins). Display piece.",
         lives: "Lives — candy-heart value pips; the count bakes at the staged value and per-copy counts ride posed skins. Display piece.",
         heartmeter: "Heart meter — every pip is a LIVE Image child answering the app's icon picker (swap any sprite in the Inspector); timer text and the add cap's mark are LIVE seats. Display piece.",
-        energymeter: "Energy meter — the Energy badge is a LIVE Image child (the app's icon picker steers it); the count is a LIVE seat and the cells bake at the staged charge. Display piece.",
+        energymeter: "Energy meter — LIVE: the ten cells snap whole (KitCellMeter — drive Value or SetValue), the Energy badge is a LIVE Image child (the app's icon picker steers it) and the count is a LIVE seat. Display piece.",
         starrating: "Star rating — the three-star result; stars bake at the staged score (per-copy scores ride posed skins). Display piece.",
         pathconnector: "Saga path connector — the dotted trail between level nodes; progress bakes at the staged value. Display piece.",
         combo: "Combo burst — CLICK IT IN PLAY: the ComboPop rig replays the app's exact celebration (squash, overshoot, settle) and ClaimBurst throws the sparks; call ComboPop.Pop() on every multiplier tick. The tilted numeral is art by the warped-stamp contract (per-copy words ride posed skins).",
@@ -4367,6 +4367,25 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
            (crop=false — the Radial360 wedge and the hand rotation pivot
            on the canvas center). */
         const buffRig = uid === "buffframe";
+        /* ── the CELL-METER ATOMS (round 44, dossier RIG-2 — owner items
+           1 + 13 under the kit-wide mercury ruling): base bakes EMPTY
+           (v = 0), the lit strip bakes FULL (v = 1), both stripped like
+           the base always was and sharing ONE crop group so the
+           full-stretch overlay is pixel-true (the segbar's one-canvas
+           rule). KitCellMeter snaps the Filled cut into the gap after
+           the last lit cell (zone = the data-track stamp riding both
+           rows); the seats keep the STAGED words (textSeatsOf renders
+           its own truth at the staged value). */
+        const cellRig = uid === "energymeter" || uid === "ammo";
+        let litSvgU: string | null = null;
+        if (cellRig) {
+          try {
+            const zeroSvg = stripLoopsU(shell(uid, uOpts, undefined, 0));
+            const oneSvg = stripLoopsU(shell(uid, uOpts, undefined, 1));
+            baseSvgU = iconSeatsU ? stripIconInk(stripWordInk(zeroSvg).svg).svg : stripWordInk(zeroSvg).svg;
+            litSvgU = iconSeatsU ? stripIconInk(stripWordInk(oneSvg).svg).svg : stripWordInk(oneSvg).svg;
+          } catch { litSvgU = null; }
+        }
         await addPng(`${uid}/base.png`, baseSvgU, {
           component: uid, part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
           usage: UNIVERSAL_USAGE[uid] ?? (GLYPH_BUTTONS.has(uid)
@@ -4377,7 +4396,16 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           ...(uWord !== undefined ? { labelText: uWord } : {}),
           ...(ringRig || buffRig ? {} : seatsU),
           ...(iconSeatsU ? { iconSeats: iconSeatsU } : {}),
-        }, true, interactive || buffRig ? uid : undefined);
+        }, true, interactive || buffRig || cellRig ? uid : undefined);
+        if (cellRig && litSvgU) {
+          await addPng(`${uid}/lit.png`, litSvgU, {
+            component: uid, part: "lit", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+            usage: uid === "ammo"
+              ? "The thirds meter, ALL THREE lit — the prefab's Lit layer scissors from the RIGHT per remaining third (KitCellMeter: drive Value or SetValue; bars go dark left→right as ammo depletes)."
+              : "The energy cells, ALL TEN lit — the prefab's Lit layer scissors per whole cell (KitCellMeter: drive Value or SetValue; the cut snaps into the gaps).",
+            ringV: Math.max(0, Math.min(1, uVal ?? (uid === "ammo" ? 1 : 0.8))),
+          }, true, uid);
+        }
         if (buffRig) {
           const stripBuffSweep = (sv: string): string => {
             try {
@@ -5771,6 +5799,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Runtime/PatternBreakRingFill.cs", data: RING_FILL_RUNTIME });
   files.push({ path: "Runtime/PatternBreakBuffSweep.cs", data: BUFF_SWEEP_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitBarFill.cs", data: KIT_BAR_FILL_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakCellMeter.cs", data: CELL_METER_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitTrace.cs", data: KIT_TRACE_RUNTIME });
   files.push({ path: "Runtime/PatternBreakSafeArea.cs", data: SAFE_AREA_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitPiece.cs", data: KIT_PIECE_RUNTIME });
@@ -5846,6 +5875,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     "Runtime/PatternBreakRingFill.cs",
     "Runtime/PatternBreakBuffSweep.cs",
     "Runtime/PatternBreakKitBarFill.cs",
+    "Runtime/PatternBreakCellMeter.cs",
     "Runtime/PatternBreakKitTrace.cs",
     "Runtime/PatternBreakSafeArea.cs",
     "Runtime/PatternBreakKitPiece.cs",
@@ -6394,6 +6424,48 @@ namespace PatternBreak {
       if (fill == null) return;
       if (!Mathf.Approximately(fill.fillAmount, wroteFill)) { value = Mathf.Clamp01(fill.fillAmount); Apply(); }
     }
+  }
+}
+`;
+
+/* THE CELL-METER SNAPPER (round 44, dossier RIG-2): the app lights WHOLE
+   cells; a raw fillAmount write chops mid-pill. The rig snaps every cut
+   into the gap after the last lit cell (the segbar scissor made a
+   runtime), mirrored for meters that go dark left→right (ammo). */
+const CELL_METER_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+
+namespace PatternBreak {
+  [AddComponentMenu("UI Kit Maker/Kit Cell Meter")]
+  [ExecuteAlways]
+  public class KitCellMeter : MonoBehaviour {
+    [Tooltip("Charge 0..1 — snapped to whole cells (the app's own rule). Drive this or call SetValue; a raw fillAmount write on the Lit image re-snaps too.")]
+    [Range(0f, 1f)] public float value = 0.62f;
+    [Tooltip("The lit strip (Filled/Horizontal, generated). The cut lands in the gap after the last lit cell.")]
+    public Image lit;
+    public int cells = 5;
+    [Tooltip("The cell run inside the lit sprite, as fractions of its width (wired on import from the manifest zone).")]
+    public float zone0 = 0f;
+    public float zone1 = 1f;
+    [Tooltip("Mirrored meter (ammo): cells go dark left to right as the value drops — the lit cells keep the right.")]
+    public bool fromRight;
+    float wrote = float.NaN;
+    public void SetValue(float v) { value = Mathf.Clamp01(v); Apply(); }
+    public void Apply() {
+      if (lit == null) return;
+      int n = Mathf.Max(1, cells);
+      int L = Mathf.RoundToInt(Mathf.Clamp01(value) * n);
+      float f;
+      if (L <= 0) f = 0f;
+      else if (L >= n) f = 1f;
+      else if (!fromRight) f = Mathf.Clamp01(zone0 + (zone1 - zone0) * (L / (float)n));
+      else f = Mathf.Clamp01(1f - (zone0 + (zone1 - zone0) * ((n - L) / (float)n)));
+      lit.fillAmount = f;
+      wrote = f;
+    }
+    void OnEnable() { Apply(); }
+    // a raw fillAmount write reads as the VALUE and re-snaps to whole cells
+    void LateUpdate() { if (lit != null && !Mathf.Approximately(lit.fillAmount, wrote)) { value = Mathf.Clamp01(lit.fillAmount); Apply(); } }
   }
 }
 `;
@@ -13405,6 +13477,9 @@ namespace PatternBreak {
             // its value is time REMAINING, the app's own dial semantics
             var bswS = inst.GetComponent<KitBuffSweep>();
             if (bswS != null && it.value > 0f) bswS.SetValue(Mathf.Clamp01(it.value));
+            // cell meters snap the board's staged charge to whole cells
+            var kcmS = inst.GetComponent<KitCellMeter>();
+            if (kcmS != null && it.value > 0f) kcmS.SetValue(Mathf.Clamp01(it.value));
             var gdS = inst.GetComponent<GaugeDial>();
             if (gdS != null && it.value > 0f) { gdS.value = Mathf.Clamp01(it.value); gdS.Apply(); }
             var ktS = inst.GetComponent<KitTimer>();
@@ -13440,7 +13515,13 @@ namespace PatternBreak {
             if (it.component == "segbar" && it.value > 0f) {
               var sgT = inst.transform.Find("Lit");
               var sgI = sgT != null ? sgT.GetComponent<Image>() : null;
-              if (sgI != null && sgI.type == Image.Type.Filled) sgI.fillAmount = SegbarScissor(m, sgI.sprite, it.value);
+              if (sgI != null && sgI.type == Image.Type.Filled) {
+                // rig-first (round 44): the snapper strikes the pose; the
+                // raw scissor remains for pre-rig kept prefabs
+                var kcmSg = inst.GetComponent<KitCellMeter>();
+                if (kcmSg != null) kcmSg.SetValue(Mathf.Clamp01(it.value));
+                else sgI.fillAmount = SegbarScissor(m, sgI.sprite, it.value);
+              }
             }
             /* the settings rigs strike the board's pose (the exporter
                always sends these two an explicit value) */
@@ -15506,6 +15587,40 @@ namespace PatternBreak {
       /* the UN-BURN's live picture children (iconSeats rows) — every icon
          and image the app drew, rebuilt swappable at the exact app seat */
       WireIconChildren(go, root, m, baseAsset.component);
+      /* ── the CELL METERS go LIVE (round 44, dossier RIG-2 — owner items
+         1 and 13 under the kit-wide mercury ruling): base bakes EMPTY,
+         the lit strip overlays full-stretch (one crop group — pixel-
+         true), and KitCellMeter snaps the Filled cut into the gap after
+         the last lit cell from the manifest zone. The ammo meter
+         mirrors: bars go dark left→right as ammo depletes (the lit
+         cells keep the right). Old zips without the lit atom keep the
+         static bake. */
+      if (baseAsset.component == "energymeter" || baseAsset.component == "ammo") {
+        var famCM = baseAsset.component;
+        var litCM = S(root + "/assets/" + famCM + "/" + famCM + "-lit.png");
+        if (litCM != null) {
+          var lgoCM = new GameObject("Lit", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+          lgoCM.transform.SetParent(go.transform, false);
+          StretchFull((RectTransform)lgoCM.transform);
+          var liCM = lgoCM.GetComponent<Image>();
+          liCM.sprite = litCM; liCM.raycastTarget = false; liCM.preserveAspect = false;
+          liCM.type = Image.Type.Filled;
+          liCM.fillMethod = Image.FillMethod.Horizontal;
+          bool mirCM = famCM == "ammo";
+          liCM.fillOrigin = mirCM ? (int)Image.OriginHorizontal.Right : (int)Image.OriginHorizontal.Left;
+          var kcm = go.AddComponent<KitCellMeter>();
+          kcm.lit = liCM;
+          kcm.cells = famCM == "ammo" ? 3 : 10;
+          kcm.fromRight = mirCM;
+          PBAsset litRowCM = null;
+          foreach (var aCM in m.assets) if (aCM != null && aCM.component == famCM && aCM.part == "lit") { litRowCM = aCM; break; }
+          if (litRowCM != null && litRowCM.track != null && litRowCM.track.w > 2f && litCM.rect.width > 2f) {
+            kcm.zone0 = Mathf.Clamp01(litRowCM.track.x / litCM.rect.width);
+            kcm.zone1 = Mathf.Clamp01((litRowCM.track.x + litRowCM.track.w) / litCM.rect.width);
+          }
+          kcm.SetValue(litRowCM != null && litRowCM.ringV > 0f ? Mathf.Clamp01(litRowCM.ringV) : (famCM == "ammo" ? 1f : 0.8f));
+        }
+      }
       /* ── the BUFF FRAME's countdown FUNCTIONS (round 44, owner: "the
          countdown clock cannot be burned into the button shape"): with
          the sweep atoms aboard, the root wears the sweep-less PLATE
@@ -16049,6 +16164,9 @@ namespace PatternBreak {
       if (m == null || m.assets == null) return null;
       foreach (var aT in m.assets)
         if (aT != null && aT.component == fam && aT.part == "track" && aT.track != null && aT.track.w > 2f) return aT.track;
+      // cell meters stamp their zone on base/lit rows (no track part ships)
+      foreach (var aT in m.assets)
+        if (aT != null && aT.component == fam && aT.track != null && aT.track.w > 2f) return aT.track;
       return null;
     }
     /* the VS health bar, WIRED (round 21) — two Filled mercuries drain
@@ -16196,6 +16314,16 @@ namespace PatternBreak {
         var lrt = lgo.GetComponent<RectTransform>();
         // base and lit bake on ONE canvas (no crop) — full-stretch overlay is pixel-true
         lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one; lrt.offsetMin = Vector2.zero; lrt.offsetMax = Vector2.zero;
+        /* round 44 (dossier RIG-2, item 33): the SNAPPER ships — a dev
+           driving the value live gets whole cells, never a mid-pill chop */
+        var kcmSeg = go.AddComponent<KitCellMeter>();
+        kcmSeg.lit = li; kcmSeg.cells = 5;
+        var zoneSeg = BarZone(m, "segbar");
+        if (zoneSeg != null && lit.rect.width > 2f) {
+          kcmSeg.zone0 = Mathf.Clamp01(zoneSeg.x / lit.rect.width);
+          kcmSeg.zone1 = Mathf.Clamp01((zoneSeg.x + zoneSeg.w) / lit.rect.width);
+        }
+        kcmSeg.SetValue(0.62f);
       }
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/SegmentMeter.prefab");
       UnityEngine.Object.DestroyImmediate(go);
@@ -19862,6 +19990,74 @@ namespace PatternBreak {
               barRigged++;
             } finally { PrefabUtility.UnloadPrefabContents(contentsSB); }
             continue;
+          }
+        }
+        /* the CELL-METER convergences (round 44, dossier RIG-2):
+           - a kept meter with a Lit strip but NO snapper gains
+             KitCellMeter, ours-only (Lit still Filled + wearing OUR
+             sprite) — the StateFx re-wire class; the current fillAmount
+             survives as the snapped value;
+           - a kept energymeter/ammo whose NEW empty base just replaced
+             the old burned bake grafts its Lit layer ON THE ARRIVAL
+             IMPORT only (the segbar Lit-graft era rule: gated on the
+             previous receipt not knowing the lit atom) — after that a
+             deleted Lit stays deleted. */
+        {
+          string famCMk = spritePath.EndsWith("/segbar-base.png") ? "segbar"
+            : spritePath.EndsWith("/energymeter-base.png") ? "energymeter"
+            : spritePath.EndsWith("/ammo-base.png") ? "ammo" : null;
+          if (famCMk != null) {
+            int cellsCMk = famCMk == "ammo" ? 3 : famCMk == "energymeter" ? 10 : 5;
+            bool mirCMk = famCMk == "ammo";
+            var litSpK = S(root + "/assets/" + famCMk + "/" + famCMk + "-lit.png");
+            var litTk = asset.transform.Find("Lit");
+            var litIk = litTk != null ? litTk.GetComponent<Image>() : null;
+            bool litOurs = litIk != null && litIk.type == Image.Type.Filled && litIk.sprite != null
+              && AssetDatabase.GetAssetPath(litIk.sprite).Replace("\\\\", "/").StartsWith(root + "/assets/");
+            bool wantSnap = litOurs && asset.GetComponent<KitCellMeter>() == null;
+            bool cmEra = true;
+            if (prevLock != null && prevLock.files != null)
+              foreach (var fPrev2 in prevLock.files) if (fPrev2 != null && fPrev2.file == "assets/" + famCMk + "/" + famCMk + "-lit.png") { cmEra = false; break; }
+            bool wantGraft = famCMk != "segbar" && litTk == null && litSpK != null && cmEra;
+            if (wantSnap || wantGraft) {
+              var contentsCM = PrefabUtility.LoadPrefabContents(path);
+              try {
+                var litT2 = contentsCM.transform.Find("Lit");
+                if (litT2 == null && wantGraft) {
+                  var lgo2 = new GameObject("Lit", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+                  lgo2.transform.SetParent(contentsCM.transform, false);
+                  var li2 = lgo2.GetComponent<Image>();
+                  li2.sprite = litSpK; li2.raycastTarget = false;
+                  li2.type = Image.Type.Filled; li2.preserveAspect = false;
+                  li2.fillMethod = Image.FillMethod.Horizontal;
+                  li2.fillOrigin = mirCMk ? (int)Image.OriginHorizontal.Right : (int)Image.OriginHorizontal.Left;
+                  StretchFull((RectTransform)lgo2.transform);
+                  litT2 = lgo2.transform;
+                }
+                var litI2 = litT2 != null ? litT2.GetComponent<Image>() : null;
+                if (litI2 != null && contentsCM.GetComponent<KitCellMeter>() == null) {
+                  var kcmK = contentsCM.AddComponent<KitCellMeter>();
+                  kcmK.lit = litI2; kcmK.cells = cellsCMk; kcmK.fromRight = mirCMk;
+                  var zoneK = BarZone(m, famCMk);
+                  if (zoneK != null && litI2.sprite != null && litI2.sprite.rect.width > 2f) {
+                    kcmK.zone0 = Mathf.Clamp01(zoneK.x / litI2.sprite.rect.width);
+                    kcmK.zone1 = Mathf.Clamp01((zoneK.x + zoneK.w) / litI2.sprite.rect.width);
+                  }
+                  /* staged value: a fresh graft takes the manifest's staged
+                     charge; an existing Lit keeps the dev's own pose
+                     (fillAmount read back through the snap) */
+                  float vK = famCMk == "ammo" ? 1f : famCMk == "energymeter" ? 0.8f : 0.62f;
+                  PBAsset litRowK = null;
+                  foreach (var aK2 in m.assets) if (aK2 != null && aK2.component == famCMk && aK2.part == "lit" && aK2.ringV > 0f) { litRowK = aK2; break; }
+                  if (litRowK != null) vK = Mathf.Clamp01(litRowK.ringV);
+                  if (!wantGraft && litI2.fillAmount > 0f) vK = Mathf.Clamp01(litI2.fillAmount);
+                  kcmK.SetValue(vK);
+                  PrefabUtility.SaveAsPrefabAsset(contentsCM, path);
+                  barRigged++;
+                }
+              } finally { PrefabUtility.UnloadPrefabContents(contentsCM); }
+              continue;
+            }
           }
         }
         /* the dropdown's DROP-DOWN era: a Dropdown.prefab from the picture

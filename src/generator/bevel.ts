@@ -5314,7 +5314,12 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
           const isFirst = i === 0, isLast = i === n - 1;
           const xC = isFirst ? 39 + inset - 1 : cx0;
           const wC = cellW + (isFirst ? cx0 - (39 + inset - 1) : 0) + (isLast ? gapPad + 1 : 0);
-          const body = `<rect x="${xC.toFixed(1)}" y="${by.toFixed(1)}" width="${wC.toFixed(1)}" height="${bh.toFixed(1)}" rx="${Math.min((2 + cfg.bevel.softness * 0.16) * k, cellW * 0.3, bh / 2).toFixed(1)}" fill="${on ? `url(#${gid})` : "rgba(255,255,255,0.07)"}"${on ? ` opacity="${dim}"` : ""}/>`;
+          /* round 44 (owner item 33: "mercury gets a rounded end on the
+             right", the kit-wide mercury ruling): every cell wears the
+             mercury's own rounding — the snapped run's visible end is a
+             cell edge, so the end reads like the XP bar's bead at any
+             count. End cells still marry the caps through the well clip. */
+          const body = `<rect x="${xC.toFixed(1)}" y="${by.toFixed(1)}" width="${wC.toFixed(1)}" height="${bh.toFixed(1)}" rx="${Math.min(cellW / 2, bh / 2).toFixed(1)}" fill="${on ? `url(#${gid})` : "rgba(255,255,255,0.07)"}"${on ? ` opacity="${dim}"` : ""}/>`;
           if (on) litCells += body + `<rect x="${xC.toFixed(1)}" y="${(by + bh * 0.08).toFixed(1)}" width="${wC.toFixed(1)}" height="${(bh * 0.3).toFixed(1)}" rx="${(bh * 0.15).toFixed(1)}" fill="#FFFFFF" opacity="0.28"/>`;
           else offCells += body;
         }
@@ -8177,10 +8182,14 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       for (let i = 0; i < nCe; i++) {
         const cx9 = cellsX + i * (cellW9 + 5 * k);
         const on = i < litE;
-        inner += `<rect x="${cx9.toFixed(1)}" y="${(cy - 11.5 * k).toFixed(1)}" width="${cellW9.toFixed(1)}" height="${(23 * k).toFixed(1)}" rx="${(4.5 * k).toFixed(1)}" fill="${on ? `url(#${gidE})` : "rgba(255,255,255,0.1)"}" stroke="${on ? "#B45309" : "rgba(255,255,255,0.12)"}" stroke-width="1"${on && state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(2.5 * k).toFixed(1)}px rgba(250,204,21,0.55))"` : ""}/>`;
+        /* round 44 (kit-wide mercury ruling): the cells wear the mercury's
+           own rounding, so the charge's visible end reads like the XP
+           bar's bead at any count */
+        inner += `<rect x="${cx9.toFixed(1)}" y="${(cy - 11.5 * k).toFixed(1)}" width="${cellW9.toFixed(1)}" height="${(23 * k).toFixed(1)}" rx="${Math.min(cellW9 / 2, 11.5 * k).toFixed(1)}" fill="${on ? `url(#${gidE})` : "rgba(255,255,255,0.1)"}" stroke="${on ? "#B45309" : "rgba(255,255,255,0.12)"}" stroke-width="1"${on && state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(2.5 * k).toFixed(1)}px rgba(250,204,21,0.55))"` : ""}/>`;
       }
       inner += infoText(opts.label ?? `${Math.round(vE * 30)}/30`, 39 + w - inset - 16 * k, cy + 1, 19 * k, "end");
-      return inject(shell.replace("<svg ", '<svg data-energymeter="1" '), inner);
+      // the cell run's zone stamp — the engine's cell scissor cuts by it
+      return stampTrack(inject(shell.replace("<svg ", '<svg data-energymeter="1" '), inner), cellsX, cellsW);
     }
     case "buildqueue": {
       /* Strategy · build queue card — what's being made, how long, how many.
@@ -9465,12 +9474,22 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         48 * k + curW + (showRes ? gap6 + resW : 0) + 24 * k);
       const track = build(cfg, state, { x: 39, y: 30, h: h5, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: w5, shapeOverride: sov });
       const cy5 = 30 + h5 / 2;
-      const bullets = [0, 1, 2].map((i) =>
-        `<rect x="${(39 + 16 * k + i * 9 * k).toFixed(1)}" y="${(cy5 - 14 * k + i * 3 * k).toFixed(1)}" width="${5 * k}" height="${(28 - i * 6) * k}" rx="${2.4 * k}" fill="${hexMix(glow, "#FFFFFF", 0.25)}" stroke="${darken(bevel, 0.45)}" stroke-width="1"/>`).join("");
+      /* round 44 (owner item 1): the three "cellular bars" are ONE thirds
+         meter — value = magazine fraction, and each bar goes dark
+         LEFT→RIGHT as ammo depletes (the lit cells keep the right).
+         No value = full magazine, byte-identical to the old decorative
+         pictos, so untouched boards stand still. */
+      const vA5 = clamp(value ?? 1, 0, 1);
+      const litA5 = Math.round(vA5 * 3);
+      const bullets = [0, 1, 2].map((i) => {
+        const on = i >= 3 - litA5;
+        return `<rect x="${(39 + 16 * k + i * 9 * k).toFixed(1)}" y="${(cy5 - 14 * k + i * 3 * k).toFixed(1)}" width="${5 * k}" height="${(28 - i * 6) * k}" rx="${2.4 * k}" fill="${on ? hexMix(glow, "#FFFFFF", 0.25) : "rgba(255,255,255,0.12)"}" stroke="${on ? darken(bevel, 0.45) : "rgba(255,255,255,0.14)"}" stroke-width="1"/>`;
+      }).join("");
       const txt = contentText(cur, 39 + 48 * k, cy5 + 1, fsC, { keepCase: true }) +
         // small-white rule: the reserve count wears the understroke
         (showRes ? infoText(`/ ${res}`, 39 + 48 * k + curW + gap6, cy5 + 4 + typeOyK * k, fsR, "start", 700) : "");
-      return inject(track, bullets + txt);
+      // the thirds run's zone stamp — the engine's cell scissor cuts by it
+      return stampTrack(inject(track, bullets + txt), 39 + 16 * k, 23 * k);
     }
     case "lives": {
       /* lives — candy hearts, no container (spatial HUD). value = full/max */

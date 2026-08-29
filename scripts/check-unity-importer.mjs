@@ -2751,6 +2751,35 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/string famBarK = spritePath\.EndsWith\("\/progress-track\.9\.png"\) \? "progress"/.test(cs)
       || !/capRigged\+\+;/.test(cs))
     errors.push("the kept-project rounded-head retrofit is gone — field bars keep the flat crop forever (round 44)");
+  // RIG-2 — the CELL-METER road (items 1, 13, 33 under the mercury ruling)
+  if (!/rx="\$\{Math\.min\(cellW \/ 2, bh \/ 2\)\.toFixed\(1\)\}"/.test(bevelSrc))
+    errors.push("the segbar cells lost the mercury rounding (round 44, item 33)");
+  if (!/rx="\$\{Math\.min\(cellW9 \/ 2, 11\.5 \* k\)\.toFixed\(1\)\}"/.test(bevelSrc))
+    errors.push("the energymeter cells lost the mercury rounding (round 44)");
+  if (!/const litA5 = Math\.round\(vA5 \* 3\);/.test(bevelSrc) || !/const on = i >= 3 - litA5;/.test(bevelSrc))
+    errors.push("the ammo thirds meter left bevel — bars must go dark LEFT→RIGHT as ammo depletes (round 44, item 1)");
+  if (!/return stampTrack\(inject\(track, bullets \+ txt\), 39 \+ 16 \* k, 23 \* k\);/.test(bevelSrc)
+      || !/return stampTrack\(inject\(shell\.replace\("<svg ", '<svg data-energymeter="1" '\), inner\), cellsX, cellsW\);/.test(bevelSrc))
+    errors.push("the cell meters' zone stamps left bevel — the engine scissor cannot land in the gaps");
+  if (!/const cellRig = uid === "energymeter" \|\| uid === "ammo";/.test(src)
+      || !/await addPng\(`\$\{uid\}\/lit\.png`, litSvgU, \{/.test(src))
+    errors.push("the cell-rig emission (empty base + full lit, one crop group) is gone");
+  if (!/public class KitCellMeter : MonoBehaviour \{/.test(src)
+      || !/else if \(!fromRight\) f = Mathf\.Clamp01\(zone0 \+ \(zone1 - zone0\) \* \(L \/ \(float\)n\)\);/.test(src)
+      || !/else f = Mathf\.Clamp01\(1f - \(zone0 \+ \(zone1 - zone0\) \* \(\(n - L\) \/ \(float\)n\)\)\);/.test(src))
+    errors.push("KitCellMeter lost its snap semantics (gap-landing cut, mirrored for ammo)");
+  if (!/files\.push\(\{ path: "Runtime\/PatternBreakCellMeter\.cs", data: CELL_METER_RUNTIME \}\);/.test(src)
+      || !/"Runtime\/PatternBreakCellMeter\.cs",/.test(src))
+    errors.push("PatternBreakCellMeter.cs must ride BOTH files.push and sharedScripts (the IdleShine CS0246 lesson)");
+  if (!/if \(baseAsset\.component == "energymeter" \|\| baseAsset\.component == "ammo"\) \{/.test(cs)
+      || !/var kcmSeg = go\.AddComponent<KitCellMeter>\(\);/.test(cs)
+      || !/var kcmS = inst\.GetComponent<KitCellMeter>\(\);/.test(cs)
+      || !/var kcmSg = inst\.GetComponent<KitCellMeter>\(\);/.test(cs))
+    errors.push("the cell-meter wiring left the importer (FamilyPrefab block / segbar snapper / board strikes)");
+  if (!/\/\/ cell meters stamp their zone on base\/lit rows \(no track part ships\)/.test(cs))
+    errors.push("BarZone lost its base-row zone fallback — cell zones never reach the runtime");
+  if (!/string famCMk = spritePath\.EndsWith\("\/segbar-base\.png"\) \? "segbar"/.test(cs))
+    errors.push("the kept-project cell-meter convergence is gone — field meters keep raw cuts (or empty bases) forever");
 }
 
 if (errors.length) {
