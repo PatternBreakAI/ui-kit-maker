@@ -8744,7 +8744,19 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       for (let i = 0; i < n; i++) {
         const cx0 = x0h + i * (cell + gap);
         const on = i === selN;
-        cells += `<path d="${roundRect(cx0, yh, cell, cell, cellR)}" fill="${wellFill}" opacity="${on ? 0.98 : 0.85}"${on ? ` stroke="${glow}" stroke-width="${(3 * k).toFixed(1)}" style="filter: drop-shadow(0 0 ${6 * k}px ${glow})"` : ` stroke="${hexRgba(darken(bevel, 0.4), 0.6)}" stroke-width="1.2"`} data-cell="${i}"/>`;
+        /* EVERY cell wears the same resting well — the active dress (the
+           brighter fill, the glow ring, the shadow) rides the marked
+           "Selected ring" group below, the bottomnav grammar verbatim
+           (round 44, item 18): the engine export strips it into a live,
+           movable child — slide it one cell pitch or disable it. The
+           0.8667 overlay bridges the resting 0.85 fill to the active
+           0.98 exactly — source-over is associative:
+           1−(1−0.85)(1−0.8667) = 0.98 — so the app look holds and
+           recomposition stays exact. The dark keyline now under the ring
+           sits fully inside the opaque 3k glow stroke (both center the
+           same path), so no seam can show. */
+        cells += `<path d="${roundRect(cx0, yh, cell, cell, cellR)}" fill="${wellFill}" opacity="0.85" stroke="${hexRgba(darken(bevel, 0.4), 0.6)}" stroke-width="1.2" data-cell="${i}"/>`;
+        if (on) cells += `<g data-part="icon" data-icon="ring" data-icon-nick="Selected ring"><path d="${roundRect(cx0, yh, cell, cell, cellR)}" fill="${wellFill}" opacity="0.8667" stroke="${glow}" stroke-width="${(3 * k).toFixed(1)}" style="filter: drop-shadow(0 0 ${6 * k}px ${glow})"/></g>`;
         const ic = icons[i];
         // each stocked slot's glyph is marked swappable ink (the law)
         if (i < icons.length && ic) cells += `<g data-part="icon" data-icon="slot${i + 1}">${themedIcon(ic, cx0 + cell * 0.22, yh + cell * 0.22, cell * 0.56, hexMix(glow, "#FFFFFF", 0.3), 2)}</g>`;

@@ -4072,7 +4072,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         hitmarker: "Hit marker — shell-free spatial art; flash it from your own hit events. Display piece.",
         dmgarc: "Damage direction arc — shell-free spatial art; rotate the piece to the threat bearing. Display piece.",
         buffframe: "Buff frame — the effect glyph is a LIVE Image child and the countdown FUNCTIONS: KitBuffSweep drives the spent-share sweep and its glowing hand from time remaining (Value 0..1, the app's own dial); the timer readout is a LIVE seat. Display piece.",
-        hotbar: "Hotbar — every stocked slot glyph is a LIVE Image child and the indices/counts are LIVE seats; the selection ring bakes on the staged cell (per-copy selections ride posed skins). Display piece.",
+        hotbar: "Hotbar — every stocked slot glyph is a LIVE Image child and the indices/counts are LIVE seats. The Selected ring child IS the selection: move it a cell over (one cell pitch) or disable it. Display piece.",
         lives: "Lives — candy-heart value pips; the count bakes at the staged value and per-copy counts ride posed skins. Display piece.",
         heartmeter: "Heart meter — every pip is a LIVE Image child answering the app's icon picker (swap any sprite in the Inspector); the timer is a LIVE seat and the add cap ITSELF a REAL small-button child with its + mark riding it (move, restyle or delete cap + mark as one). Display piece with one pressable corner.",
         energymeter: "Energy meter — LIVE: the ten cells snap whole (KitCellMeter — drive Value or SetValue), the Energy badge is a LIVE Image child (the app's icon picker steers it) and the count is a LIVE seat. Display piece.",
@@ -9066,7 +9066,8 @@ the portrait with the level number riding the ring; the **Resource**
 chip's **Medallion plate** and **Icon glyph** swap independently; the
 **Bottomnav**'s **Selected ring** IS the selection (slide it one cell
 pitch, or disable it) and its **Badge plate** carries its live count
-with it. Counts that ride a plate — the **BoosterCard**'s qty pill, the
+with it; the **Hotbar** carries the same **Selected ring** — slide it a
+cell over or disable it, the strip underneath rests uniform. Counts that ride a plate — the **BoosterCard**'s qty pill, the
 badge's number — move, restyle and delete WITH their plate: one group,
 on the family prefabs and on every posed board copy. Any sprite from
 **icons/** fits the same seats.

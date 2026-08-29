@@ -2823,6 +2823,19 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the dialoguebox usage still claims the continue arrow is anatomy — the owner overturned that (round 44 ruling)");
 }
 
+/* ── ROUND 44 · S10 (RIG-6 pilot — item 18, the hotbar's Selected ring):
+   every cell rests uniform (0.85 + keyline) and the WHOLE active dress
+   rides the marked ring group; the 0.8667 bridge is load-bearing —
+   1−(1−0.85)(1−0.8667)=0.98, so recomposition is exact. ── */
+{
+  if (!/opacity="0\.85" stroke="\$\{hexRgba\(darken\(bevel, 0\.4\), 0\.6\)\}" stroke-width="1\.2" data-cell="\$\{i\}"\/>`;\s*\n\s*if \(on\) cells \+= `<g data-part="icon" data-icon="ring" data-icon-nick="Selected ring"><path d="\$\{roundRect\(cx0, yh, cell, cell, cellR\)\}" fill="\$\{wellFill\}" opacity="0\.8667"/.test(bevelSrc))
+    errors.push("the hotbar's Selected-ring group (uniform 0.85 wells + the EXACT 0.8667 bridge) left bevel — the selection burns into the strip again, or the bridge drifts and recomposition breaks (round 44, item 18)");
+  if ((src.match(/The Selected ring child IS the selection/g) ?? []).length < 2)
+    errors.push("the hotbar usage lost the bottomnav Selected-ring wording (round 44, item 18 — the dossier's usage-rewrite gate)");
+  if (!/the \*\*Hotbar\*\* carries the same \*\*Selected ring\*\*/.test(src))
+    errors.push("the QuickStart ring paragraph no longer names the Hotbar (round 44, item 18)");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);
