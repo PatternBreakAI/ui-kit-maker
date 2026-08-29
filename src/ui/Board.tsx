@@ -7,7 +7,7 @@ import { importBgAsset, bgAssetStatusLine, onAssetActivity, bgAssetDisplayUrl } 
 import { BACKDROP_LIBRARY, BACKDROP_CATEGORIES, backdropThumb, backdropUrl } from "@/generator/backdropLibrary";
 import type { BoardDef, BoardItem } from "@/generator/store";
 import { renderBevel, renderKit, VALUE_DRIVEN } from "@/generator/bevel";
-import { KIT_COMPONENTS, applyKitDesign, applyKitTextFill, baseOf, fontByName, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
+import { KIT_COMPONENTS, applyKitDesign, applyKitTextFill, baseOf, fontByName, isGlyphFamily, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
 import { LIVE_GLYPHS } from "@/generator/glyphLibrary";
 import { BIG_GLYPHS, BIG_GLYPH_BASE, bigGlyphById, bigGlyphThumb, bigGlyphMid, bigGlyphUrl, bigGlyphFilter, type BigGlyphDef, type BigGlyphFx } from "@/generator/bigGlyphs";
 import type { GenConfig, KitComponentId } from "@/generator/model";
@@ -991,11 +991,12 @@ export function BoardView({ playing }: { playing: boolean }) {
         const [bid, ov] = entry.split("~");
         const kid = bid as KitComponentId;
         const nm = ov ? `${name(kid)} · ${ov}` : name(kid);
-        /* glyph thumbs wear their per-piece fork (the family is born with
-           a flat factory design) — a walled tray thumb would promise a
-           look that never lands on the board. Other stock thumbs stay the
-           master-look catalog they've always been. */
-        const gtc = kid.startsWith("glyph") ? applyKitDesign(tc, kitDesigns[kid]) : tc;
+        /* glyph-FAMILY thumbs wear their per-piece fork (the family is
+           born with a flat factory design — icon props included, round
+           45 · B5) — a walled tray thumb would promise a look that never
+           lands on the board. Other stock thumbs stay the master-look
+           catalog they've always been. */
+        const gtc = isGlyphFamily(kid) ? applyKitDesign(tc, kitDesigns[kid]) : tc;
         return { id: entry, kitId: kid, ov, name: nm, hay: `${nm} ${entry} ${g.name} ${SEARCH_TERMS[kid] ?? ""}${ov ? ` ${ov} overlay` : ""}`.toLowerCase(), svg: tightenSvg(renderKit(applyKitTextFill(gtc, kitTextFill[kid]), kid, "s", "default", undefined, kitShapes[kid], { icon: resolveKitIcon(kitIcons[kid], undefined), label: kitNoText[kid] ? "" : kitLabels[kid], overlay: ov }), 20) };
       }),
     }));

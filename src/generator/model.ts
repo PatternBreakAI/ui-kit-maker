@@ -1834,6 +1834,21 @@ export const CLONE_INELIGIBLE = new Set<KitComponentId>(["datarow", "panel"]);
  *  before its switch, which stays compile-time exhaustive for the rest. */
 export type GlyphPieceId = Extract<KitComponentId, `glyph${string}`>;
 export const isGlyphPiece = (id: KitComponentId): id is GlyphPieceId => id.startsWith("glyph");
+/* ── the dressed-icon FAMILY and its ONE list (round 45 · B5) ──────────
+   The semantic ICON PROPS (gear/trophy/gift) are the same kind of thing
+   as the glyph rack — an icon silhouette the engine dresses — but they
+   were born before the glyph age's flat factory mandate and kept
+   rendering extruded/walled by default, drifting from the family (owner:
+   "semantic glyph icons need to update, per the latest glyph default
+   states, make a habit of this"). THE HABIT IS THIS LIST: the flat
+   factory seed in migrateKitDesigns and every family-aware surface read
+   it, so changing the factory look — or landing a new dressed-icon
+   piece — is one edit here and the whole family follows. Never seed a
+   family member anywhere else. */
+export const GLYPH_FAMILY_EXTRAS: KitComponentId[] = ["gearicon", "trophyicon", "gifticon"];
+/** Family membership: the glyph rack plus the icon props. */
+export const isGlyphFamily = (id: KitComponentId): boolean =>
+  isGlyphPiece(id) || GLYPH_FAMILY_EXTRAS.includes(id);
 
 /** True when a piece may be SHOWN: released pieces for everyone, staged
  *  pieces only for the admin (who tests them before release). A hard-deleted
@@ -2053,6 +2068,13 @@ export function migrateKitDesigns(cfg: GenConfig, forks: Partial<Record<KitCompo
      workspace hydrate, preset load — so old saves pick it up too. */
   for (const g of GLYPH_LIBRARY) {
     const id = `glyph${g.id}` as KitComponentId;
+    if (out[id] === undefined) { out[id] = GLYPH_FLAT_DESIGN(); changed = true; }
+  }
+  /* the icon PROPS are glyph-family citizens (round 45 · B5, owner:
+     "semantic glyph icons need to update, per the latest glyph default
+     states") — same flat factory seed, same only-if-absent rule, read
+     from the ONE family list so no member can drift again. */
+  for (const id of GLYPH_FAMILY_EXTRAS) {
     if (out[id] === undefined) { out[id] = GLYPH_FLAT_DESIGN(); changed = true; }
   }
   return { forks: out, changed };
