@@ -2,18 +2,23 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Zap, X } from "lucide-react";
 import { useCloudStatus } from "@/shell/useCloudStatus";
 import { useGen, hydrate, PRESET_DEFAULTS } from "@/generator/store";
-import { capsOf } from "@/generator/entitlements";
 import { PRESETS, defaultConfig, defaultCandy, applyPresetCandy } from "@/generator/model";
 import type { GenConfig } from "@/generator/model";
 import { retintText } from "@/generator/store";
 import { renderKit } from "@/generator/bevel";
 import { presetArt } from "./Panel";
 
-/* The signup reward, staged like a real card-game pull — and built from the
-   kit itself as proof: each unopened pack is the kit's own `pack` component
-   rendered in the style of the preset inside it. Tap a pack and it shakes,
-   strains, then explodes into the reveal. Shown once per account per
-   browser; purely celebratory — the tier change already unlocked the cards. */
+/* The signup welcome, staged like a real card-game pull — and built from
+   the kit itself as proof: each unopened pack is the kit's own `pack`
+   component rendered in the style of the preset inside it. Tap a pack and
+   it shakes, strains, then explodes into the reveal. Shown once per
+   account per browser; purely celebratory.
+
+   Free-play round (owner mandate, 2026-08-26): every starter preset is
+   open to everyone, so the packs stopped being an unlock and the pitch
+   moved to what signing up actually buys — your work saved to your
+   account, on any device. The crack-a-pack theater stays (it's the
+   product's own showmanship); it now deals two showcase looks. */
 
 const RARITY = ["RARE", "EPIC"] as const;
 /* white-hot ignition (.5s, the claim celebration's language) — the reveal
@@ -32,9 +37,9 @@ function presetCfg(id: string): GenConfig {
 
 /** Presentational core — exported so it can be previewed without auth. */
 export function LootModalView({ onClose }: { onClose: () => void }) {
-  const from = capsOf("guest").presetLimit;
-  const to = capsOf("free").presetLimit;
-  const pulls = presetArt().slice(from, to);
+  // two showcase looks to crack open — celebration, not an unlock; every
+  // starter is already free for every tier
+  const pulls = presetArt().slice(-2);
   const packArts = useMemo(
     // label:"" drops the pack face's "12 CARDS" caption — the reward mock
     // wants clean faces; the rarity plate below carries the words
@@ -60,7 +65,7 @@ export function LootModalView({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="lootback" role="dialog" aria-modal="true" aria-label="You won 2 free packs" onClick={onClose}>
+    <div className="lootback" role="dialog" aria-modal="true" aria-label="Welcome — your work now saves to your account" onClick={onClose}>
       <div className="lootmodal" onClick={(e) => e.stopPropagation()}>
         {/* animated backdrop: drifting circuit field + diagonal light sweeps */}
         <span className="lootgrid" aria-hidden="true" />
@@ -68,8 +73,8 @@ export function LootModalView({ onClose }: { onClose: () => void }) {
         <span className="lootsweep sb" aria-hidden="true" />
         <button className="lootclose" aria-label="Close" onClick={onClose}><X size={16} strokeWidth={2.2} /></button>
         <div className="lootkicker"><Zap size={14} strokeWidth={2.2} /> LEVEL UP</div>
-        <h2>YOU WON <span className="lootgrad">2 FREE PACKS</span></h2>
-        <p className="lootsub">{allOpen ? "Equipped — they're live in your Presets panel, with the full kit and 150% zoom." : "Thanks for signing up — tap a pack to crack it open."}</p>
+        <h2>YOUR WORK <span className="lootgrad">FOLLOWS YOU</span></h2>
+        <p className="lootsub">{allOpen ? "Both looks live in your Presets panel — and everything you make from here rides your account." : "Thanks for signing up — kits, boards and uploads now save to your account, on any device. Tap a pack to crack open a look."}</p>
         <div className="lootrow">
           {pulls.map((p, i) => (
             <div key={p.id} className={`lootcell${opened[i] ? " open" : ""}`}>
@@ -97,7 +102,7 @@ export function LootModalView({ onClose }: { onClose: () => void }) {
             </div>
           ))}
         </div>
-        <button className="lootclaim" onClick={onClose}>{allOpen ? "EQUIP & CONTINUE" : "Skip — equip both"}</button>
+        <button className="lootclaim" onClick={onClose}>{allOpen ? "BACK TO MAKING" : "Skip the reveal"}</button>
       </div>
     </div>
   );

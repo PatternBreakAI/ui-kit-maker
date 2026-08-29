@@ -30,6 +30,11 @@ import { tightenSvg } from "@/marketing/engine";
    Thumbs without a data-shell stamp pass through untouched. */
 const lookArt = (svg: string | null | undefined) => (svg ? tightenSvg(svg, 20) : "");
 
+/* Pack tiles pitch the PACKS, not the playground. The generic guest
+   upgrade line went save-centric with the free-play round and would read
+   wrong on a locked pack, so the tiles carry their own road-to-Pro line. */
+const PACK_PITCH_GUEST = "Monthly preset packs ship with Pro — sign in free to get started.";
+
 /* Rendered mini-previews for the style presets — built once, by the same
    renderer as everything else. */
 let presetArtCache: { id: string; name: string; svg: string }[] | null = null;
@@ -1468,7 +1473,7 @@ export function Panel() {
             return (
               <button className={`presetcard promo${match && kitName === match.name ? " on" : ""}`}
                 title={match
-                  ? (locked ? `${spotPromo.title} — the newest pack drop. ${tier === "guest" ? UPGRADE_LINES.guest : "A new pack drops every month with Pro."}` : `${spotPromo.title} — just landed; apply it`)
+                  ? (locked ? `${spotPromo.title} — the newest pack drop. ${tier === "guest" ? PACK_PITCH_GUEST : "A new pack drops every month with Pro."}` : `${spotPromo.title} — just landed; apply it`)
                   : `${spotPromo.title} — see what's new`}
                 onClick={go}>
                 {promoIsNew(spotPromo) && <span className="presetnew">NEW</span>}
@@ -1491,7 +1496,7 @@ export function Panel() {
               has the whole tool; what they don't have is the pack drops. */}
           {cloudShow.map((p) => tier !== "pro" ? (
             <button key={p.id} className="presetcard shared lockedp"
-              title={`${p.name} — from the monthly preset packs. ${tier === "guest" ? UPGRADE_LINES.guest : "A new pack drops every month with Pro."}`}
+              title={`${p.name} — from the monthly preset packs. ${tier === "guest" ? PACK_PITCH_GUEST : "A new pack drops every month with Pro."}`}
               onClick={() => { if (tier === "guest") openAuth("signin"); else window.location.hash = "#/pricing"; }}>
               <span className="presetart" dangerouslySetInnerHTML={{ __html: lookArt(p.thumb ?? cloudArt[p.id]) }} />
               <span className="presetname"><Lock size={11} strokeWidth={2.4} /> {p.name}</span>
@@ -1757,11 +1762,11 @@ export function Panel() {
           }} />
         </label>
         {/* the guided drawing canvas (owner: "an svg template for
-            silhouette creation that registered users can download
-            directly from the app") — a free account is the key */}
-        <button className="fileadd" title={tier === "guest" ? "A free account unlocks the template" : "A guided canvas for drawing your own silhouette — end zones, calm middle, the rules on the page"}
+            silhouette creation") — open to everyone since the free-play
+            round: it's a play tool, and guest work staying browser-local
+            is the same deal uploads already make */}
+        <button className="fileadd" title="A guided canvas for drawing your own silhouette — end zones, calm middle, the rules on the page"
           onClick={() => {
-            if (tier === "guest") { openAuth("signin"); return; }
             const blob = new Blob([SIL_TEMPLATE], { type: "image/svg+xml" });
             const a = document.createElement("a");
             a.href = URL.createObjectURL(blob);

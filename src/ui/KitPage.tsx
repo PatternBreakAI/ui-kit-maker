@@ -593,20 +593,6 @@ function useShineVars(active: boolean): React.CSSProperties | undefined {
   );
 }
 
-/* Guest tier proves the concept on five components; the rest of the sheet
-   stays visible as locked teasers — seeing the kit sells the kit. */
-const GUEST_KIT = new Set<KitComponentId>(["primary", "secondary", "small", "ghost", "iconbtn"]);
-function LockedPiece({ caption }: { caption: string }) {
-  return (
-    <figure className="kp-piece kp-lockpiece">
-      <button className="kp-lockcard" onClick={() => openAuth("signin")} title={UPGRADE_LINES.guest}>
-        <Lock size={15} strokeWidth={2.2} />
-        <span>{caption}</span>
-        <em>Sign in to unlock</em>
-      </button>
-    </figure>
-  );
-}
 function pieceName(id: KitComponentId): string {
   return KIT_COMPONENTS.find((c) => c.id === id)?.name ?? id;
 }
@@ -622,15 +608,15 @@ function useStagedHidden(id: KitComponentId): boolean {
   return !kitVisible(baseOf(id), rel, false);
 }
 
-/** One specced piece: live art + a caption rail with edit, sizes and export. */
+/** One specced piece: live art + a caption rail with edit, sizes and export.
+ *  Every released piece renders for every tier (free-play round, owner
+ *  mandate 2026-08-26 — the guest five-component teaser road is retired);
+ *  the staging bay stays the one gate, and it's about release, not tier. */
 function Piece(p: PieceOpts & { caption: string; ambient?: boolean; bay?: boolean }) {
-  // gate as a wrapper so the locked and live variants keep separate hook trees
-  const tier = useGen((s) => s.tier);
   const stagedHidden = useStagedHidden(p.id);
   // the bay is the ONE place a staged piece renders — its cards opt out of
   // the gate that keeps staged pieces off every public surface
   if (stagedHidden && !p.bay) return null;
-  if (tier === "guest" && !GUEST_KIT.has(baseOf(p.id))) return <LockedPiece caption={p.caption} />;
   return <PieceInner {...p} />;
 }
 function PieceInner(p: PieceOpts & { caption: string; ambient?: boolean }) {
@@ -2120,11 +2106,10 @@ const kitTier = useGen((s) => s.tier);
         // the visibility filter below keeps them admin-only until released
         ...LIVE_GLYPHS.map((g) => rk(`glyph${g.id}` as KitComponentId, `Glyph · ${g.name}`)),
       ];
-      // the guest catalog is the five proof components — the PNG sheet must
-      // not hand over what the page keeps locked. Staging-bay pieces ride
+      // the catalog is tier-blind since the free-play round — the sheet
+      // export itself is paid-gated upstream. Staging-bay pieces ride
       // only for the admin (or once released) — same rule as the page.
-      const vis = entries.filter((e) => kitVisible(e.cid, st.componentReleases, st.isAdmin));
-      return st.tier === "guest" ? vis.filter((e) => GUEST_KIT.has(e.cid)) : vis;
+      return entries.filter((e) => kitVisible(e.cid, st.componentReleases, st.isAdmin));
     }
   };
   const downloadAllAssets = async () => {

@@ -16,8 +16,9 @@ import logoUrl from "../../pb-logo.png";
 
 /* #/pricing — three tiers, in the product's own voice.
 
-   Explorer is the no-account trial (today's guest caps exactly), Pro is the
-   one everyone buys, Student is the same tool on an education licence. The
+   Explorer is the no-account free playground (today's guest caps exactly),
+   Pro is the one everyone buys, Student is the same tool on an education
+   licence. The
    Pro column takes real money through Stripe Checkout: signed-out visitors
    sign in first (a subscription needs an account to attach to), and the
    upgrade is granted server-side by the webhook — never by this page.
@@ -28,15 +29,18 @@ import logoUrl from "../../pb-logo.png";
 
 type Row = { label: string; on?: boolean; note?: boolean };
 
-/* Gate Round (2026-08-17): guests take nothing home — no PNG row, and
-   the off-row says exports plainly. One board is the guest taste. */
+/* Free-play round (owner mandate, 2026-08-26): every play tool is open
+   with no account — the ladder reads play free → sign up to save → pay
+   to export. Guests still take nothing home: the off-rows say saves and
+   exports plainly. */
 const EXPLORER: Row[] = [
-  { label: "Starter kit components" },
-  { label: "4 starter presets" },
-  { label: "100% zoom" },
-  { label: "One board to stage on" },
+  { label: "The full kit — every component, unlocked" },
+  { label: "All starter presets" },
+  { label: "Unlimited boards to stage on" },
+  { label: "150% zoom" },
   { label: "Read-only share links" },
-  { label: "No exports or cloud saves", on: false },
+  { label: "No cloud saves — sign up free to keep your work", on: false },
+  { label: "No exports — every export ships with a paid plan", on: false },
 ];
 
 const PRO: Row[] = [
@@ -197,7 +201,7 @@ export function PricingPage() {
         <h1>Pick your tier</h1>
         <p className="fd-pricing__sub">
           Everything runs in your browser, and what you export is yours to ship.<br />
-          Start with Free Explorer, then upgrade when you're ready for the full production toolkit.
+          Play free with the whole toolkit, sign up free to save your work, and go Pro when you're ready to export.
         </p>
 
         <div className="fd-pricing__cols">
@@ -260,14 +264,16 @@ export function PricingPage() {
         </div>
 
         {/* The free-account line — the tier between Explorer and the paid
-            columns, without a fourth column crowding the console. The test
-            kit is the register incentive, said plainly: a stock kit, not
-            your design; exports of YOUR kit are the paid unlock. */}
+            columns, without a fourth column crowding the console. Explorer
+            already plays with everything (free-play round), so the account
+            is pitched as the KEEP step. The test kit is the register
+            incentive, said plainly: a stock kit, not your design; exports
+            of YOUR kit are the paid unlock. */}
         <p className="fd-pricing__fine">
-          Signing up is free, and it's a real step up from Explorer: the full kit, unlimited
-          boards, cloud saves, your settings file, community publishing — and the free{" "}
-          <b>Unity test kit</b>, a stock kit ZIP (the same for everyone, and yours to ship —
-          commercial projects included) that proves the whole import pipeline in your
+          Signing up is free, and it's the keep-everything step: cloud saves that follow you
+          to any device, named projects, your settings file, community publishing — and the
+          free <b>Unity test kit</b>, a stock kit ZIP (the same for everyone, and yours to
+          ship — commercial projects included) that proves the whole import pipeline in your
           engine before you pay. Exporting your own designs is what Pro and Student add.
         </p>
 
