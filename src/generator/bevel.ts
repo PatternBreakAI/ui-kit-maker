@@ -8362,7 +8362,15 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const shell = build(cfg, state, { x: 42, y: 33, h, fs: 0, iconSize: 0, tokenH: 150 }, { pinDesign: true, iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const inset = bw + 10 * k;
       const vS1 = clamp(value ?? 0.5, 0, 1);
-      const yFree = 33 + inset + 8 * k, yPrem = 33 + h - inset - 8 * k - laneH;
+      /* the spine's marker band is RESERVED: the lanes used to follow the
+         wall inward until the reward tiles crossed the level nodes — at the
+         stock wall they already shaved the markers top and bottom, and fat
+         walls buried them whole (owner: "the reward track objectives are
+         not sitting on the line"). The lanes' vertical seat caps before a
+         tile can touch a node circle; walls keep their thickness, the
+         lanes just stop following them into the middle. */
+      const laneIns = Math.min(inset, 23 * k);
+      const yFree = 33 + laneIns + 8 * k, yPrem = 33 + h - laneIns - 8 * k - laneH;
       const spineY = 33 + h / 2;
       const nT = 3;
       const tileXs = Array.from({ length: nT }, (_, i) => 42 + inset + 122 * k + i * ((w - inset * 2 - 192 * k) / (nT - 1)));
@@ -8385,20 +8393,29 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const bareS = opts.part === "shell";
       let inner = bareS ? "" : infoText((opts.slots?.laneA ?? "FREE").slice(0, 12), 42 + inset + 8 * k, yFree + laneH / 2, 13 * k, "start", 800) +
         `<text x="${(42 + inset + 8 * k).toFixed(1)}" y="${(yPrem + laneH / 2).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(13 * k).toFixed(1)}" font-weight="800" letter-spacing="0.1em" fill="${GOLD}" dominant-baseline="central" style="paint-order: stroke; stroke: rgba(8,12,22,0.4); stroke-width: 2px">${esc((opts.slots?.laneB ?? "PREMIUM").slice(0, 12))}</text>`;
-      // the level spine with progress
+      /* wells first, spine and markers LAST — the level nodes are the
+         track's front instruments and must sit proud ON the line, never
+         under a shelf. The reward glyphs are seated satellites (six of
+         them, one per well): they pin against the kit-wide Icon nudge
+         like the fire button's carousel, so a dial meant for the kit's
+         main glyphs can't drag the objectives out of their wells. */
       const spX0 = tileXs[0], spX1 = tileXs[nT - 1];
-      inner += `<rect x="${(spX0 - 10 * k).toFixed(1)}" y="${(spineY - 5 * k).toFixed(1)}" width="${(spX1 - spX0 + 20 * k).toFixed(1)}" height="${(10 * k).toFixed(1)}" rx="${(5 * k).toFixed(1)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.8)}"/>` +
-        (!bareS && vS1 > 0.02 ? `<rect x="${(spX0 - 10 * k + 2 * k).toFixed(1)}" y="${(spineY - 3 * k).toFixed(1)}" width="${Math.max(0, (spX1 - spX0 + 16 * k) * vS1).toFixed(1)}" height="${(6 * k).toFixed(1)}" rx="${(3 * k).toFixed(1)}" fill="${glow}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 2.5px ${hexRgba(glow, 0.6)})"` : ""}/>` : "");
+      let wells9 = "", markers9 = "";
       tileXs.forEach((txX, i) => {
         const reached = !bareS && i / (nT - 1) <= vS1;
-        inner += `<circle cx="${txX.toFixed(1)}" cy="${spineY.toFixed(1)}" r="${(14 * k).toFixed(1)}" fill="${reached ? glow : wellFill}" stroke="${reached ? darken(glow, 0.35) : "rgba(255,255,255,0.25)"}" stroke-width="1.4"/>` +
+        markers9 += `<circle cx="${txX.toFixed(1)}" cy="${spineY.toFixed(1)}" r="${(14 * k).toFixed(1)}" fill="${reached ? glow : wellFill}" stroke="${reached ? darken(glow, 0.35) : "rgba(255,255,255,0.25)"}" stroke-width="1.4"/>` +
           (bareS ? "" : `<text x="${txX.toFixed(1)}" y="${(spineY + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(13 * k).toFixed(1)}" font-weight="900" fill="${reached ? darken(bevel, 0.6) : infoInk}" text-anchor="middle" dominant-baseline="central">${12 + i}</text>`);
         const fx = txX - tileS / 2;
-        inner += `<rect x="${fx.toFixed(1)}" y="${(yFree + (laneH - tileS) / 2).toFixed(1)}" width="${tileS.toFixed(1)}" height="${tileS.toFixed(1)}" rx="${(9 * k).toFixed(1)}" fill="${wellFill}" opacity="0.92" stroke="rgba(255,255,255,0.2)" stroke-width="1.2"/>` +
-          (!bareS && icsF[i] ? themedIcon(icsF[i]!, txX - 15 * k, yFree + laneH / 2 - 15 * k, 30 * k, hexMix(glow, "#FFFFFF", 0.3), 2) : "") +
+        wells9 += `<rect x="${fx.toFixed(1)}" y="${(yFree + (laneH - tileS) / 2).toFixed(1)}" width="${tileS.toFixed(1)}" height="${tileS.toFixed(1)}" rx="${(9 * k).toFixed(1)}" fill="${wellFill}" opacity="0.92" stroke="rgba(255,255,255,0.2)" stroke-width="1.2"/>` +
+          (!bareS && icsF[i] ? themedIcon(icsF[i]!, txX - 15 * k, yFree + laneH / 2 - 15 * k, 30 * k, hexMix(glow, "#FFFFFF", 0.3), 2, true) : "") +
           `<rect x="${fx.toFixed(1)}" y="${(yPrem + (laneH - tileS) / 2).toFixed(1)}" width="${tileS.toFixed(1)}" height="${tileS.toFixed(1)}" rx="${(9 * k).toFixed(1)}" fill="${wellFill}" opacity="0.92" stroke="${GOLD}" stroke-width="1.6"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 2.5px rgba(250,204,21,0.4))"` : ""}/>` +
-          (!bareS && icsP[i] ? themedIcon(icsP[i]!, txX - 15 * k, yPrem + laneH / 2 - 15 * k, 30 * k, hexMix(glow, "#FFFFFF", 0.3), 2) : "");
+          (!bareS && icsP[i] ? themedIcon(icsP[i]!, txX - 15 * k, yPrem + laneH / 2 - 15 * k, 30 * k, hexMix(glow, "#FFFFFF", 0.3), 2, true) : "");
       });
+      // the level spine with progress, over the wells, under the markers
+      inner += wells9 +
+        `<rect x="${(spX0 - 10 * k).toFixed(1)}" y="${(spineY - 5 * k).toFixed(1)}" width="${(spX1 - spX0 + 20 * k).toFixed(1)}" height="${(10 * k).toFixed(1)}" rx="${(5 * k).toFixed(1)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.8)}"/>` +
+        (!bareS && vS1 > 0.02 ? `<rect x="${(spX0 - 10 * k + 2 * k).toFixed(1)}" y="${(spineY - 3 * k).toFixed(1)}" width="${Math.max(0, (spX1 - spX0 + 16 * k) * vS1).toFixed(1)}" height="${(6 * k).toFixed(1)}" rx="${(3 * k).toFixed(1)}" fill="${glow}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 2.5px ${hexRgba(glow, 0.6)})"` : ""}/>` : "") +
+        markers9;
       return inject(shell.replace("<svg ", '<svg data-seasontrack="1" '), inner);
     }
     case "achievetoast": {
