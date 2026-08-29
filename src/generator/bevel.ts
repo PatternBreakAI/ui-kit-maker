@@ -4962,11 +4962,26 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       return build(cfg, state, { x: 33, y: 27, h: 132 * k, fs: 0, iconSize: 56 * k }, { iconDef: opts.icon === undefined ? cfg.icon.def ?? DEFAULT_ICON : opts.icon, label: "", fixedW: 132 * k, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx });
     case "chip":
       return build(cfg, state, { x: 39, y: 30, h: 86 * k, fs: 28 * k, iconSize: 24 * k }, { label: opts.label ?? "NEW", iconDef: opts.icon === undefined ? STOCK_ICONS.star : opts.icon, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx, faceLayer: opts.faceLayer });
-    case "badge":
+    case "badge": {
       // presented (count) → awarded (star) → disabled
+      /* Round 45 · B2 — the count numeral is SYSTEM CHROME: its size and
+         placement are system-wide cues (owner: "take all system wide cues
+         (size and placement) from Brightside as the gold standard"), so it
+         renders at the system's own type scale, seated by the shell alone —
+         it no longer inherits whatever master type size and label nudges
+         the applied look carries (an old look's small display type shrank
+         the count; a nudge authored to seat a BUTTON label pushed it
+         off-center — the countbadge/notifydot numerals were already
+         look-independent, this seat was the odd one out). The look still
+         VOICES the numeral — face, fill, outline, effects — and the
+         badge's own per-piece nudge still wins. build() multiplies fs by
+         T2.size/52, so fs·76/size lands the constant gold scale (76 = the
+         system default type size; kits at the default render unchanged). */
+      const bT = (state !== "default" ? cfg.stateDesigns?.[state as Exclude<GenStateName, "default">]?.type : undefined) ?? cfg.type;
       return state === "pressed"
-        ? build(cfg, state, { x: 33, y: 27, h: 112 * k, fs: 0, iconSize: 52 * k }, { label: "", iconDef: opts.icon ?? STOCK_ICONS.star, fixedW: 118 * k, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx })
-        : build(cfg, state, { x: 33, y: 27, h: 112 * k, fs: 40 * k, iconSize: 0 }, { label: opts.label ?? "12", iconDef: null, fixedW: 118 * k, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx });
+        ? build(cfg, state, { x: 33, y: 27, h: 112 * k, fs: 0, iconSize: 52 * k }, { label: "", iconDef: opts.icon ?? STOCK_ICONS.star, fixedW: 118 * k, shapeOverride: sov, textOy: opts.textOy ?? 0, textOx: opts.textOx ?? 0 })
+        : build(cfg, state, { x: 33, y: 27, h: 112 * k, fs: 40 * k * (76 / Math.max(26, bT.size || 76)), iconSize: 0 }, { label: opts.label ?? "12", iconDef: null, fixedW: 118 * k, shapeOverride: sov, textOy: opts.textOy ?? 0, textOx: opts.textOx ?? 0 });
+    }
     case "tab":
       return build(cfg, state, { x: 39, y: 30, h: 94 * k, fs: 30 * k, iconSize: 0 }, { label: opts.label ?? "TAB", iconDef: null, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx, faceLayer: opts.faceLayer });
     case "tabback":
