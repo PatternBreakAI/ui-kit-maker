@@ -2665,6 +2665,11 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the data row's posed action badges (locked/check/alert) lost their marked-group grammar — posed board copies would bake or vanish");
   if (!/No trailing arrow ships \(owner ruling\)/.test(src))
     errors.push("the data row's usage no longer states the arrow ruling — the manifest would promise a live action child that never ships");
+  // S3 — the daily cell's pose badges are live children (item 6: "separate
+  // the checkmark from the background"; the lock rides the same sweep)
+  if (!/data-icon="claimbadge" data-icon-nick="Claimed badge"/.test(bevelSrc)
+      || !/data-icon="lockbadge" data-icon-nick="Lock badge"/.test(bevelSrc))
+    errors.push("the daily cell's claimed/lock badges lost their marked-ink grammar — the checkmark burns back into the background (round 44, item 6)");
 }
 
 if (errors.length) {

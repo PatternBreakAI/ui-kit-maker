@@ -4398,9 +4398,9 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         { uid: "rewardcard", suffix: "mystery", opts: { slots: { ...(st.kitSlotVals?.rewardcard ?? {}), kind: "Mystery" } },
           usage: "Reward card, MYSTERY pre-reveal — the unopened pose; words are LIVE seats. The pressing lives on the Rewardcard prefab." },
         { uid: "dailycell", suffix: "claimed", opts: { overlay: "check", label: st.kitLabels?.dailycell ?? "DAY 3" },
-          usage: "Daily reward, CLAIMED — the checked pose; the day word is a LIVE seat. The pressing lives on the Dailycell prefab." },
+          usage: "Daily reward, CLAIMED — the checked pose; the day word is a LIVE seat and the green Claimed badge its OWN Image child (owner ruling, round 44: never burned in — move, restyle or delete it). The pressing lives on the Dailycell prefab." },
         { uid: "dailycell", suffix: "locked", opts: { overlay: "locked", label: st.kitLabels?.dailycell ?? "DAY 5" },
-          usage: "Daily reward, LOCKED — tomorrow's pose; the day word is a LIVE seat. The pressing lives on the Dailycell prefab." },
+          usage: "Daily reward, LOCKED — tomorrow's pose; the day word is a LIVE seat and the Lock badge its OWN Image child. The pressing lives on the Dailycell prefab." },
       ];
       const stripLoopsV = (sv: string) => sv
         .replace(/<animate(?:Transform|Motion)?\b[^>]*\/>/g, "")
