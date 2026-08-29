@@ -18485,7 +18485,7 @@ namespace PatternBreak {
       RenameDataRowPrefab(root); // the owner's language, healed on every import
       RenameDataRowTiledFace(root); // and its stretch-safe twin — the scene road's one name
       RenameArtShelf(root); // BigGlyphs → Art, the class's name everywhere
-      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0, reseeded = 0, wordKept = 0, rebodied = 0, mapGrafted = 0, padTuned = 0, rigGrafted = 0, sinkTuned = 0, barRigged = 0, pieceBound = 0, ddRigged = 0, unburned = 0;
+      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0, reseeded = 0, wordKept = 0, rebodied = 0, mapGrafted = 0, padTuned = 0, rigGrafted = 0, sinkTuned = 0, barRigged = 0, pieceBound = 0, ddRigged = 0, unburned = 0, retiredIc = 0;
       /* the ROOT-RECT ownership ledger (F5 — the resize pass was the one
          maintenance heal with NO ours-vs-theirs guard): rects we last
          authored, carried in kit.lock.json > authoredRects. A rect still
@@ -18952,6 +18952,35 @@ namespace PatternBreak {
             }
           }
         }
+        /* RE-CUT SEAT RETIRE (round 40 — the resource's one-group
+           medallion split into plate + glyph): an icon child WE seeded
+           whose manifest seat was re-cut into new names steps down before
+           the new pair seeds, or the old art draws stacked over the new
+           children forever. Only a child provably OURS-LEGACY retires:
+           canonical "Icon <x>" name no current seat claims, childless,
+           still wearing a shipped "-icon-" sprite this manifest no longer
+           lists. A renamed, re-sprited or childed one is the dev's and
+           stays, exactly like the ledger's verbs. */
+        bool wantIconRetire = false;
+        {
+          var rowRC = IconSeatRowOf(asset, m, root, famName);
+          if (!tiledBuild && rowRC != null && rowRC.iconSeats != null && rowRC.iconSeats.Length > 0) {
+            var liveRC = new HashSet<string>();
+            foreach (var icRC in rowRC.iconSeats) if (icRC != null) liveRC.Add(IconChildName(icRC));
+            var filesRC = new HashSet<string>();
+            if (m.assets != null) foreach (var aRC in m.assets) if (aRC != null && !string.IsNullOrEmpty(aRC.file)) filesRC.Add(aRC.file);
+            foreach (Transform chRC in asset.transform) {
+              if (!chRC.name.StartsWith("Icon ") || liveRC.Contains(chRC.name) || chRC.childCount != 0) continue;
+              var imRC = chRC.GetComponent<Image>();
+              if (imRC == null || imRC.sprite == null) continue;
+              var pRC = AssetDatabase.GetAssetPath(imRC.sprite).Replace("\\\\", "/");
+              if (!pRC.StartsWith(root + "/assets/")) continue;
+              var relRC = pRC.Substring(root.Length + 1);
+              if (filesRC.Contains(relRC) || !relRC.EndsWith(".png") || !Path.GetFileNameWithoutExtension(relRC).Contains("-icon-")) continue;
+              wantIconRetire = true; break;
+            }
+          }
+        }
         {
           var rowIc0 = LabelRow(m, famName);
           bool seatIc0 = !tiledBuild && rowIc0 != null && rowIc0.icon != null && rowIc0.icon.s > 2f
@@ -19233,7 +19262,7 @@ namespace PatternBreak {
            untouched. */
         bool wantSelectRoot = asset.GetComponent<KitPiece>() == null;
         if (!wantWiring && !wantDress && !wantFx && !wantUnswap && !wantResize && !wantSpecAdd && !wantSpecCut && !wantPad && !wantShape && !wantFbLift && !wantFaceRects
-            && !wantWipeAdd && !wantWipeCut && !wantEdgeAdd && !wantEdgeCut && !wantGauge && !wantSeats && !wantSeatLabel && !wantWordSeed && !wantBody && !wantGlowPad && !wantSinkFix && !wantIconAdd && !wantIconStroke && !wantUnburn && !wantSelectRoot) continue;
+            && !wantWipeAdd && !wantWipeCut && !wantEdgeAdd && !wantEdgeCut && !wantGauge && !wantSeats && !wantSeatLabel && !wantWordSeed && !wantBody && !wantGlowPad && !wantSinkFix && !wantIconAdd && !wantIconStroke && !wantUnburn && !wantIconRetire && !wantSelectRoot) continue;
         var contents = PrefabUtility.LoadPrefabContents(path);
         try {
           bool changed = false;
@@ -19354,6 +19383,34 @@ namespace PatternBreak {
              moves only when a child was actually built. A seat whose
              sprite hasn't imported yet stays unrecorded and heals on a
              later pass. */
+          /* the RE-CUT SEAT RETIRE lands BEFORE the new seats seed (round
+             40): the conditions re-prove on the loaded contents — ours-
+             legacy only — and each step-down says its name out loud. */
+          if (wantIconRetire) {
+            var rowRC2 = IconSeatRowOf(contents, m, root, famName);
+            if (rowRC2 != null && rowRC2.iconSeats != null && rowRC2.iconSeats.Length > 0) {
+              var liveRC2 = new HashSet<string>();
+              foreach (var icRC2 in rowRC2.iconSeats) if (icRC2 != null) liveRC2.Add(IconChildName(icRC2));
+              var filesRC2 = new HashSet<string>();
+              if (m.assets != null) foreach (var aRC2 in m.assets) if (aRC2 != null && !string.IsNullOrEmpty(aRC2.file)) filesRC2.Add(aRC2.file);
+              var goneRC = new List<GameObject>();
+              foreach (Transform chRC2 in contents.transform) {
+                if (!chRC2.name.StartsWith("Icon ") || liveRC2.Contains(chRC2.name) || chRC2.childCount != 0) continue;
+                var imRC2 = chRC2.GetComponent<Image>();
+                if (imRC2 == null || imRC2.sprite == null) continue;
+                var pRC2 = AssetDatabase.GetAssetPath(imRC2.sprite).Replace("\\\\", "/");
+                if (!pRC2.StartsWith(root + "/assets/")) continue;
+                var relRC2 = pRC2.Substring(root.Length + 1);
+                if (filesRC2.Contains(relRC2) || !relRC2.EndsWith(".png") || !Path.GetFileNameWithoutExtension(relRC2).Contains("-icon-")) continue;
+                goneRC.Add(chRC2.gameObject);
+              }
+              foreach (var gRC in goneRC) {
+                Debug.Log("UI Kit Maker: " + contents.name + " — '" + gRC.name + "' stepped down: this update re-cut that seat into new live children (its old sprite left the kit). It was still exactly as we built it; anything you had renamed, re-sprited or given children would have stayed yours.");
+                UnityEngine.Object.DestroyImmediate(gRC, true);
+                retiredIc++; changed = true;
+              }
+            }
+          }
           if (wantUnburn) {
             var keyUA = (path.StartsWith(root + "/") ? path.Substring(root.Length + 1) : path) + "|";
             var rowUA = IconSeatRowOf(contents, m, root, famName);
@@ -19518,6 +19575,8 @@ namespace PatternBreak {
         Debug.Log("UI Kit Maker: purged dead script reference(s) on " + purgedGhosts + " prefab(s) (a script identity change from a delete-and-redrop) — the state wiring was rebuilt fresh alongside.");
       if (unburned > 0)
         Debug.Log("UI Kit Maker: un-burned " + unburned + " prefab(s) — icons and images the art used to bake in now ride as live, Inspector-swappable children at the exact app seats (the stripped sprites landed with this refresh). Each seat seeds exactly once (kit.lock.json > seededChildren) — a child you rename, re-sprite or delete after that is yours: it is never rebuilt, never duplicated, never brought back.");
+      if (retiredIc > 0)
+        Debug.Log("UI Kit Maker: retired " + retiredIc + " re-cut icon child(ren) — this update split (or renamed) their seats into new live children, and the untouched originals stepped down so nothing draws doubled. Each is named above; version control brings any of them back.");
       if (unswapped > 0)
         Debug.Log("UI Kit Maker: corrected the state transition on " + unswapped + " tiled-face prefab(s) — a full-material sprite swap doubles the layered pattern, so their states now ride the engine glow/lift instead. Clicks unchanged.");
       if (resized > 0)

@@ -5837,14 +5837,21 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          the engine export strips it from the frame bake and ships it as a
          live masked Image child — the well circle rides data-icon-well so
          the export can seat the mask exactly on the frame's own aperture */
+      /* the COUNT RING is marked swappable ink too (round 40 — owner: the
+         ring "must NOT be baked"; a dropped portrait covered the baked
+         chip because the live Portrait child drew over the frame base).
+         It ships as its own live "Count ring" child seated AFTER the
+         portrait well — base frame → Portrait → ring on top — and the
+         level number RIDES it (data-seat-rider, the badge-plate grammar):
+         plate + count move, restyle or delete as one. */
       const parts = `<defs><clipPath id="${gidA}"><circle cx="${ccx.toFixed(1)}" cy="${ccy.toFixed(1)}" r="${pr.toFixed(1)}"/></clipPath></defs>
         <circle cx="${ccx.toFixed(1)}" cy="${ccy.toFixed(1)}" r="${pr.toFixed(1)}" fill="${wellFill}"/>
         <g data-part="icon" data-icon="portrait" data-icon-well="${ccx.toFixed(1)} ${ccy.toFixed(1)} ${pr.toFixed(1)}" clip-path="url(#${gidA})" opacity="${state === "disabled" ? 0.4 : 1}">
           <circle cx="${ccx.toFixed(1)}" cy="${(ccy - pr * 0.28).toFixed(1)}" r="${(pr * 0.34).toFixed(1)}" fill="rgba(255,255,255,0.4)"/>
           <ellipse cx="${ccx.toFixed(1)}" cy="${(ccy + pr * 0.75).toFixed(1)}" rx="${(pr * 0.62).toFixed(1)}" ry="${(pr * 0.5).toFixed(1)}" fill="rgba(255,255,255,0.4)"/>
         </g>
-        ${candyKnob(ccx, sy + sh - 8 * k, 21 * k, knobC)}
-        <text x="${ccx.toFixed(1)}" y="${(sy + sh - 7 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(20 * k).toFixed(1)}" font-weight="900" fill="${darken(bevel, 0.55)}" text-anchor="middle" dominant-baseline="central">${lvl}</text>`;
+        <g data-part="icon" data-icon="ring" data-icon-nick="Count ring">${candyKnob(ccx, sy + sh - 8 * k, 21 * k, knobC)}</g>
+        <text x="${ccx.toFixed(1)}" y="${(sy + sh - 7 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(20 * k).toFixed(1)}" font-weight="900" fill="${darken(bevel, 0.55)}" text-anchor="middle" dominant-baseline="central" data-seat-rider="ring">${lvl}</text>`;
       return inject(shell.replace("<svg ", '<svg data-avatarframe="1" '), parts);
     }
     case "nameplate": {
@@ -8653,12 +8660,16 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const icon = opts.icon ?? STOCK_ICONS.gem;
       const dim = state === "disabled" ? 0.45 : 1;
       const vx = 39 + 20 * k + cMr + medR * 2;
-      // the medallion is marked swappable ink (maximum-editability law):
-      // the engine export strips it and ships it as a live Image child
+      /* the medallion is marked swappable ink (maximum-editability law) —
+         and since round 40 as TWO groups, not one: the candy PLATE and the
+         GLYPH ship as independent live children ("Medallion plate" +
+         "Icon glyph"), so a dev can swap the icon without repainting the
+         plate, or delete the plate and keep a bare glyph. The app's icon
+         picker steers the glyph exactly as before. */
       const parts =
         (noIcon ? "" :
-          `<g data-part="icon" data-icon="medallion">${candyKnob(39 + 6 * k + cMr + medR, cy, medR, bevel) +
-          themedIcon(icon, 39 + 6 * k + cMr + medR - medR * 0.52, cy - medR * 0.52, medR * 1.04, darken(bevel, 0.55), 2.4)}</g>`) +
+          `<g data-part="icon" data-icon="plate" data-icon-nick="Medallion plate">${candyKnob(39 + 6 * k + cMr + medR, cy, medR, bevel)}</g>` +
+          `<g data-part="icon" data-icon="glyph">${themedIcon(icon, 39 + 6 * k + cMr + medR - medR * 0.52, cy - medR * 0.52, medR * 1.04, darken(bevel, 0.55), 2.4)}</g>`) +
         (noIcon
           ? contentText(`${val}${maxTxt}`, 39 + (w - (opts.addBtn ? 46 * k : 0)) / 2, cy + 1, fsV * typeK, { anchor: "middle", keepCase: true, opacity: dim })
           : contentText(val, vx, cy + 1, fsV * typeK, { keepCase: true, opacity: dim }) +

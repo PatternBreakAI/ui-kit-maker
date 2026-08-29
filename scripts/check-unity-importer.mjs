@@ -2210,8 +2210,10 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the avatar's circle-masked Portrait well structure is missing (Mask + hidden mask graphic)");
   if (!/if \(wantUnburn\) \{/.test(cs) || !/un-burned/.test(cs))
     errors.push("the kept-project un-burn convergence (wantUnburn + its Console receipt) is missing from the maintenance pass");
-  if (!/&& !wantUnburn && !wantSelectRoot\) continue;/.test(cs))
-    errors.push("the maintenance skip-gate no longer counts wantUnburn — a kept project whose only need is un-burning would be skipped");
+  if (!/&& !wantUnburn && !wantIconRetire && !wantSelectRoot\) continue;/.test(cs))
+    errors.push("the maintenance skip-gate no longer counts wantUnburn/wantIconRetire — a kept project whose only need is un-burning (or a re-cut seat retire, round 40) would be skipped");
+  if (!/bool wantIconRetire = false;/.test(cs) || !/stepped down: this update re-cut that seat into new live children/.test(cs))
+    errors.push("the re-cut seat retire is gone — a split seat (the resource medallion → plate + glyph, round 40) leaves the untouched original drawing doubled over the new pair");
   /* the un-burn's ONE-SHOT law (editability blocker): a seat seeds once,
      is recorded in kit.lock.json > seededChildren, and is never re-added
      — a deleted child stays deleted, a renamed child never grows a
