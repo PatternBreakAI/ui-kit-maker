@@ -328,6 +328,18 @@ const BOARD_TEMPLATES: Record<string, Tpl> = {
     { kitId: "small", x: 1330, y: 710 },
   ] },
 };
+/* New starter screens ship GATED — admin-only until the owner releases
+   them (standing rule: new assets ship gated). Component staging can't
+   carry this: kitVisible filters only the TRAY, and addBoardItems deals
+   whatever a template names with no visibility check — so a template
+   referencing anything would reach everyone who can select it. The
+   option list is therefore the only control point: the pulldown hides
+   these keys from non-admins, and applyStarter refuses them too, so a
+   stale <select> value can't deal a gated board. Releasing a starter =
+   deleting its key here, one owner blessing per change. */
+const STAGED_TEMPLATES = new Set<string>([
+  "Mobile ops HUD", "Daily bonus", "Shop", "Base command", "Clan hall", "Loading",
+]);
 
 const STAGE: Record<"169" | "mobile", [number, number, string]> = {
   "169": [1920, 1080, "16:9"],
@@ -593,6 +605,9 @@ export function BoardView({ playing }: { playing: boolean }) {
     if (patches.length) st.transformBoardItems("mobiledeal", patches);
   };
   const applyStarter = (tname: string, mode: "fresh" | "replace" | "stack") => {
+    // gated starters never deal for non-admins — the pulldown already
+    // hides them, this catches a stale <select> value
+    if (STAGED_TEMPLATES.has(tname) && !isAdmin) return;
     const t = BOARD_TEMPLATES[tname];
     if (!t) return;
     const st = useGen.getState();
@@ -1622,6 +1637,7 @@ export function BoardView({ playing }: { playing: boolean }) {
               }}>
               <option value="">Starter screen…</option>
               {Object.keys(BOARD_TEMPLATES)
+                .filter((t) => isAdmin || !STAGED_TEMPLATES.has(t))
                 .map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
           </label>
