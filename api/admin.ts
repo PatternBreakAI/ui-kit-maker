@@ -771,7 +771,7 @@ export async function POST(req: Request): Promise<Response> {
      works even before migration 0095 has been pasted. */
   const TK_BUCKET = "test-kit";
   const TK_OBJECT = "unity-test-kit.zip";
-  const TK_CAP = 100 * 1024 * 1024;
+  const TK_CAP = 250 * 1024 * 1024;
 
   if (body.action === "testKitStatus") {
     const ls = await fetch(`${supaUrl}/storage/v1/object/list/${TK_BUCKET}`, {
@@ -806,6 +806,18 @@ export async function POST(req: Request): Promise<Response> {
       // an existing bucket answers 400/409 — that is the normal steady state
       if (mk.status !== 400 && mk.status !== 409 && !/already exists/i.test(detail)) {
         return json({ error: `Couldn't prepare the test-kit shelf (${mk.status}). ${detail.slice(0, 120)}` }, 502);
+      }
+      /* a bucket keeps the file_size_limit it was BORN with — raising
+         TK_CAP alone leaves an old shelf capped at the old number, so
+         the exists path re-asserts the current cap before signing */
+      const up = await fetch(`${supaUrl}/storage/v1/bucket/${TK_BUCKET}`, {
+        method: "PUT",
+        headers: { ...svc, "content-type": "application/json" },
+        body: JSON.stringify({ public: false, file_size_limit: TK_CAP }),
+      });
+      if (!up.ok) {
+        const d2 = await up.text().catch(() => "");
+        return json({ error: `The shelf's stored size limit wouldn't raise (${up.status}). ${d2.slice(0, 120)}` }, 502);
       }
     }
 
