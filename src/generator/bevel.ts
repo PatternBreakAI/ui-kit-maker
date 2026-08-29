@@ -4576,7 +4576,10 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
      themselves (counters, segments, rows): fill mode incl. gradients, case,
      italic, tracking, outline, shadow and glow all follow the theme. */
   const contentText = (txt: string, x2: number, y2: number, fs2: number,
-    o2: { anchor?: "start" | "middle" | "end"; opacity?: number; track?: number; keepCase?: boolean; autoInk?: string; list?: boolean; ink?: string; plain?: boolean } = {}) => {
+    o2: { anchor?: "start" | "middle" | "end"; opacity?: number; track?: number; keepCase?: boolean; autoInk?: string; list?: boolean; ink?: string; plain?: boolean;
+      /** the icon seat this word RIDES (data-seat-rider) — the export
+          parents the live word under that plate child (bottomnav grammar) */
+      rider?: string } = {}) => {
     /* per-state type forks apply to self-drawn text too — editing the
        Pressed state's fill must recolor these lines on the Pressed view,
        exactly like built labels (owner: "change the text color") */
@@ -4639,7 +4642,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     // labels — vertical used to be per-callsite and read as dead elsewhere
     return (defs4 ? `<defs>${defs4}</defs>` : "") +
       (prims4.length ? `<g filter="url(#${gid4}f)">` : "") +
-      `<text x="${(x2 + typeOxK * k + italNudge).toFixed(1)}" y="${(y2 + typeOyK * k).toFixed(1)}" font-family="'${(o2.list && (T4.listFont ?? cfg.type.listFont)) || T4.font}', 'Inter Variable', Inter, sans-serif" font-size="${fs2.toFixed(1)}" font-weight="${Math.max(700, T4.weight)}"${T4.italic ? ' font-style="italic"' : ""} letter-spacing="${(((o2.track ?? 0) + T4.spacing) / 100).toFixed(3)}em" fill="${fill4}"${(T4.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T4.fillOpacity / 100).toFixed(2)}"` : ""}${outline4}${o2.anchor ? ` text-anchor="${o2.anchor}"` : ""} dominant-baseline="central" opacity="${(o2.opacity ?? 1).toFixed(2)}">${esc(cased4)}</text>` +
+      `<text x="${(x2 + typeOxK * k + italNudge).toFixed(1)}" y="${(y2 + typeOyK * k).toFixed(1)}" font-family="'${(o2.list && (T4.listFont ?? cfg.type.listFont)) || T4.font}', 'Inter Variable', Inter, sans-serif" font-size="${fs2.toFixed(1)}" font-weight="${Math.max(700, T4.weight)}"${T4.italic ? ' font-style="italic"' : ""} letter-spacing="${(((o2.track ?? 0) + T4.spacing) / 100).toFixed(3)}em" fill="${fill4}"${(T4.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T4.fillOpacity / 100).toFixed(2)}"` : ""}${outline4}${o2.anchor ? ` text-anchor="${o2.anchor}"` : ""} dominant-baseline="central" opacity="${(o2.opacity ?? 1).toFixed(2)}"${o2.rider ? ` data-seat-rider="${o2.rider}"` : ""}>${esc(cased4)}</text>` +
       (prims4.length ? `</g>` : "");
   };
   /* fit-down (the unitplate precedent; owner round: type never crops or
@@ -6340,21 +6343,23 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const vM = clamp(value ?? 0.66, 0, 1);
       const vS = clamp(0.15 + (1 - vM) * 0.7, 0, 1);
       const railX = 39 + inset + 58 * k, railW = 39 + w - inset - 16 * k - railX;
-      const rail = (ry: number, vR: number, cR: string, ic: IconDef | undefined) => {
+      const rail = (ry: number, vR: number, cR: string, ic: IconDef | undefined, icName?: string) => {
         const gidM = "mr" + UID++;
         // negative-space canon: the mercury floats inside the container
         // pill with air on every side
         const gM = 3 * k, mH = railH - gM * 2, mW = Math.max(0, (railW - gM * 2) * vR);
-        // dark understroke beneath the tinted glyph — legible on any face
-        return (ic ? iconGroup(ic, 39 + inset + 17 * k, ry + railH / 2 - 15 * k, 30 * k, "rgba(8,12,22,0.65)", { strokeWidth: 2.2 * iconWK + 2.4 }) +
-          iconGroup(ic, 39 + inset + 17 * k, ry + railH / 2 - 15 * k, 30 * k, lighten(cR, 0.15), { strokeWidth: 2.2 * iconWK }) : "") +
+        // dark understroke beneath the tinted glyph — legible on any face;
+        // marked swappable ink (maximum-editability law): each rail glyph
+        // ships as its own live Image child, understroke included
+        return (ic ? `<g data-part="icon" data-icon="${icName ?? "glyph"}">` + iconGroup(ic, 39 + inset + 17 * k, ry + railH / 2 - 15 * k, 30 * k, "rgba(8,12,22,0.65)", { strokeWidth: 2.2 * iconWK + 2.4 }) +
+          iconGroup(ic, 39 + inset + 17 * k, ry + railH / 2 - 15 * k, 30 * k, lighten(cR, 0.15), { strokeWidth: 2.2 * iconWK }) + `</g>` : "") +
           `<rect x="${railX.toFixed(1)}" y="${ry.toFixed(1)}" width="${railW.toFixed(1)}" height="${railH.toFixed(1)}" rx="${(railH / 2).toFixed(1)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.8)}" stroke="rgba(0,0,0,0.35)" stroke-width="1"/>` +
           `<defs><linearGradient id="${gidM}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(cR, 0.5)}"/><stop offset="0.45" stop-color="${cR}"/><stop offset="1" stop-color="${darken(cR, 0.3)}"/></linearGradient></defs>` +
           (vR > 0.03 ? `<rect x="${(railX + gM).toFixed(1)}" y="${(ry + gM).toFixed(1)}" width="${mW.toFixed(1)}" height="${mH.toFixed(1)}" rx="${(mH / 2).toFixed(1)}" fill="url(#${gidM})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(cR, 0.6)})"` : ""}/>
             <rect x="${(railX + gM + 3 * k).toFixed(1)}" y="${(ry + gM + 2 * k).toFixed(1)}" width="${Math.max(0, mW - 6 * k).toFixed(1)}" height="${(mH * 0.34).toFixed(1)}" rx="${(mH * 0.17).toFixed(1)}" fill="#FFFFFF" opacity="0.5"/>` : "");
       };
       return inject(shell.replace("<svg ", '<svg data-manarails="1" '),
-        rail(y1, vM, "#38bdf8", STOCK_ICONS.flask) + rail(y2, vS, "#4ade80", STOCK_ICONS.zap));
+        rail(y1, vM, "#38bdf8", STOCK_ICONS.flask, "mana") + rail(y2, vS, "#4ade80", STOCK_ICONS.zap, "stamina"));
     }
     case "questpanel": {
       /* RPG · quest tracker — quest name, objective rows with check pips,
@@ -6413,9 +6418,12 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const plateW = 232 * k, plateH = 46 * k;
       const px0 = 42 + inset + 12 * k, py0 = 33 - plateH * 0.42;
       const gidB = "db" + UID++;
-      const plate = `<defs><linearGradient id="${gidB}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(bevel, 0.3)}"/><stop offset="1" stop-color="${darken(bevel, 0.14)}"/></linearGradient></defs>
-        <rect x="${px0.toFixed(1)}" y="${py0.toFixed(1)}" width="${plateW.toFixed(1)}" height="${plateH.toFixed(1)}" rx="${(plateH / 2).toFixed(1)}" fill="url(#${gidB})" stroke="${hexRgba(darken(bevel, 0.5), 0.7)}" stroke-width="1.4"/>
-        ${(() => { const sp = (opts.slots?.speaker ?? "ELDER ROWAN").slice(0, 24); return contentText(sp, px0 + plateW / 2, py0 + plateH / 2 + 1, fitFs(sp, 19 * k * typeK, plateW - 20 * k), { anchor: "middle" }); })()}`;
+      /* the speaker plate is marked swappable ink (maximum-editability
+         law): plate ships as a live child and the speaker's NAME rides it
+         (data-seat-rider) — move, restyle or delete plate + name as one */
+      const plate = `<g data-part="icon" data-icon="speaker" data-icon-nick="Speaker plate"><defs><linearGradient id="${gidB}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(bevel, 0.3)}"/><stop offset="1" stop-color="${darken(bevel, 0.14)}"/></linearGradient></defs>
+        <rect x="${px0.toFixed(1)}" y="${py0.toFixed(1)}" width="${plateW.toFixed(1)}" height="${plateH.toFixed(1)}" rx="${(plateH / 2).toFixed(1)}" fill="url(#${gidB})" stroke="${hexRgba(darken(bevel, 0.5), 0.7)}" stroke-width="1.4"/></g>
+        ${(() => { const sp = (opts.slots?.speaker ?? "ELDER ROWAN").slice(0, 24); return contentText(sp, px0 + plateW / 2, py0 + plateH / 2 + 1, fitFs(sp, 19 * k * typeK, plateW - 20 * k), { anchor: "middle", rider: "speaker" }); })()}`;
       // the body is READING text — it speaks the list face (owner: "list
       // font dropdown isn't working here"); the speaker plate is a title
       // the body's own ink (a color slot) — the speaker plate keeps the
@@ -6453,7 +6461,8 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const on9 = i === sel && state !== "disabled";
         const hotC = on9 && state === "hover", pressC = on9 && state === "pressed";
         inner += `<rect x="${x0.toFixed(1)}" y="${ry.toFixed(1)}" width="${rw.toFixed(1)}" height="${(rowH - 12 * k).toFixed(1)}" rx="${(14 * k).toFixed(1)}" fill="${on9 ? hexRgba(glow, pressC ? 0.4 : hotC ? 0.32 : 0.22) : "rgba(255,255,255,0.06)"}" stroke="${on9 ? hexRgba(glow, hotC || pressC ? 0.95 : 0.65) : "rgba(255,255,255,0.14)"}" stroke-width="${hotC ? 2.2 : 1.4}"${hotC ? ` style="filter: drop-shadow(0 0 ${(6 * k).toFixed(1)}px ${hexRgba(glow, 0.55)})"` : ""}/>`;
-        if (on9 && STOCK_ICONS.play) inner += themedIcon(STOCK_ICONS.play, x0 + 14 * k, ry + (rowH - 12 * k) / 2 - 11 * k, 22 * k, glow, 2.4);
+        // the active-choice marker is marked swappable ink (the law)
+        if (on9 && STOCK_ICONS.play) inner += `<g data-part="icon" data-icon="marker" data-icon-nick="Choice marker">${themedIcon(STOCK_ICONS.play, x0 + 14 * k, ry + (rowH - 12 * k) / 2 - 11 * k, 22 * k, glow, 2.4)}</g>`;
         inner += contentText(c9, x0 + (on9 ? 48 : 24) * k, ry + (rowH - 12 * k) / 2 + 1, 23 * k * typeK, { keepCase: true, list: true, opacity: on9 ? 1 : 0.8 });
         inner += infoText(String(i + 1), x0 + rw - 18 * k, ry + (rowH - 12 * k) / 2 + 1, 18 * k, "end", 700);
       });
@@ -6485,11 +6494,14 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const pickI = opts.slots?.[`cell${i + 1}`];
         const icDef = pickI === "Empty" ? null
           : (pickI && STOCK_ICONS[pickI.toLowerCase()]) || (items[i] ? STOCK_ICONS[items[i] as string] : null);
-        if (icDef) inner += themedIcon(icDef, cxI + cell * 0.22, cyI + cell * 0.22, cell * 0.56, hexMix(glow, "#FFFFFF", 0.3), 2);
+        // each cell glyph is marked swappable ink (maximum-editability
+        // law): the export ships it as its own live Image child
+        if (icDef) inner += `<g data-part="icon" data-icon="cell${i + 1}">${themedIcon(icDef, cxI + cell * 0.22, cyI + cell * 0.22, cell * 0.56, hexMix(glow, "#FFFFFF", 0.3), 2)}</g>`;
         // the count chip wears the kit Bevel; white numerals sink into a
         // pale chip (Brightside beige), so pale chips flip to a bevel-cut
-        // dark ink — dark chips keep the white they always wore
-        if (counts[i]) inner += `<circle cx="${(cxI + cell - 13 * k).toFixed(1)}" cy="${(cyI + cell - 13 * k).toFixed(1)}" r="${(16 * k).toFixed(1)}" fill="${bevel}" stroke="${darken(bevel, 0.4)}" stroke-width="1.4"/><text x="${(cxI + cell - 13 * k).toFixed(1)}" y="${(cyI + cell - 12 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(17.5 * k).toFixed(1)}" font-weight="800" fill="${paleG(bevel) ? darken(bevel, 0.68) : "#FFFFFF"}" text-anchor="middle" dominant-baseline="central">${esc(counts[i])}</text>`;
+        // dark ink — dark chips keep the white they always wore. The chip
+        // plate is marked ink and the count RIDES it (bottomnav grammar).
+        if (counts[i]) inner += `<g data-part="icon" data-icon="count${i + 1}" data-icon-nick="Count chip ${i + 1}"><circle cx="${(cxI + cell - 13 * k).toFixed(1)}" cy="${(cyI + cell - 13 * k).toFixed(1)}" r="${(16 * k).toFixed(1)}" fill="${bevel}" stroke="${darken(bevel, 0.4)}" stroke-width="1.4"/></g><text x="${(cxI + cell - 13 * k).toFixed(1)}" y="${(cyI + cell - 12 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(17.5 * k).toFixed(1)}" font-weight="800" fill="${paleG(bevel) ? darken(bevel, 0.68) : "#FFFFFF"}" text-anchor="middle" dominant-baseline="central" data-seat-rider="count${i + 1}">${esc(counts[i])}</text>`;
         if (i === sel && state !== "disabled") {
           const hotI = state === "hover" || state === "pressed";
           // data-invring lets the engine export bake the panel RINGLESS and
@@ -6528,7 +6540,9 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const well = `<path d="${wellOf(s, s, inset)}" fill="${wellFill}" opacity="0.9"/>` +
         `<path d="${wellOf(s, s, inset + 8 * k)}" fill="none" stroke="rgba(255,255,255,0.26)" stroke-width="2" stroke-dasharray="6 5"/>`;
       const ic = opts.icon ?? STOCK_ICONS.helmet;
-      const ghost = ic ? iconGroup(ic, 39 + s / 2 - 28 * k, 30 + s / 2 - 28 * k, 56 * k, state === "hover" ? "rgba(255,255,255,0.62)" : "rgba(255,255,255,0.38)", { strokeWidth: 2 * iconWK }) : "";
+      // the ghost gear silhouette is marked swappable ink (the law) —
+      // the picker steers it in the app, the Inspector swaps it in Unity
+      const ghost = ic ? `<g data-part="icon" data-icon="glyph">${iconGroup(ic, 39 + s / 2 - 28 * k, 30 + s / 2 - 28 * k, 56 * k, state === "hover" ? "rgba(255,255,255,0.62)" : "rgba(255,255,255,0.38)", { strokeWidth: 2 * iconWK })}</g>` : "";
       return inject(shell.replace("<svg ", '<svg data-equipslot="1" '), well + ghost);
     }
     case "skillnode": {
@@ -6604,9 +6618,13 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const cy = 30 + h / 2;
       const pr = 33 * k, pcx = 39 + inset + pr + 8 * k;
       const gidP9 = "pf" + UID++;
+      /* the portrait is a marked WELL (maximum-editability law, the
+         avatarframe grammar): the placeholder bust ships as a live masked
+         Portrait child — drop YOUR sprite on it and the frame clips it
+         round. The rim ring stays anatomy. */
       const portrait = `<defs><clipPath id="${gidP9}"><circle cx="${pcx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${pr.toFixed(1)}"/></clipPath></defs>
         <circle cx="${pcx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${pr.toFixed(1)}" fill="${wellFill}"/>
-        <g clip-path="url(#${gidP9})" opacity="${state === "disabled" ? 0.4 : 1}">
+        <g data-part="icon" data-icon="portrait" data-icon-well="${pcx.toFixed(1)} ${cy.toFixed(1)} ${pr.toFixed(1)}" clip-path="url(#${gidP9})" opacity="${state === "disabled" ? 0.4 : 1}">
           <circle cx="${pcx.toFixed(1)}" cy="${(cy - pr * 0.28).toFixed(1)}" r="${(pr * 0.34).toFixed(1)}" fill="rgba(255,255,255,0.4)"/>
           <ellipse cx="${pcx.toFixed(1)}" cy="${(cy + pr * 0.75).toFixed(1)}" rx="${(pr * 0.62).toFixed(1)}" ry="${(pr * 0.5).toFixed(1)}" fill="rgba(255,255,255,0.4)"/>
         </g>
@@ -6627,8 +6645,9 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       };
       const parts = portrait +
         contentText(opts.label ?? "KIRA", tx0, 30 + inset + 20 * k, 24 * k * typeK, { keepCase: true }) +
-        // themed like the name — a white ghost glyph vanished on light faces
-        (STOCK_ICONS.sword ? themedIcon(STOCK_ICONS.sword, 39 + w - inset - 30 * k, 30 + inset + 8 * k, 22 * k, hexMix(glow, "#FFFFFF", 0.25), 2) : "") +
+        // themed like the name — a white ghost glyph vanished on light
+        // faces; marked swappable ink (the law): the class glyph ships live
+        (STOCK_ICONS.sword ? `<g data-part="icon" data-icon="class" data-icon-nick="Class glyph">${themedIcon(STOCK_ICONS.sword, 39 + w - inset - 30 * k, 30 + inset + 8 * k, 22 * k, hexMix(glow, "#FFFFFF", 0.25), 2)}</g>` : "") +
         rail9(cy + 8 * k, vHP, "#4ade80") + rail9(cy + 28 * k, vMP, "#38bdf8");
       return inject(shell.replace("<svg ", '<svg data-partyframe="1" '), parts);
     }

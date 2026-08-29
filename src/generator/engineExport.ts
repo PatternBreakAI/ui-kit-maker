@@ -596,6 +596,11 @@ const PREFAB_FAMILY: Partial<Record<KitComponentId, string>> = {
   nameplate: "nameplate", stepper: "stepper", notifydot: "notifydot",
   loadbar: "loadbar", setrow: "setrow", listmenu: "listmenu",
   scrollbar: "scrollbar", steps: "steps", pagedots: "pagedots",
+  // the RPG & MMO slice (S2)
+  questpanel: "questpanel", dialoguebox: "dialoguebox", choicelist: "choicelist",
+  manarails: "manarails", xpbar: "xpbar", invgrid: "invgrid",
+  partyframe: "partyframe", compass: "compass", dmgnumber: "dmgnumber",
+  equipslot: "equipslot", skillnode: "skillnode",
 };
 // the glyph rack: pure-art silhouettes, one Image prefab each — placeable,
 // tintable, never fake buttons (the mandate's non-interactive lane)
@@ -606,14 +611,23 @@ for (const cGl of KIT_COMPONENTS) if (isGlyphPiece(cGl.id)) PREFAB_FAMILY[cGl.id
    press, which merely display). Interactive = the app's own anatomy:
    buttons-group members and selectable cards/nodes; the display set is
    pinned chrome and HUD readouts (PINNED_CHROME's movecounter included). */
-const UNIVERSAL_INTERACTIVE = new Set<KitComponentId>(["ghost", "claimbtn", "levelnode", "dailycell", "boostercard", "rewardcard"]);
+const UNIVERSAL_INTERACTIVE = new Set<KitComponentId>(["ghost", "claimbtn", "levelnode", "dailycell", "boostercard", "rewardcard",
+  // RPG slice: the skill node is a real button in the app ("build drives
+  // its hover/pressed states natively") — it presses in Unity too
+  "skillnode"]);
 const UNIVERSAL_DISPLAY = new Set<KitComponentId>(["qtybadge", "resource", "currency", "movecounter", "ring", "avatarframe", "bottomnav",
   /* the FULL-CATALOG round (owner roster, 2026-08-28: "Include the following
      exports in the Playground scene") — chrome & foundations first: every
      one ships the whole-shell bake with live word seats and marked icon
      children, placeable display pieces (composed controls stay composed —
      a stepper's two caps or a menu's four rows are not ONE button). */
-  "nameplate", "stepper", "notifydot", "loadbar", "setrow", "listmenu", "scrollbar", "steps", "pagedots"]);
+  "nameplate", "stepper", "notifydot", "loadbar", "setrow", "listmenu", "scrollbar", "steps", "pagedots",
+  /* RPG & MMO slice: quests, dialogue, vitals, inventory and party — the
+     role-playing vocabulary, whole-shell bakes with live words and marked
+     icon children (portrait wells included). The damage number keeps its
+     tilted digits in the art by the warped-stamp contract (rotation is
+     the art); per-copy magnitudes ride posed skins. */
+  "questpanel", "dialoguebox", "choicelist", "manarails", "xpbar", "invgrid", "partyframe", "compass", "dmgnumber", "equipslot"]);
 const UNIVERSAL_ROAD = new Set<KitComponentId>([...UNIVERSAL_INTERACTIVE, ...UNIVERSAL_DISPLAY]);
 /* the ACTION GLYPHS (round 40 — the owner's Gameplay pause button sat
    dead in Play): pause/play/replay/home are buttons by their own meaning
@@ -4058,6 +4072,17 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         scrollbar: "Scrollbar — vertical strip, sunken track, candy thumb baked at the staged position. Display piece; pair with your own ScrollRect (the ScrollView prefab shows the wiring).",
         steps: "Step indicator — wizard pips; the step numbers are LIVE seats. Display piece.",
         pagedots: "Page dots — carousel position pips, the active dot in the kit's candy. Display piece; per-page states ride posed skins.",
+        questpanel: "Quest tracker — eyebrow, title, objectives and counts are LIVE seats (title is the live Label). Pips and footer bar are anatomy; per-copy progress rides posed skins. Display piece.",
+        dialoguebox: "Dialogue box — both lines are LIVE seats, the speaker plate a live child whose NAME rides it (move or delete plate + name as one). The continue arrow is anatomy. Display piece.",
+        choicelist: "Dialogue choices — all three responses and their hotkey digits are LIVE seats; the active-choice marker is a LIVE Image child. Wire per-choice buttons over the capsules. Display piece.",
+        manarails: "Mana & stamina rails — each rail glyph is a LIVE Image child (swap the sprite in the Inspector). Rails bake at the staged values; per-copy values ride posed skins. Display piece.",
+        xpbar: "XP bar — the level number, NEXT line and XP readout are LIVE seats; the mercury bakes at the staged value (per-copy values ride posed skins). Display piece.",
+        invgrid: "Inventory grid — every cell glyph is a LIVE Image child (the app's cell pickers steer them) and the count chips are live plates with their numbers riding them. The selection ring is NOT baked: compose invgrid/cell-ring.png over any cell (the board scenes wire InvGridSelect for you). Display piece.",
+        partyframe: "Party frame — drop YOUR sprite on the Portrait child (the well clips it round); the name is a LIVE seat and the class glyph a LIVE Image child. HP/MP rails bake at the staged values. Display piece.",
+        compass: "Compass ribbon — the cardinal letters are LIVE seats and the tick ribbon bakes at the staged heading (per-copy headings ride posed skins). Display piece.",
+        dmgnumber: "Damage number — the tilted digits stay in the art by the warped-stamp contract (rotation IS the art; per-copy magnitudes ride posed skins). Scale freely. Display piece.",
+        equipslot: "Equipment slot — the ghost silhouette showing what belongs is a LIVE Image child; the app's icon picker steers it and the Inspector swaps it. Display piece.",
+        skillnode: "Skill-tree node — a REAL button (Sprite Swap states); the skill glyph is a LIVE Image child. Learned/locked poses ride per-copy posed skins.",
         bottomnav: "Bottom nav bar — one placeable piece; the item words are LIVE seats and every tab glyph a LIVE Image child (swap any sprite in the Inspector). The Selected ring child IS the selection: move it a cell over (one cell pitch) or disable it. The Badge plate child carries its live count with it — move, restyle or delete the pair as one. Wire your own per-item buttons over it (the bar itself is not one button).",
       };
       const universalIds: KitComponentId[] = [
@@ -4074,8 +4099,14 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           icon: resolveKitIcon(st.kitIcons?.[uid], undefined),
           themedText: !!st.kitDesigns?.[uid]?.type || !!st.kitTextFill[uid],
         };
+        /* SMIL loops strip before anything downstream parses or rasters —
+           the posed road's own discipline (rasterizing at t=0 caught the
+           damage number's spawn fade at opacity 0: an EMPTY bake) */
+        const stripLoopsU = (sv: string) => sv
+          .replace(/<animate(?:Transform|Motion)?\b[^>]*\/>/g, "")
+          .replace(/<animate(?:Transform|Motion)?\b[^>]*>[\s\S]*?<\/animate(?:Transform|Motion)?>/g, "");
         let fullU: string;
-        try { fullU = shell(uid, uOpts, undefined, uVal); } catch { continue; }
+        try { fullU = stripLoopsU(shell(uid, uOpts, undefined, uVal)); } catch { continue; }
         /* label metrics off the PRE-strip render — the NINE road's own
            discipline (offsets from the shell0 center, frame-invariant);
            the RENDERED word ships as labelText (levelnode's number ignores
@@ -4086,7 +4117,17 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           const li = fullU.indexOf('data-part="label"');
           if (li >= 0) {
             const lg = fullU.slice(li);
-            const tm = /<text x="(-?[\d.]+)" y="(-?[\d.]+)" font-size="([\d.]+)"/.exec(lg);
+            /* attribute-order-tolerant label parse (round 41 — the quest
+               tracker's title rides a data-part="label" group drawn by
+               contentText, whose <text> leads with font-family; the rigid
+               x/y/font-size regex missed it and the TITLE VANISHED from
+               the prefab: stripped from the bake, skipped by the seat
+               road, no label shipped) — read the first text tag's attrs
+               wherever they sit. Both label voices seat at
+               dominant-baseline central, so the metrics agree. */
+            const tTagU = /<text\b[^>]*>/.exec(lg)?.[0] ?? "";
+            const gxU = /\bx="(-?[\d.]+)"/.exec(tTagU), gyU = /\by="(-?[\d.]+)"/.exec(tTagU), gfU = /\bfont-size="([\d.]+)"/.exec(tTagU);
+            const tm = gxU && gyU && gfU ? { 1: gxU[1], 2: gyU[1], 3: gfU[1] } as Record<1 | 2 | 3, string> : null;
             const s0m = /data-shell0="([-\d. ]+)"/.exec(fullU) ?? /data-shell="([-\d. ]+)"/.exec(fullU);
             const s0 = s0m?.[1].split(" ").map(Number);
             if (tm && s0 && s0.length === 4 && +tm[3] > 1) {
@@ -4149,7 +4190,11 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
            identically so the live child rides the press with no baked
            twin beneath. */
         const iconSeatsU = isArt ? null : await iconSeatsOf(uid, fullU);
-        const baseSvgU = iconSeatsU ? stripIconInk(strippedU.svg).svg : strippedU.svg;
+        let baseSvgU = iconSeatsU ? stripIconInk(strippedU.svg).svg : strippedU.svg;
+        /* the inventory grid's family base ships RINGLESS (the posed
+           road's own data-invring cut): the selection is a live layer —
+           invgrid/cell-ring.png — never pixels a dev can't move */
+        if (uid === "invgrid") baseSvgU = baseSvgU.replace(/<rect data-invring="1"[^>]*\/?>/g, "");
         // the avatar's circular mask — the masked Portrait child clips ANY
         // sprite a dev drops in to the frame's own aperture
         if (iconSeatsU?.some((s9) => (s9.wellR ?? 0) > 0.5))
@@ -4171,7 +4216,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         if (interactive) {
           for (const stName of ["hover", "pressed", "disabled"] as const) {
             let sSvg: string;
-            try { sSvg = stateShell(uid, stName, uOpts, uVal); } catch { continue; }
+            try { sSvg = stripLoopsU(stateShell(uid, stName, uOpts, uVal)); } catch { continue; }
             await addPng(`${uid}/base-${stName}.png`, stripIconInk(stripWordInk(sSvg).svg).svg, {
               component: uid, part: `base-${stName}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
               usage: `${SWAP_USAGE[stName]} state — Sprite Swap beside base.png (the generated prefab wires it). Union-cropped with base, so the press pose stays registered.`,
@@ -4661,7 +4706,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      recipe as its own sprite — the boards bake the panel ringless and a
      rig moves this over whichever tile is clicked. Ships only when a
      board actually places an inventory grid. */
-  if (st.boards?.some((bd) => bd.items.some((it) => it.component === "invgrid" && it.cells))) {
+  /* the ring ships with EVERY full kit now (round 41 — the Invgrid family
+     prefab shelves ringless, so the live layer must always be in reach),
+     not only when a board placed a grid */
+  if (full || st.boards?.some((bd) => bd.items.some((it) => it.component === "invgrid" && it.cells))) {
     const rGlow = pieceCfg("invgrid").effects.Glow ?? "#8FF0FF";
     const rr9 = parseInt(rGlow.slice(1, 3), 16), rg9 = parseInt(rGlow.slice(3, 5), 16), rb9 = parseInt(rGlow.slice(5, 7), 16);
     const ringSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="264" height="264" viewBox="-12 -12 132 132">` +
@@ -5230,7 +5278,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
                     lift recipe, and the slice-1 content ride carries their
                     live words/seats with the face */
                  ["ghost", "ghost"], ["claimbtn", "claimbtn"], ["levelnode", "levelnode"],
-                 ["dailycell", "dailycell"], ["boostercard", "boostercard"], ["rewardcard", "rewardcard"]] as const).flatMap(([pid, fam]) => {
+                 ["dailycell", "dailycell"], ["boostercard", "boostercard"], ["rewardcard", "rewardcard"],
+                 ["skillnode", "skillnode"]] as const).flatMap(([pid, fam]) => {
         const ps = pieceCfg(pid).states;
         return (["default", "hover", "pressed", "disabled"] as const).map((sn) => ({
           family: fam,
@@ -5276,7 +5325,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
            housing contract (the pad pins to rest by design). */
         ...([["datarow", "list-row"], ["slot", "item-slot"], ["iconbtn", "iconbtn"], ["checkbox", "checkbox"], ["radio", "radio"],
              ["gearicon", "gearicon"], ["trophyicon", "trophyicon"], ["gifticon", "gifticon"], ["endturn", "endturn"], ["keycap", "keycap"], ["pricebtn", "pricebtn"],
-             ["claimbtn", "claimbtn"], ["levelnode", "levelnode"], ["dailycell", "dailycell"], ["boostercard", "boostercard"], ["rewardcard", "rewardcard"]] as const).flatMap(([pid, fam]) =>
+             ["claimbtn", "claimbtn"], ["levelnode", "levelnode"], ["dailycell", "dailycell"], ["boostercard", "boostercard"], ["rewardcard", "rewardcard"],
+             ["skillnode", "skillnode"]] as const).flatMap(([pid, fam]) =>
           (["hover", "pressed", "disabled"] as const).flatMap((sn) => {
             const dy = measuredStateDy(pid, sn);
             if (dy == null || Math.abs(dy) < 0.05) return [];
@@ -10964,9 +11014,10 @@ namespace PatternBreak {
           ("CHOICE CONTROLS & FIELDS", new[] { "Checkbox", "Radio", "CheckboxToggle", "RadioToggle", "Switch", "Stepper", "Input", "Dropdown", "Setrow", "Listmenu", "Joystick", "JoystickGhost", "Firebutton" }),
           ("SLIDERS & PROGRESS", new[] { "Slider", "ProgressBar", "SegmentMeter", "VsBar", "EmblemBar", "Loadbar", "HealthGlobe", "Ring", "SeasonTrack" }),
           ("NAVIGATION & CHROME", new[] { "Tab", "TabBack", "Bottomnav", "HeaderBanner", "Panel", "DataRow", "ItemSlot", "ScrollView", "Scrollbar", "Badge", "CountBadge", "Notifydot", "Avatarframe", "Pagedots", "Steps" }),
-          ("HUD & DATA", new[] { "Timer", "Resource", "Currency", "Nameplate", "Movecounter", "Qtybadge", "Orb", "Achievement", "Leaderboard", "LapTimes", "Telemetry", "Minimap" }),
+          ("HUD & DATA", new[] { "Timer", "Resource", "Currency", "Nameplate", "Movecounter", "Qtybadge", "Orb", "Achievement", "Leaderboard", "LapTimes", "Telemetry", "Minimap", "Compass" }),
           ("GAUGES", new[] { "Speedo", "SpeedoArc", "RevMeter" }),
           ("GAME SYSTEMS", new[] { "Levelnode", "Dailycell", "Boostercard", "Rewardcard", "Gifticon", "Trophyicon", "Gearicon", "LootTag", "RarityFrame", "Circuit", "Startlights" }),
+          ("RPG & MMO", new[] { "Questpanel", "Dialoguebox", "Choicelist", "Manarails", "Xpbar", "Invgrid", "Partyframe", "Skillnode", "Dmgnumber", "Equipslot" }),
         };
         var byName = new Dictionary<string, GameObject>();
         foreach (var p in prefabs) if (!byName.ContainsKey(p.name)) byName[p.name] = p;
@@ -16501,7 +16552,18 @@ namespace PatternBreak {
         int wi = 0;
         foreach (var s9 in row.textSeats) {
           if (s9 == null) continue;
-          if (string.IsNullOrEmpty(s9.rider)) { textsAcc.Add(texts[wi]); seatsAcc.Add(s9); adoptedAcc.Add(false); wi++; continue; }
+          if (string.IsNullOrEmpty(s9.rider)) {
+            /* re-verdict close (round 41): counts alone can alias a kept
+               PRE-adoption tree with one non-rider word deleted (exactly-
+               one-rider families) — an index mispair would REWRITE the
+               survivors and resurrect the deleted word. The pairing must
+               prove itself by seed name; anything else is the dev's. */
+            if (PlainWord(texts[wi].gameObject.name) != PlainWord(s9.text)) {
+              if (apply) Debug.Log("UI Kit Maker: " + host.name + " — its Words group doesn't line up with the kit's seats by name (a word was deleted or renamed), so the group is yours now and updates skip it. Delete the Words object and re-import to re-seed it fresh.");
+              return false;
+            }
+            textsAcc.Add(texts[wi]); seatsAcc.Add(s9); adoptedAcc.Add(false); wi++; continue;
+          }
           var tR = AdoptedRiderText(host, row, s9);
           if (tR != null) { textsAcc.Add(tR); seatsAcc.Add(s9); adoptedAcc.Add(true); }
         }

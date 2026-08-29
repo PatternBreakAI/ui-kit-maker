@@ -1839,7 +1839,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   // words and glow sink by the dial) — measured dy rows for stateFx
   // families; clean translates measure 0 and stay byte-stable
   if (!/const measuredStateDy = \(pid: KitComponentId, sn: "hover" \| "pressed" \| "disabled"\): number \| null =>/.test(src)
-      || !/\["rewardcard", "rewardcard"\]\] as const\)\.flatMap\(\(\[pid, fam\]\) =>/.test(src))
+      || !/\["skillnode", "skillnode"\]\] as const\)\.flatMap\(\(\[pid, fam\]\) =>/.test(src))
     errors.push("the bespoke-pose measured-dy pass is missing from labelStates — riders would take the raw lift dial on squash-pose kits (slice 2)");
   // the × glyph rides the baked atlas — qtybadge's live words are ×-counts
   if (!/'&\(\)×";/.test(src.replace(/\\/g, "")) && !/&\(\)×/.test(src))
@@ -2233,7 +2233,11 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
       || !/if \(texts\.Length == row\.textSeats\.Length && !adoptedTree\) \{/.test(cs)
       || !/static TMPro\.TMP_Text AdoptedRiderText\(GameObject host, PBAsset row, PBSeat seat\)/.test(cs)
       || !/rider words live under their plates/.test(cs)
-      || !/if \(!adopted && srt != null && !SeatRect\(/.test(cs))
+      || !/if \(!adopted && srt != null && !SeatRect\(/.test(cs)
+      /* re-verdict close: the non-rider pairing proves itself by seed name
+         — a kept pre-adoption tree with one word deleted must never
+         index-mispair and rewrite survivors */
+      || !/if \(PlainWord\(texts\[wi\]\.gameObject\.name\) != PlainWord\(s9\.text\)\) \{/.test(cs))
     errors.push("the rider-aware seat accounting is gone — a fresh import's own adoption trips the dev-restructured gate again (boostercard 2v3, avatarframe 0v1) and every later heal silently skips");
   /* round 41 review, blocker 2: posed rider counts rebuild on BOTH rungs —
      fully-qualified TMP outside the styled-rung guard + the LTS face mint */
@@ -2419,6 +2423,40 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the notification badge's plate/rider grammar is gone — plate baked or count orphaned");
   if (!/data-icon="ribbon" data-icon-nick="Title ribbon"/.test(bevelSrc) || !/data-seat-rider="ribbon"/.test(bevelSrc))
     errors.push("the nameplate's title ribbon lost its live plate + riding word");
+}
+
+/* FULL-CATALOG round, slice 2 pins: the RPG & MMO chapter. */
+{
+  const S2D = ["questpanel", "dialoguebox", "choicelist", "manarails", "xpbar", "invgrid", "partyframe", "compass", "dmgnumber", "equipslot"];
+  const dispM = /const UNIVERSAL_DISPLAY = new Set<KitComponentId>\(\[([\s\S]*?)\]\);/.exec(src);
+  const interM = /const UNIVERSAL_INTERACTIVE = new Set<KitComponentId>\(\[([\s\S]*?)\]\);/.exec(src);
+  for (const id of S2D)
+    if (!dispM || !new RegExp(`"${id}"`).test(dispM[1]))
+      errors.push(`${id} left the universal display road — the owner's RPG roster item stops exporting live`);
+  if (!interM || !/"skillnode"/.test(interM[1]))
+    errors.push("skillnode left the interactive road — the skill node stops pressing in Unity");
+  for (const id of [...S2D, "skillnode"])
+    if (!new RegExp(`${id}: "${id}"`).test(src))
+      errors.push(`${id} lost its PREFAB_FAMILY entry — board copies of it bake dead again`);
+  if (!/\("RPG & MMO", new\[\] \{ "Questpanel", "Dialoguebox", "Choicelist", "Manarails", "Xpbar", "Invgrid", "Partyframe", "Skillnode", "Dmgnumber", "Equipslot" \}\)/.test(cs))
+    errors.push("the Playground's RPG & MMO chapter is gone or reshuffled");
+  if (!/"Minimap", "Compass"/.test(cs))
+    errors.push("the compass fell off the HUD & DATA shelf");
+  // the un-burn marks
+  if (!/STOCK_ICONS\.flask, "mana"/.test(bevelSrc) || !/STOCK_ICONS\.zap, "stamina"/.test(bevelSrc) || !/data-icon="\$\{icName \?\? "glyph"\}"/.test(bevelSrc))
+    errors.push("the mana/stamina rail glyphs lost their icon markers");
+  if (!/data-icon="speaker" data-icon-nick="Speaker plate"/.test(bevelSrc) || !/rider: "speaker"/.test(bevelSrc))
+    errors.push("the dialogue box's speaker plate/rider grammar is gone");
+  if (!/data-icon="cell\$\{i \+ 1\}"/.test(bevelSrc) || !/data-seat-rider="count\$\{i \+ 1\}"/.test(bevelSrc))
+    errors.push("the inventory grid's cell glyphs or count riders lost their markers");
+  if (!/data-icon-well="\$\{pcx\.toFixed\(1\)\} \$\{cy\.toFixed\(1\)\} \$\{pr\.toFixed\(1\)\}"/.test(bevelSrc))
+    errors.push("the party frame's portrait well marker is gone — the portrait bakes burned again");
+  // the family invgrid ships ringless + the ring layer always ships full
+  if (!/if \(uid === "invgrid"\) baseSvgU = baseSvgU\.replace\(\/<rect data-invring="1"\[\^>\]\*\\\/\?>\/g, ""\);/.test(src))
+    errors.push("the invgrid family base bakes its selection ring again — the selection must be the live cell-ring layer");
+  // SMIL discipline on the universal road (the empty-damage-number bake)
+  if (!/const stripLoopsU = \(sv: string\) => sv/.test(src))
+    errors.push("the universal road stopped stripping SMIL loops — spawn-fade pieces (damage number) bake EMPTY at t=0");
 }
 
 if (errors.length) {
