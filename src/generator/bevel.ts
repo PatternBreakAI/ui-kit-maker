@@ -6548,10 +6548,14 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const line2 = contentText(l2t, 42 + inset + 18 * k, 33 + inset + 82 * k, fitFs(l2t, 23 * k * typeK, bodyAvail, 0.47, { list: true, keepCase: true }), { keepCase: true, opacity: 0.8, list: true, ink: bodyInk });
       const ax = 42 + w - inset - 34 * k, ay = 33 + h - inset - 34 * k;
       const hotA = state === "hover" || state === "pressed";
+      /* round 44 (owner ruling): the continue caret IS ITS OWN LAYER —
+         marked swappable ink, so the export ships it as a live child devs
+         can blink, bob or re-glyph (icons/chevron fits the seat). The
+         app keeps the bob; the export's SMIL strip already rasters t=0. */
       const arrow = state !== "disabled"
-        ? `<g><animateTransform attributeName="transform" type="translate" values="0 0; 0 ${(5 * k).toFixed(1)}; 0 0" dur="1.3s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.6 1; 0.4 0 0.6 1"/>
+        ? `<g data-part="icon" data-icon="caret" data-icon-nick="Continue caret"><animateTransform attributeName="transform" type="translate" values="0 0; 0 ${(5 * k).toFixed(1)}; 0 0" dur="1.3s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.6 1; 0.4 0 0.6 1"/>
             <path d="M ${(ax - 14 * k).toFixed(1)} ${ay.toFixed(1)} L ${(ax + 14 * k).toFixed(1)} ${ay.toFixed(1)} L ${ax.toFixed(1)} ${(ay + 16 * k).toFixed(1)} Z" fill="${hotA ? lighten(glow, 0.35) : glow}" style="filter: drop-shadow(0 0 ${((hotA ? 9 : 5) * k).toFixed(1)}px ${hexRgba(glow, hotA ? 0.9 : 0.65)})"/></g>`
-        : `<path d="M ${(ax - 14 * k).toFixed(1)} ${ay.toFixed(1)} L ${(ax + 14 * k).toFixed(1)} ${ay.toFixed(1)} L ${ax.toFixed(1)} ${(ay + 16 * k).toFixed(1)} Z" fill="rgba(255,255,255,0.3)"/>`;
+        : `<g data-part="icon" data-icon="caret" data-icon-nick="Continue caret"><path d="M ${(ax - 14 * k).toFixed(1)} ${ay.toFixed(1)} L ${(ax + 14 * k).toFixed(1)} ${ay.toFixed(1)} L ${ax.toFixed(1)} ${(ay + 16 * k).toFixed(1)} Z" fill="rgba(255,255,255,0.3)"/></g>`;
       return inject(shell.replace("<svg ", '<svg data-dialoguebox="1" '), plate + line1 + line2 + arrow);
     }
     case "choicelist": {
@@ -7470,8 +7474,14 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       }
       const timer = infoText(opts.label ?? "NEXT +1 · 2:32", hx0 + nH * (hs9 + gapH) + 8 * k, cy + 1, 17 * k, "start", 700);
       const addX = 39 + w - inset - 26 * k;
-      const add = candyKnob(addX, cy, 20 * k, knobC) +
-        `<text x="${addX.toFixed(1)}" y="${(cy - 1.5 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(26 * k).toFixed(1)}" font-weight="900" fill="${darken(bevel, 0.55)}" text-anchor="middle" dominant-baseline="central">+</text>`;
+      /* round 44 (owner item 17 — the HEARTMETER half of the 16/17 pair):
+         the add cap is marked swappable ink with BUTTON semantics (the
+         friendrow JOIN grammar) and its "+" mark RIDES it — the export
+         ships a real add-life button child carrying its live word. The
+         wrap adds no draw calls, so candyKnob's UID++ gradient sequence
+         (and every boardstamp byte) holds still. */
+      const add = `<g data-part="icon" data-icon="addcap" data-icon-btn="1">` + candyKnob(addX, cy, 20 * k, knobC) + `</g>` +
+        `<text x="${addX.toFixed(1)}" y="${(cy - 1.5 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(26 * k).toFixed(1)}" font-weight="900" fill="${darken(bevel, 0.55)}" text-anchor="middle" dominant-baseline="central" data-seat-rider="addcap">+</text>`;
       return inject(shell.replace("<svg ", '<svg data-heartmeter="1" '), hearts + timer + add);
     }
     case "booster": {
@@ -7942,8 +7952,13 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const qtyInk = dimR
         ? (qtyPale ? hexRgba(darken(tier.c, 0.55), 0.6) : "rgba(255,255,255,0.4)")
         : (qtyPale ? darken(tier.c, 0.52) : lighten(tier.c, 0.35));
-      const qty = mystery ? "" : `<rect x="${(wcx - 34 * k).toFixed(1)}" y="${(sy + sh - inset - 34 * k).toFixed(1)}" width="${(68 * k).toFixed(1)}" height="${(26 * k).toFixed(1)}" rx="${(13 * k).toFixed(1)}" fill="${hexRgba(tier.c, 0.25)}" stroke="${hexRgba(tier.c, 0.6)}" stroke-width="1.3"/>` +
-        `<text x="${wcx.toFixed(1)}" y="${(sy + sh - inset - 20.5 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(15.5 * k).toFixed(1)}" font-weight="800" fill="${qtyInk}" text-anchor="middle" dominant-baseline="central">${esc((opts.slots?.qty ?? "×3").slice(0, 8))}</text>`;
+      /* round 44 (dossier R9): the qty PILL PLATE is marked swappable ink
+         and the count RIDES it (the invgrid count-chip + booster badge
+         grammar) — move, restyle or delete plate + count as one live
+         pair; the legendary variant shares this case, so its amber pill
+         un-burns in the same stroke */
+      const qty = mystery ? "" : `<g data-part="icon" data-icon="qtychip" data-icon-nick="Qty chip"><rect x="${(wcx - 34 * k).toFixed(1)}" y="${(sy + sh - inset - 34 * k).toFixed(1)}" width="${(68 * k).toFixed(1)}" height="${(26 * k).toFixed(1)}" rx="${(13 * k).toFixed(1)}" fill="${hexRgba(tier.c, 0.25)}" stroke="${hexRgba(tier.c, 0.6)}" stroke-width="1.3"/></g>` +
+        `<text x="${wcx.toFixed(1)}" y="${(sy + sh - inset - 20.5 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(15.5 * k).toFixed(1)}" font-weight="800" fill="${qtyInk}" text-anchor="middle" dominant-baseline="central" data-seat-rider="qtychip">${esc((opts.slots?.qty ?? "×3").slice(0, 8))}</text>`;
       return injectUnder(inject(shell.replace("<svg ", '<svg data-rewardcard="1" '), well + face + nameR + qty), aura);
     }
     case "boostercard": {
@@ -8289,7 +8304,9 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       } else if (locked9) {
         over += iconGroup(STOCK_ICONS.lock, ccx - 11 * k, costY - 11 * k, 22 * k, "#A7AAB4", { strokeWidth: 2.2 * iconWK });
       } else {
-        over += `<circle cx="${(ccx - 26 * k).toFixed(1)}" cy="${costY.toFixed(1)}" r="${(11 * k).toFixed(1)}" fill="#FACC15" stroke="#92400E" stroke-width="1.3"/>` +
+        // round 44 (owner item 41): the cost gem is marked swappable ink —
+        // the number beside it was always live; now the gem ships live too
+        over += `<g data-part="icon" data-icon="cost" data-icon-nick="Cost gem"><circle cx="${(ccx - 26 * k).toFixed(1)}" cy="${costY.toFixed(1)}" r="${(11 * k).toFixed(1)}" fill="#FACC15" stroke="#92400E" stroke-width="1.3"/></g>` +
           infoText("120", ccx - 10 * k, costY + 1, 17 * k, "start", 800);
         if (state !== "disabled") over += `<rect x="${(sx - 5 * k).toFixed(1)}" y="${(sy - 5 * k).toFixed(1)}" width="${(sw + 10 * k).toFixed(1)}" height="${(sh + 10 * k).toFixed(1)}" rx="${(18 * k).toFixed(1)}" fill="none" stroke="${hexRgba(glow, 0.7)}" stroke-width="${(2.4 * k).toFixed(1)}"><animate attributeName="stroke-opacity" values="0.8;0.3;0.8" dur="2.2s" repeatCount="indefinite" calcMode="spline" keySplines="0.42 0 0.58 1; 0.42 0 0.58 1"/></rect>`;
       }
@@ -8410,14 +8427,20 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const joinInk = online ? (darkFace9 ? darken(bevel, 0.66) : "#FFFFFF") : infoInk;
       /* the portrait is a marked WELL (avatarframe grammar) and the JOIN
          capsule a marked BUTTON plate whose word rides it (qtybtn
-         grammar) — maximum-editability law */
+         grammar) — maximum-editability law. Round 44 (owner item 16): the
+         presence dot is marked swappable ink too — it was the row's only
+         burned picture. NO data-icon-tint on purpose: the dot is MIXED
+         ink (presence-green fill, white ring, green halo), and the tint
+         road multiplies the WHOLE cut via Image.color — a tinted cut
+         would turn the white ring green. The full-color cut recomposes
+         the app's pixels exactly; a dev still moves/deletes/swaps it. */
       const parts = `<defs><clipPath id="${gidF}"><circle cx="${pcx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${pr.toFixed(1)}"/></clipPath></defs>
         <circle cx="${pcx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${pr.toFixed(1)}" fill="${wellFill}"/>
         <g data-part="icon" data-icon="portrait" data-icon-well="${pcx.toFixed(1)} ${cy.toFixed(1)} ${pr.toFixed(1)}" clip-path="url(#${gidF})" opacity="${state === "disabled" ? 0.4 : 1}">
           <circle cx="${pcx.toFixed(1)}" cy="${(cy - pr * 0.28).toFixed(1)}" r="${(pr * 0.34).toFixed(1)}" fill="rgba(255,255,255,0.4)"/>
           <ellipse cx="${pcx.toFixed(1)}" cy="${(cy + pr * 0.75).toFixed(1)}" rx="${(pr * 0.62).toFixed(1)}" ry="${(pr * 0.5).toFixed(1)}" fill="rgba(255,255,255,0.4)"/>
         </g>
-        <circle cx="${(pcx + pr * 0.72).toFixed(1)}" cy="${(cy + pr * 0.72).toFixed(1)}" r="${(8 * k).toFixed(1)}" fill="${PRES}" stroke="rgba(255,255,255,0.9)" stroke-width="2"${online && state !== "disabled" ? ` style="filter: drop-shadow(0 0 3px ${hexRgba(PRES, 0.7)})"` : ""}/>` +
+        <g data-part="icon" data-icon="presence" data-icon-nick="Presence dot"><circle cx="${(pcx + pr * 0.72).toFixed(1)}" cy="${(cy + pr * 0.72).toFixed(1)}" r="${(8 * k).toFixed(1)}" fill="${PRES}" stroke="rgba(255,255,255,0.9)" stroke-width="2"${online && state !== "disabled" ? ` style="filter: drop-shadow(0 0 3px ${hexRgba(PRES, 0.7)})"` : ""}/></g>` +
         contentText(opts.label ?? "KAIRO_77", pcx + pr + 14 * k, cy - 10 * k, 21 * k * typeK, { keepCase: true }) +
         /* the STATUS is reading text — it speaks the LIST FACE (owner:
            "the list font does not match the display font" — it was
@@ -8679,9 +8702,15 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const glyphAT = icAT === null ? "" : `<g data-part="icon" data-icon="glyph">${icAT
         ? iconGroup(icAT, mX - mR * 0.62, cy - mR * 0.62, mR * 1.24, "#92400E", { strokeWidth: 2.4 * iconWK, opacity: 0.85 })
         : `<g transform="translate(${(mX - mR * 0.62).toFixed(1)} ${(cy - mR * 0.62).toFixed(1)})"><path d="${starPath(mR * 1.24)}" fill="#92400E" opacity="0.85"/></g>`}</g>`;
-      const med = `<defs><radialGradient id="${gidA0}" cx="0.35" cy="0.3" r="0.95"><stop offset="0" stop-color="#FFF3B0"/><stop offset="0.55" stop-color="#FACC15"/><stop offset="1" stop-color="#B45309"/></radialGradient></defs>
+      /* round 44 (dossier R11): the gold medallion ORB is marked swappable
+         ink too — its glyph went live in round 40 while the container
+         stayed burned; now devs recolor/remove/move orb and glyph as live
+         children (the orb seats BEFORE the glyph, so paint order holds).
+         The gradient defs live INSIDE the group: they strip from the base
+         with it and ride into the cut, nothing else references them. */
+      const med = `<g data-part="icon" data-icon="medallion" data-icon-nick="Gold medallion"><defs><radialGradient id="${gidA0}" cx="0.35" cy="0.3" r="0.95"><stop offset="0" stop-color="#FFF3B0"/><stop offset="0.55" stop-color="#FACC15"/><stop offset="1" stop-color="#B45309"/></radialGradient></defs>
         <circle cx="${mX.toFixed(1)}" cy="${cy.toFixed(1)}" r="${mR.toFixed(1)}" fill="url(#${gidA0})" stroke="#92400E" stroke-width="1.8"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(5 * k).toFixed(1)}px rgba(250,204,21,0.6))"` : ""}/>
-        <ellipse cx="${(mX - mR * 0.3).toFixed(1)}" cy="${(cy - mR * 0.42).toFixed(1)}" rx="${(mR * 0.32).toFixed(1)}" ry="${(mR * 0.17).toFixed(1)}" fill="#FFFFFF" opacity="0.6"/>` + glyphAT;
+        <ellipse cx="${(mX - mR * 0.3).toFixed(1)}" cy="${(cy - mR * 0.42).toFixed(1)}" rx="${(mR * 0.32).toFixed(1)}" ry="${(mR * 0.17).toFixed(1)}" fill="#FFFFFF" opacity="0.6"/></g>` + glyphAT;
       /* eyebrow ink + keyline answer to their color slots (KIT_SLOTS.achievetoast);
          untouched, the stroke keeps the soft translucent factory dark; the
          "none" sentinel removes the keyline entirely */

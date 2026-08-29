@@ -2782,6 +2782,38 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the kept-project cell-meter convergence is gone — field meters keep raw cuts (or empty bases) forever");
 }
 
+/* ── ROUND 44 · S8 (the RIG-4 marked-ink wrap sweep — items 16/17/41,
+   the owner's caret ruling, and the R1/R9/R11 sweep riders): every wrap
+   is app-side grammar in bevel.ts; the exporter's existing hands
+   (markedIconOnlySvgs / stripMarkedIcons / iconSeatsOf / rider adoption)
+   do the rest. Plus the medal's live word and the paint-order insert. ── */
+{
+  if (!/data-icon="presence" data-icon-nick="Presence dot"/.test(bevelSrc))
+    errors.push("the friendrow presence dot lost its marked wrap — the row's only green ink burns into the base again (round 44, item 16; deliberately UN-tinted: mixed ink, see the bevel comment)");
+  if (!/data-icon="addcap" data-icon-btn="1"/.test(bevelSrc) || !/data-seat-rider="addcap"/.test(bevelSrc))
+    errors.push("the heartmeter add cap lost its marked BUTTON wrap or its + rider — the candy knob burns into the base again (round 44, item 17 — the HEARTMETER half of the 16/17 pair)");
+  if (!/data-icon="cost" data-icon-nick="Cost gem"/.test(bevelSrc))
+    errors.push("the techcard cost gem lost its marked wrap (round 44, item 41 — owner: the yellow dot beside 120 un-burns)");
+  if ((bevelSrc.match(/data-icon="caret" data-icon-nick="Continue caret"/g) ?? []).length < 2)
+    errors.push("the dialoguebox continue caret must be marked in BOTH state branches (owner ruling, round 44: the caret IS ITS OWN LAYER)");
+  if (!/data-icon="qtychip" data-icon-nick="Qty chip"/.test(bevelSrc) || !/data-seat-rider="qtychip"/.test(bevelSrc))
+    errors.push("the rewardcard qty chip lost its marked plate wrap or its count rider (round 44, dossier R9 — covers the legendary variant too)");
+  if (!/data-icon="medallion" data-icon-nick="Gold medallion"/.test(bevelSrc))
+    errors.push("the achievetoast gold medallion lost its marked wrap — the orb burns while its glyph ships live (round 44, dossier R11)");
+  if (!/const vsMedalSeats = parseTextSeats\(vsMedalFull, pieceCfg\("vsbar"\)\.type\.font\);/.test(src)
+      || !/stripWordInk\(vsMedalFull\)\.svg/.test(src))
+    errors.push("the vsbar medal's word must parse as a text seat and strip from the sprite — the VS burns into the medallion again (round 44, dossier R1)");
+  if (!/WireTextSeats\(mgo, root, m, pngScale\);/.test(cs))
+    errors.push("VsBarPrefab no longer seats the medal's VS live (WireTextSeats on the Medal child)");
+  if (!/\|Medal Words/.test(cs) || !/medalWorded\+\+;/.test(cs))
+    errors.push("the kept-project medal-word graft is gone (or lost its seeded-children ledger key) — field VsBars go wordless when the wordless medal sprite retextures in");
+  if (!/for \(int nxI = icI \+ 1; nxI < row\.iconSeats\.Length && beforeIC == null; nxI\+\+\)/.test(cs)
+      || !/if \(beforeIC == null\) beforeIC = go\.transform\.Find\("Words"\);/.test(cs))
+    errors.push("WireIconChildrenRow lost the order-aware insert — a converged medallion lands OVER its glyph on kept prefabs (seat order is paint order, round 44)");
+  if (/The continue arrow is anatomy/.test(src))
+    errors.push("the dialoguebox usage still claims the continue arrow is anatomy — the owner overturned that (round 44 ruling)");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);

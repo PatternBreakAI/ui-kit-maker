@@ -3841,7 +3841,17 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   await addPng("vsbar/fill-r.png", shell("vsbar", { overlay: "fill-right" }, slim, 1), { component: "vsbar", part: "fill-r", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Right fighter's mercury at 100% (drain edge rounded like the app draws it) — Filled/Horizontal, Origin Right; fillAmount IS the right health; KitBarFill rides the drain cap." }, true);
   await addPng("vsbar/cap-l.png", shell("vsbar", { overlay: "cap-l" }, slim, 1), { component: "vsbar", part: "cap-l", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Left fighter's drain bead — KitBarFill parks it at the health line (round 44: rounded at any value)." }, true);
   await addPng("vsbar/cap-r.png", shell("vsbar", { overlay: "cap-r" }, slim, 1), { component: "vsbar", part: "cap-r", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Right fighter's drain bead, mirrored — KitBarFill parks it at the health line." }, true);
-  await addPng("vsbar/medal.png", shell("vsbar", { overlay: "medal" }, slim), { component: "vsbar", part: "medal", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The candy VS medallion, kit-typed — rides the axis over both fills and holds its size when the bar stretches." }, true);
+  /* round 44 (dossier R1 — words-are-live law): the medal's "VS" leaves
+     the pixels. The word parses as a text seat off the medal's OWN canvas
+     (the raster queue normalizes fx/fy/ffs to the cropped sprite; the ink
+     sits well inside the knob, so the crop box holds still) and the
+     VsBarPrefab seats it live on the Medal child (WireTextSeats — the
+     claimbtn ribbon-word precedent, plate + live word). */
+  {
+    const vsMedalFull = shell("vsbar", { overlay: "medal" }, slim);
+    const vsMedalSeats = parseTextSeats(vsMedalFull, pieceCfg("vsbar").type.font);
+    await addPng("vsbar/medal.png", stripWordInk(vsMedalFull).svg, { component: "vsbar", part: "medal", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The candy VS medallion — rides the axis over both fills and holds its size when the bar stretches; the VS word is a LIVE seat on the Medal child (retype it in the Inspector).", ...(vsMedalSeats ? { textSeats: vsMedalSeats } : {}) }, true);
+  }
   await addPng("emblembar/track.9.png", shell("emblembar", { overlay: "track" }, slim), { component: "emblembar", part: "track", nineSlice: sliceOf("emblembar", 64), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Emblem bar track — the real component's shell + well, no fill, no socket. The wired EmblemBar prefab stretches it." }, true);
   await addPng("emblembar/fill.9.png", shell("emblembar", { overlay: "fill" }, slim, 1), { component: "emblembar", part: "fill", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Emblem bar mercury at 100% — the wired prefab's Filled image scissors it to the live value; KitBarFill parks the rounded head (emblembar-cap.png) on the growing end." }, true);
   await addPng("emblembar/cap.png", shell("emblembar", { overlay: "cap" }, slim, 1), { component: "emblembar", part: "cap", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The emblem bar mercury's rounded head — KitBarFill rides it on the growing end." }, true);
@@ -4169,7 +4179,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         currency: "Currency chip — the count is a LIVE seat and the coin a LIVE Image child (swap the sprite in the Inspector). Display piece.",
         ghost: "Ghost button — the labeled button family, live word + Sprite Swap states, exactly like the primary.",
         movecounter: "Move counter — caption and count are LIVE seats. Display piece (pinned chrome in the app: it never presses).",
-        rewardcard: "Reward card — a REAL button; name and quantity are LIVE seats and the reward glyph a LIVE Image child (per-copy content rides posed skins).",
+        rewardcard: "Reward card — a REAL button; name and quantity are LIVE seats, the reward glyph a LIVE Image child, and the qty chip a live plate child whose count RIDES it (move, restyle or delete plate + count as one; per-copy content rides posed skins).",
         ring: "Progress ring — the percent readout is a LIVE seat. Display piece.",
         avatarframe: "Avatar frame — the level chip's number is a LIVE seat and the portrait a LIVE masked Image child: drop YOUR sprite on the Portrait child and the frame clips it round. Display piece.",
         claimbtn: "Claim button — a REAL button (the Shop's Claim All presses and fires onClick); the word is a LIVE seat, the gift glyph a LIVE Image child, and CLAIM copies celebrate (ClaimBurst).",
@@ -4183,7 +4193,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         steps: "Step indicator — wizard pips; the step numbers are LIVE seats. Display piece.",
         pagedots: "Page dots — carousel position pips, the active dot in the kit's candy. Display piece; per-page states ride posed skins.",
         questpanel: "Quest tracker — eyebrow, title, objectives and counts are LIVE seats (title is the live Label). Pips and footer bar are anatomy; per-copy progress rides posed skins. Display piece.",
-        dialoguebox: "Dialogue box — both lines are LIVE seats, the speaker plate a live child whose NAME rides it (move or delete plate + name as one). The continue arrow is anatomy. Display piece.",
+        dialoguebox: "Dialogue box — both lines are LIVE seats, the speaker plate a live child whose NAME rides it (move or delete plate + name as one), and the continue caret its OWN live child (owner ruling, round 44 — blink it, bob it or swap it; icons/* fit the seat). Display piece.",
         choicelist: "Dialogue choices — all three responses and their hotkey digits are LIVE seats; the active-choice marker is a LIVE Image child. Wire per-choice buttons over the capsules. Display piece.",
         manarails: "Mana & stamina rails — each rail glyph is a LIVE Image child (swap the sprite in the Inspector). Rails bake at the staged values; per-copy values ride posed skins. Display piece.",
         xpbar: "XP bar — the level number, NEXT line and XP readout are LIVE seats; the mercury bakes at the staged value (per-copy values ride posed skins). Display piece.",
@@ -4208,7 +4218,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         buffframe: "Buff frame — the effect glyph is a LIVE Image child and the countdown FUNCTIONS: KitBuffSweep drives the spent-share sweep and its glowing hand from time remaining (Value 0..1, the app's own dial); the timer readout is a LIVE seat. Display piece.",
         hotbar: "Hotbar — every stocked slot glyph is a LIVE Image child and the indices/counts are LIVE seats; the selection ring bakes on the staged cell (per-copy selections ride posed skins). Display piece.",
         lives: "Lives — candy-heart value pips; the count bakes at the staged value and per-copy counts ride posed skins. Display piece.",
-        heartmeter: "Heart meter — every pip is a LIVE Image child answering the app's icon picker (swap any sprite in the Inspector); timer text and the add cap's mark are LIVE seats. Display piece.",
+        heartmeter: "Heart meter — every pip is a LIVE Image child answering the app's icon picker (swap any sprite in the Inspector); the timer is a LIVE seat and the add cap ITSELF a REAL small-button child with its + mark riding it (move, restyle or delete cap + mark as one). Display piece with one pressable corner.",
         energymeter: "Energy meter — LIVE: the ten cells snap whole (KitCellMeter — drive Value or SetValue), the Energy badge is a LIVE Image child (the app's icon picker steers it) and the count is a LIVE seat. Display piece.",
         starrating: "Star rating — the three-star result; stars bake at the staged score (per-copy scores ride posed skins). Display piece.",
         pathconnector: "Saga path connector — the dotted trail between level nodes; progress bakes at the staged value. Display piece.",
@@ -4217,13 +4227,13 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         flipclock: "Flip countdown — the tile digits and caption are LIVE seats; drive them from your own clock. Display piece.",
         stopwatch: "Stopwatch — the readout is a LIVE seat; drive it from your own clock. Display piece.",
         scorebug: "Match score bug — Home and Away names, both scores and the clock are LIVE seats (the app's Home/Away word slots land verbatim); each team's color bar is a LIVE TINTABLE child (its sprite ships white, the slot color rides Image.color — retint a side in one edit). Display piece; the value slider stays the match clock, exactly as in the app.",
-        friendrow: "Friend row — drop YOUR sprite on the Portrait child (the well clips it round); name, status and time are LIVE seats, and the JOIN capsule is a REAL small-button child with its word riding it. Display piece.",
+        friendrow: "Friend row — drop YOUR sprite on the Portrait child (the well clips it round); name, status and time are LIVE seats, the JOIN capsule is a REAL small-button child with its word riding it, and the presence dot a LIVE Image child (move it, delete it, or tint a copy for offline). Display piece.",
         clancrest: "Clan crest — the emblem is a LIVE Image child and the tag ribbon a live plate whose tag RIDES it. Display piece.",
         chatbubble: "Chat bubble — sender, timestamp and every message line are LIVE seats on the speech silhouette. Display piece.",
         emotewheel: "Emote wheel — every sector's emote AND the hub's pick are LIVE Image children (the app's emote slots land verbatim); the wheel pose bakes at the staged selection. Display piece.",
         buildqueue: "Build queue — the unit glyph is a LIVE Image child (editable down to the icon, as asked); name and queue line are LIVE seats; progress bakes at the staged value. Display piece.",
         unitplate: "Unit plate — drop YOUR sprite on the Portrait child; the name and stat numbers are LIVE seats and the attack/defense glyphs LIVE Image children. Display piece.",
-        techcard: "Tech card (researchable) — the tech glyph is a LIVE Image child (editable down to the icon); the name and cost are LIVE seats. Researched/locked poses ride per-copy posed skins. Display piece.",
+        techcard: "Tech card (researchable) — the tech glyph is a LIVE Image child (editable down to the icon); the name and cost are LIVE seats and the cost gem its own LIVE Image child beside the number. Researched/locked poses ride per-copy posed skins. Display piece.",
         popmeter: "Population meter — the population glyph is a LIVE Image child and the count a LIVE seat; the supply bar bakes at the staged share. Display piece.",
         pack: "Card pack — the pack art with its live word; open ceremonies are your game's (ClaimBurst fires on CLAIM-labeled copies). Display piece.",
         cardback: "Card back — the deck's face-down art with its live emblem child. Display piece.",
@@ -4475,7 +4485,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         { uid: "claimbtn", suffix: "double", interactive: true, opts: { slots: { ...(st.kitSlotVals?.claimbtn ?? {}), mode: "2x by ad" } },
           usage: "The 2x reward button — the claim button's Double-by-ad state, a REAL button (Sprite Swap states, glow + lift): the word is a LIVE seat, the play badge a LIVE Image child, and the ANGLED gold ribbon its OWN delete-and-replace child (the rotated word stays in its pixels by the warped-stamp contract — never burned into the button face)." },
         { uid: "rewardcard", suffix: "legendary", opts: {}, value: 1,
-          usage: "Reward reveal at LEGENDARY — the aura at the ladder's top; words are LIVE seats and the glyph a LIVE Image child. The pressing lives on the Rewardcard prefab." },
+          usage: "Reward reveal at LEGENDARY — the aura at the ladder's top; words are LIVE seats, the glyph a LIVE Image child, and the amber qty chip a live plate whose count RIDES it. The pressing lives on the Rewardcard prefab." },
         { uid: "rewardcard", suffix: "mystery", opts: { slots: { ...(st.kitSlotVals?.rewardcard ?? {}), kind: "Mystery" } },
           usage: "Reward card, MYSTERY pre-reveal — the unopened pose; words are LIVE seats. The pressing lives on the Rewardcard prefab." },
         { uid: "dailycell", suffix: "claimed", opts: { overlay: "check", label: st.kitLabels?.dailycell ?? "DAY 3" },
@@ -4911,7 +4921,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     const atIcon = resolveKitIcon(st.kitIcons?.achievetoast, undefined);
     const atSvg = shell("achievetoast", { part: "shell", icon: atIcon });
     const atSeats = await iconSeatsOf("achievetoast", atSvg, "extras");
-    await addPng("extras/achievement.png", atSeats ? stripIconInk(atSvg).svg : atSvg, { component: "extras", part: "achievement", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Achievement toast plate with the gold medallion — the announcement and title arrive as live text and the medallion's glyph is a LIVE Image child on the Achievement prefab (swap the sprite in the Inspector; icons/* fit the same seat; pick it on uikitmaker.com like any other icon).", ...textSeatsOf("achievetoast", atSvg, { icon: atIcon }), ...(atSeats ? { iconSeats: atSeats } : {}) });
+    await addPng("extras/achievement.png", atSeats ? stripIconInk(atSvg).svg : atSvg, { component: "extras", part: "achievement", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Achievement toast plate — the announcement and title arrive as live text, and the gold medallion AND its glyph are both LIVE Image children on the Achievement prefab (round 44: recolor, move or remove orb and glyph independently; swap sprites in the Inspector; icons/* fit the glyph seat).", ...textSeatsOf("achievetoast", atSvg, { icon: atIcon }), ...(atSeats ? { iconSeats: atSeats } : {}) });
   }
 
   /* ── STRETCH-SAFE FACES (owner: a diagonal pattern shears when the
@@ -15324,7 +15334,8 @@ namespace PatternBreak {
       var bsIC = bodyIC != null ? bodyIC.sprite : null;
       if (bsIC == null || row.shell == null || row.shell.w < 4f || bsIC.rect.width < 2f || bsIC.rect.height < 2f) return addedIC;
       float psIC = m != null && m.pngScale > 0 ? m.pngScale : 2f;
-      foreach (var ic in row.iconSeats) {
+      for (int icI = 0; icI < row.iconSeats.Length; icI++) {
+        var ic = row.iconSeats[icI];
         if (ic == null || string.IsNullOrEmpty(ic.file) || ic.w < 1f || ic.h < 1f) continue;
         string cn = IconChildName(ic);
         if (theirs != null && theirs.Contains(cn)) continue; // seeded once already — the dev's seat now, gone or renamed by their hand
@@ -15359,12 +15370,17 @@ namespace PatternBreak {
           if (!string.IsNullOrEmpty(ic.tint) && ColorUtility.TryParseHtmlString(ic.tint, out tintC)) ii.color = tintC;
         }
         cgo.transform.SetParent(go.transform, false);
-        /* converged children join a tree that may already carry Words —
-           picture ink draws UNDER the words (the app's own stack), so
-           slot in before that sibling; fresh builds have no Words yet
-           and keep their order untouched */
-        var wSibIC = go.transform.Find("Words");
-        if (wSibIC != null) cgo.transform.SetSiblingIndex(wSibIC.GetSiblingIndex());
+        /* converged children join a tree that may already carry siblings —
+           SEAT ORDER IS PAINT ORDER (round 44: the Achievement's converged
+           medallion must land UNDER its already-live glyph, not over it):
+           slot in before the NEXT seat's existing child; failing that,
+           before Words (picture ink draws UNDER the words, the app's own
+           stack); fresh builds have neither yet and keep their order */
+        Transform beforeIC = null;
+        for (int nxI = icI + 1; nxI < row.iconSeats.Length && beforeIC == null; nxI++)
+          if (row.iconSeats[nxI] != null) beforeIC = go.transform.Find(IconChildName(row.iconSeats[nxI]));
+        if (beforeIC == null) beforeIC = go.transform.Find("Words");
+        if (beforeIC != null) cgo.transform.SetSiblingIndex(beforeIC.GetSiblingIndex());
         var crt = cgo.GetComponent<RectTransform>();
         float fxC = (row.shell.x + row.shell.w / 2f + ic.dx * psIC) / bsIC.rect.width;
         float fyC = 1f - (row.shell.y + row.shell.h / 2f + ic.dy * psIC) / bsIC.rect.height;
@@ -16238,6 +16254,10 @@ namespace PatternBreak {
         var mrt = mgo.GetComponent<RectTransform>();
         mrt.anchorMin = new Vector2(0.5f, 0.5f); mrt.anchorMax = new Vector2(0.5f, 0.5f);
         mrt.anchoredPosition = new Vector2(0f, upS); // fixed size ON PURPOSE: the axis holds when the bar stretches
+        /* round 44 (words-are-live law): the "VS" rides LIVE on the medal
+           — the sprite ships wordless and the medal row's text seat seeds
+           the TMP here, so retyping or restyling the word is one edit */
+        WireTextSeats(mgo, root, m, pngScale);
       }
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/VsBar.prefab");
       UnityEngine.Object.DestroyImmediate(go);
@@ -19737,7 +19757,7 @@ namespace PatternBreak {
       RenameDataRowPrefab(root); // the owner's language, healed on every import
       RenameDataRowTiledFace(root); // and its stretch-safe twin — the scene road's one name
       RenameArtShelf(root); // BigGlyphs → Art, the class's name everywhere
-      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, glyphSeated = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0, reseeded = 0, wordKept = 0, rebodied = 0, mapGrafted = 0, padTuned = 0, rigGrafted = 0, sinkTuned = 0, barRigged = 0, capRigged = 0, pieceBound = 0, ddRigged = 0, unburned = 0, retiredIc = 0;
+      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, glyphSeated = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0, reseeded = 0, wordKept = 0, rebodied = 0, mapGrafted = 0, padTuned = 0, rigGrafted = 0, sinkTuned = 0, barRigged = 0, capRigged = 0, pieceBound = 0, ddRigged = 0, unburned = 0, retiredIc = 0, medalWorded = 0;
       /* the ROOT-RECT ownership ledger (F5 — the resize pass was the one
          maintenance heal with NO ours-vs-theirs guard): rects we last
          authored, carried in kit.lock.json > authoredRects. A rect still
@@ -19913,6 +19933,45 @@ namespace PatternBreak {
               barRigged++;
             } finally { PrefabUtility.UnloadPrefabContents(contentsPB); }
             continue;
+          }
+        }
+        /* the MEDAL'S LIVE WORD (round 44, dossier R1): a kept VsBar's
+           Medal child loses its baked "VS" the moment the wordless medal
+           sprite retextures in — seed the live seat exactly once, keyed
+           in the seeded-children ledger so a later delete of the Words
+           tree is the dev's forever (the un-burn's ONE-SHOT law). No
+           early continue: the cap retrofit below may be due the same import. */
+        if (spritePath.EndsWith("/vsbar-track.9.png")) {
+          Transform medalKT = null;
+          foreach (Transform chMK in asset.transform) {
+            var imMK = chMK.GetComponent<Image>();
+            if (imMK == null || imMK.sprite == null) continue;
+            var pMK = AssetDatabase.GetAssetPath(imMK.sprite).Replace("\\\\", "/");
+            if (pMK == root + "/assets/vsbar/vsbar-medal.png") { medalKT = chMK; break; }
+          }
+          if (medalKT != null) {
+            string keyMW = (path.StartsWith(root + "/") ? path.Substring(root.Length + 1) : path) + "|Medal Words";
+            if (medalKT.Find("Words") != null) unburnLedger.Add(keyMW);
+            else if (!unburnLedger.Contains(keyMW)) {
+              var contentsMW = PrefabUtility.LoadPrefabContents(path);
+              try {
+                Transform medalMW = null;
+                foreach (Transform chMW in contentsMW.transform) {
+                  var imMW = chMW.GetComponent<Image>();
+                  if (imMW == null || imMW.sprite == null) continue;
+                  var pMW = AssetDatabase.GetAssetPath(imMW.sprite).Replace("\\\\", "/");
+                  if (pMW == root + "/assets/vsbar/vsbar-medal.png") { medalMW = chMW; break; }
+                }
+                if (medalMW != null) {
+                  WireTextSeats(medalMW.gameObject, root, m, m != null && m.pngScale > 0 ? m.pngScale : 2);
+                  if (medalMW.Find("Words") != null) {
+                    unburnLedger.Add(keyMW);
+                    PrefabUtility.SaveAsPrefabAsset(contentsMW, path);
+                    medalWorded++;
+                  }
+                }
+              } finally { PrefabUtility.UnloadPrefabContents(contentsMW); }
+            }
           }
         }
         /* the ROUNDED-HEAD retrofit (round 44, owner kit-wide mercury
@@ -21071,6 +21130,8 @@ namespace PatternBreak {
         Debug.Log("UI Kit Maker: converged " + barRigged + " bar prefab(s) onto the kit-dressed rig (round 21) — the progress bar's mercury rides a Filled image on the app's well zone (drive Fill Area > Fill's fillAmount), and the segment meter gained its Lit layer (drive Lit's fillAmount; it snaps to whole cells). Placed copies picked it up automatically.");
       if (capRigged > 0)
         Debug.Log("UI Kit Maker: gave " + capRigged + " bar prefab(s) their ROUNDED mercury head — the app redraws the bead at every value, and the bar now parks that exact bead on the value line instead of showing the Filled crop's flat cut. Keep driving fillAmount (or KitBarFill.SetValue); the head follows.");
+      if (medalWorded > 0)
+        Debug.Log("UI Kit Maker: seated the VS bar medallion's word LIVE on " + medalWorded + " prefab(s) — the medal sprite ships wordless now and the VS rides it as editable TMP (retype or restyle it in the Inspector; deleting the Words tree is yours and sticks).");
       if (readopted > 0)
         Debug.Log("UI Kit Maker: re-adopted the kit's current sprites on " + readopted + " example prefab(s) — they were still wearing files this kit no longer exports (the pre-rename names), so their look froze while everything else updated. They now restyle with every re-export, like the rest.");
       if (reshaped > 0)
