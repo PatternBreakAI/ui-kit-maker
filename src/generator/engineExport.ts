@@ -590,6 +590,12 @@ const PREFAB_FAMILY: Partial<Record<KitComponentId, string>> = {
   boostercard: "boostercard", resource: "resource", currency: "currency",
   ghost: "ghost", movecounter: "movecounter", rewardcard: "rewardcard",
   ring: "ring", avatarframe: "avatarframe", claimbtn: "claimbtn", bottomnav: "bottomnav",
+  /* the full-catalog round — chrome & foundations (S1): board copies of
+     these place LIVE under their own family names now, posed content
+     riding the posed-skin road like every universal citizen */
+  nameplate: "nameplate", stepper: "stepper", notifydot: "notifydot",
+  loadbar: "loadbar", setrow: "setrow", listmenu: "listmenu",
+  scrollbar: "scrollbar", steps: "steps", pagedots: "pagedots",
 };
 // the glyph rack: pure-art silhouettes, one Image prefab each — placeable,
 // tintable, never fake buttons (the mandate's non-interactive lane)
@@ -601,7 +607,13 @@ for (const cGl of KIT_COMPONENTS) if (isGlyphPiece(cGl.id)) PREFAB_FAMILY[cGl.id
    buttons-group members and selectable cards/nodes; the display set is
    pinned chrome and HUD readouts (PINNED_CHROME's movecounter included). */
 const UNIVERSAL_INTERACTIVE = new Set<KitComponentId>(["ghost", "claimbtn", "levelnode", "dailycell", "boostercard", "rewardcard"]);
-const UNIVERSAL_DISPLAY = new Set<KitComponentId>(["qtybadge", "resource", "currency", "movecounter", "ring", "avatarframe", "bottomnav"]);
+const UNIVERSAL_DISPLAY = new Set<KitComponentId>(["qtybadge", "resource", "currency", "movecounter", "ring", "avatarframe", "bottomnav",
+  /* the FULL-CATALOG round (owner roster, 2026-08-28: "Include the following
+     exports in the Playground scene") — chrome & foundations first: every
+     one ships the whole-shell bake with live word seats and marked icon
+     children, placeable display pieces (composed controls stay composed —
+     a stepper's two caps or a menu's four rows are not ONE button). */
+  "nameplate", "stepper", "notifydot", "loadbar", "setrow", "listmenu", "scrollbar", "steps", "pagedots"]);
 const UNIVERSAL_ROAD = new Set<KitComponentId>([...UNIVERSAL_INTERACTIVE, ...UNIVERSAL_DISPLAY]);
 /* the ACTION GLYPHS (round 40 — the owner's Gameplay pause button sat
    dead in Play): pause/play/replay/home are buttons by their own meaning
@@ -4037,6 +4049,15 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         ring: "Progress ring — the percent readout is a LIVE seat. Display piece.",
         avatarframe: "Avatar frame — the level chip's number is a LIVE seat and the portrait a LIVE masked Image child: drop YOUR sprite on the Portrait child and the frame clips it round. Display piece.",
         claimbtn: "Claim button — a REAL button (the Shop's Claim All presses and fires onClick); the word is a LIVE seat, the gift glyph a LIVE Image child, and CLAIM copies celebrate (ClaimBurst).",
+        nameplate: "Nameplate — the name is a LIVE seat, the rank star a LIVE Image child, and the title ribbon a live plate child whose word RIDES it (move, restyle or delete plate + word as one). Display piece.",
+        stepper: "Stepper — minus cap, snapped cells, plus cap in one strip; the +/− cap marks are LIVE seats. Display piece: wire your own buttons over the caps (two hits, never one).",
+        notifydot: "Notification badge — the bell/scroll glyph is a LIVE Image child and the red counter a live plate child whose count RIDES it (delete the pair as one, or drive the count). Display piece.",
+        loadbar: "Loading bar — caption and percent are LIVE seats; the mercury bakes at the staged value (per-copy values ride posed skins). Display piece.",
+        setrow: "Settings row — the row label and value readout are LIVE seats; the mini-slider is anatomy. Display piece: compose the wired Slider prefab over it for a working control.",
+        listmenu: "List menu — four rows: every row glyph is a LIVE Image child and every word a LIVE seat; the highlight bar bakes on the staged row. Display piece: wire per-row buttons over it.",
+        scrollbar: "Scrollbar — vertical strip, sunken track, candy thumb baked at the staged position. Display piece; pair with your own ScrollRect (the ScrollView prefab shows the wiring).",
+        steps: "Step indicator — wizard pips; the step numbers are LIVE seats. Display piece.",
+        pagedots: "Page dots — carousel position pips, the active dot in the kit's candy. Display piece; per-page states ride posed skins.",
         bottomnav: "Bottom nav bar — one placeable piece; the item words are LIVE seats and every tab glyph a LIVE Image child (swap any sprite in the Inspector). The Selected ring child IS the selection: move it a cell over (one cell pitch) or disable it. The Badge plate child carries its live count with it — move, restyle or delete the pair as one. Wire your own per-item buttons over it (the bar itself is not one button).",
       };
       const universalIds: KitComponentId[] = [
@@ -10914,10 +10935,10 @@ namespace PatternBreak {
           }
         var SECTIONS = new (string title, string[] names)[] {
           ("BUTTONS", new[] { "ButtonPrimary", "ButtonSecondary", "ButtonSmall", "Iconbtn", "Chip", "Endturn", "Keycap", "Pricebtn", "Claimbtn", "Ghost" }),
-          ("CHOICE CONTROLS & FIELDS", new[] { "Checkbox", "Radio", "CheckboxToggle", "RadioToggle", "Switch", "Input", "Dropdown", "Joystick", "JoystickGhost", "Firebutton" }),
-          ("SLIDERS & PROGRESS", new[] { "Slider", "ProgressBar", "SegmentMeter", "VsBar", "EmblemBar", "HealthGlobe", "Ring", "SeasonTrack" }),
-          ("NAVIGATION & CHROME", new[] { "Tab", "TabBack", "Bottomnav", "HeaderBanner", "Panel", "DataRow", "ItemSlot", "ScrollView", "Badge", "CountBadge", "Avatarframe" }),
-          ("HUD & DATA", new[] { "Timer", "Resource", "Currency", "Movecounter", "Qtybadge", "Orb", "Achievement", "Leaderboard", "LapTimes", "Telemetry", "Minimap" }),
+          ("CHOICE CONTROLS & FIELDS", new[] { "Checkbox", "Radio", "CheckboxToggle", "RadioToggle", "Switch", "Stepper", "Input", "Dropdown", "Setrow", "Listmenu", "Joystick", "JoystickGhost", "Firebutton" }),
+          ("SLIDERS & PROGRESS", new[] { "Slider", "ProgressBar", "SegmentMeter", "VsBar", "EmblemBar", "Loadbar", "HealthGlobe", "Ring", "SeasonTrack" }),
+          ("NAVIGATION & CHROME", new[] { "Tab", "TabBack", "Bottomnav", "HeaderBanner", "Panel", "DataRow", "ItemSlot", "ScrollView", "Scrollbar", "Badge", "CountBadge", "Notifydot", "Avatarframe", "Pagedots", "Steps" }),
+          ("HUD & DATA", new[] { "Timer", "Resource", "Currency", "Nameplate", "Movecounter", "Qtybadge", "Orb", "Achievement", "Leaderboard", "LapTimes", "Telemetry", "Minimap" }),
           ("GAUGES", new[] { "Speedo", "SpeedoArc", "RevMeter" }),
           ("GAME SYSTEMS", new[] { "Levelnode", "Dailycell", "Boostercard", "Rewardcard", "Gifticon", "Trophyicon", "Gearicon", "LootTag", "RarityFrame", "Circuit", "Startlights" }),
         };

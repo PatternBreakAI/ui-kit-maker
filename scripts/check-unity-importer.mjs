@@ -2356,6 +2356,37 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the old 'BOARD ART (Prefabs/BigGlyphs)' chapter label is back");
 }
 
+/* FULL-CATALOG round, slice 1 pins: chrome & foundations join the universal
+   road and shelve in their own chapters (owner roster, 2026-08-28). */
+{
+  const S1 = ["nameplate", "stepper", "notifydot", "loadbar", "setrow", "listmenu", "scrollbar", "steps", "pagedots"];
+  // every S1 family is on the display road AND placeable from boards
+  const dispM = /const UNIVERSAL_DISPLAY = new Set<KitComponentId>\(\[([\s\S]*?)\]\);/.exec(src);
+  for (const id of S1) {
+    if (!dispM || !new RegExp(`"${id}"`).test(dispM[1]))
+      errors.push(`${id} left the universal display road — the owner's roster item stops exporting live`);
+    if (!new RegExp(`${id}: "${id}"`).test(src))
+      errors.push(`${id} lost its PREFAB_FAMILY entry — board copies of it bake dead again`);
+  }
+  // shelf claims, each in its blessed chapter (zero-overlap discipline:
+  // a claimed name shelves once, and never falls to MORE)
+  if (!/"Switch", "Stepper", "Input", "Dropdown", "Setrow", "Listmenu", "Joystick"/.test(cs))
+    errors.push("the Playground's CHOICE CONTROLS & FIELDS chapter lost Stepper/Setrow/Listmenu");
+  if (!/"EmblemBar", "Loadbar", "HealthGlobe"/.test(cs))
+    errors.push("the Playground's SLIDERS & PROGRESS chapter lost Loadbar");
+  if (!/"ScrollView", "Scrollbar", "Badge", "CountBadge", "Notifydot", "Avatarframe", "Pagedots", "Steps"/.test(cs))
+    errors.push("the Playground's NAVIGATION & CHROME chapter lost Scrollbar/Notifydot/Pagedots/Steps");
+  if (!/"Currency", "Nameplate", "Movecounter"/.test(cs))
+    errors.push("the Playground's HUD & DATA chapter lost Nameplate");
+  // the un-burn marks: swappable picture ink stays marked in bevel
+  if (!/data-icon="row\$\{i \+ 1\}"/.test(bevelSrc))
+    errors.push("the list menu's row glyphs lost their icon markers — burned into the art again");
+  if (!/data-icon="badge" data-icon-nick="Badge plate"/.test(bevelSrc) || !/data-seat-rider="badge"/.test(bevelSrc))
+    errors.push("the notification badge's plate/rider grammar is gone — plate baked or count orphaned");
+  if (!/data-icon="ribbon" data-icon-nick="Title ribbon"/.test(bevelSrc) || !/data-seat-rider="ribbon"/.test(bevelSrc))
+    errors.push("the nameplate's title ribbon lost its live plate + riding word");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);

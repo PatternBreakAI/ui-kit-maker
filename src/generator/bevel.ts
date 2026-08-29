@@ -5570,9 +5570,12 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
           const hotR = state === "hover", pressR = state === "pressed";
           inner9 += `<rect x="${x0.toFixed(1)}" y="${ry.toFixed(1)}" width="${rw.toFixed(1)}" height="${(rowH - 6 * k).toFixed(1)}" rx="${(10 * k).toFixed(1)}" fill="${hexRgba(glow, pressR ? 0.4 : hotR ? 0.32 : 0.22)}" stroke="${hexRgba(glow, hotR || pressR ? 0.95 : 0.65)}" stroke-width="${hotR ? 2.2 : 1.4}"${hotR ? ` style="filter: drop-shadow(0 0 ${(6 * k).toFixed(1)}px ${hexRgba(glow, 0.55)})"` : ""}/>`;
         }
-        // small-white rule: a dark understroke beneath every row glyph
-        if (r9.ic) inner9 += iconGroup(r9.ic, x0 + 16 * k, ry + (rowH - 6 * k) / 2 - 15 * k, 30 * k, "rgba(8,12,22,0.55)", { strokeWidth: 2.2 * iconWK + 2.2 }) +
-          themedIcon(r9.ic, x0 + 16 * k, ry + (rowH - 6 * k) / 2 - 15 * k, 30 * k, on9 ? glow : "#E8ECF2", 2.2);
+        // small-white rule: a dark understroke beneath every row glyph —
+        // marked swappable ink (maximum-editability law): each row glyph
+        // ships as its own live Image child, understroke and all
+        if (r9.ic) inner9 += `<g data-part="icon" data-icon="row${i + 1}">` +
+          iconGroup(r9.ic, x0 + 16 * k, ry + (rowH - 6 * k) / 2 - 15 * k, 30 * k, "rgba(8,12,22,0.55)", { strokeWidth: 2.2 * iconWK + 2.2 }) +
+          themedIcon(r9.ic, x0 + 16 * k, ry + (rowH - 6 * k) / 2 - 15 * k, 30 * k, on9 ? glow : "#E8ECF2", 2.2) + `</g>`;
         inner9 += contentText(r9.lbl, x0 + 62 * k, ry + (rowH - 6 * k) / 2 + 1, 25 * k * typeK, { keepCase: true, list: true, opacity: on9 ? 1 : 0.85 });
         if (r9.hint) inner9 += infoText(r9.hint, x0 + rw - 16 * k, ry + (rowH - 6 * k) / 2 + 1, 19 * k, "end", 700);
         if (i === rows.length - 2) inner9 += `<rect x="${(x0 + 10 * k).toFixed(1)}" y="${(ry + rowH - 4 * k).toFixed(1)}" width="${(rw - 20 * k).toFixed(1)}" height="1.4" fill="rgba(255,255,255,0.16)"/>`;
@@ -5773,12 +5776,16 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       // dead center of the face: the data-shell box IS the shell silhouette
       // (extrusion draws below it), so the glyph centers on the box center;
       // the badge overlapping the glyph's corner is the intended read
-      const glyph = ic ? themedIcon(ic, sx + sw / 2 - 38 * k, sy + sh / 2 - 38 * k, 76 * k, hexMix(glow, "#FFFFFF", 0.25), 2.2) : "";
+      /* the glyph and the badge plate are marked swappable ink (maximum-
+         editability law): each ships as its own live Image child, and the
+         count RIDES the plate (data-seat-rider — the bottomnav badge
+         grammar: move, restyle or delete plate + count as one) */
+      const glyph = ic ? `<g data-part="icon" data-icon="glyph">${themedIcon(ic, sx + sw / 2 - 38 * k, sy + sh / 2 - 38 * k, 76 * k, hexMix(glow, "#FFFFFF", 0.25), 2.2)}</g>` : "";
       const count = Math.max(1, Math.min(9, Math.round((value ?? 0.3) * 9)));
       const bcx = sx + sw - 10 * k, bcy = sy + 10 * k, br = 26 * k;
       const badgeC = hexMix("#FF3B4A", glow, 0.12);
-      const badge = `<g data-badge="1"><circle cx="${bcx.toFixed(1)}" cy="${bcy.toFixed(1)}" r="${br.toFixed(1)}" fill="${badgeC}" stroke="rgba(255,255,255,0.9)" stroke-width="${(3 * k).toFixed(1)}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(5 * k).toFixed(1)}px ${hexRgba(badgeC, 0.7)})"` : ""}/>
-        <text x="${bcx.toFixed(1)}" y="${(bcy + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(30 * k).toFixed(1)}" font-weight="900" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">${count}</text></g>`;
+      const badge = `<g data-part="icon" data-icon="badge" data-icon-nick="Badge plate" data-badge="1"><circle cx="${bcx.toFixed(1)}" cy="${bcy.toFixed(1)}" r="${br.toFixed(1)}" fill="${badgeC}" stroke="rgba(255,255,255,0.9)" stroke-width="${(3 * k).toFixed(1)}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(5 * k).toFixed(1)}px ${hexRgba(badgeC, 0.7)})"` : ""}/></g>
+        <text x="${bcx.toFixed(1)}" y="${(bcy + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(30 * k).toFixed(1)}" font-weight="900" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central" data-seat-rider="badge">${count}</text>`;
       return inject(shell.replace("<svg ", '<svg data-notifydot="1" '), glyph + badge);
     }
     case "countbadge": {
@@ -5861,13 +5868,17 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const inset = bw + 6 * k;
       const cy = 30 + h / 2;
       const nm = opts.label ?? "NOVA_KNIGHT";
-      const star = STOCK_ICONS.star ? themedIcon(STOCK_ICONS.star, 39 + inset + 16 * k, cy - 16 * k, 32 * k, "#facc15", 2.4) : "";
+      /* the rank star and the title-ribbon plate are marked swappable ink
+         (maximum-editability law): each ships as its own live Image child,
+         and the ribbon word RIDES its plate (data-seat-rider) so title and
+         plate move, restyle or delete as one */
+      const star = STOCK_ICONS.star ? `<g data-part="icon" data-icon="star">${themedIcon(STOCK_ICONS.star, 39 + inset + 16 * k, cy - 16 * k, 32 * k, "#facc15", 2.4)}</g>` : "";
       const ribW = 168 * k, ribH = 40 * k;
       const ribX = 39 + w - inset - ribW - 12 * k;
       const gidN = "np" + UID++;
-      const ribbon = `<defs><linearGradient id="${gidN}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(bevel, 0.25)}"/><stop offset="1" stop-color="${darken(bevel, 0.15)}"/></linearGradient></defs>
-        <rect x="${ribX.toFixed(1)}" y="${(cy - ribH / 2).toFixed(1)}" width="${ribW.toFixed(1)}" height="${ribH.toFixed(1)}" rx="${(ribH / 2).toFixed(1)}" fill="url(#${gidN})" stroke="${hexRgba(darken(bevel, 0.5), 0.6)}" stroke-width="1.2"/>
-        <text x="${(ribX + ribW / 2).toFixed(1)}" y="${(cy + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(17 * k).toFixed(1)}" font-weight="800" letter-spacing="0.08em" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">${esc((opts.slots?.ribbon ?? "PIT CHAMPION").slice(0, 24))}</text>`;
+      const ribbon = `<g data-part="icon" data-icon="ribbon" data-icon-nick="Title ribbon"><defs><linearGradient id="${gidN}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(bevel, 0.25)}"/><stop offset="1" stop-color="${darken(bevel, 0.15)}"/></linearGradient></defs>
+        <rect x="${ribX.toFixed(1)}" y="${(cy - ribH / 2).toFixed(1)}" width="${ribW.toFixed(1)}" height="${ribH.toFixed(1)}" rx="${(ribH / 2).toFixed(1)}" fill="url(#${gidN})" stroke="${hexRgba(darken(bevel, 0.5), 0.6)}" stroke-width="1.2"/></g>
+        <text x="${(ribX + ribW / 2).toFixed(1)}" y="${(cy + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(17 * k).toFixed(1)}" font-weight="800" letter-spacing="0.08em" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central" data-seat-rider="ribbon">${esc((opts.slots?.ribbon ?? "PIT CHAMPION").slice(0, 24))}</text>`;
       return inject(shell.replace("<svg ", '<svg data-nameplate="1" '),
         star + contentText(nm, 39 + inset + 58 * k, cy + 1, 24 * k * typeK, { keepCase: true }) + ribbon);
     }
