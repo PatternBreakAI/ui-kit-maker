@@ -2665,6 +2665,63 @@ function StampArt({ cfg, stamp }: { cfg: GenConfig; stamp: NonNullable<BoardItem
      interaction re-renders every stamp (the tray-click sluggishness) */
   const svg = useMemo(() => stampSvg(cfg, stamp), [cfg, stamp.text, stamp.size, stamp.plain?.color, stamp.plain?.outline, fontTick]); // eslint-disable-line react-hooks/exhaustive-deps
   const warped = !!stamp.warp && stamp.warp.style !== "none" && !!stamp.warp.amount;
+  /* Round 45 · B3 — the UNWARPED stamp's selection box hugs the LETTERING.
+     The specimen's own data-shell is the invisible button shell it was
+     built on: a fixed 130px-tall canvas with auto-width slack, so the box
+     ran far past the glyphs on every side (owner screenshot: "the bounding
+     boxes for everything is huge" — text especially, and the oversized
+     grab zone stole clicks meant for neighbours). The WARPED path already
+     scans its raster's true alpha bounds ("boxes must adhere to the actual
+     type stamp area", owner) — this is the same scan for the plain path,
+     restamped onto the DOM copy's data-shell only: exports keep reading
+     stampSvg() untouched. Debounced like the warp raster; re-runs when
+     faces land (svg re-memos on fontTick). */
+  const [tightShell, setTightShell] = useState<string | null>(null);
+  useEffect(() => {
+    if (warped) { setTightShell(null); return; } // the warp raster stamps its own
+    let on = true;
+    const t = window.setTimeout(() => {
+      /* faces are best-effort here: a hung font CDN must not park the scan
+         forever — after the race the fallback letterforms still bound the
+         ink far tighter than the specimen shell, and the fontTick re-memo
+         re-scans with the real face once it lands */
+      void Promise.race([
+        svgWithFaces(svg, cfg),
+        new Promise<string>((r) => window.setTimeout(() => r(svg), 1500)),
+      ]).then((svgF) => {
+        if (!on) return;
+        const img = new Image();
+        img.onload = () => {
+          if (!on) return;
+          const k = Math.min(1, 1600 / Math.max(1, img.width));
+          const cv = document.createElement("canvas");
+          cv.width = Math.max(1, Math.round(img.width * k));
+          cv.height = Math.max(1, Math.round(img.height * k));
+          const ctx = cv.getContext("2d", { willReadFrequently: true })!;
+          ctx.drawImage(img, 0, 0, cv.width, cv.height);
+          try {
+            const d = ctx.getImageData(0, 0, cv.width, cv.height).data;
+            let x0 = cv.width, y0 = cv.height, x1 = 0, y1 = 0;
+            for (let py = 0; py < cv.height; py += 2) for (let px = 0; px < cv.width; px += 2) {
+              if (d[(py * cv.width + px) * 4 + 3] > 8) {
+                if (px < x0) x0 = px; if (px > x1) x1 = px;
+                if (py < y0) y0 = py; if (py > y1) y1 = py;
+              }
+            }
+            if (x1 > x0 && on) setTightShell([x0 / k, y0 / k, (x1 - x0) / k, (y1 - y0) / k].map((n) => n.toFixed(1)).join(" "));
+          } catch { /* tainted or empty — the specimen shell stands */ }
+        };
+        img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgF)));
+      });
+    }, 160); // one scan per settled render, not per tick
+    return () => { on = false; window.clearTimeout(t); };
+  }, [svg, warped]); // eslint-disable-line react-hooks/exhaustive-deps
+  const shownSvg = useMemo(() => {
+    if (warped || !tightShell) return svg;
+    return /data-shell="[^"]*"/.test(svg)
+      ? svg.replace(/data-shell="[^"]*"/, `data-shell="${tightShell}"`)
+      : svg.replace(/<svg /, `<svg data-shell="${tightShell}" `);
+  }, [svg, tightShell, warped]);
   const [frame, setFrame] = useState<{ url: string; w: number; h: number; shell: [number, number, number, number] | null } | null>(null);
   const urlRef = useRef<string | null>(null);
   useEffect(() => {
@@ -2675,8 +2732,15 @@ function StampArt({ cfg, stamp }: { cfg: GenConfig; stamp: NonNullable<BoardItem
     let on = true;
     const t = window.setTimeout(() => {
       /* the raster trip is sealed — the kit face must ride INSIDE the svg
-         or the warped preview speaks a system font (owner report) */
-      void svgWithFaces(svg, cfg).then((svgF) => {
+         or the warped preview speaks a system font (owner report). Sealing
+         is best-effort though (round 45): a hung font CDN must not park
+         the warp raster forever — after the race the fallback letterforms
+         still bend and bound correctly, and the fontTick re-memo re-runs
+         the trip with the real face once it lands */
+      void Promise.race([
+        svgWithFaces(svg, cfg),
+        new Promise<string>((r) => window.setTimeout(() => r(svg), 1500)),
+      ]).then((svgF) => {
         if (!on) return;
         const img = new Image();
         img.onload = () => {
@@ -2725,7 +2789,7 @@ function StampArt({ cfg, stamp }: { cfg: GenConfig; stamp: NonNullable<BoardItem
     ? <img src={frame.url} width={frame.w} height={frame.h} draggable={false}
         data-shell={frame.shell ? frame.shell.map((n) => n.toFixed(1)).join(" ") : undefined}
         style={{ filter: stampFilter(cfg, stamp), display: "block", pointerEvents: "none", userSelect: "none" }} alt="" />
-    : <span style={{ filter: stampFilter(cfg, stamp), display: "block" }} dangerouslySetInnerHTML={{ __html: svg }} />;
+    : <span style={{ filter: stampFilter(cfg, stamp), display: "block" }} dangerouslySetInnerHTML={{ __html: shownSvg }} />;
 }
 
 /* depth guard for the shell-miss relay below — dispatchEvent is
