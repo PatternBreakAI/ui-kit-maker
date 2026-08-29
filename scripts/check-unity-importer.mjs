@@ -97,6 +97,57 @@ else {
     if (!declared.has(u)) errors.push(`s.${u} is used in the C# but PBStyle declares no '${u}' field (CS1061 in Unity)`);
 }
 
+/* the PBStyle lesson, generalized: JsonUtility silently drops manifest JSON
+   fields the C# class never declared, so a template access on an undeclared
+   field is a CS1061 the TS side can't see ('PBPalette' had no 'well'/'shadow'
+   — InputValueInk shipped broken to the field). One hop from the manifest is
+   where every such access lives, so check them all: for each object-typed
+   PBManifest field, any `.field.member` access must name a declared field of
+   that class; array-typed fields allow only `.Length` bare and check
+   `[i].member` against the element class. */
+{
+  const classFields = new Map(); // PBX -> Set(field names)
+  const classFieldTypes = new Map(); // PBX -> Map(field -> type)
+  for (const cm of cs.matchAll(/class (PB\w+)\s*\{([^}]*)\}/g)) {
+    const fields = new Set(), types = new Map();
+    for (const f of cm[2].matchAll(/public ([\w[\]]+) (\w+);/g)) { fields.add(f[2]); types.set(f[2], f[1]); }
+    classFields.set(cm[1], fields); classFieldTypes.set(cm[1], types);
+  }
+  const OBJ_METHODS = new Set(["ToString", "Equals", "GetHashCode"]);
+  const manifestTypes = classFieldTypes.get("PBManifest");
+  if (!manifestTypes) errors.push("PBManifest class declaration not found for the member-access check");
+  else for (const [field, type] of manifestTypes) {
+    const isArr = type.endsWith("[]");
+    const elem = isArr ? type.slice(0, -2) : type;
+    if (!classFields.has(elem)) continue; // string/int/etc. — nothing to check
+    if (isArr) {
+      for (const u of new Set([...cs.matchAll(new RegExp(`\\.${field}\\.(\\w+)`, "g"))].map((x) => x[1])))
+        if (u !== "Length") errors.push(`.${field}.${u} — ${field} is a plain ${type}; only .Length exists (CS1061 in Unity)`);
+      for (const u of new Set([...cs.matchAll(new RegExp(`\\.${field}\\[[^\\]]*\\]\\.(\\w+)`, "g"))].map((x) => x[1])))
+        if (!classFields.get(elem).has(u) && !OBJ_METHODS.has(u))
+          errors.push(`.${field}[i].${u} is used in the C# but ${elem} declares no '${u}' field (CS1061 in Unity)`);
+    } else {
+      for (const u of new Set([...cs.matchAll(new RegExp(`\\.${field}\\.(\\w+)`, "g"))].map((x) => x[1])))
+        if (!classFields.get(elem).has(u) && !OBJ_METHODS.has(u))
+          errors.push(`.${field}.${u} is used in the C# but ${elem} declares no '${u}' field (CS1061 in Unity)`);
+    }
+  }
+}
+
+/* Unity 6000.5 turned two long-stable Object APIs obsolete — GetInstanceID
+   as ERROR (CS0619 → the whole importer dies; the replacement GetEntityId
+   does not exist on older rungs) and FindFirstObjectByType as warning.
+   The field found both the hard way. Ban them in the emitted C# outright:
+   dedup by reference identity, find with FindAnyObjectByType (2022.3+). */
+{
+  const banned = [
+    [/\bGetInstanceID\s*\(/, "GetInstanceID() — CS0619 ERROR on Unity 6000.5+ and GetEntityId is missing below it; dedup/track by object reference instead"],
+    [/\bFindFirstObjectByType\b/, "FindFirstObjectByType — deprecated (CS0618) on Unity 6000.5+; use FindAnyObjectByType (available on every shipped rung)"],
+  ];
+  for (const [re, msg] of banned)
+    if (re.test(cs)) errors.push(`emitted C# uses ${msg}`);
+}
+
 /* round-12 ordering invariants: pinned board words are placement-self-
    sufficient. The field lost its BOOST three times to import-order trust;
    these keep the contract honest at build time.
@@ -306,8 +357,8 @@ if (!/asset\.transform\.Find\("Fill Area"\) == null/.test(cs) || !/barRigged\+\+
 /* round-21 slice C: the VS bar + emblem bar leave the baked-stamp road,
    and the segment meter lights its cells. */
 if (!/addPng\("vsbar\/track\.9\.png", shell\("vsbar", \{ overlay: "track" \}/.test(src)
-    || !/addPng\("emblembar\/socket\.png", padSvg\(shell\("emblembar", \{ overlay: "dock"/.test(src))
-  errors.push("the vsbar/emblembar dressed part assets are missing from the export (round 21; the socket rides padSvg since round 27)");
+    || !/addPng\("emblembar\/socket\.png", sockSeats \? stripIconInk\(sockFull\)\.svg : sockFull/.test(src))
+  errors.push("the vsbar/emblembar dressed part assets are missing from the export (round 21; the socket bakes BARE + live emblem child since the un-burn round)");
 if (!/vsbar: "vsbar", emblembar: "emblembar"/.test(src))
   errors.push("vsbar/emblembar must ride PREFAB_FAMILY (live placement) — without it they fall back to dead baked stamps (round 21)");
 if (!/static bool VsBarPrefab\(/.test(cs) || !/static bool EmblemBarPrefab\(/.test(cs) || !/static bool SegBarPrefab\(/.test(cs))
@@ -465,8 +516,8 @@ if (!/it2\.component == "joystick" && it2\.ov == "ghost"/.test(cs) || !/ghost st
    prefab's own clean file. */
 if (!/class PBBig \{ public string id; public string name; public string sprite; public bool fx; \}/.test(cs))
   errors.push("PBBig (the manifest's big-glyph row) is missing from the importer (round 23)");
-if (!/public float\[\] cells; public int cellSel = -1; public PBBig big; \}/.test(cs))
-  errors.push("PBBoardItem must carry the big field — without it JsonUtility drops every big-glyph row (round 23)");
+if (!/public float\[\] cells; public int cellSel = -1; public PBBig big; public PBIconChild\[\] posedIcons; \}/.test(cs))
+  errors.push("PBBoardItem must carry the big field and the un-burn's posedIcons — without them JsonUtility drops those rows (rounds 23 + un-burn)");
 if (!/static string BigGlyphPrefabName\(PBBig bg\)/.test(cs))
   errors.push("BigGlyphPrefabName is missing — builder and placement must derive the prefab file name from ONE helper or they diverge (round 23)");
 if (!/static bool BigGlyphPrefabs\(/.test(cs) || !/if \(BigGlyphPrefabs\(dir, root, m\)\) any = true;/.test(cs))
@@ -490,8 +541,8 @@ if (!/component: "bigglyph"/.test(src) || !/big: \{ id: gl\.id, name: gl\.name, 
   errors.push("the app-side big-glyph emission seam (component bigglyph + big{id,name,sprite,fx}) is missing (round 23)");
 if (!/const padB = hasFx \? bigGlyphFilterPad\(b\.big\) : 0;/.test(src))
   errors.push("fx rows must ship the PADDED footprint (w/h of the shipped raster) — without it the importer squeezes the halo into the art rect (round 23)");
-if (!/Prefabs\/BigGlyphs\/\*\*/.test(src))
-  errors.push("the README's Prefabs/BigGlyphs pointer is missing (round 23)");
+if (!/Prefabs\/Art\/\*\*/.test(src))
+  errors.push("the README's Prefabs/Art pointer is missing (round 23; the shelf renamed to Art on the owner's decision)");
 
 /* round-24: the CAST SHADOW crosses the seam (dev field notes #3: the
    mobile board's "Banner is also missing its shadow"). App half: live and
@@ -608,7 +659,10 @@ if (!/if \(f2\.shadow\) f2\.shadow = \{ \.\.\.f2\.shadow, opacity: 0 \};/.test(s
   const savedNames = new Set([
     ...[...cs.matchAll(/SaveAsPrefabAsset\((?:go|inst|contents\w*), dir \+ "\/([A-Za-z]+)\.prefab"\)/g)].map((x) => x[1]),
     // families saved via goName = NiceName(component) — the catalog sections list them
-    ...[...cs.matchAll(/"(ButtonPrimary|ButtonSecondary|ButtonSmall|Endturn|Keycap|Pricebtn|Iconbtn|Chip|Tab|TabBack|Checkbox|Radio|CheckboxToggle|RadioToggle|Switch|Input|Joystick|JoystickGhost|ProgressBar|SegmentMeter|VsBar|EmblemBar|Slider|HealthGlobe|SeasonTrack|CountBadge|Badge|Panel|HeaderBanner|ListRow|ItemSlot|ScrollView|Dropdown|Timer|HeroLabel)"/g)].map((x) => x[1]),
+    ...[...cs.matchAll(/"(ButtonPrimary|ButtonSecondary|ButtonSmall|Endturn|Keycap|Pricebtn|Iconbtn|Chip|Tab|TabBack|Checkbox|Radio|CheckboxToggle|RadioToggle|Switch|Input|Joystick|JoystickGhost|ProgressBar|SegmentMeter|VsBar|EmblemBar|Slider|HealthGlobe|SeasonTrack|CountBadge|Badge|Panel|HeaderBanner|DataRow|ItemSlot|ScrollView|Dropdown|Timer|HeroLabel)"/g)].map((x) => x[1]),
+    // the pre-rename address still answers as a PlaceKitPrefab altName
+    // (kept projects mid-heal) — the rename valet moves it on import
+    "ListRow",
   ]);
   for (const n of menuNames)
     if (!savedNames.has(n))
@@ -866,10 +920,10 @@ if (!/icon: idBase === "chip" \? resolveKitIcon\(st\.kitIcons\?\.\[idBase\], und
    icon-fx chain then rendered into the canvas edge. The bake now pads
    its canvas for the chain's full reach and hands the tight crop a
    wider margin so the falloff hits true zero inside the file. */
-if (!/padSvg\(shell\("emblembar", \{ overlay: "dock", icon: undefined \}, slim\), 64\)/.test(src))
-  errors.push("the emblem socket bake must pad its canvas (padSvg 64) — the icon-fx halo clips at glowPadOf's zeroed-state 0px pad (round 27)");
-if (!/typeof q\.crop === "number" \? q\.crop : undefined/.test(src) || !/Drop your own art in its well\." \}, 24\);/.test(src))
-  errors.push("the socket must ride the numeric-margin crop road (tight crop, margin 24) so the halo tail reaches alpha 0 (round 27)");
+if (!/padSvg\(shell\("emblembar", \{ overlay: "dock", icon: resolveKitIcon\(st\.kitIcons\?\.emblembar, undefined\) \}, slim\), 64\)/.test(src))
+  errors.push("the emblem socket bake must pad its canvas (padSvg 64) with the maker's own emblem pick aboard — the icon-fx halo clips at glowPadOf's zeroed-state 0px pad (round 27; pick honored since the un-burn round)");
+if (!/typeof q\.crop === "number" \? q\.crop : undefined/.test(src) || !/\.\.\.\(sockSeats \? \{ iconSeats: sockSeats \} : \{\}\) \}, 24\);/.test(src))
+  errors.push("the socket must ride the numeric-margin crop road (tight crop, margin 24) so the halo tail reaches alpha 0 (round 27), carrying its un-burn iconSeats");
 
 /* round-27 item 3: v1 fill-only Icons converge to the layered seat —
    ONLY when provably ours and untouched (childless, our sprite, our
@@ -1178,7 +1232,7 @@ if (!/\(stName \? c\.stateDesigns\?\.\[stName\]\?\.type\?\.leading : undefined\)
   errors.push("the export's leading resolution must mirror bevel's fork-first PER-KEY read — a wholesale fork read masks the dial at 100% the moment a state is designed (the app's own End Turn lesson)");
 if (!/leadingOf\(id, stName\) !== 100 \? \{ leading: leadingOf\(id, stName\) \} : \{\}/.test(src))
   errors.push("the leading row must emit ONLY when non-factory (≠ 100) — factory kits stay byte-identical, and the importer's 0-gate is the old-zip contract");
-if (!/public float labelFs; public float leading; public string labelText;/.test(cs))
+if (!/public float labelFs; public string labelInk; public string labelInk2; public float leading; public string labelText;/.test(cs))
   errors.push("PBAsset must carry the leading field — JsonUtility silently drops the manifest row without it");
 if (!/static float LeadingLineSpacing\(PBAsset row\)/.test(cs)
     || !/return row != null && row\.leading > 0f \? 0\.73f \* \(row\.leading - 100f\) : 0f;/.test(cs))
@@ -1302,6 +1356,1070 @@ if (!/GetSourceTextureWidthAndHeight/.test(cs) || !/bgw % 4 != 0 \|\| bgh % 4 !=
   errors.push("the backgrounds multiple-of-4 compression gate is missing — odd-sized backdrops log a Console warning on every clean import (round 31)");
 if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompression\.Uncompressed; \}/.test(cs))
   errors.push("the backgrounds gate must fall back to lossless when the reflection read fails — a throw here would surface as an import error (round 31)");
+
+/* ── round-32: the LANDSCAPE-GAME-VIEW defense (owner field failure: the
+   Brightside portrait demo scenes met Unity's default Full HD Game view
+   and the width-match scaler blew the UI up ~4.9× — "everything messed
+   up"; an Asset Store reviewer would see the same). Three shields, all
+   pinned: (1) the KitPortraitStage runtime letterboxes portrait scenes
+   in landscape viewports and restores the builder's EXACT identity
+   values in portrait ones (the sacred fence — owner-approved portrait
+   rendering untouched), never touching the CanvasScaler; (2) the
+   importer registers a "UIKitMaker Phone (W×H)" Fixed Resolution
+   Game-view size by REFLECTION ONLY, fully try/catch-wrapped and
+   idempotent — a direct GameViewSizes reference is a compile break on
+   some editor versions and must never ship; (3) one gentle Console line
+   names the size to pick. Docs carry the same instruction. */
+{
+  // extract the portrait-stage runtime template
+  const stgOpen = src.indexOf("const PORTRAIT_STAGE_RUNTIME = `");
+  let stg = "";
+  if (stgOpen < 0) errors.push("PORTRAIT_STAGE_RUNTIME not found — the portrait-stage runtime template is missing (round 32)");
+  else {
+    const stgStart = stgOpen + "const PORTRAIT_STAGE_RUNTIME = `".length;
+    let stgEnd = -1;
+    for (let i = stgStart; i < src.length; i++) {
+      if (src[i] === "\\") { i++; continue; }
+      if (src[i] === "`") { stgEnd = i; break; }
+    }
+    stg = stgEnd > 0 ? new Function("return `" + src.slice(stgStart, stgEnd) + "`;")() : "";
+  }
+  if (!/public class KitPortraitStage : MonoBehaviour/.test(stg))
+    errors.push("KitPortraitStage (the portrait scene's letterbox stage) is missing from the runtime template (round 32)");
+  if (!/\[ExecuteAlways\]/.test(stg))
+    errors.push("KitPortraitStage must be ExecuteAlways — the blowup it prevents is visible in EDIT mode, before Play (round 32)");
+  if (/UnityEditor|UnityEngine\.InputSystem|TMPro|UnityEngine\.UI/.test(stg) || (stg.match(/^using /gm) ?? []).length !== 1)
+    errors.push("KitPortraitStage must stay CORE-ONLY (one using: UnityEngine; the matte is a GameObject, not an Image reference) — the round-19 P0 rule");
+  if (!/if \(w < 1f \|\| h < 1f\) return;/.test(stg))
+    errors.push("KitPortraitStage must refuse a zero-size frame — a startup/headless frame would write garbage (round 32)");
+  if (!/bool letterbox = designH > designW && w > h;/.test(stg))
+    errors.push("the letterbox gate (portrait design AND landscape viewport, nothing else) moved (round 32)");
+  if (!/float k = h \/ designH;/.test(stg))
+    errors.push("the letterbox compensation (k = stage rect height / designH — cancels ANY scaler factor exactly) moved (round 32)");
+  if (!/the CanvasScaler is NEVER touched/.test(stg))
+    errors.push("the scaler-restore invariant comment is gone — the design decision (localScale compensation, scaler untouched) must stay written down (round 32)");
+  if (!/if \(frame\.anchorMin != Vector2\.zero\) frame\.anchorMin = Vector2\.zero;/.test(stg)
+      || !/if \(frame\.anchorMax != Vector2\.one\) frame\.anchorMax = Vector2\.one;/.test(stg)
+      || !/if \(frame\.sizeDelta != Vector2\.zero\) frame\.sizeDelta = Vector2\.zero;/.test(stg)
+      || !/if \(frame\.localScale != Vector3\.one\) frame\.localScale = Vector3\.one;/.test(stg))
+    errors.push("the portrait identity restore (full-stretch, zero offsets, scale one — byte-for-byte the builder's values) lost a write (round 32, the sacred fence)");
+  if (/void Update\(\)/.test(stg))
+    errors.push("KitPortraitStage must ride OnRectTransformDimensionsChange, not per-frame Update (round 32)");
+  if (!/path: "Runtime\/PatternBreakPortraitStage\.cs", data: PORTRAIT_STAGE_RUNTIME/.test(src) || !/"Runtime\/PatternBreakPortraitStage\.cs",/.test(src))
+    errors.push("PatternBreakPortraitStage.cs must ship AND ride the sharedScripts set — per-slug runtime copies kill the assembly (the IdleShine lesson)");
+  // (1b) the scene builder wires the stage for PORTRAIT boards only
+  if (!/if \(bd\.h > bd\.w\) \{\s*\n\s*var stageGo = new GameObject\("Phone Stage", typeof\(RectTransform\), typeof\(KitPortraitStage\)\)/.test(cs))
+    errors.push("the Phone Stage must be built ONLY inside the portrait gate (bd.h > bd.w) — landscape/desktop boards keep their 0.5-match road stage-free (round 32)");
+  if (!/Transform contentHost = canvasGo\.transform;/.test(cs) || !/safeGo\.transform\.SetParent\(contentHost, false\);/.test(cs))
+    errors.push("the Safe Area root must parent through contentHost (Canvas on landscape boards, Phone Frame on portrait ones) — the stage sits OUTSIDE the safe-area root by design (round 32)");
+  if (!/matteImg\.color = new Color\(0\.078f, 0\.086f, 0\.106f, 1f\);/.test(cs) || !/matteGo\.SetActive\(false\);/.test(cs))
+    errors.push("the stage matte must be the flat #14161B device-preview surround, shipped disabled — no kit dress, no visible change at portrait sizes (round 32)");
+  if ((cs.match(/Find\("Phone Stage\/Phone Frame\/Safe Area"\)/g) ?? []).length !== 2)
+    errors.push("both kept-scene heals (HealSafeAreaRoots' already-responsive check and HealBoardWords' walk) must see the Safe Area behind the Phone Stage chain — a blind heal grafts a duplicate root (round 32)");
+  // (2) the Game-view preset: reflection-only, try/catch-whole, idempotent
+  if (!/static bool RegisterPhoneGameViewSize\(int w, int h, string label\) \{\s*\n\s*try \{/.test(cs))
+    errors.push("RegisterPhoneGameViewSize is missing, or its body is not wrapped in try from the first statement — Unity's internals moving must never break an import (round 32)");
+  if (!/RegisterPhoneGameViewSize\(int w, int h, string label\) \{[\s\S]*?\} catch \(Exception\) \{ return false; \}\s*\n\s*\}/.test(cs))
+    errors.push("RegisterPhoneGameViewSize must swallow ALL exceptions (catch (Exception) { return false; }) — silent, then the Console line still names the size to add by hand (round 32)");
+  if (!/Type\.GetType\("UnityEditor\.GameViewSizes,UnityEditor"\)/.test(cs)
+      || !/Type\.GetType\("UnityEditor\.GameViewSizeType,UnityEditor"\)/.test(cs)
+      || !/Type\.GetType\("UnityEditor\.GameViewSize,UnityEditor"\)/.test(cs))
+    errors.push("the preset road must reach GameViewSizes/GameViewSizeType/GameViewSize through Type.GetType name strings only (round 32)");
+  for (const name of ['"GetTotalCount"', '"GetBuiltinCount"', '"GetGameViewSize"', '"AddCustomSize"'])
+    if (!cs.includes(name))
+      errors.push(`the preset road lost its ${name} reflection lookup — idempotent enumeration before AddCustomSize is the contract (round 32)`);
+  if (!/if \(txt != null && txt == label\) return true;/.test(cs))
+    errors.push("the preset must return early on an existing custom size with this label — re-imports must never stack duplicates (round 32)");
+  /* DIRECT-REFERENCE BAN: strip strings + comments from the importer C#
+     and assert no GameViewSize token survives in bare code — internal
+     editor types referenced directly are a compile break on some
+     versions (the round-19 CS0117 class, pre-empted). */
+  {
+    let inB = false;
+    for (const [ln, row] of cs.split("\n").entries()) {
+      let bare = "", i = 0;
+      while (i < row.length) {
+        if (inB) { const c = row.indexOf("*/", i); if (c < 0) { i = row.length; break; } inB = false; i = c + 2; continue; }
+        const ch = row[i];
+        if (ch === "/" && row[i + 1] === "/") break;
+        if (ch === "/" && row[i + 1] === "*") { inB = true; i += 2; continue; }
+        if (ch === '"' || ch === "'") {
+          const q = ch; let j = i + 1;
+          while (j < row.length) { if (row[j] === "\\") { j += 2; continue; } if (row[j] === q) break; j++; }
+          i = j + 1; bare += " "; continue;
+        }
+        bare += ch; i++;
+      }
+      if (/\bGameViewSize/.test(bare))
+        errors.push(`emitted C# line ${ln + 1}: direct GameViewSize* reference in bare code — these are INTERNAL editor types; reflection strings only (round 32)`);
+    }
+  }
+  // (3) the Console heads-up, portrait kits only, phrased true either way
+  if (!/if \(bdPh == null \|\| bdPh\.w <= 0 \|\| bdPh\.h <= bdPh\.w\) continue;/.test(cs) || !/if \(phoneW > 0\) \{/.test(cs))
+    errors.push("the phone heads-up must derive from PORTRAIT boards only and stay silent for kits without them (round 32)");
+  if (!/demo scenes are portrait phone screens/.test(cs) || !/"UIKitMaker Phone \(" \+ phoneW \+ "×" \+ phoneH \+ "\)"/.test(cs))
+    errors.push("the Console heads-up line (naming the UIKitMaker Phone size to pick) is missing (round 32)");
+  if (!/centered phone preview instead/.test(cs))
+    errors.push("the Console heads-up must mention the letterboxed phone preview — it is the scene's own defense while the dropdown stays unpicked (round 32)");
+  // (4) the docs carry the instruction
+  if (!src.includes("**The demo scenes are phone screens (${pw}"))
+    errors.push("the QuickStart's portrait heads-up (pick/add the phone Game-view size; landscape shows a centered preview) is missing (round 32)");
+  if (!/Portrait board scenes also carry a \*\*Phone Stage\*\*/.test(src) || !/\*\*UIKitMaker Phone\*\* Fixed/.test(src))
+    errors.push("the README deck's scaler-policy slide must document the Phone Stage and the registered Game-view size (round 32)");
+}
+
+/* ── P0 round (2026-08-26): the SILENT-ZERO fence, both directions.
+   JsonUtility drops any manifest key the C# spells differently and zeroes
+   any C# field the TS never emits — with NO error on either side (the
+   PBPalette CS1061 was the loud cousin; the quiet one ships wrong scenes).
+   The emitted-key contracts are compile-enforced TS interfaces
+   (ExportBoardItemData, AssetMeta) and a handful of inline literals; each
+   is held against its C# class field-for-field. */
+{
+  const classFieldsOf = (name) => {
+    const cm = cs.match(new RegExp(`class ${name}\\s*\\{([^}]*)\\}`));
+    if (!cm) { errors.push(`${name} class declaration not found for the key-parity check`); return null; }
+    return new Set([...cm[1].matchAll(/public [\w[\]]+ (\w+)(?: = [^;]+)?;/g)].map((x) => x[1]));
+  };
+  const interfaceKeysOf = (name) => {
+    const im = src.match(new RegExp(`(?:export )?interface ${name} \\{([\\s\\S]*?)\\n\\}`));
+    if (!im) { errors.push(`interface ${name} not found for the key-parity check`); return null; }
+    // strip comments, then take TOP-LEVEL `key:` / `key?:` declarations —
+    // a depth-aware walk, so nested object types don't leak their keys
+    const body = im[1].replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+    const keys = new Set();
+    let depth = 0;
+    for (const stmt of body.split(";")) {
+      if (depth === 0) {
+        const km = /^\s*(\w+)\??:/.exec(stmt);
+        if (km) keys.add(km[1]);
+      }
+      for (const ch of stmt) { if (ch === "{" || ch === "(" || ch === "<") depth++; else if (ch === "}" || ch === ")" || ch === ">") depth--; }
+    }
+    return keys;
+  };
+  const parity = (tsKeys, csFields, tsName, csName, csOnlyOk = [], tsOnlyOk = []) => {
+    if (!tsKeys || !csFields) return;
+    /* a TS-only key is legal ONLY when it is documentation for humans —
+       the C# cannot read an undeclared field without the CS1061 the
+       member-access pass above catches, so nothing silent hides there */
+    for (const k of tsKeys)
+      if (!csFields.has(k) && !tsOnlyOk.includes(k)) errors.push(`${tsName} emits '${k}' but ${csName} declares no such field — JsonUtility drops it in SILENCE`);
+    /* a C#-only field is the SILENT-ZERO trap itself: JsonUtility leaves
+       it at default with no error, and placement math inherits the zero */
+    for (const f of csFields)
+      if (!tsKeys.has(f) && !csOnlyOk.includes(f)) errors.push(`${csName}.${f} is declared but ${tsName} never emits it — JsonUtility zeroes it in SILENCE (allowlist it here only for deliberate legacy fields)`);
+  };
+  parity(interfaceKeysOf("ExportBoardItemData"), classFieldsOf("PBBoardItem"), "ExportBoardItemData", "PBBoardItem");
+  parity(interfaceKeysOf("AssetMeta"), classFieldsOf("PBAsset"), "AssetMeta", "PBAsset",
+    // outline joins rows at push time (idleOutline spread), outside the interface
+    ["outline"],
+    // human-facing manifest documentation — the C# never reads these
+    ["nativeW", "nativeH", "tintable", "usage"]);
+  // inline literals: the expected key set is pinned HERE; the TS block must
+  // emit each key and the C# class must declare each — both by exact name
+  const literalParity = (blockRe, keys, csName, blockName) => {
+    const bm = src.match(blockRe);
+    if (!bm) { errors.push(`${blockName} emission block not found for the key-parity check`); return; }
+    const csFields = classFieldsOf(csName);
+    if (!csFields) return;
+    for (const k of keys) {
+      if (!new RegExp(`[{,(\\s]${k}\\s*:`).test(bm[0]) && !new RegExp(`[{,\\s]${k}\\s*[,}]`).test(bm[0]))
+        errors.push(`${blockName} emission lost its '${k}' key — the importer reads it (${csName})`);
+      if (!csFields.has(k)) errors.push(`${csName} declares no '${k}' — ${blockName} emits it into SILENCE`);
+    }
+  };
+  literalParity(/labelSizes: \(\[\[[\s\S]{0,3000}?\n      \}\),/, ["family", "size", "scene"], "PBLabelSize", "labelSizes");
+  literalParity(/stateFx: \(\[\[[\s\S]{0,3000}?\n      \}\),/, ["family", "state", "glow", "lift"], "PBStateFx", "stateFx");
+  // two passes since the bespoke-pose round: labeled ink+dy rows, then
+  // measured dy-only rows for the other stateFx families
+  literalParity(/labelStates: \[\n[\s\S]{0,8000}?\n      \],/, ["family", "state", "fillMode", "fill", "fill2", "dy"], "PBLabelState", "labelStates");
+  literalParity(/\n      palette: \{[\s\S]{0,1200}?\},\n/, ["bevel", "glow", "innerFill", "well", "highlight", "shadow", "markInk", "radioInk"], "PBPalette", "palette");
+  literalParity(/timer: \(\(\) => \{[\s\S]{0,3000}?\}\)\(\),/, ["seconds", "word", "fs", "w", "h", "shellW", "shellH"], "PBTimerBlock", "timer");
+  literalParity(/bakedFace = \{[\s\S]{0,1400}?\};/, ["file", "metrics", "pointSize", "layerFill", "layerStroke", "layerShadow", "layerGlints", "inkTintable"], "PBBakedRef", "bakedFace");
+  literalParity(/const metrics = JSON\.stringify\(\{[\s\S]{0,900}?\}\);/,
+    ["pointSize", "ascent", "descent", "lineHeight", "atlasW", "atlasH", "kerning", "glyphs", "layersAtlasW", "layersAtlasH", "layerGlyphs"],
+    "PBBakedFace", "baked-face metrics");
+}
+
+/* ── P0 round (2026-08-26): the STAGE-ANCHOR invariant. The app's stage
+   pins a board item's stored (x,y) at viewBox coordinate 0 when the canvas
+   carries a glow pad (negative origin) — LiveArt's anchorContent margins,
+   the PNG compositor's `b.x - pad * s`, one rule. The exporter treated
+   (x,y) as the canvas corner unconditionally, and every glowy piece landed
+   90·scale px right AND down in Unity (the field's half-off pause button).
+   These pins keep all three emission roads on the stage's rule. */
+{
+  if (!/const padRk = vbm0 && \+vbm0\[1\] < 0 \? -\+vbm0\[1\] \* k : 0;/.test(src)
+      || !/const c0 = spin\(b\.x - padRk \+ w \/ 2, b\.y - padRk \+ h \/ 2\);/.test(src))
+    errors.push("the baked-road board-item center must reclaim the negative viewBox origin (b.x - padRk) — the stage's anchorContent rule");
+  if (!/const rx0 = \+vbm2\[1\] < 0 \? 0 : \+vbm2\[1\];/.test(src)
+      || !/const p0 = spin\(b\.x \+ \(\(bx3 - rx0\) \+ bw4 \/ 2\) \* k, b\.y \+ \(\(by3 - ry0\) \+ bh4 \/ 2\) \* k\);/.test(src))
+    errors.push("the prefab-road shell center must NOT subtract a negative viewBox origin (the glow pad) — that re-adds the pad the stage reclaims");
+  if (!/const padLk = vbmL && \+vbmL\[1\] < 0 \? -\+vbmL\[1\] \* kL : 0;/.test(src))
+    errors.push("the saved-asset (libasset) road must reclaim the negative viewBox origin like the stage does");
+  // rotation truth: a rotated copy's content center orbits the canvas-box
+  // middle (the stage's transform-origin) — the spin must wrap BOTH roads
+  if (!/const spin = \(px: number, py: number\)/.test(src))
+    errors.push("the board-item spin (rotation about the canvas-box middle) is missing — rotated padded copies land off their seat without it");
+}
+
+/* ── P0 round (2026-08-26): the SOLO-LABEL invariant. A kit with no
+   stroke/shadow layer faces ships bare-TMP labels (no HeroLabel), so no
+   SizeK reads the board scale — the word must bake it into its own font
+   size everywhere a board copy is sized, or family-size words overflow
+   board-size shells (the Brightside ~2× Pause words). */
+{
+  if (!/static float SoloLabelK\(PBBoardItem it, PBManifest m, RectTransform rt\)/.test(cs))
+    errors.push("SoloLabelK is missing — solo (bare-TMP) board labels have no other carrier of the board scale");
+  if (!/tmp\.fontSize = trueSize \* SoloLabelK\(it, m, rt\)/.test(cs))
+    errors.push("the board-scene label override must scale a solo label by SoloLabelK (a bare trueSize write is the family-size ~2× bug)");
+  if (!/tmp3\.fontSize = trueSize2 \* SoloLabelK\(it2, m, crt\)/.test(cs))
+    errors.push("the word heal must scale a solo label by SoloLabelK — a healed word must size like a built one");
+  if (!/var lr9 = FindOurLabelRoot\(inst\);/.test(cs) || !/t9\.fontSize = ls9 \* \(it\.h \/ \(baseA3\.shell\.h \/ ps3\)\);/.test(cs))
+    errors.push("SeatPosedLabel must handle the solo road (re-seat + board-scale the bare TMP), not return on hl2 == null");
+}
+
+/* ── P0 follow-up (2026-08-26): the SOLO-LABEL INK invariant. The app
+   flips white type to the kit ink on pale shells and per-family forks pin
+   their own color, while the baked atlas keeps the MASTER voice — a solo
+   TMP left vertex-white shipped WHITE header words. The family's resolved
+   ink travels as labelInk/labelInk2 on the labeled base rows, gated by
+   the atlas tintability flag. */
+{
+  if (!/static void ApplyFamilyInk\(TextMeshProUGUI t, PBManifest m, string family, bool requireTintableAtlas\)/.test(cs))
+    errors.push("ApplyFamilyInk is missing — solo labels have no other carrier of the family's resolved resting ink");
+  if (!/ApplyFamilyInk\(t, m, family, true\);/.test(cs))
+    errors.push("AddBakedLabel's solo fallback must tint by the family ink on a tintable atlas (the WHITE-header bug)");
+  if (!/ApplyFamilyInk\(tLead, m, family, false\);/.test(cs))
+    errors.push("the styled-SDF label rung must take the family's resolved ink (SDF glyphs are always tintable)");
+  if (!/const labelInkOf = \(lg: string, svg2: string\)/.test(src))
+    errors.push("labelInkOf (the resolved label-fill parse, gradient stops included) is missing from the TS emission side");
+  if (!/\.\.\.\(labelInkOf\(lg, svg2\) \?\? \{\}\),/.test(src) || !/\.\.\.\(labelInkOf\(lg, fullSvg\) \?\? \{\}\),/.test(src))
+    errors.push("both label-metric parse sites (labelSeatOf and the labeled-geometry bake) must emit labelInk from the rendered fill");
+  if (!/inkTintable: \(\(\) => \{/.test(src))
+    errors.push("the bakedFace inkTintable decision (near-white untreated atlas only) is missing — an unconditional tint would double-paint colored atlases");
+}
+
+/* ── P0 follow-up (2026-08-26): the WIPE-HALO invariant. The wipe's Mask
+   clips to its stencil sprite's ALPHA — and a baked kit piece's bake
+   carries its shadow/glow HALO, soft alpha the stencil holds from 0.4%
+   up (the Victory star trio: the band swept the shadow between the
+   points). The cure is the stamp road's own: a CORE-ALPHA companion —
+   the same render, shadow voices calm, pixel-registered on the same
+   canvas — shipped as the row's stampMask; the importer already pins it
+   to WipeShine.maskSprite on the baked branch. */
+{
+  // TS: the baked road's companion — calm re-render, registration gate,
+  // and the row spread
+  if (!/const calmK = JSON\.parse\(JSON\.stringify\(cfgP\)\) as GenConfig;/.test(src)
+      || !/calmK\.shadow\.opacity = 0;/.test(src) || !/calmK\.candy\.contact\.opacity = 0;/.test(src))
+    errors.push("the baked-piece core-alpha companion (calm re-render) is missing from the baked road — the wipe band sweeps the baked shadow halo without it");
+  if (!/if \(rwC === rwK && rhC === rhK\) \{/.test(src))
+    errors.push("the baked companion must gate on EXACT raster registration (rwC/rhC vs rwK/rhK) — an off-canvas mask clips the band to the wrong pixels");
+  if (!/\.\.\.\(maskFileK \? \{ stampMask: maskFileK \} : \{\}\),/.test(src))
+    errors.push("the baked row must ship its companion as stampMask — the importer's existing WipeShine wiring reads exactly that key");
+  // C#: the consumption stays wired, and the Mask construction stays honest
+  // (WipeShine lives in its own runtime literal — extract like STATE_FX)
+  if (!/if \(!string\.IsNullOrEmpty\(it\.stampMask\)\) wsSt\.maskSprite = S\(root \+ "\/" \+ it\.stampMask\);/.test(cs))
+    errors.push("the baked-branch WipeShine must pin the row's stampMask as its core stencil");
+  let shine = "";
+  const shOpen = src.indexOf("const IDLE_SHINE_RUNTIME = `");
+  if (shOpen < 0) errors.push("IDLE_SHINE_RUNTIME not found — the wipe/edge shine runtime template is missing");
+  else {
+    const shStart = shOpen + "const IDLE_SHINE_RUNTIME = `".length;
+    let shEnd = -1;
+    for (let i = shStart; i < src.length; i++) {
+      if (src[i] === "\\") { i++; continue; }
+      if (src[i] === "`") { shEnd = i; break; }
+    }
+    shine = shEnd > 0 ? new Function("return `" + src.slice(shStart, shEnd) + "`;")() : "";
+  }
+  if (!/mGo\.GetComponent<Mask>\(\)\.showMaskGraphic = false;/.test(shine) || !/maskImg\.raycastTarget = false;/.test(shine))
+    errors.push("WipeShine's stencil twin must stay hidden (showMaskGraphic false — the alpha-clip condition) and raycast-silent (hit honesty)");
+  if (!/if \(maskSprite != null\) \{/.test(shine))
+    errors.push("WipeShine's core-stencil priority (maskSprite over the host sprite mirror) is missing");
+}
+
+/* ── Unity-fidelity round, slice 1 (2026-08-26): the WHITE-FRINGE cure has
+   two halves and both must stay. App half: every zip-bound raster encodes
+   through canvasToPngBytesDilated — straight-RGBA PNG whose fully-
+   transparent pixels inherit their nearest inked pixel's RGB (toBlob's
+   premultiplied backing writes black there, and any edge filtering blends
+   it in). Only alpha-0 RGB may change — the fence line is load-bearing.
+   Unity half: scene-scaled sprites (assets/, boardstamps/, bigglyphs/,
+   backgrounds/, stamps/) import with mips + trilinear, or minification
+   undersamples bright rims into the owner's "white specks"; the exact-rect
+   baked-face atlas stays mip-less (glyph rects are sampled exactly). */
+{
+  const exSrc = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../src/generator/exportUtils.ts"), "utf8");
+  if (!/export function dilateTransparentRGB\(/.test(exSrc) || !/export async function encodePngStraight\(/.test(exSrc))
+    errors.push("the transparent-RGB dilation + straight-alpha PNG encoder are missing from exportUtils (slice 1 — the white-fringe cure's app half)");
+  if (!/if \(d\[i \* 4 \+ 3\] !== 0\) continue; \/\/ only FULLY transparent pixels may change/.test(exSrc))
+    errors.push("dilateTransparentRGB must change ONLY fully-transparent pixels' RGB — the visually-identical byte fence (slice 1)");
+  if (!/canvasToPngBytesDilated\(cv\)\s*\n\s*\.then\(\(bytes\) => resolve\(\{ bytes, w: cv\.width, h: cv\.height \}\)\)/.test(exSrc))
+    errors.push("svgToPngBytes must encode through canvasToPngBytesDilated — every svg raster road inherits the dilation from here (slice 1)");
+  const dilatedUses = (exSrc.match(/canvasToPngBytesDilated\(/g) ?? []).length;
+  if (dilatedUses < 5)
+    errors.push(`exportUtils rides canvasToPngBytesDilated only ${dilatedUses}x (need >=5: definition, svgToPngBytes, tight crop, union crop, glow/catalog) — a raster road fell back to premultiplied toBlob (slice 1)`);
+  const dilatedUsesEE = (src.match(/canvasToPngBytesDilated\(/g) ?? []).length;
+  if (dilatedUsesEE < 9)
+    errors.push(`engineExport's direct canvas bakes ride canvasToPngBytesDilated only ${dilatedUsesEE}x (need >=9: backgrounds, stamp, stamp mask, bigglyph fx, logo, dialed-shadow bake, mask re-register, shadow sibling, baked-face atlas) — a bake road still ships premultiplied black fringe (slice 1)`);
+  if (!/if \(!ti\.mipmapEnabled\) \{ ti\.mipmapEnabled = true; changed = true; \}/.test(cs)
+      || !/if \(ti\.filterMode != FilterMode\.Trilinear\) \{ ti\.filterMode = FilterMode\.Trilinear; changed = true; \}/.test(cs))
+    errors.push("Configure must import kit sprites with mips + trilinear — scaled board copies undersample into white specks without them (slice 1)");
+  if (!/gti\.mipmapEnabled = true;/.test(cs) || !/gti\.filterMode = FilterMode\.Trilinear;/.test(cs))
+    errors.push("boardstamps/bigglyphs/backgrounds must import with mips + trilinear — the owner's Shop-chip speckle road (slice 1)");
+  if (!/sti\.mipmapEnabled = true;/.test(cs) || !/sti\.filterMode = FilterMode\.Trilinear;/.test(cs))
+    errors.push("type stamps (4x art, always minified) must import with mips + trilinear (slice 1)");
+  if (!/bti\.mipmapEnabled = false;/.test(cs))
+    errors.push("the baked-face atlas must stay MIP-LESS — its glyph rects are sampled exactly, and mip bleed would corrupt the baked text (slice 1)");
+}
+
+/* ── Unity-fidelity round, slice 2 (2026-08-26): labels bound to their
+   piece. The audit found every label already a CHILD of its piece root —
+   the field failure ("text is not bound to the image face") was scene-view
+   PICKING: a posed copy's face is an added "Posed art" child, directly
+   pickable apart from its word. The cure is the KitPiece [SelectionBase]
+   root: clicking any part of a piece selects the piece, so face and word
+   travel as one. These pins keep (a) the label-parenting invariant, (b)
+   the KitPiece runtime shipping shared, (c) every placed root armed, and
+   (d) kept scenes + prefabs converging. */
+{
+  if (!/\[SelectionBase\]\s*\n\s*\[DisallowMultipleComponent\]\s*\n\s*public class KitPiece : MonoBehaviour \{\}/.test(src))
+    errors.push("the KitPiece [SelectionBase] runtime is missing — clicking a posed face would again drag it out from under its word (slice 2)");
+  if (!/files\.push\(\{ path: "Runtime\/PatternBreakKitPiece\.cs", data: KIT_PIECE_RUNTIME \}\);/.test(src)
+      || (src.match(/"Runtime\/PatternBreakKitPiece\.cs"/g) ?? []).length < 2)
+    errors.push("PatternBreakKitPiece.cs must ship AND ride the sharedScripts set — per-slug runtime copies kill the assembly (the IdleShine lesson) (slice 2)");
+  if (!/if \(inst\.GetComponent<KitPiece>\(\) == null\) inst\.AddComponent<KitPiece>\(\);/.test(cs))
+    errors.push("the scene builder must arm EVERY placed piece root with KitPiece — the one selection handle that binds face and word (slice 2)");
+  if (!/if \(ch\.GetComponent<KitPiece>\(\) == null\) \{ ch\.gameObject\.AddComponent<KitPiece>\(\); boundRoots\+\+; \}/.test(cs))
+    errors.push("HealBoardWords must converge kept scenes onto the KitPiece selection root (seat-matched pieces only) (slice 2)");
+  if (!/wantSelectRoot && contents\.GetComponent<KitPiece>\(\) == null\) \{ contents\.AddComponent<KitPiece>\(\); pieceBound\+\+; changed = true; \}/.test(cs))
+    errors.push("the prefab maintenance pass must converge family prefabs onto KitPiece (slice 2)");
+  // the label-parenting invariant the audit verified: our label roots are
+  // built as CHILDREN of the piece they dress, never canvas-level siblings
+  if (!/var go = new GameObject\("Label", typeof\(RectTransform\)\);\s*\n\s*go\.transform\.SetParent\(parent\.transform, false\);/.test(cs))
+    errors.push("AddBakedLabel must parent its label root under the piece it dresses (the label-parenting invariant) (slice 2)");
+  if (!/SeatPosedLabel\(inst, it, m\);/.test(cs))
+    errors.push("posed placement must seat the label through SeatPosedLabel (shared with the word healer) — the label stays inside the piece root (slice 2)");
+}
+
+/* ── Unity-fidelity round, slice 4 (2026-08-26): SpeedoArc truth + the
+   picker's icons. (a) The gauge stamp spoke the case's LOCAL coordinates
+   while the drawn dial sits inside build()'s translated content groups —
+   on Brightside every live gauge child (segments, needle anchor, Number,
+   MPH) anchored 61.7 design px above the painted dial. gaugeOf now sums
+   the overlay's inherited translates and ships the DRAWN frame; kept rigs
+   converge. (b) The lit ramp ships the PIECE's own Bevel→Glow (a
+   gauge-scoped fork lit green on a cream kit), and the segment sprite
+   bakes its white halo. (c) The picker's glyph (st.kitIcons) reaches the
+   iconbtn/checkbox/radio family bakes — boards honored it, prefabs baked
+   stock art (the PLAY-triangle Settings gear). */
+{
+  if (!/const overlayShiftOf = \(s: string\)/.test(src)
+      || !/x: Math\.round\(\(v\[0\] \+ sh\.tx\) \* PNG_SCALE\), y: Math\.round\(\(v\[1\] \+ sh\.ty\) \* PNG_SCALE\)/.test(src)
+      || !/dialX: Math\.round\(\(v\[5\] \+ sh\.tx\) \* PNG_SCALE\), dialY: Math\.round\(\(v\[6\] \+ sh\.ty\) \* PNG_SCALE\)/.test(src))
+    errors.push("the gauge stamp must ship the DRAWN frame (overlayShiftOf's inherited-translate sum on x/y/unitY/dialX/dialY) — the live rig anchors above the painted dial without it (slice 4)");
+  if (!/from: segBev, to: segGlow/.test(src))
+    errors.push("the segment ramp must ship the piece's OWN resolved Bevel→Glow (gauge.seg.from/to) — a gauge-scoped fork lights the wrong palette otherwise (slice 4)");
+  if (!/class PBGaugeSeg \{ public float rI; public float rO; public float w; public float n; public float a0; public float sweep; public string from; public string to; \}/.test(cs))
+    errors.push("PBGaugeSeg must declare from/to — JsonUtility drops the shipped ramp colors without them (slice 4)");
+  if (!/if \(gRow\.seg != null && !string\.IsNullOrEmpty\(gRow\.seg\.from\)\) ColorUtility\.TryParseHtmlString\(gRow\.seg\.from, out cFrom\);/.test(cs))
+    errors.push("WireGauge must prefer the row's shipped ramp colors over the master palette (slice 4)");
+  if (!/bool oursSeg = segT\.childCount > 0;/.test(cs) || !/if \(\(srtC\.anchorMin - cS2\)\.sqrMagnitude > 1e-5f\)/.test(cs))
+    errors.push("kept segment rings must converge with the current dial center + ramp (ownership-gated on our shipped sprite) (slice 4)");
+  if (!/const segW = 8 \* k, segL = 20 \* k, halo = 12 \* k, pad = 2 \+ halo;/.test(bevelSrc) || !/id="seghalo"/.test(bevelSrc))
+    errors.push("the segment sprite must bake its white halo on a symmetrically padded canvas — the arc reads as dry dashes without it (slice 4)");
+  const pickerRoads = (src.match(/resolveKitIcon\(st\.kitIcons\?\.iconbtn, undefined\)/g) ?? []).length;
+  if (pickerRoads < 2 || !/resolveKitIcon\(st\.kitIcons\?\.checkbox, undefined\)/.test(src) || !/resolveKitIcon\(st\.kitIcons\?\.radio, undefined\)/.test(src))
+    errors.push("the picker's glyph (st.kitIcons) must reach the iconbtn (base + states), checkbox and radio family bakes — boards honored it while prefabs baked stock art (slice 4)");
+}
+
+/* ── Unity-exporter round, slice 1 (2026-08-27): press travel — the
+   children ride the state. App truth: shell, label and icon travel as ONE
+   group per state (measured: Brightside pressed +3 down / hover 2 up, the
+   lift dials); swap sprites bake that travel while the root holds still
+   (BakedSink), so the label/icon/words/specular/arc children we place
+   must slide by the same lift+sink the halo rides — one writer, exact
+   restore. Scale chain: on the posed road the root wears the SHELL box,
+   so StateFx's size key is re-framed through SoloLabelK (offsets are
+   design px; convert exactly as label seating does). labelStates dy is
+   MEASURED from the state renders (K-true), lift-dial share subtracted. */
+{
+  if (!/RectTransform\[\] riders; Vector2\[\] riderBase; float\[\] riderWrote;/.test(fx)
+      || !/void EnsureRiders\(\)/.test(fx) || !/void PushRiders\(\)/.test(fx))
+    errors.push("StateFx's content ride (riders/EnsureRiders/PushRiders) is missing — labels and icons park while the face presses (slice 1, press travel)");
+  /* follow-up field round: a name ALLOWLIST parked every other icon child
+     (a dev-dropped icons/* glyph, a Glyph prefab inside an Iconbtn or
+     ItemSlot — the kit's own "drop any icons/* on top" advice) while the
+     face sank. Discovery is ALL content children minus the structural
+     set: Body / Posed art travel IN the swapped pixels (riding doubles),
+     Template is TMP_Dropdown's, Weapon is the FireButton rig's, and
+     hideFlags-marked runtime decor repositions itself. */
+  if (!/if \(n == "Body" \|\| n == "Posed art" \|\| n == "Template" \|\| n == "Weapon"\) continue;/.test(fx))
+    errors.push("StateFx's rider discovery must ride ALL content children minus the structural set (Body/Posed art/Template/Weapon) — a name allowlist parks dev-dropped icons (slice 1, follow-up)");
+  if (!/if \(ch\.gameObject\.hideFlags != HideFlags\.None\) continue; \/\/ runtime decor moves itself/.test(fx))
+    errors.push("StateFx's rider discovery must skip hideFlags-marked runtime decor (halo, wipe band+mask, edge spark, claim flash) — two writers on one transform is the drift (slice 1, follow-up)");
+  if (!/if \(contentStays \|\| !BakedSink\(\)\) return; \/\/ root motion carries them on tiled\/rig builds/.test(fx))
+    errors.push("PushRiders must ride ONLY baked-sink (sprite-swap) builds — root motion already carries children elsewhere, and doubling is the drift (slice 1)");
+  if (!/PushRiders\(\);\s*\n\s*\/\/ the halo follows in MirrorHost/.test(fx))
+    errors.push("Push must move the riders with every lift write (PushRiders before MirrorHost) (slice 1)");
+  if (!/if \(riders\[i\] != null && !float\.IsNaN\(riderWrote\[i\]\)\) riders\[i\]\.anchoredPosition = riderBase\[i\];/.test(fx))
+    errors.push("OnDisable must restore every rider to its exact resting seat — write-once identity (slice 1)");
+  if (!/public bool CarriesContent\(RectTransform r\)/.test(fx))
+    errors.push("StateFx.CarriesContent is missing — LabelStateInk cannot know who owns the label's travel (slice 1)");
+  if (!/lift = \(disabledLift \+ \(baked \? disabledSink : 0f\)\) \* kSz; return disabledGlow;/.test(fx))
+    errors.push("the disabled state must ride ITS pose (disabledLift/disabledSink) — every state the app moves, Unity moves (slice 1)");
+  // LabelStateInk defers the label's travel to the content ride — two
+  // writers on one transform is how labels drift
+  const inkOpen = src.indexOf("const LABEL_STATE_INK_RUNTIME = `");
+  let inkCs = "";
+  if (inkOpen < 0) errors.push("LABEL_STATE_INK_RUNTIME not found");
+  else {
+    const inkStart = inkOpen + "const LABEL_STATE_INK_RUNTIME = `".length;
+    let inkEnd = -1;
+    for (let i = inkStart; i < src.length; i++) {
+      if (src[i] === "\\") { i++; continue; }
+      if (src[i] === "`") { inkEnd = i; break; }
+    }
+    inkCs = inkEnd > 0 ? new Function("return `" + src.slice(inkStart, inkEnd) + "`;")() : "";
+  }
+  if (!/if \(fx != null && fx\.CarriesContent\(mover\)\) basePosSet = false;/.test(inkCs))
+    errors.push("LabelStateInk must defer the label's travel to StateFx.CarriesContent on swap builds (slice 1)");
+  // the importer wires the disabled channel and re-frames the posed road's
+  // travel key to the shell box (the SoloLabelK lesson, StateFx side)
+  if (!/fx\.disabledSink = -ExpectedShift\(m, family, "disabled"\);/.test(cs) || !/fx\.disabledLift = disL;/.test(cs))
+    errors.push("WireStateFx must arm the disabled channel (disabledLift from stateFx rows, disabledSink from ExpectedShift) (slice 1)");
+  if (!/var fxPose = inst\.GetComponent<StateFx>\(\);\s*\n\s*if \(fxPose != null && it\.h > 1f\) \{\s*\n\s*float kPose = SoloLabelK\(it, m, rt\);\s*\n\s*if \(kPose > 0\.001f\) fxPose\.authoredHeight = it\.h \/ kPose;/.test(cs))
+    errors.push("the posed road must re-frame StateFx.authoredHeight through SoloLabelK — the root wears the SHELL box there, and travel scales by the sprite-air ratio otherwise (slice 1)");
+  // emission: labelStates dy is measured from the very renders the swap
+  // sprites bake (K-true), the lift dial's share subtracted
+  if (!/const stateCollapseDy = \(pid: KitComponentId, sn: "hover" \| "pressed" \| "disabled", dialDy: number\): number =>/.test(src)
+      || !/stateCollapseDy\(pid, sn, Math\.round\(\(pc\.candy\.extrusion\.depth - f\.candy\.extrusion\.depth\) \* 10\) \/ 10\)/.test(src))
+    errors.push("labelStates dy must ship the MEASURED baked-face collapse (stateCollapseDy) — the raw dial delta speaks unscaled design px (slice 1)");
+}
+
+/* ── Unity-exporter round, slice 2 (2026-08-27): NOTHING BAKES — the
+   universal live-prefab road. Every census family places live under its
+   own component name; family bakes render WITH content and then exactly
+   the word ink leaves the pixels (label groups + seat-eligible texts, the
+   seat parser's own acceptance rule); per-copy content rides the posed
+   skin road (content trigger); the bake gate is an explicit allowlist
+   that BRANDS any silent bake; the glyph rack ships as art prefabs. */
+{
+  if (!/qtybadge: "qtybadge", levelnode: "levelnode", dailycell: "dailycell",/.test(src)
+      || !/ring: "ring", avatarframe: "avatarframe", claimbtn: "claimbtn", bottomnav: "bottomnav",/.test(src))
+    errors.push("PREFAB_FAMILY lost the universal-road families — their board copies would silently fall back to baked stamps (slice 2)");
+  if (!/for \(const cGl of KIT_COMPONENTS\) if \(isGlyphPiece\(cGl\.id\)\) PREFAB_FAMILY\[cGl\.id\] = cGl\.id;/.test(src))
+    errors.push("the glyph rack's PREFAB_FAMILY registration is missing — glyph pieces would bake again (slice 2)");
+  if (!/const BAKE_OK = new Set<KitComponentId>\(\["invgrid"\]\);/.test(src))
+    errors.push("the stamp road's explicit allowlist (BAKE_OK) is missing (slice 2)");
+  if (!/\.\.\.\(BAKE_OK\.has\(idBase\) \? \{\} : \{ bakedFallback: true \}\),/.test(src))
+    errors.push("the stamp road must BRAND non-allowlisted component bakes (bakedFallback) — the fence's zero-silent-bakes assertion reads it (slice 2)");
+  if (!/const universalPose = UNIVERSAL_ROAD\.has\(idBase\) && \(b\.label != null \|\| b\.v != null \|\| b\.ov != null\);/.test(src))
+    errors.push("the universal content pose trigger is missing — same-box content divergence (Day 4's today art, a level node's stars) would ride the wrong family bake (slice 2)");
+  if (!/const stripWordInk = \(svgIn: string\)/.test(src) || !/if \(warped \|\| ghosted\) continue;/.test(src))
+    errors.push("the family-bake word strip (stripWordInk, parseTextSeats' acceptance rule) is missing — words would bake into the universal families (slice 2)");
+  if (!/if \(cropBox && !UNIVERSAL_DISPLAY\.has\(idBase\) && \(!isGlyphPiece\(idBase\) \|\| GLYPH_BUTTONS\.has\(idBase\)\)\) \{/.test(src))
+    errors.push("posed state skins must skip DISPLAY families and the glyph rack (ACTION glyphs excepted, round 40) — button-less prefabs would ship dead state files (slice 2)");
+  if (!/const GLYPH_BUTTONS = new Set<KitComponentId>\(\["glyphpause", "glyphplay", "glyphreplay", "glyphhome"\]\);/.test(src)
+      || !/const interactive = UNIVERSAL_INTERACTIVE\.has\(uid\) \|\| GLYPH_BUTTONS\.has\(uid\);/.test(src))
+    errors.push("the ACTION glyphs (pause/play/replay/home) no longer ship state skins — the Gameplay pause button goes dead in Play again (round 40)");
+  if (!/a family that ships state skins IS a control/.test(cs) || !/img\.raycastTarget = true;/.test(cs))
+    errors.push("the ACTION-glyph Button wiring no longer re-enables the raycast — the art-mandate default leaves the pause button deaf (round 40)");
+  // C#: manifest-declared labeled families, art-honest glyphs, posed Words stand-down
+  if (!/if \(label == null && a\.labelText != null && a\.labelText\.Length > 0\) label = a\.labelText;/.test(cs))
+    errors.push("RunPrefabBuilders must admit manifest-declared labeled families (labelText) — ghost/qtybadge/levelnode prefabs lose their live words (slice 2)");
+  if (!/if \(baseAsset\.component != null && baseAsset\.component\.StartsWith\("glyph"\)\) img\.raycastTarget = false;/.test(cs))
+    errors.push("glyph prefabs must not catch raycasts — art, never fake buttons (slice 2)");
+  if (!/var wdPos = inst\.transform\.Find\("Words"\);\s*\n\s*if \(wdPos != null\) wdPos\.gameObject\.SetActive\(false\);/.test(cs))
+    errors.push("the posed road must stand the Words group down — family-level seats would double over the copy's own posed words (slice 2)");
+  // the bespoke-pose travel pass (rewardcard: decor scales while shell,
+  // words and glow sink by the dial) — measured dy rows for stateFx
+  // families; clean translates measure 0 and stay byte-stable
+  if (!/const measuredStateDy = \(pid: KitComponentId, sn: "hover" \| "pressed" \| "disabled"\): number \| null =>/.test(src)
+      || !/\["rewardcard", "rewardcard"\]\] as const\)\.flatMap\(\(\[pid, fam\]\) =>/.test(src))
+    errors.push("the bespoke-pose measured-dy pass is missing from labelStates — riders would take the raw lift dial on squash-pose kits (slice 2)");
+  // the × glyph rides the baked atlas — qtybadge's live words are ×-counts
+  if (!/'&\(\)×";/.test(src.replace(/\\/g, "")) && !/&\(\)×/.test(src))
+    errors.push("BAKE_GLYPHS lost the × glyph — every live qtybadge word tofus where the app draws the multiply sign (slice 2)");
+  /* ── follow-up field round (the wordless prefabs): SeatRowOf must read
+     the BODY seam — RebodyIfGlow nulls the root image on every stateFx
+     family, and the root-Image read made claimbtn/boostercard/dailycell/
+     rewardcard/list-row prefabs ship shell + icon with NO words. */
+  {
+    const seatFnAt = cs.indexOf("static PBAsset SeatRowOf(");
+    const seatFn = seatFnAt >= 0 ? cs.slice(seatFnAt, seatFnAt + 1800) : "";
+    if (!seatFn.includes("var img = BodyImage(host);") || seatFn.includes("host.GetComponent<Image>()"))
+      errors.push("SeatRowOf must read BodyImage(host) — the root Image is sprite-less on rebodied (stateFx) families and their Words never wire (slice 2, follow-up)");
+  }
+  /* incomplete scenes persist in kit.lock.json — SessionState dies with
+     the editor and the first-drop race then froze wordless stand-ins.
+     Reviewer round (2026-08-27): the marker is un-armable-forever by
+     construction now — missing counts ride beside the scenes (the
+     loop-breaker's memory), the scene-file sha ledger gates the
+     automatic delete, and the receipt carries all of it. */
+  if (!/public string\[\] pendingScenes; public int\[\] pendingMissing; public PBSceneShaEntry\[\] sceneShas;/.test(cs)
+      || !/prevPend = ScenePendingCountInLock\(root, scenePath\);/.test(cs)
+      || !/MarkScenePendingInLock\(root, scenePath, stalled \? 0 : missing\);/.test(cs)
+      || !/receipt\.pendingScenes = prev != null \? prev\.pendingScenes : null;/.test(cs)
+      || !/receipt\.pendingMissing = prev != null \? prev\.pendingMissing : null;/.test(cs)
+      || !/receipt\.sceneShas = prev != null \? prev\.sceneShas : null;/.test(cs)
+      || !/lv\.pendingScenes != null && lv\.pendingScenes\.Length > 0/.test(cs))
+    errors.push("the incomplete-scene marker must persist in kit.lock.json (pendingScenes + pendingMissing + sceneShas: lock fields, count read in BuildBoardScene, write on save, receipt carry-over, sweep rebuild) — an editor restart otherwise freezes a raced scene on its stand-in forever (slice 2, follow-up; hardened in the reviewer round)");
+}
+
+/* ── Unity-exporter round, slice 3 (2026-08-27): the dropdown DROPS DOWN.
+   A real selection control on the kit's art — TMP_Dropdown on TMP
+   editors, the stock uGUI Dropdown on the pre-2023.2 rung — with the
+   kit's menu plate, hover bar and selected check; sample language
+   options whose glyphs are pinned into the baked atlas (no tofu). */
+{
+  if (!/static readonly string\[\] DropdownSampleOptions = new string\[\] \{ "English", "Español", "Français", "Deutsch", "Português", "Italiano" \};/.test(cs))
+    errors.push("the dropdown's sample language options are missing or changed — the fence's glyph-coverage proof pins these exact strings (slice 3)");
+  if (!/static void BuildDropdownRig\(GameObject go, string root, int pngScale, PBManifest m, Font kitFont\)/.test(cs))
+    errors.push("BuildDropdownRig is missing — the dropdown stays a picture (slice 3)");
+  if (!/ddC = go\.AddComponent<TMP_Dropdown>\(\);/.test(cs) || !/ddC = go\.AddComponent<Dropdown>\(\);/.test(cs))
+    errors.push("the dropdown must wire BOTH rungs — TMP_Dropdown (2023.2+/Unity 6) and legacy Dropdown (2022.3) (slice 3)");
+  if (!/srDD\.content = ctRt;\s*\n\s*srDD\.viewport = vpRt;/.test(cs))
+    errors.push("the template's ScrollRect must be wired (content + viewport) — Unity never auto-wires it and long lists become unreachable (slice 3)");
+  if (!/tgDD\.transition = Selectable\.Transition\.ColorTint;/.test(cs) || !/cbDD\.normalColor = new Color\(1f, 1f, 1f, 0f\);/.test(cs))
+    errors.push("the row-highlight bar must ride the item Toggle's tint alpha (rest 0, hover/press/focus 1) — the kit's own emphasis rule (slice 3)");
+  if (!/if \(it\.component == "dropdown" && !string\.IsNullOrEmpty\(it\.label\)\)/.test(cs)
+      || !/ddScn\.options\.Insert\(0, new TMP_Dropdown\.OptionData\(it\.label\)\); diScn = 0;/.test(cs))
+    errors.push("the scene must match the per-copy word into the options (insert-at-top fallback) — Play's RefreshShownValue re-shows the board's word (slice 3)");
+  if (!/tplRt9\.localScale = new Vector3\(kTpl, kTpl, 1f\);/.test(cs))
+    errors.push("the posed road must scale the open-list template through SoloLabelK — prefab-frame rows would dwarf a board-scaled piece (slice 3)");
+  if (!/spritePath\.EndsWith\("\/dropdown-base\.9\.png"\)\s*\n\s*&& asset\.GetComponentInChildren<Selectable>\(true\) == null\s*\n\s*&& asset\.transform\.Find\("Template"\) == null/.test(cs))
+    errors.push("the maintenance graft (picture-era Dropdown → working control, ownership-gated) is missing — existing projects never gain the drop-down (slice 3)");
+  // glyph coverage at the source: the language names' accents ride BAKE_GLYPHS
+  const bg = src.match(/const BAKE_GLYPHS = "([^"]+)";/);
+  if (!bg) errors.push("BAKE_GLYPHS not found");
+  else for (const opt of ["English", "Español", "Français", "Deutsch", "Português", "Italiano"])
+    for (const ch of opt.replace(/ /g, ""))
+      if (!bg[1].includes(ch)) errors.push(`BAKE_GLYPHS lacks '${ch}' (needed by dropdown option "${opt}") — tofu in the baked faces (slice 3)`);
+}
+
+/* ── Unity-exporter follow-up round (2026-08-27): the COMPLETE PLAYGROUND.
+   Owner: "there should be more items from the kit included… to make it
+   feel complete". Every released family shelves once, in the kit page's
+   chapter order, on a TALL SCROLLING canvas; staged families that leaked
+   into the zip stay off the shelf (manifest.stagedFamilies — emitted
+   TS-side as staged AND not board-blessed). */
+{
+  if (!/\("CHOICE CONTROLS & FIELDS", new\[\]/.test(cs) || !/\("GAME SYSTEMS", new\[\]/.test(cs)
+      || !/allSecs\.Add\(\("GLYPHS \(Prefabs\/Glyphs\)", glyphNames\.ToArray\(\)\)\);/.test(cs))
+    errors.push("the Playground's chapter sections (kit-page order + the Glyphs shelf) are missing (slice 5)");
+  if (!/new GameObject\("Catalog Scroll", typeof\(RectTransform\), typeof\(ScrollRect\)\);/.test(cs)
+      || !/float fit = Mathf\.Min\(1f, 1920f \/ boardW\);/.test(cs)
+      || /Mathf\.Min\(1920f \/ boardW, 1080f \/ boardH\)/.test(cs))
+    errors.push("the Playground must be the tall scrolling catalog (ScrollRect; width fits, height scrolls — never the whole-shelf shrink) (slice 5)");
+  if (!/if \(stagedNames\.Contains\(n\)\) continue;/.test(cs) || !/if \(!placedNames\.Add\(n\)\) continue;/.test(cs))
+    errors.push("the Playground must gate staged families and shelve one of each (slice 5)");
+  if (!/stagedFamilies: \[\.\.\.new Set\(/.test(src) || !/&& !usedOnBoards0\.has\(PREFAB_FAMILY\[c\.id\] \?\? c\.id\)\)/.test(src)
+      || !/public string\[\] stagedFamilies;/.test(cs))
+    errors.push("manifest.stagedFamilies must ship (staged AND not board-blessed) with its PBManifest field — the shelf's kitVisible gate reads it (slice 5)");
+}
+
+/* ── Unity-exporter follow-up round (2026-08-27): the GLYPH SHELF.
+   Owner call, verbatim honored: glyphs STAY prefabs but live in
+   Prefabs/Glyphs (the BigGlyphs pattern); existing projects' root-level
+   glyph prefabs MOVE there (GUID-preserving MoveAsset — references
+   follow), ownership-gated; scenes answer both addresses; button-embedded
+   icons remain children, never separate prefabs. */
+{
+  if (!/if \(a\.component\.StartsWith\("glyph"\)\) \{\s*\n\s*if \(!AssetDatabase\.IsValidFolder\(glyphDir\)\) AssetDatabase\.CreateFolder\(dir, "Glyphs"\);\s*\n\s*famDir2 = glyphDir;/.test(cs))
+    errors.push("glyph family prefabs must build into Prefabs/Glyphs (the BigGlyphs pattern) — the folder call (slice 4)");
+  if (!/if \(!anyGlyph && !hadGlyphDir && AssetDatabase\.IsValidFolder\(glyphDir\)\) AssetDatabase\.DeleteAsset\(glyphDir\);/.test(cs))
+    errors.push("a glyph-less kit must leave no empty Glyphs folder (slice 4)");
+  if (!/pf = AssetDatabase\.LoadAssetAtPath<GameObject>\(root \+ "\/Prefabs\/Glyphs\/" \+ pfName \+ "\.prefab"\);/.test(cs)
+      || !/if \(pf == null\) pf = AssetDatabase\.LoadAssetAtPath<GameObject>\(root \+ "\/Prefabs\/" \+ pfName \+ "\.prefab"\);/.test(cs))
+    errors.push("board scenes must answer BOTH glyph addresses (Prefabs/Glyphs first, the root for kept projects) (slice 4)");
+  if (!/static void ShelveGlyphPrefabs\(string root\)/.test(cs)
+      || !/spPathG\.StartsWith\(root \+ "\/assets\/glyph"\)/.test(cs)
+      || !/AssetDatabase\.MoveAsset\(pG, targetG\)/.test(cs))
+    errors.push("the glyph shelving pass (ownership-gated GUID-preserving move into Prefabs/Glyphs) is missing (slice 4)");
+  if (!/ShelveGlyphPrefabs\(root\); \/\/ the owner's folder call, healed on every import/.test(cs)
+      || !/ShelveGlyphPrefabs\(root\); \/\/ root-level glyphs move BEFORE the rebuild/.test(cs))
+    errors.push("glyph shelving must run on every import AND before a manual Regenerate — a rebuild would otherwise mint Glyphs/ twins beside root originals (slice 4)");
+  // button-embedded icons stay CHILDREN — no builder may mint an icon prefab
+  for (const m2 of cs.matchAll(/SaveAsPrefabAsset\(go, ([^)]+)\)/g))
+    if (/"Icon/.test(m2[1])) errors.push(`a builder saves an icon prefab (${m2[1].slice(0, 60)}) — button-embedded icons remain children, never separate prefabs (slice 4)`);
+}
+
+/* ── Unity-exporter follow-up round (2026-08-27): the IMMUTABLE-PACKAGE
+   POLICY, scanned. Owner field (Shop status bar): "assets located in
+   immutable packages were unexpectedly altered". Two write roads could
+   put ink inside Packages/: a blanket AssetDatabase.SaveAssets() flushes
+   EVERY dirty asset — package assets Unity itself dirtied included, and
+   the warning lands on the flusher — and the Input System settings write
+   ran on whatever asset InputSystem.settings resolved to. Policy: the
+   importer writes ONLY under Assets/, saves ONLY its own assets, and the
+   sole permitted "Packages/" literals are the TMP-essentials READ paths
+   (ImportPackage unpacks INTO Assets, touching nothing in the package). */
+{
+  if (/AssetDatabase\.SaveAssets\(\)/.test(cs))
+    errors.push("blanket AssetDatabase.SaveAssets() found — it flushes package assets others dirtied (the owner's 'immutable packages… altered' status bar); save the specific asset via SaveAssetIfDirty instead (immutable-package policy)");
+  const ALLOWED_PKG_LITERALS = new Set([
+    // READ roads: the TMP Essential Resources .unitypackage locations —
+    // ImportPackage unpacks them into Assets/, the package is untouched
+    "Packages/com.unity.ugui/Package Resources/TMP Essential Resources.unitypackage",
+    "Packages/com.unity.textmeshpro/Package Resources/TMP Essential Resources.unitypackage",
+    // the tripwire's own path CLASSIFIER (round 33) — it reads save paths
+    // to BLOCK package writes; the literal addresses nothing
+    "Packages/",
+  ]);
+  {
+    // real STRING literals only — the same comment-aware walk as the lexer
+    // above (a naive regex once matched from code into a comment's prose)
+    let inBlk = false;
+    for (const line of lines) {
+      let i = 0;
+      while (i < line.length) {
+        if (inBlk) {
+          const close = line.indexOf("*/", i);
+          if (close < 0) { i = line.length; break; }
+          inBlk = false; i = close + 2; continue;
+        }
+        const ch = line[i];
+        if (ch === "/" && line[i + 1] === "/") break;
+        if (ch === "/" && line[i + 1] === "*") { inBlk = true; i += 2; continue; }
+        if (ch === '"') {
+          let j = i + 1, lit = "";
+          while (j < line.length) {
+            if (line[j] === "\\") { lit += line[j] + (line[j + 1] ?? ""); j += 2; continue; }
+            if (line[j] === '"') break;
+            lit += line[j]; j++;
+          }
+          if (lit.includes("Packages/") && !lit.includes("immutable packages") && !ALLOWED_PKG_LITERALS.has(lit))
+            errors.push(`unallowlisted "Packages/" literal in the emitted C#: "${lit.slice(0, 90)}" — the importer must never address package paths outside the documented TMP-essentials READ roads (immutable-package policy)`);
+          i = j + 1;
+          continue;
+        }
+        i++;
+      }
+    }
+  }
+  if (!/var isetPath = uobj != null \? AssetDatabase\.GetAssetPath\(uobj\)\.Replace\("\\\\", "\/"\) : "";/.test(cs)
+      || !/!isetPath\.StartsWith\("Assets\/"\)/.test(cs))
+    errors.push("the Input System settings write must mint an Assets/ copy whenever the live settings asset is NOT under Assets/ (package-resident settings would be altered in place) (immutable-package policy)");
+  if (/if \(!routed && uobj != null && !isetPath\.StartsWith\("Assets\/"\)\)/.test(cs))
+    errors.push("the Input System settings mint is direction-scoped again (!routed) — the un-route toggle would write a package-resident settings asset in place; mint on ANY non-Assets path (immutable-package policy, round 33)");
+  if (!/settingsPath\.Replace\("\\\\", "\/"\)\.StartsWith\("Assets\/"\)/.test(cs))
+    errors.push("the TMP settings write must stay Assets/-gated (the round-10 immutable-package guard) (immutable-package policy)");
+  /* round 33 — the TRIPWIRE: whatever still dirties a package asset (TMP's
+     font-asset version upgrade is the known third-party dirtier), the
+     alteration only lands at flush time. The processor must exist, gate on
+     IMMUTABLE sources only (embedded/local = the dev's own, untouchable by
+     us in the other direction), drop the path from the save list, and name
+     the asset out loud — the field's next Console says which asset and who
+     flushed. */
+  if (!/class KitImmutablePackageTripwire : UnityEditor\.AssetModificationProcessor/.test(cs))
+    errors.push("the immutable-package tripwire (KitImmutablePackageTripwire) is missing — package-asset flushes go unblocked and unnamed (immutable-package policy, round 33)");
+  if (!/pkg\.source != UnityEditor\.PackageManager\.PackageSource\.Embedded/.test(cs)
+      || !/pkg\.source != UnityEditor\.PackageManager\.PackageSource\.Local/.test(cs))
+    errors.push("the tripwire must exempt Embedded and Local packages — those are the developer's own, writable by design (immutable-package policy, round 33)");
+  if (!/blocked a save into the immutable package asset/.test(cs))
+    errors.push("the tripwire must NAME the blocked asset in the Console (the diagnostic half of the round-33 mandate)");
+  if (!/return keep != null \? keep\.ToArray\(\) : paths;/.test(cs))
+    errors.push("the tripwire must actually DROP blocked paths from the save list (returning the filtered array is the kill)");
+  /* every object-addressed save stays on a known-ours target — a new
+     SaveAssetIfDirty on an unvetted object is how a package asset gets
+     flushed by us */
+  {
+    const SAVE_OK = new Set(["dirty", "fa", "face", "TMP_Settings.instance", "existing"]);
+    for (const mt of cs.matchAll(/AssetDatabase\.SaveAssetIfDirty\(([^)]*)\)/g))
+      if (!SAVE_OK.has(mt[1].trim()))
+        errors.push(`SaveAssetIfDirty on unvetted target "${mt[1].trim()}" — add it to the guard's allowlist only after proving it is an Assets-resident kit asset (immutable-package policy)`);
+  }
+  /* round 33 — the "kinda" font: dynamic faces must PERSIST their source
+     (the GUID stamp), and the dropdown's option rows must bind the kit
+     face at build AND heal a fallback-bound Item Label on re-import. */
+  if (!/static void StampDynamicSource\(TMP_FontAsset fa, Font ttf\)/.test(cs)
+      || !/m_SourceFontFileGUID/.test(cs) || !/m_SourceFontFile_EditorRef/.test(cs))
+    errors.push("StampDynamicSource is missing (or lost its serialized-property stamps) — dynamic faces forget their source font across reloads and text drops to the LiberationSans fallback (the owner's 'kinda' font)");
+  if (!/if \(existing != null\) \{ StampDynamicSource\(existing, ttf\); return existing; \}/.test(cs))
+    errors.push("EnsureTmpFace must stamp EXISTING faces too — projects minted before the fix must heal on re-import (the 'kinda' font)");
+  if (!/var itFace = EnsureTmpFace\(root, m, kitFont\);\s*\n\s*if \(itFace != null\) itLb\.font = itFace;/.test(cs))
+    errors.push("the dropdown's Item Label must bind the kit face at rig build (itLb.font = itFace) — rows otherwise ride TMP's fallback face");
+  if (!/itLbF\.font == null \|\| itLbF\.font\.name\.StartsWith\("LiberationSans"\)/.test(cs))
+    errors.push("the dropdown maintenance heal is missing — an already-rigged Dropdown whose rows ride the LiberationSans fallback must re-bind to the kit face on import (the 'kinda' font)");
+}
+
+/* ── LIVE TYPE STAMPS (owner mandate, 2026-08-27: typed words are
+   components, not pixels). The allowlist: WARPED stamps (stamp.warp
+   active) are the one stamp raster allowed to stay art — the bend is
+   pixel math by contract. Everything else must travel live: the app side
+   gates stampLive on the warp check, the C# side builds editable text
+   through ONE shared builder (scene pass + kept-scene heal), seated on
+   the measured ink box, with the baked sprite as the documented fallback
+   rung only. */
+{
+  if (!/static GameObject BuildLiveStamp\(string root, PBManifest m, PBBoardItem it, UnityEngine\.SceneManagement\.Scene scene\)/.test(cs))
+    errors.push("BuildLiveStamp is missing — unwarped type stamps must place as editable text (owner mandate: never baked)");
+  if (!/it\.stampLive == 1 && it\.stampFs > 1f/.test(cs))
+    errors.push("the scene pass no longer routes stampLive rows through the live-stamp builder");
+  if (!/it2\.stampLive == 1 && it2\.stampFs > 1f/.test(cs))
+    errors.push("the kept-scene heal no longer converts baked stamp pictures to live text (project-27-class projects would stay pictures forever)");
+  if (!/rt\.anchoredPosition \+= new Vector2\(it\.stampDx, -it\.stampDy\);/.test(cs))
+    errors.push("the live stamp no longer seats on its measured ink box (stampDx/Dy) — placement drifts off the app render");
+  // the app-side warp gate: stampLive must never ride a warped stamp
+  if (!/inkBox && !\(b\.stamp\.warp && b\.stamp\.warp\.style !== "none" && b\.stamp\.warp\.amount\)/.test(src))
+    errors.push("the app-side warp gate is gone — warped stamps are the ONLY stamps allowed to stay art (guard allowlist), and stampLive must never ride one");
+  // the fallback rung stays documented and armed: no HeroLabel/face yet → baked + missing++ (self-rebuild)
+  if (!/stays a baked image this pass/.test(cs))
+    errors.push("the live-stamp race fallback (baked stand-in + missing++ self-rebuild) is missing");
+}
+
+/* ── DROPDOWN OPEN-MENU PARITY (round 33, coordinator handoff): the rig
+   consumes kit-manifest.json > menu — the app's resolved voice + parsed
+   metrics — on BOTH rungs, so owner menu-dial edits flow to Unity with no
+   importer change; the caret's protective right border survives the
+   measured-slice pass (sliceMin floor, app side). */
+{
+  if (!/\[Serializable\] class PBMenu \{ public string\[\] items;/.test(cs) || !/public PBMenu menu;/.test(cs))
+    errors.push("PBMenu is missing from the manifest classes — the menu block would be dropped in silence");
+  if (!/var mnu = m != null \? m\.menu : null;/.test(cs) || !/float rowH = mnuOk \? mnu\.rowH :/.test(cs))
+    errors.push("BuildDropdownRig no longer consumes the manifest menu block (rowH/pad/gap)");
+  if ((cs.match(/itLb\.color = mnuInk;/g) ?? []).length !== 2)
+    errors.push("the menu row ink must flow to BOTH rungs' Item Label (TMP and legacy Text)");
+  if (!/itCkRt\.anchoredPosition = new Vector2\(-mnu\.checkInsetR, 0f\);/.test(cs))
+    errors.push("the selected-check no longer seats at the app's measured right inset");
+  if (!/sliceMin: \{ right: Math\.round\(80 \* PNG_SCALE\) \}/.test(src))
+    errors.push("the dropdown caret's protective border floor (sliceMin) is gone — the measured-slice pass will shear the chevron on stretched copies again");
+}
+
+/* ── UNITY DEV REVIEWER ROUND (2026-08-27) — the blockers' pins.
+   B1: a LAYERLESS kit's splash stamps take the styled-SDF road (the
+   HeroLabel prefab can never exist there — a permanent fact must finish
+   the build, never arm it), and the incomplete-scene rebuild is
+   un-armable-forever: the scene-file sha ledger gates every automatic
+   delete, and two builds ending on the same missing count stop the loop
+   with one honest line. B2: the 2022.3 label rung wears the family's
+   resolved ink (the hardcoded white was invisible on dark-ink kits). */
+{
+  if (!/bool layeredKit = m != null && m\.typography != null && m\.typography\.bakedFace != null/.test(cs)
+      || !/if \(plainTier \|\| !layeredKit\) \{/.test(cs))
+    errors.push("BuildLiveStamp lost the layered-face gate — splash stamps on layerless kits would arm the eternal scene rebuild again (reviewer B1a)");
+  if (!/var flatInk = plainTier \? it\.stampInk : it\.stampSplashInk;/.test(cs)
+      || !/public string stampSplashInk;/.test(cs)
+      || !/stampSplashInk: b\.stamp\.plain/.test(src))
+    errors.push("the splash tier's resolved flat ink (stampSplashInk) no longer travels app → manifest → SDF fallback — layerless splash stamps would guess the button voice (reviewer B1a)");
+  if (!/var oursSha = SceneShaInLock\(root, scenePath\);/.test(cs)
+      || !/if \(oursSha == null \|\| nowSha == null \|\| oursSha != nowSha\) \{/.test(cs))
+    errors.push("the scene-file authorship gate is gone — the pending rebuild would delete dev-edited scenes again (reviewer B1b)");
+  if (!/bool stalled = missing > 0 && prevPend > 0 && missing == prevPend;/.test(cs)
+      || !/RecordSceneShaInLock\(root, scenePath\);/.test(cs))
+    errors.push("the pending loop-breaker (same missing count twice in a row → stop and say so) is gone (reviewer B1b)");
+  if (!/t\.color = LegacyFlatInk\(m, family\);/.test(cs)
+      || !/static Color LegacyFlatInk\(PBManifest m, string family\)/.test(cs))
+    errors.push("the 2022.3 label rung lost the family ink ladder — dark-ink kits go white-on-cream again (reviewer B2)");
+  // the docs' 2022.3 notes are load-bearing honesty, not prose polish
+  if (!/On Unity 2022\.3:\*\* labels are still live, editable text/.test(src)
+      || !/The full 2022\.3 picture, feature by feature/.test(src))
+    errors.push("the QuickStart/README 2022.3 qualifications are gone — the docs overpromise the legacy rung again (reviewer B2)");
+}
+
+/* ── UNITY DEV REVIEWER ROUND (2026-08-27) — the paper cuts' pins.
+   P3: the designed weight ships as a REAL cut and synthetic bold keys
+   on the gap to the cut actually aboard. P4: nothing promises a
+   HeroLabel a layerless kit can never have. P5: the resize pass
+   converges only rects the importer itself last authored. P6: the
+   update dialog says LOST. P7: the recipe README's fonts paragraph
+   speaks the Unity zip's truth (fonts bundled, no SVGs). */
+{
+  if (!/public int shippedWeight;/.test(cs)
+      || !/s\.weight - \(s\.shippedWeight > 0 \? s\.shippedWeight : 400\) >= 150/.test(cs)
+      || !/shippedWeight = got\.realWeight \?\? \(gotDesigned \? designedW : 400\);/.test(src)
+      || !/shippedWeight,\s*\n/.test(src))
+    errors.push("the designed-weight cut no longer travels (axis fetch → manifest shippedWeight → gap-keyed synthetic bold) — dynamic SDF text renders thinner than the baked art again (reviewer P3)");
+  /* strike three on font weights (2026-08-27): every road's bytes are
+     PROBED (fvar / OS/2), the browser-impossible UA-override road no
+     longer decides alone (baked gstatic static-instance table), and the
+     importer re-detects the aboard weight from the file itself so a
+     wrong manifest claim can never silently under-bold again. */
+  if (!/const gotDesigned = !!got && !got\.variable && got\.realWeight === designedW;/.test(src)
+      || !/FONT_STATIC_TTF\[family\]\?\.\[wantedW\]/.test(src)
+      || !/probeSfntWeight\(bytes\)/.test(src))
+    errors.push("the export stopped probing font bytes / lost the baked static-instance table — variable fallbacks can ship as the designed weight again (strike three)");
+  if (!/static int SfntDefaultWeight\(byte\[\] b, out bool variable\)/.test(cs)
+      || !/static void HonestizeTypeWeights\(string root, PBManifest m\)/.test(cs)
+      || !/HonestizeTypeWeights\(root, m\);/.test(cs))
+    errors.push("the importer no longer detects the shipped font's REAL weight from its bytes — a lying manifest silently under-bolds again (strike three)");
+  if (!/static bool KitBakesLayers\(string root\)/.test(cs)
+      || !/This kit has no layered Hero Label — by design/.test(cs)
+      || !/No layer face: this kit's type recipe bakes no stroke\/shadow layers/.test(cs))
+    errors.push("the HeroLabel dead-end honesty (menu dialog + neutral Kit Status line) is gone (reviewer P4)");
+  if (!/const heroAsset = layersShipped \? "KitFace Baked Layers" : "KitFace Baked";/.test(src)
+      || !/No HeroLabel prefab here — and that's the design/.test(src))
+    errors.push("the README no longer forks on layer presence — layered-hero promises with nothing behind them again (reviewer P4)");
+  if (!/rectLedger\.TryGetValue\(rectKey, out oursSz\)/.test(cs)
+      || !/public PBRectEntry\[\] authoredRects;/.test(cs)
+      || !/kept your size on/.test(cs)
+      || !/they were ours to update\. A rect you resized is never touched\./.test(cs))
+    errors.push("the resize pass lost its ours-vs-theirs ledger — a dev-resized prefab snaps back on every import again (reviewer P5)");
+  if (!/will be LOST — the scenes are rebuilt from the kit's layout/.test(cs))
+    errors.push("the update dialog stopped saying hand edits are LOST — 'redone' reads as re-applied (reviewer P6)");
+  if (!/fontNotesMarkdown\(kitFontFamilies\(st\.cfg\), primaryFontFile \? "bundled" : "linked"\)/.test(src))
+    errors.push("the Unity zip's recipe README lost its bundled-fonts paragraph — the SVG pack's install text is another format's story (reviewer P7)");
+}
+
+/* THE UN-BURN (maximum-editability law, 2026-08-28): no icon, image, or
+   word burned into component art — every swappable thing a live
+   Inspector-editable child. These pins keep the whole chain standing:
+   the marked-group extraction, the stripped bakes (base AND state
+   skins), the manifest seats, the importer's live children (family
+   prefabs, the emblem socket, POSED board copies), and the kept-project
+   convergence with its receipt. */
+{
+  if (!/function markedIconOnlySvgs\(svgIn: string\)/.test(src)
+      || !/function stripMarkedIcons\(svgIn: string\)/.test(src))
+    errors.push("the un-burn's marked-group hands (markedIconOnlySvgs / stripMarkedIcons) are missing from the export");
+  if (!/const iconSeatsU = isArt \? null : await iconSeatsOf\(uid, fullU\);/.test(src)
+      || !/stripIconInk\(stripWordInk\(sSvg\)\.svg\)\.svg/.test(src))
+    errors.push("the universal road stopped stripping marked icon ink (base and/or state skins) — burned swappables are back");
+  if (!/const ibSeats = await iconSeatsOf\("iconbtn", ibFull\);/.test(src)
+      || !/stripIconInk\(stateShell\(s\.id, stName, s\.opts, s\.value\)\)\.svg/.test(src))
+    errors.push("the icon button's glyph is baked again (base or state skins) — the law reversed the universal round's call on purpose");
+  if (!/const iconSeatsP = unburnP \? await iconSeatsOf\(p\.id, baseFullP\) : null;/.test(src))
+    errors.push("the price button's un-burn (coin + ribbon plate live, ribbon word a seat) is missing from the PROPS road");
+  if (!/if \(posedCuts\.length\) ps2 = stripMarkedIcons\(ps2\)\.svg;/.test(src)
+      || !/posedIcons: posedIconsPx/.test(src))
+    errors.push("the POSED road stopped stripping marked icons / shipping posedIcons — board copies burn their swappables again");
+  if (!/\[Serializable\] class PBIconChild \{ public string name; public string file; public float dx; public float dy; public float w; public float h; public bool btn; public float wellR; public bool pinRight; public float rightGap; public string nick;/.test(cs)
+      || !/public string word; public float wordFs; public float wordDx; public float wordDy; public string wordInk; public int wordW; \}/.test(cs))
+    errors.push("PBIconChild is missing from the importer (or lost its rider-word fields, round 40) — JsonUtility drops every un-burn seat row");
+  if (!/if \(!string\.IsNullOrEmpty\(pIc\.word\) && pIc\.wordFs > 1f\) \{/.test(cs)
+      || !/pwRt\.anchoredPosition = new Vector2\(pIc\.wordDx, -pIc\.wordDy\); \/\/ board y runs down/.test(cs))
+    errors.push("the posed road no longer rebuilds rider words on live plates — the Booster Select counts hide under their pills again (round 40)");
+  if (!/var famRowSD = LabelRow\(m, it\.component\);/.test(cs)
+      || !/var tSD = inst\.transform\.Find\(IconChildName\(icSD\)\);/.test(cs))
+    errors.push("posed copies no longer stand down nick-named family children by the manifest — the Shop bottomnav's Selected ring blobs over MAP again (round 40)");
+  if (!/public PBStyle seatInk; public float ringV; public PBIconChild\[\] iconSeats; \}/.test(cs))
+    errors.push("PBAsset must carry iconSeats — without it JsonUtility drops the un-burn seats");
+  if (!/static List<string> WireIconChildren\(GameObject go, string root, PBManifest m, string fam\)/.test(cs)
+      || !/static List<string> WireIconChildrenRow\(GameObject go, string root, PBManifest m, PBAsset row\)/.test(cs)
+      || !/WireIconChildren\(go, root, m, baseAsset\.component\);/.test(cs))
+    errors.push("the importer no longer rebuilds live icon children on family prefabs (WireIconChildren)");
+  if (!/WireIconChildrenRow\(sgo, root, m, sockRow\);/.test(cs))
+    errors.push("the emblem socket lost its live emblem child (WireIconChildrenRow on the socket row)");
+  if (!/if \(it\.posedIcons != null\) foreach \(var pIc in it\.posedIcons\)/.test(cs))
+    errors.push("posed board copies no longer rebuild their live icon children from posedIcons");
+  if (!/typeof\(Image\), typeof\(Mask\)\)/.test(cs) || !/showMaskGraphic = false;/.test(cs))
+    errors.push("the avatar's circle-masked Portrait well structure is missing (Mask + hidden mask graphic)");
+  if (!/if \(wantUnburn\) \{/.test(cs) || !/un-burned/.test(cs))
+    errors.push("the kept-project un-burn convergence (wantUnburn + its Console receipt) is missing from the maintenance pass");
+  if (!/&& !wantUnburn && !wantIconRetire && !wantSelectRoot\) continue;/.test(cs))
+    errors.push("the maintenance skip-gate no longer counts wantUnburn/wantIconRetire — a kept project whose only need is un-burning (or a re-cut seat retire, round 40) would be skipped");
+  if (!/bool wantIconRetire = false;/.test(cs) || !/stepped down \(disabled, not deleted\): this update re-cut that seat into new live children/.test(cs))
+    errors.push("the re-cut seat retire is gone — a split seat (the resource medallion → plate + glyph, round 40) leaves the untouched original drawing doubled over the new pair");
+  /* round 41 review, paper cut 3: the retire proves what it claims — a
+     retint/rescale/rotation is the dev's, and the step-down DISABLES
+     (SetActive(false)), never DestroyImmediates */
+  {
+    const guardCond = /imRC2?\.color != Color\.white \|\| chRC2?\.localScale != Vector3\.one \|\| chRC2?\.localRotation != Quaternion\.identity/g;
+    if ((cs.match(guardCond) ?? []).length < 2)
+      errors.push("the retire road lost its provable-untouched checks (tint/scale/rotation) on probe or apply — a moved-but-not-renamed legacy seat gets stepped down under a false claim again");
+    if (!/gRC\.SetActive\(false\);/.test(cs) || /UnityEngine\.Object\.DestroyImmediate\(gRC, true\);/.test(cs))
+      errors.push("the retire step-down destroys again instead of disabling — an unprovable move would be unrecoverable outside version control");
+    if ((cs.match(/if \(!chRC2?\.gameObject\.activeSelf\) continue;/g) ?? []).length < 2)
+      errors.push("the retire road no longer skips already-disabled children — every import would re-log the same step-down");
+  }
+  /* round 41 review, blocker 1: rider-aware seat accounting — the drift
+     gate pairs Words texts with NON-rider seats and finds adopted rider
+     words under their plates; adopted riders re-dress but never re-rect */
+  if (!/if \(texts\.Length == nonRider\) \{/.test(cs.replace(/\} else if \(texts\.Length == nonRider\) \{/, "if (texts.Length == nonRider) {"))
+      || !/if \(texts\.Length == row\.textSeats\.Length && !adoptedTree\) \{/.test(cs)
+      || !/static TMPro\.TMP_Text AdoptedRiderText\(GameObject host, PBAsset row, PBSeat seat\)/.test(cs)
+      || !/rider words live under their plates/.test(cs)
+      || !/if \(!adopted && srt != null && !SeatRect\(/.test(cs))
+    errors.push("the rider-aware seat accounting is gone — a fresh import's own adoption trips the dev-restructured gate again (boostercard 2v3, avatarframe 0v1) and every later heal silently skips");
+  /* round 41 review, blocker 2: posed rider counts rebuild on BOTH rungs —
+     fully-qualified TMP outside the styled-rung guard + the LTS face mint */
+  if (!/typeof\(TMPro\.TextMeshProUGUI\)/.test(cs)
+      || !/static TMPro\.TMP_FontAsset RiderFace\(string root, PBManifest m\)/.test(cs)
+      || !/static void SeatHarden\(TMPro\.TMP_Text t\)/.test(cs))
+    errors.push("the posed rider words hid behind the styled-rung guard again — 2022.3 ships empty qty pills and badge plates");
+  {
+    // the docs tell the LTS truth: the rider exception is stated in BOTH docs
+    if (!/rebuilt as editable\s*\n?> TMP text on BOTH rungs/.test(src) || !/which arrive as editable TMP text on both\s*\n?> rungs/.test(src))
+      errors.push("the 2022.3 rung contract in README/QuickStart no longer states the rider-count exception — the shipped docs would lie again");
+    if (!/### What arrives LIVE — the swap-the-sprite contract/.test(src))
+      errors.push("the README's live-children paragraph (swap-the-sprite contract) is gone — the flagship editability is undocumented again");
+  }
+  /* the un-burn's ONE-SHOT law (editability blocker): a seat seeds once,
+     is recorded in kit.lock.json > seededChildren, and is never re-added
+     — a deleted child stays deleted, a renamed child never grows a
+     canonical twin, and unburned++ only counts real adds. */
+  if (!/public PBRectEntry\[\] authoredRects; public string\[\] seededChildren; \}/.test(cs))
+    errors.push("PBLock lost the seededChildren ledger — the un-burn resurrects deleted children and twins renamed ones again");
+  if (!/receipt\.seededChildren = passSeededChildren != null \? passSeededChildren : \(prev != null \? prev\.seededChildren : null\);/.test(cs))
+    errors.push("the receipt no longer carries the seeded-children ledger forward — one import without maintenance would amnesia every seeded seat");
+  if (!/if \(asset\.transform\.Find\(cnU0\) != null\) \{ unburnLedger\.Add\(keyU0 \+ cnU0\); continue; \}/.test(cs)
+      || !/if \(unburnLedger\.Contains\(keyU0 \+ cnU0\)\) continue;/.test(cs)
+      || !/if \(prevFilesU != null && prevFilesU\.Contains\(icU0\.file\)\) \{ unburnLedger\.Add\(keyU0 \+ cnU0\); continue; \}/.test(cs))
+    errors.push("the un-burn trigger lost its one-shot ledger walk (adopt-present / skip-ledgered / migrate-shipped) — deletes resurrect and renames twin again");
+  if (!/if \(theirs != null && theirs\.Contains\(cn\)\) continue;/.test(cs)
+      || !/var addedUA = WireIconChildrenRow\(contents, root, m, rowUA, theirsUA\);/.test(cs)
+      || !/if \(addedUA\.Count > 0\) \{/.test(cs))
+    errors.push("the un-burn apply road no longer honors the ledger (theirs skip / honest unburned count on real adds only)");
+  if (!/Each seat seeds exactly once \(kit\.lock\.json > seededChildren\)/.test(cs))
+    errors.push("the un-burn Console receipt no longer tells the one-shot truth");
+  /* the BOTTOMNAV's baked state indicators go live (editability paper cut
+     2): the selected ring and the notification plate are marked groups —
+     stripped from the bake, shipped as "Selected ring" / "Badge plate"
+     children — and the badge's live count RIDES its plate as one group. */
+  if (!/data-part="icon" data-icon="ring" data-icon-nick="Selected ring"/.test(bevelSrc)
+      || !/opacity="0\.9091"/.test(bevelSrc))
+    errors.push("the bottomnav selected ring is baked again (or lost its exact 0.78→0.98 bridge overlay) — a dev can never select another tab");
+  if (!/data-icon-nick="\$\{bNick\}"/.test(bevelSrc) || !/data-seat-rider="\$\{bName\}"/.test(bevelSrc))
+    errors.push("the bottomnav notification plate is baked again (or its count no longer rides the plate) — the fake badge can never be removed");
+  if (!/nick: gs0\[gi\]\.getAttribute\("data-icon-nick"\) \|\| null,/.test(src)
+      || !/\.\.\.\(mk\.nick \? \{ nick: mk\.nick \} : \{\}\),/.test(src)
+      || !/\.\.\.\(t\.getAttribute\("data-seat-rider"\) \? \{ rider: t\.getAttribute\("data-seat-rider"\)! \} : \{\}\),/.test(src))
+    errors.push("the export no longer carries the friendly child names (nick) or the badge count's rider through to the manifest");
+  if (!/public float strokeEmPct; public string rider; \}/.test(cs)
+      || !/static void AdoptSeatRiders\(GameObject host, PBAsset row\)/.test(cs)
+      || !/AdoptSeatRiders\(host, row\);/.test(cs)
+      || !/AdoptSeatRiders\(contents, rowUA\);/.test(cs))
+    errors.push("the importer no longer parents a rider word under its live plate (AdoptSeatRiders on fresh builds AND the kept-project un-burn)");
+  if (!/static string IconChildName\(PBIconChild ic\) \{ return !string\.IsNullOrEmpty\(ic\.nick\) \? ic\.nick : /.test(cs))
+    errors.push("the friendly child name (nick) no longer wins in IconChildName — Selected ring / Badge plate lose their names");
+}
+
+/* SLICE-2 pins (the position & styling punch list): the maker's Nudge
+   dials travel into every export render, the labeled props ship real
+   label metrics, the chart zone speaks the DRAWN frame, the toggle
+   marks anchor on the face, and the globe liquid is a pre-clipped disc. */
+{
+  if (!/const nudgeOf = \(id: KitComponentId\)/.test(src)
+      || !/\{ label: "", icon: null, \.\.\.nudgeOf\(id\), \.\.\.opts \}/.test(src)
+      || !/\.\.\.nudgeOf\(id\), \/\/ the seat render nudges like the app's own/.test(src)
+      || !/icon: null, label: word, \.\.\.nudgeOf\(id\), \.\.\.extra \}/.test(src))
+    errors.push("the text-nudge dials (kitTextOy/Ox) no longer ride the export renders — nudged labels bake un-nudged again (the badge-sits-low field)");
+  if (!/textOy: st\.kitTextOy\?\.\[`\$\{id\}:\$\{st\.kitSizes\[id\] \?\? "l"\}`\]/.test(src))
+    errors.push("the POSED road stopped nudging its renders — board copies of nudged families bake un-nudged");
+  if (!/const propLabelSeat = \(id: KitComponentId, word: string \| undefined\)/.test(src)
+      || !/\.\.\.propLabelSeat\(p\.id, propWord\)/.test(src))
+    errors.push("the labeled props (keycap/endturn/pricebtn) ship no label metrics again — Unity guesses size, ink and seat (the keycap field)");
+  if (!/const riseC = shDc && sh0c && shDc\.length === 4 && sh0c\.length === 4 \? shDc\[1\] - sh0c\[1\] : 0;/.test(src)
+      || !/y0: Math\.round\(\(zy0 \+ riseC\) \* PNG_SCALE\)/.test(src))
+    errors.push("the chart zone lost its rise correction — telemetry/laptimes traces float the headroom above the baked grid again (the ~100px field)");
+  if (!/mAnchor = new Vector2\(\(aT\.shell\.x \+ aT\.shell\.w \/ 2f\) \/ bg\.rect\.width, 1f - \(aT\.shell\.y \+ aT\.shell\.h \/ 2f\) \/ bg\.rect\.height\);/.test(cs))
+    errors.push("the toggle mark anchors on the sprite rect again — checkbox/radio marks sit low (the extrusion pulls the rect center off the face)");
+  if (!/<clipPath id="\$\{gid9\}c"><circle cx="128" cy="128" r="128"\/><\/clipPath>/.test(bevelSrc))
+    errors.push("the globe liquid lost its pre-clip — the stencil Mask draws the circular edge again (aliased bottom)");
+}
+
+/* SLICE-3 pins: the dropdown's caret rides LIVE (cut from the app's own
+   labeled render, right-edge pinned at the measured gap), and the demo
+   scenes' dropdowns seed honest domain options (Graphics · High) with
+   the maker's typed menu items always overriding. */
+{
+  if (!/const ddLabeled = shell\("dropdown", \{ icon: undefined, label: st\.kitLabels\?\.dropdown \?\? "SELECT OPTION" \}, slim\);/.test(src)
+      || !/const ddCaret0 = await iconSeatsOf\("dropdown", ddLabeled, "dropdown", "caret"\);/.test(src)
+      || !/pinRight: true, rightGap: Math\.round\(\(shL\[2\] \/ 2 - \(c0\.dx \+ c0\.w \/ 2\)\) \* 10\) \/ 10/.test(src))
+    errors.push("the dropdown caret is baked again (or lost its measured right-edge gap) — parity with the app's labeled render is gone");
+  if (!/public bool pinRight; public float rightGap; public string nick;/.test(cs)
+      || !/crt\.anchoredPosition = new Vector2\(-\(airR \+ ic\.rightGap \+ ic\.w \/ 2f\), 0f\);/.test(cs)
+      || !/WireIconChildren\(go, root, m, "dropdown"\);/.test(cs))
+    errors.push("the importer no longer pins the live caret to the right edge (PBIconChild.pinRight / DropdownPrefab wiring)");
+  if (!/static void SeedDropdownDomain\(GameObject inst, string caption, PBManifest m\)/.test(cs)
+      || !/if \(it\.component == "dropdown"\) SeedDropdownDomain\(inst, it\.label, m\);/.test(cs)
+      || !/if \(m != null && m\.menu != null && m\.menu\.items != null && m\.menu\.items\.Length > 0\) return; \/\/ the maker's own menu wins/.test(cs)
+      || !/"Low", "Medium", "High", "Ultra"/.test(cs))
+    errors.push("the demo dropdowns' honest domain options are gone (SeedDropdownDomain / the Graphics table / the maker-override gate)");
+}
+
+/* SLICE-4 pins: the data row speaks the app's name and carries the app's
+   anatomy; the Playground shelf is complete with zero overlaps. */
+{
+  if (!/static string PrefabNameOf\(string family\) \{ return family == "list-row" \? "DataRow" : NiceName\(family\); \}/.test(cs)
+      || !/FamilyPrefab\(famDir2, root, a, PrefabNameOf\(a\.component\), label, pngScale, kitFont, m\)/.test(cs)
+      || !/var pfName = PrefabNameOf\(it\.component\);/.test(cs))
+    errors.push("the data row prefab no longer speaks the app's name (PrefabNameOf list-row → DataRow) — the owner's one-language mandate");
+  if (!/static void RenameDataRowPrefab\(string root\)/.test(cs)
+      || !/RenameDataRowPrefab\(root\); \/\/ the owner's language, healed on every import/.test(cs)
+      || !/RenameDataRowPrefab\(root\); \/\/ and the rename valet, so a rebuild can't mint ListRow beside DataRow/.test(cs)
+      || !/if \(pf == null && it\.component == "list-row"\) pf = AssetDatabase\.LoadAssetAtPath<GameObject>\(root \+ "\/Prefabs\/ListRow\.prefab"\);/.test(cs))
+    errors.push("the ListRow→DataRow rename valet (GUID-keeping MoveAsset + old-address fallback) is missing");
+  if (!/\? \{ row: \{ title: "", sub: "" \} as never, icon: resolveKitIcon\(st\.kitIcons\?\.datarow, undefined\) \}/.test(src)
+      || !/const nineIconSeats = n\.id === "datarow" \? await iconSeatsOf\(n\.id, fullSvg, n\.family\) : null;/.test(src))
+    errors.push("the data row bakes bare again (row parts off / no un-burn seats) — 'it's missing some stuff' returns");
+  if (!/data-icon="portrait"/.test(bevelSrc) || !/data-icon="action"/.test(bevelSrc) || !/data-icon="barfill"/.test(bevelSrc))
+    errors.push("the data row's swappable parts (portrait/action/mercury) lost their icon markers in bevel");
+  if (!/PicturePrefab\(dir, root, pngScale, m, "orb\/orb-lit\.png", "Orb", false\)/.test(cs)
+      || !/"Qtybadge", "Orb", "Achievement"/.test(cs))
+    errors.push("the glow orb fell off the Playground shelf (no prefab or no HUD & DATA spot)");
+  if (!/claimed\.Add\("MoveCounter"\);/.test(cs))
+    errors.push("the MoveCounter twin is back on the shelf — the universal Movecounter must be the family's one spot (zero overlaps)");
+  /* the TILED TWIN (editability paper cut 4): the stretch-safe builder
+     names through the same PrefabNameOf seam the scene road resolves
+     with, and the kept-project valet renames the old twin GUID-keeping —
+     BEFORE the staged rebuild, so no DataRow-named twin can mint. */
+  if (!/var goName = PrefabNameOf\(fam\) \+ " \(tiled face\)";/.test(cs))
+    errors.push("the tiled-face builder no longer names through PrefabNameOf — patterned kits' stretched data-row copies silently fall back to the base face again");
+  if (!/static void RenameDataRowTiledFace\(string root\)/.test(cs)
+      || !/RenameDataRowTiledFace\(root\); \/\/ and its stretch-safe twin — the scene road's one name/.test(cs)
+      || !/RenameDataRowTiledFace\(root\); \/\/ the tiled twin's valet rides along, same reason/.test(cs))
+    errors.push("the tiled twin's rename valet is missing (or no longer runs before the staged rebuild on both roads)");
+}
+
+/* SLICE-5 pins (owner decision): the big-glyph class is "Art" on every
+   surface a person meets — the Prefabs shelf, the Playground chapter,
+   docs and receipts — with a GUID-keeping folder valet for kept
+   projects. The on-disk sprite folder stays bigglyphs/ by deliberate
+   choice (load-bearing across manifest rows, the orphan sweep, kept
+   sprite GUIDs and the texture postprocessor). */
+{
+  if (!/static void RenameArtShelf\(string root\)/.test(cs)
+      || !/AssetDatabase\.MoveAsset\(dirA \+ "\/BigGlyphs", dirA \+ "\/Art"\)/.test(cs)
+      || !/RenameArtShelf\(root\); \/\/ self-heals at the point of need — no ordering race/.test(cs)
+      || !/RenameArtShelf\(root\); \/\/ BigGlyphs → Art, the class's name everywhere/.test(cs)
+      || !/RenameArtShelf\(root\); \/\/ BigGlyphs → Art before a rebuild can mint twins/.test(cs))
+    errors.push("the Art-shelf rename valet (GUID-keeping folder MoveAsset + its three call sites) is missing");
+  if (!/var sub = dir \+ "\/Art";/.test(cs) || !/AssetDatabase\.CreateFolder\(dir, "Art"\);/.test(cs))
+    errors.push("board-art prefabs no longer build into Prefabs/Art");
+  if (!/root \+ "\/Prefabs\/Art\/" \+ BigGlyphPrefabName\(it\.big\) \+ "\.prefab"/.test(cs))
+    errors.push("scene placement no longer looks at Prefabs/Art first (the BigGlyphs load must be the FALLBACK only)");
+  if (!/pp\.Contains\("\/Prefabs\/Art\/"\) \|\| pp\.Contains\("\/Prefabs\/BigGlyphs\/"\)/.test(cs)
+      || !/allSecs\.Add\(\("ART", bigNames\.ToArray\(\)\)\);/.test(cs))
+    errors.push("the Playground's ART chapter is gone (gather or label) — the owner's rename");
+  if (/BOARD ART \(Prefabs\/BigGlyphs\)/.test(cs))
+    errors.push("the old 'BOARD ART (Prefabs/BigGlyphs)' chapter label is back");
+}
+
+/* FULL-CATALOG round, slice 1 pins: chrome & foundations join the universal
+   road and shelve in their own chapters (owner roster, 2026-08-28). */
+{
+  const S1 = ["nameplate", "stepper", "notifydot", "loadbar", "setrow", "listmenu", "scrollbar", "steps", "pagedots"];
+  // every S1 family is on the display road AND placeable from boards
+  const dispM = /const UNIVERSAL_DISPLAY = new Set<KitComponentId>\(\[([\s\S]*?)\]\);/.exec(src);
+  for (const id of S1) {
+    if (!dispM || !new RegExp(`"${id}"`).test(dispM[1]))
+      errors.push(`${id} left the universal display road — the owner's roster item stops exporting live`);
+    if (!new RegExp(`${id}: "${id}"`).test(src))
+      errors.push(`${id} lost its PREFAB_FAMILY entry — board copies of it bake dead again`);
+  }
+  // shelf claims, each in its blessed chapter (zero-overlap discipline:
+  // a claimed name shelves once, and never falls to MORE)
+  if (!/"Switch", "Stepper", "Input", "Dropdown", "Setrow", "Listmenu", "Joystick"/.test(cs))
+    errors.push("the Playground's CHOICE CONTROLS & FIELDS chapter lost Stepper/Setrow/Listmenu");
+  if (!/"EmblemBar", "Loadbar", "HealthGlobe"/.test(cs))
+    errors.push("the Playground's SLIDERS & PROGRESS chapter lost Loadbar");
+  if (!/"ScrollView", "Scrollbar", "Badge", "CountBadge", "Notifydot", "Avatarframe", "Pagedots", "Steps"/.test(cs))
+    errors.push("the Playground's NAVIGATION & CHROME chapter lost Scrollbar/Notifydot/Pagedots/Steps");
+  if (!/"Currency", "Nameplate", "Movecounter"/.test(cs))
+    errors.push("the Playground's HUD & DATA chapter lost Nameplate");
+  // the un-burn marks: swappable picture ink stays marked in bevel
+  if (!/data-icon="row\$\{i \+ 1\}"/.test(bevelSrc))
+    errors.push("the list menu's row glyphs lost their icon markers — burned into the art again");
+  if (!/data-icon="badge" data-icon-nick="Badge plate"/.test(bevelSrc) || !/data-seat-rider="badge"/.test(bevelSrc))
+    errors.push("the notification badge's plate/rider grammar is gone — plate baked or count orphaned");
+  if (!/data-icon="ribbon" data-icon-nick="Title ribbon"/.test(bevelSrc) || !/data-seat-rider="ribbon"/.test(bevelSrc))
+    errors.push("the nameplate's title ribbon lost its live plate + riding word");
+}
 
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");

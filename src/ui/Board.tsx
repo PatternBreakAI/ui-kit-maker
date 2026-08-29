@@ -6,7 +6,7 @@ import { normalizeShipCopy, captureVideoPoster } from "@/generator/bgvault";
 import { importBgAsset, bgAssetStatusLine, onAssetActivity, bgAssetDisplayUrl } from "@/generator/assets";
 import { BACKDROP_LIBRARY, BACKDROP_CATEGORIES, backdropThumb, backdropUrl } from "@/generator/backdropLibrary";
 import type { BoardDef, BoardItem } from "@/generator/store";
-import { renderBevel, renderKit, glowPadOf, VALUE_DRIVEN } from "@/generator/bevel";
+import { renderBevel, renderKit, VALUE_DRIVEN } from "@/generator/bevel";
 import { KIT_COMPONENTS, applyKitDesign, applyKitTextFill, baseOf, fontByName, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
 import { LIVE_GLYPHS } from "@/generator/glyphLibrary";
 import { BIG_GLYPHS, BIG_GLYPH_BASE, bigGlyphById, bigGlyphThumb, bigGlyphMid, bigGlyphUrl, bigGlyphFilter, type BigGlyphDef, type BigGlyphFx } from "@/generator/bigGlyphs";
@@ -1209,7 +1209,17 @@ export function BoardView({ playing }: { playing: boolean }) {
       // SMIL loops are stripped: rasterization must get the resting pose,
       // never whatever instant a fade-in loop's clock happened to be at
       const svg = stripSmil(await svgWithFaces(svg0, pc));
-      const pad = glowPadOf(pc);
+      /* pad reclaim reads the ACTUAL viewBox origin — the same rule the
+         stage (LiveArt's anchorContent) and the Unity exporter speak: a
+         negative origin is glow pad to pull back so viewBox 0 lands on
+         (x,y); a zero/positive origin (type stamps, most custom roots)
+         reclaims nothing. For build() shells −origin === glowPadOf, so
+         this is identity with the old constant; for custom roots (orb,
+         lives, emotewheel, ring…) it retires the 90·s drift where the
+         compositor subtracted glowPadOf on glow-armed kits while the
+         stage reclaimed their real origin of 0. */
+      const vbOr = /viewBox="(-?[\d.]+)/.exec(svg);
+      const pad = vbOr && +vbOr[1] < 0 ? -+vbOr[1] : 0;
       const s = b.scale ?? 1;
       await new Promise<void>((res) => {
         const img = new Image();
@@ -1290,8 +1300,9 @@ export function BoardView({ playing }: { playing: boolean }) {
 
   /* drag-to-place (ported from the homepage board): press an asset, drag a
      ghost across the page, release over any board — the piece lands under
-     the cursor. A plain click still adds to the active board. */
-  const ghostRef = useRef<{ kitId: KitComponentId; ov?: string; svg: string; x0: number; y0: number; moved: boolean } | null>(null);
+     the cursor. A plain click still adds to the active board. Saved
+     components ride the same road via libId. */
+  const ghostRef = useRef<{ kitId?: KitComponentId; libId?: string; ov?: string; svg: string; x0: number; y0: number; moved: boolean } | null>(null);
   const suppressClick = useRef(false);
   const [ghost, setGhost] = useState<{ svg: string; x: number; y: number } | null>(null);
   useEffect(() => {
@@ -1322,7 +1333,8 @@ export function BoardView({ playing }: { playing: boolean }) {
       st.setActiveBoard(bid);
       /* the drop point is the piece's intended CENTER-ish — snap THAT to
          the grid, then back off the half-size estimate (center snap) */
-      st.addBoardItems([{ kitId: g.kitId, ov: g.ov, x: Math.max(0, sv((e.clientX - r.left) / f) - 110), y: Math.max(0, sv((e.clientY - r.top) / f) - 55) }]);
+      const x = Math.max(0, sv((e.clientX - r.left) / f) - 110), y = Math.max(0, sv((e.clientY - r.top) / f) - 55);
+      st.addBoardItems([g.libId ? { libId: g.libId, x, y } : { kitId: g.kitId!, ov: g.ov, x, y }]);
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
@@ -1391,7 +1403,12 @@ export function BoardView({ playing }: { playing: boolean }) {
               clone id, so the stage keeps following its edits */}
           {cloneAssets.length > 0 && (() => {
             const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
-            const items = cloneAssets.filter((it) => terms.every((t) => it.hay.includes(t)));
+            /* a clone minted by Save-to-my-assets already has its tile in
+               the Saved components drawer below (LibItem.cloneId) — one
+               entity, one tile. It resurfaces here if that drawer entry
+               is ever deleted while the clone lives on. */
+            const items = cloneAssets.filter((it) => !library.some((l) => l.cloneId === it.id))
+              .filter((it) => terms.every((t) => it.hay.includes(t)));
             if (!items.length) return null;
             return (
               <div>
@@ -1493,13 +1510,19 @@ export function BoardView({ playing }: { playing: boolean }) {
             if (!items.length) return null;
             return (
               <div>
-                <div className="bd-cat">Big glyphs <span className="bd-cat-note">AI-generated</span></div>
+                {/* owner rename 2026-08-28: this class is uploaded artwork
+                    (the engine dresses geometry; these are pixels brought IN)
+                    — "Uploads" here, "Art" in the Unity export. Provenance
+                    is PER-ITEM (owner correction, same day: uploads aren't
+                    always AI-generated) — the note rides only entries whose
+                    registry row says so, never the whole group. */}
+                <div className="bd-cat">Uploads</div>
                 <div className="bd-grid">
                   {items.map((g) => (
-                    <button key={g.id} className="bd-asset" title={`Add ${g.name} to ${act?.name ?? "the board"}`}
+                    <button key={g.id} className="bd-asset" title={`Add ${g.name} to ${act?.name ?? "the board"}${g.ai ? " · AI-generated" : ""}`}
                       onClick={() => useGen.getState().addBigGlyphToBoard(g.id)}>
                       <span><img src={bigGlyphThumb(g.id)} alt={g.name} loading="lazy" style={{ maxWidth: "100%", maxHeight: 64 }} /></span>
-                      <i>{g.name}</i>
+                      <i>{g.name}{g.ai ? <span className="bd-cat-note"> AI</span> : null}</i>
                     </button>
                   ))}
                 </div>
@@ -1511,14 +1534,39 @@ export function BoardView({ playing }: { playing: boolean }) {
               <div className="bd-cat">Saved components</div>
               <div className="bd-grid">
                 {library.filter((l) => !q || l.name.toLowerCase().includes(q.toLowerCase())).map((l) => {
-                  const art = tightenSvg(l.kit ? renderKit(l.cfg, l.kit.id, l.kit.size, "default", l.kit.v, l.kit.shape, l.kit.label !== undefined ? { label: l.kit.label } : undefined) : renderBevel(l.cfg, "default"), 20);
+                  /* a save-minted twin (LibItem.cloneId) makes the tile LIVE:
+                     it thumbs, places and EDITS the clone — one entity
+                     everywhere the owner meets it (owner: "I wanna be able
+                     to edit my new GO banner component"). A deleted twin
+                     drops the tile back to the frozen-snapshot road (the
+                     tombstone), so old saves behave exactly as before. */
+                  const live = l.cloneId ? cloneAssets.find((c) => c.id === l.cloneId) : undefined;
+                  const art = live?.svg ?? tightenSvg(l.kit ? renderKit(l.cfg, l.kit.id, l.kit.size, "default", l.kit.v, l.kit.shape, l.kit.label !== undefined ? { label: l.kit.label } : undefined) : renderBevel(l.cfg, "default"), 20);
+                  // click: the store resolves live vs frozen and lands both
+                  // centered in the active board's frame
+                  const place = () => { if (suppressClick.current) { suppressClick.current = false; return; } addToBoard(l.id); };
                   return (
-                    <button key={l.id} className="bd-asset" title={`Add ${l.name} to ${act?.name ?? "the board"}`} onClick={() => addToBoard(l.id)}
+                    /* div-with-role, the My-assets tile pattern — real
+                       <button>s can't nest, and a live tile carries its
+                       own Edit control */
+                    <div key={l.id} className="bd-asset bd-sasset" role="button" tabIndex={0}
+                      title={`Add ${l.name} to ${act?.name ?? "the board"} — or drag it onto any board`}
+                      onClick={place}
+                      onKeyDown={(e) => { if (e.key === "Enter") place(); }}
+                      onPointerDown={(e) => { if (e.button === 0) ghostRef.current = { ...(live ? { kitId: live.kitId } : { libId: l.id }), svg: art, x0: e.clientX, y0: e.clientY, moved: false }; }}
                       onPointerEnter={() => setPreview({ name: l.name, svg: art })}
                       onPointerLeave={() => setPreview(null)}>
                       <span dangerouslySetInnerHTML={{ __html: art }} />
                       <i>{l.name}</i>
-                    </button>
+                      {live && (
+                        <span className="bd-uactl" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
+                          <button title={`Edit ${l.name} — every control shapes this saved component live`} aria-label={`Edit ${l.name}`}
+                            onClick={() => { useGen.getState().setFocus(live.kitId); useGen.getState().setPhase("master"); }}>
+                            <SquarePen size={11} strokeWidth={2.4} /> Edit
+                          </button>
+                        </span>
+                      )}
+                    </div>
                   );
                 })}
               </div>
@@ -2211,7 +2259,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                    The owner's FORWARD-button worry: a piece reworked on the
                    Board (words, value, the component's current look) freezes
                    into a named asset — the master keeps its own life. */
-                <button title="Save to my assets — this piece, with this look and label, becomes a reusable asset. The master component stays untouched."
+                <button title="Save to my assets — this piece, with this look and label, becomes a reusable asset, and this copy becomes the saved item (Edit component opens it). The master component stays untouched."
                   onClick={() => {
                     const def = sel.label ?? kitClones[sel.kitId!]?.name ?? KIT_COMPONENTS.find((c) => c.id === baseOf(sel.kitId!))?.name ?? "My asset";
                     const name = window.prompt("Save this piece to your assets as:", def);

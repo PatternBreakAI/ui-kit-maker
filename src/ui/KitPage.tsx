@@ -13,7 +13,7 @@ import { downloadEngineExport, fetchKitFont, collectExportBoards } from "@/gener
 import { updateProjectDoc, loadProjectDoc } from "@/generator/cloud";
 import { guardedExport } from "@/generator/exportGate";
 import { kitSpecMarkdown, fontNotesMarkdown, kitFontFamilies } from "@/generator/kitDocs";
-import { LiveArt, stillSmil } from "./LiveArt";
+import { detachBBoxNoise, LiveArt, stillSmil } from "./LiveArt";
 import { openAuth } from "@/shell/authOverlay";
 import { openGate } from "@/shell/gateModal";
 import { downloadTestKit } from "@/generator/billing";
@@ -21,17 +21,46 @@ import { canExport, UPGRADE_LINES } from "@/generator/entitlements";
 import { HeroGL } from "./HeroGL";
 import { buildUnityBriefing, type BriefCard } from "./unityBriefing";
 
-/* The Kit — a living guideline sheet in five levels: Foundations, Components,
-   Assemblies, Build Parts, Screen Patterns. One renderer draws everything,
-   every example is live, and every piece opens in the editor. */
+/* The Kit — a living guideline sheet in five levels: Foundations (color,
+   type, anatomy), Components, Game Systems, Screen Patterns, Resources.
+   One renderer draws everything, every example is live, and every piece
+   opens in the editor. */
 
-const CHAPTERS: [string, string, string][] = [
-  ["foundations", "01", "Foundations"],
-  ["components", "02", "Components"],
-  ["parts", "03", "Build Parts"],
-  ["patterns", "04", "Screen Patterns"],
-  ["resources", "05", "Resources"],
+/* ── the kit's information architecture (owner IA round, 2026-08-26) ──
+   The book reads like a design-system doc: the STORY before any finished UI.
+   01 Foundations      Color & Material · Typography · Build Parts (the
+                       anatomy) · Nine-Slice & Anatomy
+   ·· staging bay (admin-only) and Your components lead the components zone
+   ·· Your components  the user's clones — chapter exists only with clones
+   ·· Components       Buttons · Choice Controls · Fields · Sliders &
+                       Progress · Navigation · Icons · System Chrome &
+                       Feedback · Containers
+   ·· Game Systems     Game HUD & Data · RPG & MMO · Shooter & Action ·
+                       Casual & Mobile · Rewards & Chests · Reward Track &
+                       Objectives · Strategy & Social
+   ·· Screen Patterns  Screen Patterns · Layout Starters · Onboarding & Map ·
+                       Motion · Proof of System
+   ·· Resources        Export & Integration
+   Chapter numbers are dealt at render time (kitChapters): Your components
+   exists only while visible clones do, and later chapters shift by one. */
+const CHAPTERS: [string, string][] = [
+  ["foundations", "Foundations"],
+  ["components", "Components"],
+  ["genres", "Game Systems"],
+  ["patterns", "Screen Patterns"],
+  ["resources", "Resources"],
 ];
+/** ids + numbers + labels in page order — `yours` slots in after Foundations
+ *  while clones exist, and every chapter after it renumbers. */
+function kitChapters(hasClones: boolean): [string, string, string][] {
+  const ids: [string, string][] = hasClones
+    ? [CHAPTERS[0], ["yours", "Your components"], ...CHAPTERS.slice(1)]
+    : CHAPTERS;
+  return ids.map(([id, name], i) => [id, String(i + 1).padStart(2, "0"), name]);
+}
+function chapterNumber(id: string, hasClones: boolean): string {
+  return kitChapters(hasClones).find(([cid]) => cid === id)?.[1] ?? "01";
+}
 
 /* Chapter tabs own the scroll-spy: the active-chapter state used to live on
    KitPage itself, so every chapter crossing while scrolling re-rendered the
@@ -74,7 +103,13 @@ function ChapterTabs() {
     if (!scroller) return;
     let tries = 0;
     const seek = () => {
-      const el = document.querySelector<HTMLElement>(`[data-kp="${id}"]`);
+      // several sections can hold the same piece (the anatomy tray shows
+      // slider/toggle/progress/badge as parts) — land on the catalog card:
+      // the first match AFTER the Components divider, else the first match
+      // anywhere (clones and bay cards live ahead of it)
+      const els = [...document.querySelectorAll<HTMLElement>(`[data-kp="${id}"]`)];
+      const compTop = document.getElementById("chap-components");
+      const el = els.find((m) => !!compTop && !!(compTop.compareDocumentPosition(m) & Node.DOCUMENT_POSITION_FOLLOWING)) ?? els[0] ?? null;
       if (el) {
         el.scrollIntoView({ behavior: "smooth", block: "center" });
         el.classList.remove("kp-glowonce"); void el.offsetWidth; el.classList.add("kp-glowonce");
@@ -91,10 +126,11 @@ function ChapterTabs() {
   // every cell. Mixed sizes (older saves) read as M until the next click
   // normalizes the kit.
   const sizeAll: KitSize = Object.values(kitSizes).some((v) => effKitSize(v) === "m") ? "m" : "l";
-  // the user's clones carry their own chapter — its tab exists only while
-  // visible clones do (same pre-document seat as the staging bay)
+  // the user's clones carry their own chapter — it slots in AFTER the
+  // Foundations story, leading the components zone, and its tab exists
+  // only while visible clones do (owner IA round: nothing before the story)
   const hasClones = Object.values(kitClones).some((c) => kitVisible(c.base, releases ?? {}, isAdmin));
-  const chapters: [string, string, string][] = hasClones ? [["yours", "00", "Your components"], ...CHAPTERS] : CHAPTERS;
+  const chapters = kitChapters(hasClones);
   const [activeChap, setActiveChap] = useState("foundations");
   useEffect(() => {
     const scroller = document.querySelector(".canvas");
@@ -103,8 +139,8 @@ function ChapterTabs() {
     const read = () => {
       raf = 0;
       const marks = [...document.querySelectorAll<HTMLElement>("[data-chap]")];
-      // above every mark, the FIRST chapter is current — which is the
-      // clones chapter whenever one exists
+      // above every mark, the FIRST chapter is current — Foundations
+      // always opens the book
       let current = marks[0]?.dataset.chap ?? "foundations";
       for (const m of marks) if (m.getBoundingClientRect().top < 280) current = m.dataset.chap ?? current;
       setActiveChap((prev) => (prev === current ? prev : current));
@@ -213,7 +249,12 @@ function Art({ svg, scale, className, hug = true }: { svg: string; scale: number
         // the renderer's estimate the window GROWS to the glyphs instead of
         // cropping into them
         const t = [...el.querySelectorAll("text")].find((n) => !n.closest("defs")) ?? null;
-        const box = (t as SVGGraphicsElement | null)?.getBBox() ?? el.getBBox();
+        // a shine/wipe band parks off-canvas under a clip getBBox ignores —
+        // detached for the measure (position-precise restore) or the no-text
+        // fallback would read the band instead of the art
+        const restore = detachBBoxNoise(el);
+        let box: DOMRect;
+        try { box = (t as SVGGraphicsElement | null)?.getBBox() ?? el.getBBox(); } finally { restore(); }
         const vb = el.viewBox.baseVal;
         const padX = 24;
         const x0 = t ? box.x - padX : Math.max(vb.x, box.x - padX);
@@ -369,7 +410,10 @@ function usePiece(p: PieceOpts) {
       // slot POSES keep their identity (same rule as the catalog's rk()):
       // a specimen demonstrating "Premium" stays Premium under user edits
       label: kitNoText[p.id] ? "" : (kitLabels[p.id] ?? p.label), slots: p.slots ? { ...kitSlotVals[p.id], ...p.slots } : kitSlotVals[p.id], segments: p.segments,
-      icon: resolveKitIcon(kitIcons[p.id], p.icon), value: kitVals[p.id] ?? p.value, baseState: p.baseState,
+      // an AUTHORED icon is the specimen's identity ("Icon button · Close"
+      // must stay a close), so the picker's choice dresses only unauthored
+      // instances — the bare catalog tile, boards and exports still follow it
+      icon: p.icon !== undefined ? p.icon : resolveKitIcon(kitIcons[p.id], undefined), value: kitVals[p.id] ?? p.value, baseState: p.baseState,
       sub: kitSubs[p.id] ?? p.sub, max: p.max, addBtn: p.addBtn, overlay: p.overlay, iconScale: p.iconScale,
       // instrument readouts default to plain AUTO ink; an explicit type fork
       // or per-piece text color re-themes them (see KitOpts.themedText)
@@ -389,7 +433,7 @@ function usePiece(p: PieceOpts) {
         // drives the plain variants, the hero and the Board
         const dockOn = !!p.dock || (kb?.dock ?? false);
         return {
-          dock: dockOn ? { icon: resolveKitIcon(kitIcons[p.id], p.dock?.icon), side: kb?.dockSide ?? p.dock?.side ?? "left" } : null,
+          dock: dockOn ? { icon: p.dock?.icon !== undefined ? p.dock.icon : resolveKitIcon(kitIcons[p.id], undefined), side: kb?.dockSide ?? p.dock?.side ?? "left" } : null,
           bar: { ...p.bar, ...(kb ? { segments: kb.segments ?? p.bar?.segments, gap: kb.gap ?? p.bar?.gap, snap: kb.snap ?? p.bar?.snap } : {}) },
         };
       })() : {}),
@@ -413,7 +457,7 @@ function usePiece(p: PieceOpts) {
  *  description. One click for the common case, nothing buried.
  *  preferId pins an instance's primary to one format regardless of the
  *  remembered pick — the Build Parts pulldown leads with the SVG pack
- *  (owner: that chapter IS the layered-SVG story). */
+ *  (owner: that section IS the layered-SVG story). */
 function ExportMenu({ actions, preferId }: {
   actions: { id: string; name: string; desc: string; busy?: boolean; locked?: boolean; prog?: { done: number; total: number; label: string } | null; run: () => void }[];
   preferId?: string;
@@ -614,14 +658,16 @@ function PieceInner(p: PieceOpts & { caption: string; ambient?: boolean }) {
           onClick={(e) => {
             e.stopPropagation();
             if (!vectorOk) { openGate("export"); return; }
-            const { cfg: c, kitShapes: ks, kitDesigns: kd, kitTextOy: ko, kitTextOx: kx, kitTextFill: kf, kitSlotVals: kv, kitVals: kval } = useGen.getState();
+            const { cfg: c, kitShapes: ks, kitDesigns: kd, kitTextOy: ko, kitTextOx: kx, kitTextFill: kf, kitSlotVals: kv, kitVals: kval, kitIcons: kic } = useGen.getState();
             const variant = p.caption.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
             // a clone exports through its base component wearing the
             // clone-keyed reads; the file is named after the caption —
-            // which IS the clone's name on a clone card
+            // which IS the clone's name on a clone card. The icon resolves
+            // through the picker override, like the card itself — a swapped
+            // glyph must ride into the downloaded SVG, not revert to stock.
             downloadSvg(
               renderKit(applyKitTextFill(applyKitDesign(c, kd[p.id]), kf[p.id]), baseOf(p.id), size, p.baseState ?? "default", kval[p.id] ?? p.value, ks[p.id],
-                { label: p.label, segments: p.segments, icon: p.icon, expand: true, textOy: ko[`${p.id}:${size}`], textOx: kx[`${p.id}:${size}`], slots: kv[p.id], themedText: !!kd[p.id]?.type || !!kf[p.id] }),
+                { label: p.label, segments: p.segments, icon: resolveKitIcon(kic[p.id], p.icon), expand: true, textOy: ko[`${p.id}:${size}`], textOx: kx[`${p.id}:${size}`], slots: kv[p.id], themedText: !!kd[p.id]?.type || !!kf[p.id] }),
               `kit-${variant}-${size}.svg`
             );
           }}>
@@ -1525,6 +1571,15 @@ export function KitPage() {
   // screen-pattern group filter — restrained text nav, not capsules
   const [patTab, setPatTab] = useState<"all" | "core" | "outcome" | "state">("all");
 
+  /* chapter numbers follow the rendered book (kitChapters): Your components
+     exists only with visible clones; later chapters shift by one */
+  const hasClones = Object.values(kitClones).some((c) => kitVisible(c.base, releases, isAdmin));
+  const chapN = (id: string) => chapterNumber(id, hasClones);
+  /* Rewards & Chests renders only while a resident is visible to this
+     viewer — the sections after it renumber so the chapter never counts
+     past a hole */
+  const rewardsVis = (["chest", "giftbox", "rewardcard", "qtybadge", "rewardtray", "claimbtn", "chestpanel"] as KitComponentId[]).some((rid) => kitVisible(rid, releases, false));
+
   // measured rails: reward track + weekly streak lines pass through the
   // visible shell centers, whatever each node's scale and trim margins are
   const trackRailRef = useRef<HTMLDivElement>(null);
@@ -1543,8 +1598,9 @@ export function KitPage() {
      completions (never theater), and the page reveals whole. Same show
      in every browser; fast machines just see it briefly. */
   /* bootN counts real completions: 1 = foundations painted (the kick),
-     then one per deferred chapter as it commits — 5 = the whole book. */
-  const BOOT_DONE = 5;
+     then one per deferred block as it commits (anatomy, components, game
+     systems, screens, resources) — 6 = the whole book. */
+  const BOOT_DONE = 6;
   const [bootN, setBootN] = useState(0);
   const [fontsReady, setFontsReady] = useState(false);
   const [curtain, setCurtain] = useState<"on" | "leaving" | "gone">("on");
@@ -1588,7 +1644,7 @@ export function KitPage() {
   }, [curtain, focusRet]);
   const bootProg = (bootN + (fontsReady ? 1 : 0)) / (BOOT_DONE + 1);
   const bootStage = !fontsReady && bootN === 0 ? "Loading typefaces"
-    : ["Laying foundations", "Building components", "Assembling build parts", "Composing screens", "Collecting resources", "Polishing"][Math.min(bootN, 5)];
+    : ["Laying foundations", "Detailing the anatomy", "Building components", "Wiring game systems", "Composing screens", "Collecting resources", "Polishing"][Math.min(bootN, 6)];
 
   // hero disclosure + sticky-nav orientation
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -1682,7 +1738,9 @@ export function KitPage() {
             // the maker's own words ride into the bones prefabs' live text
             kitLabels: st.kitLabels, kitNoText: st.kitNoText, kitSubs: st.kitSubs, kitVals: st.kitVals, kitSlotVals: st.kitSlotVals,
             // per-piece icon overrides — the chip bake and the notices' icon-credit walk read these
-            kitIcons: st.kitIcons },
+            kitIcons: st.kitIcons,
+            // the maker's text-nudge dials — labels bake and seat where the maker pushed them (engine-lane slice 2; cross-lane one-liner, called out in the PR)
+            kitTextOy: st.kitTextOy, kitTextOx: st.kitTextOx },
           scope === "full" ? () => buildSpriteSheetBytes(sheetEntries(st), `${name} — visual catalog`, st.cfg.type.font, fdef2?.css ?? null,
             (d, t) => setEngineProg({ done: d, total: t, label: "catalog" })) : undefined,
           grant.licence,
@@ -1852,15 +1910,15 @@ const kitTier = useGen((s) => s.tier);
       desc: "Every component as drop-in Unity assets: nine-sliced sprites, wired prefabs, styled live text, in-place restyle on re-import. Unreal support coming soon.",
       busy: engineBusy, locked: !mayEngine, prog: engineProg, run: () => void downloadEngineKit() },
     /* the free tier's one download (Gate Round): a canned, admin-blessed
-       STOCK kit — the same evaluation zip for everyone, never this design.
+       STOCK kit — the same free-kit zip for everyone, never this design.
        Guests see it as a register incentive; paid tiers have the real
        thing above, so the row steps aside for them. */
     ...(!paidTier ? [{
       id: "testkit",
       name: "Unity test kit (ZIP) — free",
       desc: kitTier === "guest"
-        ? "The stock Hot Rod evaluation kit — sign up free and prove the whole import pipeline (prefabs, scenes, gauges, words) in your engine before paying."
-        : "The stock Hot Rod evaluation kit — the same fixed ZIP for everyone, not your design — to prove the whole import pipeline (prefabs, scenes, gauges, words) before you pay.",
+        ? "The stock Brightside kit, free with an account — prove the whole import pipeline (prefabs, scenes, gauges, words) in your engine, and ship it if you like: it's yours, commercial projects included."
+        : "The stock Brightside kit — the same fixed ZIP for everyone, not your design — yours to ship, commercial projects included, and it proves the whole import pipeline (prefabs, scenes, gauges, words) in your engine.",
       busy: testKitBusy, run: () => void runTestKit(),
     }] : []),
     { id: "svg", name: "SVG pack", desc: "Every component, variant and state as a layered SVG — Illustrator, Penpot and Figma ready.", busy: svgBusy, locked: !maySvg, run: () => void downloadSvgPack() },
@@ -2281,8 +2339,8 @@ const kitTier = useGen((s) => s.tier);
           {aboutOpen && (
             <div className="kp-reveal"><div>
               <p className="kp-note kp-aboutbody">
-                {sil} silhouette · {T.font}. One material recipe at five levels: foundations, finished
-                components, Build Parts with containers and assemblies, screen patterns and resources.
+                {sil} silhouette · {T.font}. One material recipe at five levels: foundations — color,
+                type and the material's anatomy — then finished components, game systems, screen patterns and resources.
                 Every specimen is a live render from the same engine that draws the editor canvas;
                 each opens in the editor via the ✎ next to its name. Nothing on this page is a mockup.
               </p>
@@ -2301,120 +2359,8 @@ const kitTier = useGen((s) => s.tier);
         <HeroGL />
       </header>
 
-      {/* ── 00 · the staging bay — new pieces wait HERE for the owner's
-          release. Admin-only: for everyone else the document starts at
-          Foundations and these pieces don't exist anywhere on the site. ── */}
-      {isAdmin && STAGED_KIT.size > 0 && (() => {
-        // released pieces LEAVE the queue (owner call) — they live in the
-        // kit proper now; a quiet footer keeps the pull-back reversible.
-        // Rejects leave too (owner: "somewhere else not here in staging
-        // bay") — they wait in the trash at the page bottom.
-        const inBay = [...STAGED_KIT].filter((sid) => !releases[sid]);
-        const releasedStaged = [...STAGED_KIT].filter((sid) => releases[sid] === "released");
-        const act = (sid: KitComponentId, next: "released" | "rejected" | null, confirmMsg?: string) => {
-          if (confirmMsg && !window.confirm(confirmMsg)) return;
-          void setComponentRelease(sid, next).then((err) => { if (err) window.alert(err); });
-        };
-        if (!bayOpen) return (
-          <section className="kp-sec kp-baycollapsed">
-            <button className="kp-baytoggle" onClick={() => setBayOpen(true)}>
-              <ShieldCheck size={13} strokeWidth={2.2} /> Staging bay · {inBay.length} waiting — only you see this
-            </button>
-          </section>
-        );
-        return (
-          <Sec n="00" title="The staging bay"
-            note="New pieces land here first, visible only to you. Test them across the editor, the Board and the exports, then approve — the piece leaves the bay and appears for every maker the moment you do, no deploy needed. Reject moves it to the trash at the page bottom; both are reversible.">
-            <button className="kp-baytoggle" onClick={() => setBayOpen(false)}>Collapse the bay</button>
-            {inBay.length === 0 && <p className="kp-baynote">The bay is clear — everything staged is released or waiting in the trash. New pieces will land here.</p>}
-            {/* batch lane for the GLYPH SET only (owner: 44 one-by-one approvals
-                is a chore) — one atomic ledger write; every card stays
-                individually reversible afterward */}
-            {(() => {
-              const glyphBay = inBay.filter((sid) => sid.startsWith("glyph"));
-              if (glyphBay.length < 2) return null;
-              const batch = (next: "released" | "rejected", msg: string) => {
-                if (!window.confirm(msg)) return;
-                void setComponentReleasesBatch(Object.fromEntries(glyphBay.map((sid) => [sid, next])))
-                  .then((err) => { if (err) window.alert(err); });
-              };
-              return (
-                <div className="kp-bayacts" style={{ margin: "6px 0 10px" }}>
-                  <button className="cg-curate cg-curate--add" onClick={() => batch("released",
-                    `Release all ${glyphBay.length} glyphs to every maker? The whole set leaves the bay and appears across the app the moment you approve. Any glyph can be pulled back individually afterward.`)}>
-                    <ShieldCheck size={13} strokeWidth={2.2} /> Release all {glyphBay.length} glyphs
-                  </button>
-                  <button className="cg-curate cg-curate--danger" onClick={() => batch("rejected",
-                    `Park all ${glyphBay.length} glyphs? They move to the trash at the page bottom — still admin-only; restore any of them from there.`)}>
-                    Park all glyphs
-                  </button>
-                </div>
-              );
-            })()}
-            <div className="kp-baygrid">
-              {inBay.map((sid) => {
-                const nm = pieceName(sid);
-                return (
-                  <div className={`kp-bayrow${bayHot === sid ? " kp-bayhot" : ""}`} key={sid} data-bayid={sid}>
-                    <div className="kp-tray kp-axis">
-                      <Piece id={sid} caption={nm} scale={0.5} bay bayHome />
-                    </div>
-                    <div className="kp-bayside">
-                      <span className="kp-baychip">In the bay — only you see this</span>
-                      <div className="kp-bayacts">
-                        <button className="cg-curate cg-curate--add" onClick={() => act(sid, "released", `Release ${nm} to every maker? It leaves the bay and appears across the app the moment you approve.`)}>
-                          <ShieldCheck size={13} strokeWidth={2.2} /> Approve — release to everyone
-                        </button>
-                        <button className="cg-curate cg-curate--danger" title="Move to the trash at the page bottom — restorable from there" onClick={() => act(sid, "rejected")}>Reject</button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            {releasedStaged.length > 0 && (
-              <p className="kp-baynote">
-                Released from this bay:{" "}
-                {releasedStaged.map((sid, i) => (
-                  <span key={sid}>{i > 0 && " · "}<b>{pieceName(sid)}</b>{" "}
-                    <button className="cg-curate" onClick={() => act(sid, null, `Pull ${pieceName(sid)} back into the bay? Makers lose it until you release again.`)}>pull back</button>
-                  </span>
-                ))}
-              </p>
-            )}
-          </Sec>
-        );
-      })()}
 
-      {/* ── 00 · your components — duplicated pieces, filed by the
-          classification chosen at creation. Cards run through the same
-          Piece machinery as the catalog: base geometry, the clone's own
-          entries. A clone of a staged base renders for the admin alone
-          (bay rules); the chapter — and its tab — exists only while
-          visible clones do. ── */}
-      {(() => {
-        const vis = Object.entries(kitClones).filter(([, c]) => kitVisible(c.base, releases, isAdmin));
-        if (!vis.length) return null;
-        // an unknown classification (a hand-edited save) files under Other
-        const kindOf = (k: string) => ((CLONE_KINDS as readonly string[]).includes(k) ? k : "Other");
-        const groups = CLONE_KINDS.map((kind) => ({ kind, list: vis.filter(([, c]) => kindOf(c.kind) === kind) })).filter((g) => g.list.length);
-        return (
-          <>
-            <Chapter n="00" id="yours" label="Your components" blurb="Pieces you duplicated — each renders through its base component and restyles alone." />
-            {groups.map((g, i) => (
-              <Sec key={g.kind} n={String(i + 1).padStart(2, "0")} title={g.kind}>
-                <div className="kp-tray">
-                  {g.list.map(([cid, c]) => (
-                    <Piece key={cid} id={cid as KitComponentId} caption={c.name} bay={isAdmin} />
-                  ))}
-                </div>
-              </Sec>
-            ))}
-          </>
-        );
-      })()}
-
-      <Chapter n="01" id="foundations" label="Foundations" blurb="The color roles, material and typography every component inherits." />
+      <Chapter n={chapN("foundations")} id="foundations" label="Foundations" blurb="The design story every piece inherits: color roles, typography, and the material's anatomy — parts, layers and the nine-slice bones." />
 
       {/* ── 01 · style tokens ── */}
       <Sec n="01" title="Color & Material" note="Five color roles drive the material: face, bevel, glow, shadow and inner fill. Repaint a role and every layer that uses it follows. These are functional roles, not a brand palette.">
@@ -2568,10 +2514,276 @@ const kitTier = useGen((s) => s.tier);
         </KpFold>
       </Sec>
 
-      <Chapter n="02" id="components" label="Components" blurb="Finished controls, shown in true relative scale." />
-      <Deferred estH={5200} eager={bootN >= 1} onLive={bootAdvance}>{() => <>
+      {/* ── anatomy — Build Parts and the nine-slice contract finish the
+          Foundations story before any finished control shows (owner IA
+          round: color, type, anatomy, THEN components) ── */}
+      <Deferred estH={2800} eager={bootN >= 1} onLive={bootAdvance}>{() => <>
 
-      {/* ── 03 · buttons ── */}
+      {/* ── 03 · build parts — the kit's anatomy, in Foundations ── */}
+      <Sec n="03" title="Build Parts" note="Everything in the kit is built from these. Each part opens the layer that produces it in the editor. Downloads are layered SVGs with named groups and nine-slice metadata.">
+        {viewer ? <div className="kp-viewnote">Shared kit — view only. Ask the owner for the downloads.</div> : <ExportMenu actions={exportActions} preferId="svg" />}
+        <button className="kp-share" onClick={() => void shareKit()} title="Copy a link that opens this kit for anyone — view only">
+          {shared ? "Link copied ✓" : "Share kit"}
+        </button>
+        <div className="kp-dlrow">
+          {([["all", "Download full pack"], ["components", "Components"], ["layers", "Material layers"], ["controls", "Control pieces"], ["type", "Typography recipe"], ["assemblies", "Assemblies"]] as const).map(([which, capn]) => (
+            <button key={which} title={maySvg ? `Download ${capn.toLowerCase()} as layered SVG` : `Layered SVG packs are a paid format. ${UPGRADE_LINES[kitTier]}`}
+              /* These packs are the same layered SVGs the SVG pack ships, so
+                 they go through the same server gate — otherwise this row was
+                 a way to take every component without a plan. */
+              onClick={() => void guardedExport("svg", gateHandlers, (grant) => {
+              const st = useGen.getState();
+              const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+              const files: { path: string; data: string }[] = [];
+              if (which === "all" || which === "layers") layerCards.forEach((lc) => files.push({ path: `build-parts/material-layers/${slug(lc.name)}.svg`, data: lc.svg }));
+              if (which === "all" || which === "type") recipe.forEach((r) => files.push({ path: `build-parts/typography-recipe/${slug(r.name)}.svg`, data: r.svg }));
+              if (which === "all" || which === "controls") (["slider", "toggle", "progress", "badge", "ring", "slot", "resource", "datarow"] as KitComponentId[]).forEach((cid) =>
+                files.push({ path: `build-parts/control-pieces/${cid}.svg`, data: renderKit(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns[cid]), st.kitTextFill[cid]), cid, "m", "default", undefined, st.kitShapes[cid], { expand: true, themedText: !!st.kitDesigns[cid]?.type || !!st.kitTextFill[cid], slots: st.kitSlotVals[cid], row: cid === "datarow" ? st.kitRow : undefined }) }));
+              if (which === "all" || which === "assemblies") {
+                // containers + the pieces every assembly is composed from,
+                // plus a recipe sheet describing the compositions
+                (["s", "m", "l"] as const).forEach((sz) =>
+                  files.push({ path: `assemblies/containers/panel-${sz}.svg`, data: renderKit(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns.panel), st.kitTextFill.panel), "panel", sz, "default", undefined, st.kitShapes.panel, { expand: true, themedText: !!st.kitDesigns.panel?.type || !!st.kitTextFill.panel }) }));
+                (["circle", "oval", "strip"] as const).forEach((kind) =>
+                  files.push({ path: `assemblies/containers/panel-${kind}.svg`, data: renderKit(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns.panel), st.kitTextFill.panel), "panel", "m", "default", undefined, st.kitShapes.panel, { expand: true, themedText: !!st.kitDesigns.panel?.type || !!st.kitTextFill.panel, kind }) }));
+                ([["header", "banner"], ["tab", "section-tab"], ["datarow", "list-row"], ["resource", "hud-counter"], ["slot", "item-slot"], ["ring", "progress-ring"], ["chip", "stat-chip"], ["badge", "medallion"]] as [KitComponentId, string][]).forEach(([cid, nm]) =>
+                  files.push({ path: `assemblies/pieces/${nm}.svg`, data: renderKit(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns[cid]), st.kitTextFill[cid]), cid, effKitSize(st.kitSizes[cid]), "default", undefined, st.kitShapes[cid], { expand: true, themedText: !!st.kitDesigns[cid]?.type || !!st.kitTextFill[cid], slots: st.kitSlotVals[cid], row: cid === "datarow" ? st.kitRow : undefined }) }));
+                files.push({
+                  path: "assemblies/RECIPES.md",
+                  data: [
+                    "# Assembly recipes", "",
+                    "Assemblies are compositions of registered components — no unique art.",
+                    "Rebuild them in any tool by stacking the pieces in this folder:", "",
+                    "- Titled panel: panel + tab (top-left, inset 16) + iconbtn (top-right)",
+                    "- Confirmation modal: panel-s + header + two buttons, stacked on center axis",
+                    "- Toast: chip + small button, right-aligned",
+                    "- List row: list-row; selected state = hover render",
+                    "- Objective card: tab + medallion + text + progress + chip + small button",
+                    "- Reward track: item-slot per milestone, connectors 3px, done = solid",
+                    "- Bottom sheet: panel with 18px top radius + handle bar 44×5",
+                    "- Waypoint: medallion; the current waypoint adds a 2px pulse ring at +8px",
+                  ].join("\n"),
+                });
+              }
+              if (which === "all" || which === "components") KIT_COMPONENTS.filter((c2) => kitVisible(c2.id, st.componentReleases, st.isAdmin)).forEach(({ id: cid }) => {
+                const kb = cid === "progress" || cid === "segbar" ? st.kitBar[cid] : undefined;
+                files.push({ path: `components/${cid}.svg`, data: renderKit(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns[cid]), st.kitTextFill[cid]), cid, effKitSize(st.kitSizes[cid]), "default", st.kitVals[cid], st.kitShapes[cid], { expand: true, themedText: !!st.kitDesigns[cid]?.type || !!st.kitTextFill[cid], icon: resolveKitIcon(st.kitIcons[cid], undefined), label: st.kitNoText[cid] ? "" : st.kitLabels[cid], slots: st.kitSlotVals[cid], textOy: st.kitTextOy[`${cid}:${effKitSize(st.kitSizes[cid])}`], textOx: st.kitTextOx[`${cid}:${effKitSize(st.kitSizes[cid])}`], bar: kb, dock: kb?.dock ? { icon: resolveKitIcon(st.kitIcons[cid], undefined), side: kb.dockSide ?? "left" } : undefined, row: cid === "datarow" ? st.kitRow : undefined }) });
+              });
+              if (which === "all") {
+                files.push({
+                  path: "9slice.json",
+                  data: JSON.stringify({
+                    note: "Fixed-cap insets for stretchable pieces. Values are fractions of the piece's shell height H: the caps are capScale×H px wide and must not stretch; only the center region stretches. content gives the text-safe insets.",
+                    // unlisted preview silhouettes stay out of public exports —
+                    // EXCEPT ones this kit actually wears: the README tells the
+                    // user to slice by this file, so their own shapes must be in it
+                    silhouettes: (() => {
+                      const used = new Set([st.cfg.shape, ...Object.values(st.kitShapes)]);
+                      return SILHOUETTES.filter((s) => !s.preview || st.isAdmin || used.has(s.id)).map((s) => ({ id: s.id, name: s.name, capScale: s.capScale, content: s.content }));
+                    })(),
+                  }, null, 2),
+                });
+                files.push({
+                  path: "README.md",
+                  data: [
+                    "# UI Kit asset pack", "",
+                    "Layered SVGs from UI Kit Maker. Every component keeps named groups —",
+                    "cast-shadow, extrusion, shell, face, content, gloss, specular — so Figma", "imports them as a readable layer tree.", "",
+                    "## Figma", "Drag any SVG onto the canvas. Ungroup once to reach the named layers.", "",
+                    "## Illustrator", "Open directly. You may see 'Clipping will be lost on roundtrip to Tiny' —",
+                    "that warning concerns re-SAVING to the SVG Tiny profile; the artwork imports",
+                    "completely. The candy face requires one clip group (gloss, pattern and",
+                    "speculars must stay inside the face), which is what triggers the notice.", "",
+                    "## Nine-slice scaling", "See 9slice.json: caps are fixed (capScale × shell height), centers stretch.",
+                    "The `content` insets are the text-safe area used by the generator itself.",
+                    ...(sliceRisks(st.cfg).length
+                      ? ["", "## Effects that do not survive stretching",
+                        ...sliceRisks(st.cfg).map((r) => `- ${r}`),
+                        "Render one-off components from the app when these must stay intact."]
+                      : []),
+                  ].join("\n"),
+                });
+              }
+              files.push({ path: "LICENCE.txt", data: grant.licence });
+              downloadZip(`ui-kit-${which}.zip`, files);
+            })}><Download size={12} strokeWidth={2.2} /> {capn}</button>
+          ))}
+        </div>
+        <div className="kp-subhead">Material &amp; structural layers</div>
+        <div className="kp-parts">
+          {layerCards.map((lc) => (
+            <button className="kp-part" key={lc.name} title={`Open ${lc.name} in the editor`} onClick={() => openEditor(lc.sec)}>
+              <Art svg={lc.svg} scale={0.26} />
+              <span className="kp-partname">{lc.name}</span>
+              <Meta items={lc.meta} />
+            </button>
+          ))}
+        </div>
+        <div className="kp-subhead">Control pieces</div>
+        <div className="kp-tray">
+          <Piece id="slider" caption="Track · Fill · Thumb" value={0.62} />
+          <Piece id="toggle" caption="Track · Knob" value={1} />
+          <Piece id="progress" caption="Fill · Cap" value={0.62} />
+          <Piece id="badge" caption="Badge face · rim" label="7" />
+        </div>
+        <div className="kp-meta">
+          <span>Thumb / knob · Fixed, never scales with track</span><span>Track · Stretch X</span>
+          <span>Fill · Stretch X, ends at thumb center</span><span>All recolor via the five wells</span>
+        </div>
+        <div className="kp-subhead">Typography treatment — live layered recipe</div>
+        <div className="kp-recipe">
+          {recipe.map((r) => (
+            <button className="kp-part wide" key={r.name} title="Open Typography in the editor" onClick={() => openEditor("typography")}>
+              <Art svg={r.svg} scale={0.62} />
+              <span className="kp-partname">{r.name}</span>
+            </button>
+          ))}
+        </div>
+      </Sec>
+
+      {/* ── 04 · nine-slice & anatomy — the stretch contract closes Foundations ── */}
+      <Sec n="04" title="Nine-Slice & Anatomy" note="Corners fixed, edges stretch on one axis, the center stretches on both. Every silhouette ships this contract as data (9slice.json).">
+        <p className="kp-note">Every silhouette is procedural three-slice geometry: caps are sized by height and never distort; only the middle stretches. Magenta dashes mark the fixed caps, green marks the text-safe area.</p>
+        {sliceRisks(cfg).length > 0 && (
+          <div className="kp-slicenote">
+            <b>Heads-up — this design carries effects a stretched slice can't keep:</b>
+            <ul>{sliceRisks(cfg).map((r) => <li key={r}>{r}</li>)}</ul>
+            <span>The exported slices scale cleanly without them. When a piece needs these effects intact at a specific size, render that one-off component straight from the app instead — it repaints every effect for the exact proportion.</span>
+          </div>
+        )}
+        <div className="kp-slices">
+          <SliceDemo cfg={cfg} label="GO" fit={300} />
+          <SliceDemo cfg={cfg} label={label} fit={380} />
+          <SliceDemo cfg={cfg} label="CONTINUE YOUR ADVENTURE" fit={520} ruler />
+        </div>
+        <div className="kp-meta">
+          <span>Left cap · Fixed</span><span>Center · Stretch X</span><span>Right cap · Fixed</span>
+          <span>Panel corners · Fixed</span><span>Panel edges · Stretch</span><span>Panel center · Stretch X/Y</span>
+        </div>
+        <div className="kp-meta"><span>Corners · fixed</span><span>Edges · stretch one axis</span><span>Center · stretches both</span><span>Text stays inside the green safe area</span></div>
+      </Sec>
+
+      </>}</Deferred>
+
+      {/* ── the staging bay — new pieces wait HERE for the owner's
+          release. Admin-only, seated at the head of the components zone —
+          AFTER the Foundations story (owner IA round) — and for everyone
+          else these pieces don't exist anywhere on the site. ── */}
+      {isAdmin && STAGED_KIT.size > 0 && (() => {
+        // released pieces LEAVE the queue (owner call) — they live in the
+        // kit proper now; a quiet footer keeps the pull-back reversible.
+        // Rejects leave too (owner: "somewhere else not here in staging
+        // bay") — they wait in the trash at the page bottom.
+        const inBay = [...STAGED_KIT].filter((sid) => !releases[sid]);
+        const releasedStaged = [...STAGED_KIT].filter((sid) => releases[sid] === "released");
+        const act = (sid: KitComponentId, next: "released" | "rejected" | null, confirmMsg?: string) => {
+          if (confirmMsg && !window.confirm(confirmMsg)) return;
+          void setComponentRelease(sid, next).then((err) => { if (err) window.alert(err); });
+        };
+        if (!bayOpen) return (
+          <section className="kp-sec kp-baycollapsed">
+            <button className="kp-baytoggle" onClick={() => setBayOpen(true)}>
+              <ShieldCheck size={13} strokeWidth={2.2} /> Staging bay · {inBay.length} waiting — only you see this
+            </button>
+          </section>
+        );
+        return (
+          <Sec n="00" title="The staging bay"
+            note="New pieces land here first, visible only to you. Test them across the editor, the Board and the exports, then approve — the piece leaves the bay and appears for every maker the moment you do, no deploy needed. Reject moves it to the trash at the page bottom; both are reversible.">
+            <button className="kp-baytoggle" onClick={() => setBayOpen(false)}>Collapse the bay</button>
+            {inBay.length === 0 && <p className="kp-baynote">The bay is clear — everything staged is released or waiting in the trash. New pieces will land here.</p>}
+            {/* batch lane for the GLYPH SET only (owner: 44 one-by-one approvals
+                is a chore) — one atomic ledger write; every card stays
+                individually reversible afterward */}
+            {(() => {
+              const glyphBay = inBay.filter((sid) => sid.startsWith("glyph"));
+              if (glyphBay.length < 2) return null;
+              const batch = (next: "released" | "rejected", msg: string) => {
+                if (!window.confirm(msg)) return;
+                void setComponentReleasesBatch(Object.fromEntries(glyphBay.map((sid) => [sid, next])))
+                  .then((err) => { if (err) window.alert(err); });
+              };
+              return (
+                <div className="kp-bayacts" style={{ margin: "6px 0 10px" }}>
+                  <button className="cg-curate cg-curate--add" onClick={() => batch("released",
+                    `Release all ${glyphBay.length} glyphs to every maker? The whole set leaves the bay and appears across the app the moment you approve. Any glyph can be pulled back individually afterward.`)}>
+                    <ShieldCheck size={13} strokeWidth={2.2} /> Release all {glyphBay.length} glyphs
+                  </button>
+                  <button className="cg-curate cg-curate--danger" onClick={() => batch("rejected",
+                    `Park all ${glyphBay.length} glyphs? They move to the trash at the page bottom — still admin-only; restore any of them from there.`)}>
+                    Park all glyphs
+                  </button>
+                </div>
+              );
+            })()}
+            <div className="kp-baygrid">
+              {inBay.map((sid) => {
+                const nm = pieceName(sid);
+                return (
+                  <div className={`kp-bayrow${bayHot === sid ? " kp-bayhot" : ""}`} key={sid} data-bayid={sid}>
+                    <div className="kp-tray kp-axis">
+                      <Piece id={sid} caption={nm} scale={0.5} bay bayHome />
+                    </div>
+                    <div className="kp-bayside">
+                      <span className="kp-baychip">In the bay — only you see this</span>
+                      <div className="kp-bayacts">
+                        <button className="cg-curate cg-curate--add" onClick={() => act(sid, "released", `Release ${nm} to every maker? It leaves the bay and appears across the app the moment you approve.`)}>
+                          <ShieldCheck size={13} strokeWidth={2.2} /> Approve — release to everyone
+                        </button>
+                        <button className="cg-curate cg-curate--danger" title="Move to the trash at the page bottom — restorable from there" onClick={() => act(sid, "rejected")}>Reject</button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {releasedStaged.length > 0 && (
+              <p className="kp-baynote">
+                Released from this bay:{" "}
+                {releasedStaged.map((sid, i) => (
+                  <span key={sid}>{i > 0 && " · "}<b>{pieceName(sid)}</b>{" "}
+                    <button className="cg-curate" onClick={() => act(sid, null, `Pull ${pieceName(sid)} back into the bay? Makers lose it until you release again.`)}>pull back</button>
+                  </span>
+                ))}
+              </p>
+            )}
+          </Sec>
+        );
+      })()}
+
+      {/* ── your components — duplicated pieces, filed by the
+          classification chosen at creation, leading the components zone
+          now that the design story has been told. Cards run through the same
+          Piece machinery as the catalog: base geometry, the clone's own
+          entries. A clone of a staged base renders for the admin alone
+          (bay rules); the chapter — and its tab — exists only while
+          visible clones do. ── */}
+      {(() => {
+        const vis = Object.entries(kitClones).filter(([, c]) => kitVisible(c.base, releases, isAdmin));
+        if (!vis.length) return null;
+        // an unknown classification (a hand-edited save) files under Other
+        const kindOf = (k: string) => ((CLONE_KINDS as readonly string[]).includes(k) ? k : "Other");
+        const groups = CLONE_KINDS.map((kind) => ({ kind, list: vis.filter(([, c]) => kindOf(c.kind) === kind) })).filter((g) => g.list.length);
+        return (
+          <>
+            <Chapter n={chapN("yours")} id="yours" label="Your components" blurb="Pieces you duplicated — each renders through its base component and restyles alone." />
+            {groups.map((g, i) => (
+              <Sec key={g.kind} n={String(i + 1).padStart(2, "0")} title={g.kind}>
+                <div className="kp-tray">
+                  {g.list.map(([cid, c]) => (
+                    <Piece key={cid} id={cid as KitComponentId} caption={c.name} bay={isAdmin} />
+                  ))}
+                </div>
+              </Sec>
+            ))}
+          </>
+        );
+      })()}
+
+      <Chapter n={chapN("components")} id="components" label="Components" blurb="Finished controls, shown in true relative scale." />
+      <Deferred estH={3600} eager={bootN >= 2} onLive={bootAdvance}>{() => <>
+
+      {/* ── 01 · buttons ── */}
       <Sec n="01" title="Buttons" note="Primary carries the master label. The strip below shows every state; hover, press and keyboard-focus are all real.">
         <div className="kp-tray">
           <Piece id="primary" size="l" caption="Primary · L" />
@@ -2593,7 +2805,7 @@ const kitTier = useGen((s) => s.tier);
         ]} />
       </Sec>
 
-      {/* ── 04 · choice controls ── */}
+      {/* ── 02 · choice controls ── */}
       <Sec n="02" title="Choice Controls" note="Checks, radios and switches share the shell. Toggles flip on click and on Enter or Space.">
         <div className="kp-tray kp-axis">
           <Piece id="checkbox" caption="Checkbox" />
@@ -2611,7 +2823,7 @@ const kitTier = useGen((s) => s.tier);
         ]} />
       </Sec>
 
-      {/* ── 05 · fields ── */}
+      {/* ── 03 · fields ── */}
       <Sec n="03" title="Fields" note="Input wells sunk into the same material. The dropdown opens in place.">
         {/* hug: measured crops. The canvases here reserve full slider
             travel below the shell, and the open dropdown's menu draws
@@ -2633,7 +2845,7 @@ const kitTier = useGen((s) => s.tier);
         ]} />
       </Sec>
 
-      {/* ── 06 · sliders & progress ── */}
+      {/* ── 04 · sliders & progress ── */}
       <Sec n="04" title="Sliders & Progress" note="Shared range rules: the thumb stays inside the shell at both endpoints and the fill ends at the thumb's center. Progress replays to its configured value on click or Enter. The emblem bar docks a silhouette-aware socket on the track — swap its glyph in Component content; the segmented meter snaps to whole cells or slides one fill under the notches.">
         <div className="kp-tray">
           <Piece id="slider" caption="Slider" value={0.62} />
@@ -2647,7 +2859,7 @@ const kitTier = useGen((s) => s.tier);
           <Piece id="segbar" caption="Segmented · 8" value={0.55} bar={{ segments: 8 }} ambient />
         </div>
         <div className="kp-subhead">Genre essentials</div>
-        <p className="kp-note">Every genre speaks this kit: the fighting VS bar drains toward its candy medallion, the sandbox hotbar carries the material into slot form. Action &amp; shooters lean on the reticle, ammo and mini-map; RPGs on progress, data rows, slots and the reward track; strategy on resources and panels; racing has its own chapter; timers and meters cover survival, sims and sports.</p>
+        <p className="kp-note">Every genre speaks this kit: the fighting VS bar drains toward its candy medallion, the sandbox hotbar carries the material into slot form. Action &amp; shooters lean on the reticle, ammo and mini-map; RPGs on progress, data rows, slots and the reward track; strategy on resources and panels; racing has its own corner of Game HUD &amp; Data; timers and meters cover survival, sims and sports.</p>
         <div className="kp-row">
           <Piece id="vsbar" caption="VS health bar · fighting" value={0.72} ambient scale={0.5} />
           <Piece id="hotbar" caption="Hotbar · sandbox" value={0.25} ambient scale={0.5} />
@@ -2669,17 +2881,8 @@ const kitTier = useGen((s) => s.tier);
         ]} />
       </Sec>
 
-      {/* ── 07 · feedback ── */}
-      <Sec n="05" title="Feedback" note="Counts, awards and callouts. A badge awards on click.">
-        <div className="kp-tray">
-          <Piece id="badge" caption="Badge · Count" label="12" />
-          <Piece id="badge" caption="Badge · Awarded" baseState="pressed" />
-          <Piece id="chip" caption="Chip" />
-        </div>
-      </Sec>
-
-      {/* ── 08 · navigation ── */}
-      <Sec n="06" title="Navigation" note="Tabs, a segmented switch and the three-slice banner. Caps never distort; text never enters the tails.">
+      {/* ── 05 · navigation ── */}
+      <Sec n="05" title="Navigation" note="Tabs, a segmented switch and the three-slice banner. Caps never distort; text never enters the tails.">
         <div className="kp-tray">
           <Piece id="tab" caption="Tab" label="HOME" />
           <Piece id="tabback" caption="Back tab" label="BACK" />
@@ -2712,8 +2915,8 @@ const kitTier = useGen((s) => s.tier);
         </div>
       </Sec>
 
-      {/* ── 09 · icons ── */}
-      <Sec n="07" title="Icons" anchor="icons" note="The functional glyph set, embedded with the same rules everywhere: bare, as icon buttons, and as themed medallions.">
+      {/* ── 06 · icons ── */}
+      <Sec n="06" title="Icons" anchor="icons" note="The functional glyph set, embedded with the same rules everywhere: bare, as icon buttons, and as themed medallions.">
         <div className="kp-icons">
           {ICON_SET.map((ic) => (
             <figure className="kp-icon" key={ic.key} title={ic.name}>
@@ -2735,8 +2938,81 @@ const kitTier = useGen((s) => s.tier);
         </div>
       </Sec>
 
-      {/* ── 10 · game HUD & data ── */}
-      <Sec n="08" title="Game HUD & Data" note="Counters, rows, slots and rings. Every icon, portrait and value is a replaceable slot.">
+      {/* ── 07 · system chrome & feedback — the Feedback section folded in
+          (owner IA round): three specimens weren't a section of their own ── */}
+      <Sec n="07" title="System Chrome & Feedback" note="The connective tissue every game ships — the dialog frame, confirmations, tooltips and input prompts, all in the kit material — plus the feedback voices: counts, awards and callouts. A badge awards on click. Key prompts stretch like real keycaps; pad buttons carry console color rings.">
+        <div className="kp-tray">
+          <Piece id="dialog" caption="Dialog" scale={0.4} />
+          <Piece id="toast" caption="Toast" scale={0.52} />
+          <Piece id="tooltip" caption="Tooltip" scale={0.56} />
+        </div>
+        <div className="kp-subhead">Counts, awards & callouts</div>
+        <div className="kp-tray">
+          <Piece id="badge" caption="Badge · Count" label="12" />
+          <Piece id="badge" caption="Badge · Awarded" baseState="pressed" />
+          <Piece id="chip" caption="Chip" />
+        </div>
+        <div className="kp-tray">
+          <Piece id="keycap" caption="Key · E" scale={0.54} />
+          <Piece id="keycap" label="SPACE" caption="Key · SPACE" scale={0.54} />
+          <Piece id="padbtn" caption="Pad · A" scale={0.54} />
+          <Piece id="padbtn" label="B" caption="Pad · B" scale={0.54} />
+          <Piece id="padbtn" label="X" caption="Pad · X" scale={0.54} />
+          <Piece id="padbtn" label="Y" caption="Pad · Y" scale={0.54} />
+        </div>
+        <div className="kp-tray">
+          <Piece id="listmenu" caption="List menu" scale={0.5} />
+          <Piece id="scrollbar" caption="Scrollbar" value={0.3} scale={0.5} />
+          <Piece id="steps" caption="Step indicator" value={0.42} scale={0.56} />
+          <Piece id="pagedots" caption="Page dots" value={0.25} scale={0.62} />
+          <Piece id="spinner" caption="Spinner" scale={0.6} />
+        </div>
+        <div className="kp-tray">
+          <Piece id="loadbar" caption="Loading bar" value={0.62} scale={0.5} />
+          <Piece id="setrow" caption="Settings row" value={0.7} scale={0.5} />
+        </div>
+        <div className="kp-tray">
+          <Piece id="searchfield" caption="Search field" scale={0.5} />
+          <Piece id="notifydot" caption="Notification badge" value={0.3} scale={0.54} />
+          {kitVisible("countbadge", releases, false) && <Piece id="countbadge" caption="Count badge" value={0.03} scale={0.8} />}
+          <Piece id="avatarframe" caption="Avatar frame" value={0.12} scale={0.54} />
+        </div>
+        <div className="kp-tray">
+          <Piece id="nameplate" caption="Nameplate" scale={0.5} />
+          <Piece id="currency" caption="Currency pill" value={0.125} scale={0.54} />
+          <Piece id="stepper" caption="Stepper" value={0.62} scale={0.5} />
+        </div>
+        <div className="kp-tray">
+          <Piece id="buffframe" caption="Buff frame" value={0.65} scale={0.54} />
+          <Piece id="cooldown" caption="Cooldown radial" value={0.4} scale={0.56} />
+        </div>
+      </Sec>
+
+      {/* ── 08 · containers & assemblies — compound pieces close the catalog ── */}
+      {/* the assembled-UI demo grid that used to close this section is gone
+          (owner call, 2026-08-27): its story — states, sheets, modals built
+          from registered pieces — is told properly by Screen Patterns and
+          Layout Starters, and the cards read as parts-debris beside them */}
+      <Sec n="08" title="Containers" note="Container shapes and panels — the surfaces everything else sits on. Included in the Build Parts downloads.">
+        <div className="kp-subhead">Container shapes</div>
+        <div className="kp-tray">
+          <Piece id="panel" caption="Container · Panel" size="s" scale={0.4} />
+          <Piece id="panel" caption="Container · Round" kind="circle" size="s" scale={0.4} />
+          <Piece id="panel" caption="Container · Oval" kind="oval" size="s" scale={0.4} />
+          <Piece id="panel" caption="Container · Dialogue strip" kind="strip" size="s" scale={0.4} />
+        </div>
+        <div className="kp-tray">
+          <Piece id="panel" size="s" caption="Panel · S" />
+          <Piece id="panel" size="m" caption="Panel · M" />
+        </div>
+      </Sec>
+
+      </>}</Deferred>
+      <Chapter n={chapN("genres")} id="genres" label="Game Systems" blurb="The genre vocabularies — HUD, RPG, shooter, casual, strategy and the reward economy — every piece the same material." />
+      <Deferred estH={3800} eager={bootN >= 3} onLive={bootAdvance}>{() => <>
+
+      {/* ── 01 · game HUD & data ── */}
+      <Sec n="01" title="Game HUD & Data" note="Counters, rows, slots and rings. Every icon, portrait and value is a replaceable slot.">
         <div className="kp-subhead">HUD counters</div>
         <div className="kp-tray">
           <Piece id="resource" caption="Compact" label="1,250" scale={0.4} />
@@ -2876,49 +3152,7 @@ const kitTier = useGen((s) => s.tier);
         <div className="kp-meta"><span>Speed derives from the value — 0 to 280 across the sweep</span><span>Past 78% the dial enters the red zone and the readout takes the alarm tint</span><span>Kazuri Ring is drawn as a dimensional ribbon — elevation reads from the extruded walls</span><span>Graphs carry live engine data in real games — on the lap chart, Value plays the session forward (first lap set → all eight in, delta going live); telemetry's traces are specimens</span></div>
       </Sec>
 
-      <Sec n="09" title="System Chrome" note="The connective tissue every game ships — the dialog frame, confirmations, tooltips and input prompts, all in the kit material. Key prompts stretch like real keycaps; pad buttons carry console color rings.">
-        <div className="kp-tray">
-          <Piece id="dialog" caption="Dialog" scale={0.4} />
-          <Piece id="toast" caption="Toast" scale={0.52} />
-          <Piece id="tooltip" caption="Tooltip" scale={0.56} />
-        </div>
-        <div className="kp-tray">
-          <Piece id="keycap" caption="Key · E" scale={0.54} />
-          <Piece id="keycap" label="SPACE" caption="Key · SPACE" scale={0.54} />
-          <Piece id="padbtn" caption="Pad · A" scale={0.54} />
-          <Piece id="padbtn" label="B" caption="Pad · B" scale={0.54} />
-          <Piece id="padbtn" label="X" caption="Pad · X" scale={0.54} />
-          <Piece id="padbtn" label="Y" caption="Pad · Y" scale={0.54} />
-        </div>
-        <div className="kp-tray">
-          <Piece id="listmenu" caption="List menu" scale={0.5} />
-          <Piece id="scrollbar" caption="Scrollbar" value={0.3} scale={0.5} />
-          <Piece id="steps" caption="Step indicator" value={0.42} scale={0.56} />
-          <Piece id="pagedots" caption="Page dots" value={0.25} scale={0.62} />
-          <Piece id="spinner" caption="Spinner" scale={0.6} />
-        </div>
-        <div className="kp-tray">
-          <Piece id="loadbar" caption="Loading bar" value={0.62} scale={0.5} />
-          <Piece id="setrow" caption="Settings row" value={0.7} scale={0.5} />
-        </div>
-        <div className="kp-tray">
-          <Piece id="searchfield" caption="Search field" scale={0.5} />
-          <Piece id="notifydot" caption="Notification badge" value={0.3} scale={0.54} />
-          {kitVisible("countbadge", releases, false) && <Piece id="countbadge" caption="Count badge" value={0.03} scale={0.8} />}
-          <Piece id="avatarframe" caption="Avatar frame" value={0.12} scale={0.54} />
-        </div>
-        <div className="kp-tray">
-          <Piece id="nameplate" caption="Nameplate" scale={0.5} />
-          <Piece id="currency" caption="Currency pill" value={0.125} scale={0.54} />
-          <Piece id="stepper" caption="Stepper" value={0.62} scale={0.5} />
-        </div>
-        <div className="kp-tray">
-          <Piece id="buffframe" caption="Buff frame" value={0.65} scale={0.54} />
-          <Piece id="cooldown" caption="Cooldown radial" value={0.4} scale={0.56} />
-        </div>
-      </Sec>
-
-      <Sec n="10" title="RPG & MMO" note="The role-playing vocabulary: vitals, quests, dialogue, inventory and progression. Rarity tiers ship with genre-standard names and hues, and they're yours to retune — rename and recolor all five under Color → Rarity tiers in the editor; everything else follows the kit's roles.">
+      <Sec n="02" title="RPG & MMO" note="The role-playing vocabulary: vitals, quests, dialogue, inventory and progression. Rarity tiers ship with genre-standard names and hues, and they're yours to retune — rename and recolor all five under Color → Rarity tiers in the editor; everything else follows the kit's roles.">
         <div className="kp-subhead">Vitals & progression</div>
         <div className="kp-tray kp-axis">
           <Piece id="healthglobe" caption="Health globe" value={0.72} scale={0.52} />
@@ -2971,7 +3205,7 @@ const kitTier = useGen((s) => s.tier);
         <Meta items={["Liquid and fills follow the Glow role", "mana/stamina/HP hues are genre semantics", "value scrubs fill, heading, tier and selection", "the lit skill stub is the learned path", "damage numbers are shell-free spatial type"]} />
       </Sec>
 
-      <Sec n="11" title="Shooter & Action" note="The FPS/brawler vocabulary: aim, feedback, loadout and objectives. Spatial pieces (crosshair, markers, arcs) are shell-free and carry a dark understroke so they read on live footage. The weapon wheel follows your pointer's angle — hold and point, like the real thing.">
+      <Sec n="03" title="Shooter & Action" note="The FPS/brawler vocabulary: aim, feedback, loadout and objectives. Spatial pieces (crosshair, markers, arcs) are shell-free and carry a dark understroke so they read on live footage. The weapon wheel follows your pointer's angle — hold and point, like the real thing.">
         <div className="kp-subhead">Aim & feedback</div>
         <div className="kp-tray kp-axis">
           <Piece id="crosshair" caption="Crosshair" value={0.25} scale={0.56} />
@@ -3005,7 +3239,7 @@ const kitTier = useGen((s) => s.tier);
         <Meta items={["Crosshair and marker weight ride the Icon stroke control", "value scrubs spread, rounds, streak, capture and direction", "the wheel's value is the pointer's angle in play mode", "crit and alarm reds are semantic, like rarity hues", "every readout keeps the hard-shadow legibility rule"]} />
       </Sec>
 
-      <Sec n="12" title="Casual & Mobile" note="The free-to-play vocabulary: results, saga maps, lives and boosters, spins and daily rewards. Gold, hearts-red and ready-green are genre semantics; everything else follows the kit's roles. Click the stars to replay the pop; click the wheel to throw a spin.">
+      <Sec n="04" title="Casual & Mobile" note="The free-to-play vocabulary: results, saga maps, lives and boosters, spins and daily rewards. Gold, hearts-red and ready-green are genre semantics; everything else follows the kit's roles. Click the stars to replay the pop; click the wheel to throw a spin.">
         <div className="kp-subhead">Results & celebration</div>
         <div className="kp-tray kp-axis">
           <Piece id="starrating" caption="Three stars · click to replay" value={1} scale={0.56} />
@@ -3053,10 +3287,10 @@ const kitTier = useGen((s) => s.tier);
         <Meta items={["Gold, hearts-red and ready-green are genre semantics", "stars and the spin ride the tween engine", "cells keep the negative-space canon", "counts and timers wear the adaptive ink rule", "level nodes and boosters are real buttons — hover and press work"]} />
       </Sec>
 
-      {/* ── 13 · rewards & chests — the staging-bay pack: the whole Sec
+      {/* ── 05 · rewards & chests — the staging-bay pack: the whole Sec
           hides until at least one resident is visible to this viewer ── */}
-      {(["chest", "giftbox", "rewardcard", "qtybadge", "rewardtray", "claimbtn", "chestpanel"] as KitComponentId[]).some((rid) => kitVisible(rid, releases, false)) && (
-      <Sec n="13" title="Rewards & Chests" note="The economy's happy endings: chests on the small→large ladder plus Premium and Event trims, gifts, reveals, trays and claims. Chest and gift bodies wear the kit's material; tier trims, gold ribbons and ready-green are genre semantics. The reward card's aura walks the kit's rarity tiers.">
+      {rewardsVis && (
+      <Sec n="05" title="Rewards & Chests" note="The economy's happy endings: chests on the small→large ladder plus Premium and Event trims, gifts, reveals, trays and claims. Chest and gift bodies wear the kit's material; tier trims, gold ribbons and ready-green are genre semantics. The reward card's aura walks the kit's rarity tiers.">
         {kitVisible("chest", releases, false) && (<>
           <div className="kp-subhead">The chest ladder</div>
           <div className="kp-tray kp-axis">
@@ -3120,306 +3354,8 @@ const kitTier = useGen((s) => s.tier);
       </Sec>
       )}
 
-      <Sec n="14" title="Strategy & Social" note="The command layer and the people layer: production, tech, turns and scores; friends, chat, emotes, clans and the season pass. Team hues and premium gold are semantics; the emote wheel picks instantly — social is fast.">
-        <div className="kp-subhead">Command & production</div>
-        <div className="kp-tray kp-axis">
-          <Piece id="buildqueue" caption="Build queue" value={0.55} scale={0.5} />
-          <Piece id="unitplate" caption="Unit plate" value={0.82} scale={0.5} />
-          <Piece id="popmeter" caption="Population" value={0.84} scale={0.5} />
-          <Piece id="popmeter" caption="Near cap" value={0.95} scale={0.5} />
-        </div>
-        <div className="kp-tray kp-axis">
-          <Piece id="techcard" caption="Researchable" scale={0.48} />
-          <Piece id="techcard" caption="Researched" label="KEEN SIGHT" icon={STOCK_ICONS.crosshair} overlay="done" scale={0.48} />
-          <Piece id="techcard" caption="Locked" label="???" overlay="locked" scale={0.48} />
-          <Piece id="endturn" caption="End turn · timer arc" value={0.7} scale={0.52} />
-        </div>
-        <div className="kp-subhead">Match & score</div>
-        <div className="kp-tray kp-axis">
-          <Piece id="scorebug" caption="Score bug" value={0.52} scale={0.5} />
-        </div>
-        <div className="kp-subhead">Friends & clans</div>
-        <div className="kp-tray kp-axis">
-          <Piece id="friendrow" caption="Online · joinable" value={1} scale={0.5} />
-          <Piece id="friendrow" caption="Offline" label="STORM_BREW" value={0} scale={0.5} />
-          <Piece id="clancrest" caption="Clan crest" scale={0.5} />
-        </div>
-        <div className="kp-tray kp-axis">
-          <Piece id="chatbubble" caption="Chat bubble" scale={0.5} />
-          <Piece id="chatbubble" caption="Long message · grows" label="anyone up for one more round before the season resets? need two for the weekly" scale={0.5} />
-          <Piece id="emotewheel" caption="Emote wheel · click to pick" value={0} scale={0.48} />
-        </div>
-        <div className="kp-subhead">Season pass & honors</div>
-        <div className="kp-tray kp-axis">
-          <Piece id="seasontrack" caption="Season track · free / premium" value={0.5} scale={0.48} />
-          <Piece id="achievetoast" caption="Achievement toast" scale={0.5} />
-        </div>
-        <Meta items={["Team blue/red and premium gold are semantics", "the emote wheel selects instantly — no spin", "the end-turn arc is the turn timer", "score bug and instruments keep the dark-well rule", "plates, cards, crests and rows are real buttons"]} />
-      </Sec>
-
-      </>}</Deferred>
-      <Chapter n="03" id="parts" label="Build Parts" blurb="The construction vocabulary: parts, containers, assemblies and motion — with downloads." />
-      <Deferred estH={6400} eager={bootN >= 2} onLive={bootAdvance}>{() => <>
-
-      {/* ── 14 · build parts ── */}
-      <Sec n="01" title="Build Parts" note="Everything in the kit is built from these. Each part opens the layer that produces it in the editor. Downloads are layered SVGs with named groups and nine-slice metadata.">
-        {viewer ? <div className="kp-viewnote">Shared kit — view only. Ask the owner for the downloads.</div> : <ExportMenu actions={exportActions} preferId="svg" />}
-        <button className="kp-share" onClick={() => void shareKit()} title="Copy a link that opens this kit for anyone — view only">
-          {shared ? "Link copied ✓" : "Share kit"}
-        </button>
-        <div className="kp-dlrow">
-          {([["all", "Download full pack"], ["components", "Components"], ["layers", "Material layers"], ["controls", "Control pieces"], ["type", "Typography recipe"], ["assemblies", "Assemblies"]] as const).map(([which, capn]) => (
-            <button key={which} title={maySvg ? `Download ${capn.toLowerCase()} as layered SVG` : `Layered SVG packs are a paid format. ${UPGRADE_LINES[kitTier]}`}
-              /* These packs are the same layered SVGs the SVG pack ships, so
-                 they go through the same server gate — otherwise this row was
-                 a way to take every component without a plan. */
-              onClick={() => void guardedExport("svg", gateHandlers, (grant) => {
-              const st = useGen.getState();
-              const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-              const files: { path: string; data: string }[] = [];
-              if (which === "all" || which === "layers") layerCards.forEach((lc) => files.push({ path: `build-parts/material-layers/${slug(lc.name)}.svg`, data: lc.svg }));
-              if (which === "all" || which === "type") recipe.forEach((r) => files.push({ path: `build-parts/typography-recipe/${slug(r.name)}.svg`, data: r.svg }));
-              if (which === "all" || which === "controls") (["slider", "toggle", "progress", "badge", "ring", "slot", "resource", "datarow"] as KitComponentId[]).forEach((cid) =>
-                files.push({ path: `build-parts/control-pieces/${cid}.svg`, data: renderKit(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns[cid]), st.kitTextFill[cid]), cid, "m", "default", undefined, st.kitShapes[cid], { expand: true, themedText: !!st.kitDesigns[cid]?.type || !!st.kitTextFill[cid], slots: st.kitSlotVals[cid], row: cid === "datarow" ? st.kitRow : undefined }) }));
-              if (which === "all" || which === "assemblies") {
-                // containers + the pieces every assembly is composed from,
-                // plus a recipe sheet describing the compositions
-                (["s", "m", "l"] as const).forEach((sz) =>
-                  files.push({ path: `assemblies/containers/panel-${sz}.svg`, data: renderKit(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns.panel), st.kitTextFill.panel), "panel", sz, "default", undefined, st.kitShapes.panel, { expand: true, themedText: !!st.kitDesigns.panel?.type || !!st.kitTextFill.panel }) }));
-                (["circle", "oval", "strip"] as const).forEach((kind) =>
-                  files.push({ path: `assemblies/containers/panel-${kind}.svg`, data: renderKit(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns.panel), st.kitTextFill.panel), "panel", "m", "default", undefined, st.kitShapes.panel, { expand: true, themedText: !!st.kitDesigns.panel?.type || !!st.kitTextFill.panel, kind }) }));
-                ([["header", "banner"], ["tab", "section-tab"], ["datarow", "list-row"], ["resource", "hud-counter"], ["slot", "item-slot"], ["ring", "progress-ring"], ["chip", "stat-chip"], ["badge", "medallion"]] as [KitComponentId, string][]).forEach(([cid, nm]) =>
-                  files.push({ path: `assemblies/pieces/${nm}.svg`, data: renderKit(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns[cid]), st.kitTextFill[cid]), cid, effKitSize(st.kitSizes[cid]), "default", undefined, st.kitShapes[cid], { expand: true, themedText: !!st.kitDesigns[cid]?.type || !!st.kitTextFill[cid], slots: st.kitSlotVals[cid], row: cid === "datarow" ? st.kitRow : undefined }) }));
-                files.push({
-                  path: "assemblies/RECIPES.md",
-                  data: [
-                    "# Assembly recipes", "",
-                    "Assemblies are compositions of registered components — no unique art.",
-                    "Rebuild them in any tool by stacking the pieces in this folder:", "",
-                    "- Titled panel: panel + tab (top-left, inset 16) + iconbtn (top-right)",
-                    "- Confirmation modal: panel-s + header + two buttons, stacked on center axis",
-                    "- Toast: chip + small button, right-aligned",
-                    "- List row: list-row; selected state = hover render",
-                    "- Objective card: tab + medallion + text + progress + chip + small button",
-                    "- Reward track: item-slot per milestone, connectors 3px, done = solid",
-                    "- Bottom sheet: panel with 18px top radius + handle bar 44×5",
-                    "- Waypoint: medallion; the current waypoint adds a 2px pulse ring at +8px",
-                  ].join("\n"),
-                });
-              }
-              if (which === "all" || which === "components") KIT_COMPONENTS.filter((c2) => kitVisible(c2.id, st.componentReleases, st.isAdmin)).forEach(({ id: cid }) => {
-                const kb = cid === "progress" || cid === "segbar" ? st.kitBar[cid] : undefined;
-                files.push({ path: `components/${cid}.svg`, data: renderKit(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns[cid]), st.kitTextFill[cid]), cid, effKitSize(st.kitSizes[cid]), "default", st.kitVals[cid], st.kitShapes[cid], { expand: true, themedText: !!st.kitDesigns[cid]?.type || !!st.kitTextFill[cid], icon: resolveKitIcon(st.kitIcons[cid], undefined), label: st.kitNoText[cid] ? "" : st.kitLabels[cid], slots: st.kitSlotVals[cid], textOy: st.kitTextOy[`${cid}:${effKitSize(st.kitSizes[cid])}`], textOx: st.kitTextOx[`${cid}:${effKitSize(st.kitSizes[cid])}`], bar: kb, dock: kb?.dock ? { icon: resolveKitIcon(st.kitIcons[cid], undefined), side: kb.dockSide ?? "left" } : undefined, row: cid === "datarow" ? st.kitRow : undefined }) });
-              });
-              if (which === "all") {
-                files.push({
-                  path: "9slice.json",
-                  data: JSON.stringify({
-                    note: "Fixed-cap insets for stretchable pieces. Values are fractions of the piece's shell height H: the caps are capScale×H px wide and must not stretch; only the center region stretches. content gives the text-safe insets.",
-                    // unlisted preview silhouettes stay out of public exports —
-                    // EXCEPT ones this kit actually wears: the README tells the
-                    // user to slice by this file, so their own shapes must be in it
-                    silhouettes: (() => {
-                      const used = new Set([st.cfg.shape, ...Object.values(st.kitShapes)]);
-                      return SILHOUETTES.filter((s) => !s.preview || st.isAdmin || used.has(s.id)).map((s) => ({ id: s.id, name: s.name, capScale: s.capScale, content: s.content }));
-                    })(),
-                  }, null, 2),
-                });
-                files.push({
-                  path: "README.md",
-                  data: [
-                    "# UI Kit asset pack", "",
-                    "Layered SVGs from UI Kit Maker. Every component keeps named groups —",
-                    "cast-shadow, extrusion, shell, face, content, gloss, specular — so Figma", "imports them as a readable layer tree.", "",
-                    "## Figma", "Drag any SVG onto the canvas. Ungroup once to reach the named layers.", "",
-                    "## Illustrator", "Open directly. You may see 'Clipping will be lost on roundtrip to Tiny' —",
-                    "that warning concerns re-SAVING to the SVG Tiny profile; the artwork imports",
-                    "completely. The candy face requires one clip group (gloss, pattern and",
-                    "speculars must stay inside the face), which is what triggers the notice.", "",
-                    "## Nine-slice scaling", "See 9slice.json: caps are fixed (capScale × shell height), centers stretch.",
-                    "The `content` insets are the text-safe area used by the generator itself.",
-                    ...(sliceRisks(st.cfg).length
-                      ? ["", "## Effects that do not survive stretching",
-                        ...sliceRisks(st.cfg).map((r) => `- ${r}`),
-                        "Render one-off components from the app when these must stay intact."]
-                      : []),
-                  ].join("\n"),
-                });
-              }
-              files.push({ path: "LICENCE.txt", data: grant.licence });
-              downloadZip(`ui-kit-${which}.zip`, files);
-            })}><Download size={12} strokeWidth={2.2} /> {capn}</button>
-          ))}
-        </div>
-        <div className="kp-subhead">Material &amp; structural layers</div>
-        <div className="kp-parts">
-          {layerCards.map((lc) => (
-            <button className="kp-part" key={lc.name} title={`Open ${lc.name} in the editor`} onClick={() => openEditor(lc.sec)}>
-              <Art svg={lc.svg} scale={0.26} />
-              <span className="kp-partname">{lc.name}</span>
-              <Meta items={lc.meta} />
-            </button>
-          ))}
-        </div>
-        <div className="kp-subhead">Control pieces</div>
-        <div className="kp-tray">
-          <Piece id="slider" caption="Track · Fill · Thumb" value={0.62} />
-          <Piece id="toggle" caption="Track · Knob" value={1} />
-          <Piece id="progress" caption="Fill · Cap" value={0.62} />
-          <Piece id="badge" caption="Badge face · rim" label="7" />
-        </div>
-        <div className="kp-meta">
-          <span>Thumb / knob · Fixed, never scales with track</span><span>Track · Stretch X</span>
-          <span>Fill · Stretch X, ends at thumb center</span><span>All recolor via the five wells</span>
-        </div>
-        <div className="kp-subhead">Typography treatment — live layered recipe</div>
-        <div className="kp-recipe">
-          {recipe.map((r) => (
-            <button className="kp-part wide" key={r.name} title="Open Typography in the editor" onClick={() => openEditor("typography")}>
-              <Art svg={r.svg} scale={0.62} />
-              <span className="kp-partname">{r.name}</span>
-            </button>
-          ))}
-        </div>
-      </Sec>
-
-      {/* ── nine-slice & anatomy — the stretch contract, as its own chapter beat ── */}
-      <Sec n="02" title="Nine-Slice & Anatomy" note="Corners fixed, edges stretch on one axis, the center stretches on both. Every silhouette ships this contract as data (9slice.json).">
-        <p className="kp-note">Every silhouette is procedural three-slice geometry: caps are sized by height and never distort; only the middle stretches. Magenta dashes mark the fixed caps, green marks the text-safe area.</p>
-        {sliceRisks(cfg).length > 0 && (
-          <div className="kp-slicenote">
-            <b>Heads-up — this design carries effects a stretched slice can't keep:</b>
-            <ul>{sliceRisks(cfg).map((r) => <li key={r}>{r}</li>)}</ul>
-            <span>The exported slices scale cleanly without them. When a piece needs these effects intact at a specific size, render that one-off component straight from the app instead — it repaints every effect for the exact proportion.</span>
-          </div>
-        )}
-        <div className="kp-slices">
-          <SliceDemo cfg={cfg} label="GO" fit={300} />
-          <SliceDemo cfg={cfg} label={label} fit={380} />
-          <SliceDemo cfg={cfg} label="CONTINUE YOUR ADVENTURE" fit={520} ruler />
-        </div>
-        <div className="kp-meta">
-          <span>Left cap · Fixed</span><span>Center · Stretch X</span><span>Right cap · Fixed</span>
-          <span>Panel corners · Fixed</span><span>Panel edges · Stretch</span><span>Panel center · Stretch X/Y</span>
-        </div>
-        <div className="kp-meta"><span>Corners · fixed</span><span>Edges · stretch one axis</span><span>Center · stretches both</span><span>Text stays inside the green safe area</span></div>
-      </Sec>
-
-      {/* ── 15 · motion ── */}
-      {/* ── 11 · containers & assemblies ── */}
-      <Sec n="03" title="Containers & Assemblies" note="Compound pieces built entirely from registered components — no new materials, no one-off styling. Included in the Build Parts downloads.">
-        <div className="kp-subhead">Container shapes</div>
-        <div className="kp-tray">
-          <Piece id="panel" caption="Container · Panel" size="s" scale={0.4} />
-          <Piece id="panel" caption="Container · Round" kind="circle" size="s" scale={0.4} />
-          <Piece id="panel" caption="Container · Oval" kind="oval" size="s" scale={0.4} />
-          <Piece id="panel" caption="Container · Dialogue strip" kind="strip" size="s" scale={0.4} />
-        </div>
-        <div className="kp-tray">
-          <Piece id="panel" size="s" caption="Panel · S" />
-          <Piece id="panel" size="m" caption="Panel · M" />
-        </div>
-        <div className="kp-patterns kp-assemblies">
-          <div className="gp-card">
-            <div className="gp-title">Titled panel</div>
-            <PPiece id="tab" label="INVENTORY" scale={0.48} />
-            <PPiece id="panel" size="s" scale={0.62} />
-          </div>
-          <div className="gp-card">
-            <div className="gp-title">Confirmation modal</div>
-            <PPiece id="header" label="ARE YOU SURE?" scale={0.42} />
-            <span className="gp-label">This can’t be undone.</span>
-            <div className="gp-row center">
-              <PPiece id="small" label="YES" scale={0.48} />
-              <PPiece id="ghost" label="Cancel" size="s" scale={0.48} />
-            </div>
-            <PPiece id="iconbtn" icon={STOCK_ICONS.close} scale={0.35} />
-          </div>
-          <div className="gp-card">
-            <div className="gp-title">Toast · Tooltip</div>
-            <div className="gp-row center">
-              <PPiece id="badge" baseState="pressed" icon={STOCK_ICONS.info} scale={0.42} />
-              <span className="gp-label">Saved to the cloud</span>
-            </div>
-            <PPiece id="chip" label="Tooltip text" icon={null} scale={0.48} />
-          </div>
-          <div className="gp-card">
-            <div className="gp-title">List row · Item slot</div>
-            <div className="gp-row">
-              <PPiece id="iconbtn" icon={STOCK_ICONS.bag} scale={0.38} />
-              <span className="gp-label">Mystic Blade</span>
-              <PPiece id="iconbtn" icon={STOCK_ICONS.forward} scale={0.32} />
-            </div>
-            <div className="gp-row center">
-              <PPiece id="iconbtn" icon={STOCK_ICONS.gem} scale={0.45} />
-              <PPiece id="badge" label="3" scale={0.38} />
-            </div>
-          </div>
-          <div className="gp-card">
-            <div className="gp-title">Avatar · Medallion · Stat chips</div>
-            <div className="gp-row center">
-              <PPiece id="iconbtn" icon={STOCK_ICONS.user} scale={0.45} />
-              <PPiece id="badge" baseState="pressed" scale={0.45} />
-            </div>
-            <div className="gp-row center">
-              <PPiece id="chip" label="STR 42" icon={null} scale={0.45} />
-              <PPiece id="chip" label="980" icon={STOCK_ICONS.gem} scale={0.45} />
-            </div>
-          </div>
-          <div className="gp-card">
-            <div className="gp-title">HUD strip · Loading</div>
-            <div className="gp-row center">
-              <PPiece id="chip" label="×3" icon={STOCK_ICONS.heart} scale={0.42} />
-              <PPiece id="progress" value={0.62} scale={0.48} ambient />
-              <PPiece id="chip" label="980" icon={STOCK_ICONS.gem} scale={0.42} />
-            </div>
-            <div className="gp-row center">
-              <PPiece id="badge" baseState="pressed" icon={STOCK_ICONS.refresh} scale={0.38} />
-              <span className="gp-label">Loading level…</span>
-            </div>
-          </div>
-          <div className="gp-card">
-            <div className="gp-title">Empty state</div>
-            <PPiece id="badge" baseState="pressed" icon={STOCK_ICONS.search} scale={0.48} />
-            <PPiece id="tab" label="NOTHING HERE" scale={0.48} />
-            <span className="gp-label">Your collection is waiting to begin.</span>
-            <PPiece id="small" label="EXPLORE" scale={0.51} />
-          </div>
-          <div className="gp-card">
-            <div className="gp-title">Error state</div>
-            <PPiece id="badge" baseState="pressed" icon={STOCK_ICONS.warning} scale={0.48} />
-            <PPiece id="tab" label="SOMETHING BROKE" scale={0.48} />
-            <span className="gp-label">That didn’t work — try again.</span>
-            <div className="gp-row center">
-              <PPiece id="small" label="RETRY" scale={0.48} />
-              <PPiece id="ghost" label="Back" size="s" scale={0.48} />
-            </div>
-          </div>
-          <div className="gp-card">
-            <div className="gp-title">Bottom sheet · collapsed</div>
-            <div className="kp-sheet collapsed">
-              <span className="kp-handle" />
-              <div className="gp-row">
-                <span className="gp-label">Squad details</span>
-                <PPiece id="iconbtn" icon={STOCK_ICONS.forward} scale={0.5} />
-              </div>
-            </div>
-          </div>
-          <div className="gp-card">
-            <div className="gp-title">Bottom sheet · expanded</div>
-            <div className="kp-sheet">
-              <span className="kp-handle" />
-              <div className="gp-row"><span className="gp-label">Squad details</span><PPiece id="iconbtn" icon={STOCK_ICONS.close} scale={0.46} /></div>
-              <PPiece id="datarow" value={0.4} scale={0.48} />
-              <PPiece id="datarow" label="Iron Golem" sub="Level 8 · Tank" value={0.7} scale={0.48} />
-              <div className="kp-sheetfoot"><PPiece id="small" label="DEPLOY" scale={0.45} /></div>
-            </div>
-          </div>
-        </div>
-      </Sec>
-
-      {/* ── 12 · reward & objectives ── */}
-      <Sec n="04" title="Reward Track & Objectives" note="Progression assemblies built from registered components. The track visualizes milestone rewards; objectives drive player progression and grant resources.">
+      {/* ── 06 · reward track & objectives ── */}
+      <Sec n={rewardsVis ? "06" : "05"} title="Reward Track & Objectives" note="Progression assemblies built from registered components. The track visualizes milestone rewards; objectives drive player progression and grant resources.">
         <div className="kp-subhead">Reward track</div>
         <div className="kp-track3" ref={trackRailRef}>
           <span className="kp-rail3" aria-hidden="true"><i /><em /></span>
@@ -3490,153 +3426,48 @@ const kitTier = useGen((s) => s.tier);
         </div>
       </Sec>
 
-      {/* ── 13 · onboarding & map ── */}
-      <Sec n="05" title="Onboarding & Map" note="Tutorial and map primitives. The spotlight and ring point at components without changing them.">
-        <div className="kp-patterns kp-assemblies">
-          <div className="gp-card">
-            <div className="gp-title">Speech bubble · coachmark</div>
-            <div className="kp-bubblerow">
-              <PPiece id="iconbtn" icon={STOCK_ICONS.user} scale={0.6} />
-              <div className="kp-bubble">Tap the glowing button to start your first quest!</div>
-            </div>
-            <div className="kp-coach">
-              <span className="kp-step">1 / 3</span>
-              <span className="gp-label">This is your energy meter.</span>
-              <div className="gp-row center">
-                <PPiece id="small" label="NEXT" scale={0.56} />
-                <PPiece id="ghost" label="Skip" size="s" scale={0.5} />
-              </div>
-            </div>
-          </div>
-          <div className="gp-card">
-            <div className="gp-title">Spotlight · target ring</div>
-            <div className="kp-dim">
-              {/* the ring IS the treatment — it points at any registered
-                  component without wrapping or altering it */}
-              <span className="kp-spot pure">
-                <span className="kp-ringpulse" />
-                <span className="kp-spothole" />
-              </span>
-              <span className="kp-pointer">▲</span>
-              <span className="gp-label">The ring targets any component — nothing is nested inside it</span>
-            </div>
-            <div className="kp-dim">
-              <span className="kp-locpin"><span className="kp-ringpulse" /><span className="kp-locdot" /></span>
-              <span className="gp-label">Current-location marker</span>
-            </div>
-          </div>
-          <div className="gp-card">
-            <div className="gp-title">Waypoints · connectors</div>
-            <div className="kp-map" ref={mapRailRef}>
-              <span className="kp-line done" />
-              <span className="kp-line" />
-              <div className="kp-nodes">
-                <div className="kp-node"><PPiece id="badge" baseState="pressed" icon={STOCK_ICONS.check} scale={0.5} /><span>Done</span></div>
-                <div className="kp-node sel"><span className="kp-ringpulse" /><PPiece id="badge" label="4" scale={0.5} baseState="hover" /><span>Current</span></div>
-                <div className="kp-node"><PPiece id="badge" baseState="pressed" icon={STOCK_ICONS.lock} scale={0.5} /><span>Locked</span></div>
-              </div>
-              <div className="gp-row center">
-                <PPiece id="iconbtn" icon={STOCK_ICONS.search} scale={0.4} trim />
-                <PPiece id="iconbtn" icon={STOCK_ICONS.home} scale={0.4} trim />
-              </div>
-            </div>
-          </div>
+      <Sec n={rewardsVis ? "07" : "06"} title="Strategy & Social" note="The command layer and the people layer: production, tech, turns and scores; friends, chat, emotes, clans and the season pass. Team hues and premium gold are semantics; the emote wheel picks instantly — social is fast.">
+        <div className="kp-subhead">Command & production</div>
+        <div className="kp-tray kp-axis">
+          <Piece id="buildqueue" caption="Build queue" value={0.55} scale={0.5} />
+          <Piece id="unitplate" caption="Unit plate" value={0.82} scale={0.5} />
+          <Piece id="popmeter" caption="Population" value={0.84} scale={0.5} />
+          <Piece id="popmeter" caption="Near cap" value={0.95} scale={0.5} />
         </div>
-      </Sec>
-
-      <Sec n="06" title="Motion" note="Parameterized behaviors that apply to any piece. Click a card to replay it. Reduced-motion preference disables all of them.">
-        <div className="kp-motion">
-          {([
-            ["Attention pulse", "mo-pulse", { id: "small" as KitComponentId, label: "CLAIM" }, "Draw the eye to an idle action", "1.26s", "ease-in-out, loops"],
-            ["Bounce", "mo-bounce", { id: "badge" as KitComponentId, baseState: "pressed" as GenStateName }, "Celebrate a small win", "0.90s", "spring 0.3 / 1.6"],
-            ["Glow cycle", "mo-glow", { id: "chip" as KitComponentId, label: "+500", icon: STOCK_ICONS.gem }, "Ambient shimmer on claimables", "1.98s", "ease-in-out, loops"],
-            ["Error shake", "mo-shake", { id: "input" as KitComponentId, label: "Wrong code" }, "Reject an input without a dialog", "0.54s", "ease-in-out"],
-            ["Reward pop", "mo-pop", { id: "slot" as KitComponentId, icon: STOCK_ICONS.gem, overlay: "claimable" }, "Reveal a claimable reward", "0.63s", "overshoot 0.2 / 1.8"],
-            ["Press compression", "mo-press", { id: "small" as KitComponentId, label: "GO" }, "Tactile press acknowledgement", "0.45s", "ease-out"],
-            ["Notification entrance", "mo-slidein", { id: "resource" as KitComponentId, label: "+50" }, "Bring a counter update in from the edge", "0.63s", "decelerate"],
-            ["Panel slide", "mo-rise", { id: "tab" as KitComponentId, label: "NEW QUEST" }, "Raise a sheet or panel into view", "0.63s", "decelerate"],
-          ] as [string, string, PieceOpts, string, string, string][]).map(([name, cls, piece, purpose, dur, ease]) => (
-            <MotionDemo key={cls} name={name} cls={cls} piece={piece} purpose={purpose} dur={dur} ease={ease} />
-          ))}
+        <div className="kp-tray kp-axis">
+          <Piece id="techcard" caption="Researchable" scale={0.48} />
+          <Piece id="techcard" caption="Researched" label="KEEN SIGHT" icon={STOCK_ICONS.crosshair} overlay="done" scale={0.48} />
+          <Piece id="techcard" caption="Locked" label="???" overlay="locked" scale={0.48} />
+          <Piece id="endturn" caption="End turn · timer arc" value={0.7} scale={0.52} />
         </div>
-        <div className="kp-meta"><span>Durations scale with --mo-dur</span><span>Magnitude scales with --mo-mag</span><span>prefers-reduced-motion disables every behavior</span></div>
-      </Sec>
-
-      {/* ── proof of system — the chapter's conclusion ── */}
-      <Sec n="07" title="Proof of System" note="The Objective Card as a full game screen, assembled only from registered parts. If the rules hold here, they hold for anything you build.">
-        <div className="kp-proof" style={{
-          backgroundImage: [
-            `radial-gradient(ellipse 70% 90% at 82% 20%, ${hexMix(cfg.effects.Bevel ?? "#0E9CC9", dark ? "#05060C" : "#EDF0F8", 0.55)}, transparent 70%)`,
-            `radial-gradient(ellipse 60% 80% at 10% 85%, ${hexMix(cfg.effects.Glow ?? "#8FF0FF", dark ? "#05060C" : "#EDF0F8", 0.6)}, transparent 72%)`,
-            `linear-gradient(170deg, var(--st-bg1), var(--st-bg2) 75%)`,
-          ].join(", "),
-        }}>
-          <div className="kp-proofcard">
-            <div className="kp-prhead">
-              <SPiece id="header" label="DAILY OBJECTIVE" scale={0.4} />
-              <span className="lay-spring" />
-              <span className="kp-prcap">Time remaining</span>
-              <SPiece id="chip" label="14H 37M" icon={null} tone="alt" scale={0.36} />
-              <SPiece id="iconbtn" icon={STOCK_ICONS.close} scale={0.3} />
-            </div>
-            <div className="kp-prmain">
-              <div className="kp-prleft">
-                <div className="kp-prtitle">
-                  <SPiece id="badge" baseState="pressed" icon={STOCK_ICONS.trophy} scale={0.5} />
-                  <div>
-                    <h3>Win 3 matches in ranked mode</h3>
-                    <p>Compete in ranked matches and secure 3 victories to earn your reward.</p>
-                  </div>
-                </div>
-                <span className="kp-prcap">Progress</span>
-                <div className="kp-prprog">
-                  <SPiece id="progress" value={0.66} ambient scale={0.5} />
-                  <b>2 / 3</b>
-                </div>
-              </div>
-              <div className="kp-prrewards">
-                <span className="kp-prcap">Rewards</span>
-                <div className="kp-prrgrid">
-                  <div className="kp-prreward"><SPiece id="slot" icon={STOCK_ICONS.gem} overlay="claimable" scale={0.5} /><b>+250</b><span>gems</span></div>
-                  <div className="kp-prreward"><SPiece id="slot" icon={STOCK_ICONS.bag} overlay="count:1" scale={0.5} /><b>Premium crate</b><span>×1</span></div>
-                </div>
-              </div>
-            </div>
-            <div className="kp-prtrack">
-              <span className="kp-prcap">Milestone tracker</span>
-              <div className="kp-prstops">
-                {([
-                  ["1 win", "50 gems", "done", <SPiece key="1" id="checkbox" scale={0.3} />],
-                  ["2 wins", "100 gems", "done", <SPiece key="2" id="checkbox" scale={0.3} />],
-                  ["3 wins", "250 + crate", "current", <SPiece key="3" id="badge" baseState="pressed" icon={STOCK_ICONS.trophy} scale={0.4} />],
-                  ["5 wins", "500 gems", "next", <SPiece key="5" id="slot" size="s" icon={STOCK_ICONS.lock} overlay="locked" scale={0.32} />],
-                  ["7 wins", "Legendary crate", "next", <SPiece key="7" id="slot" size="s" icon={STOCK_ICONS.lock} overlay="locked" scale={0.32} />],
-                ] as [string, string, string, React.ReactNode][]).map(([w, prize, st, node], i) => (
-                  <div className={`kp-prstop ${st}`} key={w}>
-                    {i > 0 && <span className={`kp-prconn ${st === "next" ? "pending" : "done"}`} />}
-                    <div className="kp-prnode">{node}</div>
-                    <b>{w}</b><span>{prize}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="kp-prfoot">
-              <SPiece id="ghost" label="OBJECTIVES" size="s" scale={0.4} />
-              <SPiece id="primary" label="CLAIM REWARD" scale={0.56} />
-              <SPiece id="ghost" label="SHARE" size="s" scale={0.4} />
-            </div>
-          </div>
+        <div className="kp-subhead">Match & score</div>
+        <div className="kp-tray kp-axis">
+          <Piece id="scorebug" caption="Score bug" value={0.52} scale={0.5} />
         </div>
-        <div className="kp-meta">
-          <span>Built entirely from: Foundations (color, type, material)</span><span>Components (buttons, slots, progress)</span><span>Assemblies (banner, tracker, rewards)</span><span>System rules (spacing, radius, glow)</span><span>Backdrop: blurred tints derived from the kit's own color roles</span>
+        <div className="kp-subhead">Friends & clans</div>
+        <div className="kp-tray kp-axis">
+          <Piece id="friendrow" caption="Online · joinable" value={1} scale={0.5} />
+          <Piece id="friendrow" caption="Offline" label="STORM_BREW" value={0} scale={0.5} />
+          <Piece id="clancrest" caption="Clan crest" scale={0.5} />
         </div>
+        <div className="kp-tray kp-axis">
+          <Piece id="chatbubble" caption="Chat bubble" scale={0.5} />
+          <Piece id="chatbubble" caption="Long message · grows" label="anyone up for one more round before the season resets? need two for the weekly" scale={0.5} />
+          <Piece id="emotewheel" caption="Emote wheel · click to pick" value={0} scale={0.48} />
+        </div>
+        <div className="kp-subhead">Season pass & honors</div>
+        <div className="kp-tray kp-axis">
+          <Piece id="seasontrack" caption="Season track · free / premium" value={0.5} scale={0.48} />
+          <Piece id="achievetoast" caption="Achievement toast" scale={0.5} />
+        </div>
+        <Meta items={["Team blue/red and premium gold are semantics", "the emote wheel selects instantly — no spin", "the end-turn arc is the turn timer", "score bug and instruments keep the dark-well rule", "plates, cards, crests and rows are real buttons"]} />
       </Sec>
 
       </>}</Deferred>
-      <Chapter n="04" id="patterns" label="Screen Patterns" blurb="Complete screens composed from the system." />
-      <Deferred estH={5200} eager={bootN >= 3} onLive={bootAdvance}>{() => <>
+      <Chapter n={chapN("patterns")} id="patterns" label="Screen Patterns" blurb="Complete screens and starters composed from the system — with onboarding, motion and the proof." />
+      <Deferred estH={4800} eager={bootN >= 4} onLive={bootAdvance}>{() => <>
 
-      {/* ── 16 · patterns — editorial case study, three meaningful groups ── */}
+      {/* ── 01 · patterns — editorial case study, three meaningful groups ── */}
       <Sec n="01" title="Screen Patterns" wide note="Complete interface compositions built entirely from registered kit components. Every pattern remains live, editable, and connected to the same underlying design system.">
         <nav className="pat-tabs" aria-label="Pattern groups">
           {([["all", "All"], ["core", "Core Screens"], ["outcome", "Feedback & Outcomes"], ["state", "Empty & Error"]] as const).map(([id, name]) => (
@@ -3883,9 +3714,151 @@ const kitTier = useGen((s) => s.tier);
         </div>
       </Sec>
 
+      {/* ── 03 · onboarding & map ── */}
+      <Sec n="03" title="Onboarding & Map" note="Tutorial and map primitives. The spotlight and ring point at components without changing them.">
+        <div className="kp-patterns kp-assemblies">
+          <div className="gp-card">
+            <div className="gp-title">Speech bubble · coachmark</div>
+            <div className="kp-bubblerow">
+              <PPiece id="iconbtn" icon={STOCK_ICONS.user} scale={0.6} />
+              <div className="kp-bubble">Tap the glowing button to start your first quest!</div>
+            </div>
+            <div className="kp-coach">
+              <span className="kp-step">1 / 3</span>
+              <span className="gp-label">This is your energy meter.</span>
+              <div className="gp-row center">
+                <PPiece id="small" label="NEXT" scale={0.56} />
+                <PPiece id="ghost" label="Skip" size="s" scale={0.5} />
+              </div>
+            </div>
+          </div>
+          <div className="gp-card">
+            <div className="gp-title">Spotlight · target ring</div>
+            <div className="kp-dim">
+              {/* the ring IS the treatment — it points at any registered
+                  component without wrapping or altering it */}
+              <span className="kp-spot pure">
+                <span className="kp-ringpulse" />
+                <span className="kp-spothole" />
+              </span>
+              <span className="kp-pointer">▲</span>
+              <span className="gp-label">The ring targets any component — nothing is nested inside it</span>
+            </div>
+            <div className="kp-dim">
+              <span className="kp-locpin"><span className="kp-ringpulse" /><span className="kp-locdot" /></span>
+              <span className="gp-label">Current-location marker</span>
+            </div>
+          </div>
+          <div className="gp-card">
+            <div className="gp-title">Waypoints · connectors</div>
+            <div className="kp-map" ref={mapRailRef}>
+              <span className="kp-line done" />
+              <span className="kp-line" />
+              <div className="kp-nodes">
+                <div className="kp-node"><PPiece id="badge" baseState="pressed" icon={STOCK_ICONS.check} scale={0.5} /><span>Done</span></div>
+                <div className="kp-node sel"><span className="kp-ringpulse" /><PPiece id="badge" label="4" scale={0.5} baseState="hover" /><span>Current</span></div>
+                <div className="kp-node"><PPiece id="badge" baseState="pressed" icon={STOCK_ICONS.lock} scale={0.5} /><span>Locked</span></div>
+              </div>
+              <div className="gp-row center">
+                <PPiece id="iconbtn" icon={STOCK_ICONS.search} scale={0.4} trim />
+                <PPiece id="iconbtn" icon={STOCK_ICONS.home} scale={0.4} trim />
+              </div>
+            </div>
+          </div>
+        </div>
+      </Sec>
+
+      <Sec n="04" title="Motion" note="Parameterized behaviors that apply to any piece. Click a card to replay it. Reduced-motion preference disables all of them.">
+        <div className="kp-motion">
+          {([
+            ["Attention pulse", "mo-pulse", { id: "small" as KitComponentId, label: "CLAIM" }, "Draw the eye to an idle action", "1.26s", "ease-in-out, loops"],
+            ["Bounce", "mo-bounce", { id: "badge" as KitComponentId, baseState: "pressed" as GenStateName }, "Celebrate a small win", "0.90s", "spring 0.3 / 1.6"],
+            ["Glow cycle", "mo-glow", { id: "chip" as KitComponentId, label: "+500", icon: STOCK_ICONS.gem }, "Ambient shimmer on claimables", "1.98s", "ease-in-out, loops"],
+            ["Error shake", "mo-shake", { id: "input" as KitComponentId, label: "Wrong code" }, "Reject an input without a dialog", "0.54s", "ease-in-out"],
+            ["Reward pop", "mo-pop", { id: "slot" as KitComponentId, icon: STOCK_ICONS.gem, overlay: "claimable" }, "Reveal a claimable reward", "0.63s", "overshoot 0.2 / 1.8"],
+            ["Press compression", "mo-press", { id: "small" as KitComponentId, label: "GO" }, "Tactile press acknowledgement", "0.45s", "ease-out"],
+            ["Notification entrance", "mo-slidein", { id: "resource" as KitComponentId, label: "+50" }, "Bring a counter update in from the edge", "0.63s", "decelerate"],
+            ["Panel slide", "mo-rise", { id: "tab" as KitComponentId, label: "NEW QUEST" }, "Raise a sheet or panel into view", "0.63s", "decelerate"],
+          ] as [string, string, PieceOpts, string, string, string][]).map(([name, cls, piece, purpose, dur, ease]) => (
+            <MotionDemo key={cls} name={name} cls={cls} piece={piece} purpose={purpose} dur={dur} ease={ease} />
+          ))}
+        </div>
+        <div className="kp-meta"><span>Durations scale with --mo-dur</span><span>Magnitude scales with --mo-mag</span><span>prefers-reduced-motion disables every behavior</span></div>
+      </Sec>
+
+      {/* ── proof of system — the chapter's conclusion ── */}
+      <Sec n="05" title="Proof of System" note="The Objective Card as a full game screen, assembled only from registered parts. If the rules hold here, they hold for anything you build.">
+        <div className="kp-proof" style={{
+          backgroundImage: [
+            `radial-gradient(ellipse 70% 90% at 82% 20%, ${hexMix(cfg.effects.Bevel ?? "#0E9CC9", dark ? "#05060C" : "#EDF0F8", 0.55)}, transparent 70%)`,
+            `radial-gradient(ellipse 60% 80% at 10% 85%, ${hexMix(cfg.effects.Glow ?? "#8FF0FF", dark ? "#05060C" : "#EDF0F8", 0.6)}, transparent 72%)`,
+            `linear-gradient(170deg, var(--st-bg1), var(--st-bg2) 75%)`,
+          ].join(", "),
+        }}>
+          <div className="kp-proofcard">
+            <div className="kp-prhead">
+              <SPiece id="header" label="DAILY OBJECTIVE" scale={0.4} />
+              <span className="lay-spring" />
+              <span className="kp-prcap">Time remaining</span>
+              <SPiece id="chip" label="14H 37M" icon={null} tone="alt" scale={0.36} />
+              <SPiece id="iconbtn" icon={STOCK_ICONS.close} scale={0.3} />
+            </div>
+            <div className="kp-prmain">
+              <div className="kp-prleft">
+                <div className="kp-prtitle">
+                  <SPiece id="badge" baseState="pressed" icon={STOCK_ICONS.trophy} scale={0.5} />
+                  <div>
+                    <h3>Win 3 matches in ranked mode</h3>
+                    <p>Compete in ranked matches and secure 3 victories to earn your reward.</p>
+                  </div>
+                </div>
+                <span className="kp-prcap">Progress</span>
+                <div className="kp-prprog">
+                  <SPiece id="progress" value={0.66} ambient scale={0.5} />
+                  <b>2 / 3</b>
+                </div>
+              </div>
+              <div className="kp-prrewards">
+                <span className="kp-prcap">Rewards</span>
+                <div className="kp-prrgrid">
+                  <div className="kp-prreward"><SPiece id="slot" icon={STOCK_ICONS.gem} overlay="claimable" scale={0.5} /><b>+250</b><span>gems</span></div>
+                  <div className="kp-prreward"><SPiece id="slot" icon={STOCK_ICONS.bag} overlay="count:1" scale={0.5} /><b>Premium crate</b><span>×1</span></div>
+                </div>
+              </div>
+            </div>
+            <div className="kp-prtrack">
+              <span className="kp-prcap">Milestone tracker</span>
+              <div className="kp-prstops">
+                {([
+                  ["1 win", "50 gems", "done", <SPiece key="1" id="checkbox" scale={0.3} />],
+                  ["2 wins", "100 gems", "done", <SPiece key="2" id="checkbox" scale={0.3} />],
+                  ["3 wins", "250 + crate", "current", <SPiece key="3" id="badge" baseState="pressed" icon={STOCK_ICONS.trophy} scale={0.4} />],
+                  ["5 wins", "500 gems", "next", <SPiece key="5" id="slot" size="s" icon={STOCK_ICONS.lock} overlay="locked" scale={0.32} />],
+                  ["7 wins", "Legendary crate", "next", <SPiece key="7" id="slot" size="s" icon={STOCK_ICONS.lock} overlay="locked" scale={0.32} />],
+                ] as [string, string, string, React.ReactNode][]).map(([w, prize, st, node], i) => (
+                  <div className={`kp-prstop ${st}`} key={w}>
+                    {i > 0 && <span className={`kp-prconn ${st === "next" ? "pending" : "done"}`} />}
+                    <div className="kp-prnode">{node}</div>
+                    <b>{w}</b><span>{prize}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="kp-prfoot">
+              <SPiece id="ghost" label="OBJECTIVES" size="s" scale={0.4} />
+              <SPiece id="primary" label="CLAIM REWARD" scale={0.56} />
+              <SPiece id="ghost" label="SHARE" size="s" scale={0.4} />
+            </div>
+          </div>
+        </div>
+        <div className="kp-meta">
+          <span>Built entirely from: Foundations (color, type, material)</span><span>Components (buttons, slots, progress)</span><span>Assemblies (banner, tracker, rewards)</span><span>System rules (spacing, radius, glow)</span><span>Backdrop: blurred tints derived from the kit's own color roles</span>
+        </div>
+      </Sec>
+
       </>}</Deferred>
-      <Chapter n="05" id="resources" label="Resources" blurb="Files, formats and integration notes." />
-      <Deferred estH={1600} eager={bootN >= 4} onLive={bootAdvance}>{() => <>
+      <Chapter n={chapN("resources")} id="resources" label="Resources" blurb="Files, formats and integration notes." />
+      <Deferred estH={1600} eager={bootN >= 5} onLive={bootAdvance}>{() => <>
 
       <Sec n="01" title="Export & Integration" note="Layered SVG first — Figma reads the named groups directly. Category downloads sit with Build Parts above; engine sprite kits export from the toolbar.">
         <SpecList rows={[

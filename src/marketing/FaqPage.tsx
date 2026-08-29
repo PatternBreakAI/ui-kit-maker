@@ -164,7 +164,7 @@ const FAQ: FaqCat[] = [
       },
       {
         q: "What is the free Unity test kit?",
-        a: "A **stock evaluation kit** every registered account can download — one canned, pre-built Unity ZIP (currently the **Hot Rod** kit), the same fixed artifact for everyone. It is **not your design**: it exists so you can prove the whole import pipeline (prefabs, scenes, gauges, live text) in your engine before paying anything. Sign in, open your kit page, and it's in the export menu. When you upgrade, the same flow delivers your own kit instead.",
+        a: "A **free stock kit** every registered account can download — one canned, pre-built Unity ZIP (currently the **Brightside** kit), the same fixed artifact for everyone. It is **not your design**, but it is **yours to ship** — commercial projects included; the licence rides inside the ZIP — and it proves the whole import pipeline (prefabs, scenes, gauges, live text) in your engine before you pay anything. Sign in, open your kit page, and it's in the export menu. When you upgrade, the same flow delivers your own kit instead.",
       },
       {
         q: "Will my SVGs look identical in Figma or Illustrator?",

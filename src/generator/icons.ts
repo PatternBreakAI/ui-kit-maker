@@ -167,9 +167,22 @@ export function previewSvg(def: IconDef, size = 17): string {
   return `<svg viewBox="${def.viewBox}" width="${size}" height="${size}" ${paint} color="currentColor">${def.inner}</svg>`;
 }
 
+/* fill-weight morphology ids — normalized away by the byte fences like
+   every other UID family */
+let FW_UID = 0;
+
 /** Positioned, colored icon group for embedding in a component SVG string. */
 export function iconGroup(def: IconDef, x: number, y: number, size: number, color: string, opts: {
   strokeWidth?: number; opacity?: number; rotation?: number; filter?: string;
+  /** Weight factor for FILL-mode glyphs (1 = as authored). Stroke glyphs
+   *  carry weight in `strokeWidth`; filled glyphs (Phosphor, Game Icons,
+   *  Remix) have no stroke to widen, so the Icons panel's Weight dial was
+   *  dead on three of the seven libraries. A feMorphology dilate/erode on
+   *  the glyph's own rendering moves the silhouette edge by the same
+   *  distance the equivalent stroke-width change would — the dial now
+   *  means the same thing in every library. Exactly 1 (or absent) emits
+   *  byte-identical markup to before. */
+  fillWeight?: number;
 } = {}): string {
   const vb = def.viewBox.split(/[\s,]+/).map(Number);
   const vx = vb[0] || 0, vy = vb[1] || 0, vw = vb[2] || 24, vh = vb[3] || 24;
@@ -182,5 +195,18 @@ export function iconGroup(def: IconDef, x: number, y: number, size: number, colo
     : `fill="${color}" stroke="none"`;
   const op = opts.opacity !== undefined && opts.opacity < 1 ? ` opacity="${opts.opacity.toFixed(2)}"` : "";
   const filt = opts.filter ? ` style="filter:${opts.filter}"` : "";
-  return `<g transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${s.toFixed(4)})${rot} translate(${-vx} ${-vy})" color="${color}" ${paint}${op}${filt}>${def.inner}</g>`;
+  /* edge shift matches the stroke world: a stroke going 2.4 → sw moves each
+     edge by (sw − 2.4)/2, i.e. 1.2·(fw − 1) at fw = sw/2.4. Same clamp
+     window as bevel's iconWK. The filter rides an INNER group so the erode/
+     dilate radius lives in the glyph's own viewBox units (swScale applies),
+     and the region is widened so a dilated glyph never clips. */
+  const fw = def.mode === "fill" && opts.fillWeight !== undefined
+    ? Math.min(1.8, Math.max(0.35, opts.fillWeight)) : 1;
+  let inner = def.inner;
+  if (Math.abs(fw - 1) > 0.001) {
+    const shift = 1.2 * (fw - 1) * swScale;
+    const fid = `ifw${FW_UID++}`;
+    inner = `<defs><filter id="${fid}" x="-20%" y="-20%" width="140%" height="140%"><feMorphology operator="${shift > 0 ? "dilate" : "erode"}" radius="${Math.abs(shift).toFixed(2)}"/></filter></defs><g filter="url(#${fid})">${def.inner}</g>`;
+  }
+  return `<g transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${s.toFixed(4)})${rot} translate(${-vx} ${-vy})" color="${color}" ${paint}${op}${filt}>${inner}</g>`;
 }

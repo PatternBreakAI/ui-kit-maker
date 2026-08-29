@@ -1,13 +1,13 @@
 import { create } from "zustand";
 import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, GridStyle, CandyTokens, Shape, KitDesign, KitSlice } from "./model";
-import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, rollStatement, classicRack, presetById, PRESETS, PATTERN_TYPES, GAME_FONTS, customFontNames, ctaForFont, darken, hexMix, registerCustomFont, pickDesign, designDiff, deepMergeDesign, KIT_COMPONENTS, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, clampWeight, fontByName, sanitizeUnitySlug, baseOf, mintCloneId, CLONE_INELIGIBLE, isGlyphPiece } from "./model";
+import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, rollStatement, classicRack, presetById, PRESETS, PATTERN_TYPES, GAME_FONTS, customFontNames, ctaForFont, darken, hexMix, registerCustomFont, pickDesign, designDiff, deepMergeDesign, KIT_COMPONENTS, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, clampWeight, fontByName, sanitizeUnitySlug, baseOf, mintCloneId, CLONE_INELIGIBLE, isGlyphPiece, resolveKitIcon } from "./model";
 import type { KitClone } from "./model";
 import { ensureFont } from "./fonts";
 import { delBgOriginal, getBgOriginal, putBgOriginal } from "./bgvault";
 import { isAssetRef, resolveBgAsset, assetCloudBacked, bgAssetDisplayUrl } from "./assets";
 import { SILHOUETTES } from "./silhouettes";
 import type { UserShape } from "./model";
-import { addShine, renderBevel, renderTypeSpecimen } from "./bevel";
+import { addShine, renderBevel, renderKit, renderTypeSpecimen } from "./bevel";
 import { getDef } from "./icons";
 import { bigGlyphById, BIG_GLYPH_BASE, type BigGlyphFx } from "./bigGlyphs";
 import { listCloudPresets, publishCloudPreset, updateCloudPreset, deleteCloudPreset, setCloudPresetSchedule, listHiddenStarters, setHiddenStarters, listHiddenSilhouettes, setHiddenSilhouettes, myProfileTier, cloudStatus, listComponentReleases, saveComponentReleases, listPromos, readPromosLive, noteLocalDocReplaced, readGateSnapshot, writeGateSnapshot, hasStoredSession, type CloudPreset, type PromoDef, type ReleaseStatus } from "./cloud";
@@ -350,10 +350,14 @@ interface GenStore {
   setBoardBg: (patch: Partial<Pick<BoardDef, "bgImage" | "bgAssetId" | "bgVideo" | "bgShow" | "bgFit" | "bgOpacity" | "bgBlur" | "bgSat" | "bgHue" | "bgBright" | "bgContrast" | "bgNoise" | "ovMode" | "ovStrength" | "ovNoise" | "ovBlend" | "ovCenter">>) => void;
   addToBoard: (libId: string) => void;
   /** Freeze a BOARD PIECE — its component, baked design fork, pinned words
-   *  and value — as a named library asset. The master is never touched. */
+   *  and value — as a named library asset. The master is never touched.
+   *  The piece itself REBINDS to an editable clone twin of the saved asset
+   *  (same position/scale/dials), so Edit component opens the saved item;
+   *  one board undo restores the pre-save binding. */
   saveBoardItemAsAsset: (id: string, name: string) => void;
-  /** Append a pre-placed set of kit pieces (starter templates). */
-  addBoardItems: (items: { kitId?: KitComponentId; big?: BigGlyphFx; x: number; y: number; scale?: number; ov?: string }[]) => void;
+  /** Append a pre-placed set of pieces (starter templates, ghost drops) —
+   *  kit pieces, big-glyph tiles, or saved library assets (`libId`). */
+  addBoardItems: (items: { kitId?: KitComponentId; big?: BigGlyphFx; libId?: string; x: number; y: number; scale?: number; ov?: string }[]) => void;
   /** Drop a live kit component on the board — follows the master style.
    *  `ov` picks a render variant (the ghost joystick). */
   addKitToBoard: (kitId: KitComponentId, ov?: string) => void;
@@ -704,7 +708,13 @@ export interface LibKit {
   label?: string; v?: number;
 }
 export interface UserPreset { id: string; name: string; cfg: GenConfig; thumb?: string }
-export interface LibItem { id: string; name: string; cfg: GenConfig; kit?: LibKit }
+export interface LibItem {
+  id: string; name: string; cfg: GenConfig; kit?: LibKit;
+  /** Saved-from-the-Board twin: the EDITABLE kit clone minted at save time.
+   *  While it lives, the drawer tile thumbs/places/edits IT (live); once
+   *  deleted, the frozen cfg snapshot is the tombstone fallback. */
+  cloneId?: string;
+}
 export interface StyleItem {
   id: string; name: string;
   style: Pick<GenConfig, "effects" | "face" | "bevel" | "candy" | "lighting" | "shadow" | "transparency" | "type" | "states" | "stateDesigns">;
@@ -1168,7 +1178,10 @@ const releaseBgAsset = (id: string, remaining: () => BoardDef[]) => {
    (bgData) and drops session-bound object URLs and vault keys — the file
    works on any machine. Bundled paths (/backdrops/…) and https URLs ride
    as they are. Import is the mirror: bgData lands back in the vault under
-   a fresh key, every id is re-minted, and board history starts clean. */
+   a fresh key, board history starts clean, and the doc's own well-formed
+   ids ride along (the boardstamp filenames derive from them — see the id
+   contract at importBoards); only absent, foreign or duplicated ids mint
+   fresh. */
 const bgDataUrlOk = (s: string) => /^data:image\/(png|jpeg|webp|gif|avif);base64,[A-Za-z0-9+/=]+$/.test(s);
 const blobToDataUrl = (blob: Blob) => new Promise<string>((res, rej) => {
   const r = new FileReader();
@@ -1208,20 +1221,45 @@ export async function exportableBoards(bs: BoardDef[], opts?: { cloudRefs?: bool
    looking at (review catch: "B's kit with A's boards"). Every call takes
    a ticket; only the newest may write. */
 let importTicket = 0;
+/* ── the ID CONTRACT on the project-doc road (editability round, paper
+   cut 3): the Unity export names every boardstamp bake by its item's id
+   (sidOf), so re-minting ids on every open renamed the WHOLE corpus each
+   session — a kept Unity project ate a ~140-file orphan warning wall and
+   dead megabytes per update, and the importer's "re-exports overwrite
+   them in place" promise went silently false across sessions. A saved
+   doc's own ids are therefore PRESERVED when they wear the house mint
+   shape (lowercase base36 — the only shape safe in the DOM attribute
+   selectors and zip paths they feed) and are unique within the incoming
+   doc; everything else — absent (hand-built files), foreign shapes,
+   duplicates — mints fresh exactly as before. This is safe because the
+   import REPLACES the board state wholesale (selection and history reset
+   with it), so a preserved id can collide with nothing outside its own
+   doc — and the local-storage road (loadBoards) has preserved ids
+   verbatim since boards shipped, so every board rig already runs on
+   kept ids after a plain browser reload. */
+const boardIdOk = /^ab[a-z0-9]{1,32}$/;
+const itemIdOk = /^bd[a-z0-9]{1,32}$/;
 export async function importBoards(raw: unknown): Promise<boolean> {
   if (!Array.isArray(raw) || !raw.length) return false;
   const ticket = ++importTicket;
   const stamp = Date.now().toString(36);
   const boards: BoardDef[] = [];
+  const seenIds = new Set<string>();
+  const claimId = (want: unknown, ok: RegExp, mint: string): string => {
+    let id = typeof want === "string" && ok.test(want) && !seenIds.has(want) ? want : mint;
+    while (seenIds.has(id)) id += "x"; // same-doc duplicate → deterministic fresh name
+    seenIds.add(id);
+    return id;
+  };
   for (const [bi, rb] of (raw as unknown[]).entries()) {
     if (!rb || typeof rb !== "object") continue;
     const b = JSON.parse(JSON.stringify(rb)) as BoardDef & { bgData?: string; bgRef?: string };
-    b.id = "ab" + stamp + bi.toString(36);
+    b.id = claimId(b.id, boardIdOk, "ab" + stamp + bi.toString(36));
     b.name = typeof b.name === "string" ? b.name.slice(0, 40) : `Board ${bi + 1}`;
     b.aspect = b.aspect === "mobile" ? "mobile" : "169";
     b.items = Array.isArray(b.items)
       ? b.items.filter((it) => it && typeof it === "object")
-        .map((it, i) => ({ ...it, id: "bd" + stamp + bi.toString(36) + "i" + i.toString(36) }))
+        .map((it, i) => ({ ...it, id: claimId((it as BoardItem).id, itemIdOk, "bd" + stamp + bi.toString(36) + "i" + i.toString(36)) }))
       : [];
     // strings that end up in CSS url() get the same strictness as
     // loadKitPayload's travelling stage: known-safe shapes only
@@ -1771,28 +1809,93 @@ export const useGen = create<GenStore>((set, get) => ({
       ...(lbl !== undefined ? { label: lbl } : {}),
       ...(b.v !== undefined ? { v: b.v } : {}),
     };
-    const item: LibItem = { id: "lib" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name, cfg, kit };
-    const library = [...st.library, item];
+    /* ── the owner's rebind (2026-08-25: "the moment I save it as an asset
+       it should change the item on the board canvas to match, so when I
+       click to go edit, I'm automatically editing the new saved item" /
+       "I wanna be able to edit my new GO banner component").
+       The cfg snapshot above is FROZEN by design — the EDITABLE saved
+       asset is a kit clone (the duplicate-piece road), minted with the
+       saved name and pinned to this instance's words and value pose. The
+       LibItem records it as cloneId, so the drawer tile thumbs, places
+       and edits the LIVE twin while it exists (the frozen snapshot is
+       the tombstone fallback once it's deleted). The board copy rebinds
+       to it in place: same position, scale and dials, identity switched,
+       so Edit component opens the saved asset. The rebind is its own
+       board-history step — one ⌘Z restores the pre-save binding (the
+       drawer asset stays saved). Deleting the drawer asset later never
+       touches this copy: it lives on the clone, not the libId road.
+       datarow/panel sit out (CLONE_INELIGIBLE) and save drawer-only. */
+    const cloneId = get().duplicateKitPiece(b.kitId, name, "Other");
+    if (cloneId) {
+      const pins: Record<string, unknown> = {};
+      if (b.label !== undefined) pins.kitLabels = { ...get().kitLabels, [cloneId]: b.label };
+      if (b.v !== undefined) pins.kitVals = { ...get().kitVals, [cloneId]: b.v };
+      if (Object.keys(pins).length) {
+        set(pins as Partial<GenStore>);
+        for (const k of Object.keys(pins)) saveJson(KIT_STORE_KEY[k], pins[k]);
+      }
+    }
+    const item: LibItem = { id: "lib" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name, cfg, kit, ...(cloneId ? { cloneId } : {}) };
+    const library = [...get().library, item];
     saveJson(LIB_KEY, library);
     set({ library });
+    if (!cloneId) return;
+    mutateBoards(get, set, null, (bs) => bs.map((bd) => (
+      bd.items.some((x) => x.id === id)
+        ? { ...bd, items: bd.items.map((x) => (x.id === id ? { ...x, kitId: cloneId as KitComponentId } : x)) }
+        : bd)));
   },
   addToBoard: (libId) => {
-    const act = get().boards.find((b) => b.id === get().activeBoard);
-    const n = act?.items.length ?? 0;
-    const item: BoardItem = { id: "bd" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), libId, x: 80 + (n % 3) * 340, y: 80 + Math.floor(n / 3) * 220 };
+    const st = get();
+    const item0 = st.library.find((l) => l.id === libId);
+    if (!item0) return;
+    /* land CENTERED on the ACTIVE board's stage — the type-stamp / big-
+       glyph landing contract. The old fixed grid (80 + column·340) was
+       tuned to the 16:9 stage and threw a saved component clean off a
+       390-wide mobile board (owner: "when I drop it into the canvas I
+       can't see it"). Measure the real piece, shrink it until it fits
+       the stage's width, then split the difference both ways. */
+    const act = st.boards.find((b) => b.id === st.activeBoard);
+    const [W, H] = act?.aspect === "mobile" ? [390, 844] : [1920, 1080];
+    /* a LIVE save-twin places the CLONE (kitId road) so the copy follows
+       its edits; a frozen snapshot (old saves, deleted twin) places by
+       libId as ever. Both land by the same centered/fit contract. */
+    const cl = (item0.cloneId && st.kitClones[item0.cloneId] ? item0.cloneId : null) as KitComponentId | null;
+    const clSize = cl ? st.kitSizes[cl] ?? "l" : "l";
+    const m = / width="([\d.]+)" height="([\d.]+)"/.exec(
+      cl
+        ? renderKit(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns[cl]), st.kitTextFill[cl]), baseOf(cl), clSize, "default", st.kitVals[cl], st.kitShapes[cl], { icon: resolveKitIcon(st.kitIcons[cl], undefined), label: st.kitNoText[cl] ? "" : st.kitLabels[cl], sub: st.kitSubs[cl], slots: st.kitSlotVals[cl], textOy: st.kitTextOy[`${cl}:${clSize}`], textOx: st.kitTextOx[`${cl}:${clSize}`] })
+        : item0.kit
+          ? renderKit(item0.cfg, item0.kit.id, item0.kit.size, "default", item0.kit.v, item0.kit.shape, item0.kit.label !== undefined ? { label: item0.kit.label } : undefined)
+          : renderBevel(item0.cfg, "default"));
+    const [w0, h0] = m ? [+m[1], +m[2]] : [W * 0.5, H * 0.1];
+    // never seed below the piece's own legibility floor (scaleBoardItem's)
+    const scale = Math.max(boardScaleMin(cl ? { kitId: cl } : {}), Math.min(1, Math.round(((W * 0.86) / w0) * 100) / 100));
+    const item: BoardItem = {
+      id: "bd" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      libId: cl ? "" : libId, ...(cl ? { kitId: cl } : {}),
+      x: Math.max(0, Math.round((W - w0 * scale) / 2)), y: Math.max(0, Math.round((H - h0 * scale) / 2)),
+      ...(scale !== 1 ? { scale } : {}),
+    };
     mutateBoards(get, set, null, (bs) => bs.map((b) => (b.id === get().activeBoard ? { ...b, items: [...b.items, item] } : b)));
     // arriving AT the board fits the view; adding while already standing
     // on it must not stomp the zoom the user chose (review catch)
     set({ phase: "board", boardSel: item.id, ...(get().phase !== "board" ? { zoom: 1 } : {}) });
   },
   addBoardItems: (items) => {
-    // starter templates: a full set of pieces, pre-sized and pre-placed —
-    // kit pieces or big-glyph tiles (the Match-3 template's grid)
+    // starter templates and ghost drops: kit pieces, big-glyph tiles
+    // (the Match-3 template's grid) or saved library assets
+    const act = get().boards.find((b) => b.id === get().activeBoard);
+    const [W, H] = act?.aspect === "mobile" ? [390, 844] : [1920, 1080];
     const stamp = Date.now().toString(36);
     const add: BoardItem[] = items.map((it, i) => ({
       id: "bd" + stamp + i + Math.random().toString(36).slice(2, 5),
-      libId: "", ...(it.kitId ? { kitId: it.kitId } : {}), ...(it.big ? { big: it.big } : {}),
-      x: it.x, y: it.y, ...(it.scale ? { scale: it.scale } : {}), ...(it.ov ? { ov: it.ov } : {}),
+      libId: it.libId ?? "", ...(it.kitId ? { kitId: it.kitId } : {}), ...(it.big ? { big: it.big } : {}),
+      /* belt-and-braces: seat every programmatic landing inside the active
+         stage (paste's grabbable-sliver margins) — in-bounds placements
+         pass through untouched, and nothing can ever land invisible */
+      x: Math.min(W - 60, Math.max(0, it.x)), y: Math.min(H - 40, Math.max(0, it.y)),
+      ...(it.scale ? { scale: it.scale } : {}), ...(it.ov ? { ov: it.ov } : {}),
     }));
     mutateBoards(get, set, null, (bs) => bs.map((b) => (b.id === get().activeBoard ? { ...b, items: [...b.items, ...add] } : b)));
     set({ boardSel: null });

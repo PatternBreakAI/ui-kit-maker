@@ -139,25 +139,43 @@ export function kitSpecMarkdown(cfg: GenConfig, kitName: string): string {
 
 /* ── fonts ───────────────────────────────────────────────────────── */
 
-/** The README's font section: what to install, where to get it, and one
-    line on what it costs (nothing). We link rather than embed, so the
-    faces stay with their publisher and the kit stays a kit. */
-export function fontNotesMarkdown(families: string[]): string {
+/** The README's font section, per pack flavor.
+    - "linked" (the SVG pack): what to install and where to get it — we
+      link rather than embed there, so the faces stay with their
+      publisher and the kit stays a kit.
+    - "bundled" (the Unity export): the faces ARE in the zip, in fonts/
+      with their licences beside them, and the importer builds the text
+      faces from them — telling that reader to go install SVGs' fonts
+      was another format's paragraph (reviewer F7). */
+export function fontNotesMarkdown(families: string[], variant: "linked" | "bundled" = "linked"): string {
   const rows = families.map((f) => {
     const def = fontByName(f);
     const slug = f.replace(/ /g, "+");
     return def?.css
-      ? `- **${f}** — install free: https://fonts.google.com/specimen/${slug}\n  Licence: https://fonts.google.com/specimen/${slug}/license`
+      ? `- **${f}** — ${variant === "bundled" ? "specimen & other cuts" : "install free"}: https://fonts.google.com/specimen/${slug}\n  Licence: https://fonts.google.com/specimen/${slug}/license`
       : `- **${f}** — a system face; nothing to install`;
   }).join("\n");
+
+  const intro = variant === "bundled"
+    ? [
+        "This kit is set in the face(s) below, and they ARE bundled: the TTF",
+        "files ship in **fonts/** with each family's open-font licence beside",
+        "them, and the Unity importer builds the kit's text faces (KitFace SDF",
+        "and the baked heroes) from those files automatically — nothing to",
+        "install. The links below are each family's home if you want other",
+        "cuts or formats.",
+      ]
+    : [
+        "This kit is set in the face(s) below. They aren't bundled here — install",
+        "them once and every SVG in this pack renders exactly as designed. Until",
+        "then your viewer will substitute a default face, which is the usual",
+        "reason an imported kit looks subtly wrong.",
+      ];
 
   return [
     "## Fonts",
     "",
-    "This kit is set in the face(s) below. They aren't bundled here — install",
-    "them once and every SVG in this pack renders exactly as designed. Until",
-    "then your viewer will substitute a default face, which is the usual",
-    "reason an imported kit looks subtly wrong.",
+    ...intro,
     "",
     rows,
     "",

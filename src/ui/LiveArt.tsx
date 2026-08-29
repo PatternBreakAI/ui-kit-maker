@@ -118,6 +118,28 @@ export function shellRectHit(svgEl: SVGSVGElement | null | undefined, stamp: num
          clientY >= y0 && clientY <= y0 + stamp[3] * k + slop * 2;
 }
 
+/** Detach every node that would pollute an art getBBox — the play helpers
+ *  appended at the svg root (hit pad, focus ring) and the shine/idle-wipe
+ *  band addShine injects INSIDE the lift group. The band's rect is drawn a
+ *  full viewBox above/below the canvas and one band-width left of it,
+ *  hidden only by a clip-path — and getBBox ignores clip paths (Chromium
+ *  also honors the band's parked CSS sweep transform), so a hug measured
+ *  with the band present read the off-canvas band as art and turned every
+ *  reclaim into huge positive margins (the enormous-empty-Fields bug).
+ *  Returns a restore that puts each node back in its EXACT spot: the band
+ *  lives inside the lift group, so a naive appendChild would re-parent it
+ *  to the root and break the lift stacking. Restore replays in REVERSE
+ *  document order — adjacent detached siblings re-chain cleanly (the
+ *  earlier one's remembered next-sibling IS the later one). */
+export function detachBBoxNoise(el: SVGSVGElement): () => void {
+  const noise = [...el.querySelectorAll(":scope > rect[data-hitpad], :scope > g[data-focusring], rect.kit-shine")]
+    .map((node) => ({ node, parent: node.parentNode, next: node.nextSibling }));
+  for (const s of noise) s.node.remove();
+  return () => {
+    for (let i = noise.length - 1; i >= 0; i--) noise[i].parent?.insertBefore(noise[i].node, noise[i].next);
+  };
+}
+
 /** One living piece of art. Design mode: a plain render (click = edit when the
  *  host wires it). Play mode: hover/press states, toggles flip, sliders drag,
  *  segments switch, progress animates, dropdowns open, badges award — every
@@ -351,11 +373,11 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
         if (!vb?.width || !vb.height) return;
         // measure the ART alone — the injected hit/focus helpers pad past
         // the shell and would loosen the crop (and unevenly: inert pieces
-        // carry no hitpad)
-        const helpers = [...el.querySelectorAll(":scope > rect[data-hitpad], :scope > g[data-focusring]")];
-        for (const n of helpers) n.remove();
-        const bb = el.getBBox();
-        for (const n of helpers) el.appendChild(n);
+        // carry no hitpad), and the shine/wipe band parks off-canvas under
+        // a clip that getBBox ignores (see detachBBoxNoise)
+        const restore = detachBBoxNoise(el);
+        let bb: DOMRect;
+        try { bb = el.getBBox(); } finally { restore(); }
         if (!bb.height) return;
         /* breathing room in viewBox units: the shadow's blur tail below,
            a whisper on the other sides. getBBox reads geometry, not

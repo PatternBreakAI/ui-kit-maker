@@ -36,6 +36,11 @@ export interface BigGlyphDef {
   /** delivered with a baked flat background — parked out of the tray
    *  until the owner re-exports with alpha or blesses the look */
   opaque?: boolean;
+  /** PER-ITEM provenance (owner correction 2026-08-28: uploads aren't
+   *  always AI-generated, so no blanket group badge) — true marks this
+   *  entry's art as AI-generated; the tray shows a small note on exactly
+   *  these. Only the owner assigns this flag. */
+  ai?: true;
 }
 
 export const BIG_GLYPHS: BigGlyphDef[] = [

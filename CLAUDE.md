@@ -36,6 +36,14 @@ widest fonts), not just defaults.
 
 ## Standing rules
 
+- **Maximum-editability law (owner mandate, 2026-08-28):** exported kits
+  must be fully workable without the app. No icon, image, or word is ever
+  burned into a component's art — every swappable thing ships as a live,
+  Inspector-editable child (icons as swappable sprites, words as text,
+  frames separate from the images they hold). A developer should only have
+  to revisit the app to make something brand new that can't be cobbled
+  together from the existing components. The same editability bar applies
+  inside the app itself.
 - New assets (components, silhouettes) ship gated (`staged` / preview flags):
   admin-only until the owner releases them.
 - Secrets live in Vercel env settings only — never in chat, the repo, or PR
