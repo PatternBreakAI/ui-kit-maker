@@ -8146,14 +8146,16 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     }
     case "scorebug": {
       /* Strategy · score bug — teams + clock in one instrument strip. Team
-         hues are semantic (like the VS bar). EDITING CONTRACT: label/sub =
-         the team names; value = match clock; the well keeps everything
-         legible on any face. */
+         hues are semantic (like the VS bar) but each side answers its own
+         color slot. EDITING CONTRACT: teamA/teamB slots = the team names
+         (the old label/sub still read through as fallbacks so parked kits
+         keep their words); teamAColor/teamBColor = the side bars; value =
+         match clock; the well keeps everything legible on any face. */
       const w = 640 * k, h = 96 * k;
       const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 104 }, { pinDesign: true, iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const inset = bw + 5 * k;
       const cy = 30 + h / 2;
-      const TA = "#38BDF8", TB = "#FF4D5A";
+      const TA = opts.slots?.teamAColor ?? "#38BDF8", TB = opts.slots?.teamBColor ?? "#FF4D5A";
       const secsM = Math.round(clamp(value ?? 0.52, 0, 1) * 600);
       const clock = `${Math.floor(secsM / 60)}:${String(secsM % 60).padStart(2, "0")}`;
       const wellD = `<path d="${wellOf(w, h, inset)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.82)}" opacity="0.96"/>`;
@@ -8161,10 +8163,10 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const hubW = 108 * k, hubH = h - inset * 2 - 14 * k;
       const parts = wellD +
         `<rect x="${(39 + inset + 8 * k).toFixed(1)}" y="${(cy - 5 * k - 22 * k).toFixed(1)}" width="${(7 * k).toFixed(1)}" height="${(44 * k).toFixed(1)}" rx="${(3.5 * k).toFixed(1)}" fill="${TA}"/>` +
-        hudText(opts.label ?? "AZUR", 39 + inset + 26 * k, cy - 13 * k, 18 * k, "start", 800) +
+        hudText((opts.slots?.teamA ?? opts.label ?? "AZUR").slice(0, 12), 39 + inset + 26 * k, cy - 13 * k, 18 * k, "start", 800) +
         hudText((opts.slots?.scoreA ?? "2").slice(0, 3), 39 + inset + 26 * k, cy + 15 * k, 26 * k, "start", 900) +
         `<rect x="${(39 + w - inset - 15 * k).toFixed(1)}" y="${(cy - 5 * k - 22 * k).toFixed(1)}" width="${(7 * k).toFixed(1)}" height="${(44 * k).toFixed(1)}" rx="${(3.5 * k).toFixed(1)}" fill="${TB}"/>` +
-        hudText(opts.sub ?? "CRIMSON", 39 + w - inset - 26 * k, cy - 13 * k, 18 * k, "end", 800) +
+        hudText((opts.slots?.teamB ?? opts.sub ?? "CRIMSON").slice(0, 12), 39 + w - inset - 26 * k, cy - 13 * k, 18 * k, "end", 800) +
         hudText((opts.slots?.scoreB ?? "1").slice(0, 3), 39 + w - inset - 26 * k, cy + 15 * k, 26 * k, "end", 900) +
         `<rect x="${(cxS0 - hubW / 2).toFixed(1)}" y="${(cy - hubH / 2).toFixed(1)}" width="${hubW.toFixed(1)}" height="${hubH.toFixed(1)}" rx="${(10 * k).toFixed(1)}" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.2)" stroke-width="1.2"/>` +
         hudText(clock, cxS0, cy + 1, 26 * k, "middle", 900);

@@ -1387,8 +1387,25 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
     { id: "cta", name: "Button word", kind: "free", def: "JOIN", maxLen: 10 },
   ],
   scorebug: [
+    /* both team names are SLOTS with unmistakable sides (owner: "should
+       be able to edit the team name on the right and text entry field for
+       the team name on the left should be clearer") — the Home/Away naming
+       mirrors the scores so left/right can't be misread. The old generic
+       Text field used to feed the left name; it still reads through as a
+       fallback so parked kits and board stamps keep their words. */
+    { id: "teamA", name: "Home team name", kind: "free", def: "AZUR", maxLen: 12,
+      note: "The left side of the bug. Empty keeps the AZUR specimen." },
     { id: "scoreA", name: "Home score", kind: "free", def: "2", maxLen: 3 },
+    { id: "teamB", name: "Away team name", kind: "free", def: "CRIMSON", maxLen: 12,
+      note: "The right side of the bug. Empty keeps the CRIMSON specimen." },
     { id: "scoreB", name: "Away score", kind: "free", def: "1", maxLen: 3 },
+    /* the team hues are the bug's semantics — now yours per side (owner:
+       "need to be able to change team colors"). Factory keeps the classic
+       blue-vs-red broadcast pair. */
+    { id: "teamAColor", name: "Home team color", kind: "color", def: "#38BDF8",
+      note: "The home side's bar. Factory is the broadcast blue." },
+    { id: "teamBColor", name: "Away team color", kind: "color", def: "#FF4D5A",
+      note: "The away side's bar. Factory is the broadcast red." },
   ],
   nameplate: [
     { id: "ribbon", name: "Title ribbon", kind: "free", def: "PIT CHAMPION", maxLen: 24 },
@@ -1848,7 +1865,11 @@ export const KIT_LABEL_EDITABLE = new Set<KitComponentId>([
   "capturemeter", "respawn", "weaponwheel", "equipselector", "levelnode",
   "dailycell", "pricebtn", "combo", "heartmeter", "energymeter", "buildqueue",
   "unitplate", "techcard", "friendrow", "chatbubble", "clancrest",
-  "achievetoast", "scorebug", "endturn", "pack", "cardback", "orderticket",
+  /* scorebug left this list: its "Text" field fed the LEFT team name with
+     no hint of which side it was (owner: "text entry field for the team
+     name on the left should be clearer") — both names now live in the
+     Words grid as Home/Away slots; old label edits still read through. */
+  "achievetoast", "endturn", "pack", "cardback", "orderticket",
   "rewardcard", "qtybadge", "claimbtn", "chestpanel", "boostercard",
 ]);
 
