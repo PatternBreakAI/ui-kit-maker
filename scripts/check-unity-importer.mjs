@@ -2554,6 +2554,28 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the unit plate's stat glyphs lost their markers");
 }
 
+/* FULL-CATALOG round, slice 6 pins: the rewards completion. */
+{
+  const dispM = /const UNIVERSAL_DISPLAY = new Set<KitComponentId>\(\[([\s\S]*?)\]\);/.exec(src);
+  const interM = /const UNIVERSAL_INTERACTIVE = new Set<KitComponentId>\(\[([\s\S]*?)\]\);/.exec(src);
+  for (const id of ["pack", "cardback", "rewardtray", "chestpanel"])
+    if (!dispM || !new RegExp(`"${id}"`).test(dispM[1]))
+      errors.push(`${id} left the universal display road`);
+  for (const id of ["orderticket", "chest", "giftbox"])
+    if (!interM || !new RegExp(`"${id}"`).test(interM[1]))
+      errors.push(`${id} left the interactive road — the staged reward stops being press-ready for its release day`);
+  // the 2x reward button's own-child ribbon (owner verbatim)
+  if (!/data-icon="adribbon" data-icon-nick="AD x2 ribbon"/.test(bevelSrc))
+    errors.push("the AD x2 angled ribbon lost its own-child marker — burned into the orange background again");
+  // the variants machinery + the REWARDS chapter
+  if (!/const VARIANTS: \{ uid: KitComponentId; suffix: string;/.test(src) || !/suffix: "double"/.test(src)
+      || !/suffix: "legendary"/.test(src) || !/suffix: "mystery"/.test(src)
+      || !/suffix: "claimed"/.test(src) || !/suffix: "locked"/.test(src))
+    errors.push("the rewards state-variant emission is gone — ALL rewards states stop shelving");
+  if (!/\("REWARDS", new\[\] \{ "Pack", "Cardback", "ClaimbtnDouble", "RewardcardLegendary", "RewardcardMystery", "DailycellClaimed", "DailycellLocked", "Chest", "Giftbox", "Rewardtray", "Chestpanel", "Orderticket" \}\)/.test(cs))
+    errors.push("the Playground's REWARDS chapter is gone or reshuffled");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);

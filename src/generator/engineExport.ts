@@ -635,6 +635,9 @@ const PREFAB_FAMILY: Partial<Record<KitComponentId, string>> = {
   scorebug: "scorebug", friendrow: "friendrow", clancrest: "clancrest",
   chatbubble: "chatbubble", emotewheel: "emotewheel", buildqueue: "buildqueue",
   unitplate: "unitplate", techcard: "techcard", popmeter: "popmeter",
+  // the Rewards slice (S6)
+  pack: "pack", cardback: "cardback", orderticket: "orderticket",
+  chest: "chest", giftbox: "giftbox", rewardtray: "rewardtray", chestpanel: "chestpanel",
 };
 // the glyph rack: pure-art silhouettes, one Image prefab each — placeable,
 // tintable, never fake buttons (the mandate's non-interactive lane)
@@ -650,7 +653,12 @@ const UNIVERSAL_INTERACTIVE = new Set<KitComponentId>(["ghost", "claimbtn", "lev
   // its hover/pressed states natively") — it presses in Unity too
   "skillnode",
   // Casual & saga slice: the booster is a real circular button
-  "booster"]);
+  "booster",
+  /* Rewards slice: the staged bay's pressable rewards — real buttons by
+     the kit page's own meta ("chests, gifts, cards and claims are real
+     buttons"). stagedShips gates their EMISSION: the road stands ready
+     and ships the moment the owner releases them. */
+  "orderticket", "chest", "giftbox"]);
 const UNIVERSAL_DISPLAY = new Set<KitComponentId>(["qtybadge", "resource", "currency", "movecounter", "ring", "avatarframe", "bottomnav",
   /* the FULL-CATALOG round (owner roster, 2026-08-28: "Include the following
      exports in the Playground scene") — chrome & foundations first: every
@@ -680,7 +688,10 @@ const UNIVERSAL_DISPLAY = new Set<KitComponentId>(["qtybadge", "resource", "curr
      as live seats, team color bars as live TINTABLE children, value
      slider untouched), and every social piece carries live portraits,
      plates and glyphs. */
-  "scorebug", "friendrow", "clancrest", "chatbubble", "emotewheel", "buildqueue", "unitplate", "techcard", "popmeter"]);
+  "scorebug", "friendrow", "clancrest", "chatbubble", "emotewheel", "buildqueue", "unitplate", "techcard", "popmeter",
+  /* Rewards slice: the released card twins join the shelf; the staged
+     tray and ceremony ride gated (stagedShips) until the owner's bless. */
+  "pack", "cardback", "rewardtray", "chestpanel"]);
 const UNIVERSAL_ROAD = new Set<KitComponentId>([...UNIVERSAL_INTERACTIVE, ...UNIVERSAL_DISPLAY]);
 /* the ACTION GLYPHS (round 40 — the owner's Gameplay pause button sat
    dead in Play): pause/play/replay/home are buttons by their own meaning
@@ -4169,6 +4180,13 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         unitplate: "Unit plate — drop YOUR sprite on the Portrait child; the name and stat numbers are LIVE seats and the attack/defense glyphs LIVE Image children. Display piece.",
         techcard: "Tech card (researchable) — the tech glyph is a LIVE Image child (editable down to the icon); the name and cost are LIVE seats. Researched/locked poses ride per-copy posed skins. Display piece.",
         popmeter: "Population meter — the population glyph is a LIVE Image child and the count a LIVE seat; the supply bar bakes at the staged share. Display piece.",
+        pack: "Card pack — the pack art with its live word; open ceremonies are your game's (ClaimBurst fires on CLAIM-labeled copies). Display piece.",
+        cardback: "Card back — the deck's face-down art with its live emblem child. Display piece.",
+        orderticket: "Kitchen order ticket — a REAL button; dish name and recipe lines are LIVE seats and the dish glyph a LIVE Image child. Served/urgent poses ride per-copy posed skins.",
+        chest: "Treasure chest — a REAL button; tier and gate poses ride per-copy posed skins.",
+        giftbox: "Gift box — a REAL button; tag and readiness poses ride per-copy posed skins.",
+        rewardtray: "Reward tray — the multi-reward strip; title and quantities are LIVE seats and reveal states ride posed skins. Display piece.",
+        chestpanel: "Chest-opening ceremony panel — words are LIVE seats; stage poses ride posed skins. Display piece.",
         bottomnav: "Bottom nav bar — one placeable piece; the item words are LIVE seats and every tab glyph a LIVE Image child (swap any sprite in the Inspector). The Selected ring child IS the selection: move it a cell over (one cell pitch) or disable it. The Badge plate child carries its live count with it — move, restyle or delete the pair as one. Wire your own per-item buttons over it (the bar itself is not one button).",
       };
       const universalIds: KitComponentId[] = [
@@ -4320,6 +4338,59 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
             }, true, uid);
           }
         }
+      }
+    }
+
+    /* ── REWARDS STATE VARIANTS (owner roster, round 41: "ALL rewards
+       states shelve" + the 2x reward button) — each shelved state is its
+       own family row rendered through the SAME universal hands (word
+       strip, live seats, marked-icon children), under a suffixed
+       component name the generic FamilyPrefab road builds and the
+       Playground's REWARDS chapter claims. Display pieces: the pressing
+       lives on the base family's prefab. Staged families ship nothing
+       here (stagedShips), exactly like their base road. ── */
+    {
+      const VARIANTS: { uid: KitComponentId; suffix: string; opts: Record<string, unknown>; value?: number; usage: string }[] = [
+        { uid: "claimbtn", suffix: "double", opts: { slots: { ...(st.kitSlotVals?.claimbtn ?? {}), mode: "2x by ad" } },
+          usage: "The 2x reward button — the claim button's Double-by-ad state: the word is a LIVE seat, the play badge a LIVE Image child, and the ANGLED gold ribbon its OWN delete-and-replace child (the rotated word stays in its pixels by the warped-stamp contract — never burned into the button face). The pressing lives on the Claimbtn prefab." },
+        { uid: "rewardcard", suffix: "legendary", opts: {}, value: 1,
+          usage: "Reward reveal at LEGENDARY — the aura at the ladder's top; words are LIVE seats and the glyph a LIVE Image child. The pressing lives on the Rewardcard prefab." },
+        { uid: "rewardcard", suffix: "mystery", opts: { slots: { ...(st.kitSlotVals?.rewardcard ?? {}), kind: "Mystery" } },
+          usage: "Reward card, MYSTERY pre-reveal — the unopened pose; words are LIVE seats. The pressing lives on the Rewardcard prefab." },
+        { uid: "dailycell", suffix: "claimed", opts: { overlay: "check", label: st.kitLabels?.dailycell ?? "DAY 3" },
+          usage: "Daily reward, CLAIMED — the checked pose; the day word is a LIVE seat. The pressing lives on the Dailycell prefab." },
+        { uid: "dailycell", suffix: "locked", opts: { overlay: "locked", label: st.kitLabels?.dailycell ?? "DAY 5" },
+          usage: "Daily reward, LOCKED — tomorrow's pose; the day word is a LIVE seat. The pressing lives on the Dailycell prefab." },
+      ];
+      const stripLoopsV = (sv: string) => sv
+        .replace(/<animate(?:Transform|Motion)?\b[^>]*\/>/g, "")
+        .replace(/<animate(?:Transform|Motion)?\b[^>]*>[\s\S]*?<\/animate(?:Transform|Motion)?>/g, "");
+      for (const v of VARIANTS) {
+        if (!stagedShips(v.uid)) continue;
+        const famV = `${v.uid}-${v.suffix}`;
+        const vOpts: Record<string, unknown> = {
+          label: st.kitNoText?.[v.uid] ? "" : st.kitLabels?.[v.uid],
+          sub: st.kitSubs?.[v.uid], slots: st.kitSlotVals?.[v.uid],
+          icon: resolveKitIcon(st.kitIcons?.[v.uid], undefined),
+          themedText: !!st.kitDesigns?.[v.uid]?.type || !!st.kitTextFill[v.uid],
+          ...v.opts,
+        };
+        const vVal = v.value ?? st.kitVals?.[v.uid];
+        let fullV: string;
+        try { fullV = stripLoopsV(shell(v.uid, vOpts, undefined, vVal)); } catch { continue; }
+        const strippedV = stripWordInk(fullV);
+        const seatsV = strippedV.seatsStripped > 0
+          ? textSeatsOf(v.uid, strippedV.svg, vOpts, undefined, vVal, "bake")
+          : {};
+        const iconSeatsV = await iconSeatsOf(v.uid, fullV, famV);
+        const baseSvgV = iconSeatsV ? stripIconInk(strippedV.svg).svg : strippedV.svg;
+        await addPng(`${famV}/base.png`, baseSvgV, {
+          component: famV, part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+          usage: v.usage,
+          ...(isFlipShape(st.kitShapes[v.uid] ?? KIT_SHAPE[v.uid] ?? st.cfg.shape) ? { flip: true } : {}),
+          ...seatsV,
+          ...(iconSeatsV ? { iconSeats: iconSeatsV } : {}),
+        }, true);
       }
     }
   }
@@ -5376,6 +5447,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
                     live words/seats with the face */
                  ["ghost", "ghost"], ["claimbtn", "claimbtn"], ["levelnode", "levelnode"],
                  ["dailycell", "dailycell"], ["boostercard", "boostercard"], ["rewardcard", "rewardcard"],
+                 ["orderticket", "orderticket"], ["chest", "chest"], ["giftbox", "giftbox"],
                  ["skillnode", "skillnode"], ["booster", "booster"]] as const).flatMap(([pid, fam]) => {
         const ps = pieceCfg(pid).states;
         return (["default", "hover", "pressed", "disabled"] as const).map((sn) => ({
@@ -11220,6 +11292,11 @@ namespace PatternBreak {
           ("SHOOTER & ACTION", new[] { "Crosshair", "Hitmarker", "Dmgarc", "Weaponwheel", "Equipselector", "Magazine", "Ammo", "Streakmeter", "Killfeed", "Waypoint", "Capturemeter", "Respawn", "Buffframe", "Hotbar", "Lives" }),
           ("CASUAL & SAGA", new[] { "Heartmeter", "Energymeter", "Starrating", "Pathconnector", "Combo", "Booster", "Flipclock", "Stopwatch" }),
           ("STRATEGY & SOCIAL", new[] { "Scorebug", "Friendrow", "Chatbubble", "Emotewheel", "Clancrest", "Unitplate", "Buildqueue", "Techcard", "Popmeter" }),
+          /* the rewards chapter: the released card twins, every shelved
+             reward STATE (the 2x button, reveals, daily poses) and the
+             staged bay's rewards — which stay off the shelf until the
+             owner releases them (stagedFamilies filters them here). */
+          ("REWARDS", new[] { "Pack", "Cardback", "ClaimbtnDouble", "RewardcardLegendary", "RewardcardMystery", "DailycellClaimed", "DailycellLocked", "Chest", "Giftbox", "Rewardtray", "Chestpanel", "Orderticket" }),
         };
         var byName = new Dictionary<string, GameObject>();
         foreach (var p in prefabs) if (!byName.ContainsKey(p.name)) byName[p.name] = p;
