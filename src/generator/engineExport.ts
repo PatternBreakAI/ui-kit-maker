@@ -9,7 +9,9 @@
 import type { GenConfig, IconDef, KitComponentId, KitDesign, Shape } from "./model";
 import type { BoardDef, LibItem } from "./store";
 import { stampFilter, stampFilterPad, boardBgFilter, drawBoardNoise, drawBoardOverlays, stampSvg, warpStampRaster, kitShadowFilter, kitShadowPad, suppressCastShadow } from "./store";
-import { bigGlyphById, bigGlyphUrl, bigGlyphFilter, bigGlyphFilterPad, BIG_GLYPH_BASE } from "./bigGlyphs";
+/* bigGlyphById only names the excluded piece in the export-skip warn —
+   the Uploads/Art drawer never ships in the Unity download (round 44) */
+import { bigGlyphById } from "./bigGlyphs";
 import { applyKitDesign, applyKitTextFill, baseOf, darken, hexMix, lighten, fontByName, isCloneId, isFlipShape, isGlyphPiece, KIT_COMPONENTS, KIT_SHAPE, KIT_SLICEABLE, STOCK_ICONS, effKitSize, kitVisible, resolveKitIcon, sanitizeUnitySlug } from "./model";
 import { renderKit, renderBevel, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps, padSvg, resolveMenuStyle } from "./bevel";
 import type { KitOpts } from "./bevel";
@@ -787,32 +789,22 @@ export async function collectExportBoards(st: {
   const STAGE_DIMS: Record<"169" | "mobile", [number, number]> = { "169": [1920, 1080], mobile: [390, 844] };
   const out: ExportBoardData[] = [];
   const seen = new Set<string>();
-  /* user-logo prefab names must stay UNIQUE per export: the importer
-     converges Prefabs/BigGlyphs/<FileSafeWord(name)>.prefab by NAME, so
-     a logo called "Star" would overwrite the owner's Star glyph prefab.
-     Compare on the importer's own truncation (24 chars, case-folded). */
-  const prefabKey = (n: string) => n.trim().slice(0, 24).trim().toLowerCase();
-  const logoNames = new Map<string, string>(); // aid → shipped unique name
-  const takenNames = new Set<string>();
-  for (const bd0 of st.boards) for (const b0 of bd0.items) {
-    if (b0.big) { const g0 = bigGlyphById(b0.big.gid); if (g0) takenNames.add(prefabKey(g0.name)); }
-  }
-  const logoShipName = (aid: string, name: string): string => {
-    const hit = logoNames.get(aid);
-    if (hit) return hit;
-    let want = name.trim() || "My logo";
-    if (takenNames.has(prefabKey(want))) {
-      for (let n = 2; ; n++) {
-        const cand = `${want.slice(0, 24 - String(n).length - 1).trim()} ${n}`;
-        if (!takenNames.has(prefabKey(cand))) { want = cand; break; }
-      }
-    }
-    takenNames.add(prefabKey(want));
-    logoNames.set(aid, want);
-    return want;
-  };
   for (const bd of st.boards) {
-    const items = bd.items.filter((b) => b.kitId || b.stamp || b.libId || b.big || b.logo);
+    /* ── ROUND 44 (owner mandate via the coordinator): the Uploads/Art
+       drawer — the painted big-glyph drop and account logo uploads —
+       does NOT travel in the Unity download. AI-generated art never
+       ships in the product's engine export: no sprites, no board rows,
+       no prefabs, no manifest presence. The board copy simply stays out
+       of the scene, LOUDLY (the warn below names the board and asset).
+       The shipped importer KEEPS its Art/BigGlyphs machinery untouched,
+       so old zips that already carry the art keep converging in kept
+       projects; the app's own stage keeps drawing these — only the
+       export road closes. ── */
+    for (const b of bd.items) {
+      if (b.big) console.warn(`engine export: board "${bd.name}" places the Art-drawer piece "${bigGlyphById(b.big.gid)?.name ?? b.big.gid}" — Uploads/Art never ships in the Unity download (owner mandate), so this copy stays out of the exported scene.`);
+      else if (b.logo) console.warn(`engine export: board "${bd.name}" places an uploaded logo — Uploads/Art never ships in the Unity download (owner mandate), so this copy stays out of the exported scene.`);
+    }
+    const items = bd.items.filter((b) => b.kitId || b.stamp || b.libId);
     if (!items.length) continue;
     const [W, H] = STAGE_DIMS[bd.aspect];
     let slug = bd.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "board";
@@ -951,8 +943,6 @@ export async function collectExportBoards(st: {
        current. (The importer re-points scenes still holding old-scheme
        names once, position-keyed.) ── */
     const usedSid = new Set<string>();
-    /** clean big-glyph sprites ship ONCE per asset per board */
-    const bigClean = new Set<string>();
     const sidOf = (b: { id?: string }) => {
       let s = (b.id ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "").slice(-10);
       if (!s) s = `n${stampFiles.length + 1}`;
@@ -1116,140 +1106,6 @@ export async function collectExportBoards(st: {
                 };
               })()
             : {}),
-        });
-        continue;
-      }
-      if (b.big) {
-        /* a BIG GLYPH (the owner's board-art drop): each USED asset ships
-           as its own prefab (owner mandate) — the importer converges every
-           instance of one asset onto Prefabs/BigGlyphs/<Name>.prefab. A
-           CLEAN instance wears the asset's original bytes, shipped once
-           per asset; an instance with shadow/glow dials bakes them into
-           its own sprite (the posed-pipeline precedent — live-effect
-           travel is a future option). */
-        const gl = bigGlyphById(b.big.gid);
-        if (!gl) continue;
-        const hasFx = !!(b.big.shadow || b.big.glow);
-        const kB = (b.scale ?? 1) * BIG_GLYPH_BASE;
-        /* fx sprites are PADDED (symmetric, so the center holds): w/h must
-           describe the shipped raster's footprint or the importer would
-           squeeze the halo into the art rect — the stamp rows' contract */
-        const padB = hasFx ? bigGlyphFilterPad(b.big) : 0;
-        const wB = (gl.w + padB * 2) * kB, hB = (gl.h + padB * 2) * kB;
-        const cxB = b.x + (gl.w * kB) / 2, cyB = b.y + (gl.h * kB) / 2;
-        // a glyph parked off the stage never drew in the app — the
-        // stage-clip contract, gated before any bytes ship
-        if (!onStage(cxB, cyB, wB, hB, b.rot)) continue;
-        let file: string;
-        try {
-          if (!hasFx) {
-            file = `bigglyphs/${gl.id}.png`;
-            if (!bigClean.has(gl.id)) {
-              const resp = await fetch(bigGlyphUrl(gl.id));
-              stampFiles.push({ file, bytes: new Uint8Array(await resp.arrayBuffer()) });
-              bigClean.add(gl.id);
-            }
-          } else {
-            const img = await new Promise<HTMLImageElement>((res, rej) => {
-              const im = new Image();
-              im.onload = () => res(im); im.onerror = rej;
-              im.src = bigGlyphUrl(gl.id);
-            });
-            const padPx = bigGlyphFilterPad(b.big);
-            const cv = document.createElement("canvas");
-            cv.width = img.width + padPx * 2; cv.height = img.height + padPx * 2;
-            const cx2 = cv.getContext("2d")!;
-            const bf = bigGlyphFilter(st.cfg, b.big);
-            if (bf) cx2.filter = bf;
-            cx2.drawImage(img, padPx, padPx);
-            file = `bigglyphs/${gl.id}-${sidOf(b)}.png`;
-            stampFiles.push({ file, bytes: await canvasToPngBytesDilated(cv) });
-          }
-        } catch { continue; }
-        const axB = cxB < W / 3 ? 0 : cxB > (2 * W) / 3 ? 1 : 0.5;
-        const ayB = cyB < H / 3 ? 1 : cyB > (2 * H) / 3 ? 0 : 0.5;
-        exItems.push({
-          component: "bigglyph", cx: Math.round(cxB * 10) / 10, cy: Math.round(cyB * 10) / 10,
-          w: Math.round(wB * 10) / 10, h: Math.round(hB * 10) / 10,
-          // the glyph's own raster is the art box; an fx copy's symmetric
-          // filter pad is (w - artW)/2 per side — raycasts stop at the art
-          artW: Math.round(gl.w * kB * 10) / 10, artH: Math.round(gl.h * kB * 10) / 10,
-          rot: b.rot ?? 0, label: null, value: null, ax: axB, ay: ayB,
-          anchor: `${ayB === 1 ? "top" : ayB === 0 ? "bottom" : "middle"}-${axB === 0 ? "left" : axB === 1 ? "right" : "center"}`,
-          stamp: file,
-          big: { id: gl.id, name: gl.name, sprite: file, fx: hasFx },
-        });
-        continue;
-      }
-      if (b.logo) {
-        /* a USER LOGO travels the EXACT big-glyph road (owner: "these
-           assets should live in my assets drawer and follow my account"):
-           `component: "bigglyph"` rows with big.id "user-<aid>" and the
-           sprite at bigglyphs/<big.id>.png — the shipped importer's
-           BigGlyphPrefabs walk converges every copy onto
-           Prefabs/BigGlyphs/<Name>.prefab with ZERO C# changes. Pixels
-           resolve vault-first, then the account's cloud copy (the
-           backdrop contract), and always re-encode to PNG so the .png
-           path speaks the truth whatever the upload container was. A
-           dialed copy bakes its shadow/glow into an instance-suffixed
-           sprite, the big-glyph fx precedent verbatim. */
-        const ua = st.userAssets?.find((a) => a.id === b.logo!.aid);
-        const aidSafe = ua ? ua.id.replace(/[^a-z0-9]/gi, "").slice(0, 24).toLowerCase() : "";
-        if (!ua || !aidSafe) continue;
-        const uid2 = `user-${aidSafe}`;
-        const hasFx = !!(b.logo.shadow || b.logo.glow);
-        let file: string;
-        let wNat = ua.w, hNat = ua.h;
-        try {
-          const rec = await resolveBgAsset(ua.ref);
-          if (!rec) continue; // bytes unreachable on this machine — the copy stays out, loudly absent
-          const bmp = await createImageBitmap(rec.blob);
-          wNat = bmp.width; hNat = bmp.height;
-          /* a logo parked off the stage never drew in the app — the
-             stage-clip contract, gated before any bytes ship (kBg/padBg
-             mirror the kB/padB math below the try) */
-          const kBg = (b.scale ?? 1) * BIG_GLYPH_BASE;
-          const padBg = hasFx ? bigGlyphFilterPad({ gid: "", ...b.logo }) : 0;
-          if (!onStage(b.x + (wNat * kBg) / 2, b.y + (hNat * kBg) / 2, (wNat + padBg * 2) * kBg, (hNat + padBg * 2) * kBg, b.rot)) { bmp.close(); continue; }
-          const draw = (pad: number, filter?: string): Promise<Uint8Array> => {
-            const cv = document.createElement("canvas");
-            cv.width = bmp.width + pad * 2; cv.height = bmp.height + pad * 2;
-            const cx2 = cv.getContext("2d")!;
-            if (filter) cx2.filter = filter;
-            cx2.drawImage(bmp, pad, pad);
-            return canvasToPngBytesDilated(cv);
-          };
-          if (!hasFx) {
-            file = `bigglyphs/${uid2}.png`;
-            if (!bigClean.has(uid2)) {
-              stampFiles.push({ file, bytes: await draw(0) });
-              bigClean.add(uid2);
-            }
-          } else {
-            const fxB = { gid: "", ...b.logo };
-            const bytesL = await draw(bigGlyphFilterPad(fxB), bigGlyphFilter(st.cfg, fxB));
-            file = `bigglyphs/${uid2}-${sidOf(b)}.png`;
-            stampFiles.push({ file, bytes: bytesL });
-          }
-          bmp.close();
-        } catch { continue; }
-        const kB = (b.scale ?? 1) * BIG_GLYPH_BASE;
-        // fx sprites pad symmetrically — same footprint contract as glyphs
-        const padB = hasFx ? bigGlyphFilterPad({ gid: "", ...b.logo }) : 0;
-        const wB = (wNat + padB * 2) * kB, hB = (hNat + padB * 2) * kB;
-        const cxB = b.x + (wNat * kB) / 2, cyB = b.y + (hNat * kB) / 2;
-        const axB = cxB < W / 3 ? 0 : cxB > (2 * W) / 3 ? 1 : 0.5;
-        const ayB = cyB < H / 3 ? 1 : cyB > (2 * H) / 3 ? 0 : 0.5;
-        exItems.push({
-          component: "bigglyph", cx: Math.round(cxB * 10) / 10, cy: Math.round(cyB * 10) / 10,
-          w: Math.round(wB * 10) / 10, h: Math.round(hB * 10) / 10,
-          artW: Math.round(wNat * kB * 10) / 10, artH: Math.round(hNat * kB * 10) / 10,
-          rot: b.rot ?? 0, label: null, value: null, ax: axB, ay: ayB,
-          anchor: `${ayB === 1 ? "top" : ayB === 0 ? "bottom" : "middle"}-${axB === 0 ? "left" : axB === 1 ? "right" : "center"}`,
-          stamp: file,
-          // the user's own name keys the prefab — uniquified against the
-          // glyph set so it can never overwrite a stock prefab
-          big: { id: uid2, name: logoShipName(ua.id, ua.name), sprite: file, fx: hasFx },
         });
         continue;
       }

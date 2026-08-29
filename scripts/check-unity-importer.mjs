@@ -537,10 +537,16 @@ if (!/stampsInUse\.Add\("bigglyphs\/" \+ itR\.big\.id \+ "\.png"\);/.test(cs)
   errors.push("the orphan sweep must cover bigglyphs/ AND keep a used asset's clean original in-use (the prefab wears it even when every copy is fx) (round 23)");
 if (!/it2\.big != null && !string\.IsNullOrEmpty\(it2\.big\.id\)/.test(cs))
   errors.push("the kept-scene heal must re-point a big-glyph copy's clean/fx flip and shield big rows from the stamp branch's WipeShine (round 23)");
-if (!/component: "bigglyph"/.test(src) || !/big: \{ id: gl\.id, name: gl\.name, sprite: file, fx: hasFx \}/.test(src))
-  errors.push("the app-side big-glyph emission seam (component bigglyph + big{id,name,sprite,fx}) is missing (round 23)");
-if (!/const padB = hasFx \? bigGlyphFilterPad\(b\.big\) : 0;/.test(src))
-  errors.push("fx rows must ship the PADDED footprint (w/h of the shipped raster) — without it the importer squeezes the halo into the art rect (round 23)");
+/* round 44 REVERSES the round-23 emission pins: the Uploads/Art drawer
+   (big-glyph drop + account logo uploads) never ships in the Unity
+   download (owner mandate — AI-generated art stays out of the product's
+   engine export). The IMPORTER machinery above stays for old zips; the
+   EMISSION road must stay closed. */
+if (/component: "bigglyph"/.test(src) || /stampFiles\.push\(\{ file: `bigglyphs\//.test(src))
+  errors.push("the big-glyph/upload emission road reopened — Uploads/Art must never ship in the Unity download (owner mandate, round 44)");
+if (!/const items = bd\.items\.filter\(\(b\) => b\.kitId \|\| b\.stamp \|\| b\.libId\);/.test(src)
+    || !/Uploads\/Art never ships in the Unity download \(owner mandate\)/.test(src))
+  errors.push("the Uploads/Art export exclusion (item filter + the loud skip warn) is gone from collectExportBoards (round 44)");
 if (!/Prefabs\/Art\/\*\*/.test(src))
   errors.push("the README's Prefabs/Art pointer is missing (round 23; the shelf renamed to Art on the owner's decision)");
 
@@ -704,8 +710,9 @@ if (!/public float artW; public float artH; public float rot;/.test(cs))
   errors.push("PBBoardItem must carry the art box (artW/artH) — JsonUtility drops the fx-pad geometry without it (round 25)");
 if (!/artW: Math\.round\(\(\(rw \/ 2\) \* k\) \* 10\) \/ 10, artH: Math\.round\(\(\(rh \/ 2\) \* k\) \* 10\) \/ 10/.test(src))
   errors.push("type-stamp items must ship their pre-filter art box (artW/artH) — the raycast inset has no truth without it (round 25)");
-if (!/artW: Math\.round\(gl\.w \* kB \* 10\) \/ 10, artH: Math\.round\(gl\.h \* kB \* 10\) \/ 10/.test(src))
-  errors.push("big-glyph items must ship the glyph's own art box (artW/artH) — fx pads are (w-artW)/2 per side (round 25)");
+/* the round-25 big-glyph artW emission pin retired with the road: the
+   Uploads/Art drawer never ships in the Unity download (round 44); the
+   PBBoardItem artW/artH C# pin above stays for old-zip compat */
 if (!/static void ArtRaycastPad\(Image img, PBBoardItem it\)/.test(cs)
     || !/float padX = Mathf\.Max\(0f, \(it\.w - it\.artW\) \* 0\.5f\);/.test(cs))
   errors.push("ArtRaycastPad (the baked-art inset, symmetric from the manifest art box) is missing (round 25)");
@@ -1671,9 +1678,11 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   const dilatedUses = (exSrc.match(/canvasToPngBytesDilated\(/g) ?? []).length;
   if (dilatedUses < 5)
     errors.push(`exportUtils rides canvasToPngBytesDilated only ${dilatedUses}x (need >=5: definition, svgToPngBytes, tight crop, union crop, glow/catalog) — a raster road fell back to premultiplied toBlob (slice 1)`);
+  /* round 44: the bigglyph-fx and logo bake roads left with the Uploads/Art
+     export exclusion — the floor drops from 9 to 7 */
   const dilatedUsesEE = (src.match(/canvasToPngBytesDilated\(/g) ?? []).length;
-  if (dilatedUsesEE < 9)
-    errors.push(`engineExport's direct canvas bakes ride canvasToPngBytesDilated only ${dilatedUsesEE}x (need >=9: backgrounds, stamp, stamp mask, bigglyph fx, logo, dialed-shadow bake, mask re-register, shadow sibling, baked-face atlas) — a bake road still ships premultiplied black fringe (slice 1)`);
+  if (dilatedUsesEE < 7)
+    errors.push(`engineExport's direct canvas bakes ride canvasToPngBytesDilated only ${dilatedUsesEE}x (need >=7: backgrounds, stamp, stamp mask, dialed-shadow bake, mask re-register, shadow sibling, baked-face atlas) — a bake road still ships premultiplied black fringe (slice 1)`);
   if (!/if \(!ti\.mipmapEnabled\) \{ ti\.mipmapEnabled = true; changed = true; \}/.test(cs)
       || !/if \(ti\.filterMode != FilterMode\.Trilinear\) \{ ti\.filterMode = FilterMode\.Trilinear; changed = true; \}/.test(cs))
     errors.push("Configure must import kit sprites with mips + trilinear — scaled board copies undersample into white specks without them (slice 1)");
