@@ -4529,8 +4529,16 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     await addPng("extras/minimap-map.png", shell("minimap", { part: "map" }), { component: "minimap", part: "map", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The mini-map well's demo map content (grid + player arrow) — the app's own board render of the radar interior. Rides the Minimap prefab as 'Demo Map'; delete it and render your world map in the well instead." });
     const mcSvg = shell("movecounter", { part: "shell" }, undefined, 0.8);
     await addPng("extras/movecounter.png", mcSvg, { component: "extras", part: "movecounter", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Move-counter tile, bare — the number and caption arrive as live text on the MoveCounter prefab (your app words and staged count).", ...textSeatsOf("movecounter", mcSvg, {}, undefined, 0.8) });
-    const atSvg = shell("achievetoast", { part: "shell" });
-    await addPng("extras/achievement.png", atSvg, { component: "extras", part: "achievement", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Achievement toast plate with the gold medallion — the announcement and title arrive as live text on the Achievement prefab (your app words).", ...textSeatsOf("achievetoast", atSvg) });
+    /* the achievement joins the un-burn (round 40 — the round icon was
+       the last extras bake still burning its art): the medallion GLYPH
+       (the app's pick through the standard icon seat, or the authored
+       star) strips from the plate and ships as a live "Icon glyph"
+       child; the gold plate and both words were already the piece's own
+       live story. */
+    const atIcon = resolveKitIcon(st.kitIcons?.achievetoast, undefined);
+    const atSvg = shell("achievetoast", { part: "shell", icon: atIcon });
+    const atSeats = await iconSeatsOf("achievetoast", atSvg, "extras");
+    await addPng("extras/achievement.png", atSeats ? stripIconInk(atSvg).svg : atSvg, { component: "extras", part: "achievement", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Achievement toast plate with the gold medallion — the announcement and title arrive as live text and the medallion's glyph is a LIVE Image child on the Achievement prefab (swap the sprite in the Inspector; icons/* fit the same seat; pick it on uikitmaker.com like any other icon).", ...textSeatsOf("achievetoast", atSvg, { icon: atIcon }), ...(atSeats ? { iconSeats: atSeats } : {}) });
   }
 
   /* ── STRETCH-SAFE FACES (owner: a diagonal pattern shears when the
@@ -14901,6 +14909,23 @@ namespace PatternBreak {
       foreach (var a in m.assets) if (a != null && a.component == fam && a.part == "base") return a;
       return null;
     }
+    /* the un-burn's ROW resolver (round 40): the family base row where one
+       exists; otherwise the row of the sprite the prefab actually wears —
+       the extras/ bones (the Achievement's medallion glyph) carry their
+       icon seats on a PART row, invisible to the base-only lookup, so
+       kept projects never converged them. */
+    static PBAsset IconSeatRowOf(GameObject host, PBManifest m, string root, string fam) {
+      var row = LabelRow(m, fam);
+      if (row != null && row.iconSeats != null && row.iconSeats.Length > 0) return row;
+      if (host == null || m == null || m.assets == null) return row;
+      var img = BodyImage(host);
+      if (img == null || img.sprite == null) return row;
+      var p = AssetDatabase.GetAssetPath(img.sprite).Replace("\\\\", "/");
+      if (!p.StartsWith(root + "/")) return row;
+      var rel = p.Substring(root.Length + 1);
+      foreach (var a in m.assets) if (a != null && a.file == rel && a.iconSeats != null && a.iconSeats.Length > 0) return a;
+      return row;
+    }
     /* the LEADING dial's TMP form — ONE seam for every label birth and the
        maintenance convergence, so they can never disagree. The app stacks
        a multi-line label (endturn) at fs · 0.73em · leading/100; the
@@ -15637,6 +15662,13 @@ namespace PatternBreak {
       WireChartTraces(go, m, famP, pngScale);
       // the loot tag's tier stripe + gem, live — same no-op contract
       WireLootDress(go, root, m, famP, pngScale);
+      /* the un-burn reaches the picture bones (round 40 — the Achievement
+         medallion's glyph): a bones row shipping iconSeats gets its live
+         children too. Resolved by the row of the sprite this prefab wears
+         (extras/ rows aren't "base" rows); a row without seats no-ops. */
+      PBAsset rowPic = null;
+      foreach (var aP in m.assets) if (aP != null && aP.file == "assets/" + file) { rowPic = aP; break; }
+      if (rowPic != null && rowPic.iconSeats != null && rowPic.iconSeats.Length > 0) WireIconChildrenRow(go, root, m, rowPic);
       // the piece's words, live (manifest textSeats) — bones stop shipping bare
       WireTextSeats(go, root, m, pngScale);
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/" + goName + ".prefab");
@@ -18907,7 +18939,7 @@ namespace PatternBreak {
              this refresh) still seeds — once, recorded at the apply. */
         bool wantUnburn = false;
         {
-          var rowU0 = LabelRow(m, famName);
+          var rowU0 = IconSeatRowOf(asset, m, root, famName);
           if (!tiledBuild && rowU0 != null && rowU0.iconSeats != null && rowU0.iconSeats.Length > 0) {
             var keyU0 = (path.StartsWith(root + "/") ? path.Substring(root.Length + 1) : path) + "|";
             foreach (var icU0 in rowU0.iconSeats) {
@@ -19324,7 +19356,7 @@ namespace PatternBreak {
              later pass. */
           if (wantUnburn) {
             var keyUA = (path.StartsWith(root + "/") ? path.Substring(root.Length + 1) : path) + "|";
-            var rowUA = LabelRow(m, famName);
+            var rowUA = IconSeatRowOf(contents, m, root, famName);
             var theirsUA = new HashSet<string>();
             if (rowUA != null && rowUA.iconSeats != null)
               foreach (var icUA in rowUA.iconSeats)

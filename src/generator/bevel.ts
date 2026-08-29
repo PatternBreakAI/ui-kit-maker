@@ -8395,7 +8395,10 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     case "achievetoast": {
       /* Social · achievement toast — the gold moment. EDITING CONTRACT:
          label = the achievement name; gold is semantic; the medallion
-         carries the star; states native. */
+         carries the star — or YOUR icon (round 40: the standard picker
+         seat; the glyph renders in the medallion's own bronze ink so the
+         gold moment survives any pick; "none" bares the medallion);
+         states native. */
       const w = 560 * k, h = 112 * k;
       const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 120 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const inset = bw + 5 * k;
@@ -8403,10 +8406,18 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const gidA0 = "at" + UID++;
       const mR = (h - inset * 2) * 0.36;
       const mX = 39 + inset + mR + 12 * k;
+      /* the medallion GLYPH is marked swappable ink (maximum-editability
+         law, round 40): the engine export strips it and ships it as a
+         live Image child. It draws ABOVE the gloss now (the gloss used
+         to wash a sliver of the star's top-left arm) so the live child
+         recomposes the bake exactly — a sub-pixel sliver, announced. */
+      const icAT = opts.icon; // undefined = the authored star; null = deliberately bare
+      const glyphAT = icAT === null ? "" : `<g data-part="icon" data-icon="glyph">${icAT
+        ? iconGroup(icAT, mX - mR * 0.62, cy - mR * 0.62, mR * 1.24, "#92400E", { strokeWidth: 2.4 * iconWK, opacity: 0.85 })
+        : `<g transform="translate(${(mX - mR * 0.62).toFixed(1)} ${(cy - mR * 0.62).toFixed(1)})"><path d="${starPath(mR * 1.24)}" fill="#92400E" opacity="0.85"/></g>`}</g>`;
       const med = `<defs><radialGradient id="${gidA0}" cx="0.35" cy="0.3" r="0.95"><stop offset="0" stop-color="#FFF3B0"/><stop offset="0.55" stop-color="#FACC15"/><stop offset="1" stop-color="#B45309"/></radialGradient></defs>
         <circle cx="${mX.toFixed(1)}" cy="${cy.toFixed(1)}" r="${mR.toFixed(1)}" fill="url(#${gidA0})" stroke="#92400E" stroke-width="1.8"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(5 * k).toFixed(1)}px rgba(250,204,21,0.6))"` : ""}/>
-        <g transform="translate(${(mX - mR * 0.62).toFixed(1)} ${(cy - mR * 0.62).toFixed(1)})"><path d="${starPath(mR * 1.24)}" fill="#92400E" opacity="0.85"/></g>
-        <ellipse cx="${(mX - mR * 0.3).toFixed(1)}" cy="${(cy - mR * 0.42).toFixed(1)}" rx="${(mR * 0.32).toFixed(1)}" ry="${(mR * 0.17).toFixed(1)}" fill="#FFFFFF" opacity="0.6"/>`;
+        <ellipse cx="${(mX - mR * 0.3).toFixed(1)}" cy="${(cy - mR * 0.42).toFixed(1)}" rx="${(mR * 0.32).toFixed(1)}" ry="${(mR * 0.17).toFixed(1)}" fill="#FFFFFF" opacity="0.6"/>` + glyphAT;
       /* eyebrow ink + keyline answer to their color slots (KIT_SLOTS.achievetoast);
          untouched, the stroke keeps the soft translucent factory dark; the
          "none" sentinel removes the keyline entirely */
