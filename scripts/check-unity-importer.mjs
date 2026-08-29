@@ -1821,8 +1821,13 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the universal content pose trigger is missing — same-box content divergence (Day 4's today art, a level node's stars) would ride the wrong family bake (slice 2)");
   if (!/const stripWordInk = \(svgIn: string\)/.test(src) || !/if \(warped \|\| ghosted\) continue;/.test(src))
     errors.push("the family-bake word strip (stripWordInk, parseTextSeats' acceptance rule) is missing — words would bake into the universal families (slice 2)");
-  if (!/if \(cropBox && !UNIVERSAL_DISPLAY\.has\(idBase\) && !isGlyphPiece\(idBase\)\) \{/.test(src))
-    errors.push("posed state skins must skip DISPLAY families and the glyph rack — button-less prefabs would ship dead state files (slice 2)");
+  if (!/if \(cropBox && !UNIVERSAL_DISPLAY\.has\(idBase\) && \(!isGlyphPiece\(idBase\) \|\| GLYPH_BUTTONS\.has\(idBase\)\)\) \{/.test(src))
+    errors.push("posed state skins must skip DISPLAY families and the glyph rack (ACTION glyphs excepted, round 40) — button-less prefabs would ship dead state files (slice 2)");
+  if (!/const GLYPH_BUTTONS = new Set<KitComponentId>\(\["glyphpause", "glyphplay", "glyphreplay", "glyphhome"\]\);/.test(src)
+      || !/const interactive = UNIVERSAL_INTERACTIVE\.has\(uid\) \|\| GLYPH_BUTTONS\.has\(uid\);/.test(src))
+    errors.push("the ACTION glyphs (pause/play/replay/home) no longer ship state skins — the Gameplay pause button goes dead in Play again (round 40)");
+  if (!/a family that ships state skins IS a control/.test(cs) || !/img\.raycastTarget = true;/.test(cs))
+    errors.push("the ACTION-glyph Button wiring no longer re-enables the raycast — the art-mandate default leaves the pause button deaf (round 40)");
   // C#: manifest-declared labeled families, art-honest glyphs, posed Words stand-down
   if (!/if \(label == null && a\.labelText != null && a\.labelText\.Length > 0\) label = a\.labelText;/.test(cs))
     errors.push("RunPrefabBuilders must admit manifest-declared labeled families (labelText) — ghost/qtybadge/levelnode prefabs lose their live words (slice 2)");
@@ -2182,8 +2187,15 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/if \(posedCuts\.length\) ps2 = stripMarkedIcons\(ps2\)\.svg;/.test(src)
       || !/posedIcons: posedIconsPx/.test(src))
     errors.push("the POSED road stopped stripping marked icons / shipping posedIcons — board copies burn their swappables again");
-  if (!/\[Serializable\] class PBIconChild \{ public string name; public string file; public float dx; public float dy; public float w; public float h; public bool btn; public float wellR; public bool pinRight; public float rightGap; public string nick; \}/.test(cs))
-    errors.push("PBIconChild is missing from the importer — JsonUtility drops every un-burn seat row");
+  if (!/\[Serializable\] class PBIconChild \{ public string name; public string file; public float dx; public float dy; public float w; public float h; public bool btn; public float wellR; public bool pinRight; public float rightGap; public string nick;/.test(cs)
+      || !/public string word; public float wordFs; public float wordDx; public float wordDy; public string wordInk; public int wordW; \}/.test(cs))
+    errors.push("PBIconChild is missing from the importer (or lost its rider-word fields, round 40) — JsonUtility drops every un-burn seat row");
+  if (!/if \(!string\.IsNullOrEmpty\(pIc\.word\) && pIc\.wordFs > 1f\) \{/.test(cs)
+      || !/pwRt\.anchoredPosition = new Vector2\(pIc\.wordDx, -pIc\.wordDy\); \/\/ board y runs down/.test(cs))
+    errors.push("the posed road no longer rebuilds rider words on live plates — the Booster Select counts hide under their pills again (round 40)");
+  if (!/var famRowSD = LabelRow\(m, it\.component\);/.test(cs)
+      || !/var tSD = inst\.transform\.Find\(IconChildName\(icSD\)\);/.test(cs))
+    errors.push("posed copies no longer stand down nick-named family children by the manifest — the Shop bottomnav's Selected ring blobs over MAP again (round 40)");
   if (!/public PBStyle seatInk; public float ringV; public PBIconChild\[\] iconSeats; \}/.test(cs))
     errors.push("PBAsset must carry iconSeats — without it JsonUtility drops the un-burn seats");
   if (!/static List<string> WireIconChildren\(GameObject go, string root, PBManifest m, string fam\)/.test(cs)
@@ -2273,7 +2285,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
       || !/const ddCaret0 = await iconSeatsOf\("dropdown", ddLabeled, "dropdown", "caret"\);/.test(src)
       || !/pinRight: true, rightGap: Math\.round\(\(shL\[2\] \/ 2 - \(c0\.dx \+ c0\.w \/ 2\)\) \* 10\) \/ 10/.test(src))
     errors.push("the dropdown caret is baked again (or lost its measured right-edge gap) — parity with the app's labeled render is gone");
-  if (!/public bool pinRight; public float rightGap; public string nick; \}/.test(cs)
+  if (!/public bool pinRight; public float rightGap; public string nick;/.test(cs)
       || !/crt\.anchoredPosition = new Vector2\(-\(airR \+ ic\.rightGap \+ ic\.w \/ 2f\), 0f\);/.test(cs)
       || !/WireIconChildren\(go, root, m, "dropdown"\);/.test(cs))
     errors.push("the importer no longer pins the live caret to the right edge (PBIconChild.pinRight / DropdownPrefab wiring)");

@@ -416,7 +416,19 @@ export interface ExportBoardItemData {
       size in board px. The scene rebuilds each as a live, Inspector-
       swappable Image child on the placed root, so posed copies obey the
       law exactly like the family prefabs. */
-  posedIcons?: { name: string; file: string; dx: number; dy: number; w: number; h: number; btn?: boolean; wellR?: number; nick?: string }[];
+  posedIcons?: { name: string; file: string; dx: number; dy: number; w: number; h: number; btn?: boolean; wellR?: number; nick?: string;
+    /** a RIDER WORD stripped from the posed pixels with its plate (round
+     *  40 — the owner's Booster Select cards lost their ×3/×1/×2: the
+     *  un-burn rebuilt the pill as a live child ON TOP of the bake, so
+     *  the baked count hid under the opaque plate). A seat word marked
+     *  data-seat-rider whose plate strips now strips WITH it and the
+     *  scene re-seats it as live TMP ON the rebuilt child — plate +
+     *  count stay one movable group, per the family prefabs' own
+     *  AdoptSeatRiders grammar. wordDx/wordDy are the word center's
+     *  offset from the CHILD's center in board px (y down); wordFs the
+     *  rendered size in board px; wordInk the resolved hex; wordW the
+     *  weight. Absent = the plate carries no riding word. */
+    word?: string; wordFs?: number; wordDx?: number; wordDy?: number; wordInk?: string; wordW?: number }[];
   /** render-variant overlay (trophy ~gold) — the importer swaps the
       matching variant sprite onto the placed prefab; null = stock */
   ov?: string | null;
@@ -591,6 +603,14 @@ for (const cGl of KIT_COMPONENTS) if (isGlyphPiece(cGl.id)) PREFAB_FAMILY[cGl.id
 const UNIVERSAL_INTERACTIVE = new Set<KitComponentId>(["ghost", "claimbtn", "levelnode", "dailycell", "boostercard", "rewardcard"]);
 const UNIVERSAL_DISPLAY = new Set<KitComponentId>(["qtybadge", "resource", "currency", "movecounter", "ring", "avatarframe", "bottomnav"]);
 const UNIVERSAL_ROAD = new Set<KitComponentId>([...UNIVERSAL_INTERACTIVE, ...UNIVERSAL_DISPLAY]);
+/* the ACTION GLYPHS (round 40 — the owner's Gameplay pause button sat
+   dead in Play): pause/play/replay/home are buttons by their own meaning
+   — the app designs their hover/pressed/disabled like every kit piece,
+   and these four now SHIP those skins and wire as real Buttons (the
+   glyph rack's art mandate holds for everything else: decor glyphs stay
+   raycast-transparent so they never eat a click meant for the piece
+   behind them). */
+const GLYPH_BUTTONS = new Set<KitComponentId>(["glyphpause", "glyphplay", "glyphreplay", "glyphhome"]);
 /* what may STILL rasterize on the kit-piece stamp road, by name (the
    mandate's allowlist): the inventory grid's ringless panel bake (its
    tiles go live over it by design). Saved library assets, backgrounds
@@ -1598,6 +1618,49 @@ export async function collectExportBoards(st: {
             }
             if (posedCuts.length) ps2 = stripMarkedIcons(ps2).svg;
           }
+          /* RIDER WORDS leave the posed pixels WITH their plates (round 40
+             — the owner's Booster Select ×3/×1/×2 vanished: the stripped
+             pill rebuilt as a live child ON TOP of the bake and the baked
+             count hid under the opaque plate). A seat word marked
+             data-seat-rider whose plate is a posed cut is captured here
+             (raw svg frame; the posedIcons build converts to board px,
+             child-center relative) and removed before the raster — it
+             re-seats as live TMP riding the rebuilt child in the scene.
+             A rider naming NO stripped plate stays baked, as ever. */
+          const posedRiderWords: { rider: string; text: string; x: number; y: number; fs: number; weight: number; ink: string | null }[] = [];
+          if (posedCuts.length) {
+            /* the DRAWN-frame conversion (the cut boxes' own riseDy rule):
+               a <text>'s x/y are authored RAW while the cut boxes measure
+               drawn pixels — without the rise the count seats a whole
+               riseDy above its pill */
+            const shDW = /data-shell="([-\d. ]+)"/.exec(ps2)?.[1].split(" ").map(Number);
+            const sh0W = /data-shell0="([-\d. ]+)"/.exec(ps2)?.[1].split(" ").map(Number);
+            const riseDyW = shDW && sh0W && shDW.length === 4 && sh0W.length === 4 ? shDW[1] - sh0W[1] : 0;
+            const domR = new DOMParser().parseFromString(ps2, "image/svg+xml");
+            let cutR = 0;
+            for (const tR of Array.from(domR.querySelectorAll("text[data-seat-rider]"))) {
+              const riderR = tR.getAttribute("data-seat-rider") ?? "";
+              if (!posedCuts.some((c9) => c9.name === riderR)) continue;
+              const fsR = parseFloat(tR.getAttribute("font-size") ?? "0");
+              const wordR = (tR.textContent ?? "").replace(/\s+/g, " ").trim();
+              if (!(fsR > 1) || !wordR) continue;
+              const fillR = /^#[0-9a-fA-F]{6}$/.exec(tR.getAttribute("fill") ?? "")?.[0] ?? null;
+              posedRiderWords.push({
+                rider: riderR, text: wordR,
+                x: parseFloat(tR.getAttribute("x") ?? "0"),
+                /* dominant-baseline central is the rider grammar (both
+                   authored sites); a baseline-anchored stray would seat a
+                   hair high, still inside the plate */
+                y: parseFloat(tR.getAttribute("y") ?? "0") + riseDyW,
+                fs: fsR,
+                weight: parseInt(tR.getAttribute("font-weight") ?? "400", 10) || 400,
+                ink: fillR,
+              });
+              tR.remove();
+              cutR++;
+            }
+            if (cutR) ps2 = new XMLSerializer().serializeToString(domR.documentElement);
+          }
           /* crop to the DRAWN box, not the shell box — the extrusion (and
              bloom) reach past the shell, and a shell-tight crop cut the
              extrusion's bottom off in the scene (owner: "bottom extrusion
@@ -1654,6 +1717,11 @@ export async function collectExportBoards(st: {
                   .replace(/height="[\d.]+"/, `height="${cut.box[3].toFixed(1)}"`);
                 const { bytes: pbI } = await svgToPngBytes(sprI, 2);
                 stampFiles.push({ file: fI, bytes: pbI });
+                /* the plate's rider word, child-center relative in board
+                   px — the scene builds it as live TMP ON the rebuilt
+                   child (one rider per plate; both authored sites ship
+                   exactly one) */
+                const rw = posedRiderWords.find((r9) => r9.rider === cut.name);
                 posedIconsPx.push({
                   name: cut.name, file: fI,
                   dx: r1p((cut.box[0] + cut.box[2] / 2 - (pb3[0] + pb3[2] / 2)) * kx2),
@@ -1662,6 +1730,14 @@ export async function collectExportBoards(st: {
                   ...(cut.btn ? { btn: true } : {}),
                   ...(cut.well ? { wellR: r1p(cut.well[2] * Math.min(kx2, ky2)) } : {}),
                   ...(cut.nick ? { nick: cut.nick } : {}),
+                  ...(rw ? {
+                    word: rw.text,
+                    wordFs: r1p(rw.fs * ky2),
+                    wordDx: r1p((rw.x - (cut.box[0] + cut.box[2] / 2)) * kx2),
+                    wordDy: r1p((rw.y - (cut.box[1] + cut.box[3] / 2)) * ky2),
+                    ...(rw.ink ? { wordInk: rw.ink } : {}),
+                    wordW: rw.weight,
+                  } : {}),
                 });
               }
             }
@@ -1678,8 +1754,10 @@ export async function collectExportBoards(st: {
              the swap never jumps a pixel. DISPLAY families and the glyph
              rack skip: their prefabs carry no Button, so state skins would
              be dead files (the round-14 blank-stamps lesson, applied
-             before the fact). */
-          if (cropBox && !UNIVERSAL_DISPLAY.has(idBase) && !isGlyphPiece(idBase)) {
+             before the fact) — except the ACTION glyphs (round 40), whose
+             family prefabs are real buttons now and whose posed copies
+             press like any other. */
+          if (cropBox && !UNIVERSAL_DISPLAY.has(idBase) && (!isGlyphPiece(idBase) || GLYPH_BUTTONS.has(idBase))) {
             posedStates = {};
             for (const stN of ["hover", "pressed", "disabled"] as const) {
               let ssv = renderKit(shellCfg(cfgP), idBase, st.kitSizes[id] ?? "l", stN, b.v ?? st.kitVals[id], st.kitShapes[id], {
@@ -1694,6 +1772,10 @@ export async function collectExportBoards(st: {
               // the law rides the posed state skins too — the live icon
               // children must never press over a baked twin
               if (posedCuts.length) for (const gS of Array.from(domS.querySelectorAll('[data-part="icon"]'))) gS.remove();
+              // rider words strip from the skins exactly like the default
+              // bake — the live count must never press over a baked twin
+              if (posedRiderWords.length) for (const tS of Array.from(domS.querySelectorAll("text[data-seat-rider]")))
+                if (posedRiderWords.some((r9) => r9.rider === tS.getAttribute("data-seat-rider"))) tS.remove();
               ssv = new XMLSerializer().serializeToString(domS.documentElement)
                 .replace(/<animate(?:Transform|Motion)?\b[^>]*\/>/g, "")
                 .replace(/<animate(?:Transform|Motion)?\b[^>]*>[\s\S]*?<\/animate(?:Transform|Motion)?>/g, "");
@@ -4006,7 +4088,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         const seatsU = !isArt && strippedU.seatsStripped > 0
           ? textSeatsOf(uid, strippedU.svg, { icon: resolveKitIcon(st.kitIcons?.[uid], undefined) }, undefined, uVal)
           : {};
-        const interactive = UNIVERSAL_INTERACTIVE.has(uid);
+        /* the ACTION glyphs press for real (round 40): they ride the same
+           union-cropped state-skin road as the interactive families, and
+           the importer's State() lookup wires the Button from the files */
+        const interactive = UNIVERSAL_INTERACTIVE.has(uid) || GLYPH_BUTTONS.has(uid);
         const famFlipU = isFlipShape(st.kitShapes[uid] ?? KIT_SHAPE[uid] ?? st.cfg.shape);
         /* ── the RING RIG ATOMS (owner field: the baked 62% could only
            ever say 62, and anything that re-cut it angularly smudged the
@@ -4053,7 +4138,9 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           }, false);
         await addPng(`${uid}/base.png`, baseSvgU, {
           component: uid, part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
-          usage: UNIVERSAL_USAGE[uid] ?? "Kit glyph piece — placeable art in the kit's own material. Not a button; scale freely (Preserve Aspect).",
+          usage: UNIVERSAL_USAGE[uid] ?? (GLYPH_BUTTONS.has(uid)
+            ? "Kit glyph piece — a REAL button (hover/pressed/disabled ship beside it and the prefab wires Sprite Swap). Scale freely (Preserve Aspect)."
+            : "Kit glyph piece — placeable art in the kit's own material. Not a button; scale freely (Preserve Aspect)."),
           ...(famFlipU ? { flip: true } : {}),
           ...(uLabelMeta ?? {}),
           ...(uWord !== undefined ? { labelText: uWord } : {}),
@@ -9211,7 +9298,11 @@ namespace PatternBreak {
      per swappable icon/image the app drew — its own full-color sprite,
      box center vs the shell center (design px, y down), box size. btn =
      a REAL small-button plate; wellR > 0 = circular-masked image well. */
-  [Serializable] class PBIconChild { public string name; public string file; public float dx; public float dy; public float w; public float h; public bool btn; public float wellR; public bool pinRight; public float rightGap; public string nick; }
+  [Serializable] class PBIconChild { public string name; public string file; public float dx; public float dy; public float w; public float h; public bool btn; public float wellR; public bool pinRight; public float rightGap; public string nick;
+    /* posed board copies only (round 40): a rider word stripped from the
+       posed pixels with its plate — rebuilt as live TMP ON the live child
+       (wordDx/wordDy = word center from the CHILD center, board px). */
+    public string word; public float wordFs; public float wordDx; public float wordDy; public string wordInk; public int wordW; }
   [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public PBTrack track; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelInk; public string labelInk2; public float leading; public string labelText; public PBIconSeat icon; public PBGauge gauge; public PBChart chart; public PBLoot loot; public PBSeat[] textSeats; public PBStyle seatInk; public float ringV; public PBIconChild[] iconSeats; }
   [Serializable] class PBStyleOutline { public string color; public string color2; public float width; }
   [Serializable] class PBStyleGlow { public string color; public float size; public float opacity; }
@@ -12264,6 +12355,21 @@ namespace PatternBreak {
                 foreach (Transform chIc in inst.transform)
                   if (chIc.name.StartsWith("Icon ") || chIc.name == "Portrait Well" || chIc.name.EndsWith(" button"))
                     chIc.gameObject.SetActive(false);
+                /* NICK-NAMED family children stand down BY THE MANIFEST
+                   (round 40 — the Shop bottomnav's "Selected ring" blobbed
+                   over MAP and the "Badge plate" sat at a tab seam: their
+                   friendly names escape the generic grammar above, so the
+                   prefab-frame pair stayed active on the shell-box root).
+                   The family base row names every live child we built —
+                   walk it, nicks included; a rider word we parented under
+                   a plate goes down with it. */
+                var famRowSD = LabelRow(m, it.component);
+                if (famRowSD != null && famRowSD.iconSeats != null)
+                  foreach (var icSD in famRowSD.iconSeats) {
+                    if (icSD == null) continue;
+                    var tSD = inst.transform.Find(IconChildName(icSD));
+                    if (tSD != null) tSD.gameObject.SetActive(false);
+                  }
                 if (it.posedIcons != null) foreach (var pIc in it.posedIcons) {
                   if (pIc == null || string.IsNullOrEmpty(pIc.file) || pIc.w < 1f || pIc.h < 1f) continue;
                   var pIcSp = S(root + "/" + pIc.file);
@@ -12295,6 +12401,38 @@ namespace PatternBreak {
                   pIcRt.pivot = new Vector2(0.5f, 0.5f);
                   pIcRt.anchoredPosition = new Vector2(pIc.dx, -pIc.dy); // board y runs down
                   pIcRt.sizeDelta = new Vector2(pIc.w, pIc.h);
+#if UNITY_2023_2_OR_NEWER
+                  /* the plate's RIDER WORD, live (round 40 — the Booster
+                     Select ×3/×1/×2 hid under the rebuilt pill): the count
+                     stripped from the posed pixels with its plate and
+                     rides the live child here as editable TMP — move,
+                     restyle or delete plate + count as one, exactly the
+                     family prefabs' AdoptSeatRiders grammar. Instrument
+                     voice (the app draws these counts in heavy Inter);
+                     pre-2023.2 editors keep the family-road precedent
+                     (no TMP, no Words) and skip. */
+                  if (!string.IsNullOrEmpty(pIc.word) && pIc.wordFs > 1f) {
+                    var pwGo = new GameObject(PlainWord(pIc.word), typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+                    pwGo.transform.SetParent(pIcGo.transform, false);
+                    var pwT = pwGo.GetComponent<TextMeshProUGUI>();
+                    pwT.text = pIc.word;
+                    pwT.raycastTarget = false;
+                    pwT.enableAutoSizing = false;
+                    pwT.fontSize = pIc.wordFs;
+                    SeatHarden(pwT);
+                    pwT.alignment = TextAlignmentOptions.Center;
+                    var pwFace = EnsureInstrumentFace(root, m);
+                    if (pwFace != null) pwT.font = pwFace;
+                    else if (pIc.wordW >= 700) pwT.fontStyle = FontStyles.Bold; // synthetic bold only when the real cut is absent
+                    Color pwC;
+                    if (!string.IsNullOrEmpty(pIc.wordInk) && ColorUtility.TryParseHtmlString(pIc.wordInk, out pwC)) pwT.color = pwC;
+                    var pwRt = pwGo.GetComponent<RectTransform>();
+                    pwRt.anchorMin = pwRt.anchorMax = new Vector2(0.5f, 0.5f);
+                    pwRt.pivot = new Vector2(0.5f, 0.5f);
+                    pwRt.anchoredPosition = new Vector2(pIc.wordDx, -pIc.wordDy); // board y runs down
+                    pwRt.sizeDelta = new Vector2(Mathf.Max(pIc.w, pIc.wordFs * (pIc.word.Length + 2f)), pIc.wordFs * 1.8f);
+                  }
+#endif
                 }
                 /* the dropdown's open-list TEMPLATE was built in PREFAB
                    frame units — this root now IS the shell box at BOARD
@@ -14571,6 +14709,11 @@ namespace PatternBreak {
         // explicit target: play mode would self-resolve in Awake, but the
         // Inspector shows "None (Graphic)" until then and reads as unwired
         btn.targetGraphic = img;
+        /* a family that ships state skins IS a control — the glyph rack's
+           art default (raycast off, above) must not leave its ACTION
+           members deaf (round 40: the Gameplay pause button sat dead in
+           Play). A Button's target graphic has to accept rays. */
+        img.raycastTarget = true;
         btn.transition = Selectable.Transition.SpriteSwap;
         var ss = new SpriteState();
         ss.highlightedSprite = hover;
@@ -19076,6 +19219,11 @@ namespace PatternBreak {
           if (wantWiring && contents.GetComponent<Selectable>() == null) {
             var btn = contents.AddComponent<Button>();
             btn.targetGraphic = BodyImage(contents);
+            /* an ACTION glyph converging into a Button (round 40) was born
+               raycast-off on the art mandate — the target must accept rays
+               or the wired states stay deaf */
+            var biW = BodyImage(contents);
+            if (biW != null) biW.raycastTarget = true;
             btn.transition = Selectable.Transition.SpriteSwap;
             var ss = new SpriteState();
             ss.highlightedSprite = hover;

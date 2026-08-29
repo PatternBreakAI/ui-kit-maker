@@ -7787,9 +7787,13 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const chY = sy + sh - insetBC - chH - 8 * k;
       /* the qty PILL PLATE is marked swappable ink too (maximum-editability
          law, data-icon-btn): the export strips it and ships it as a real
-         small-button child; the count stays a live word seat over it */
+         small-button child; the count RIDES that plate (data-seat-rider,
+         the bottomnav badge grammar) so plate + count move, restyle or
+         delete as ONE group — and on posed board copies the count re-seats
+         LIVE on the rebuilt pill instead of hiding under it (round 40:
+         the owner's Booster Select cards lost their ×3/×1/×2). */
       const qty = `<g data-part="icon" data-icon="qtybtn" data-icon-btn="1"><rect x="${(wcx - chW / 2).toFixed(1)}" y="${chY.toFixed(1)}" width="${chW.toFixed(1)}" height="${chH.toFixed(1)}" rx="${(chH / 2).toFixed(1)}" fill="${bevel}" stroke="${darken(bevel, 0.4)}" stroke-width="1.4" opacity="${dimBC ? 0.5 : 1}"/></g>` +
-        `<text x="${wcx.toFixed(1)}" y="${(chY + chH / 2 + 0.5).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(17 * k).toFixed(1)}" font-weight="800" fill="${paleG(bevel) ? darken(bevel, 0.68) : "#FFFFFF"}" text-anchor="middle" dominant-baseline="central" opacity="${dimBC ? 0.6 : 1}">${esc(qTxt)}</text>`;
+        `<text x="${wcx.toFixed(1)}" y="${(chY + chH / 2 + 0.5).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(17 * k).toFixed(1)}" font-weight="800" fill="${paleG(bevel) ? darken(bevel, 0.68) : "#FFFFFF"}" text-anchor="middle" dominant-baseline="central" opacity="${dimBC ? 0.6 : 1}" data-seat-rider="qtybtn">${esc(qTxt)}</text>`;
       return inject(shell.replace("<svg ", '<svg data-boostercard="1" '), well + face + name + effect9 + qty);
     }
     case "qtybadge": {
