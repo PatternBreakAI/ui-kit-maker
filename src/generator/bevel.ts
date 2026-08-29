@@ -5112,6 +5112,27 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
           ${sfxF.open}<path d="${clipF}" fill="url(#${gid})" opacity="0.95"/>${sfxF.close}
           <g clip-path="url(#${gid}m)"><path d="${roundRect(bx - 2, by + bh * 0.08, Math.max(0, trackW + 2 - 4 * k), bh * 0.34, bh * 0.17)}" fill="#FFFFFF" opacity="0.3"/>${sfxF.over}</g></svg>`;
       }
+      /* the mercury HEAD alone (round 44 kit-wide mercury ruling) — the
+         progress cap's window trick on the slider's own bead drawing;
+         normally hidden under the thumb, it keeps the head honest when
+         the thumb and fill separate at extreme values. */
+      if (opts.overlay === "cap") {
+        const vCap = 0.8;
+        const fwCs = trackW * vCap;
+        const gidCs = "sl" + UID++;
+        const sfxCs = barFx(gidCs, bx, by, fwCs, bh, bh / 2);
+        const clipCs = shapePath(shapeOv ?? KIT_SHAPE[id] ?? cfg.shape, bx, by, trackW, bh, Math.max(0, cfg.bevel.softness - 12));
+        const rCs = bh / 2;
+        const fx1s = bx + fwCs;
+        const slFillC = `M ${(bx - 2).toFixed(1)} ${by.toFixed(1)} H ${(fx1s - rCs).toFixed(1)} Q ${fx1s.toFixed(1)} ${by.toFixed(1)} ${fx1s.toFixed(1)} ${(by + rCs).toFixed(1)} V ${(by + bh - rCs).toFixed(1)} Q ${fx1s.toFixed(1)} ${(by + bh).toFixed(1)} ${(fx1s - rCs).toFixed(1)} ${(by + bh).toFixed(1)} H ${(bx - 2).toFixed(1)} Z`;
+        const glossCs = `<path d="${roundRect(bx - 2, by + bh * 0.08, Math.max(0, fwCs + 2 - 4 * k), bh * 0.34, bh * 0.17)}" fill="#FFFFFF" opacity="0.3"/>`;
+        const ch9s = Math.ceil(h + 60);
+        const wx0s = fx1s - bh - 8, wwCs = Math.ceil(bh + 16);
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${wwCs}" height="${ch9s}" viewBox="${wx0s.toFixed(1)} 0 ${wwCs} ${ch9s}">
+          <defs><linearGradient id="${gidCs}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient>${sfxCs.defs}<clipPath id="${gidCs}w"><path d="${clipCs}"/></clipPath><clipPath id="${gidCs}f"><path d="${slFillC}"/></clipPath></defs>
+          <g clip-path="url(#${gidCs}w)">${sfxCs.open}<path d="${slFillC}" fill="url(#${gidCs})" opacity="0.95"/>${sfxCs.close}
+          <g clip-path="url(#${gidCs}f)">${glossCs}${sfxCs.over}</g></g></svg>`;
+      }
       const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       if (opts.overlay === "track")
         return stampTrack(inject(track, `<path d="${wellOf(w, h, inset)}" fill="${wellFill}" opacity="0.92"/>`), bx, trackW);
@@ -5182,6 +5203,32 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
           <defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient>${sfxF.defs}<clipPath id="${gid}m"><path d="${clipF}"/></clipPath></defs>
           ${sfxF.open}<path d="${clipF}" fill="url(#${gid})" opacity="0.95"/>${sfxF.close}
           <g clip-path="url(#${gid}m)"><path d="${roundRect(bx - 2, by + bh * 0.08, Math.max(0, trackW + 2 - bh * 0.1), bh * 0.34, bh * 0.17)}" fill="#FFFFFF" opacity="0.3"/>${sfxF.over}</g></svg>`;
+      }
+      /* the mercury HEAD alone (round 44, kit-wide owner ruling: "the
+         right side of the mercury here is rounded, that's what I'm
+         talking about kit-wide"): the partial fill's rounded bead,
+         WINDOWED out of the exact drawing the composed render makes —
+         gradient end, gloss terminus and BarFx containment arrive by
+         construction. Baked at 0.8 so the head sits on interior track;
+         the window keeps a straight lead-in beside the bead. The rig
+         parks it so its curve ends exactly at the value line while the
+         Filled crop hides under its body. */
+      if (opts.overlay === "cap") {
+        const vCap = 0.8;
+        const fwC = trackW * vCap;
+        const gidC = "pg" + UID++;
+        const pfxC = barFx(gidC, bx, by, fwC, bh, bh / 2);
+        const mercPC = shapePath(shapeOv ?? KIT_SHAPE[id] ?? cfg.shape, bx, by, trackW, bh, Math.max(0, cfg.bevel.softness - 12));
+        const rC5 = bh / 2;
+        const fx1C = bx + fwC;
+        const mercDC = `M ${(bx - 2).toFixed(1)} ${by.toFixed(1)} H ${(fx1C - rC5).toFixed(1)} Q ${fx1C.toFixed(1)} ${by.toFixed(1)} ${fx1C.toFixed(1)} ${(by + rC5).toFixed(1)} V ${(by + bh - rC5).toFixed(1)} Q ${fx1C.toFixed(1)} ${(by + bh).toFixed(1)} ${(fx1C - rC5).toFixed(1)} ${(by + bh).toFixed(1)} H ${(bx - 2).toFixed(1)} Z`;
+        const glossC = `<path d="${roundRect(bx - 2, by + bh * 0.08, Math.max(0, fwC + 2 - bh * 0.1), bh * 0.34, bh * 0.17)}" fill="#FFFFFF" opacity="0.3"/>`;
+        const ch9C = Math.ceil(h + 60);
+        const wx0 = fx1C - bh - 8, wwC = Math.ceil(bh + 16);
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${wwC}" height="${ch9C}" viewBox="${wx0.toFixed(1)} 0 ${wwC} ${ch9C}">
+          <defs><linearGradient id="${gidC}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient>${pfxC.defs}<clipPath id="${gidC}w"><path d="${mercPC}"/></clipPath><clipPath id="${gidC}f"><path d="${mercDC}"/></clipPath></defs>
+          <g clip-path="url(#${gidC}w)">${pfxC.open}<path d="${mercDC}" fill="url(#${gidC})" opacity="0.95"/>${pfxC.close}
+          <g clip-path="url(#${gidC}f)">${glossC}${pfxC.over}</g></g></svg>`;
       }
       const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       if (opts.overlay === "track")
@@ -5395,25 +5442,42 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
           candyKnob(cpad, cpad, R, knobC, undefined, false) +
           `<text x="${(cpad + typeOxK * k).toFixed(1)}" y="${(cpad + 1 + typeOyK * k).toFixed(1)}" font-family="'${font}', 'Inter Variable', Inter, sans-serif" font-size="${(30 * k * typeK).toFixed(1)}" font-weight="800" font-style="italic" fill="${darken(bevel, 0.6)}" text-anchor="middle" dominant-baseline="central">VS</text></svg>`;
       }
-      if (opts.overlay === "fill" || opts.overlay === "fill-right") {
-        /* one fighter's mercury at 100% — the silhouette-shaped half-run,
-           square at the drain edge (center) so the Filled image's scissor
-           line is honest; the OUTER cap takes the component's contour
-           from the silhouette clip, exactly like the app's drain. */
-        const rightF = opts.overlay === "fill-right";
+      if (opts.overlay === "fill" || opts.overlay === "fill-right" || opts.overlay === "cap-l" || opts.overlay === "cap-r") {
+        /* one fighter's mercury at 100% — the silhouette-shaped half-run.
+           Round 44 (owner item 43, app side): the DRAIN edge rounds like
+           the live drawing's bead — the old deliberately-square cut is
+           exactly the flat end the owner vetoed kit-wide; the Filled
+           scissor now hides under the live cap atom instead. The OUTER
+           cap still takes the component's contour from the silhouette. */
+        const rightF = opts.overlay === "fill-right" || opts.overlay === "cap-r";
+        const capF = opts.overlay === "cap-l" || opts.overlay === "cap-r";
         const gid = "vs" + UID++;
         const clipF = shapePath(shapeOv ?? KIT_SHAPE[id] ?? cfg.shape, bx, by, trackW, bh, Math.max(0, cfg.bevel.softness - 12));
-        const x0F = rightF ? bx + trackW - halfW : bx - 2;
-        const x1F = rightF ? bx + trackW + 2 : bx + halfW;
         const gradF = rightF
           ? `<linearGradient id="${gid}" x1="1" y1="0" x2="0" y2="0"><stop offset="0" stop-color="${darken(rC, 0.25)}"/><stop offset="1" stop-color="${rC}"/></linearGradient>`
           : `<linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient>`;
         const cw9 = Math.ceil(w + 78), ch9 = Math.ceil(h + 60);
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="${cw9}" height="${ch9}" viewBox="0 0 ${cw9} ${ch9}">
-          <defs>${gradF}<clipPath id="${gid}w"><path d="${clipF}"/></clipPath></defs>
+        const rF9 = bh / 2;
+        // the full half-run with the drain bead (the live draw at v = 1)
+        const fxL9 = bx + halfW, x0R9 = bx + trackW - halfW;
+        const bodyF = rightF
+          ? `M ${(bx + trackW + 2).toFixed(1)} ${by.toFixed(1)} H ${(x0R9 + rF9).toFixed(1)} Q ${x0R9.toFixed(1)} ${by.toFixed(1)} ${x0R9.toFixed(1)} ${(by + rF9).toFixed(1)} V ${(by + bh - rF9).toFixed(1)} Q ${x0R9.toFixed(1)} ${(by + bh).toFixed(1)} ${(x0R9 + rF9).toFixed(1)} ${(by + bh).toFixed(1)} H ${(bx + trackW + 2).toFixed(1)} Z`
+          : `M ${(bx - 2).toFixed(1)} ${by.toFixed(1)} H ${(fxL9 - rF9).toFixed(1)} Q ${fxL9.toFixed(1)} ${by.toFixed(1)} ${fxL9.toFixed(1)} ${(by + rF9).toFixed(1)} V ${(by + bh - rF9).toFixed(1)} Q ${fxL9.toFixed(1)} ${(by + bh).toFixed(1)} ${(fxL9 - rF9).toFixed(1)} ${(by + bh).toFixed(1)} H ${(bx - 2).toFixed(1)} Z`;
+        const glossF = rightF
+          ? `<rect x="${(x0R9 + bh * 0.16).toFixed(1)}" y="${(by + bh * 0.08).toFixed(1)}" width="${Math.max(0, halfW + 2 - bh * 0.16).toFixed(1)}" height="${(bh * 0.3).toFixed(1)}" rx="${(bh * 0.15).toFixed(1)}" fill="#FFFFFF" opacity="0.28"/>`
+          : `<rect x="${(bx - 2).toFixed(1)}" y="${(by + bh * 0.08).toFixed(1)}" width="${Math.max(0, halfW + 2 - bh * 0.16).toFixed(1)}" height="${(bh * 0.3).toFixed(1)}" rx="${(bh * 0.15).toFixed(1)}" fill="#FFFFFF" opacity="0.28"/>`;
+        /* the cap atoms: the drain bead windowed out of this drawing
+           (the progress cap's window trick, mirrored per side) */
+        const wx0F = capF ? (rightF ? x0R9 - 8 : fxL9 - bh - 8) : 0;
+        const wwF = Math.ceil(bh + 16);
+        const openF = capF
+          ? `width="${wwF}" height="${ch9}" viewBox="${wx0F.toFixed(1)} 0 ${wwF} ${ch9}"`
+          : `width="${cw9}" height="${ch9}" viewBox="0 0 ${cw9} ${ch9}"`;
+        return `<svg xmlns="http://www.w3.org/2000/svg" ${openF}>
+          <defs>${gradF}<clipPath id="${gid}w"><path d="${clipF}"/></clipPath><clipPath id="${gid}f"><path d="${bodyF}"/></clipPath></defs>
           <g clip-path="url(#${gid}w)">
-            <rect x="${Math.min(x0F, x1F).toFixed(1)}" y="${by.toFixed(1)}" width="${Math.abs(x1F - x0F).toFixed(1)}" height="${bh.toFixed(1)}" fill="url(#${gid})" opacity="0.95"/>
-            <rect x="${(Math.min(x0F, x1F) + bh * 0.16).toFixed(1)}" y="${(by + bh * 0.08).toFixed(1)}" width="${Math.max(0, Math.abs(x1F - x0F) - bh * 0.32).toFixed(1)}" height="${(bh * 0.3).toFixed(1)}" rx="${(bh * 0.15).toFixed(1)}" fill="#FFFFFF" opacity="0.28"/>
+            <path d="${bodyF}" fill="url(#${gid})" opacity="0.95"/>
+            <g clip-path="url(#${gid}f)">${glossF}</g>
           </g></svg>`;
       }
       const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 110 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });

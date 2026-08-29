@@ -348,7 +348,7 @@ if (!/class PBTrack \{ public float x; public float w; \}/.test(cs))
   errors.push("PBTrack (the manifest's well-zone row) is missing from the importer (round 21)");
 if (!/static RectTransform BuildBarFill\(/.test(cs) || !/aT\.track != null && aT\.track\.w > 2f/.test(cs))
   errors.push("the shared mercury-seat builder (BuildBarFill, manifest-zone seated) is missing (round 21)");
-if (!/BuildBarFill\(go, "Fill", fill, track, pngScale, m, "progress", 0\.62f, false\)/.test(cs))
+if (!/BuildBarFill\(go, "Fill", fill, track, pngScale, m, root, "progress", 0\.62f, false\)/.test(cs))
   errors.push("ProgressPrefab must assemble the dressed rig through BuildBarFill (round 21)");
 if (!/\(it\.component == "progress" \|\| it\.component == "emblembar"\) && it\.value > 0f/.test(cs))
   errors.push("board placement must drive the progress/emblem bars' fillAmount from the board's value (round 21)");
@@ -2719,6 +2719,38 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
       || !/bool wantStRun = stK0\.runSprite == null && runSpK != null;/.test(cs)
       || !/bool stDefaults = Mathf\.Approximately\(stK0\.trackX0, 0\.22f\)/.test(cs))
     errors.push("the kept-rig SeasonTrack convergence is gone (run wire + defaults-only geometry) — field kits freeze at their first import forever (round 44, item 14)");
+  // RIG-1 — the LINEAR CAP RIG (owner kit-wide mercury ruling; settles
+  // part-1 item 10 + part-2 items 28/43): the app's bead parks on the
+  // value line while the Filled crop hides beneath it
+  if (!/if \(opts\.overlay === "cap"\) \{\n        const vCap = 0\.8;/.test(bevelSrc))
+    errors.push("the progress/emblembar cap atom (windowed bead) left bevel — the mercury goes flat at the growing end again (round 44, item 10)");
+  if (!/const wx0s = fx1s - bh - 8, wwCs = Math\.ceil\(bh \+ 16\);/.test(bevelSrc))
+    errors.push("the slider cap atom left bevel");
+  if (!/opts\.overlay === "fill-right" \|\| opts\.overlay === "cap-r"/.test(bevelSrc)
+      || !/const capF = opts\.overlay === "cap-l" \|\| opts\.overlay === "cap-r";/.test(bevelSrc))
+    errors.push("the vsbar drain beads (rounded atoms + cap windows) left bevel (round 44, item 43)");
+  for (const capRow of ['"progress\\/cap.png"', '"emblembar\\/cap.png"', '"slider\\/cap.png"', '"vsbar\\/cap-l.png"', '"vsbar\\/cap-r.png"'])
+    if (!new RegExp("await addPng\\(" + capRow).test(src))
+      errors.push(`the ${capRow} cap atom stopped shipping`);
+  if (!/public class KitBarFill : MonoBehaviour \{/.test(src)
+      || !/float capW = areaH \* \(capImg\.sprite\.rect\.width \/ Mathf\.Max\(1f, capImg\.sprite\.rect\.height\)\);/.test(src)
+      || !/fill\.fillAmount = Mathf\.Max\(0f, v - capFrac \* 0\.5f\);/.test(src)
+      || !/if \(!Mathf\.Approximately\(fill\.fillAmount, wroteFill\)\) \{ value = Mathf\.Clamp01\(fill\.fillAmount\); Apply\(\); \}/.test(src))
+    errors.push("KitBarFill lost its rig semantics (height-ratio cap, crop retreat under the bead, change-guarded fillAmount follow — the SHIPPED dev contract)");
+  if (!/files\.push\(\{ path: "Runtime\/PatternBreakKitBarFill\.cs", data: KIT_BAR_FILL_RUNTIME \}\);/.test(src)
+      || !/"Runtime\/PatternBreakKitBarFill\.cs",/.test(src))
+    errors.push("PatternBreakKitBarFill.cs must ride BOTH files.push and sharedScripts (the IdleShine CS0246 lesson)");
+  if (!/static void WireBarCap\(GameObject area, Image fImg, string root, string fam, bool fromRight, float staged\)/.test(cs)
+      || !/WireBarCap\(area, fImg, root, fam, fromRight, staged\);/.test(cs)
+      || !/WireBarCap\(area, fImg, root, "slider", false, 0\.62f\);/.test(cs)
+      || !/WireBarCap\(area, fi, root, "vsbar", false, 0\.72f\);/.test(cs)
+      || !/WireBarCap\(area, fi, root, "vsbar", true, 0\.58f\);/.test(cs))
+    errors.push("the cap wiring left a bar prefab road (BuildBarFill/Slider/VsBar) — that family's mercury goes flat again");
+  if (!/var kbP = pfT\.GetComponentInParent<KitBarFill>\(\);/.test(cs) || !/var kbV = vlT\.GetComponentInParent<KitBarFill>\(\);/.test(cs))
+    errors.push("board copies no longer re-park the bead on their posed value (KitBarFill board lines)");
+  if (!/string famBarK = spritePath\.EndsWith\("\/progress-track\.9\.png"\) \? "progress"/.test(cs)
+      || !/capRigged\+\+;/.test(cs))
+    errors.push("the kept-project rounded-head retrofit is gone — field bars keep the flat crop forever (round 44)");
 }
 
 if (errors.length) {

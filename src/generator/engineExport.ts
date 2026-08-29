@@ -3818,7 +3818,13 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      capsule and gradient pill are gone; SAME FILENAMES, so existing
      projects upgrade in place and the maintenance pass reseats the rig. */
   await addPng("progress/track.9.png", shell("progress", { overlay: "track" }, slim), { component: "progress", part: "track", nineSlice: sliceOf("progress", 64), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Progress track — the real component's shell + well, no fill. The wired ProgressBar prefab stretches it." }, true);
-  await addPng("progress/fill.9.png", shell("progress", { overlay: "fill" }, slim, 1), { component: "progress", part: "fill", nineSlice: sliceOf("progress", 44), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Progress mercury at 100% — the wired prefab's Filled image scissors it to the live value, exactly like the app's clip." }, true);
+  await addPng("progress/fill.9.png", shell("progress", { overlay: "fill" }, slim, 1), { component: "progress", part: "fill", nineSlice: sliceOf("progress", 44), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Progress mercury at 100% — the wired prefab's Filled image scissors it to the live value, and KitBarFill parks the rounded head (progress-cap.png) on the growing end." }, true);
+  /* the ROUNDED HEAD atoms (round 44, owner kit-wide ruling: "the right
+     side of the mercury here is rounded, that's what I'm talking about
+     kit-wide") — the mercury's bead windowed from the app's own partial
+     drawing; KitBarFill parks it at the value line while the Filled crop
+     hides under its body, so the growing end rounds at ANY value. */
+  await addPng("progress/cap.png", shell("progress", { overlay: "cap" }, slim, 1), { component: "progress", part: "cap", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The mercury's rounded head — KitBarFill rides it on the fill's growing end (drive fillAmount or SetValue; the head follows, hides at 0, yields to the baked cap at 100%)." }, true);
   if (full) {
   // segmented meter — empty well plus one lit cell; the engine tiles cells
   // into the well at its own count/gap. The docked emblem socket ships as
@@ -3831,11 +3837,14 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      layers and place as wired prefabs, like the slider and the progress
      bar before them. */
   await addPng("vsbar/track.9.png", shell("vsbar", { overlay: "track" }, slim), { component: "vsbar", part: "track", nineSlice: sliceOf("vsbar", 96), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "VS health bar track — the real component's shell + well, no fills, no medallion. The wired VsBar prefab stretches it." }, true);
-  await addPng("vsbar/fill-l.png", shell("vsbar", { overlay: "fill" }, slim, 1), { component: "vsbar", part: "fill-l", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Left fighter's mercury at 100% — Filled/Horizontal, Origin Left; fillAmount IS the left health, draining toward center." }, true);
-  await addPng("vsbar/fill-r.png", shell("vsbar", { overlay: "fill-right" }, slim, 1), { component: "vsbar", part: "fill-r", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Right fighter's mercury at 100% — Filled/Horizontal, Origin Right; fillAmount IS the right health." }, true);
+  await addPng("vsbar/fill-l.png", shell("vsbar", { overlay: "fill" }, slim, 1), { component: "vsbar", part: "fill-l", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Left fighter's mercury at 100% (drain edge rounded like the app draws it) — Filled/Horizontal, Origin Left; fillAmount IS the left health, draining toward center; KitBarFill rides the drain cap." }, true);
+  await addPng("vsbar/fill-r.png", shell("vsbar", { overlay: "fill-right" }, slim, 1), { component: "vsbar", part: "fill-r", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Right fighter's mercury at 100% (drain edge rounded like the app draws it) — Filled/Horizontal, Origin Right; fillAmount IS the right health; KitBarFill rides the drain cap." }, true);
+  await addPng("vsbar/cap-l.png", shell("vsbar", { overlay: "cap-l" }, slim, 1), { component: "vsbar", part: "cap-l", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Left fighter's drain bead — KitBarFill parks it at the health line (round 44: rounded at any value)." }, true);
+  await addPng("vsbar/cap-r.png", shell("vsbar", { overlay: "cap-r" }, slim, 1), { component: "vsbar", part: "cap-r", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Right fighter's drain bead, mirrored — KitBarFill parks it at the health line." }, true);
   await addPng("vsbar/medal.png", shell("vsbar", { overlay: "medal" }, slim), { component: "vsbar", part: "medal", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The candy VS medallion, kit-typed — rides the axis over both fills and holds its size when the bar stretches." }, true);
   await addPng("emblembar/track.9.png", shell("emblembar", { overlay: "track" }, slim), { component: "emblembar", part: "track", nineSlice: sliceOf("emblembar", 64), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Emblem bar track — the real component's shell + well, no fill, no socket. The wired EmblemBar prefab stretches it." }, true);
-  await addPng("emblembar/fill.9.png", shell("emblembar", { overlay: "fill" }, slim, 1), { component: "emblembar", part: "fill", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Emblem bar mercury at 100% — the wired prefab's Filled image scissors it to the live value." }, true);
+  await addPng("emblembar/fill.9.png", shell("emblembar", { overlay: "fill" }, slim, 1), { component: "emblembar", part: "fill", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Emblem bar mercury at 100% — the wired prefab's Filled image scissors it to the live value; KitBarFill parks the rounded head (emblembar-cap.png) on the growing end." }, true);
+  await addPng("emblembar/cap.png", shell("emblembar", { overlay: "cap" }, slim, 1), { component: "emblembar", part: "cap", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The emblem bar mercury's rounded head — KitBarFill rides it on the growing end." }, true);
   // icon undefined = the app's own default for a stock board copy (the
   // clock emblem); a dev drops their art in the socket's well in-engine
   /* the socket's canvas must hold the ICON-FX HALO (round 27 — owner,
@@ -3870,7 +3879,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      capsule approximation. Same filenames as the old synthesized strips —
      existing projects upgrade in place. */
   await addPng("slider/track.9.png", shell("slider", { overlay: "track" }, slim), { component: "slider", part: "track", nineSlice: sliceOf("slider", 64), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Slider track — the real component's shell + well, no fill, no knob. The wired Slider prefab stretches it." }, true);
-  await addPng("slider/fill.9.png", shell("slider", { overlay: "fill" }, slim, 1), { component: "slider", part: "fill", nineSlice: sliceOf("slider", 44), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Slider mercury at 100% — the wired prefab's Fill Rect scissors it to the live value." }, true);
+  await addPng("slider/fill.9.png", shell("slider", { overlay: "fill" }, slim, 1), { component: "slider", part: "fill", nineSlice: sliceOf("slider", 44), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Slider mercury at 100% — the wired prefab's Fill Rect scissors it to the live value; KitBarFill keeps the head rounded where thumb and fill separate." }, true);
+  await addPng("slider/cap.png", shell("slider", { overlay: "cap" }, slim, 1), { component: "slider", part: "cap", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The slider mercury's rounded head — usually under the thumb; KitBarFill keeps it honest at the extremes." }, true);
   await addPng("slider/thumb.png", shell("slider", { overlay: "knob" }, slim), { component: "slider", part: "thumb", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Slider knob — the kit's candy ball; the wired prefab drags it." }, true);
   await addPng("toggle/track.9.png", shell("toggle", { overlay: "track" }, slim, 1), { component: "toggle", part: "track", nineSlice: sliceOf("toggle", 102), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Switch track — the real component's shell + well. The wired Switch prefab slides the knob across it." }, true);
   await addPng("toggle/thumb.png", shell("toggle", { overlay: "knob" }, slim, 1), { component: "toggle", part: "thumb", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Switch knob, ON dot — the wired prefab slides it and swaps the OFF twin in." }, true);
@@ -5760,6 +5770,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Runtime/PatternBreakStateFx.cs", data: STATE_FX_RUNTIME });
   files.push({ path: "Runtime/PatternBreakRingFill.cs", data: RING_FILL_RUNTIME });
   files.push({ path: "Runtime/PatternBreakBuffSweep.cs", data: BUFF_SWEEP_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakKitBarFill.cs", data: KIT_BAR_FILL_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitTrace.cs", data: KIT_TRACE_RUNTIME });
   files.push({ path: "Runtime/PatternBreakSafeArea.cs", data: SAFE_AREA_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitPiece.cs", data: KIT_PIECE_RUNTIME });
@@ -5834,6 +5845,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     "Runtime/PatternBreakStateFx.cs", "Runtime/UIKitGlintInk.shader",
     "Runtime/PatternBreakRingFill.cs",
     "Runtime/PatternBreakBuffSweep.cs",
+    "Runtime/PatternBreakKitBarFill.cs",
     "Runtime/PatternBreakKitTrace.cs",
     "Runtime/PatternBreakSafeArea.cs",
     "Runtime/PatternBreakKitPiece.cs",
@@ -6310,6 +6322,78 @@ namespace PatternBreak {
     void OnEnable() { Apply(); }
     // change-guarded follow: a quiet frame compares one float and writes nothing
     void LateUpdate() { if (fill != null && !Mathf.Approximately(fill.fillAmount, wrote)) Apply(); }
+  }
+}
+`;
+
+/* THE LINEAR CAP RIG (round 44, owner kit-wide ruling — "I like how the
+   right side of the mercury here is rounded, that's what I'm talking
+   about kit-wide"): the app REDRAWS the mercury with a rounded head at
+   every value, while Unity's Filled crop can only cut a straight line —
+   the baked bead appears at ~100% alone. KitRingFill made linear: the
+   fill keeps the SHIPPED contract (drive fillAmount, or SetValue), and
+   the app's own bead — a windowed cut of its drawing — parks with its
+   curve exactly on the value line while the crop pulls back under the
+   bead's solid body. Hidden near 0; yields to the baked full-run cap at
+   ~100%; shrinks like the app when the run is narrower than the head. */
+const KIT_BAR_FILL_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+
+namespace PatternBreak {
+  [AddComponentMenu("UI Kit Maker/Kit Bar Fill")]
+  [ExecuteAlways]
+  public class KitBarFill : MonoBehaviour {
+    [Tooltip("The Filled/Horizontal mercury. Drive its fillAmount (or call SetValue) and the rounded head follows — the shipped contract is unchanged.")]
+    public Image fill;
+    [Tooltip("The mercury's rounded head, cut from the app's own drawing; parked so its curve ends exactly at the value line (generated).")]
+    public RectTransform capHead;
+    [Tooltip("Mirrored bar (fillOrigin Right): the head rides the fill's left edge.")]
+    public bool fromRight;
+    float value = -1f; float wroteFill = float.NaN;
+    public void SetValue(float v) { value = Mathf.Clamp01(v); Apply(); }
+    public void Apply() {
+      if (fill == null) return;
+      if (value < 0f) value = Mathf.Clamp01(fill.fillAmount);
+      float v = value;
+      var capImg = capHead != null ? capHead.GetComponent<Image>() : null;
+      var area = transform as RectTransform;
+      bool showFill = v > 0.005f;
+      if (fill.enabled != showFill) fill.enabled = showFill;
+      if (capHead == null || capImg == null || capImg.sprite == null || area == null) {
+        fill.fillAmount = v; wroteFill = fill.fillAmount; return;
+      }
+      float areaW = area.rect.width, areaH = area.rect.height;
+      /* the head scales with the SAME vertical factor as the fill (both
+         sprites crop to the mercury band), so the bead stays circular at
+         any bar height — pngScale cancels in the ratio */
+      float capW = areaH * (capImg.sprite.rect.width / Mathf.Max(1f, capImg.sprite.rect.height));
+      float r = areaH * 0.5f;
+      bool full = v >= 0.995f;
+      float runW = areaW * v;
+      float shrink = Mathf.Clamp01(runW / Mathf.Max(1f, 2f * r)); // the app: r = min(h/2, run/2)
+      bool showCap = showFill && !full;
+      if (capHead.gameObject.activeSelf != showCap) capHead.gameObject.SetActive(showCap);
+      if (showCap) {
+        float ax = fromRight ? 1f - v : v;
+        capHead.anchorMin = new Vector2(ax, 0f);
+        capHead.anchorMax = new Vector2(ax, 1f);
+        capHead.pivot = new Vector2(fromRight ? 0f : 1f, 0.5f);
+        capHead.sizeDelta = new Vector2(capW, 0f);
+        capHead.anchoredPosition = Vector2.zero;
+        var sc = capHead.localScale; sc.x = (fromRight ? -1f : 1f) * Mathf.Max(0.01f, shrink); sc.y = Mathf.Max(0.01f, shrink); capHead.localScale = sc;
+        // the crop's straight cut retreats under the bead's solid body —
+        // its full-height corners can never poke past the curve
+        float capFrac = areaW > 1f ? (capW * shrink) / areaW : 0f;
+        fill.fillAmount = Mathf.Max(0f, v - capFrac * 0.5f);
+      } else fill.fillAmount = v;
+      wroteFill = fill.fillAmount;
+    }
+    void OnEnable() { Apply(); }
+    // the shipped contract stands: write fillAmount and the head follows
+    void LateUpdate() {
+      if (fill == null) return;
+      if (!Mathf.Approximately(fill.fillAmount, wroteFill)) { value = Mathf.Clamp01(fill.fillAmount); Apply(); }
+    }
   }
 }
 `;
@@ -13335,14 +13419,23 @@ namespace PatternBreak {
             if ((it.component == "progress" || it.component == "emblembar") && it.value > 0f) {
               var pfT = inst.transform.Find("Fill Area/Fill");
               var pfI = pfT != null ? pfT.GetComponent<Image>() : null;
-              if (pfI != null && pfI.type == Image.Type.Filled) pfI.fillAmount = Mathf.Clamp01(it.value);
+              if (pfI != null && pfI.type == Image.Type.Filled) {
+                pfI.fillAmount = Mathf.Clamp01(it.value);
+                // round 44: the head rig re-parks the bead on the posed value
+                var kbP = pfT.GetComponentInParent<KitBarFill>();
+                if (kbP != null) kbP.SetValue(Mathf.Clamp01(it.value));
+              }
             }
             if (it.component == "vsbar" && it.value > 0f) {
               // the board's value drives the LEFT fighter (the app's rule);
               // the right keeps its staged pose
               var vlT = inst.transform.Find("FillL Area/FillL");
               var vlI = vlT != null ? vlT.GetComponent<Image>() : null;
-              if (vlI != null && vlI.type == Image.Type.Filled) vlI.fillAmount = Mathf.Clamp01(it.value);
+              if (vlI != null && vlI.type == Image.Type.Filled) {
+                vlI.fillAmount = Mathf.Clamp01(it.value);
+                var kbV = vlT.GetComponentInParent<KitBarFill>();
+                if (kbV != null) kbV.SetValue(Mathf.Clamp01(it.value));
+              }
             }
             if (it.component == "segbar" && it.value > 0f) {
               var sgT = inst.transform.Find("Lit");
@@ -15869,7 +15962,7 @@ namespace PatternBreak {
        vertically (the track's extrusion pads its bottom; rect-centered
        children sat below the well). Filled mode IS the app's clip
        semantic: the engine drives fillAmount and leaves the rect alone. */
-    static RectTransform BuildBarFill(GameObject host, string name, Sprite fill, Sprite track, int pngScale, PBManifest m, string fam, float staged, bool fromRight) {
+    static RectTransform BuildBarFill(GameObject host, string name, Sprite fill, Sprite track, int pngScale, PBManifest m, string root, string fam, float staged, bool fromRight) {
       var rt0 = host.GetComponent<RectTransform>();
       float trackW = rt0.sizeDelta.x, trackH = rt0.sizeDelta.y;
       float fillW = fill.rect.width / pngScale, fillH = fill.rect.height / pngScale;
@@ -15905,7 +15998,27 @@ namespace PatternBreak {
       var frt = fillGo.GetComponent<RectTransform>();
       frt.anchorMin = Vector2.zero; frt.anchorMax = Vector2.one;
       frt.offsetMin = Vector2.zero; frt.offsetMax = Vector2.zero;
+      /* the ROUNDED HEAD (round 44, owner kit-wide): the app's own bead
+         rides the value line while the Filled crop hides under it — the
+         dev contract stands (drive fillAmount; the head follows). Old
+         zips without the cap atom keep today's behavior exactly. */
+      WireBarCap(area, fImg, root, fam, fromRight, staged);
       return frt;
+    }
+    static void WireBarCap(GameObject area, Image fImg, string root, string fam, bool fromRight, float staged) {
+      var kbf = area.AddComponent<KitBarFill>();
+      kbf.fill = fImg;
+      kbf.fromRight = fromRight;
+      string capName = fam == "vsbar" ? (fromRight ? "cap-r" : "cap-l") : "cap";
+      var capSp = S(root + "/assets/" + fam + "/" + fam + "-" + capName + ".png");
+      if (capSp != null) {
+        var capGo = new GameObject("Cap", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        capGo.transform.SetParent(area.transform, false);
+        var cImg = capGo.GetComponent<Image>();
+        cImg.sprite = capSp; cImg.raycastTarget = false; cImg.type = Image.Type.Simple; cImg.preserveAspect = false;
+        kbf.capHead = (RectTransform)capGo.transform;
+      }
+      kbf.SetValue(staged);
     }
     static bool ProgressPrefab(string dir, string root, int pngScale, PBManifest m) {
       var track = S(root + "/assets/progress/progress-track.9.png");
@@ -15914,7 +16027,7 @@ namespace PatternBreak {
       var fill = S(root + "/assets/progress/progress-fill.9.png");
       // staged at 62% (the app's resting default) — drive Fill's
       // fillAmount from your live value
-      if (fill != null) BuildBarFill(go, "Fill", fill, track, pngScale, m, "progress", 0.62f, false);
+      if (fill != null) BuildBarFill(go, "Fill", fill, track, pngScale, m, root, "progress", 0.62f, false);
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/ProgressBar.prefab");
       UnityEngine.Object.DestroyImmediate(go);
       return true;
@@ -15974,6 +16087,8 @@ namespace PatternBreak {
         fi.fillAmount = 0.72f; // the app's resting left fighter
         var frt = fgo.GetComponent<RectTransform>();
         frt.anchorMin = Vector2.zero; frt.anchorMax = Vector2.one; frt.offsetMin = Vector2.zero; frt.offsetMax = Vector2.zero;
+        // round 44 (owner item 43): the drain bead rides the health line
+        WireBarCap(area, fi, root, "vsbar", false, 0.72f);
       }
       if (fillR != null) {
         float fw = fillR.rect.width / pngScale, fh = fillR.rect.height / pngScale;
@@ -15993,6 +16108,8 @@ namespace PatternBreak {
         fi.fillAmount = 0.58f; // the app's resting right fighter
         var frt = fgo.GetComponent<RectTransform>();
         frt.anchorMin = Vector2.zero; frt.anchorMax = Vector2.one; frt.offsetMin = Vector2.zero; frt.offsetMax = Vector2.zero;
+        // the right fighter's bead, mirrored (fillOrigin Right)
+        WireBarCap(area, fi, root, "vsbar", true, 0.58f);
       }
       var medal = S(root + "/assets/vsbar/vsbar-medal.png");
       if (medal != null) {
@@ -16017,7 +16134,7 @@ namespace PatternBreak {
       if (track == null) return false;
       var go = ImageObject("EmblemBar", track, pngScale);
       var fill = S(root + "/assets/emblembar/emblembar-fill.9.png");
-      if (fill != null) BuildBarFill(go, "Fill", fill, track, pngScale, m, "emblembar", 0.62f, false);
+      if (fill != null) BuildBarFill(go, "Fill", fill, track, pngScale, m, root, "emblembar", 0.62f, false);
       var sock = S(root + "/assets/emblembar/emblembar-socket.png");
       if (sock != null) {
         var rt0 = go.GetComponent<RectTransform>();
@@ -18355,6 +18472,10 @@ namespace PatternBreak {
       sl.handleRect = hrt;
       sl.targetGraphic = handle.GetComponent<Image>();
       sl.value = 0.62f;
+      /* the ROUNDED HEAD (round 44): usually under the thumb, honest at
+         the extremes — the Slider keeps writing fillAmount and the rig's
+         change-guarded follow re-parks the bead. */
+      WireBarCap(area, fImg, root, "slider", false, 0.62f);
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/Slider.prefab");
       UnityEngine.Object.DestroyImmediate(go);
       return true;
@@ -19488,7 +19609,7 @@ namespace PatternBreak {
       RenameDataRowPrefab(root); // the owner's language, healed on every import
       RenameDataRowTiledFace(root); // and its stretch-safe twin — the scene road's one name
       RenameArtShelf(root); // BigGlyphs → Art, the class's name everywhere
-      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, glyphSeated = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0, reseeded = 0, wordKept = 0, rebodied = 0, mapGrafted = 0, padTuned = 0, rigGrafted = 0, sinkTuned = 0, barRigged = 0, pieceBound = 0, ddRigged = 0, unburned = 0, retiredIc = 0;
+      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, glyphSeated = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0, reseeded = 0, wordKept = 0, rebodied = 0, mapGrafted = 0, padTuned = 0, rigGrafted = 0, sinkTuned = 0, barRigged = 0, capRigged = 0, pieceBound = 0, ddRigged = 0, unburned = 0, retiredIc = 0;
       /* the ROOT-RECT ownership ledger (F5 — the resize pass was the one
          maintenance heal with NO ours-vs-theirs guard): rects we last
          authored, carried in kit.lock.json > authoredRects. A rect still
@@ -19659,11 +19780,58 @@ namespace PatternBreak {
                   stagedPB = Mathf.Clamp01(ofR.sizeDelta.x / pbRt.sizeDelta.x); // keep the dev's staged width
                 UnityEngine.Object.DestroyImmediate(oldFill.gameObject);
               }
-              BuildBarFill(contentsPB, "Fill", fillBar, rootImg.sprite, m != null && m.pngScale > 0 ? m.pngScale : 2, m, "progress", stagedPB, false);
+              BuildBarFill(contentsPB, "Fill", fillBar, rootImg.sprite, m != null && m.pngScale > 0 ? m.pngScale : 2, m, root, "progress", stagedPB, false);
               PrefabUtility.SaveAsPrefabAsset(contentsPB, path);
               barRigged++;
             } finally { PrefabUtility.UnloadPrefabContents(contentsPB); }
             continue;
+          }
+        }
+        /* the ROUNDED-HEAD retrofit (round 44, owner kit-wide mercury
+           ruling): a kept bar already on the round-21 rig gains the cap
+           and KitBarFill exactly once, OURS-ONLY — the Fill child still
+           Filled-mode and wearing OUR sprite, no rig yet, and the cap
+           atom actually shipping (old zips keep today's flat behavior).
+           The dev's staged fillAmount survives as the rig's value. */
+        {
+          string famBarK = spritePath.EndsWith("/progress-track.9.png") ? "progress"
+            : spritePath.EndsWith("/emblembar-track.9.png") ? "emblembar"
+            : spritePath.EndsWith("/slider-track.9.png") ? "slider"
+            : spritePath.EndsWith("/vsbar-track.9.png") ? "vsbar" : null;
+          if (famBarK != null) {
+            string[][] laneK = famBarK == "vsbar"
+              ? new string[][] { new string[] { "FillL Area", "FillL", "cap-l" }, new string[] { "FillR Area", "FillR", "cap-r" } }
+              : new string[][] { new string[] { "Fill Area", "Fill", "cap" } };
+            bool wantCapK = false;
+            foreach (var ln in laneK) {
+              var arT = asset.transform.Find(ln[0]);
+              var fiT = arT != null ? arT.Find(ln[1]) : null;
+              var fiI = fiT != null ? fiT.GetComponent<Image>() : null;
+              if (arT == null || fiI == null || fiI.type != Image.Type.Filled || fiI.sprite == null) continue;
+              var pSprK = AssetDatabase.GetAssetPath(fiI.sprite).Replace("\\\\", "/");
+              if (!pSprK.StartsWith(root + "/assets/")) continue; // dev art — theirs
+              if (arT.GetComponent<KitBarFill>() != null) continue; // already rigged
+              if (S(root + "/assets/" + famBarK + "/" + famBarK + "-" + ln[2] + ".png") == null) continue; // old zip
+              wantCapK = true;
+            }
+            if (wantCapK) {
+              var contentsBC = PrefabUtility.LoadPrefabContents(path);
+              try {
+                foreach (var ln in laneK) {
+                  var arT = contentsBC.transform.Find(ln[0]);
+                  var fiT = arT != null ? arT.Find(ln[1]) : null;
+                  var fiI = fiT != null ? fiT.GetComponent<Image>() : null;
+                  if (arT == null || fiI == null || fiI.type != Image.Type.Filled || fiI.sprite == null) continue;
+                  var pSprK2 = AssetDatabase.GetAssetPath(fiI.sprite).Replace("\\\\", "/");
+                  if (!pSprK2.StartsWith(root + "/assets/")) continue;
+                  if (arT.GetComponent<KitBarFill>() != null) continue;
+                  WireBarCap(arT.gameObject, fiI, root, famBarK, ln[2] == "cap-r", Mathf.Clamp01(fiI.fillAmount));
+                }
+                PrefabUtility.SaveAsPrefabAsset(contentsBC, path);
+                capRigged++;
+              } finally { PrefabUtility.UnloadPrefabContents(contentsBC); }
+              continue;
+            }
           }
         }
         /* the segmented meter's LIT layer (round 21): a SegmentMeter from
@@ -20705,6 +20873,8 @@ namespace PatternBreak {
         Debug.Log("UI Kit Maker: rebuilt the SeasonTrack prefab around live tier cells — the track art is now the bare board, and tier count, claims, reward icons and progress are Inspector dials on the SeasonTrack component. Placed copies picked it up automatically.");
       if (barRigged > 0)
         Debug.Log("UI Kit Maker: converged " + barRigged + " bar prefab(s) onto the kit-dressed rig (round 21) — the progress bar's mercury rides a Filled image on the app's well zone (drive Fill Area > Fill's fillAmount), and the segment meter gained its Lit layer (drive Lit's fillAmount; it snaps to whole cells). Placed copies picked it up automatically.");
+      if (capRigged > 0)
+        Debug.Log("UI Kit Maker: gave " + capRigged + " bar prefab(s) their ROUNDED mercury head — the app redraws the bead at every value, and the bar now parks that exact bead on the value line instead of showing the Filled crop's flat cut. Keep driving fillAmount (or KitBarFill.SetValue); the head follows.");
       if (readopted > 0)
         Debug.Log("UI Kit Maker: re-adopted the kit's current sprites on " + readopted + " example prefab(s) — they were still wearing files this kit no longer exports (the pre-rename names), so their look froze while everything else updated. They now restyle with every re-export, like the rest.");
       if (reshaped > 0)
