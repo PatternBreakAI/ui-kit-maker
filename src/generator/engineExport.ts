@@ -422,6 +422,11 @@ export interface ExportBoardItemData {
       swappable Image child on the placed root, so posed copies obey the
       law exactly like the family prefabs. */
   posedIcons?: { name: string; file: string; dx: number; dy: number; w: number; h: number; btn?: boolean; wellR?: number; nick?: string;
+    /** TINTABLE ink on the posed road too (round 43 review paper cut —
+     *  the family road tinted, the posed rebuild didn't: the first board
+     *  scorebug would have shipped WHITE team bars): white-cut sprite,
+     *  the slot color rides Image.color in the scene rebuild. */
+    tint?: string;
     /** a RIDER WORD stripped from the posed pixels with its plate (round
      *  40 — the owner's Booster Select cards lost their ×3/×1/×2: the
      *  un-burn rebuilt the pill as a live child ON TOP of the bake, so
@@ -1687,7 +1692,7 @@ export async function collectExportBoards(st: {
              posedLabel. This retires round 27's "the posed pixels carry
              the styled icon" stand-down: the icon rides LIVE on posed
              copies now, per the law. */
-          const posedCuts: { name: string; btn: boolean; well: number[] | null; nick: string | null; box: [number, number, number, number]; svg: string }[] = [];
+          const posedCuts: { name: string; btn: boolean; well: number[] | null; nick: string | null; tint: string | null; box: [number, number, number, number]; svg: string }[] = [];
           {
             const shD9 = /data-shell="([-\d. ]+)"/.exec(ps2)?.[1].split(" ").map(Number);
             const sh09 = /data-shell0="([-\d. ]+)"/.exec(ps2)?.[1].split(" ").map(Number);
@@ -1820,6 +1825,7 @@ export async function collectExportBoards(st: {
                   ...(cut.btn ? { btn: true } : {}),
                   ...(cut.well ? { wellR: r1p(cut.well[2] * Math.min(kx2, ky2)) } : {}),
                   ...(cut.nick ? { nick: cut.nick } : {}),
+                  ...(cut.tint ? { tint: cut.tint } : {}),
                   ...(rw ? {
                     word: rw.text,
                     wordFs: r1p(rw.fs * ky2),
@@ -3261,7 +3267,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     "gearicon", "trophyicon", "gifticon", "firebutton", "endturn", "keycap", "pricebtn", "countbadge",
     // the universal road's pressable families hover/press like buttons —
     // their aura is their own silhouette, never the generic blob
-    ...UNIVERSAL_INTERACTIVE]);
+    ...UNIVERSAL_INTERACTIVE,
+    // the 2x reward button (round 43 review blocker: it shipped as a dead
+    // click-eater) — a pressable VARIANT family rides the same aura road
+    "claimbtn-double"]);
   /* GROUND-TRUTH SLICING (Jimi's notes, round two: even geometry-derived
      borders kinked a stretched corner — his kit's face is not the
      design-space shape, and extrusion regrows the crop box, so ANY formula
@@ -4350,9 +4359,14 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
        lives on the base family's prefab. Staged families ship nothing
        here (stagedShips), exactly like their base road. ── */
     {
-      const VARIANTS: { uid: KitComponentId; suffix: string; opts: Record<string, unknown>; value?: number; usage: string }[] = [
-        { uid: "claimbtn", suffix: "double", opts: { slots: { ...(st.kitSlotVals?.claimbtn ?? {}), mode: "2x by ad" } },
-          usage: "The 2x reward button — the claim button's Double-by-ad state: the word is a LIVE seat, the play badge a LIVE Image child, and the ANGLED gold ribbon its OWN delete-and-replace child (the rotated word stays in its pixels by the warped-stamp contract — never burned into the button face). The pressing lives on the Claimbtn prefab." },
+      const VARIANTS: { uid: KitComponentId; suffix: string; opts: Record<string, unknown>; value?: number; interactive?: boolean; usage: string }[] = [
+        /* the 2x button is a REAL BUTTON (round 43 review blocker: it
+           shipped base-only beside its fully live Claimbtn sibling — a
+           gold CTA that ate the click and answered nothing): its own
+           union-cropped state skins bake below, stateFx dials ship under
+           its family name, and FamilyPrefab wires the Button from them. */
+        { uid: "claimbtn", suffix: "double", interactive: true, opts: { slots: { ...(st.kitSlotVals?.claimbtn ?? {}), mode: "2x by ad" } },
+          usage: "The 2x reward button — the claim button's Double-by-ad state, a REAL button (Sprite Swap states, glow + lift): the word is a LIVE seat, the play badge a LIVE Image child, and the ANGLED gold ribbon its OWN delete-and-replace child (the rotated word stays in its pixels by the warped-stamp contract — never burned into the button face)." },
         { uid: "rewardcard", suffix: "legendary", opts: {}, value: 1,
           usage: "Reward reveal at LEGENDARY — the aura at the ladder's top; words are LIVE seats and the glyph a LIVE Image child. The pressing lives on the Rewardcard prefab." },
         { uid: "rewardcard", suffix: "mystery", opts: { slots: { ...(st.kitSlotVals?.rewardcard ?? {}), kind: "Mystery" } },
@@ -4390,7 +4404,20 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           ...(isFlipShape(st.kitShapes[v.uid] ?? KIT_SHAPE[v.uid] ?? st.cfg.shape) ? { flip: true } : {}),
           ...seatsV,
           ...(iconSeatsV ? { iconSeats: iconSeatsV } : {}),
-        }, true);
+        }, true, v.interactive ? famV : undefined);
+        /* an interactive variant bakes its OWN state skins on the base
+           family's own recipe, union-cropped with its base (one crop
+           group per famV) so the Sprite Swap stays registered */
+        if (v.interactive) {
+          for (const stName of ["hover", "pressed", "disabled"] as const) {
+            let sSvgV: string;
+            try { sSvgV = stripLoopsV(stateShell(v.uid, stName, vOpts, vVal)); } catch { continue; }
+            await addPng(`${famV}/base-${stName}.png`, stripIconInk(stripWordInk(sSvgV).svg).svg, {
+              component: famV, part: `base-${stName}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+              usage: `${SWAP_USAGE[stName]} state — Sprite Swap beside base.png (the generated prefab wires it). Union-cropped with base, so the press pose stays registered.`,
+            }, true, famV);
+          }
+        }
       }
     }
   }
@@ -5448,7 +5475,16 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
                  ["ghost", "ghost"], ["claimbtn", "claimbtn"], ["levelnode", "levelnode"],
                  ["dailycell", "dailycell"], ["boostercard", "boostercard"], ["rewardcard", "rewardcard"],
                  ["orderticket", "orderticket"], ["chest", "chest"], ["giftbox", "giftbox"],
-                 ["skillnode", "skillnode"], ["booster", "booster"]] as const).flatMap(([pid, fam]) => {
+                 ["skillnode", "skillnode"], ["booster", "booster"],
+                 /* the 2x reward button presses for real (round 43 review
+                    blocker) — the variant family rides the base piece's
+                    own state dials */
+                 ["claimbtn", "claimbtn-double"]] as const)
+        /* STAGED families ship NOTHING — dials included (round 43 review
+           paper cut: chest/giftbox/orderticket rows leaked against the
+           "ships nothing" receipt). The rows appear with the release. */
+        .filter(([pid]) => stagedShips(pid))
+        .flatMap(([pid, fam]) => {
         const ps = pieceCfg(pid).states;
         return (["default", "hover", "pressed", "disabled"] as const).map((sn) => ({
           family: fam,
@@ -5469,7 +5505,9 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       labelStates: [
         ...([["primary", "button-primary"], ["secondary", "button-secondary"], ["small", "button-small"], ["chip", "chip"], ["tab", "tab"], ["tabback", "tab-back"],
              // the ghost button is a labeled button family too (universal road)
-             ["ghost", "ghost"]] as const).flatMap(([pid, fam]) => {
+             ["ghost", "ghost"]] as const)
+          .filter(([pid]) => stagedShips(pid)) // staged families ship no rows (round 43)
+          .flatMap(([pid, fam]) => {
           const pc = pieceCfg(pid);
           return (["hover", "pressed", "disabled"] as const).flatMap((sn) => {
             const f = pc.stateDesigns[sn];
@@ -5495,7 +5533,9 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         ...([["datarow", "list-row"], ["slot", "item-slot"], ["iconbtn", "iconbtn"], ["checkbox", "checkbox"], ["radio", "radio"],
              ["gearicon", "gearicon"], ["trophyicon", "trophyicon"], ["gifticon", "gifticon"], ["endturn", "endturn"], ["keycap", "keycap"], ["pricebtn", "pricebtn"],
              ["claimbtn", "claimbtn"], ["levelnode", "levelnode"], ["dailycell", "dailycell"], ["boostercard", "boostercard"], ["rewardcard", "rewardcard"],
-             ["skillnode", "skillnode"], ["booster", "booster"]] as const).flatMap(([pid, fam]) =>
+             ["skillnode", "skillnode"], ["booster", "booster"], ["claimbtn", "claimbtn-double"]] as const)
+          .filter(([pid]) => stagedShips(pid)) // staged families ship no rows (round 43)
+          .flatMap(([pid, fam]) =>
           (["hover", "pressed", "disabled"] as const).flatMap((sn) => {
             const dy = measuredStateDy(pid, sn);
             if (dy == null || Math.abs(dy) < 0.05) return [];
@@ -8731,11 +8771,13 @@ The kit's components explain themselves in the Inspector (headers and
 per-field tooltips), and sprites, colors and spacing are ordinary Unity
 properties — nothing you'd want to edit is baked into pixels.
 
-> **On Unity 2022.3:** labels are still live, editable text — plain
-> uGUI Text in the kit's shipped font, wearing each family's own ink —
-> but the styled SDF stack is 2023.2+, and so are the panel **Words**
-> groups and live board-scene stamps: on 2022.3 those ship as the baked
-> board art instead — except counts that ride a live plate (booster
+> **On Unity 2022.3:** every word is still live, editable text —
+> label-road words as uGUI Text in the kit's shipped font, and the
+> **Words** seats (most of the catalog) as plain TMP in faces minted
+> from the shipped TTFs, each at its exact seat with its own ink.
+> The styled SDF dress and the re-import word heal are 2023.2+ — on
+> 2022.3 seat words seed once and are yours. Board-scene stamps stay
+> baked art there — except counts that ride a live plate (booster
 > qty pills, badge counts), which arrive as editable TMP text on both
 > rungs. The dropdown still WORKS there (live caption in the
 > family ink, plain-Text rows, opening menu — just undressed), and the
@@ -9046,15 +9088,19 @@ shipped TTF, and the recipe in kit-manifest.json > typography > style is
 ready to become a TMP material preset by hand.
 
 > **The full 2022.3 picture, feature by feature** (no silent
-> divergence): prefab labels are live uGUI Text in the kit's font and
-> each family's own resolved ink — editable, never truncating, just
-> without the SDF outline/glow/emboss dress. The panel **Words**
-> groups and live board-scene stamps are 2023.2+ — on 2022.3 those
-> pieces keep their baked words (pixel-faithful, not editable as
-> text) — with ONE deliberate exception: counts that ride a live
-> plate child (the booster card's qty pill ×numbers, the nav badge's
-> count) are stripped from the posed pixels and rebuilt as editable
-> TMP text on BOTH rungs, so no rung ever shows an empty pill.
+> divergence): label-road prefab words are live uGUI Text in the
+> kit's font and each family's own resolved ink, and the **Words**
+> groups — the seat-worded majority of the catalog — seed as LIVE,
+> editable TMP on 2022.3 too: each seat at its exact place and size,
+> in faces minted straight from the shipped TTFs (the kit's own cut
+> for kit voices, the heavy instrument for readouts), wearing its
+> resolved ink. What stays 2023.2+ is the styled SDF DRESS
+> (outline/glow/emboss materials) and the re-import word HEAL — on
+> 2022.3 seat words seed once and are yours from then on. Board-scene
+> stamps keep their baked words on 2022.3 (pixel-faithful, not
+> editable as text) — except counts that ride a live plate child
+> (booster qty pills, badge counts), which rebuild as editable TMP on
+> BOTH rungs, so no rung ever shows an empty pill.
 > The dropdown is live on BOTH rungs (2022.3 gets a working uGUI
 > Dropdown: family-ink caption, plain-Text rows, opening menu — undressed,
 > not baked), and the input keeps a live placeholder on a flat surface.
@@ -9749,7 +9795,7 @@ namespace PatternBreak {
      scene FILES (the seededLabels precedent, applied to .unity bytes):
      only a scene byte-identical to our own last save may auto-rebuild. */
   [Serializable] class PBSceneShaEntry { public string scene; public string sha; }
-  [Serializable] class PBLock { public string slug; public int kitVersion; public string generatorVersion; public string imported; public bool prefabsGenerated; public PBLockEntry[] files; public string[] orphans; public PBSeedEntry[] seededLabels; public bool variantsPending; public PBVariantEntry[] seededVariants; public bool chartsSeeded; public string[] pendingScenes; public int[] pendingMissing; public PBSceneShaEntry[] sceneShas; public PBRectEntry[] authoredRects; public string[] seededChildren; }
+  [Serializable] class PBLock { public string slug; public int kitVersion; public string generatorVersion; public string imported; public bool prefabsGenerated; public PBLockEntry[] files; public string[] orphans; public PBSeedEntry[] seededLabels; public bool variantsPending; public PBVariantEntry[] seededVariants; public bool chartsSeeded; public string[] pendingScenes; public int[] pendingMissing; public PBSceneShaEntry[] sceneShas; public PBRectEntry[] authoredRects; public string[] seededChildren; public string[] seededPrefabs; }
   /* the example-prefab root rects WE last authored (family prefab name →
      size) — MaintainExamplePrefabs' resize pass converges only rects
      still matching this ledger; anything else is the dev's. */
@@ -10591,7 +10637,7 @@ namespace PatternBreak {
       // missing state wiring is added, stale label dress is re-applied —
       // in place, surgical, no menu hunt (fresh generations are current
       // by construction and skip this)
-      if (prefabsReady && !prefabsNew) { MaintainExamplePrefabs(root, manifest, prev); GenerateMissingPrefabs(root, manifest); HealScrollView(root, manifest); }
+      if (prefabsReady && !prefabsNew) { MaintainExamplePrefabs(root, manifest, prev); GenerateMissingPrefabs(root, manifest, prev); HealScrollView(root, manifest); }
       /* the renamed files' short-named twins go LAST — the maintenance
          pass above has re-pointed every prefab reference off them */
       foreach (var twin in renameTwins) AssetDatabase.DeleteAsset(root + "/" + twin);
@@ -10769,6 +10815,9 @@ namespace PatternBreak {
       receipt.sceneShas = prev != null ? prev.sceneShas : null;
       receipt.authoredRects = passAuthoredRects != null ? passAuthoredRects : (prev != null ? prev.authoredRects : null);
       receipt.seededChildren = passSeededChildren != null ? passSeededChildren : (prev != null ? prev.seededChildren : null);
+      // the prefab-seeding ledger rides the receipt exactly like the
+      // children ledger — one import without the pass must never amnesia it
+      receipt.seededPrefabs = passSeededPrefabs != null ? passSeededPrefabs : (prev != null ? prev.seededPrefabs : null);
       File.WriteAllText(lockPath, JsonUtility.ToJson(receipt, true));
 
       var kitName = string.IsNullOrEmpty(manifest.kit) ? (string.IsNullOrEmpty(manifest.slug) ? "kit" : manifest.slug) : manifest.kit;
@@ -12779,6 +12828,13 @@ namespace PatternBreak {
                     pIi.raycastTarget = pIc.btn;
                     pIi.preserveAspect = false;
                     if (pIc.btn) { var pBb = pIcGo.AddComponent<Button>(); pBb.targetGraphic = pIi; }
+                    /* TINTABLE ink on the posed road too (round 43 review
+                       paper cut: the family road tinted, this rebuild
+                       didn't — the first board score bug would have shipped
+                       WHITE team bars): the white-cut sprite wears the
+                       slot color via Image.color, same as the family road */
+                    Color pTintC;
+                    if (!string.IsNullOrEmpty(pIc.tint) && ColorUtility.TryParseHtmlString(pIc.tint, out pTintC)) pIi.color = pTintC;
                   }
                   pIcGo.transform.SetParent(inst.transform, false);
                   var pIcRt = pIcGo.GetComponent<RectTransform>();
@@ -14810,6 +14866,11 @@ namespace PatternBreak {
        owner does not recognize "List Row"; the app calls the family
        "Data row"). One seam for builder, placement and the rename valet. */
     static string PrefabNameOf(string family) { return family == "list-row" ? "DataRow" : NiceName(family); }
+    /* the shelved DISPLAY POSES of live families (rewards states, round
+       43): raycast-transparent so a click falls through to the game — the
+       pressing lives on their base family's prefab. The 2x button is NOT
+       here: it is a real button with its own skins and dials. */
+    static bool PoseVariantName(string c) { return c == "rewardcard-legendary" || c == "rewardcard-mystery" || c == "dailycell-claimed" || c == "dailycell-locked"; }
     static string NiceName(string family) {
       var sb = new System.Text.StringBuilder();
       bool up = true;
@@ -15032,8 +15093,10 @@ namespace PatternBreak {
       img.preserveAspect = !sliced;
       /* the glyph rack is ART, not a control (the mandate's non-interactive
          lane): placeable and tintable, but it must never eat a click meant
-         for the piece behind it */
-      if (baseAsset.component != null && baseAsset.component.StartsWith("glyph")) img.raycastTarget = false;
+         for the piece behind it. POSE VARIANTS of live families join that
+         lane (round 43 review): a display pose shelved beside its pressing
+         base sibling must never eat the click the sibling would answer. */
+      if (baseAsset.component != null && (baseAsset.component.StartsWith("glyph") || PoseVariantName(baseAsset.component))) img.raycastTarget = false;
       if (sliced && baseAsset.prefW > 4f && baseAsset.shell != null && baseAsset.shell.w > 4f && baseAsset.shell.h > 4f) {
         /* DEFAULT rect with the WORDS on: the sprite bakes labeless, so its
            natural rect squishes a fluid silhouette under overflowing text.
@@ -16617,6 +16680,12 @@ namespace PatternBreak {
        receipt then carries the previous ledger forward) — see the
        one-shot un-burn trigger in MaintainExamplePrefabs */
     static string[] passSeededChildren;
+    /* the PREFAB-SEEDING ledger this pass authored (round 43 — the
+       children-ledger philosophy applied to whole prefabs: a family
+       prefab seeds ONCE; a dev-deleted prefab is the dev's decision
+       forever). null = neither generation nor the missing-pass ran; the
+       receipt then carries the previous ledger forward. */
+    static string[] passSeededPrefabs;
     static bool seatSpaceWarned;
     static PBAsset SeatRowOf(GameObject host, PBManifest m, string root) {
       if (host == null || m == null || m.assets == null) return null;
@@ -16649,6 +16718,81 @@ namespace PatternBreak {
     // extras/ hosts several one-off prefabs — key materials by part there
     static string SeatMatKey(PBAsset a) { return a.component == "extras" ? a.part : a.component; }
     static bool SeatInkShips(PBAsset a) { return a != null && a.seatInk != null && !string.IsNullOrEmpty(a.seatInk.fillMode); }
+    /* ── seat GEOMETRY, one hand for builder and probe — RUNG-AGNOSTIC
+       (round 43: the LTS seat road seeds live words on 2022.3 too, so
+       the geometry moved out of the styled-rung guard; fully-qualified
+       TMP per the guard standard's rule 2) ── */
+    static float SeatRootH(GameObject host, int pngScale) {
+      var rt = host.GetComponent<RectTransform>();
+      float h = rt != null ? rt.rect.height : 0f;
+      if (h < 2f) {
+        var img = BodyImage(host);
+        if (img != null && img.sprite != null && pngScale > 0) h = img.sprite.rect.height / pngScale;
+      }
+      return h;
+    }
+    static float SeatFs(PBSeat seat, float rootH) { return Mathf.Max(1f, seat.ffs * rootH); }
+    static Vector2 SeatBox(PBSeat seat, float fs) {
+      var plain = System.Text.RegularExpressions.Regex.Replace(seat.text ?? "", "<[^>]+>", "");
+      // generous, glyph-safe box centered on the seat — overflow shows, never reflows
+      return new Vector2(Mathf.Max(fs * 2f, plain.Length * fs * 0.8f), fs * 1.8f);
+    }
+    static bool SeatRect(RectTransform rt, PBSeat seat, TMPro.TMP_FontAsset face, float rootH, bool inRow, float rowFy, bool apply) {
+      float fs = SeatFs(seat, rootH);
+      var box = SeatBox(seat, fs);
+      var pv = new Vector2(seat.anchor == "middle" ? 0.5f : seat.anchor == "end" ? 1f : 0f, 0.5f);
+      // edge-hugging seats stay INSIDE: clamp the center so the glyph
+      // box can never cross the rect's top/bottom (round-10 field: the
+      // telemetry header rides ~8px under the sprite top — half a TMP
+      // metric away from poking out)
+      float fyC = rootH > fs * 1.3f ? Mathf.Clamp(seat.fy, (fs * 0.62f) / rootH, 1f - (fs * 0.62f) / rootH) : seat.fy;
+      var c = inRow ? new Vector2(seat.fx, 0.5f) : new Vector2(seat.fx, 1f - fyC);
+      /* TMP centers a middle-aligned rect on the LINE middle; a seat from
+         a baseline-anchored node marks the CAP middle (midEm, measured).
+         Lift the rect by the delta so the glyphs land on the app's pixels. */
+      float lift = 0f;
+      if (seat.midEm > 0f && face != null && face.faceInfo.pointSize > 0f) {
+        float lineMidEm = (face.faceInfo.ascentLine + face.faceInfo.descentLine) * 0.5f / face.faceInfo.pointSize;
+        lift = (lineMidEm - seat.midEm) * fs;
+      }
+      var ap = inRow ? new Vector2(0f, (rowFy - seat.fy) * rootH + lift) : new Vector2(0f, lift);
+      bool current = rt.pivot == pv && rt.anchorMin == c && rt.anchorMax == c
+        && (rt.anchoredPosition - ap).sqrMagnitude < 0.01f
+        && (rt.sizeDelta - box).sqrMagnitude < 0.01f;
+      if (current || !apply) return current;
+      rt.pivot = pv;
+      rt.anchorMin = c; rt.anchorMax = c;
+      rt.anchoredPosition = ap;
+      rt.sizeDelta = box;
+      return false;
+    }
+    static void SeatRows(PBAsset row, out Dictionary<int, int> count, out Dictionary<int, float> fy, out Dictionary<int, float> ffs) {
+      count = new Dictionary<int, int>(); fy = new Dictionary<int, float>(); ffs = new Dictionary<int, float>();
+      foreach (var s0 in row.textSeats) {
+        int k = s0.row;
+        count[k] = (count.ContainsKey(k) ? count[k] : 0) + 1;
+        fy[k] = (fy.ContainsKey(k) ? fy[k] : 0f) + s0.fy;
+        ffs[k] = Mathf.Max(ffs.ContainsKey(k) ? ffs[k] : 0f, s0.ffs);
+      }
+      foreach (var k in new List<int>(fy.Keys)) fy[k] = fy[k] / count[k];
+    }
+    static bool RowRect(RectTransform rrt, float rowFy, float rowFfs, float rootH, bool apply) {
+      float fsR = rowFfs * rootH;
+      float rowFyC = rootH > fsR * 1.3f ? Mathf.Clamp(rowFy, (fsR * 0.62f) / rootH, 1f - (fsR * 0.62f) / rootH) : rowFy;
+      float yf = Mathf.Clamp01(1f - rowFyC);
+      var mn = new Vector2(0f, yf); var mx = new Vector2(1f, yf);
+      var sz = new Vector2(0f, rowFfs * rootH * 1.8f);
+      bool current = rrt.anchorMin == mn && rrt.anchorMax == mx
+        && rrt.pivot == new Vector2(0.5f, 0.5f)
+        && (rrt.sizeDelta - sz).sqrMagnitude < 0.01f
+        && rrt.anchoredPosition.sqrMagnitude < 0.01f;
+      if (current || !apply) return current;
+      rrt.anchorMin = mn; rrt.anchorMax = mx;
+      rrt.pivot = new Vector2(0.5f, 0.5f);
+      rrt.sizeDelta = sz;
+      rrt.anchoredPosition = Vector2.zero;
+      return false;
+    }
 #if UNITY_2023_2_OR_NEWER
     /* which face + material a seat wears — one resolver for builder,
        dresser and probe, so they can never disagree. aboardWeight names
@@ -16679,51 +16823,10 @@ namespace PatternBreak {
       else if (grotesk != null) { face = grotesk; mat = null; aboardWeight = 400; /* LiberationSans ships one Regular cut */ }
       else { face = kitFace; mat = plainKitMat; aboardWeight = shipped; }
     }
-    /* ── seat GEOMETRY, one hand for builder and probe ── */
-    static float SeatRootH(GameObject host, int pngScale) {
-      var rt = host.GetComponent<RectTransform>();
-      float h = rt != null ? rt.rect.height : 0f;
-      if (h < 2f) {
-        var img = BodyImage(host);
-        if (img != null && img.sprite != null && pngScale > 0) h = img.sprite.rect.height / pngScale;
-      }
-      return h;
-    }
-    static float SeatFs(PBSeat seat, float rootH) { return Mathf.Max(1f, seat.ffs * rootH); }
-    static Vector2 SeatBox(PBSeat seat, float fs) {
-      var plain = System.Text.RegularExpressions.Regex.Replace(seat.text ?? "", "<[^>]+>", "");
-      // generous, glyph-safe box centered on the seat — overflow shows, never reflows
-      return new Vector2(Mathf.Max(fs * 2f, plain.Length * fs * 0.8f), fs * 1.8f);
-    }
-    static bool SeatRect(RectTransform rt, PBSeat seat, TMP_FontAsset face, float rootH, bool inRow, float rowFy, bool apply) {
-      float fs = SeatFs(seat, rootH);
-      var box = SeatBox(seat, fs);
-      var pv = new Vector2(seat.anchor == "middle" ? 0.5f : seat.anchor == "end" ? 1f : 0f, 0.5f);
-      // edge-hugging seats stay INSIDE: clamp the center so the glyph
-      // box can never cross the rect's top/bottom (round-10 field: the
-      // telemetry header rides ~8px under the sprite top — half a TMP
-      // metric away from poking out)
-      float fyC = rootH > fs * 1.3f ? Mathf.Clamp(seat.fy, (fs * 0.62f) / rootH, 1f - (fs * 0.62f) / rootH) : seat.fy;
-      var c = inRow ? new Vector2(seat.fx, 0.5f) : new Vector2(seat.fx, 1f - fyC);
-      /* TMP centers a middle-aligned rect on the LINE middle; a seat from
-         a baseline-anchored node marks the CAP middle (midEm, measured).
-         Lift the rect by the delta so the glyphs land on the app's pixels. */
-      float lift = 0f;
-      if (seat.midEm > 0f && face != null && face.faceInfo.pointSize > 0f) {
-        float lineMidEm = (face.faceInfo.ascentLine + face.faceInfo.descentLine) * 0.5f / face.faceInfo.pointSize;
-        lift = (lineMidEm - seat.midEm) * fs;
-      }
-      var ap = inRow ? new Vector2(0f, (rowFy - seat.fy) * rootH + lift) : new Vector2(0f, lift);
-      bool current = rt.pivot == pv && rt.anchorMin == c && rt.anchorMax == c
-        && (rt.anchoredPosition - ap).sqrMagnitude < 0.01f
-        && (rt.sizeDelta - box).sqrMagnitude < 0.01f;
-      if (current || !apply) return current;
-      rt.pivot = pv;
-      rt.anchorMin = c; rt.anchorMax = c;
-      rt.anchoredPosition = ap;
-      rt.sizeDelta = box;
-      return false;
-    }
+    /* seat GEOMETRY (SeatRootH/SeatFs/SeatBox/SeatRect/SeatRows/RowRect)
+       moved OUT of this styled-rung guard (round 43): the LTS seat road
+       places live words on 2022.3 too — see their rung-agnostic
+       definitions beside SeatInkShips. */
     /* never reflow: a seat is a placed word, not a paragraph (round-8
        field: word wrap stacked HAMMER into vertical letters) */
     /* SeatHarden / SeatHardened moved OUT of this styled-rung guard
@@ -16771,33 +16874,8 @@ namespace PatternBreak {
       return false;
     }
     /* the row layout, recomputed the same way everywhere */
-    static void SeatRows(PBAsset row, out Dictionary<int, int> count, out Dictionary<int, float> fy, out Dictionary<int, float> ffs) {
-      count = new Dictionary<int, int>(); fy = new Dictionary<int, float>(); ffs = new Dictionary<int, float>();
-      foreach (var s0 in row.textSeats) {
-        int k = s0.row;
-        count[k] = (count.ContainsKey(k) ? count[k] : 0) + 1;
-        fy[k] = (fy.ContainsKey(k) ? fy[k] : 0f) + s0.fy;
-        ffs[k] = Mathf.Max(ffs.ContainsKey(k) ? ffs[k] : 0f, s0.ffs);
-      }
-      foreach (var k in new List<int>(fy.Keys)) fy[k] = fy[k] / count[k];
-    }
-    static bool RowRect(RectTransform rrt, float rowFy, float rowFfs, float rootH, bool apply) {
-      float fsR = rowFfs * rootH;
-      float rowFyC = rootH > fsR * 1.3f ? Mathf.Clamp(rowFy, (fsR * 0.62f) / rootH, 1f - (fsR * 0.62f) / rootH) : rowFy;
-      float yf = Mathf.Clamp01(1f - rowFyC);
-      var mn = new Vector2(0f, yf); var mx = new Vector2(1f, yf);
-      var sz = new Vector2(0f, rowFfs * rootH * 1.8f);
-      bool current = rrt.anchorMin == mn && rrt.anchorMax == mx
-        && rrt.pivot == new Vector2(0.5f, 0.5f)
-        && (rrt.sizeDelta - sz).sqrMagnitude < 0.01f
-        && rrt.anchoredPosition.sqrMagnitude < 0.01f;
-      if (current || !apply) return current;
-      rrt.anchorMin = mn; rrt.anchorMax = mx;
-      rrt.pivot = new Vector2(0.5f, 0.5f);
-      rrt.sizeDelta = sz;
-      rrt.anchoredPosition = Vector2.zero;
-      return false;
-    }
+    /* SeatRows / RowRect: rung-agnostic now — defined beside SeatInkShips
+       (round 43, the LTS seat road). */
     /* probe + apply in one hand. Returns TRUE when a pass would (or did)
        change something; a dev-restructured Words group changes nothing.
        Geometry, size and dress heal on seats still equal to their seed
@@ -16953,12 +17031,19 @@ namespace PatternBreak {
     }
 #endif
     static void WireTextSeats(GameObject host, string root, PBManifest m, int pngScale) {
-#if UNITY_2023_2_OR_NEWER
       var row = SeatRowOf(host, m, root);
       if (row == null) return;
       float rootH = SeatRootH(host, pngScale);
       if (rootH < 2f) return;
-      if (host.transform.Find("Words") != null) { SeatsDrift(host, row, root, m, pngScale, true); return; }
+      if (host.transform.Find("Words") != null) {
+#if UNITY_2023_2_OR_NEWER
+        SeatsDrift(host, row, root, m, pngScale, true);
+#endif
+        /* pre-2023.2: seeded words are the dev's from the moment they
+           land — the styled convergence heal is 2023.2+ machinery */
+        return;
+      }
+#if UNITY_2023_2_OR_NEWER
       var kitFace = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
       if (kitFace == null) foreach (var s1 in row.textSeats) if (s1.kit) { faceStarved++; break; }
       var grotesk = GaugeUnitFace();
@@ -17022,6 +17107,17 @@ namespace PatternBreak {
         if (face != null) t.font = face;
         DressSeatText(t, seat, face, mat, rootH, aboardWeight, true);
       }
+      AdoptSeatRiders(host, row);
+#else
+      /* the LTS SEAT ROAD (round 43 review — the catalog grew to 108
+         families, most of them seat-worded, and the whole new shelf was
+         word-BARE on 2022.3 while the docs promised live labels): every
+         seat seeds as LIVE TMP here too, the fd28efa doctrine scaled up —
+         fully-qualified TMP, faces minted straight from the shipped TTFs.
+         Words, places, sizes, inks and weights are the seat's own; the
+         styled SDF dress (outline/glow/emboss materials) stays 2023.2+,
+         and so does the convergence heal — LTS words seed once. */
+      LtsWireTextSeats(host, row, root, m, rootH);
       AdoptSeatRiders(host, row);
 #endif
     }
@@ -17116,6 +17212,90 @@ namespace PatternBreak {
       AssetDatabase.SaveAssetIfDirty(fa); // ours alone — never flush the world (immutable-package policy)
       Debug.Log("UI Kit Maker: generated the instrument face at " + pathRF + " — posed counts wear the app's real heavy cut on this rung too.");
       return fa;
+    }
+    /* the LTS rung's KIT face for seat words (round 43 — the LTS seat
+       road): minted straight from the kit's shipped label TTF, its own
+       asset path so it can never collide with the styled rung's
+       "KitFace SDF" recipe if a project later upgrades editors. Null =
+       no TTF aboard — seats fall to the instrument, then TMP's default. */
+    static TMPro.TMP_FontAsset LtsKitFace(string root, PBManifest m) {
+      var pathKL = root + "/fonts/KitFace LTS.asset";
+      var existing = AssetDatabase.LoadAssetAtPath<TMPro.TMP_FontAsset>(pathKL);
+      if (existing != null) return existing;
+      var ttf = m != null && m.typography != null && !string.IsNullOrEmpty(m.typography.fontFile)
+        ? AssetDatabase.LoadAssetAtPath<Font>(root + "/" + m.typography.fontFile) : null;
+      if (ttf == null) return null;
+      TMPro.TMP_FontAsset fa = null;
+      try { fa = TMPro.TMP_FontAsset.CreateFontAsset(ttf); } catch (Exception) { }
+      if (fa == null) return null;
+      fa.name = "KitFace LTS";
+      AssetDatabase.CreateAsset(fa, pathKL);
+      if (fa.material != null) { fa.material.name = "KitFace LTS Material"; AssetDatabase.AddObjectToAsset(fa.material, fa); }
+      if (fa.atlasTextures != null && fa.atlasTextures.Length > 0 && fa.atlasTextures[0] != null) { fa.atlasTextures[0].name = "KitFace LTS Atlas"; AssetDatabase.AddObjectToAsset(fa.atlasTextures[0], fa); }
+      EditorUtility.SetDirty(fa);
+      AssetDatabase.SaveAssetIfDirty(fa); // ours alone — never flush the world (immutable-package policy)
+      return fa;
+    }
+    /* the LTS SEAT BUILDER (round 43): the styled builder's geometry —
+       same rows, same rects, same seats — with the dress reduced to what
+       this rung carries honestly: minted faces (kit TTF for kit-voiced
+       seats, the heavy instrument for readout voices), the seat's own
+       solid ink, spacing, italics, and the F3 gap rule for synthetic
+       bold. Fully-qualified TMP throughout (the guard standard). */
+    static void LtsWireTextSeats(GameObject host, PBAsset row, string root, PBManifest m, float rootH) {
+      var wordsL = new GameObject("Words", typeof(RectTransform));
+      wordsL.transform.SetParent(host.transform, false);
+      StretchFull(wordsL.GetComponent<RectTransform>());
+      Dictionary<int, int> rowCountL; Dictionary<int, float> rowFyL; Dictionary<int, float> rowFfsL;
+      SeatRows(row, out rowCountL, out rowFyL, out rowFfsL);
+      var kitFaceL = LtsKitFace(root, m);
+      var instFaceL = RiderFace(root, m);
+      int shippedL = m != null && m.typography != null && m.typography.style != null && m.typography.style.shippedWeight > 0
+        ? m.typography.style.shippedWeight : 400;
+      var madeL = new Dictionary<int, Transform>();
+      int nRowL = 0;
+      foreach (var seat in row.textSeats) {
+        if (seat == null || string.IsNullOrEmpty(seat.text)) continue;
+        Transform parentL = wordsL.transform;
+        bool inRowL = rowCountL[seat.row] >= 2;
+        if (inRowL) {
+          Transform rTL;
+          if (!madeL.TryGetValue(seat.row, out rTL)) {
+            nRowL++;
+            var rGoL = new GameObject("Row " + nRowL, typeof(RectTransform));
+            rGoL.transform.SetParent(wordsL.transform, false);
+            RowRect(rGoL.GetComponent<RectTransform>(), rowFyL[seat.row], rowFfsL[seat.row], rootH, true);
+            rTL = rGoL.transform;
+            madeL[seat.row] = rTL;
+          }
+          parentL = rTL;
+        }
+        var goL = new GameObject(PlainWord(seat.text), typeof(RectTransform), typeof(CanvasRenderer), typeof(TMPro.TextMeshProUGUI));
+        goL.transform.SetParent(parentL, false);
+        var tL = goL.GetComponent<TMPro.TextMeshProUGUI>();
+        tL.text = seat.text;
+        tL.raycastTarget = false;
+        tL.richText = seat.text.Contains("<color=");
+        tL.fontSize = SeatFs(seat, rootH);
+        SeatHarden(tL);
+        tL.alignment = seat.anchor == "middle" ? TMPro.TextAlignmentOptions.Center : seat.anchor == "end" ? TMPro.TextAlignmentOptions.Right : TMPro.TextAlignmentOptions.Left;
+        var faceL = seat.kit ? (kitFaceL != null ? kitFaceL : instFaceL) : (instFaceL != null ? instFaceL : kitFaceL);
+        if (faceL != null) tL.font = faceL;
+        tL.characterSpacing = seat.spacingEmPct;
+        /* the F3 gap rule, LTS edition: aboard = the shipped kit cut for
+           kit voices, the Inter-ExtraBold instance (800) for readouts;
+           no face at all reads as a 400 default */
+        int aboardL = faceL == null ? 400 : (seat.kit ? shippedL : 800);
+        var styleL = seat.italic ? TMPro.FontStyles.Italic : TMPro.FontStyles.Normal;
+        if (seat.weight - aboardL >= 150) styleL |= TMPro.FontStyles.Bold;
+        tL.fontStyle = styleL;
+        Color inkL;
+        if (!string.IsNullOrEmpty(seat.fill) && ColorUtility.TryParseHtmlString(seat.fill, out inkL)) {
+          if (seat.fillOpacity > 0f) inkL.a *= Mathf.Clamp01(seat.fillOpacity / 100f);
+          tL.color = inkL;
+        }
+        SeatRect(goL.GetComponent<RectTransform>(), seat, faceL, rootH, inRowL, inRowL ? rowFyL[seat.row] : 0f, true);
+      }
     }
     static bool TextSeatsStale(GameObject asset, PBManifest m, string root, int pngScale) {
 #if UNITY_2023_2_OR_NEWER
@@ -18546,7 +18726,11 @@ namespace PatternBreak {
       if (!any && !hadSub) AssetDatabase.DeleteAsset(sub);
       return any;
     }
-    static bool RunPrefabBuilders(string dir, string root, PBManifest m) {
+    /* staging = the missing-pass builds into PrefabsStaging and discards
+       most of it — the wires still wire (a moved prefab must arrive
+       whole) but their Console receipts stay quiet (round 43 review: the
+       Combo/Streakmeter lines printed on every no-op import forever) */
+    static bool RunPrefabBuilders(string dir, string root, PBManifest m, bool staging) {
       var pngScale = m.pngScale > 0 ? m.pngScale : 2;
       bool any = false;
       // the kit's own face, shipped in fonts/ with its license — labels wire to it
@@ -18652,8 +18836,8 @@ namespace PatternBreak {
       }
       // a glyph-less kit leaves no empty shelf behind
       if (!anyGlyph && !hadGlyphDir && AssetDatabase.IsValidFolder(glyphDir)) AssetDatabase.DeleteAsset(glyphDir);
-      if (StreakIgniteWire(dir, root)) any = true;
-      if (ComboPopWire(dir, root, m)) any = true;
+      if (StreakIgniteWire(dir, root, staging)) any = true;
+      if (ComboPopWire(dir, root, m, staging)) any = true;
 #if UNITY_2023_2_OR_NEWER
       if (HeroLabelPrefab(dir, root)) any = true;
 #endif
@@ -18663,7 +18847,7 @@ namespace PatternBreak {
        prefab pops on click exactly like the app — ComboPop replays the
        fxComboPop keyframes on the root and ClaimBurst throws the sparks.
        Wired once at generation; thereafter the prefab is the dev's. */
-    static bool ComboPopWire(string dir, string root, PBManifest m) {
+    static bool ComboPopWire(string dir, string root, PBManifest m, bool quiet) {
       var pathCP = dir + "/Combo.prefab";
       if (AssetDatabase.LoadAssetAtPath<GameObject>(pathCP) == null) return false;
       var contents = PrefabUtility.LoadPrefabContents(pathCP);
@@ -18674,7 +18858,7 @@ namespace PatternBreak {
         contents.AddComponent<ComboPop>();
         if (contents.GetComponent<ClaimBurst>() == null) AddClaimBurst(contents, root, "combo", m);
         PrefabUtility.SaveAsPrefabAsset(contents, pathCP);
-        Debug.Log("UI Kit Maker: the Combo prefab celebrates — click it in Play (or call ComboPop.Pop() / ClaimBurst.Fire() from your game) and it pops exactly like the app.");
+        if (!quiet) Debug.Log("UI Kit Maker: the Combo prefab celebrates — click it in Play (or call ComboPop.Pop() / ClaimBurst.Fire() from your game) and it pops exactly like the app.");
         return true;
       } finally { PrefabUtility.UnloadPrefabContents(contents); }
     }
@@ -18684,7 +18868,7 @@ namespace PatternBreak {
        the context menu) and the Ignition glyph swaps to the app's own lit
        pixels and pulses. Wired once at generation; a prefab the dev
        already holds is theirs and is never re-touched. */
-    static bool StreakIgniteWire(string dir, string root) {
+    static bool StreakIgniteWire(string dir, string root, bool quiet) {
       var pathSI = dir + "/Streakmeter.prefab";
       if (AssetDatabase.LoadAssetAtPath<GameObject>(pathSI) == null) return false;
       var litSI = AssetDatabase.LoadAssetAtPath<Sprite>(root + "/assets/streakmeter/streakmeter-icon-endicon-lit.png");
@@ -18700,7 +18884,7 @@ namespace PatternBreak {
         rig.ghost = imgSI.sprite;
         rig.lit = litSI;
         PrefabUtility.SaveAsPrefabAsset(contents, pathSI);
-        Debug.Log("UI Kit Maker: the Streakmeter prefab can IGNITE — drive Streak Ignite's value to 1 (or its context menu) and the glyph lights and pulses; both poses are ordinary swappable sprites.");
+        if (!quiet) Debug.Log("UI Kit Maker: the Streakmeter prefab can IGNITE — drive Streak Ignite's value to 1 (or its context menu) and the glyph lights and pulses; both poses are ordinary swappable sprites.");
         return true;
       } finally { PrefabUtility.UnloadPrefabContents(contents); }
     }
@@ -18712,11 +18896,20 @@ namespace PatternBreak {
         createdHere = true;
       }
       var dir = root + "/Prefabs";
-      bool any = RunPrefabBuilders(dir, root, m);
+      bool any = RunPrefabBuilders(dir, root, m, false);
       // an EMPTY folder must not latch generation off forever — if nothing
       // landed (sprites missing on a manual run), clean up so the next
       // pass gets its first-import chance
       if (!any && createdHere) AssetDatabase.DeleteAsset(dir);
+      /* the prefab-seeding ledger's FIRST entry set: everything this
+         generation created counts as seeded — from here on, one shot */
+      if (any) {
+        var seededG = new List<string>();
+        foreach (var gG in AssetDatabase.FindAssets("t:Prefab", new string[] { dir }))
+          seededG.Add(Path.GetFileName(AssetDatabase.GUIDToAssetPath(gG)));
+        seededG.Sort();
+        passSeededPrefabs = seededG.ToArray();
+      }
       return any;
     }
     /* MaintainExamplePrefabs' surgical sibling: a kit UPDATE can carry
@@ -18725,22 +18918,43 @@ namespace PatternBreak {
        touching an existing prefab (yours after first generation). The
        builders run into a staging folder; only names the project lacks
        move over, the rest is discarded. */
-    static void GenerateMissingPrefabs(string root, PBManifest m) {
+    static void GenerateMissingPrefabs(string root, PBManifest m, PBLock prevLk) {
       var dir = root + "/Prefabs";
       if (!AssetDatabase.IsValidFolder(dir) || m == null) return;
       var have = new HashSet<string>();
       foreach (var g in AssetDatabase.FindAssets("t:Prefab", new string[] { dir }))
         have.Add(Path.GetFileName(AssetDatabase.GUIDToAssetPath(g)));
+      /* the PREFAB-SEEDING LEDGER (round 43 review — the 108-family
+         catalog made pruning real, and this pass used to resurrect every
+         deleted prefab by name on every import, announced as "newer
+         pieces"): kit.lock.json > seededPrefabs holds every prefab name
+         this kit ever seeded here. A ledgered name missing from the
+         project was DELETED by the dev — their decision forever, never
+         rebuilt. Genuinely NEW families (not in the ledger) still seed.
+         Adopt-present: prefabs already in the project enter the ledger
+         on first sight, so pre-ledger projects prune cleanly from now on
+         — the seededChildren one-shot law, applied to whole prefabs. */
+      var ledgerP = new HashSet<string>();
+      if (prevLk != null && prevLk.seededPrefabs != null)
+        foreach (var nmL in prevLk.seededPrefabs) if (!string.IsNullOrEmpty(nmL)) ledgerP.Add(nmL);
+      foreach (var nmL in have) ledgerP.Add(nmL); // adopt-present
       var stage = root + "/PrefabsStaging";
       if (AssetDatabase.IsValidFolder(stage)) AssetDatabase.DeleteAsset(stage);
       if (string.IsNullOrEmpty(AssetDatabase.CreateFolder(root, "PrefabsStaging"))) return;
       int added = 0;
+      int skippedDeleted = 0;
+      var addedNames = new List<string>();
       try {
-        RunPrefabBuilders(stage, root, m);
+        /* staging runs QUIET (round 43 review: the Combo/Streakmeter wire
+           receipts printed on every no-op import forever) — the honest
+           receipt is the seeded-names line below, only when something
+           actually moves */
+        RunPrefabBuilders(stage, root, m, true);
         foreach (var g in AssetDatabase.FindAssets("t:Prefab", new string[] { stage })) {
           var p = AssetDatabase.GUIDToAssetPath(g);
           var name = Path.GetFileName(p);
           if (have.Contains(name)) continue;
+          if (ledgerP.Contains(name)) { skippedDeleted++; continue; } // seeded once before — the dev deleted it, and that stands
           /* the staged layout carries subfolders (Tiled face) — a missing
              prefab moves into the SAME subfolder, not the root */
           var rel = p.Substring(stage.Length + 1);
@@ -18750,12 +18964,18 @@ namespace PatternBreak {
             targetDir = dir + "/" + sub;
             if (!AssetDatabase.IsValidFolder(targetDir)) AssetDatabase.CreateFolder(dir, sub);
           }
-          if (string.IsNullOrEmpty(AssetDatabase.MoveAsset(p, targetDir + "/" + name))) added++;
+          if (string.IsNullOrEmpty(AssetDatabase.MoveAsset(p, targetDir + "/" + name))) { added++; addedNames.Add(name); ledgerP.Add(name); }
         }
       } finally {
         AssetDatabase.DeleteAsset(stage);
       }
-      if (added > 0) Debug.Log("UI Kit Maker: " + added + " new prefab(s) added for this kit's newer pieces — existing prefabs untouched.");
+      var ledgerOut = new List<string>(ledgerP);
+      ledgerOut.Sort();
+      passSeededPrefabs = ledgerOut.ToArray();
+      if (added > 0) {
+        addedNames.Sort();
+        Debug.Log("UI Kit Maker: seeded " + added + " NEW prefab(s) for this kit's newer pieces (" + string.Join(", ", addedNames.ToArray()) + "). Each family prefab seeds exactly once (kit.lock.json > seededPrefabs) — a prefab you delete stays deleted, and existing prefabs are never touched." + (skippedDeleted > 0 ? " " + skippedDeleted + " previously deleted prefab(s) stayed deleted, as you decided." : ""));
+      }
     }
     /* Per-import maintenance for OUR example prefabs — the two things that
        must track the kit even though "your prefabs are yours" (owner field

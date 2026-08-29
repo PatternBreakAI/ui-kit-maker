@@ -1831,7 +1831,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   // C#: manifest-declared labeled families, art-honest glyphs, posed Words stand-down
   if (!/if \(label == null && a\.labelText != null && a\.labelText\.Length > 0\) label = a\.labelText;/.test(cs))
     errors.push("RunPrefabBuilders must admit manifest-declared labeled families (labelText) — ghost/qtybadge/levelnode prefabs lose their live words (slice 2)");
-  if (!/if \(baseAsset\.component != null && baseAsset\.component\.StartsWith\("glyph"\)\) img\.raycastTarget = false;/.test(cs))
+  if (!/if \(baseAsset\.component != null && \(baseAsset\.component\.StartsWith\("glyph"\) \|\| PoseVariantName\(baseAsset\.component\)\)\) img\.raycastTarget = false;/.test(cs))
     errors.push("glyph prefabs must not catch raycasts — art, never fake buttons (slice 2)");
   if (!/var wdPos = inst\.transform\.Find\("Words"\);\s*\n\s*if \(wdPos != null\) wdPos\.gameObject\.SetActive\(false\);/.test(cs))
     errors.push("the posed road must stand the Words group down — family-level seats would double over the copy's own posed words (slice 2)");
@@ -1839,7 +1839,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   // words and glow sink by the dial) — measured dy rows for stateFx
   // families; clean translates measure 0 and stay byte-stable
   if (!/const measuredStateDy = \(pid: KitComponentId, sn: "hover" \| "pressed" \| "disabled"\): number \| null =>/.test(src)
-      || !/\["skillnode", "skillnode"\], \["booster", "booster"\]\] as const\)\.flatMap\(\(\[pid, fam\]\) =>/.test(src))
+      || !/\["skillnode", "skillnode"\], \["booster", "booster"\], \["claimbtn", "claimbtn-double"\]\] as const\)/.test(src))
     errors.push("the bespoke-pose measured-dy pass is missing from labelStates — riders would take the raw lift dial on squash-pose kits (slice 2)");
   // the × glyph rides the baked atlas — qtybadge's live words are ×-counts
   if (!/'&\(\)×";/.test(src.replace(/\\/g, "")) && !/&\(\)×/.test(src))
@@ -2116,7 +2116,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
       || !/static Color LegacyFlatInk\(PBManifest m, string family\)/.test(cs))
     errors.push("the 2022.3 label rung lost the family ink ladder — dark-ink kits go white-on-cream again (reviewer B2)");
   // the docs' 2022.3 notes are load-bearing honesty, not prose polish
-  if (!/On Unity 2022\.3:\*\* labels are still live, editable text/.test(src)
+  if (!/On Unity 2022\.3:\*\* every word is still live, editable text/.test(src)
       || !/The full 2022\.3 picture, feature by feature/.test(src))
     errors.push("the QuickStart/README 2022.3 qualifications are gone — the docs overpromise the legacy rung again (reviewer B2)");
 }
@@ -2247,7 +2247,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the posed rider words hid behind the styled-rung guard again — 2022.3 ships empty qty pills and badge plates");
   {
     // the docs tell the LTS truth: the rider exception is stated in BOTH docs
-    if (!/rebuilt as editable\s*\n?> TMP text on BOTH rungs/.test(src) || !/which arrive as editable TMP text on both\s*\n?> rungs/.test(src))
+    if (!/which rebuild as editable TMP on\s*\n?> BOTH rungs/.test(src) || !/which arrive as editable TMP text on both\s*\n?> rungs/.test(src))
       errors.push("the 2022.3 rung contract in README/QuickStart no longer states the rider-count exception — the shipped docs would lie again");
     if (!/### What arrives LIVE — the swap-the-sprite contract/.test(src))
       errors.push("the README's live-children paragraph (swap-the-sprite contract) is gone — the flagship editability is undocumented again");
@@ -2256,7 +2256,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
      is recorded in kit.lock.json > seededChildren, and is never re-added
      — a deleted child stays deleted, a renamed child never grows a
      canonical twin, and unburned++ only counts real adds. */
-  if (!/public PBRectEntry\[\] authoredRects; public string\[\] seededChildren; \}/.test(cs))
+  if (!/public PBRectEntry\[\] authoredRects; public string\[\] seededChildren; public string\[\] seededPrefabs; \}/.test(cs))
     errors.push("PBLock lost the seededChildren ledger — the un-burn resurrects deleted children and twins renamed ones again");
   if (!/receipt\.seededChildren = passSeededChildren != null \? passSeededChildren : \(prev != null \? prev\.seededChildren : null\);/.test(cs))
     errors.push("the receipt no longer carries the seeded-children ledger forward — one import without maintenance would amnesia every seeded seat");
@@ -2485,7 +2485,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the StreakIgnite runtime is gone — the streak meter can't ignite in Unity");
   if (!/"Runtime\/PatternBreakStreakIgnite\.cs",/.test(src))
     errors.push("PatternBreakStreakIgnite.cs left the sharedScripts set — it would land per-slug OUTSIDE the runtime assembly (the IdleShine CS0246 lesson)");
-  if (!/static bool StreakIgniteWire\(string dir, string root\)/.test(cs) || !/if \(StreakIgniteWire\(dir, root\)\) any = true;/.test(cs))
+  if (!/static bool StreakIgniteWire\(string dir, string root, bool quiet\)/.test(cs) || !/if \(StreakIgniteWire\(dir, root, staging\)\) any = true;/.test(cs))
     errors.push("the importer no longer wires StreakIgnite onto the Streakmeter prefab");
 }
 
@@ -2516,7 +2516,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the ComboPop runtime is gone — the combo stops celebrating in Unity");
   if (!/"Runtime\/PatternBreakComboPop\.cs",/.test(src))
     errors.push("PatternBreakComboPop.cs left the sharedScripts set (the IdleShine CS0246 lesson)");
-  if (!/static bool ComboPopWire\(string dir, string root, PBManifest m\)/.test(cs) || !/if \(ComboPopWire\(dir, root, m\)\) any = true;/.test(cs))
+  if (!/static bool ComboPopWire\(string dir, string root, PBManifest m, bool quiet\)/.test(cs) || !/if \(ComboPopWire\(dir, root, m, staging\)\) any = true;/.test(cs))
     errors.push("the importer no longer wires ComboPop + ClaimBurst onto the Combo prefab");
   if (!/Mathf\.Lerp\(0\.82f, 1\.32f, u\)/.test(src))
     errors.push("ComboPop lost the app's own keyframes (0.82 squash → 1.32 overshoot)");
@@ -2574,6 +2574,49 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the rewards state-variant emission is gone — ALL rewards states stop shelving");
   if (!/\("REWARDS", new\[\] \{ "Pack", "Cardback", "ClaimbtnDouble", "RewardcardLegendary", "RewardcardMystery", "DailycellClaimed", "DailycellLocked", "Chest", "Giftbox", "Rewardtray", "Chestpanel", "Orderticket" \}\)/.test(cs))
     errors.push("the Playground's REWARDS chapter is gone or reshuffled");
+}
+
+/* ROUND 43 pins — the r42 reviewer gate's blocker + paper cuts. */
+{
+  // BLOCKER: the 2x reward button is a REAL button — variant state skins,
+  // dials under its family name, its own aura
+  if (!/interactive: true, opts: \{ slots: \{ \.\.\.\(st\.kitSlotVals\?\.claimbtn \?\? \{\}\), mode: "2x by ad" \} \}/.test(src))
+    errors.push("the 2x reward button lost its interactive variant flag — it ships as a dead click-eater again");
+  if (!/\["claimbtn", "claimbtn-double"\]/.test(src))
+    errors.push("claimbtn-double lost its stateFx/labelStates dials — no glow, no lift, no Button");
+  if (!/"claimbtn-double"\]\);/.test(src))
+    errors.push("claimbtn-double left GLOW_FAMS — its hover aura falls to the generic blob");
+  // pose variants never eat clicks
+  if (!/static bool PoseVariantName\(string c\) \{ return c == "rewardcard-legendary" \|\| c == "rewardcard-mystery" \|\| c == "dailycell-claimed" \|\| c == "dailycell-locked"; \}/.test(cs))
+    errors.push("PoseVariantName is gone — display pose variants eat clicks their live base siblings would answer");
+  // PAPER CUT 2: tint crosses the posed road
+  if (!/ColorUtility\.TryParseHtmlString\(pIc\.tint, out pTintC\)\) pIi\.color = pTintC;/.test(cs))
+    errors.push("the posed road no longer applies pIc.tint — the first board scorebug ships WHITE team bars");
+  if (!/\.\.\.\(cut\.tint \? \{ tint: cut\.tint \} : \{\}\),/.test(src))
+    errors.push("posed icon cuts no longer carry their tint into posedIcons");
+  // PAPER CUT 3: the prefab-seeding ledger + quiet staging
+  if (!/public string\[\] seededPrefabs; \}/.test(cs))
+    errors.push("PBLock lost the seededPrefabs ledger — deleted prefabs resurrect on every import again");
+  if (!/if \(ledgerP\.Contains\(name\)\) \{ skippedDeleted\+\+; continue; \}/.test(cs)
+      || !/foreach \(var nmL in have\) ledgerP\.Add\(nmL\); \/\/ adopt-present/.test(cs)
+      || !/static void GenerateMissingPrefabs\(string root, PBManifest m, PBLock prevLk\)/.test(cs))
+    errors.push("GenerateMissingPrefabs lost the one-shot prefab ledger (skip-deleted / adopt-present / prev lock)");
+  if (!/receipt\.seededPrefabs = passSeededPrefabs != null \? passSeededPrefabs : \(prev != null \? prev\.seededPrefabs : null\);/.test(cs))
+    errors.push("the receipt no longer carries the prefab-seeding ledger forward");
+  if (!/RunPrefabBuilders\(stage, root, m, true\);/.test(cs) || !/RunPrefabBuilders\(dir, root, m, false\);/.test(cs)
+      || !/if \(!quiet\) Debug\.Log\("UI Kit Maker: the Streakmeter prefab can IGNITE/.test(cs)
+      || !/if \(!quiet\) Debug\.Log\("UI Kit Maker: the Combo prefab celebrates/.test(cs))
+    errors.push("the staging pass is loud again — the Combo/Streakmeter wire receipts print on every no-op import");
+  // PAPER CUT 4: staged families ship no dials
+  if (!/\.filter\(\(\[pid\]\) => stagedShips\(pid\)\)/.test(src))
+    errors.push("the stateFx/labelStates staged filter is gone — dark families leak dials against the ships-nothing receipt");
+  // PAPER CUT 5: the LTS seat road
+  if (!/static void LtsWireTextSeats\(GameObject host, PBAsset row, string root, PBManifest m, float rootH\)/.test(cs)
+      || !/LtsWireTextSeats\(host, row, root, m, rootH\);/.test(cs)
+      || !/static TMPro\.TMP_FontAsset LtsKitFace\(string root, PBManifest m\)/.test(cs))
+    errors.push("the LTS seat road is gone — the seat-worded catalog ships word-BARE on 2022.3 against the docs");
+  if (!/static bool SeatRect\(RectTransform rt, PBSeat seat, TMPro\.TMP_FontAsset face, float rootH, bool inRow, float rowFy, bool apply\)/.test(cs))
+    errors.push("SeatRect fell back inside the styled guard (or lost its qualified signature) — the LTS seat road can't place words");
 }
 
 if (errors.length) {
