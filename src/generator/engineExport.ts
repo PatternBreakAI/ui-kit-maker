@@ -3411,6 +3411,12 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      lane centers, lane-label x. The importer maps them through the board
      asset's shell row so the live cells land exactly on the art. */
   let seasonGeo: { x0: number; x1: number; spineY: number; laneFreeY: number; lanePremY: number; labelX: number } | null = null;
+  /* RIG-5 geometry blocks (round 44, the SeasonTrack pattern): design px
+     in the part-less canvas frame (both bases ship crop-false, so canvas
+     px ARE sprite px); old zips simply lack the keys (JsonUtility zero-
+     gates on pitch). staged = the index the maker's value picked. */
+  let pageDotsGeo: { x0: number; cy: number; pitch: number; r: number; n: number; staged: number; w: number; h: number } | null = null;
+  let startLightsGeo: { x0: number; cy: number; pitch: number; r: number; n: number; staged: number; w: number; h: number } | null = null;
   // rarity ladder — rendered as frames only in the full kit, but declared
   // here because the manifest's rarity block (full-gated) also reads it
   const tiersR = rarityTiers(st.cfg);
@@ -4047,7 +4053,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         listmenu: "List menu — four rows: every row glyph is a LIVE Image child and every word a LIVE seat; the highlight bar bakes on the staged row. Display piece: wire per-row buttons over it.",
         scrollbar: "Scrollbar — vertical strip, sunken track, candy thumb baked at the staged position. Display piece; pair with your own ScrollRect (the ScrollView prefab shows the wiring).",
         steps: "Step indicator — wizard pips; the step numbers are LIVE seats. Display piece.",
-        pagedots: "Page dots — carousel position pips, the active dot in the kit's candy. Display piece; per-page states ride posed skins.",
+        pagedots: "Page dots — DRIVABLE (round 44): the PageDots prefab deals the strip live from pagedots-dot/knob at the kit's own pitch (PatternBreakPageDots — SetPage/SetCount, or SetValue 0..1). This baked sheet stays for older scenes and board stamps.",
         questpanel: "Quest tracker — eyebrow, title, objectives and counts are LIVE seats (title is the live Label). Pips and footer bar are anatomy; per-copy progress rides posed skins. Display piece.",
         dialoguebox: "Dialogue box — both lines are LIVE seats, the speaker plate a live child whose NAME rides it (move or delete plate + name as one), and the continue caret its OWN live child (owner ruling, round 44 — blink it, bob it or swap it; icons/* fit the seat). Display piece.",
         choicelist: "Dialogue choices — all three responses and their hotkey digits are LIVE seats; the active-choice marker is a LIVE Image child. Wire per-choice buttons over the capsules. Display piece.",
@@ -4672,8 +4678,39 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     await addPng("telemetry/base.9.png", tmSvg, { component: "telemetry", part: "base", nineSlice: sliceOf("telemetry", 240), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Telemetry panel — instrument well + grid + axis rails baked; THR/BRK/SPD are LIVE KitTrace children seeded with the app's demo data (manifest > chart; edit Values in the Inspector or SetValues at runtime); title, legend and axis labels arrive as live text.", chart: chartOf(tmSvg, "telemetry"), ...textSeatsOf("telemetry", tmSvg, {}, slim) }, true);
   }
   {
-    const slSvg = shell("startlights", { part: "base" });
-    await addPng("startlights/base.png", slSvg, { component: "startlights", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Start-light gantry, all pods dark. Light the pods with tinted circles (alarm red) from the engine's countdown; the caption arrives as live text on the Startlights prefab.", ...textSeatsOf("startlights", slSvg) });
+    /* ── RIG-5, startlights (round 44, item 36): the base bakes ALL-DARK
+       and holds byte-still (the geometry rides an attribute, which never
+       rasterizes); the lamp atom + the pods geo block make LitCount a
+       real dial on the StartLights prefab. ── */
+    const slVal = st.kitVals?.startlights;
+    const slSvg = shell("startlights", { part: "base" }, undefined, slVal);
+    const gmSL = /data-pods="([-\d. ]+)"/.exec(slSvg);
+    const vbSL = /viewBox="0 0 ([\d.]+) ([\d.]+)"/.exec(slSvg);
+    if (gmSL && vbSL) {
+      const [sx0, scy, spitch, sr] = gmSL[1].split(" ").map(Number);
+      const rd = (v: number) => Math.round(v * 10) / 10;
+      startLightsGeo = { x0: rd(sx0), cy: rd(scy), pitch: rd(spitch), r: rd(sr), n: 5, staged: 0, w: rd(+vbSL[1]), h: rd(+vbSL[2]) };
+    }
+    await addPng("startlights/base.png", slSvg, { component: "startlights", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Start-light gantry, all pods dark — the StartLights prefab parks a live lamp over every lens and LitCount 0-5 lights them (SetCount, or SetValue 0..1; the caption flips to LIGHTS OUT at zero). The caption is live text.", ...textSeatsOf("startlights", slSvg) });
+    await addPng("startlights/lamp.png", shell("startlights", { part: "lamp" }), { component: "startlights", part: "lamp", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "One lit pod — alarm lens, glow and specular, the app's exact ink. The StartLights prefab holds five over the dark lenses; LitCount enables them left to right." });
+  }
+  {
+    /* ── RIG-5 pilot, pagedots (round 44, item 24): the carousel position
+       becomes a DIAL. The base keeps baking (legacy sheet for old scenes
+       and boardstamps — its bytes hold still, the stamp is an attribute);
+       the PageDots prefab builds the strip LIVE from the two atoms at the
+       stamped pitch. ── */
+    const pdVal = st.kitVals?.pagedots;
+    const pdSvg = shell("pagedots", {}, undefined, pdVal);
+    const gmPD = /data-pagedots="([-\d. ]+)"/.exec(pdSvg);
+    const vbPD = /viewBox="0 0 ([\d.]+) ([\d.]+)"/.exec(pdSvg);
+    if (gmPD && vbPD) {
+      const [px0, pcy, ppitch, pr9, pn, psel] = gmPD[1].split(" ").map(Number);
+      const rd = (v: number) => Math.round(v * 10) / 10;
+      pageDotsGeo = { x0: rd(px0), cy: rd(pcy), pitch: rd(ppitch), r: rd(pr9), n: pn, staged: psel, w: rd(+vbPD[1]), h: rd(+vbPD[2]) };
+    }
+    await addPng("pagedots/dot.png", shell("pagedots", { part: "dot" }), { component: "pagedots", part: "dot", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "One resting dot — PageDots deals pageCount of these at the kit's own pitch." });
+    await addPng("pagedots/knob.png", shell("pagedots", { part: "knob" }), { component: "pagedots", part: "knob", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The active dot — the kit's candy knob with its glow halo; PageDots parks it on currentPage." });
   }
 
   /* ── the RIGS (owner round, 2026-08-04): joystick, health globe and
@@ -5294,6 +5331,9 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
          origin) — the SeasonTrack prefab seats its live tier cells with
          these, so wells and nodes land exactly where the app drew them */
       seasonTrack: seasonGeo,
+      // RIG-5 geometry (round 44): absent in old zips by design
+      pageDots: pageDotsGeo,
+      startLights: startLightsGeo,
       rules: [
         "Nothing replaceable is baked: labels, numbers, values, avatars and swappable icons are live engine content.",
         "Nine-slice assets stretch only their center region; margins below are in PNG pixels at pngScale.",
@@ -5666,6 +5706,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Runtime/PatternBreakBuffSweep.cs", data: BUFF_SWEEP_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitBarFill.cs", data: KIT_BAR_FILL_RUNTIME });
   files.push({ path: "Runtime/PatternBreakCellMeter.cs", data: CELL_METER_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakPageDots.cs", data: PAGE_DOTS_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakStartLights.cs", data: START_LIGHTS_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitTrace.cs", data: KIT_TRACE_RUNTIME });
   files.push({ path: "Runtime/PatternBreakSafeArea.cs", data: SAFE_AREA_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitPiece.cs", data: KIT_PIECE_RUNTIME });
@@ -5742,6 +5784,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     "Runtime/PatternBreakBuffSweep.cs",
     "Runtime/PatternBreakKitBarFill.cs",
     "Runtime/PatternBreakCellMeter.cs",
+    "Runtime/PatternBreakPageDots.cs", "Runtime/PatternBreakStartLights.cs",
     "Runtime/PatternBreakKitTrace.cs",
     "Runtime/PatternBreakSafeArea.cs",
     "Runtime/PatternBreakKitPiece.cs",
@@ -6342,6 +6385,146 @@ namespace PatternBreak {
    drives the Radial360 spent-share disc (pre-clipped to the silhouette in
    its pixels) and rotates the glowing hand to the sweep edge; a fresh
    buff (spent ≤ 0.01) shows no sweep, exactly like the app. */
+/* RIG-5 (round 44): the discrete-count rigs — the SeasonTrack chassis in
+   miniature: [ExecuteAlways], an owned "(auto)" mount that rebuilds
+   freely, deferred OnValidate, and a plain SetValue for board strikes. */
+const PAGE_DOTS_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+
+namespace PatternBreak {
+  /* Pagination dots, DRIVABLE (round 44) — the carousel position is a
+     dial, not a bake. THE LOOK IS EDITED ON UIKITMAKER.COM (the dot and
+     knob sprites are the app's own ink); this component owns the COUNT
+     and the POSITION: it deals pageCount resting dots at the kit's pitch
+     and parks the active knob on currentPage. Everything it creates
+     lives under the "Dots (auto)" child and rebuilds freely — objects
+     YOU add anywhere else are never touched.
+       From code: SetPage(i), SetCount(n), or SetValue(0..1) — the app's
+       own dial; board poses strike it. */
+  [ExecuteAlways]
+  [AddComponentMenu("UI Kit Maker/Page Dots")]
+  public class PatternBreakPageDots : MonoBehaviour {
+    [Range(1, 12)] public int pageCount = 5;
+    [Range(0, 11)] public int currentPage = 1;
+    [Header("Art (wired on import — re-export the kit to restyle)")]
+    public Sprite dotSprite;
+    public Sprite knobSprite;
+    [Tooltip("Center-to-center dot spacing in UI units — measured from the kit's art on import.")]
+    public float pitch = 35f;
+    [Tooltip("UI units per sprite pixel — 1 / the export's pngScale. Set on import.")]
+    public float spriteScale = 0.5f;
+    const string OWNED = "Dots (auto)";
+    int lastN = -1, lastP = -1;
+
+    public void SetCount(int n) { pageCount = Mathf.Clamp(n, 1, 12); Rebuild(); }
+    public void SetPage(int i) { currentPage = Mathf.Clamp(i, 0, Mathf.Max(0, pageCount - 1)); Rebuild(); }
+    public void SetValue(float v) { SetPage(Mathf.RoundToInt(Mathf.Clamp01(v) * (pageCount - 1))); }
+
+    void OnEnable() { Rebuild(); }
+    void LateUpdate() { if (pageCount != lastN || Mathf.Clamp(currentPage, 0, pageCount - 1) != lastP) Rebuild(); }
+#if UNITY_EDITOR
+    /* deferred rebuild — OnValidate must not move RectTransforms (the
+       SeasonTrack rule) */
+    bool rebuildQueued;
+    void OnValidate() {
+      if (rebuildQueued) return;
+      rebuildQueued = true;
+      UnityEditor.EditorApplication.delayCall += () => {
+        rebuildQueued = false;
+        if (this == null) return;
+        if (UnityEditor.PrefabUtility.IsPartOfPrefabAsset(gameObject)) return;
+        Rebuild();
+      };
+    }
+#endif
+    RectTransform Owned() {
+      var t = transform.Find(OWNED) as RectTransform;
+      if (t == null) {
+        var g = new GameObject(OWNED, typeof(RectTransform));
+        g.transform.SetParent(transform, false);
+        t = (RectTransform)g.transform;
+      }
+      t.SetSiblingIndex(0); // under anything the dev parents to the root
+      t.anchorMin = Vector2.zero; t.anchorMax = Vector2.one;
+      t.offsetMin = Vector2.zero; t.offsetMax = Vector2.zero;
+      return t;
+    }
+    public void Rebuild() {
+      lastN = pageCount; lastP = Mathf.Clamp(currentPage, 0, pageCount - 1);
+      var mount = Owned();
+      for (int i = mount.childCount - 1; i >= 0; i--) {
+        var ch = mount.GetChild(i).gameObject;
+        if (Application.isPlaying) Destroy(ch); else DestroyImmediate(ch);
+      }
+      float x0 = -(pageCount - 1) * 0.5f * pitch;
+      for (int i = 0; i < pageCount; i++) Deal(mount, dotSprite, x0 + i * pitch, "Dot " + (i + 1));
+      Deal(mount, knobSprite, x0 + lastP * pitch, "Knob");
+    }
+    void Deal(RectTransform mount, Sprite s, float x, string childName) {
+      if (s == null) return;
+      var go = new GameObject(childName, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+      go.transform.SetParent(mount, false);
+      var im = go.GetComponent<Image>(); im.sprite = s; im.raycastTarget = false;
+      var rt = go.GetComponent<RectTransform>();
+      rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+      rt.pivot = new Vector2(0.5f, 0.5f);
+      rt.anchoredPosition = new Vector2(x, 0f);
+      rt.sizeDelta = new Vector2(s.rect.width * spriteScale, s.rect.height * spriteScale);
+    }
+  }
+}
+`;
+
+const START_LIGHTS_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+#if UNITY_2023_2_OR_NEWER
+using TMPro;
+#endif
+
+namespace PatternBreak {
+  /* Start-light gantry, DRIVABLE (round 44) — LitCount 0..5 lights the
+     pods left to right by enabling the lamp children the importer parks
+     over the base's dark lenses; at ZERO the caption flips to the go
+     word, exactly the app's own countdown. From code: SetCount(n) or
+     SetValue(0..1); wire your race clock to count 5 down to 0. A caption
+     you retype in Unity is yours — only the two stock words are ever
+     rewritten. */
+  [ExecuteAlways]
+  [AddComponentMenu("UI Kit Maker/Start Lights")]
+  public class PatternBreakStartLights : MonoBehaviour {
+    [Range(0, 5)] public int litCount = 0;
+    [Header("Lamps (wired on import — the app's own lit lens)")]
+    public Image[] lamps = new Image[0];
+    [Header("Caption — the live seat word (clear the ref to own it fully)")]
+#if UNITY_2023_2_OR_NEWER
+    public TMP_Text caption;
+#endif
+    public string readyWord = "GET READY";
+    public string goWord = "LIGHTS OUT";
+    public Color readyInk = Color.white;
+    public Color goInk = new Color(0.29f, 0.87f, 0.5f); // the app's #4ADE80 go green
+    int last = -1;
+
+    public void SetCount(int n) { litCount = Mathf.Clamp(n, 0, 5); Apply(); }
+    public void SetValue(float v) { SetCount(Mathf.RoundToInt(Mathf.Clamp01(v) * 5f)); }
+
+    void OnEnable() { Apply(); }
+    void LateUpdate() { if (litCount != last) Apply(); }
+    public void Apply() {
+      last = litCount;
+      if (lamps != null) for (int i = 0; i < lamps.Length; i++)
+        if (lamps[i] != null) lamps[i].gameObject.SetActive(i < litCount);
+#if UNITY_2023_2_OR_NEWER
+      if (caption != null && (caption.text == readyWord || caption.text == goWord)) {
+        caption.text = litCount == 0 ? goWord : readyWord;
+        caption.color = litCount == 0 ? goInk : readyInk;
+      }
+#endif
+    }
+  }
+}
+`;
+
 const BUFF_SWEEP_RUNTIME = `using UnityEngine;
 using UnityEngine.UI;
 
@@ -9916,6 +10099,10 @@ namespace PatternBreak {
      lane-label x. Mapped through the board asset's shell row so the live
      tier cells land exactly on the art. */
   [Serializable] class PBSeasonGeo { public float x0; public float x1; public float spineY; public float laneFreeY; public float lanePremY; public float labelX; }
+  /* RIG-5 geometry (round 44) — design px in the base sprite's canvas
+     frame (both bases ship uncropped). Old zips lack the block entirely:
+     JsonUtility leaves every field 0 and pitch gates the rig road off. */
+  [Serializable] class PBDotsGeo { public float x0; public float cy; public float pitch; public float r; public int n; public int staged; public float w; public float h; }
   // ── Boards→Scenes: the maker's artboards, one ready scene each ──
   /* a BIG GLYPH row (the owner's board-art drop): id/name key prefab
      convergence — every instance of one asset resolves to
@@ -9927,7 +10114,7 @@ namespace PatternBreak {
   [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float artW; public float artH; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string stampMask; public bool bakedFallback; public int stampLive; public float stampFs; public string stampInk; public string stampSplashInk; public string stampCase; public float stampDx; public float stampDy; public float stampW; public float stampH; public string posed; public float posedW; public float posedH; public float posedDx; public float posedDy; public string posedHover; public string posedPressed; public string posedDisabled; public float posedLabelDx; public float posedLabelDy; public string shadow; public float shadowW; public float shadowH; public float shadowDx; public float shadowDy; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; public PBBig big; public PBIconChild[] posedIcons; }
   [Serializable] class PBBoardBg { public string file; public float opacity; public float blur; public float saturation; public float hue; public float brightness; public float contrast; public float noise; public string overlay; public float overlayStrength; public string overlayBlend; public bool original; }
   [Serializable] class PBBoard { public string name; public int w; public int h; public PBBoardBg bg; public PBBoardItem[] items; }
-  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public string seatSpace; public string[] stagedFamilies; public PBWell globeWell; public PBSeasonGeo seasonTrack; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBTimerBlock timer; public PBMenu menu; public PBRarity rarity; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; }
+  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public string seatSpace; public string[] stagedFamilies; public PBWell globeWell; public PBSeasonGeo seasonTrack; public PBDotsGeo pageDots; public PBDotsGeo startLights; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBTimerBlock timer; public PBMenu menu; public PBRarity rarity; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; }
   [Serializable] class PBLockEntry { public string file; public string sha256; }
   /* the word each labeled family's prefab was last SEEDED with — the
      ownership ledger: a re-import re-seeds only a label still equal to
@@ -13347,6 +13534,11 @@ namespace PatternBreak {
             // cell meters snap the board's staged charge to whole cells
             var kcmS = inst.GetComponent<KitCellMeter>();
             if (kcmS != null && it.value > 0f) kcmS.SetValue(Mathf.Clamp01(it.value));
+            // the RIG-5 discrete rigs strike the board's pose too (round 44)
+            var pdS = inst.GetComponent<PatternBreakPageDots>();
+            if (pdS != null && it.value > 0f) pdS.SetValue(Mathf.Clamp01(it.value));
+            var slgS = inst.GetComponent<PatternBreakStartLights>();
+            if (slgS != null && it.value > 0f) slgS.SetValue(Mathf.Clamp01(it.value));
             var gdS = inst.GetComponent<GaugeDial>();
             if (gdS != null && it.value > 0f) { gdS.value = Mathf.Clamp01(it.value); gdS.Apply(); }
             var ktS = inst.GetComponent<KitTimer>();
@@ -16452,6 +16644,71 @@ namespace PatternBreak {
       UnityEngine.Object.DestroyImmediate(go);
       return true;
     }
+    /* ── RIG-5 (round 44): the discrete-count rigs — geometry from the
+       manifest blocks, art from the part atoms, an [ExecuteAlways]
+       runtime that makes the count a DIAL. Old zips (no geo block, no
+       atoms) fall back to yesterday's picture road, byte-for-byte. ── */
+    static bool PageDotsPrefab(string dir, string root, int pngScale, PBManifest m) {
+      var geo = m != null ? m.pageDots : null;
+      var dotSp = S(root + "/assets/pagedots/pagedots-dot.png");
+      var knobSp = S(root + "/assets/pagedots/pagedots-knob.png");
+      if (geo == null || geo.pitch < 0.01f || dotSp == null || knobSp == null)
+        return PicturePrefab(dir, root, pngScale, m, "pagedots/pagedots-base.png", "Pagedots", false);
+      var go = new GameObject("Pagedots", typeof(RectTransform));
+      var rt = go.GetComponent<RectTransform>();
+      rt.sizeDelta = new Vector2(geo.w, geo.h); // canvas design px = UI units (one svg px = one unit)
+      var rig = go.AddComponent<PatternBreakPageDots>();
+      rig.dotSprite = dotSp; rig.knobSprite = knobSp;
+      rig.pitch = geo.pitch;
+      rig.spriteScale = pngScale > 0 ? 1f / pngScale : 0.5f;
+      rig.pageCount = geo.n > 0 ? geo.n : 5;
+      rig.currentPage = Mathf.Clamp(geo.staged, 0, Mathf.Max(0, rig.pageCount - 1)); // the maker's staged pick, not a guess
+      rig.Rebuild();
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/Pagedots.prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
+    static bool StartLightsPrefab(string dir, string root, int pngScale, PBManifest m) {
+      var geo = m != null ? m.startLights : null;
+      var lampSp = S(root + "/assets/startlights/startlights-lamp.png");
+      if (geo == null || geo.pitch < 0.01f || geo.w < 4f || geo.h < 4f || lampSp == null)
+        return PicturePrefab(dir, root, pngScale, m, "startlights/startlights-base.png", "Startlights", false);
+      var sp = S(root + "/assets/startlights/startlights-base.png");
+      if (sp == null) return false;
+      var go = ImageObject("Startlights", sp, pngScale);
+      var rig = go.AddComponent<PatternBreakStartLights>();
+      rig.lamps = new Image[5];
+      for (int i = 0; i < 5; i++) {
+        var lgo = new GameObject("Lamp " + (i + 1) + " (auto)", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        lgo.transform.SetParent(go.transform, false);
+        var li = lgo.GetComponent<Image>();
+        li.sprite = lampSp; li.raycastTarget = false;
+        var lrt = lgo.GetComponent<RectTransform>();
+        // pods stamped in canvas design px; the base ships uncropped, so
+        // canvas fractions ARE sprite fractions (y flips to bottom origin)
+        lrt.anchorMin = lrt.anchorMax = new Vector2((geo.x0 + geo.pitch * i) / geo.w, 1f - geo.cy / geo.h);
+        lrt.pivot = new Vector2(0.5f, 0.5f);
+        lrt.anchoredPosition = Vector2.zero;
+        lrt.sizeDelta = new Vector2(lampSp.rect.width / (pngScale > 0 ? pngScale : 2), lampSp.rect.height / (pngScale > 0 ? pngScale : 2));
+        rig.lamps[i] = li;
+      }
+      // the caption seat seeds live like every bones word
+      WireTextSeats(go, root, m, pngScale);
+      foreach (var tCap in go.GetComponentsInChildren<TMPro.TMP_Text>(true))
+        if (tCap != null && tCap.text == rig.readyWord) {
+#if UNITY_2023_2_OR_NEWER
+          rig.caption = tCap;
+#endif
+          rig.readyInk = tCap.color;
+          break;
+        }
+      // rest = lights out (the racing gantry's zero) — NOT the demo pose
+      rig.litCount = 0;
+      rig.Apply();
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/Startlights.prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
     /* the dropdown's closed shell + its VALUE WORD as a live label — the
        word is the maker's own (manifest labelText), dressed and seated by
        the same machinery as every button label (owner: "a lot of text
@@ -19124,7 +19381,11 @@ namespace PatternBreak {
          shipped as simple prefabs (owner: "the bones to customize") —
          each carries a README note naming what a dev swaps */
       if (PicturePrefab(dir, root, pngScale, m, "circuit/circuit-track.png", "Circuit", false)) any = true;
-      if (PicturePrefab(dir, root, pngScale, m, "startlights/startlights-base.png", "Startlights", false)) any = true;
+      // round 44 (RIG-5): the gantry goes DRIVABLE — lamps + LitCount;
+      // old zips (no lamp atom / geo) fall back to the picture road inside
+      if (StartLightsPrefab(dir, root, pngScale, m)) any = true;
+      // round 44 (RIG-5 pilot): the carousel position becomes a dial
+      if (PageDotsPrefab(dir, root, pngScale, m)) any = true;
       /* the glow orb joins the shelf (slice 4b — Playground has
          EVERYTHING): it ships lit + off sprites but had no prefab and no
          catalog spot. One placeable piece, lit by default — swap the
@@ -19175,7 +19436,7 @@ namespace PatternBreak {
          but they don't make useful drag-in prefabs (owner) */
       /* firebutton joined the composed rigs: FireButtonPrefab builds the
          wired swipe carousel, so the generic base-sprite prefab bows out */
-      var skip = new HashSet<string> { "progress", "slider", "toggle", "segbar", "fx", "icons", "dropdown", "rarityframe", "loottag", "speedo", "speedo2", "circuit", "startlights", "laptimes", "leaderboard", "telemetry", "joystick", "globe", "seasontrack", "extras", "firebutton" };
+      var skip = new HashSet<string> { "progress", "slider", "toggle", "segbar", "fx", "icons", "dropdown", "rarityframe", "loottag", "speedo", "speedo2", "circuit", "startlights", "laptimes", "leaderboard", "telemetry", "joystick", "globe", "seasontrack", "extras", "firebutton", "pagedots" };
       /* the GLYPH RACK gets its own shelf (owner call: ~40 Glyph* prefabs
          drowned Prefabs/) — Prefabs/Glyphs/, the BigGlyphs pattern.
          Glyphs STAY prefabs (drag-drop convenience; they'll gain states

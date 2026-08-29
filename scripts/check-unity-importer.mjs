@@ -2836,6 +2836,43 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the QuickStart ring paragraph no longer names the Hotbar (round 44, item 18)");
 }
 
+/* ── ROUND 44 · S11 (RIG-5 chassis + pagedots 24 / startlights 36):
+   discrete counts become DIALS — part atoms + geometry blocks + two
+   [ExecuteAlways] runtimes; both bases stay byte-identical (the
+   geometry rides attributes, which never rasterize). ── */
+{
+  if (!/data-pagedots="\$\{\(pad0 \+ dR \* 2\)\.toFixed\(1\)\} \$\{\(H0 \/ 2\)\.toFixed\(1\)\} \$\{gap0\.toFixed\(1\)\} \$\{dR\.toFixed\(1\)\} \$\{n0\} \$\{selD\}"/.test(bevelSrc))
+    errors.push("the pagedots geometry stamp (x0 cy pitch r n staged) left bevel — the rig loses its layout truth (round 44, item 24)");
+  if (!/opts\.part === "dot"/.test(bevelSrc) || !/opts\.part === "knob"/.test(bevelSrc))
+    errors.push("the pagedots atoms (dot/knob part branches) left bevel");
+  if (!/data-pods="\$\{\(hx \+ gapP \+ podR\)\.toFixed\(1\)\} \$\{\(hy \+ housH \/ 2\)\.toFixed\(1\)\} \$\{\(podR \* 2 \+ gapP\)\.toFixed\(1\)\} \$\{podR\.toFixed\(1\)\}"/.test(bevelSrc))
+    errors.push("the startlights pod stamp (data-pods) left bevel (round 44, item 36 — the base must stay byte-identical, so the geometry MUST ride an attribute)");
+  if (!/opts\.part === "lamp"/.test(bevelSrc))
+    errors.push("the startlights lamp atom branch left bevel");
+  if (!/pageDots: pageDotsGeo,\s*\n\s*startLights: startLightsGeo,/.test(src))
+    errors.push("the RIG-5 geometry blocks left the manifest emission");
+  if (!/\[Serializable\] class PBDotsGeo \{ public float x0; public float cy; public float pitch; public float r; public int n; public int staged; public float w; public float h; \}/.test(cs)
+      || !/public PBDotsGeo pageDots; public PBDotsGeo startLights;/.test(cs))
+    errors.push("PBDotsGeo (or its two manifest fields) left the importer — the rigs go blind (round 44)");
+  if (!/static bool PageDotsPrefab\(string dir, string root, int pngScale, PBManifest m\)/.test(cs)
+      || !/static bool StartLightsPrefab\(string dir, string root, int pngScale, PBManifest m\)/.test(cs)
+      || !/return PicturePrefab\(dir, root, pngScale, m, "pagedots\/pagedots-base\.png", "Pagedots", false\);/.test(cs)
+      || !/return PicturePrefab\(dir, root, pngScale, m, "startlights\/startlights-base\.png", "Startlights", false\);/.test(cs))
+    errors.push("a RIG-5 prefab road (or its old-zip picture fallback) left the importer (round 44)");
+  if (!/"firebutton", "pagedots" \}/.test(cs))
+    errors.push("pagedots left the family-road skip set — FamilyPrefab would double-own the prefab (round 44)");
+  if (!/var pdS = inst\.GetComponent<PatternBreakPageDots>\(\);/.test(cs) || !/var slgS = inst\.GetComponent<PatternBreakStartLights>\(\);/.test(cs))
+    errors.push("the RIG-5 board-pose strikes left the importer (round 44)");
+  if (!/rig\.litCount = 0;/.test(cs))
+    errors.push("the StartLights prefab no longer rests at LIGHTS OUT — the dossier forbids defaulting the demo 3 (round 44, item 36)");
+  if (!/caption\.text == readyWord \|\| caption\.text == goWord/.test(src))
+    errors.push("the StartLights caption rewrite lost its ours-only gate — a retyped caption would be clobbered (round 44)");
+  if (!/files\.push\(\{ path: "Runtime\/PatternBreakPageDots\.cs", data: PAGE_DOTS_RUNTIME \}\);/.test(src)
+      || !/files\.push\(\{ path: "Runtime\/PatternBreakStartLights\.cs", data: START_LIGHTS_RUNTIME \}\);/.test(src)
+      || !/"Runtime\/PatternBreakPageDots\.cs", "Runtime\/PatternBreakStartLights\.cs",/.test(src))
+    errors.push("PatternBreakPageDots/StartLights must ride BOTH files.push AND sharedScripts (the IdleShine CS0246 lesson)");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);

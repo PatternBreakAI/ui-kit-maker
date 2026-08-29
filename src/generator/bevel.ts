@@ -5710,13 +5710,32 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const selD = clamp(Math.round((value ?? 0.25) * (n0 - 1)), 0, n0 - 1);
       const W0 = n0 * dR * 2 + (n0 - 1) * (gap0 - dR * 2) + pad0 * 2 + dR * 2;
       const H0 = dR * 4 + pad0;
+      /* RIG-5 atoms (round 44, item 24): one resting dot and the active
+         candy knob as their own sprites — the PageDots prefab deals
+         pageCount dots at the stamped pitch and parks the knob on
+         currentPage, so the carousel position is DRIVABLE (SetPage /
+         SetCount / SetValue) instead of baked. Windowed off this case's
+         own drawing, so both atoms inherit the kit's exact ink. */
+      if (opts.part === "dot") {
+        const sD = Math.ceil(dR * 2 + 12);
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${sD}" height="${sD}" viewBox="0 0 ${sD} ${sD}"><circle cx="${(sD / 2).toFixed(1)}" cy="${(sD / 2).toFixed(1)}" r="${dR.toFixed(1)}" fill="${wellFill}" stroke="rgba(255,255,255,0.2)" stroke-width="1"/></svg>`;
+      }
+      if (opts.part === "knob") {
+        const sK = Math.ceil(dR * 3.8 + 24);
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${sK}" height="${sK}" viewBox="0 0 ${sK} ${sK}">` +
+          candyKnob(sK / 2, sK / 2, dR * 1.5, knobC) +
+          `<circle cx="${(sK / 2).toFixed(1)}" cy="${(sK / 2).toFixed(1)}" r="${(dR * 1.9).toFixed(1)}" fill="none" stroke="${hexRgba(glow, 0.5)}" stroke-width="2" style="filter: drop-shadow(0 0 4px ${hexRgba(glow, 0.6)})"/></svg>`;
+      }
       let dots = "";
       for (let i = 0; i < n0; i++) {
         const cx0 = pad0 + dR * 2 + i * gap0;
         if (i === selD) dots += candyKnob(cx0, H0 / 2, dR * 1.5, knobC) + (state !== "disabled" ? `<circle cx="${cx0.toFixed(1)}" cy="${(H0 / 2).toFixed(1)}" r="${(dR * 1.9).toFixed(1)}" fill="none" stroke="${hexRgba(glow, 0.5)}" stroke-width="2" style="filter: drop-shadow(0 0 4px ${hexRgba(glow, 0.6)})"/>` : "");
         else dots += `<circle cx="${cx0.toFixed(1)}" cy="${(H0 / 2).toFixed(1)}" r="${dR.toFixed(1)}" fill="${wellFill}" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>`;
       }
-      return `<svg xmlns="http://www.w3.org/2000/svg" width="${W0.toFixed(0)}" height="${H0.toFixed(0)}" viewBox="0 0 ${W0.toFixed(0)} ${H0.toFixed(0)}" role="img" aria-label="page ${selD + 1} of ${n0}">${dots}</svg>`;
+      /* the geometry stamp (attributes never rasterize — the base bytes
+         hold still): x of dot 1's center, cy, pitch, dot radius, count,
+         and the STAGED index the maker's value picked */
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${W0.toFixed(0)}" height="${H0.toFixed(0)}" viewBox="0 0 ${W0.toFixed(0)} ${H0.toFixed(0)}" data-pagedots="${(pad0 + dR * 2).toFixed(1)} ${(H0 / 2).toFixed(1)} ${gap0.toFixed(1)} ${dR.toFixed(1)} ${n0} ${selD}" role="img" aria-label="page ${selD + 1} of ${n0}">${dots}</svg>`;
     }
     case "steps": {
       /* System chrome · step indicator — wizard pips: done (filled, check),
@@ -10448,6 +10467,20 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const gid14 = "sl" + UID++;
       const dim = state === "disabled" ? 0.45 : 1;
       const isBase = opts.part === "base";
+      /* RIG-5 lamp atom (round 44, item 36): ONE lit pod — alarm lens,
+         glow, specular — windowed off this case's own drawing, sized to
+         carry the full halo. The StartLights prefab parks five of these
+         over the base's dark lenses and LitCount 0–5 enables them, so
+         the countdown is DRIVABLE instead of posed. The base render is
+         untouched: its bytes hold still (the dossier's sha gate). */
+      if (opts.part === "lamp") {
+        const sL = Math.ceil(podR * 2 + 48 * k);
+        const cL = sL / 2;
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${sL}" height="${sL}" viewBox="0 0 ${sL} ${sL}">
+<defs><filter id="${gid14}g" x="-80%" y="-80%" width="260%" height="260%">${shadow11(0, 0, (6 * k).toFixed(1), alarm, 0.8)}</filter></defs>
+<circle cx="${cL.toFixed(1)}" cy="${cL.toFixed(1)}" r="${podR.toFixed(1)}" fill="${alarm}" filter="url(#${gid14}g)"/>
+<ellipse cx="${(cL - podR * 0.3).toFixed(1)}" cy="${(cL - podR * 0.38).toFixed(1)}" rx="${(podR * 0.34).toFixed(1)}" ry="${(podR * 0.2).toFixed(1)}" fill="#FFFFFF" opacity="0.55"/></svg>`;
+      }
       let pods = "";
       for (let i = 0; i < 5; i++) {
         const cx3 = hx + gapP + podR + i * (podR * 2 + gapP);
@@ -10461,7 +10494,9 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       }
       const tag = isBase ? "" :
         `<text x="${(W2 / 2).toFixed(1)}" y="${(hy + housH + 24 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(11 * k).toFixed(1)}" font-weight="800" letter-spacing=".3em" fill="${lit === 0 ? "#4ADE80" : isDarkBg(cfg.canvas) ? hexRgba(glow, 0.7) : darken(bevel, 0.3)}" text-anchor="middle" opacity="${dim}">${lit === 0 ? "LIGHTS OUT" : "GET READY"}</text>`;
-      return `<svg xmlns="http://www.w3.org/2000/svg" width="${W2.toFixed(0)}" height="${H2.toFixed(0)}" viewBox="0 0 ${W2.toFixed(0)} ${H2.toFixed(0)}" data-shell="${hx.toFixed(1)} ${hy.toFixed(1)} ${housW.toFixed(1)} ${housH.toFixed(1)}" role="img" aria-label="start lights" data-race="lights">
+      /* data-pods (round 44, item 36): pod 1's center, cy, pitch, radius —
+         an attribute, so the base raster stays byte-identical */
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${W2.toFixed(0)}" height="${H2.toFixed(0)}" viewBox="0 0 ${W2.toFixed(0)} ${H2.toFixed(0)}" data-shell="${hx.toFixed(1)} ${hy.toFixed(1)} ${housW.toFixed(1)} ${housH.toFixed(1)}" data-pods="${(hx + gapP + podR).toFixed(1)} ${(hy + housH / 2).toFixed(1)} ${(podR * 2 + gapP).toFixed(1)} ${podR.toFixed(1)}" role="img" aria-label="start lights" data-race="lights">
 <defs><filter id="${gid14}g" x="-80%" y="-80%" width="260%" height="260%">${shadow11(0, 0, (6 * k).toFixed(1), alarm, 0.8)}</filter></defs>
 <g opacity="${dim}">
   <rect x="${(W2 / 2 - 3 * k).toFixed(1)}" y="${(pad5 - 12 * k).toFixed(1)}" width="${(6 * k).toFixed(1)}" height="${(16 * k).toFixed(1)}" fill="${darken(bevel, 0.5)}"/>
