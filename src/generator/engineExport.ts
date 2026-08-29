@@ -607,6 +607,10 @@ const PREFAB_FAMILY: Partial<Record<KitComponentId, string>> = {
   capturemeter: "capturemeter", respawn: "respawn", weaponwheel: "weaponwheel",
   crosshair: "crosshair", hitmarker: "hitmarker", dmgarc: "dmgarc",
   buffframe: "buffframe", hotbar: "hotbar", lives: "lives",
+  // the Casual & saga slice (S4)
+  heartmeter: "heartmeter", energymeter: "energymeter", starrating: "starrating",
+  pathconnector: "pathconnector", combo: "combo", booster: "booster",
+  flipclock: "flipclock", stopwatch: "stopwatch",
 };
 // the glyph rack: pure-art silhouettes, one Image prefab each — placeable,
 // tintable, never fake buttons (the mandate's non-interactive lane)
@@ -620,7 +624,9 @@ for (const cGl of KIT_COMPONENTS) if (isGlyphPiece(cGl.id)) PREFAB_FAMILY[cGl.id
 const UNIVERSAL_INTERACTIVE = new Set<KitComponentId>(["ghost", "claimbtn", "levelnode", "dailycell", "boostercard", "rewardcard",
   // RPG slice: the skill node is a real button in the app ("build drives
   // its hover/pressed states natively") — it presses in Unity too
-  "skillnode"]);
+  "skillnode",
+  // Casual & saga slice: the booster is a real circular button
+  "booster"]);
 const UNIVERSAL_DISPLAY = new Set<KitComponentId>(["qtybadge", "resource", "currency", "movecounter", "ring", "avatarframe", "bottomnav",
   /* the FULL-CATALOG round (owner roster, 2026-08-28: "Include the following
      exports in the Playground scene") — chrome & foundations first: every
@@ -639,7 +645,12 @@ const UNIVERSAL_DISPLAY = new Set<KitComponentId>(["qtybadge", "resource", "curr
      with the dark understroke; the loadout pieces carry live glyph
      children; the streak meter ships both ignition poses and the
      StreakIgnite rig. Plus the owner's "5 lives" hearts. */
-  "ammo", "killfeed", "magazine", "equipselector", "streakmeter", "waypoint", "capturemeter", "respawn", "weaponwheel", "crosshair", "hitmarker", "dmgarc", "buffframe", "hotbar", "lives"]);
+  "ammo", "killfeed", "magazine", "equipselector", "streakmeter", "waypoint", "capturemeter", "respawn", "weaponwheel", "crosshair", "hitmarker", "dmgarc", "buffframe", "hotbar", "lives",
+  /* Casual & saga slice: the meters honor the app's icon slots as live
+     pip/badge children (c98eade's Unity half), the saga path and stars
+     join the shelf, both timer voices ship, and the combo celebrates
+     with its own runtime (ComboPop + ClaimBurst — the app's exact pop). */
+  "heartmeter", "energymeter", "starrating", "pathconnector", "combo", "flipclock", "stopwatch"]);
 const UNIVERSAL_ROAD = new Set<KitComponentId>([...UNIVERSAL_INTERACTIVE, ...UNIVERSAL_DISPLAY]);
 /* the ACTION GLYPHS (round 40 — the owner's Gameplay pause button sat
    dead in Play): pause/play/replay/home are buttons by their own meaning
@@ -4110,6 +4121,14 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         buffframe: "Buff frame — the effect glyph is a LIVE Image child (swap the sprite in the Inspector); the cooldown sweep bakes at the staged share. Display piece.",
         hotbar: "Hotbar — every stocked slot glyph is a LIVE Image child and the indices/counts are LIVE seats; the selection ring bakes on the staged cell (per-copy selections ride posed skins). Display piece.",
         lives: "Lives — candy-heart value pips; the count bakes at the staged value and per-copy counts ride posed skins. Display piece.",
+        heartmeter: "Heart meter — every pip is a LIVE Image child answering the app's icon picker (swap any sprite in the Inspector); timer text and the add cap's mark are LIVE seats. Display piece.",
+        energymeter: "Energy meter — the Energy badge is a LIVE Image child (the app's icon picker steers it); the count is a LIVE seat and the cells bake at the staged charge. Display piece.",
+        starrating: "Star rating — the three-star result; stars bake at the staged score (per-copy scores ride posed skins). Display piece.",
+        pathconnector: "Saga path connector — the dotted trail between level nodes; progress bakes at the staged value. Display piece.",
+        combo: "Combo burst — CLICK IT IN PLAY: the ComboPop rig replays the app's exact celebration (squash, overshoot, settle) and ClaimBurst throws the sparks; call ComboPop.Pop() on every multiplier tick. The tilted numeral is art by the warped-stamp contract (per-copy words ride posed skins).",
+        booster: "Booster button — a REAL button (Sprite Swap states); the booster glyph is a LIVE Image child and the count badge a live plate child with its count RIDING it (the ×0 FREE ribbon ships the same way).",
+        flipclock: "Flip countdown — the tile digits and caption are LIVE seats; drive them from your own clock. Display piece.",
+        stopwatch: "Stopwatch — the readout is a LIVE seat; drive it from your own clock. Display piece.",
         bottomnav: "Bottom nav bar — one placeable piece; the item words are LIVE seats and every tab glyph a LIVE Image child (swap any sprite in the Inspector). The Selected ring child IS the selection: move it a cell over (one cell pitch) or disable it. The Badge plate child carries its live count with it — move, restyle or delete the pair as one. Wire your own per-item buttons over it (the bar itself is not one button).",
       };
       const universalIds: KitComponentId[] = [
@@ -5317,7 +5336,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
                     live words/seats with the face */
                  ["ghost", "ghost"], ["claimbtn", "claimbtn"], ["levelnode", "levelnode"],
                  ["dailycell", "dailycell"], ["boostercard", "boostercard"], ["rewardcard", "rewardcard"],
-                 ["skillnode", "skillnode"]] as const).flatMap(([pid, fam]) => {
+                 ["skillnode", "skillnode"], ["booster", "booster"]] as const).flatMap(([pid, fam]) => {
         const ps = pieceCfg(pid).states;
         return (["default", "hover", "pressed", "disabled"] as const).map((sn) => ({
           family: fam,
@@ -5364,7 +5383,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         ...([["datarow", "list-row"], ["slot", "item-slot"], ["iconbtn", "iconbtn"], ["checkbox", "checkbox"], ["radio", "radio"],
              ["gearicon", "gearicon"], ["trophyicon", "trophyicon"], ["gifticon", "gifticon"], ["endturn", "endturn"], ["keycap", "keycap"], ["pricebtn", "pricebtn"],
              ["claimbtn", "claimbtn"], ["levelnode", "levelnode"], ["dailycell", "dailycell"], ["boostercard", "boostercard"], ["rewardcard", "rewardcard"],
-             ["skillnode", "skillnode"]] as const).flatMap(([pid, fam]) =>
+             ["skillnode", "skillnode"], ["booster", "booster"]] as const).flatMap(([pid, fam]) =>
           (["hover", "pressed", "disabled"] as const).flatMap((sn) => {
             const dy = measuredStateDy(pid, sn);
             if (dy == null || Math.abs(dy) < 0.05) return [];
@@ -5506,6 +5525,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Runtime/PatternBreakClaimBurst.cs", data: CLAIMBURST_RUNTIME });
   files.push({ path: "Runtime/PatternBreakInvGrid.cs", data: INVGRID_RUNTIME });
   files.push({ path: "Runtime/PatternBreakStreakIgnite.cs", data: STREAK_IGNITE_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakComboPop.cs", data: COMBO_POP_RUNTIME });
   files.push({ path: "Runtime/PatternBreakCountdownLabel.cs", data: COUNTDOWN_RUNTIME });
   files.push({ path: "Runtime/PatternBreakIdleShine.cs", data: IDLE_SHINE_RUNTIME });
   files.push({ path: "Runtime/PatternBreakPopNumber.cs", data: POP_NUMBER_RUNTIME });
@@ -5583,7 +5603,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     "Runtime/PatternBreakBoardRigs.cs", "Runtime/PatternBreakCountdownLabel.cs",
     "Runtime/PatternBreakPopNumber.cs", "Runtime/PatternBreakRadarDemo.cs",
     "Runtime/PatternBreakClaimBurst.cs", "Runtime/PatternBreakInvGrid.cs",
-    "Runtime/PatternBreakStreakIgnite.cs",
+    "Runtime/PatternBreakStreakIgnite.cs", "Runtime/PatternBreakComboPop.cs",
     "Runtime/PatternBreakStateFx.cs", "Runtime/UIKitGlintInk.shader",
     "Runtime/PatternBreakRingFill.cs",
     "Runtime/PatternBreakKitTrace.cs",
@@ -6122,6 +6142,44 @@ namespace PatternBreak {
         target = new Vector3(baseScale.x * s, baseScale.y * s, baseScale.z);
       }
       if (sized && glyph.rectTransform.localScale != target) glyph.rectTransform.localScale = target;
+    }
+  }
+}
+`;
+
+/* the COMBO'S CELEBRATION (owner roster, round 41: "the same animation
+   ships working in Unity") — the app's fxComboPop keyframes, verbatim:
+   squash to 0.82 tilting -3°, overshoot to 1.32 tilting +2°, settle,
+   0.55s. Click fires it (the kit page's combo explodes on click), or
+   call Pop() on every multiplier tick; ClaimBurst rides beside it for
+   the spark throw. */
+const COMBO_POP_RUNTIME = `using UnityEngine;
+using UnityEngine.EventSystems;
+
+namespace PatternBreak {
+  [AddComponentMenu("UI Kit Maker/Combo Pop")]
+  public class ComboPop : MonoBehaviour, IPointerClickHandler {
+    [Tooltip("One pop's length in seconds — the app's fxComboPop runs 0.55s.")]
+    public float seconds = 0.55f;
+    [Tooltip("Fire the pop on pointer click, the kit page's own behavior.")]
+    public bool popOnClick = true;
+    RectTransform rt; Vector3 s0; Quaternion r0; float t = -1f;
+    void Awake() { rt = (RectTransform)transform; s0 = rt.localScale; r0 = rt.localRotation; }
+    public void OnPointerClick(PointerEventData e) { if (popOnClick) Pop(); }
+    public void Pop() { if (rt == null) rt = (RectTransform)transform; t = 0f; }
+    void OnDisable() { if (t >= 0f && rt != null) { rt.localScale = s0; rt.localRotation = r0; t = -1f; } }
+    void Update() {
+      if (t < 0f || rt == null) return;
+      t += Time.deltaTime;
+      float f = Mathf.Clamp01(t / Mathf.Max(0.05f, seconds));
+      // the app's keyframes: 0% (1, 0deg) -> 18% (0.82, -3deg) -> 55% (1.32, +2deg) -> 100% (1, 0deg)
+      float sc, ang;
+      if (f < 0.18f) { float u = Mathf.SmoothStep(0f, 1f, f / 0.18f); sc = Mathf.Lerp(1f, 0.82f, u); ang = Mathf.Lerp(0f, -3f, u); }
+      else if (f < 0.55f) { float u = Mathf.SmoothStep(0f, 1f, (f - 0.18f) / 0.37f); sc = Mathf.Lerp(0.82f, 1.32f, u); ang = Mathf.Lerp(-3f, 2f, u); }
+      else { float u = Mathf.SmoothStep(0f, 1f, (f - 0.55f) / 0.45f); sc = Mathf.Lerp(1.32f, 1f, u); ang = Mathf.Lerp(2f, 0f, u); }
+      rt.localScale = new Vector3(s0.x * sc, s0.y * sc, s0.z);
+      rt.localRotation = r0 * Quaternion.Euler(0f, 0f, ang);
+      if (f >= 1f) { rt.localScale = s0; rt.localRotation = r0; t = -1f; }
     }
   }
 }
@@ -11120,6 +11178,7 @@ namespace PatternBreak {
           ("GAME SYSTEMS", new[] { "Levelnode", "Dailycell", "Boostercard", "Rewardcard", "Gifticon", "Trophyicon", "Gearicon", "LootTag", "RarityFrame", "Circuit", "Startlights" }),
           ("RPG & MMO", new[] { "Questpanel", "Dialoguebox", "Choicelist", "Manarails", "Xpbar", "Invgrid", "Partyframe", "Skillnode", "Dmgnumber", "Equipslot" }),
           ("SHOOTER & ACTION", new[] { "Crosshair", "Hitmarker", "Dmgarc", "Weaponwheel", "Equipselector", "Magazine", "Ammo", "Streakmeter", "Killfeed", "Waypoint", "Capturemeter", "Respawn", "Buffframe", "Hotbar", "Lives" }),
+          ("CASUAL & SAGA", new[] { "Heartmeter", "Energymeter", "Starrating", "Pathconnector", "Combo", "Booster", "Flipclock", "Stopwatch" }),
         };
         var byName = new Dictionary<string, GameObject>();
         foreach (var p in prefabs) if (!byName.ContainsKey(p.name)) byName[p.name] = p;
@@ -18471,10 +18530,30 @@ namespace PatternBreak {
       // a glyph-less kit leaves no empty shelf behind
       if (!anyGlyph && !hadGlyphDir && AssetDatabase.IsValidFolder(glyphDir)) AssetDatabase.DeleteAsset(glyphDir);
       if (StreakIgniteWire(dir, root)) any = true;
+      if (ComboPopWire(dir, root, m)) any = true;
 #if UNITY_2023_2_OR_NEWER
       if (HeroLabelPrefab(dir, root)) any = true;
 #endif
       return any;
+    }
+    /* the COMBO CELEBRATES (owner roster, round 41): the generated Combo
+       prefab pops on click exactly like the app — ComboPop replays the
+       fxComboPop keyframes on the root and ClaimBurst throws the sparks.
+       Wired once at generation; thereafter the prefab is the dev's. */
+    static bool ComboPopWire(string dir, string root, PBManifest m) {
+      var pathCP = dir + "/Combo.prefab";
+      if (AssetDatabase.LoadAssetAtPath<GameObject>(pathCP) == null) return false;
+      var contents = PrefabUtility.LoadPrefabContents(pathCP);
+      try {
+        if (contents.GetComponent<ComboPop>() != null) return false; // wired — and thereafter yours
+        var imgCP = contents.GetComponent<Image>();
+        if (imgCP != null) imgCP.raycastTarget = true; // the pop fires on click, the kit page's own behavior
+        contents.AddComponent<ComboPop>();
+        if (contents.GetComponent<ClaimBurst>() == null) AddClaimBurst(contents, root, "combo", m);
+        PrefabUtility.SaveAsPrefabAsset(contents, pathCP);
+        Debug.Log("UI Kit Maker: the Combo prefab celebrates — click it in Play (or call ComboPop.Pop() / ClaimBurst.Fire() from your game) and it pops exactly like the app.");
+        return true;
+      } finally { PrefabUtility.UnloadPrefabContents(contents); }
     }
     /* the STREAK METER IGNITES (owner roster, round 41: "should ignite") —
        the generated Streakmeter prefab gains the StreakIgnite rig with

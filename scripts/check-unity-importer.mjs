@@ -1839,7 +1839,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   // words and glow sink by the dial) — measured dy rows for stateFx
   // families; clean translates measure 0 and stay byte-stable
   if (!/const measuredStateDy = \(pid: KitComponentId, sn: "hover" \| "pressed" \| "disabled"\): number \| null =>/.test(src)
-      || !/\["skillnode", "skillnode"\]\] as const\)\.flatMap\(\(\[pid, fam\]\) =>/.test(src))
+      || !/\["skillnode", "skillnode"\], \["booster", "booster"\]\] as const\)\.flatMap\(\(\[pid, fam\]\) =>/.test(src))
     errors.push("the bespoke-pose measured-dy pass is missing from labelStates — riders would take the raw lift dial on squash-pose kits (slice 2)");
   // the × glyph rides the baked atlas — qtybadge's live words are ×-counts
   if (!/'&\(\)×";/.test(src.replace(/\\/g, "")) && !/&\(\)×/.test(src))
@@ -2487,6 +2487,39 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("PatternBreakStreakIgnite.cs left the sharedScripts set — it would land per-slug OUTSIDE the runtime assembly (the IdleShine CS0246 lesson)");
   if (!/static bool StreakIgniteWire\(string dir, string root\)/.test(cs) || !/if \(StreakIgniteWire\(dir, root\)\) any = true;/.test(cs))
     errors.push("the importer no longer wires StreakIgnite onto the Streakmeter prefab");
+}
+
+/* FULL-CATALOG round, slice 4 pins: Casual & saga + the combo's celebration. */
+{
+  const S4D = ["heartmeter", "energymeter", "starrating", "pathconnector", "combo", "flipclock", "stopwatch"];
+  const dispM = /const UNIVERSAL_DISPLAY = new Set<KitComponentId>\(\[([\s\S]*?)\]\);/.exec(src);
+  const interM = /const UNIVERSAL_INTERACTIVE = new Set<KitComponentId>\(\[([\s\S]*?)\]\);/.exec(src);
+  for (const id of S4D)
+    if (!dispM || !new RegExp(`"${id}"`).test(dispM[1]))
+      errors.push(`${id} left the universal display road`);
+  if (!interM || !/"booster"/.test(interM[1]))
+    errors.push("booster left the interactive road — the booster button stops pressing in Unity");
+  for (const id of [...S4D, "booster"])
+    if (!new RegExp(`${id}: "${id}"`).test(src))
+      errors.push(`${id} lost its PREFAB_FAMILY entry`);
+  if (!/\("CASUAL & SAGA", new\[\] \{ "Heartmeter", "Energymeter", "Starrating", "Pathconnector", "Combo", "Booster", "Flipclock", "Stopwatch" \}\)/.test(cs))
+    errors.push("the Playground's CASUAL & SAGA chapter is gone or reshuffled");
+  // the meters' live icon slots (the c98eade Unity half)
+  if (!/data-icon="pip\$\{i \+ 1\}"/.test(bevelSrc))
+    errors.push("the heart meter's pips lost their per-pip markers — the icon slot stops reaching Unity");
+  if (!/data-icon="badge" data-icon-nick="Energy badge"/.test(bevelSrc))
+    errors.push("the energy meter's badge lost its marker");
+  if (!/data-icon-nick="Badge plate" data-badge="1"/.test(bevelSrc) || !/data-icon-nick="Free ribbon" data-badge="1"/.test(bevelSrc))
+    errors.push("the booster's badge plate/rider grammar is gone");
+  // the combo's celebration: runtime + shared registration + wire
+  if (!/public class ComboPop : MonoBehaviour, IPointerClickHandler/.test(src))
+    errors.push("the ComboPop runtime is gone — the combo stops celebrating in Unity");
+  if (!/"Runtime\/PatternBreakComboPop\.cs",/.test(src))
+    errors.push("PatternBreakComboPop.cs left the sharedScripts set (the IdleShine CS0246 lesson)");
+  if (!/static bool ComboPopWire\(string dir, string root, PBManifest m\)/.test(cs) || !/if \(ComboPopWire\(dir, root, m\)\) any = true;/.test(cs))
+    errors.push("the importer no longer wires ComboPop + ClaimBurst onto the Combo prefab");
+  if (!/Mathf\.Lerp\(0\.82f, 1\.32f, u\)/.test(src))
+    errors.push("ComboPop lost the app's own keyframes (0.82 squash → 1.32 overshoot)");
 }
 
 if (errors.length) {

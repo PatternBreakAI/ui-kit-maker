@@ -3985,7 +3985,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
       ${shineLayer}
       ${glintsLayer}
       ${showText ? `${synthItal ? `</g>` : ""}</g>` : ""}
-      ${iconDef ? `<g data-part="icon">` : ""}${iconDef ? (inheritTypo
+      ${iconDef ? `<g data-part="icon" data-icon="glyph">` : ""}${iconDef ? (inheritTypo
         ? `<g${iconFilter ? ` style="filter:${iconFilter}"` : ""}${IC.opacity < 100 ? ` opacity="${(IC.opacity / 100).toFixed(2)}"` : ""}>${
             T2.outline.on && !disabled && (IC.outlineWidth ?? T2.outline.width) > 0.01
               ? iconGroup(iconDef, iconX, iconY, iconSize, T2.outline.color2 ? `url(#${id}og)` : P(T2.outline.color), { strokeWidth: IC.strokeWidth / 10 + (IC.outlineWidth ?? T2.outline.width) * 0.85, rotation: IC.rotation, fillWeight: IC.strokeWidth / 24 })
@@ -7320,7 +7320,11 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       for (let i = 0; i < nH; i++) {
         const hx = hx0 + i * (hs9 + gapH);
         const on = i < fullH;
-        hearts += icH
+        /* each pip is marked swappable ink (maximum-editability law + the
+           c98eade app half: the pip glyph answers the icon picker) — the
+           export ships every pip as its own live Image child, so the
+           Inspector swap matches the app's picker exactly */
+        hearts += `<g data-part="icon" data-icon="pip${i + 1}">` + (icH
           ? iconGroup(icH, hx, cy - hs9 / 2, hs9, on ? HEARTR : "rgba(120,128,148,0.38)", {
               strokeWidth: 2.6 * iconWK,
               filter: on && state !== "disabled" ? `drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(HEARTR, 0.6)})` : undefined,
@@ -7328,7 +7332,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
           : `<g transform="translate(${hx.toFixed(1)} ${(cy - hs9 / 2).toFixed(1)}) scale(${(hs9 / 24).toFixed(3)})"${on && state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(HEARTR, 0.6)})"` : ""}>
           <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" fill="${on ? HEARTR : "rgba(120,128,148,0.3)"}" stroke="${on ? darken(HEARTR, 0.35) : "rgba(255,255,255,0.28)"}" stroke-width="1.6" stroke-linejoin="round"/>
           ${on ? `<ellipse cx="8" cy="7.4" rx="3" ry="1.8" fill="#FFFFFF" opacity="0.55"/>` : ""}
-        </g>`;
+        </g>`) + `</g>`;
       }
       const timer = infoText(opts.label ?? "NEXT +1 · 2:32", hx0 + nH * (hs9 + gapH) + 8 * k, cy + 1, 17 * k, "start", 700);
       const addX = 39 + w - inset - 26 * k;
@@ -7348,11 +7352,14 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const [sx, sy, sw] = shellM[1].split(" ").map(Number);
       const count = Math.max(0, Math.min(99, Math.round(clamp(value ?? 0.4, 0, 1) * 10)));
       const bcx = sx + sw - 10 * k, bcy = sy + 12 * k, br = 19 * k;
+      /* the badge plate is marked swappable ink and its word RIDES it
+         (maximum-editability law, the bottomnav grammar): move, restyle
+         or delete plate + count as one on the live prefab */
       const badge = count > 0
-        ? `<g data-badge="1"><circle cx="${bcx.toFixed(1)}" cy="${bcy.toFixed(1)}" r="${br.toFixed(1)}" fill="${bevel}" stroke="rgba(255,255,255,0.9)" stroke-width="${(2.6 * k).toFixed(1)}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(bevel, 0.6)})"` : ""}/>
-          <text x="${bcx.toFixed(1)}" y="${(bcy + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(22 * k).toFixed(1)}" font-weight="900" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">${count}</text></g>`
-        : `<g data-badge="1"><rect x="${(bcx - 34 * k).toFixed(1)}" y="${(bcy - 12 * k).toFixed(1)}" width="${(52 * k).toFixed(1)}" height="${(24 * k).toFixed(1)}" rx="${(12 * k).toFixed(1)}" fill="#FACC15" stroke="#92400E" stroke-width="1.4"/>
-          <text x="${(bcx - 8 * k).toFixed(1)}" y="${(bcy + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(14 * k).toFixed(1)}" font-weight="900" letter-spacing="0.06em" fill="#7C2D12" text-anchor="middle" dominant-baseline="central">FREE</text></g>`;
+        ? `<g data-part="icon" data-icon="badge" data-icon-nick="Badge plate" data-badge="1"><circle cx="${bcx.toFixed(1)}" cy="${bcy.toFixed(1)}" r="${br.toFixed(1)}" fill="${bevel}" stroke="rgba(255,255,255,0.9)" stroke-width="${(2.6 * k).toFixed(1)}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(bevel, 0.6)})"` : ""}/></g>
+          <text x="${bcx.toFixed(1)}" y="${(bcy + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(22 * k).toFixed(1)}" font-weight="900" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central" data-seat-rider="badge">${count}</text>`
+        : `<g data-part="icon" data-icon="badge" data-icon-nick="Free ribbon" data-badge="1"><rect x="${(bcx - 34 * k).toFixed(1)}" y="${(bcy - 12 * k).toFixed(1)}" width="${(52 * k).toFixed(1)}" height="${(24 * k).toFixed(1)}" rx="${(12 * k).toFixed(1)}" fill="#FACC15" stroke="#92400E" stroke-width="1.4"/></g>
+          <text x="${(bcx - 8 * k).toFixed(1)}" y="${(bcy + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(14 * k).toFixed(1)}" font-weight="900" letter-spacing="0.06em" fill="#7C2D12" text-anchor="middle" dominant-baseline="central" data-seat-rider="badge">FREE</text>`;
       return inject(shell.replace("<svg ", '<svg data-booster="1" '), badge);
     }
     case "spinwheel": {
@@ -8013,9 +8020,13 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const vE = clamp(value ?? 0.8, 0, 1);
       const GOLD = "#FACC15";
       const icE = opts.icon ?? STOCK_ICONS.zap;
+      /* the badge glyph is marked swappable ink (maximum-editability law +
+         the c98eade app half: it answers the icon picker) — it ships as a
+         live Image child, understroke included */
       const bolt = icE
-        ? iconGroup(icE, 39 + inset + 12 * k, cy - 17 * k, 34 * k, "rgba(8,12,22,0.65)", { strokeWidth: 2.4 * iconWK + 2.4 }) +
-          iconGroup(icE, 39 + inset + 12 * k, cy - 17 * k, 34 * k, GOLD, { strokeWidth: 2.4 * iconWK })
+        ? `<g data-part="icon" data-icon="badge" data-icon-nick="Energy badge">` +
+          iconGroup(icE, 39 + inset + 12 * k, cy - 17 * k, 34 * k, "rgba(8,12,22,0.65)", { strokeWidth: 2.4 * iconWK + 2.4 }) +
+          iconGroup(icE, 39 + inset + 12 * k, cy - 17 * k, 34 * k, GOLD, { strokeWidth: 2.4 * iconWK }) + `</g>`
         : "";
       const nCe = 10;
       const cellsX = 39 + inset + 60 * k, cellsW = w - inset * 2 - 60 * k - 96 * k;
