@@ -2459,6 +2459,36 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the universal road stopped stripping SMIL loops — spawn-fade pieces (damage number) bake EMPTY at t=0");
 }
 
+/* FULL-CATALOG round, slice 3 pins: Shooter & Action, complete. */
+{
+  const S3 = ["ammo", "killfeed", "magazine", "equipselector", "streakmeter", "waypoint", "capturemeter", "respawn", "weaponwheel", "crosshair", "hitmarker", "dmgarc", "buffframe", "hotbar", "lives"];
+  const dispM = /const UNIVERSAL_DISPLAY = new Set<KitComponentId>\(\[([\s\S]*?)\]\);/.exec(src);
+  for (const id of S3) {
+    if (!dispM || !new RegExp(`"${id}"`).test(dispM[1]))
+      errors.push(`${id} left the universal display road — the shooter section stops being complete`);
+    if (!new RegExp(`${id}: "${id}"`).test(src))
+      errors.push(`${id} lost its PREFAB_FAMILY entry`);
+  }
+  if (!/\("SHOOTER & ACTION", new\[\] \{ "Crosshair", "Hitmarker", "Dmgarc", "Weaponwheel", "Equipselector", "Magazine", "Ammo", "Streakmeter", "Killfeed", "Waypoint", "Capturemeter", "Respawn", "Buffframe", "Hotbar", "Lives" \}\)/.test(cs))
+    errors.push("the Playground's SHOOTER & ACTION chapter is gone or reshuffled");
+  // the un-burn marks
+  if (!/data-icon="weapon"/.test(bevelSrc)) errors.push("the kill feed's weapon glyph lost its marker");
+  if (!/data-icon="item\$\{items\.indexOf\(it\) \+ 1\}"/.test(bevelSrc)) errors.push("the equipment selector's item glyphs lost their markers");
+  if (!/data-icon="endicon" data-icon-nick="Ignition glyph"/.test(bevelSrc)) errors.push("the streak meter's ignition glyph lost its marker");
+  if (!/data-icon="w\$\{i \+ 1\}"/.test(bevelSrc)) errors.push("the weapon wheel's chamber glyphs lost their markers");
+  if (!/data-icon="slot\$\{i \+ 1\}"/.test(bevelSrc)) errors.push("the hotbar's slot glyphs lost their markers");
+  // (lives' hearts are VALUE PIPS — deliberately unmarked, the magazine/steps stance: an all-children piece ships an empty base)
+  // the IGNITE road: lit-pose emission + runtime + shared registration + wire
+  if (!/iconSeatsOf\(uid, litSvg, undefined, "endicon-lit"\)/.test(src))
+    errors.push("the streak meter's lit ignition pose no longer ships — ignite has nothing to swap in");
+  if (!/public class StreakIgnite : MonoBehaviour/.test(src))
+    errors.push("the StreakIgnite runtime is gone — the streak meter can't ignite in Unity");
+  if (!/"Runtime\/PatternBreakStreakIgnite\.cs",/.test(src))
+    errors.push("PatternBreakStreakIgnite.cs left the sharedScripts set — it would land per-slug OUTSIDE the runtime assembly (the IdleShine CS0246 lesson)");
+  if (!/static bool StreakIgniteWire\(string dir, string root\)/.test(cs) || !/if \(StreakIgniteWire\(dir, root\)\) any = true;/.test(cs))
+    errors.push("the importer no longer wires StreakIgnite onto the Streakmeter prefab");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);

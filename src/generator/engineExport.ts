@@ -601,6 +601,12 @@ const PREFAB_FAMILY: Partial<Record<KitComponentId, string>> = {
   manarails: "manarails", xpbar: "xpbar", invgrid: "invgrid",
   partyframe: "partyframe", compass: "compass", dmgnumber: "dmgnumber",
   equipslot: "equipslot", skillnode: "skillnode",
+  // the Shooter & Action slice (S3)
+  ammo: "ammo", killfeed: "killfeed", magazine: "magazine",
+  equipselector: "equipselector", streakmeter: "streakmeter", waypoint: "waypoint",
+  capturemeter: "capturemeter", respawn: "respawn", weaponwheel: "weaponwheel",
+  crosshair: "crosshair", hitmarker: "hitmarker", dmgarc: "dmgarc",
+  buffframe: "buffframe", hotbar: "hotbar", lives: "lives",
 };
 // the glyph rack: pure-art silhouettes, one Image prefab each — placeable,
 // tintable, never fake buttons (the mandate's non-interactive lane)
@@ -627,7 +633,13 @@ const UNIVERSAL_DISPLAY = new Set<KitComponentId>(["qtybadge", "resource", "curr
      icon children (portrait wells included). The damage number keeps its
      tilted digits in the art by the warped-stamp contract (rotation is
      the art); per-copy magnitudes ride posed skins. */
-  "questpanel", "dialoguebox", "choicelist", "manarails", "xpbar", "invgrid", "partyframe", "compass", "dmgnumber", "equipslot"]);
+  "questpanel", "dialoguebox", "choicelist", "manarails", "xpbar", "invgrid", "partyframe", "compass", "dmgnumber", "equipslot",
+  /* Shooter & Action slice: the section, complete (owner roster) — the
+     spatial pieces (crosshair, marker, arc, waypoint) are shell-free art
+     with the dark understroke; the loadout pieces carry live glyph
+     children; the streak meter ships both ignition poses and the
+     StreakIgnite rig. Plus the owner's "5 lives" hearts. */
+  "ammo", "killfeed", "magazine", "equipselector", "streakmeter", "waypoint", "capturemeter", "respawn", "weaponwheel", "crosshair", "hitmarker", "dmgarc", "buffframe", "hotbar", "lives"]);
 const UNIVERSAL_ROAD = new Set<KitComponentId>([...UNIVERSAL_INTERACTIVE, ...UNIVERSAL_DISPLAY]);
 /* the ACTION GLYPHS (round 40 — the owner's Gameplay pause button sat
    dead in Play): pause/play/replay/home are buttons by their own meaning
@@ -4083,6 +4095,21 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         dmgnumber: "Damage number — the tilted digits stay in the art by the warped-stamp contract (rotation IS the art; per-copy magnitudes ride posed skins). Scale freely. Display piece.",
         equipslot: "Equipment slot — the ghost silhouette showing what belongs is a LIVE Image child; the app's icon picker steers it and the Inspector swaps it. Display piece.",
         skillnode: "Skill-tree node — a REAL button (Sprite Swap states); the skill glyph is a LIVE Image child. Learned/locked poses ride per-copy posed skins.",
+        ammo: "Ammo counter — both counts are LIVE seats; the round pictos are anatomy. Display piece.",
+        killfeed: "Kill-feed row — killer and victim are LIVE seats and the weapon glyph a LIVE Image child (swap the sprite in the Inspector). Stack rows in a vertical layout. Display piece.",
+        magazine: "Magazine — round pips bake at the staged count and the readout is a LIVE seat (per-copy counts ride posed skins). Display piece.",
+        equipselector: "Equipment selector — every carousel item's glyph is a LIVE Image child and the armed name a LIVE seat; the carousel pose bakes at the staged position. Display piece.",
+        streakmeter: "Streak meter — the label is a LIVE seat and the Ignition glyph a LIVE Image child that IGNITES: the StreakIgnite rig swaps in the lit pose and pulses when you drive its value to full (both poses ship). Display piece.",
+        waypoint: "Waypoint — the objective letter and distance are LIVE seats on the diamond. Spatial piece: it reads over live footage. Display piece.",
+        capturemeter: "Capture point — the point letter is a LIVE seat; the capture ring bakes at the staged share (per-copy values ride posed skins). Display piece.",
+        respawn: "Respawn timer — heading and seconds are LIVE seats (drive the seconds from your own countdown; per-copy poses ride posed skins). Display piece.",
+        weaponwheel: "Weapon wheel — all six chamber glyphs are LIVE Image children and the hub/tag words LIVE seats; the cylinder pose bakes at the staged rotation. Display piece.",
+        crosshair: "Crosshair — shell-free spatial art with the dark understroke; scale freely (Preserve Aspect). Display piece.",
+        hitmarker: "Hit marker — shell-free spatial art; flash it from your own hit events. Display piece.",
+        dmgarc: "Damage direction arc — shell-free spatial art; rotate the piece to the threat bearing. Display piece.",
+        buffframe: "Buff frame — the effect glyph is a LIVE Image child (swap the sprite in the Inspector); the cooldown sweep bakes at the staged share. Display piece.",
+        hotbar: "Hotbar — every stocked slot glyph is a LIVE Image child and the indices/counts are LIVE seats; the selection ring bakes on the staged cell (per-copy selections ride posed skins). Display piece.",
+        lives: "Lives — candy-heart value pips; the count bakes at the staged value and per-copy counts ride posed skins. Display piece.",
         bottomnav: "Bottom nav bar — one placeable piece; the item words are LIVE seats and every tab glyph a LIVE Image child (swap any sprite in the Inspector). The Selected ring child IS the selection: move it a cell over (one cell pitch) or disable it. The Badge plate child carries its live count with it — move, restyle or delete the pair as one. Wire your own per-item buttons over it (the bar itself is not one button).",
       };
       const universalIds: KitComponentId[] = [
@@ -4213,6 +4240,17 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           ...(ringRig ? {} : seatsU),
           ...(iconSeatsU ? { iconSeats: iconSeatsU } : {}),
         }, true, interactive ? uid : undefined);
+        /* the streak meter's LIT ignition pose (owner: "should ignite") —
+           the same marked group cut from a FULL-streak render, shipped
+           beside the ghost cut; the importer's StreakIgniteWire hands both
+           to the StreakIgnite rig on the generated prefab. A maker who set
+           the ignition slot to None ships neither, and the rig sits out. */
+        if (uid === "streakmeter") {
+          try {
+            const litSvg = stripLoopsU(shell(uid, uOpts, undefined, 1));
+            await iconSeatsOf(uid, litSvg, undefined, "endicon-lit");
+          } catch { /* unlit-only — the meter still ships */ }
+        }
         if (interactive) {
           for (const stName of ["hover", "pressed", "disabled"] as const) {
             let sSvg: string;
@@ -5467,6 +5505,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Runtime/PatternBreakBoardRigs.cs", data: BOARD_RIGS_RUNTIME });
   files.push({ path: "Runtime/PatternBreakClaimBurst.cs", data: CLAIMBURST_RUNTIME });
   files.push({ path: "Runtime/PatternBreakInvGrid.cs", data: INVGRID_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakStreakIgnite.cs", data: STREAK_IGNITE_RUNTIME });
   files.push({ path: "Runtime/PatternBreakCountdownLabel.cs", data: COUNTDOWN_RUNTIME });
   files.push({ path: "Runtime/PatternBreakIdleShine.cs", data: IDLE_SHINE_RUNTIME });
   files.push({ path: "Runtime/PatternBreakPopNumber.cs", data: POP_NUMBER_RUNTIME });
@@ -5544,6 +5583,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     "Runtime/PatternBreakBoardRigs.cs", "Runtime/PatternBreakCountdownLabel.cs",
     "Runtime/PatternBreakPopNumber.cs", "Runtime/PatternBreakRadarDemo.cs",
     "Runtime/PatternBreakClaimBurst.cs", "Runtime/PatternBreakInvGrid.cs",
+    "Runtime/PatternBreakStreakIgnite.cs",
     "Runtime/PatternBreakStateFx.cs", "Runtime/UIKitGlintInk.shader",
     "Runtime/PatternBreakRingFill.cs",
     "Runtime/PatternBreakKitTrace.cs",
@@ -6022,6 +6062,67 @@ namespace PatternBreak {
     void OnEnable() { Apply(); }
     // change-guarded follow: a quiet frame compares one float and writes nothing
     void LateUpdate() { if (fill != null && !Mathf.Approximately(fill.fillAmount, wrote)) Apply(); }
+  }
+}
+`;
+
+/* the STREAK METER'S IGNITE (owner roster, round 41: "should ignite") —
+   the app lights the ignition glyph and halos it at full streak; this rig
+   carries that exact moment into Unity: drive value to 1 and the live
+   Ignition glyph child swaps to its lit pose (the app's own full-streak
+   pixels) and pulses. Both poses ship as sprites; everything stays a
+   swappable Inspector child. */
+const STREAK_IGNITE_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+
+namespace PatternBreak {
+  [AddComponentMenu("UI Kit Maker/Streak Ignite")]
+  [ExecuteAlways]
+  public class StreakIgnite : MonoBehaviour {
+    [Tooltip("Streak progress 0..1 — at 1 the meter IGNITES: the glyph swaps to its lit pose and pulses.")]
+    [Range(0f, 1f)] public float value = 0.64f;
+    [Tooltip("The Ignition glyph child (generated).")]
+    public Image glyph;
+    [Tooltip("The ghost (unlit) pose — the shipped icon sprite.")]
+    public Sprite ghost;
+    [Tooltip("The lit pose — the app's own full-streak render of the same glyph, halo included.")]
+    public Sprite lit;
+    [Tooltip("Pulse amplitude at full streak (fraction of scale).")]
+    public float pulse = 0.12f;
+    [Tooltip("Pulse period in seconds.")]
+    public float period = 0.9f;
+    Vector2 baseSize; Vector3 baseScale; bool sized; bool wasLit;
+    public void SetValue(float v) { value = Mathf.Clamp01(v); }
+    [ContextMenu("Ignite (value = 1)")] void IgniteNow() { value = 1f; }
+    [ContextMenu("Stand down (value = 0.6)")] void StandDown() { value = 0.6f; }
+    void OnEnable() {
+      if (glyph != null) { baseSize = glyph.rectTransform.sizeDelta; baseScale = glyph.rectTransform.localScale; sized = true; }
+      wasLit = false;
+      Apply(true);
+    }
+    void Update() { Apply(false); }
+    void Apply(bool force) {
+      if (glyph == null) return;
+      bool isLit = value >= 0.999f && lit != null;
+      if (isLit != wasLit || force) {
+        wasLit = isLit;
+        var want = isLit ? lit : ghost;
+        if (want != null && glyph.sprite != want) {
+          glyph.sprite = want;
+          /* the lit cut carries its halo, so its canvas is larger — the
+             child rect follows the sprite's own proportions so the glyph
+             INSIDE stays the same size on both poses */
+          if (sized && ghost != null && want.rect.width > 1f && ghost.rect.width > 1f)
+            glyph.rectTransform.sizeDelta = new Vector2(baseSize.x * want.rect.width / ghost.rect.width, baseSize.y * want.rect.height / ghost.rect.height);
+        }
+      }
+      Vector3 target = baseScale;
+      if (isLit && Application.isPlaying) {
+        float s = 1f + Mathf.Sin(Time.unscaledTime * Mathf.PI * 2f / Mathf.Max(0.1f, period)) * pulse * 0.5f;
+        target = new Vector3(baseScale.x * s, baseScale.y * s, baseScale.z);
+      }
+      if (sized && glyph.rectTransform.localScale != target) glyph.rectTransform.localScale = target;
+    }
   }
 }
 `;
@@ -11018,6 +11119,7 @@ namespace PatternBreak {
           ("GAUGES", new[] { "Speedo", "SpeedoArc", "RevMeter" }),
           ("GAME SYSTEMS", new[] { "Levelnode", "Dailycell", "Boostercard", "Rewardcard", "Gifticon", "Trophyicon", "Gearicon", "LootTag", "RarityFrame", "Circuit", "Startlights" }),
           ("RPG & MMO", new[] { "Questpanel", "Dialoguebox", "Choicelist", "Manarails", "Xpbar", "Invgrid", "Partyframe", "Skillnode", "Dmgnumber", "Equipslot" }),
+          ("SHOOTER & ACTION", new[] { "Crosshair", "Hitmarker", "Dmgarc", "Weaponwheel", "Equipselector", "Magazine", "Ammo", "Streakmeter", "Killfeed", "Waypoint", "Capturemeter", "Respawn", "Buffframe", "Hotbar", "Lives" }),
         };
         var byName = new Dictionary<string, GameObject>();
         foreach (var p in prefabs) if (!byName.ContainsKey(p.name)) byName[p.name] = p;
@@ -18368,10 +18470,37 @@ namespace PatternBreak {
       }
       // a glyph-less kit leaves no empty shelf behind
       if (!anyGlyph && !hadGlyphDir && AssetDatabase.IsValidFolder(glyphDir)) AssetDatabase.DeleteAsset(glyphDir);
+      if (StreakIgniteWire(dir, root)) any = true;
 #if UNITY_2023_2_OR_NEWER
       if (HeroLabelPrefab(dir, root)) any = true;
 #endif
       return any;
+    }
+    /* the STREAK METER IGNITES (owner roster, round 41: "should ignite") —
+       the generated Streakmeter prefab gains the StreakIgnite rig with
+       both shipped poses: drive its value to 1 (Inspector slider, code, or
+       the context menu) and the Ignition glyph swaps to the app's own lit
+       pixels and pulses. Wired once at generation; a prefab the dev
+       already holds is theirs and is never re-touched. */
+    static bool StreakIgniteWire(string dir, string root) {
+      var pathSI = dir + "/Streakmeter.prefab";
+      if (AssetDatabase.LoadAssetAtPath<GameObject>(pathSI) == null) return false;
+      var litSI = AssetDatabase.LoadAssetAtPath<Sprite>(root + "/assets/streakmeter/streakmeter-icon-endicon-lit.png");
+      if (litSI == null) return false;
+      var contents = PrefabUtility.LoadPrefabContents(pathSI);
+      try {
+        if (contents.GetComponent<StreakIgnite>() != null) return false; // wired — and thereafter yours
+        var gT = contents.transform.Find("Ignition glyph");
+        var imgSI = gT != null ? gT.GetComponent<Image>() : null;
+        if (imgSI == null || imgSI.sprite == null) return false; // glyph deleted or slotless — the dev's call
+        var rig = contents.AddComponent<StreakIgnite>();
+        rig.glyph = imgSI;
+        rig.ghost = imgSI.sprite;
+        rig.lit = litSI;
+        PrefabUtility.SaveAsPrefabAsset(contents, pathSI);
+        Debug.Log("UI Kit Maker: the Streakmeter prefab can IGNITE — drive Streak Ignite's value to 1 (or its context menu) and the glyph lights and pulses; both poses are ordinary swappable sprites.");
+        return true;
+      } finally { PrefabUtility.UnloadPrefabContents(contents); }
     }
     static bool GeneratePrefabs(string root, PBManifest m) {
       bool createdHere = false;

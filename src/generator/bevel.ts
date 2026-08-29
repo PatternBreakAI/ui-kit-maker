@@ -5921,7 +5921,8 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       // the shell box excludes the extrusion — plain center IS face center
       const ccx = sx + sw / 2, ccy = sy + sh / 2;
       const ic = opts.icon ?? STOCK_ICONS.flask ?? STOCK_ICONS.zap;
-      const glyph = ic ? themedIcon(ic, ccx - 30 * k, ccy - 34 * k, 60 * k, hexMix(glow, "#FFFFFF", 0.25), 2.2) : "";
+      // the buff glyph is marked swappable ink (maximum-editability law)
+      const glyph = ic ? `<g data-part="icon" data-icon="glyph">${themedIcon(ic, ccx - 30 * k, ccy - 34 * k, 60 * k, hexMix(glow, "#FFFFFF", 0.25), 2.2)}</g>` : "";
       const vB = clamp(value ?? 0.65, 0, 1);
       // spent-time sector: from "now" (top) sweeping the ELAPSED share
       const spent = 1 - vB;
@@ -6793,8 +6794,9 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const victim = opts.sub ?? "RIVAL_66";
       // display italics run wide — the weapon glyph sits at 58% with real
       // air on both sides so long handles never kiss it
+      // the weapon glyph is marked swappable ink (maximum-editability law)
       const parts = contentText(killer, 39 + inset + 16 * k, cy + 1, 21 * k * typeK, { keepCase: true }) +
-        (icK ? themedIcon(icK, 39 + w * 0.56 - 15 * k, cy - 15 * k, 30 * k, glow, 2.4) : "") +
+        (icK ? `<g data-part="icon" data-icon="weapon">${themedIcon(icK, 39 + w * 0.56 - 15 * k, cy - 15 * k, 30 * k, glow, 2.4)}</g>` : "") +
         contentText(victim, 39 + w * 0.56 + 26 * k, cy + 1, 20 * k * typeK, { keepCase: true, opacity: 0.75 });
       return inject(shell.replace("<svg ", '<svg data-killfeed="1" '), parts);
     }
@@ -6854,9 +6856,10 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const s9 = midS + (sideS - midS) * gGh;
         const cx9 = cxM + dlt * slotSp;
         innerE += `<rect x="${(cx9 - s9 / 2).toFixed(1)}" y="${(cyE - s9 / 2).toFixed(1)}" width="${s9.toFixed(1)}" height="${s9.toFixed(1)}" rx="${(12 * k).toFixed(1)}" fill="${wellFill}" opacity="${(0.82 + (1 - gGh) * 0.14).toFixed(2)}" stroke="rgba(255,255,255,${(0.16 + (1 - gGh) * 0.16).toFixed(2)})" stroke-width="1.2"/>`;
-        if (it.ic) innerE += gGh < 0.35
+        // each carousel item's glyph is marked swappable ink (the law)
+        if (it.ic) innerE += `<g data-part="icon" data-icon="item${items.indexOf(it) + 1}">` + (gGh < 0.35
           ? themedIcon(it.ic, cx9 - s9 * 0.3, cyE - s9 * 0.3, s9 * 0.6, hexMix(glow, "#FFFFFF", 0.3), 2.2)
-          : iconGroup(it.ic, cx9 - s9 * 0.27, cyE - s9 * 0.27, s9 * 0.54, "#AEB6C4", { strokeWidth: 2 * iconWK });
+          : iconGroup(it.ic, cx9 - s9 * 0.27, cyE - s9 * 0.27, s9 * 0.54, "#AEB6C4", { strokeWidth: 2 * iconWK })) + `</g>`;
       }
       // armed ring + name live at the fixed center; they fade during travel
       const settle = clamp(1 - minD * 2.2, 0, 1);
@@ -6868,7 +6871,9 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       innerE = chev(padE + 8 * k, false) + innerE + chev(WE - padE - 8 * k, true);
       innerE += `<g opacity="${settle.toFixed(2)}">${contentText(opts.label ?? armedI.it.nm, cxM, padE + midS + 20 * k, 19 * k * typeK, { anchor: "middle" })}</g>`;
       // the stamped track lets play mode cycle by click side (left/right)
-      return stampTrack(`<svg xmlns="http://www.w3.org/2000/svg" width="${WE.toFixed(0)}" height="${HE.toFixed(0)}" viewBox="0 0 ${WE.toFixed(0)} ${HE.toFixed(0)}" data-equipselector="1" role="img" aria-label="equipment selector"><g opacity="${state === "disabled" ? 0.4 : 1}">${innerE}</g></svg>`, padE, WE - padE * 2);
+      // data-shell pins the piece box (the un-burn's seat frame AND the
+      // board hit surface — the lives-row precedent): the item strip
+      return stampTrack(`<svg xmlns="http://www.w3.org/2000/svg" width="${WE.toFixed(0)}" height="${HE.toFixed(0)}" viewBox="0 0 ${WE.toFixed(0)} ${HE.toFixed(0)}" data-shell="${padE} ${padE} ${(WE - padE * 2).toFixed(1)} ${(HE - padE * 2).toFixed(1)}" data-equipselector="1" role="img" aria-label="equipment selector"><g opacity="${state === "disabled" ? 0.4 : 1}">${innerE}</g></svg>`, padE, WE - padE * 2);
     }
     case "streakmeter": {
       /* Shooter · streak meter — five cells build to ignition; the zap
@@ -6901,9 +6906,11 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       // None removes it, names resolve like the wheels' glyph slots
       const pickS9 = opts.slots?.endicon;
       const zapIc = pickS9 === "None" ? null : (pickS9 && STOCK_ICONS[pickS9.toLowerCase()]) || STOCK_ICONS.zap;
-      inner += (zapIc ? (full && state !== "disabled"
+      // the ignition glyph is marked swappable ink (the law) — the export
+      // ships BOTH poses (ghost + lit) and the StreakIgnite rig swaps them
+      inner += (zapIc ? `<g data-part="icon" data-icon="endicon" data-icon-nick="Ignition glyph">` + (full && state !== "disabled"
         ? `<g style="filter: drop-shadow(0 0 ${(7 * k).toFixed(1)}px ${hexRgba(glow, 0.85)})">${themedIcon(zapIc, zapX, cy - 17 * k, 34 * k, lighten(glow, 0.3), 2.4)}</g>`
-        : iconGroup(zapIc, zapX, cy - 17 * k, 34 * k, "rgba(255,255,255,0.35)", { strokeWidth: 2.2 * iconWK })) : "");
+        : iconGroup(zapIc, zapX, cy - 17 * k, 34 * k, "rgba(255,255,255,0.35)", { strokeWidth: 2.2 * iconWK })) + `</g>` : "");
       return inject(shell.replace("<svg ", '<svg data-streakmeter="1" '), inner);
     }
     case "waypoint": {
@@ -7081,10 +7088,11 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         if (on) {
           armedSvg = `<circle cx="${ccx9.toFixed(1)}" cy="${ccy9.toFixed(1)}" r="${(rr + 5 * k).toFixed(1)}" fill="none" stroke="${hexRgba(glow, 0.4)}" stroke-width="${(2 * k).toFixed(1)}">${live9 ? `<animate attributeName="stroke-opacity" values="0.55;0.15;0.55" dur="2.2s" repeatCount="indefinite" calcMode="spline" keySplines="0.42 0 0.58 1; 0.42 0 0.58 1"/>` : ""}</circle>
             <circle cx="${ccx9.toFixed(1)}" cy="${ccy9.toFixed(1)}" r="${rr.toFixed(1)}" fill="${hexRgba(darken(effect(cfg.effects, "Inner Fill"), 0.5), 0.97)}" stroke="${hexRgba(glow, hotW9 ? 1 : 0.9)}" stroke-width="${hotW9 ? 3.6 : 2.8}"${live9 ? ` style="filter: drop-shadow(0 0 ${((hotW9 ? 12 : 8) * k).toFixed(1)}px ${hexRgba(glow, 0.7)})"` : ""}/>` +
-            ((opts.icon ?? ch.ic) ? `<g${live9 ? ` style="filter: drop-shadow(0 0 ${(5 * k).toFixed(1)}px ${hexRgba(glow, 0.8)})"` : ""}>${themedIcon((opts.icon ?? ch.ic)!, ccx9 - rr * 0.5, ccy9 - rr * 0.5, rr, hexMix(glow, "#FFFFFF", 0.15), 2.4)}</g>` : "");
+            ((opts.icon ?? ch.ic) ? `<g data-part="icon" data-icon="w${i + 1}"><g${live9 ? ` style="filter: drop-shadow(0 0 ${(5 * k).toFixed(1)}px ${hexRgba(glow, 0.8)})"` : ""}>${themedIcon((opts.icon ?? ch.ic)!, ccx9 - rr * 0.5, ccy9 - rr * 0.5, rr, hexMix(glow, "#FFFFFF", 0.15), 2.4)}</g></g>` : "");
         } else {
           inner += `<circle cx="${ccx9.toFixed(1)}" cy="${ccy9.toFixed(1)}" r="${rr.toFixed(1)}" fill="${hexRgba(darken(effect(cfg.effects, "Inner Fill"), 0.72), 0.8)}" stroke="rgba(255,255,255,0.24)" stroke-width="1.5"/>` +
-            (ch.ic ? iconGroup(ch.ic, ccx9 - rr * 0.46, ccy9 - rr * 0.46, rr * 0.92, "#AEB6C4", { strokeWidth: 2 * iconWK }) : "");
+            // every chamber glyph is marked swappable ink (the law)
+            (ch.ic ? `<g data-part="icon" data-icon="w${i + 1}">${iconGroup(ch.ic, ccx9 - rr * 0.46, ccy9 - rr * 0.46, rr * 0.92, "#AEB6C4", { strokeWidth: 2 * iconWK })}</g>` : "");
         }
       });
       // name tag fixed beside the hammer position, over the rim
@@ -7114,7 +7122,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const pc = PT.color ? PT.color : lighten(bevel, 0.25);
         return `<pattern id="${gidW9}p" width="${ps.toFixed(1)}" height="${ps.toFixed(1)}" patternUnits="userSpaceOnUse" patternTransform="rotate(${PT.angle ?? 0})">${textPatternCell(PT.type, ps, pc)}</pattern>`;
       })() : "";
-      return `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW.toFixed(0)}" height="${totalW.toFixed(0)}" viewBox="0 0 ${totalW.toFixed(0)} ${totalW.toFixed(0)}" data-weaponwheel="1" data-wheel="${cW.toFixed(1)} ${cW.toFixed(1)}" role="img" aria-label="weapon wheel — ${hubNm}">
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW.toFixed(0)}" height="${totalW.toFixed(0)}" viewBox="0 0 ${totalW.toFixed(0)} ${totalW.toFixed(0)}" data-shell="${padW} ${padW} ${dW.toFixed(1)} ${dW.toFixed(1)}" data-weaponwheel="1" data-wheel="${cW.toFixed(1)} ${cW.toFixed(1)}" role="img" aria-label="weapon wheel — ${hubNm}">
 <defs>
   <linearGradient id="${gidW9}r" x1="0" y1="0" x2="0" y2="1">
     <stop offset="0" stop-color="${lighten(hexMix(bevel, effect(cfg.effects, "Inner Fill"), 0.35), 0.45)}"/>
@@ -8523,7 +8531,8 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const on = i === selN;
         cells += `<path d="${roundRect(cx0, yh, cell, cell, cellR)}" fill="${wellFill}" opacity="${on ? 0.98 : 0.85}"${on ? ` stroke="${glow}" stroke-width="${(3 * k).toFixed(1)}" style="filter: drop-shadow(0 0 ${6 * k}px ${glow})"` : ` stroke="${hexRgba(darken(bevel, 0.4), 0.6)}" stroke-width="1.2"`} data-cell="${i}"/>`;
         const ic = icons[i];
-        if (i < icons.length && ic) cells += themedIcon(ic, cx0 + cell * 0.22, yh + cell * 0.22, cell * 0.56, hexMix(glow, "#FFFFFF", 0.3), 2);
+        // each stocked slot's glyph is marked swappable ink (the law)
+        if (i < icons.length && ic) cells += `<g data-part="icon" data-icon="slot${i + 1}">${themedIcon(ic, cx0 + cell * 0.22, yh + cell * 0.22, cell * 0.56, hexMix(glow, "#FFFFFF", 0.3), 2)}</g>`;
         if (i === 0 || i === 3) cells += `<text x="${(cx0 + cell - 8 * k).toFixed(1)}" y="${(yh + cell - 10 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(17 * k).toFixed(1)}" font-weight="800" fill="rgba(255,255,255,0.85)" text-anchor="end">64</text>`;
         // slot indices sit on the dark cell wells, not the face — the adaptive
         // face ink picks the Shadow role there ("tied to the shadow", owner).
@@ -9286,6 +9295,10 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const hs = ({ s: 46, m: 58, l: 72 } as const)[size];
       const gap5 = hs * 0.18;
       const W5 = n5 * hs + (n5 - 1) * gap5, H5 = hs * 1.14;
+      /* the hearts are VALUE PIPS (the magazine/steps stance): the row IS
+         the component's own art, the count is the value — pips bake, and
+         per-copy counts ride posed skins. Not marked icon ink on purpose:
+         an all-children piece would ship an EMPTY base sprite. */
       const hearts = Array.from({ length: n5 }, (_, i) => {
         const x0 = i * (hs + gap5);
         const on = i < full;
