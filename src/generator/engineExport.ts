@@ -8414,7 +8414,9 @@ properties — nothing you'd want to edit is baked into pixels.
 > uGUI Text in the kit's shipped font, wearing each family's own ink —
 > but the styled SDF stack is 2023.2+, and so are the panel **Words**
 > groups and live board-scene stamps: on 2022.3 those ship as the baked
-> board art instead. The dropdown still WORKS there (live caption in the
+> board art instead — except counts that ride a live plate (booster
+> qty pills, badge counts), which arrive as editable TMP text on both
+> rungs. The dropdown still WORKS there (live caption in the
 > family ink, plain-Text rows, opening menu — just undressed), and the
 > input keeps its live placeholder on a flat surface. Everything else on
 > this page behaves the same.
@@ -8541,6 +8543,24 @@ down so the whole kit fits the 1920×1080 canvas — set the Board's Scale
 back to 1 to work at true size and scroll around. (Playground.unity is
 never overwritten once it exists; **Tools > PatternBreak > Rebuild Kit
 Playground Scene** replaces it.)
+
+### What arrives LIVE — the swap-the-sprite contract
+
+Nothing replaceable is baked into a piece's art. Beyond live labels
+(section 04), every swappable PICTURE is its own Image child on the
+prefab, named in plain language in the Hierarchy — swap its sprite in
+the Inspector, move it, or delete it; the shell underneath is clean.
+Some worth knowing by name: the **AvatarFrame** clips ANY sprite you
+drop on its **Portrait** child to the frame's round aperture (the
+**Portrait Well** does the masking), and its **Count ring** rides ABOVE
+the portrait with the level number riding the ring; the **Resource**
+chip's **Medallion plate** and **Icon glyph** swap independently; the
+**Bottomnav**'s **Selected ring** IS the selection (slide it one cell
+pitch, or disable it) and its **Badge plate** carries its live count
+with it. Counts that ride a plate — the **BoosterCard**'s qty pill, the
+badge's number — move, restyle and delete WITH their plate: one group,
+on the family prefabs and on every posed board copy. Any sprite from
+**icons/** fits the same seats.
 
 **Your boards arrived as scenes.** If the kit was exported with screens
 composed on the app's Board, each one is a ready scene in
@@ -8709,8 +8729,12 @@ ready to become a TMP material preset by hand.
 > each family's own resolved ink — editable, never truncating, just
 > without the SDF outline/glow/emboss dress. The panel **Words**
 > groups and live board-scene stamps are 2023.2+ — on 2022.3 those
-> pieces keep their baked art (still pixel-faithful, not editable as
-> text). The dropdown is live on BOTH rungs (2022.3 gets a working uGUI
+> pieces keep their baked words (pixel-faithful, not editable as
+> text) — with ONE deliberate exception: counts that ride a live
+> plate child (the booster card's qty pill ×numbers, the nav badge's
+> count) are stripped from the posed pixels and rebuilt as editable
+> TMP text on BOTH rungs, so no rung ever shows an empty pill.
+> The dropdown is live on BOTH rungs (2022.3 gets a working uGUI
 > Dropdown: family-ink caption, plain-Text rows, opening menu — undressed,
 > not baked), and the input keeps a live placeholder on a flat surface.
 > The Playground's chapter headers appear on both rungs.`
@@ -9112,7 +9136,9 @@ every other tier sits beside it in assets/rarityframe/ — swap the
 sprite per item (retype the word to match).
 
 **MoveCounter / Achievement**: plates with the number, caption and
-announcement as live text on top — your app words, ready to bind.
+announcement as live text on top — your app words, ready to bind. The
+Achievement's gold-medallion glyph is a live Image child too: swap the
+sprite in the Inspector, or pick it on uikitmaker.com like any icon.
 
 One rule holds for all of them: the sprite is the material, the layout
 is the bones, and anything your game knows better than we do — words,
@@ -12430,29 +12456,37 @@ namespace PatternBreak {
                   pIcRt.pivot = new Vector2(0.5f, 0.5f);
                   pIcRt.anchoredPosition = new Vector2(pIc.dx, -pIc.dy); // board y runs down
                   pIcRt.sizeDelta = new Vector2(pIc.w, pIc.h);
-#if UNITY_2023_2_OR_NEWER
-                  /* the plate's RIDER WORD, live (round 40 — the Booster
-                     Select ×3/×1/×2 hid under the rebuilt pill): the count
-                     stripped from the posed pixels with its plate and
-                     rides the live child here as editable TMP — move,
-                     restyle or delete plate + count as one, exactly the
-                     family prefabs' AdoptSeatRiders grammar. Instrument
-                     voice (the app draws these counts in heavy Inter);
-                     pre-2023.2 editors keep the family-road precedent
-                     (no TMP, no Words) and skip. */
+                  /* the plate's RIDER WORD, live ON BOTH RUNGS (round 40
+                     put the Booster Select ×3/×1/×2 on the live pill;
+                     round 41's review caught the guard leaving 2022.3
+                     with EMPTY pills — the count stripped from the posed
+                     pixels but the rebuild hid behind the styled-rung
+                     gate, and the docs claimed pixel-faithful LTS art
+                     that no longer existed). TMP is a declared hard
+                     dependency of the shipped asmdefs (the guard
+                     standard's rule 2 — fully-qualified symbols compile
+                     on every rung), so the count rebuilds as editable
+                     TMP everywhere; only the instrument-face MINT is
+                     styled-rung machinery — the LTS rung mints its own
+                     from the shipped TTF (RiderFace) and falls back to
+                     synthetic bold when no TTF shipped. */
                   if (!string.IsNullOrEmpty(pIc.word) && pIc.wordFs > 1f) {
-                    var pwGo = new GameObject(PlainWord(pIc.word), typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+                    var pwGo = new GameObject(PlainWord(pIc.word), typeof(RectTransform), typeof(CanvasRenderer), typeof(TMPro.TextMeshProUGUI));
                     pwGo.transform.SetParent(pIcGo.transform, false);
-                    var pwT = pwGo.GetComponent<TextMeshProUGUI>();
+                    var pwT = pwGo.GetComponent<TMPro.TextMeshProUGUI>();
                     pwT.text = pIc.word;
                     pwT.raycastTarget = false;
                     pwT.enableAutoSizing = false;
                     pwT.fontSize = pIc.wordFs;
                     SeatHarden(pwT);
-                    pwT.alignment = TextAlignmentOptions.Center;
-                    var pwFace = EnsureInstrumentFace(root, m);
+                    pwT.alignment = TMPro.TextAlignmentOptions.Center;
+#if UNITY_2023_2_OR_NEWER
+                    var pwFace = EnsureInstrumentFace(root, m); // styled rung: dynamic-source stamping + weight honestizing ride along
+#else
+                    var pwFace = RiderFace(root, m);
+#endif
                     if (pwFace != null) pwT.font = pwFace;
-                    else if (pIc.wordW >= 700) pwT.fontStyle = FontStyles.Bold; // synthetic bold only when the real cut is absent
+                    else if (pIc.wordW >= 700) pwT.fontStyle = TMPro.FontStyles.Bold; // synthetic bold only when the real cut is absent
                     Color pwC;
                     if (!string.IsNullOrEmpty(pIc.wordInk) && ColorUtility.TryParseHtmlString(pIc.wordInk, out pwC)) pwT.color = pwC;
                     var pwRt = pwGo.GetComponent<RectTransform>();
@@ -12461,7 +12495,6 @@ namespace PatternBreak {
                     pwRt.anchoredPosition = new Vector2(pIc.wordDx, -pIc.wordDy); // board y runs down
                     pwRt.sizeDelta = new Vector2(Mathf.Max(pIc.w, pIc.wordFs * (pIc.word.Length + 2f)), pIc.wordFs * 1.8f);
                   }
-#endif
                 }
                 /* the dropdown's open-list TEMPLATE was built in PREFAB
                    frame units — this root now IS the shell box at BOARD
@@ -16358,22 +16391,10 @@ namespace PatternBreak {
     }
     /* never reflow: a seat is a placed word, not a paragraph (round-8
        field: word wrap stacked HAMMER into vertical letters) */
-    static bool SeatHardened(TMP_Text t) {
-#pragma warning disable 0618
-      return !t.enableAutoSizing && !t.enableWordWrapping && t.overflowMode == TMPro.TextOverflowModes.Overflow && t.margin == Vector4.zero
-        && t.extraPadding && !t.parseCtrlCharacters;
-#pragma warning restore 0618
-    }
-    static void SeatHarden(TMP_Text t) {
-      t.enableAutoSizing = false;
-#pragma warning disable 0618
-      t.enableWordWrapping = false;
-#pragma warning restore 0618
-      t.overflowMode = TMPro.TextOverflowModes.Overflow;
-      t.margin = Vector4.zero;
-      t.extraPadding = true;        // SDF glow/underlay never clips at glyph edges
-      t.parseCtrlCharacters = false; // a literal backslash in a maker's word stays literal
-    }
+    /* SeatHarden / SeatHardened moved OUT of this styled-rung guard
+       (round 41 review blocker 2): the posed rider words rebuild on the
+       2022.3 rung too now, and hardening is rung-agnostic — see their
+       fully-qualified definitions beside AdoptSeatRiders. */
     static bool DressSeatText(TMP_Text t, PBSeat seat, TMP_FontAsset face, Material mat, float rootH, int aboardWeight, bool apply) {
       Color top = Color.white, bot = Color.white;
       bool grad = seat.fillMode == "gradient";
@@ -16451,9 +16472,44 @@ namespace PatternBreak {
       var wordsT = host.transform.Find("Words");
       if (wordsT == null) return true; // unseeded — the builder path fills it
       var texts = wordsT.GetComponentsInChildren<TMP_Text>(true);
-      if (texts.Length != row.textSeats.Length) {
-        // the dev restructured the group — theirs now, said out loud once
-        if (apply) Debug.Log("UI Kit Maker: " + host.name + " — its Words group holds " + texts.Length + " text(s) where the kit expects " + row.textSeats.Length + ", so the group is yours now and updates skip it. Delete the Words object and re-import to re-seed it fresh.");
+      /* RIDER-AWARE ACCOUNTING (round 41 review blocker): AdoptSeatRiders
+         moves each rider word OUT of Words and under its plate child, so
+         the kit's own generation output tripped this gate by construction
+         (a fresh BoosterCard counted 2 texts vs 3 seats, AvatarFrame 0 vs
+         1) and every later seat heal silently skipped — with the Console
+         ready to blame the dev for the kit's own adoption. Pair the Words
+         texts with the NON-rider seats, and find each rider word where
+         adoption put it: under its plate, still wearing its seeded name.
+         A rider the dev retyped, re-parented or deleted is theirs and
+         quietly sits out — it never disowns the rest of the group. */
+      var seatsAcc = new List<PBSeat>();
+      var textsAcc = new List<TMP_Text>();
+      var adoptedAcc = new List<bool>();
+      int nonRider = 0;
+      foreach (var s9 in row.textSeats) if (s9 != null && string.IsNullOrEmpty(s9.rider)) nonRider++;
+      /* counts alone can't tell "pre-adoption tree" from "adopted tree
+         plus exactly riderCount dev-added texts" — so ask the tree: any
+         rider word actually sitting under its plate proves adoption ran,
+         and Words must then hold ONLY the non-rider seats */
+      bool adoptedTree = false;
+      foreach (var s9 in row.textSeats)
+        if (s9 != null && !string.IsNullOrEmpty(s9.rider) && AdoptedRiderText(host, row, s9) != null) { adoptedTree = true; break; }
+      if (texts.Length == row.textSeats.Length && !adoptedTree) {
+        // riderless family — or a pre-adoption Words tree: the classic pairing
+        for (int i9 = 0; i9 < texts.Length; i9++) { textsAcc.Add(texts[i9]); seatsAcc.Add(row.textSeats[i9]); adoptedAcc.Add(false); }
+      } else if (texts.Length == nonRider) {
+        int wi = 0;
+        foreach (var s9 in row.textSeats) {
+          if (s9 == null) continue;
+          if (string.IsNullOrEmpty(s9.rider)) { textsAcc.Add(texts[wi]); seatsAcc.Add(s9); adoptedAcc.Add(false); wi++; continue; }
+          var tR = AdoptedRiderText(host, row, s9);
+          if (tR != null) { textsAcc.Add(tR); seatsAcc.Add(s9); adoptedAcc.Add(true); }
+        }
+      } else {
+        // the dev really restructured the group — theirs now, said out
+        // loud once, with the HONEST expected count (riders live under
+        // their plates by design and are never counted against Words)
+        if (apply) Debug.Log("UI Kit Maker: " + host.name + " — its Words group holds " + texts.Length + " text(s) where the kit expects " + nonRider + " (rider words live under their plates), so the group is yours now and updates skip it. Delete the Words object and re-import to re-seed it fresh.");
         return false;
       }
       float rootH = SeatRootH(host, pngScale);
@@ -16510,14 +16566,15 @@ namespace PatternBreak {
       SeatRows(row, out rowCount, out rowFy, out rowFfs);
       bool drift = false;
       int respected = 0;
-      for (int i = 0; i < texts.Length; i++) {
-        var t = texts[i];
-        var seat = row.textSeats[i];
+      for (int i = 0; i < textsAcc.Count; i++) {
+        var t = textsAcc[i];
+        var seat = seatsAcc[i];
+        bool adopted = adoptedAcc[i];
         /* the seed rides the GO name (markup-stripped; older imports may
            carry tags in the name — compare both sides stripped): a text
            that no longer matches its seed was RETYPED — theirs, wholesale */
         if (PlainWord(t.text) != PlainWord(t.gameObject.name)) { respected++; continue; }
-        bool inRow = rowCount.ContainsKey(seat.row) && rowCount[seat.row] >= 2;
+        bool inRow = !adopted && rowCount.ContainsKey(seat.row) && rowCount[seat.row] >= 2;
         // the row container is the seat's parent when clustered — ours
         if (inRow) {
           var rrt = t.transform.parent as RectTransform;
@@ -16533,7 +16590,11 @@ namespace PatternBreak {
           else if (!apply) drift = true;
         }
         var srt = t.GetComponent<RectTransform>();
-        if (srt != null && !SeatRect(srt, seat, face, rootH, inRow, inRow ? rowFy[seat.row] : 0f, apply)) drift = true;
+        /* an ADOPTED rider heals its dress and word but never its rect:
+           adoption kept the drawn place (worldPositionStays) and the
+           plate carries the word wherever the dev moves the pair — that
+           travel is the feature, not drift */
+        if (!adopted && srt != null && !SeatRect(srt, seat, face, rootH, inRow, inRow ? rowFy[seat.row] : 0f, apply)) drift = true;
         if (t.text != seat.text || t.gameObject.name != PlainWord(seat.text)) {
           drift = true;
           if (apply) { t.gameObject.name = PlainWord(seat.text); t.text = seat.text; }
@@ -16647,6 +16708,68 @@ namespace PatternBreak {
         if (wordT == null || wordT.parent == plateT) continue;
         wordT.SetParent(plateT, true);
       }
+    }
+    /* where adoption PUT a rider's word: under its plate child, still
+       carrying its seeded name. Serves the drift accounting (round 41
+       review blocker 1) — fully qualified, compiles on every rung. */
+    static TMPro.TMP_Text AdoptedRiderText(GameObject host, PBAsset row, PBSeat seat) {
+      if (host == null || row == null || seat == null || row.iconSeats == null) return null;
+      foreach (var icR in row.iconSeats) {
+        if (icR == null || icR.name != seat.rider) continue;
+        var plateT = host.transform.Find(IconChildName(icR));
+        if (plateT == null) return null;
+        var wantN = PlainWord(seat.text);
+        foreach (var tW in plateT.GetComponentsInChildren<TMPro.TMP_Text>(true))
+          if (tW.gameObject.name == wantN) return tW;
+        return null;
+      }
+      return null;
+    }
+    /* seat hardening, rung-agnostic (moved out of the styled-rung guard,
+       round 41 review blocker 2 — posed rider counts rebuild on 2022.3
+       too): no auto-size, no wrap, overflow, zero margins. Fully
+       qualified per the guard standard's rule 2. */
+    static bool SeatHardened(TMPro.TMP_Text t) {
+#pragma warning disable 0618
+      return !t.enableAutoSizing && !t.enableWordWrapping && t.overflowMode == TMPro.TextOverflowModes.Overflow && t.margin == Vector4.zero
+        && t.extraPadding && !t.parseCtrlCharacters;
+#pragma warning restore 0618
+    }
+    static void SeatHarden(TMPro.TMP_Text t) {
+      t.enableAutoSizing = false;
+#pragma warning disable 0618
+      t.enableWordWrapping = false;
+#pragma warning restore 0618
+      t.overflowMode = TMPro.TextOverflowModes.Overflow;
+      t.margin = Vector4.zero;
+      t.extraPadding = true;        // SDF glow/underlay never clips at glyph edges
+      t.parseCtrlCharacters = false; // a literal backslash in a maker's word stays literal
+    }
+    /* the 2022.3 rung's instrument face for rider counts: the styled
+       rung's EnsureInstrumentFace (dynamic-source stamping, weight
+       honestizing) is 2023.2+ machinery, but the counts rebuild on every
+       rung — load the minted face when it exists, else mint one straight
+       from the shipped instrument TTF (TMP 3.x carries CreateFontAsset;
+       TMP is a declared hard dependency of the shipped asmdefs). Null =
+       no TTF aboard — the caller falls back to synthetic bold. */
+    static TMPro.TMP_FontAsset RiderFace(string root, PBManifest m) {
+      var pathRF = root + "/fonts/Instrument SDF.asset";
+      var existing = AssetDatabase.LoadAssetAtPath<TMPro.TMP_FontAsset>(pathRF);
+      if (existing != null) return existing;
+      var ttf = m != null && m.typography != null && !string.IsNullOrEmpty(m.typography.instrumentFile)
+        ? AssetDatabase.LoadAssetAtPath<Font>(root + "/" + m.typography.instrumentFile) : null;
+      if (ttf == null) return null;
+      TMPro.TMP_FontAsset fa = null;
+      try { fa = TMPro.TMP_FontAsset.CreateFontAsset(ttf); } catch (Exception) { }
+      if (fa == null) return null;
+      fa.name = "Instrument SDF";
+      AssetDatabase.CreateAsset(fa, pathRF);
+      if (fa.material != null) { fa.material.name = "Instrument SDF Material"; AssetDatabase.AddObjectToAsset(fa.material, fa); }
+      if (fa.atlasTextures != null && fa.atlasTextures.Length > 0 && fa.atlasTextures[0] != null) { fa.atlasTextures[0].name = "Instrument SDF Atlas"; AssetDatabase.AddObjectToAsset(fa.atlasTextures[0], fa); }
+      EditorUtility.SetDirty(fa);
+      AssetDatabase.SaveAssetIfDirty(fa); // ours alone — never flush the world (immutable-package policy)
+      Debug.Log("UI Kit Maker: generated the instrument face at " + pathRF + " — posed counts wear the app's real heavy cut on this rung too.");
+      return fa;
     }
     static bool TextSeatsStale(GameObject asset, PBManifest m, string root, int pngScale) {
 #if UNITY_2023_2_OR_NEWER
@@ -18992,8 +19115,18 @@ namespace PatternBreak {
             if (m.assets != null) foreach (var aRC in m.assets) if (aRC != null && !string.IsNullOrEmpty(aRC.file)) filesRC.Add(aRC.file);
             foreach (Transform chRC in asset.transform) {
               if (!chRC.name.StartsWith("Icon ") || liveRC.Contains(chRC.name) || chRC.childCount != 0) continue;
+              if (!chRC.gameObject.activeSelf) continue; // already stepped down — one receipt, not one per import
               var imRC = chRC.GetComponent<Image>();
               if (imRC == null || imRC.sprite == null) continue;
+              /* PROVABLY untouched only (round 41 review paper cut: a
+                 moved/retinted/rescaled legacy medallion was destroyed
+                 under a Console line claiming it was checked): the
+                 round-27 stroke road's discipline — a retint, rescale or
+                 rotation is a dev edit we CAN see, so it stays theirs.
+                 (The original seat is gone from the manifest, so a pure
+                 MOVE is unprovable — which is why the step-down below
+                 disables instead of destroying.) */
+              if (imRC.color != Color.white || chRC.localScale != Vector3.one || chRC.localRotation != Quaternion.identity) continue;
               var pRC = AssetDatabase.GetAssetPath(imRC.sprite).Replace("\\\\", "/");
               if (!pRC.StartsWith(root + "/assets/")) continue;
               var relRC = pRC.Substring(root.Length + 1);
@@ -19417,8 +19550,12 @@ namespace PatternBreak {
               var goneRC = new List<GameObject>();
               foreach (Transform chRC2 in contents.transform) {
                 if (!chRC2.name.StartsWith("Icon ") || liveRC2.Contains(chRC2.name) || chRC2.childCount != 0) continue;
+                if (!chRC2.gameObject.activeSelf) continue; // already stepped down
                 var imRC2 = chRC2.GetComponent<Image>();
                 if (imRC2 == null || imRC2.sprite == null) continue;
+                // the probe's provable-untouched bar, re-proved here: a
+                // retint, rescale or rotation is the dev's edit — stays
+                if (imRC2.color != Color.white || chRC2.localScale != Vector3.one || chRC2.localRotation != Quaternion.identity) continue;
                 var pRC2 = AssetDatabase.GetAssetPath(imRC2.sprite).Replace("\\\\", "/");
                 if (!pRC2.StartsWith(root + "/assets/")) continue;
                 var relRC2 = pRC2.Substring(root.Length + 1);
@@ -19426,8 +19563,12 @@ namespace PatternBreak {
                 goneRC.Add(chRC2.gameObject);
               }
               foreach (var gRC in goneRC) {
-                Debug.Log("UI Kit Maker: " + contents.name + " — '" + gRC.name + "' stepped down: this update re-cut that seat into new live children (its old sprite left the kit). It was still exactly as we built it; anything you had renamed, re-sprited or given children would have stayed yours.");
-                UnityEngine.Object.DestroyImmediate(gRC, true);
+                /* DISABLED, never destroyed (round 41 review): a pure
+                   move can't be proven either way once the old seat left
+                   the manifest, so the step-down costs nothing to undo —
+                   and the Console says exactly what WAS checked. */
+                gRC.SetActive(false);
+                Debug.Log("UI Kit Maker: " + contents.name + " — '" + gRC.name + "' stepped down (disabled, not deleted): this update re-cut that seat into new live children and its old sprite left the kit. It was still childless, untinted, unscaled and unrotated under the name we gave it — anything renamed, re-sprited, retinted, rescaled, rotated or given children stays yours untouched. Re-enable it in the Hierarchy to bring it back; delete it when you're sure.");
                 retiredIc++; changed = true;
               }
             }
@@ -19597,7 +19738,7 @@ namespace PatternBreak {
       if (unburned > 0)
         Debug.Log("UI Kit Maker: un-burned " + unburned + " prefab(s) — icons and images the art used to bake in now ride as live, Inspector-swappable children at the exact app seats (the stripped sprites landed with this refresh). Each seat seeds exactly once (kit.lock.json > seededChildren) — a child you rename, re-sprite or delete after that is yours: it is never rebuilt, never duplicated, never brought back.");
       if (retiredIc > 0)
-        Debug.Log("UI Kit Maker: retired " + retiredIc + " re-cut icon child(ren) — this update split (or renamed) their seats into new live children, and the untouched originals stepped down so nothing draws doubled. Each is named above; version control brings any of them back.");
+        Debug.Log("UI Kit Maker: retired " + retiredIc + " re-cut icon child(ren) — this update split (or renamed) their seats into new live children, and the provably-untouched originals stepped down (disabled, not deleted) so nothing draws doubled. Each is named above; re-enable any of them in the Hierarchy to bring it back.");
       if (unswapped > 0)
         Debug.Log("UI Kit Maker: corrected the state transition on " + unswapped + " tiled-face prefab(s) — a full-material sprite swap doubles the layered pattern, so their states now ride the engine glow/lift instead. Clicks unchanged.");
       if (resized > 0)

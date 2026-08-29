@@ -2212,8 +2212,42 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the kept-project un-burn convergence (wantUnburn + its Console receipt) is missing from the maintenance pass");
   if (!/&& !wantUnburn && !wantIconRetire && !wantSelectRoot\) continue;/.test(cs))
     errors.push("the maintenance skip-gate no longer counts wantUnburn/wantIconRetire — a kept project whose only need is un-burning (or a re-cut seat retire, round 40) would be skipped");
-  if (!/bool wantIconRetire = false;/.test(cs) || !/stepped down: this update re-cut that seat into new live children/.test(cs))
+  if (!/bool wantIconRetire = false;/.test(cs) || !/stepped down \(disabled, not deleted\): this update re-cut that seat into new live children/.test(cs))
     errors.push("the re-cut seat retire is gone — a split seat (the resource medallion → plate + glyph, round 40) leaves the untouched original drawing doubled over the new pair");
+  /* round 41 review, paper cut 3: the retire proves what it claims — a
+     retint/rescale/rotation is the dev's, and the step-down DISABLES
+     (SetActive(false)), never DestroyImmediates */
+  {
+    const guardCond = /imRC2?\.color != Color\.white \|\| chRC2?\.localScale != Vector3\.one \|\| chRC2?\.localRotation != Quaternion\.identity/g;
+    if ((cs.match(guardCond) ?? []).length < 2)
+      errors.push("the retire road lost its provable-untouched checks (tint/scale/rotation) on probe or apply — a moved-but-not-renamed legacy seat gets stepped down under a false claim again");
+    if (!/gRC\.SetActive\(false\);/.test(cs) || /UnityEngine\.Object\.DestroyImmediate\(gRC, true\);/.test(cs))
+      errors.push("the retire step-down destroys again instead of disabling — an unprovable move would be unrecoverable outside version control");
+    if ((cs.match(/if \(!chRC2?\.gameObject\.activeSelf\) continue;/g) ?? []).length < 2)
+      errors.push("the retire road no longer skips already-disabled children — every import would re-log the same step-down");
+  }
+  /* round 41 review, blocker 1: rider-aware seat accounting — the drift
+     gate pairs Words texts with NON-rider seats and finds adopted rider
+     words under their plates; adopted riders re-dress but never re-rect */
+  if (!/if \(texts\.Length == nonRider\) \{/.test(cs.replace(/\} else if \(texts\.Length == nonRider\) \{/, "if (texts.Length == nonRider) {"))
+      || !/if \(texts\.Length == row\.textSeats\.Length && !adoptedTree\) \{/.test(cs)
+      || !/static TMPro\.TMP_Text AdoptedRiderText\(GameObject host, PBAsset row, PBSeat seat\)/.test(cs)
+      || !/rider words live under their plates/.test(cs)
+      || !/if \(!adopted && srt != null && !SeatRect\(/.test(cs))
+    errors.push("the rider-aware seat accounting is gone — a fresh import's own adoption trips the dev-restructured gate again (boostercard 2v3, avatarframe 0v1) and every later heal silently skips");
+  /* round 41 review, blocker 2: posed rider counts rebuild on BOTH rungs —
+     fully-qualified TMP outside the styled-rung guard + the LTS face mint */
+  if (!/typeof\(TMPro\.TextMeshProUGUI\)/.test(cs)
+      || !/static TMPro\.TMP_FontAsset RiderFace\(string root, PBManifest m\)/.test(cs)
+      || !/static void SeatHarden\(TMPro\.TMP_Text t\)/.test(cs))
+    errors.push("the posed rider words hid behind the styled-rung guard again — 2022.3 ships empty qty pills and badge plates");
+  {
+    // the docs tell the LTS truth: the rider exception is stated in BOTH docs
+    if (!/rebuilt as editable\s*\n?> TMP text on BOTH rungs/.test(src) || !/which arrive as editable TMP text on both\s*\n?> rungs/.test(src))
+      errors.push("the 2022.3 rung contract in README/QuickStart no longer states the rider-count exception — the shipped docs would lie again");
+    if (!/### What arrives LIVE — the swap-the-sprite contract/.test(src))
+      errors.push("the README's live-children paragraph (swap-the-sprite contract) is gone — the flagship editability is undocumented again");
+  }
   /* the un-burn's ONE-SHOT law (editability blocker): a seat seeds once,
      is recorded in kit.lock.json > seededChildren, and is never re-added
      — a deleted child stays deleted, a renamed child never grows a
