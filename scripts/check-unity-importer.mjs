@@ -2522,6 +2522,38 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("ComboPop lost the app's own keyframes (0.82 squash → 1.32 overshoot)");
 }
 
+/* FULL-CATALOG round, slice 5 pins: Strategy & social + the Match Score. */
+{
+  const S5 = ["scorebug", "friendrow", "clancrest", "chatbubble", "emotewheel", "buildqueue", "unitplate", "techcard", "popmeter"];
+  const dispM = /const UNIVERSAL_DISPLAY = new Set<KitComponentId>\(\[([\s\S]*?)\]\);/.exec(src);
+  for (const id of S5) {
+    if (!dispM || !new RegExp(`"${id}"`).test(dispM[1]))
+      errors.push(`${id} left the universal display road`);
+    if (!new RegExp(`${id}: "${id}"`).test(src))
+      errors.push(`${id} lost its PREFAB_FAMILY entry`);
+  }
+  if (!/\("STRATEGY & SOCIAL", new\[\] \{ "Scorebug", "Friendrow", "Chatbubble", "Emotewheel", "Clancrest", "Unitplate", "Buildqueue", "Techcard", "Popmeter" \}\)/.test(cs))
+    errors.push("the Playground's STRATEGY & SOCIAL chapter is gone or reshuffled");
+  // the Match Score's Unity half (ba34520): tintable team bars, live names
+  if (!/data-icon="homebar" data-icon-nick="Home color bar" data-icon-tint="\$\{TA\}"/.test(bevelSrc)
+      || !/data-icon="awaybar" data-icon-nick="Away color bar" data-icon-tint="\$\{TB\}"/.test(bevelSrc))
+    errors.push("the score bug's team color bars lost their tintable markers — the ba34520 color slots stop reaching Unity");
+  if (!/const tint = gs0\[gi\]\.getAttribute\("data-icon-tint"\) \|\| null;/.test(src)
+      || !/if \(norm\(el\.getAttribute\("fill"\)\) === norm\(tint\)\) el\.setAttribute\("fill", "#FFFFFF"\);/.test(src))
+    errors.push("the tint grammar's white cut is gone — team bars would ship colored and Unity tints would multiply muddy");
+  if (!/public string tint;/.test(cs) || !/ColorUtility\.TryParseHtmlString\(ic\.tint, out tintC\)\) ii\.color = tintC;/.test(cs))
+    errors.push("the importer no longer applies iconSeat tints (PBIconChild.tint / Image.color)");
+  // the social marks
+  if (!/data-icon="joinbtn" data-icon-btn="1"/.test(bevelSrc) || !/rider: "joinbtn"/.test(bevelSrc))
+    errors.push("the friend row's JOIN capsule lost its button-plate/rider grammar");
+  if (!/data-icon="emote\$\{i \+ 1\}"/.test(bevelSrc) || !/data-icon="hub" data-icon-nick="Selected emote"/.test(bevelSrc))
+    errors.push("the emote wheel's sector/hub emotes lost their markers");
+  if (!/data-icon="emblem" data-icon-nick="Crest emblem"/.test(bevelSrc) || !/data-icon="ribbon" data-icon-nick="Tag ribbon"/.test(bevelSrc))
+    errors.push("the clan crest's emblem/ribbon grammar is gone");
+  if (!/data-icon="atk" data-icon-nick="Attack glyph"/.test(bevelSrc) || !/data-icon="def" data-icon-nick="Defense glyph"/.test(bevelSrc))
+    errors.push("the unit plate's stat glyphs lost their markers");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);

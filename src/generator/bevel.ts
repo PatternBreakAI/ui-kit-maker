@@ -8062,7 +8062,8 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const gidB0 = "bq" + UID++;
       const gB = 2.5 * k, mH = barH9 - gB * 2;
       const parts = `<rect x="${wx.toFixed(1)}" y="${wy.toFixed(1)}" width="${wellS.toFixed(1)}" height="${wellS.toFixed(1)}" rx="${(12 * k).toFixed(1)}" fill="${wellFill}" opacity="0.92"/>` +
-        (ic ? themedIcon(ic, wx + wellS * 0.2, wy + wellS * 0.2, wellS * 0.6, hexMix(glow, "#FFFFFF", 0.25), 2.2) : "") +
+        // the unit glyph is marked swappable ink (owner: "editable down to the icon")
+        (ic ? `<g data-part="icon" data-icon="glyph">${themedIcon(ic, wx + wellS * 0.2, wy + wellS * 0.2, wellS * 0.6, hexMix(glow, "#FFFFFF", 0.25), 2.2)}</g>` : "") +
         contentText(opts.label ?? "WAR GOLEM", tx0, 30 + inset + 22 * k, 22 * k * typeK) +
         infoText("×3 · 0:42", tx0 + barW9, barY9 - 14 * k, 16 * k, "end", 700) +
         `<rect x="${tx0.toFixed(1)}" y="${barY9.toFixed(1)}" width="${barW9.toFixed(1)}" height="${barH9.toFixed(1)}" rx="${(barH9 / 2).toFixed(1)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.8)}" stroke="rgba(0,0,0,0.3)" stroke-width="1"/>` +
@@ -8094,7 +8095,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const parts = `<defs><clipPath id="${gidU}"><circle cx="${pcx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${pr.toFixed(1)}"/></clipPath>
         <linearGradient id="${gidU}h" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(HPC, 0.4)}"/><stop offset="1" stop-color="${darken(HPC, 0.3)}"/></linearGradient></defs>
         <circle cx="${pcx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${pr.toFixed(1)}" fill="${wellFill}"/>
-        <g clip-path="url(#${gidU})" opacity="${state === "disabled" ? 0.4 : 1}">
+        <g data-part="icon" data-icon="portrait" data-icon-well="${pcx.toFixed(1)} ${cy.toFixed(1)} ${pr.toFixed(1)}" clip-path="url(#${gidU})" opacity="${state === "disabled" ? 0.4 : 1}">
           <circle cx="${pcx.toFixed(1)}" cy="${(cy - pr * 0.28).toFixed(1)}" r="${(pr * 0.34).toFixed(1)}" fill="rgba(255,255,255,0.4)"/>
           <ellipse cx="${pcx.toFixed(1)}" cy="${(cy + pr * 0.75).toFixed(1)}" rx="${(pr * 0.62).toFixed(1)}" ry="${(pr * 0.5).toFixed(1)}" fill="rgba(255,255,255,0.4)"/>
         </g>
@@ -8105,9 +8106,10 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
           return contentText(nm, tx0, 30 + inset + 18 * k, fsN0 * Math.min(1, (txw + 8 * k) / Math.max(1, nm.length * fsN0 * 0.62)), { keepCase: true }); })() +
         `<rect x="${tx0.toFixed(1)}" y="${railY.toFixed(1)}" width="${txw.toFixed(1)}" height="${railH.toFixed(1)}" rx="${(railH / 2).toFixed(1)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.8)}"/>` +
         (vHP > 0.04 ? `<rect x="${(tx0 + gU).toFixed(1)}" y="${(railY + gU).toFixed(1)}" width="${Math.max(0, (txw - gU * 2) * vHP).toFixed(1)}" height="${mHU.toFixed(1)}" rx="${(mHU / 2).toFixed(1)}" fill="url(#${gidU}h)"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 2.5px ${hexRgba(HPC, 0.55)})"` : ""}/>` : "") +
-        (STOCK_ICONS.sword ? iconGroup(STOCK_ICONS.sword, tx0, railY + railH + 8 * k, 18 * k, infoInk, { strokeWidth: 2 * iconWK }) : "") +
+        // stat glyphs are marked swappable ink (the law)
+        (STOCK_ICONS.sword ? `<g data-part="icon" data-icon="atk" data-icon-nick="Attack glyph">${iconGroup(STOCK_ICONS.sword, tx0, railY + railH + 8 * k, 18 * k, infoInk, { strokeWidth: 2 * iconWK })}</g>` : "") +
         infoText("12", tx0 + 24 * k, railY + railH + 17 * k, 15 * k, "start", 800) +
-        (STOCK_ICONS.shield ? iconGroup(STOCK_ICONS.shield, tx0 + 52 * k, railY + railH + 8 * k, 18 * k, infoInk, { strokeWidth: 2 * iconWK }) : "") +
+        (STOCK_ICONS.shield ? `<g data-part="icon" data-icon="def" data-icon-nick="Defense glyph">${iconGroup(STOCK_ICONS.shield, tx0 + 52 * k, railY + railH + 8 * k, 18 * k, infoInk, { strokeWidth: 2 * iconWK })}</g>` : "") +
         infoText("8", tx0 + 76 * k, railY + railH + 17 * k, 15 * k, "start", 800);
       return inject(shell.replace("<svg ", '<svg data-unitplate="1" '), parts);
     }
@@ -8130,8 +8132,8 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         <line x1="${(sx + sw - 4 * k).toFixed(1)}" y1="${(sy + sh / 2).toFixed(1)}" x2="${(sx + sw + 22 * k).toFixed(1)}" y2="${(sy + sh / 2).toFixed(1)}" stroke="rgba(255,255,255,0.25)" stroke-width="${(8 * k).toFixed(1)}" stroke-linecap="round"/>`;
       let over = `<circle cx="${ccx.toFixed(1)}" cy="${cyM.toFixed(1)}" r="${mR.toFixed(1)}" fill="${wellFill}" stroke="rgba(255,255,255,0.25)" stroke-width="1.4"/>` +
         (ic ? (locked9
-          ? iconGroup(ic, ccx - mR * 0.55, cyM - mR * 0.55, mR * 1.1, "#A7AAB4", { strokeWidth: 2 * iconWK })
-          : themedIcon(ic, ccx - mR * 0.55, cyM - mR * 0.55, mR * 1.1, hexMix(glow, "#FFFFFF", 0.25), 2.2)) : "") +
+          ? `<g data-part="icon" data-icon="glyph">${iconGroup(ic, ccx - mR * 0.55, cyM - mR * 0.55, mR * 1.1, "#A7AAB4", { strokeWidth: 2 * iconWK })}</g>`
+          : `<g data-part="icon" data-icon="glyph">${themedIcon(ic, ccx - mR * 0.55, cyM - mR * 0.55, mR * 1.1, hexMix(glow, "#FFFFFF", 0.25), 2.2)}</g>`) : "") +
         contentText(opts.label ?? "IRON EDGE", ccx, sy + sh * 0.66, 20 * k * typeK, { anchor: "middle" });
       const costY = sy + sh - 26 * k;
       if (done9) {
@@ -8158,7 +8160,9 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const cap = parseInt(opts.max ?? "100", 10) || 100;
       const nearCap = vP0 > 0.9;
       const barC = nearCap ? "#FF4D5A" : glow;
-      const usr = STOCK_ICONS.user ? iconGroup(STOCK_ICONS.user, 39 + inset + 10 * k, cy - 24 * k, 30 * k, infoInk, { strokeWidth: 2.2 * iconWK }) : "";
+      // the population glyph is marked swappable ink (owner: "editable
+      // down to the icon")
+      const usr = STOCK_ICONS.user ? `<g data-part="icon" data-icon="glyph">${iconGroup(STOCK_ICONS.user, 39 + inset + 10 * k, cy - 24 * k, 30 * k, infoInk, { strokeWidth: 2.2 * iconWK })}</g>` : "";
       const cnt = infoText(`${Math.round(vP0 * cap)} / ${cap}`, 39 + inset + 48 * k, cy - 9 * k, 22 * k, "start", 800);
       const barX = 39 + inset + 12 * k, barW9 = w - inset * 2 - 24 * k, barH9 = 12 * k, barY9 = cy + 12 * k;
       const gidP1 = "pm" + UID++;
@@ -8224,11 +8228,16 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const wellD = `<path d="${wellOf(w, h, inset)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.82)}" opacity="0.96"/>`;
       const cxS0 = 39 + w / 2;
       const hubW = 108 * k, hubH = h - inset * 2 - 14 * k;
+      /* the TEAM COLOR BARS are marked TINTABLE ink (round 41, the Unity
+         half of ba34520): each ships as a live child whose sprite is CUT
+         WHITE with the slot color recorded as its tint — Unity multiplies
+         white × tint, so retinting a side is one Image.color edit and the
+         app's color slots land exactly. */
       const parts = wellD +
-        `<rect x="${(39 + inset + 8 * k).toFixed(1)}" y="${(cy - 5 * k - 22 * k).toFixed(1)}" width="${(7 * k).toFixed(1)}" height="${(44 * k).toFixed(1)}" rx="${(3.5 * k).toFixed(1)}" fill="${TA}"/>` +
+        `<g data-part="icon" data-icon="homebar" data-icon-nick="Home color bar" data-icon-tint="${TA}"><rect x="${(39 + inset + 8 * k).toFixed(1)}" y="${(cy - 5 * k - 22 * k).toFixed(1)}" width="${(7 * k).toFixed(1)}" height="${(44 * k).toFixed(1)}" rx="${(3.5 * k).toFixed(1)}" fill="${TA}"/></g>` +
         hudText((opts.slots?.teamA ?? opts.label ?? "AZUR").slice(0, 12), 39 + inset + 26 * k, cy - 13 * k, 18 * k, "start", 800) +
         hudText((opts.slots?.scoreA ?? "2").slice(0, 3), 39 + inset + 26 * k, cy + 15 * k, 26 * k, "start", 900) +
-        `<rect x="${(39 + w - inset - 15 * k).toFixed(1)}" y="${(cy - 5 * k - 22 * k).toFixed(1)}" width="${(7 * k).toFixed(1)}" height="${(44 * k).toFixed(1)}" rx="${(3.5 * k).toFixed(1)}" fill="${TB}"/>` +
+        `<g data-part="icon" data-icon="awaybar" data-icon-nick="Away color bar" data-icon-tint="${TB}"><rect x="${(39 + w - inset - 15 * k).toFixed(1)}" y="${(cy - 5 * k - 22 * k).toFixed(1)}" width="${(7 * k).toFixed(1)}" height="${(44 * k).toFixed(1)}" rx="${(3.5 * k).toFixed(1)}" fill="${TB}"/></g>` +
         hudText((opts.slots?.teamB ?? opts.sub ?? "CRIMSON").slice(0, 12), 39 + w - inset - 26 * k, cy - 13 * k, 18 * k, "end", 800) +
         hudText((opts.slots?.scoreB ?? "1").slice(0, 3), 39 + w - inset - 26 * k, cy + 15 * k, 26 * k, "end", 900) +
         `<rect x="${(cxS0 - hubW / 2).toFixed(1)}" y="${(cy - hubH / 2).toFixed(1)}" width="${hubW.toFixed(1)}" height="${hubH.toFixed(1)}" rx="${(10 * k).toFixed(1)}" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.2)" stroke-width="1.2"/>` +
@@ -8252,9 +8261,12 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const darkFace9 = cfg.face.mode === "dark";
       const joinFill = online ? (darkFace9 ? lighten(bevel, 0.5) : darken(bevel, 0.45)) : "rgba(120,128,148,0.3)";
       const joinInk = online ? (darkFace9 ? darken(bevel, 0.66) : "#FFFFFF") : infoInk;
+      /* the portrait is a marked WELL (avatarframe grammar) and the JOIN
+         capsule a marked BUTTON plate whose word rides it (qtybtn
+         grammar) — maximum-editability law */
       const parts = `<defs><clipPath id="${gidF}"><circle cx="${pcx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${pr.toFixed(1)}"/></clipPath></defs>
         <circle cx="${pcx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${pr.toFixed(1)}" fill="${wellFill}"/>
-        <g clip-path="url(#${gidF})" opacity="${state === "disabled" ? 0.4 : 1}">
+        <g data-part="icon" data-icon="portrait" data-icon-well="${pcx.toFixed(1)} ${cy.toFixed(1)} ${pr.toFixed(1)}" clip-path="url(#${gidF})" opacity="${state === "disabled" ? 0.4 : 1}">
           <circle cx="${pcx.toFixed(1)}" cy="${(cy - pr * 0.28).toFixed(1)}" r="${(pr * 0.34).toFixed(1)}" fill="rgba(255,255,255,0.4)"/>
           <ellipse cx="${pcx.toFixed(1)}" cy="${(cy + pr * 0.75).toFixed(1)}" rx="${(pr * 0.62).toFixed(1)}" ry="${(pr * 0.5).toFixed(1)}" fill="rgba(255,255,255,0.4)"/>
         </g>
@@ -8265,9 +8277,9 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
            hardcoded Inter). Quiet voice: plain dress, readout ink unless
            the List ink pins a color. */
         contentText(online ? (opts.slots?.status ?? "In Match · Ranked").slice(0, 32) : "Last seen 2h ago", pcx + pr + 14 * k, cy + 15 * k, 14.5 * k * Math.min(typeK, 1.2), { keepCase: true, list: true, plain: true, ink: cfg.type.listInk ?? infoInk }) +
-        `<rect x="${joinX.toFixed(1)}" y="${(cy - joinH / 2).toFixed(1)}" width="${joinW.toFixed(1)}" height="${joinH.toFixed(1)}" rx="${(joinH / 2).toFixed(1)}" fill="${joinFill}" stroke="${online ? hexRgba(glow, 0.6) : "rgba(255,255,255,0.2)"}" stroke-width="1.4"${online && state === "hover" ? ` style="filter: drop-shadow(0 0 ${(5 * k).toFixed(1)}px ${hexRgba(glow, 0.6)})"` : ""}/>` +
+        `<g data-part="icon" data-icon="joinbtn" data-icon-btn="1"><rect x="${joinX.toFixed(1)}" y="${(cy - joinH / 2).toFixed(1)}" width="${joinW.toFixed(1)}" height="${joinH.toFixed(1)}" rx="${(joinH / 2).toFixed(1)}" fill="${joinFill}" stroke="${online ? hexRgba(glow, 0.6) : "rgba(255,255,255,0.2)"}" stroke-width="1.4"${online && state === "hover" ? ` style="filter: drop-shadow(0 0 ${(5 * k).toFixed(1)}px ${hexRgba(glow, 0.6)})"` : ""}/></g>` +
         // the JOIN cap is a mini CTA — the kit's display face, plain dress
-        contentText(online ? (opts.slots?.cta ?? "JOIN").slice(0, 10) : "INVITE", joinX + joinW / 2, cy + 1, 15 * k, { anchor: "middle", plain: true, ink: joinInk, track: 6, keepCase: true });
+        contentText(online ? (opts.slots?.cta ?? "JOIN").slice(0, 10) : "INVITE", joinX + joinW / 2, cy + 1, 15 * k, { anchor: "middle", plain: true, ink: joinInk, track: 6, keepCase: true, rider: "joinbtn" });
       return inject(shell.replace("<svg ", '<svg data-friendrow="1" '), parts);
     }
     case "chatbubble": {
@@ -8353,18 +8365,19 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const am = (a0 + a1) / 2;
         const gx = cE + rE * 0.66 * Math.cos(am), gy = cE + rE * 0.66 * Math.sin(am);
         const ic9 = i === selE9 ? (opts.icon ?? emotes[i]) : emotes[i];
-        if (ic9) sect += on
+        // every sector's emote is marked swappable ink (the law)
+        if (ic9) sect += `<g data-part="icon" data-icon="emote${i + 1}">` + (on
           ? `<g${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(glow, 0.75)})"` : ""}>${themedIcon(ic9, gx - 19 * k, gy - 19 * k, 38 * k, hexMix(glow, "#FFFFFF", 0.2), 2.4)}</g>`
-          : iconGroup(ic9, gx - 16 * k, gy - 16 * k, 32 * k, "#AEB6C4", { strokeWidth: 2 * iconWK });
+          : iconGroup(ic9, gx - 16 * k, gy - 16 * k, 32 * k, "#AEB6C4", { strokeWidth: 2 * iconWK })) + `</g>`;
       }
       const selIc = opts.icon ?? emotes[selE9];
-      return `<svg xmlns="http://www.w3.org/2000/svg" width="${(dE + padE9 * 2).toFixed(0)}" height="${(dE + padE9 * 2).toFixed(0)}" viewBox="0 0 ${(dE + padE9 * 2).toFixed(0)} ${(dE + padE9 * 2).toFixed(0)}" data-emotewheel="1" data-wheel="${cE.toFixed(1)} ${cE.toFixed(1)}" role="img" aria-label="emote wheel">
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${(dE + padE9 * 2).toFixed(0)}" height="${(dE + padE9 * 2).toFixed(0)}" viewBox="0 0 ${(dE + padE9 * 2).toFixed(0)} ${(dE + padE9 * 2).toFixed(0)}" data-shell="${(cE - rE).toFixed(1)} ${(cE - rE).toFixed(1)} ${(rE * 2).toFixed(1)} ${(rE * 2).toFixed(1)}" data-emotewheel="1" data-wheel="${cE.toFixed(1)} ${cE.toFixed(1)}" role="img" aria-label="emote wheel">
 <defs><linearGradient id="${gidE9}r" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(hexMix(bevel, effect(cfg.effects, "Inner Fill"), 0.35), 0.45)}"/><stop offset="0.5" stop-color="${hexMix(bevel, effect(cfg.effects, "Inner Fill"), 0.25)}"/><stop offset="1" stop-color="${darken(bevel, 0.32)}"/></linearGradient>${auraOp9 > 0.01 ? `<filter id="${gidE9}ga" ${auraF9(14)}><feGaussianBlur stdDeviation="14"/></filter><filter id="${gidE9}gb" ${auraF9(30)}><feGaussianBlur stdDeviation="30"/></filter>` : ""}</defs>
 <g opacity="${((adjE9.opacity / 100) * (state === "disabled" ? 0.45 : 1)).toFixed(2)}">
   ${aura9}${sect}
   <circle cx="${cE}" cy="${cE}" r="${rE.toFixed(1)}" fill="none" stroke="url(#${gidE9}r)" stroke-width="${Math.max(8, dE * 0.035).toFixed(1)}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(dE * 0.02).toFixed(1)}px ${hexRgba(glow, 0.45)})"` : ""}/>
   <circle cx="${cE}" cy="${cE}" r="${hubR.toFixed(1)}" fill="${wellFill}" stroke="${hexRgba(glow, 0.45)}" stroke-width="1.6"/>
-  ${selIc ? themedIcon(selIc, cE - hubR * 0.5, cE - hubR * 0.5, hubR, hexMix(glow, "#FFFFFF", 0.2), 2.4) : ""}
+  ${selIc ? `<g data-part="icon" data-icon="hub" data-icon-nick="Selected emote">${themedIcon(selIc, cE - hubR * 0.5, cE - hubR * 0.5, hubR, hexMix(glow, "#FFFFFF", 0.2), 2.4)}</g>` : ""}
 </g>
 </svg>`;
     }
@@ -8379,14 +8392,17 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const [sx, sy, sw, sh] = shellM[1].split(" ").map(Number);
       const ccx = sx + sw / 2;
       const ic = opts.icon ?? STOCK_ICONS.sword;
-      const emb = ic ? themedIcon(ic, ccx - 34 * k, sy + sh * 0.42 - 34 * k, 68 * k, hexMix(glow, "#FFFFFF", 0.25), 2.4) : "";
+      // the emblem is marked swappable ink (the law) — the clan's own mark
+      const emb = ic ? `<g data-part="icon" data-icon="emblem" data-icon-nick="Crest emblem">${themedIcon(ic, ccx - 34 * k, sy + sh * 0.42 - 34 * k, 68 * k, hexMix(glow, "#FFFFFF", 0.25), 2.4)}</g>` : "";
       const ribW = 132 * k, ribH = 36 * k;
       const ribY = sy + sh - ribH * 0.4;
       const gidC1 = "cc" + UID++;
+      /* the tag ribbon is a marked plate whose word RIDES it (nameplate
+         grammar): move, restyle or delete banner + tag as one */
       const ribbon = `<g${state !== "disabled" ? ` style="filter: drop-shadow(0 2px 3px rgba(6,10,18,0.45))"` : ""}>
-        <defs><linearGradient id="${gidC1}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(bevel, 0.3)}"/><stop offset="1" stop-color="${darken(bevel, 0.18)}"/></linearGradient></defs>
-        <path d="M ${(ccx - ribW / 2).toFixed(1)} ${ribY.toFixed(1)} l ${(-14 * k).toFixed(1)} ${(ribH / 2).toFixed(1)} l ${(14 * k).toFixed(1)} ${(ribH / 2).toFixed(1)} h ${ribW.toFixed(1)} l ${(14 * k).toFixed(1)} ${(-ribH / 2).toFixed(1)} l ${(-14 * k).toFixed(1)} ${(-ribH / 2).toFixed(1)} Z" fill="url(#${gidC1})" stroke="${hexRgba(darken(bevel, 0.5), 0.7)}" stroke-width="1.4"/>
-        <text x="${ccx.toFixed(1)}" y="${(ribY + ribH / 2 + 0.5).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(17 * k).toFixed(1)}" font-weight="900" letter-spacing="0.14em" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central" style="paint-order: stroke; stroke: rgba(8,12,22,0.5); stroke-width: 2.4px; stroke-linejoin: round">${esc(opts.label ?? "[NOVA]")}</text></g>`;
+        <g data-part="icon" data-icon="ribbon" data-icon-nick="Tag ribbon"><defs><linearGradient id="${gidC1}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(bevel, 0.3)}"/><stop offset="1" stop-color="${darken(bevel, 0.18)}"/></linearGradient></defs>
+        <path d="M ${(ccx - ribW / 2).toFixed(1)} ${ribY.toFixed(1)} l ${(-14 * k).toFixed(1)} ${(ribH / 2).toFixed(1)} l ${(14 * k).toFixed(1)} ${(ribH / 2).toFixed(1)} h ${ribW.toFixed(1)} l ${(14 * k).toFixed(1)} ${(-ribH / 2).toFixed(1)} l ${(-14 * k).toFixed(1)} ${(-ribH / 2).toFixed(1)} Z" fill="url(#${gidC1})" stroke="${hexRgba(darken(bevel, 0.5), 0.7)}" stroke-width="1.4"/></g>
+        <text x="${ccx.toFixed(1)}" y="${(ribY + ribH / 2 + 0.5).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(17 * k).toFixed(1)}" font-weight="900" letter-spacing="0.14em" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central" style="paint-order: stroke; stroke: rgba(8,12,22,0.5); stroke-width: 2.4px; stroke-linejoin: round" data-seat-rider="ribbon">${esc(opts.label ?? "[NOVA]")}</text></g>`;
       return inject(shell.replace("<svg ", '<svg data-clancrest="1" '), emb + ribbon);
     }
     case "seasontrack": {

@@ -264,7 +264,12 @@ interface AssetMeta {
     /** friendly child name (data-icon-nick) — a seat that IS a named
      *  thing in the dev's world ("Selected ring", "Badge plate") wears
      *  that name in the Hierarchy instead of the generic "Icon <name>". */
-    nick?: string }[];
+    nick?: string;
+    /** TINTABLE ink (data-icon-tint — the score bug's team bars): the
+     *  sprite is cut WHITE and the importer sets the child's Image.color
+     *  to this hex, so a dev retint is one clean color edit and the
+     *  app's color slots land exactly. */
+    tint?: string }[];
 }
 
 export interface EngineExportState {
@@ -493,12 +498,12 @@ export interface ExportBoardData {
    ancestors, filters and clips kept, so the sprite is the app's exact
    pixels) and strip the groups from the shipping bake. ── */
 const ICON_DRAWABLE_SEL = "path,rect,circle,ellipse,line,polyline,polygon,text,image,use";
-function markedIconOnlySvgs(svgIn: string): { name: string; btn: boolean; well: number[] | null; nick: string | null; svg: string }[] {
+function markedIconOnlySvgs(svgIn: string): { name: string; btn: boolean; well: number[] | null; nick: string | null; tint: string | null; svg: string }[] {
   try {
     const dom0 = new DOMParser().parseFromString(svgIn, "image/svg+xml");
     const gs0 = Array.from(dom0.querySelectorAll('[data-part="icon"]'));
     if (!gs0.length) return [];
-    const out: { name: string; btn: boolean; well: number[] | null; nick: string | null; svg: string }[] = [];
+    const out: { name: string; btn: boolean; well: number[] | null; nick: string | null; tint: string | null; svg: string }[] = [];
     for (let gi = 0; gi < gs0.length; gi++) {
       const dom = new DOMParser().parseFromString(svgIn, "image/svg+xml");
       const gs = Array.from(dom.querySelectorAll('[data-part="icon"]'));
@@ -507,11 +512,26 @@ function markedIconOnlySvgs(svgIn: string): { name: string; btn: boolean; well: 
       for (const g of gs) if (g !== keep && !g.contains(keep) && !keep.contains(g)) g.remove();
       for (const el of Array.from(dom.querySelectorAll(ICON_DRAWABLE_SEL)))
         if (!el.closest("defs") && !keep.contains(el)) el.remove();
+      /* TINTABLE ink (round 41 — the score bug's team bars): a marked
+         group carrying data-icon-tint cuts its sprite WHITE and records
+         the color; the importer sets the child's Image.color to it, so
+         white × tint reproduces the app exactly and a dev retint is one
+         clean color edit. Only ink drawn IN the tint color whitens —
+         outlines and shading in other colors stay the art's. */
+      const tint = gs0[gi].getAttribute("data-icon-tint") || null;
+      if (tint) {
+        const norm = (c: string | null) => (c ?? "").trim().toUpperCase();
+        for (const el of Array.from(keep.querySelectorAll(ICON_DRAWABLE_SEL))) {
+          if (norm(el.getAttribute("fill")) === norm(tint)) el.setAttribute("fill", "#FFFFFF");
+          if (norm(el.getAttribute("stroke")) === norm(tint)) el.setAttribute("stroke", "#FFFFFF");
+        }
+      }
       out.push({
         name: gs0[gi].getAttribute("data-icon") ?? (gs0.length > 1 ? `icon${gi + 1}` : "glyph"),
         btn: gs0[gi].getAttribute("data-icon-btn") === "1",
         well: gs0[gi].getAttribute("data-icon-well")?.split(" ").map(Number) ?? null,
         nick: gs0[gi].getAttribute("data-icon-nick") || null,
+        tint,
         svg: new XMLSerializer().serializeToString(dom.documentElement),
       });
     }
@@ -611,6 +631,10 @@ const PREFAB_FAMILY: Partial<Record<KitComponentId, string>> = {
   heartmeter: "heartmeter", energymeter: "energymeter", starrating: "starrating",
   pathconnector: "pathconnector", combo: "combo", booster: "booster",
   flipclock: "flipclock", stopwatch: "stopwatch",
+  // the Strategy & social slice (S5)
+  scorebug: "scorebug", friendrow: "friendrow", clancrest: "clancrest",
+  chatbubble: "chatbubble", emotewheel: "emotewheel", buildqueue: "buildqueue",
+  unitplate: "unitplate", techcard: "techcard", popmeter: "popmeter",
 };
 // the glyph rack: pure-art silhouettes, one Image prefab each — placeable,
 // tintable, never fake buttons (the mandate's non-interactive lane)
@@ -650,7 +674,13 @@ const UNIVERSAL_DISPLAY = new Set<KitComponentId>(["qtybadge", "resource", "curr
      pip/badge children (c98eade's Unity half), the saga path and stars
      join the shelf, both timer voices ship, and the combo celebrates
      with its own runtime (ComboPop + ClaimBurst — the app's exact pop). */
-  "heartmeter", "energymeter", "starrating", "pathconnector", "combo", "flipclock", "stopwatch"]);
+  "heartmeter", "energymeter", "starrating", "pathconnector", "combo", "flipclock", "stopwatch",
+  /* Strategy & social slice: the command layer and the people layer —
+     the Match Score ships its ba34520 app half whole (Home/Away names
+     as live seats, team color bars as live TINTABLE children, value
+     slider untouched), and every social piece carries live portraits,
+     plates and glyphs. */
+  "scorebug", "friendrow", "clancrest", "chatbubble", "emotewheel", "buildqueue", "unitplate", "techcard", "popmeter"]);
 const UNIVERSAL_ROAD = new Set<KitComponentId>([...UNIVERSAL_INTERACTIVE, ...UNIVERSAL_DISPLAY]);
 /* the ACTION GLYPHS (round 40 — the owner's Gameplay pause button sat
    dead in Play): pause/play/replay/home are buttons by their own meaning
@@ -3204,6 +3234,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         ...(mk.btn ? { btn: true } : {}),
         ...(mk.well ? { wellR: r1(mk.well[2]) } : {}),
         ...(mk.nick ? { nick: mk.nick } : {}),
+        ...(mk.tint ? { tint: mk.tint } : {}),
       });
     }
     return seats.length ? seats : null;
@@ -4129,6 +4160,15 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         booster: "Booster button — a REAL button (Sprite Swap states); the booster glyph is a LIVE Image child and the count badge a live plate child with its count RIDING it (the ×0 FREE ribbon ships the same way).",
         flipclock: "Flip countdown — the tile digits and caption are LIVE seats; drive them from your own clock. Display piece.",
         stopwatch: "Stopwatch — the readout is a LIVE seat; drive it from your own clock. Display piece.",
+        scorebug: "Match score bug — Home and Away names, both scores and the clock are LIVE seats (the app's Home/Away word slots land verbatim); each team's color bar is a LIVE TINTABLE child (its sprite ships white, the slot color rides Image.color — retint a side in one edit). Display piece; the value slider stays the match clock, exactly as in the app.",
+        friendrow: "Friend row — drop YOUR sprite on the Portrait child (the well clips it round); name, status and time are LIVE seats, and the JOIN capsule is a REAL small-button child with its word riding it. Display piece.",
+        clancrest: "Clan crest — the emblem is a LIVE Image child and the tag ribbon a live plate whose tag RIDES it. Display piece.",
+        chatbubble: "Chat bubble — sender, timestamp and every message line are LIVE seats on the speech silhouette. Display piece.",
+        emotewheel: "Emote wheel — every sector's emote AND the hub's pick are LIVE Image children (the app's emote slots land verbatim); the wheel pose bakes at the staged selection. Display piece.",
+        buildqueue: "Build queue — the unit glyph is a LIVE Image child (editable down to the icon, as asked); name and queue line are LIVE seats; progress bakes at the staged value. Display piece.",
+        unitplate: "Unit plate — drop YOUR sprite on the Portrait child; the name and stat numbers are LIVE seats and the attack/defense glyphs LIVE Image children. Display piece.",
+        techcard: "Tech card (researchable) — the tech glyph is a LIVE Image child (editable down to the icon); the name and cost are LIVE seats. Researched/locked poses ride per-copy posed skins. Display piece.",
+        popmeter: "Population meter — the population glyph is a LIVE Image child and the count a LIVE seat; the supply bar bakes at the staged share. Display piece.",
         bottomnav: "Bottom nav bar — one placeable piece; the item words are LIVE seats and every tab glyph a LIVE Image child (swap any sprite in the Inspector). The Selected ring child IS the selection: move it a cell over (one cell pitch) or disable it. The Badge plate child carries its live count with it — move, restyle or delete the pair as one. Wire your own per-item buttons over it (the bar itself is not one button).",
       };
       const universalIds: KitComponentId[] = [
@@ -9562,7 +9602,7 @@ namespace PatternBreak {
      per swappable icon/image the app drew — its own full-color sprite,
      box center vs the shell center (design px, y down), box size. btn =
      a REAL small-button plate; wellR > 0 = circular-masked image well. */
-  [Serializable] class PBIconChild { public string name; public string file; public float dx; public float dy; public float w; public float h; public bool btn; public float wellR; public bool pinRight; public float rightGap; public string nick;
+  [Serializable] class PBIconChild { public string name; public string file; public float dx; public float dy; public float w; public float h; public bool btn; public float wellR; public bool pinRight; public float rightGap; public string nick; public string tint;
     /* posed board copies only (round 40): a rider word stripped from the
        posed pixels with its plate — rebuilt as live TMP ON the live child
        (wordDx/wordDy = word center from the CHILD center, board px). */
@@ -11179,6 +11219,7 @@ namespace PatternBreak {
           ("RPG & MMO", new[] { "Questpanel", "Dialoguebox", "Choicelist", "Manarails", "Xpbar", "Invgrid", "Partyframe", "Skillnode", "Dmgnumber", "Equipslot" }),
           ("SHOOTER & ACTION", new[] { "Crosshair", "Hitmarker", "Dmgarc", "Weaponwheel", "Equipselector", "Magazine", "Ammo", "Streakmeter", "Killfeed", "Waypoint", "Capturemeter", "Respawn", "Buffframe", "Hotbar", "Lives" }),
           ("CASUAL & SAGA", new[] { "Heartmeter", "Energymeter", "Starrating", "Pathconnector", "Combo", "Booster", "Flipclock", "Stopwatch" }),
+          ("STRATEGY & SOCIAL", new[] { "Scorebug", "Friendrow", "Chatbubble", "Emotewheel", "Clancrest", "Unitplate", "Buildqueue", "Techcard", "Popmeter" }),
         };
         var byName = new Dictionary<string, GameObject>();
         foreach (var p in prefabs) if (!byName.ContainsKey(p.name)) byName[p.name] = p;
@@ -14868,6 +14909,11 @@ namespace PatternBreak {
           ii.raycastTarget = ic.btn;
           ii.preserveAspect = false; // the seat IS the sprite's own box — 1:1 by construction
           if (ic.btn) { var bb = cgo.AddComponent<Button>(); bb.targetGraphic = ii; }
+          /* TINTABLE ink (the score bug's team bars): the sprite was cut
+             WHITE and the app's color rides Image.color — retinting a
+             side is one Inspector color edit, exactly the app's slot */
+          Color tintC;
+          if (!string.IsNullOrEmpty(ic.tint) && ColorUtility.TryParseHtmlString(ic.tint, out tintC)) ii.color = tintC;
         }
         cgo.transform.SetParent(go.transform, false);
         /* converged children join a tree that may already carry Words —
