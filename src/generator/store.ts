@@ -2,7 +2,7 @@ import { create } from "zustand";
 import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, GridStyle, CandyTokens, Shape, KitDesign, KitSlice } from "./model";
 import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, rollStatement, classicRack, presetById, PRESETS, PATTERN_TYPES, GAME_FONTS, customFontNames, ctaForFont, darken, hexMix, registerCustomFont, pickDesign, designDiff, deepMergeDesign, KIT_COMPONENTS, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, clampWeight, fontByName, sanitizeUnitySlug, baseOf, mintCloneId, CLONE_INELIGIBLE, isGlyphPiece, resolveKitIcon } from "./model";
 import type { KitClone } from "./model";
-import { ensureFont } from "./fonts";
+import { ensureFont, fontReady, awaitFonts } from "./fonts";
 import { delBgOriginal, getBgOriginal, putBgOriginal } from "./bgvault";
 import { isAssetRef, resolveBgAsset, assetCloudBacked, bgAssetDisplayUrl } from "./assets";
 import { SILHOUETTES } from "./silhouettes";
@@ -78,8 +78,16 @@ const LS_KEY_V8 = "ui-generator-v8";
 const TOUCHED_KEY = "ui-generator-touched";
 let persistAsked = false;
 let fileFlashTimer: number | undefined;
+/* round 45 · B1: has the desk been tweaked since the last look apply or
+   save? Armed by markTouched, settled by the look-switch door and every
+   save/open path — drives the "changing looks loses tweaks" sheet. */
+let tweakedSinceLook = false;
 export function markTouched() {
   try { localStorage.setItem(TOUCHED_KEY, "1"); } catch { /* ignore */ }
+  /* round 45 · B1: any real edit arms the look-switch guard — the next
+     look click asks before replacing the tweaks. Look applies and saves
+     re-settle the desk right after this fires. */
+  tweakedSinceLook = true;
   /* the TopBar file chip's honest "unsaved changes": any real edit makes
      the open project dirty until the next save/update writes the doc.
      Guarded — a call while the store module is still booting must no-op. */
@@ -611,6 +619,14 @@ interface GenStore {
   /** Apply ANY full look document — a Spotlight promo's frozen snapshot —
    *  exactly like a preset: component restyled, stage and rarity kept. */
   applyLookDoc: (doc: unknown, name?: string) => void;
+  /** Round 45 · B1 — the look-switch door's UI state. lookBusy names the
+   *  look whose faces are still arriving (the brief "loading the look"
+   *  moment); pendingLook parks a switch behind the are-you-sure sheet
+   *  when unsaved tweaks would be replaced. */
+  lookBusy: string | null;
+  pendingLook: { name: string | null; run: () => void } | null;
+  confirmPendingLook: () => void;
+  cancelPendingLook: () => void;
   kitSlotVals: Partial<Record<KitComponentId, Record<string, string>>>;
   setKitSlot: (id: KitComponentId, slotId: string, val: string | null) => void;
   /* per-piece Unity 9-slice override, design px — null/absent = the export
@@ -1530,23 +1546,84 @@ export function splitWorkspace(raw: unknown): { cfg: Record<string, unknown>; ws
 }
 /** Land a look's kit layer: the whole per-piece layer is replaced, so the
  *  look arrives as it was designed rather than blended with what was here.
- *  A look saved before packs carried a kit layer (ws null) leaves the
- *  user's own per-piece work alone. One Cmd+Z puts everything back —
- *  undo snapshots the whole document. */
+ *  Round 45 · B1: a look that carries NO kit layer at all (saved before
+ *  packs traveled with one) now means "no kit layer" and resets the maps
+ *  too — the old leave-it-alone rule let the previous look's words, icon
+ *  swaps and text nudges ride into every look applied after it (owner:
+ *  clicking a look "pushes the text from the other styles over, too").
+ *  One Cmd+Z puts everything back — undo snapshots the whole document. */
 function applyWorkspace(ws: Record<string, unknown> | null): void {
-  if (!ws) return;
   const patch: Record<string, unknown> = {};
   for (const k of WS_MAPS) {
-    const v = ws[k];
+    const v = ws?.[k];
     patch[k] = v && typeof v === "object" ? v : {};
     const sk = KIT_STORE_KEY[k];
     if (sk) saveJson(sk, patch[k]);
   }
-  if (ws.kitRow && typeof ws.kitRow === "object") {
-    patch.kitRow = ws.kitRow;
-    saveJson(KIT_STORE_KEY.kitRow, ws.kitRow);
-  }
+  // the data row's content model rides the look too — absent means factory
+  patch.kitRow = ws?.kitRow && typeof ws.kitRow === "object" ? { ...defaultRow(), ...ws.kitRow } : defaultRow();
+  saveJson(KIT_STORE_KEY.kitRow, patch.kitRow);
   useGen.setState(patch as Partial<GenStore>);
+}
+
+/* ── round 45 · B1 — the ONE look-switch door ───────────────────────────
+   Every whole-look apply (your kits, pack drops, Spotlight docs, starters)
+   walks through here, which gives the switch three properties the owner
+   asked for by name:
+   · ATOMIC — master config and the whole kit layer land together, and
+     nothing of the previous look survives (the commit callbacks pair
+     replaceConfig with applyWorkspace/presetKitPatch);
+   · FONTS FIRST — the look's faces are ensured and awaited (bounded)
+     before the commit, so the kit never paints a new look in the old
+     fallback letterforms; lookBusy drives the brief loading moment;
+   · GUARDED — tweaks made since the last look/save (tweakedSinceLook,
+     declared beside markTouched) park the switch behind a small
+     are-you-sure sheet instead of silently replacing them. */
+/** A save (or a fresh document) settles the desk — the next look switch
+ *  applies without asking. */
+function lookDeskSettled() { tweakedSinceLook = false; }
+
+/** Every family a look document will render with — master + list face,
+ *  state forks, and the kit layer's per-piece forks. Registers the doc's
+ *  custom families first so fontByName can resolve them. */
+function lookFontFamilies(cfg: Record<string, unknown> | null, ws: Record<string, unknown> | null): string[] {
+  const fams = new Set<string>();
+  const addType = (t: unknown) => {
+    const ty = t as { font?: unknown; listFont?: unknown; customFonts?: unknown } | null | undefined;
+    if (Array.isArray(ty?.customFonts)) for (const c of ty.customFonts) { if (typeof c === "string") registerCustomFont(c); }
+    if (typeof ty?.font === "string") fams.add(ty.font);
+    if (typeof ty?.listFont === "string") fams.add(ty.listFont);
+  };
+  const addDesign = (d: unknown) => {
+    const dd = d as { type?: unknown; stateDesigns?: Record<string, { type?: unknown } | null> } | null | undefined;
+    if (!dd) return;
+    addType(dd.type);
+    for (const sd of Object.values(dd.stateDesigns ?? {})) addType(sd?.type);
+  };
+  addDesign(cfg);
+  for (const kd of Object.values((ws?.kitDesigns ?? {}) as Record<string, unknown>)) addDesign(kd);
+  return [...fams];
+}
+
+/** Await the look's faces (bounded), then commit — synchronously, whole. */
+async function landLook(name: string | null, families: string[], commit: () => void): Promise<void> {
+  const mustWait = families.some((f) => !fontReady(f));
+  if (mustWait) {
+    useGen.setState({ lookBusy: name ?? "the look" });
+    try { await awaitFonts(families); } catch { /* fallback stands — land anyway */ }
+  }
+  try { commit(); } finally {
+    tweakedSinceLook = false;
+    if (mustWait) useGen.setState({ lookBusy: null });
+  }
+}
+
+/** The guard: unsaved tweaks park the switch behind the sheet; otherwise
+ *  (and on confirm) it lands through landLook. */
+function requestLook(name: string | null, families: string[], commit: () => void): void {
+  const run = () => { void landLook(name, families, commit); };
+  if (tweakedSinceLook) { useGen.setState({ pendingLook: { name, run } }); return; }
+  run();
 }
 
 type HistSnap = Pick<GenStore, "cfg" | "kitClones" | "kitDesigns" | "kitShapes" | "kitIcons" | "kitLabels" | "kitNoText" | "kitSubs" | "kitTextFill" | "kitTextOy" | "kitTextOx" | "kitBar" | "kitSlotVals" | "kitVals" | "kitSizes" | "kitRow" | "kitSlices">;
@@ -1588,10 +1665,14 @@ function persistSnap(s: HistSnap) {
 function presetKitPatch(id: string, cfg: GenConfig): Partial<GenStore> {
   const kit = PRESET_KITS[id] ?? {};
   const patch: Record<string, unknown> = {};
-  for (const k of [...WS_MAPS, "kitRow"]) {
+  for (const k of WS_MAPS) {
     const v = kit[k];
     patch[k] = v && typeof v === "object" ? JSON.parse(JSON.stringify(v)) : {};
   }
+  // the data row's content model resets to factory (not a bare {}, which
+  // starved every kitRow reader of its fields) unless the starter ships one
+  patch.kitRow = kit.kitRow && typeof kit.kitRow === "object"
+    ? { ...defaultRow(), ...JSON.parse(JSON.stringify(kit.kitRow)) } : defaultRow();
   /* the same door a project open uses: a shipped fork is as old as the build
      that authored it, and an unmigrated one renders half-updated once the
      token set moves on (owner, on a shared preset: "fonts, certain states"
@@ -2221,6 +2302,7 @@ export const useGen = create<GenStore>((set, get) => ({
   loadKitPayload: (p, opts) => {
     const st = get();
     const viewer = opts?.viewer ?? true;
+    lookDeskSettled(); // a fresh document IS the saved state — look browsing won't ask
     set({ activeCloudPreset: null }); // a loaded kit isn't a shared preset — no Overwrite target
     const cfg = healStateIconPins((p.cfg as GenConfig) ?? st.cfg);
     /* the travelling stage: strict base64 image data URLs only — this string
@@ -2313,7 +2395,10 @@ export const useGen = create<GenStore>((set, get) => ({
   openProjectId: null,
   projectSavedAt: null,
   projectDirty: false,
-  setOpenProject: (id, savedAt) => set({ openProjectId: id, projectDirty: false, projectSavedAt: id ? (savedAt ?? Date.now()) : null }),
+  setOpenProject: (id, savedAt) => {
+    lookDeskSettled(); // a project save/open settles the desk — look browsing won't ask
+    set({ openProjectId: id, projectDirty: false, projectSavedAt: id ? (savedAt ?? Date.now()) : null });
+  },
   closeDesk: () => {
     const st = get();
     const d = getDefault();
@@ -2637,18 +2722,22 @@ export const useGen = create<GenStore>((set, get) => ({
       : [{ id: "up" + Date.now().toString(36), name, cfg: stored, thumb }, ...get().userPresets];
     saveJson("ui-generator-userpresets", userPresets);
     set({ userPresets });
+    lookDeskSettled(); // the tweaks are saved — look browsing won't ask
   },
   applyUserPreset: (id) => {
     const u = get().userPresets.find((x) => x.id === id);
     if (!u) return;
     const { cfg: raw, ws } = splitWorkspace(u.cfg);
-    const next = raw as unknown as GenConfig;
-    next.canvas = get().cfg.canvas; // presets restyle the component, never the stage
-    next.rarity = get().cfg.rarity; // the rarity system is the game's, not the preset's
-    get().replaceConfig(next);
-    applyWorkspace(ws);             // …and every per-piece change it was saved with
-    get().setKitName(u.name);
-    set({ activeCloudPreset: null });
+    // through the look-switch door: guard, fonts first, then land whole
+    requestLook(u.name, lookFontFamilies(raw, ws), () => {
+      const next = raw as unknown as GenConfig;
+      next.canvas = get().cfg.canvas; // presets restyle the component, never the stage
+      next.rarity = get().cfg.rarity; // the rarity system is the game's, not the preset's
+      get().replaceConfig(next);
+      applyWorkspace(ws);             // …and the whole kit layer, atomically
+      get().setKitName(u.name);
+      set({ activeCloudPreset: null });
+    });
   },
   removeUserPreset: (id) => {
     const userPresets = get().userPresets.filter((x) => x.id !== id);
@@ -2701,25 +2790,40 @@ export const useGen = create<GenStore>((set, get) => ({
     const p = get().cloudPresets.find((x) => x.id === id);
     if (!p) return;
     const { cfg: raw, ws } = splitWorkspace(p.cfg);
-    const next = raw as unknown as GenConfig;
-    next.canvas = get().cfg.canvas; // shared presets restyle the component, never the stage
-    next.rarity = get().cfg.rarity; // the rarity system is the game's, not the preset's
-    get().replaceConfig(next);
-    applyWorkspace(ws);             // …and every per-piece change it shipped with
-    get().setKitName(p.name);
-    set({ activeCloudPreset: { id: p.id, name: p.name } });
+    // through the look-switch door: guard, fonts first, then land whole
+    requestLook(p.name, lookFontFamilies(raw, ws), () => {
+      const next = raw as unknown as GenConfig;
+      next.canvas = get().cfg.canvas; // shared presets restyle the component, never the stage
+      next.rarity = get().cfg.rarity; // the rarity system is the game's, not the preset's
+      get().replaceConfig(next);
+      applyWorkspace(ws);             // …and the whole kit layer, atomically
+      get().setKitName(p.name);
+      set({ activeCloudPreset: { id: p.id, name: p.name } });
+    });
   },
   applyLookDoc: (doc, name) => {
     if (!doc || typeof doc !== "object") return;
     const { cfg: raw, ws } = splitWorkspace(structuredClone(doc) as Record<string, unknown>);
-    const next = raw as unknown as GenConfig;
-    next.canvas = get().cfg.canvas; // looks restyle the component, never the stage
-    next.rarity = get().cfg.rarity; // the rarity system is the game's, not the look's
-    get().replaceConfig(next);
-    applyWorkspace(ws);
-    if (name) get().setKitName(name);
-    set({ activeCloudPreset: null });
+    // through the look-switch door: guard, fonts first, then land whole
+    requestLook(name ?? null, lookFontFamilies(raw, ws), () => {
+      const next = raw as unknown as GenConfig;
+      next.canvas = get().cfg.canvas; // looks restyle the component, never the stage
+      next.rarity = get().cfg.rarity; // the rarity system is the game's, not the look's
+      get().replaceConfig(next);
+      applyWorkspace(ws);
+      if (name) get().setKitName(name);
+      set({ activeCloudPreset: null });
+    });
   },
+  lookBusy: null,
+  pendingLook: null,
+  confirmPendingLook: () => {
+    const p = get().pendingLook;
+    if (!p) return;
+    set({ pendingLook: null });
+    p.run();
+  },
+  cancelPendingLook: () => set({ pendingLook: null }),
   publishPreset: async (name, publishAt = null) => {
     const { cfg, thumb } = presetSnapshot(get().cfg);
     // a pack ships the WHOLE kit: master look + every per-piece change
@@ -2728,6 +2832,7 @@ export const useGen = create<GenStore>((set, get) => ({
     if (error) return error;
     // the fresh publish becomes the Overwrite target — tweak-and-save flows on
     if (preset) set({ activeCloudPreset: { id: preset.id, name: preset.name } });
+    lookDeskSettled(); // published — look browsing won't ask
     await get().loadCloudPresets();
     return null;
   },
@@ -2752,6 +2857,7 @@ export const useGen = create<GenStore>((set, get) => ({
     const payload = { ...cfg, [WORKSPACE_KEY]: workspaceOf(get() as unknown as Record<string, unknown>) };
     const err = await updateCloudPreset(target.id, payload, thumb);
     if (err) return err;
+    lookDeskSettled(); // overwritten — look browsing won't ask
     await get().loadCloudPresets();
     return null;
   },
@@ -3219,43 +3325,52 @@ export const useGen = create<GenStore>((set, get) => ({
     set({ panelW: v });
   },
   setPreset: (id) => {
-    set({ activeCloudPreset: null }); // a starter takes over — Overwrite retargets on next apply
-    /* a preset apply REBRANDS the kit — user and cloud presets already
-       setKitName to their own name; starters were the one kind that left
-       the old name behind (owner field report: a restyled kit kept
-       exporting as the previous kit). Clearing the name hands the title
-       and the export identity to the starter ("The Toxic Kit" →
-       the-toxic-kit) until the maker names it. */
-    get().setKitName(null);
-    // Bubble Pop ships as a fully authored look (Chevon's bubblepopdefault) —
-    // picking it loads that complete design rather than re-mixing tokens
-    if (PRESET_DEFAULTS[id]) {
-      const next = hydrate(structuredClone(PRESET_DEFAULTS[id]));
+    /* Round 45 · B1: a starter is a LOOK — it lands whole through the same
+       door as every pack and saved kit. The old path mutated the current
+       config in place (shape, colors, candy, font family) and left the
+       rest standing, so the previous look's type size, slant, nudges and
+       state adjustments rode into every starter clicked after it (owner:
+       clicking a look "pushes the text from the other styles over, too";
+       "clicking a look changes EVERYTHING"). Now:
+       · authored starters (PRESET_DEFAULTS) load their complete design;
+       · recipe starters land as the blessed universal default DRESSED in
+         the starter's recipe — deterministic, whatever came before. */
+    const p = presetById(id);
+    const next = PRESET_DEFAULTS[id]
+      // Bubble Pop ships as a fully authored look (Chevon's bubblepopdefault)
+      ? hydrate(structuredClone(PRESET_DEFAULTS[id]))
+      : (() => {
+        const c = getDefault();
+        c.presetId = id;
+        c.shape = p.shape; c.bevel = { ...p.bevel }; c.effects = { ...p.effects };
+        // the starter's typography voice comes with it — a preset switch that
+        // keeps the old face reads as "the fonts don't update"
+        if (p.font) { c.type.font = p.font; c.type.weight = clampWeight(fontByName(p.font).caps, p.fontWeight ?? c.type.weight); }
+        const candy = defaultCandy();
+        applyPresetCandy(candy, p);
+        c.candy = candy;
+        /* a preset is a COMPLETE style recipe — the base document's own
+           per-state forks must not survive under it, or hover/pressed
+           flash the old design (adversarial review find, 2026-07-25).
+           States mirror the new master live; re-forking is one edit away. */
+        c.stateDesigns = {};
+        retintText(c);
+        return c;
+      })();
+    requestLook(p.name, lookFontFamilies(next as unknown as Record<string, unknown>, (PRESET_KITS[id] as Record<string, unknown>) ?? null), () => {
+      set({ activeCloudPreset: null }); // a starter takes over — Overwrite retargets on next apply
+      /* a preset apply REBRANDS the kit — user and cloud presets already
+         setKitName to their own name; starters were the one kind that left
+         the old name behind (owner field report: a restyled kit kept
+         exporting as the previous kit). Clearing the name hands the title
+         and the export identity to the starter ("The Toxic Kit" →
+         the-toxic-kit) until the maker names it. */
+      get().setKitName(null);
       next.canvas = get().cfg.canvas; // presets restyle the component, never the stage
       next.rarity = get().cfg.rarity; // the rarity system is the game's, not the preset's
       get().replaceConfig(next); // pushes the undo snapshot — maps included
-      set(presetKitPatch(id, get().cfg));
-      return;
-    }
-    const p = presetById(id);
-    get().update((c) => {
-      c.presetId = id; c.shape = p.shape; c.bevel = { ...p.bevel }; c.effects = { ...p.effects };
-      // the starter's typography voice comes with it — a preset switch that
-      // keeps the old face reads as "the fonts don't update"
-      if (p.font) { c.type.font = p.font; c.type.weight = clampWeight(fontByName(p.font).caps, p.fontWeight ?? c.type.weight); }
-      const candy = defaultCandy();
-      applyPresetCandy(candy, p);
-      c.candy = candy;
-      /* a preset is a COMPLETE style recipe — stale per-state forks from
-         the previous look must not survive it, or hover/pressed flash the
-         old design (adversarial review find, 2026-07-25: seven starters
-         flipped to hard-candy blue on hover over site-default's forks).
-         States mirror the new master live again; re-forking is one edit
-         away, and undo restores the old forks whole. */
-      c.stateDesigns = {};
-      retintText(c);
+      set(presetKitPatch(id, get().cfg)); // the starter's kit layer (or empty), atomically
     });
-    set(presetKitPatch(id, get().cfg)); // after update(), so its snapshot still holds the old maps
   },
   randomize: () => {
     // one statement per roll — shared with randomizeConfig so the app
@@ -3419,6 +3534,12 @@ fetchSiteDefault();
    history or persistence. */
 if (typeof document !== "undefined" && document.fonts?.addEventListener) {
   document.fonts.addEventListener("loadingdone", () => {
-    useGen.setState((st) => ({ cfg: { ...st.cfg } }));
+    /* kitDesigns refreshes identity too (round 45 · B1): a piece whose
+       pinned fork names its own face memoizes on the fork's identity, so
+       refreshing cfg alone left it measured in fallback until the next
+       real edit — half the kit re-measured, half didn't ("the fonts
+       behave SUPER WEIRDLY"). Same contract as cfg: identity only, no
+       persistence, no history. */
+    useGen.setState((st) => ({ cfg: { ...st.cfg }, kitDesigns: { ...st.kitDesigns } }));
   });
 }
