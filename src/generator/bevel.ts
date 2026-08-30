@@ -8121,7 +8121,9 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const shellM = /data-shell0="([-\d. ]+)"/.exec(shell);
       if (!shellM) return shell;
       const [sx, sy, sw, sh] = shellM[1].split(" ").map(Number);
-      const ad = String(opts.slots?.mode ?? "Claim all") !== "Claim all";
+      // a board copy can pose as the ad variant via ov ("2x") — same road
+      // as rewardcard's "mystery" overlay — without touching the kit slot
+      const ad = String(opts.slots?.mode ?? "Claim all") !== "Claim all" || opts.overlay === "2x";
       const cyB = sy + sh / 2;
       const dimB = state === "disabled";
       let innerB = "";

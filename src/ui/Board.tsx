@@ -159,7 +159,11 @@ type Tpl = {
   /** template is composed for a specific stage — applying it retunes the
    *  active board's aspect first (the Match-3 mobile grid) */
   aspect?: "169" | "mobile";
-  items: { kitId?: KitComponentId; big?: BigGlyphFx; x: number; y: number; scale?: number }[];
+  /** ov / v / label / rot ride the same instance fields the Inspector
+   *  edits — a starter can pose a mystery card (`ov`), a legendary tier
+   *  (`v`), its own words (`label`) or a turned trail bead (`rot`)
+   *  without touching the kit-wide settings */
+  items: { kitId?: KitComponentId; big?: BigGlyphFx; x: number; y: number; scale?: number; ov?: string; v?: number; label?: string; rot?: number }[];
 };
 /* The Match-3 board: 7×9 big-glyph tiles at 12% (~52px — the scale-floor
    round's whole point) on the 390×844 stage. The tiles are the set's six
@@ -180,152 +184,353 @@ for (let r = 0; r < 9; r++) for (let c = 0; c < 7; c++) {
   });
 }
 const BOARD_TEMPLATES: Record<string, Tpl> = {
-  "Main menu": { items: [
-    { kitId: "header", x: 560, y: 90, scale: 1.1 },
-    { kitId: "primary", x: 700, y: 390, scale: 1.1 },
-    { kitId: "badge", x: 1165, y: 370, scale: 0.9 },
-    { kitId: "secondary", x: 610, y: 585 },
-    { kitId: "ghost", x: 760, y: 780 },
-    { kitId: "resource", x: 70, y: 55 },
-    { kitId: "currency", x: 70, y: 160, scale: 0.9 },
-    { kitId: "iconbtn", x: 1680, y: 60, scale: 0.9 },
-    { kitId: "notifydot", x: 1640, y: 48, scale: 0.9 },
+  /* Grand title menu on the owner's Ember Isle scene: title over open sky,
+     the CTA ladder down the island, wallet strip left, news chrome right. */
+  "Main menu": { bg: "/backdrops/lib/ember-isle.webp", items: [
+    { kitId: "header", x: 474, y: 0, label: "EMBER ISLE" },
+    { kitId: "primary", x: 641, y: 341, scale: 1.2 },
+    { kitId: "secondary", x: 670, y: 592, scale: 0.85, label: "OPTIONS" },
+    { kitId: "ghost", x: 738, y: 760, scale: 0.8, label: "CREDITS" },
+    { kitId: "input", x: 656, y: 879, scale: 0.8 },
+    { kitId: "resource", x: 5, y: 6, scale: 0.9 },
+    { kitId: "currency", x: 5, y: 108, scale: 0.9, label: "8,420" },
+    { kitId: "notifydot", x: 1700, y: 5, scale: 0.9 },
+    { kitId: "badge", x: 1643, y: 2, scale: 0.7, label: "NEW" },
+    { kitId: "iconbtn", x: 1705, y: 172, scale: 0.9 },
+    // staged: glyphplay (icon child on the PLAY cta)
+    // staged: glyphreplay (icon child on the continue/options row)
+    // staged: glyphhome (icon child on the corner iconbtn)
   ] },
+  /* Squad FPS HUD — the big rescue sweep: crosshair dead-center with the
+     hitmarker riding it, damage arc ringing the screen center, feeds and
+     meters at the frame edges the genre way. */
   "FPS HUD": { bg: "/backdrops/fps-ruins.jpg", items: [
-    { kitId: "reticle", x: 870, y: 450 },
-    { kitId: "lives", x: 90, y: 55, scale: 0.85 },
-    { kitId: "capturemeter", x: 760, y: 50, scale: 0.9 },
-    { kitId: "minimap", x: 1540, y: 55, scale: 0.9 },
-    { kitId: "killfeed", x: 1330, y: 400, scale: 0.85 },
-    { kitId: "weaponwheel", x: 700, y: 560, scale: 0.7 },
-    { kitId: "progress", x: 70, y: 890 },
-    { kitId: "hotbar", x: 430, y: 905, scale: 0.85 },
-    { kitId: "ammo", x: 1500, y: 860 },
-    { kitId: "dmgnumber", x: 1060, y: 330, scale: 0.85 },
+    { kitId: "minimap", x: 60, y: 50, scale: 0.9 },
+    { kitId: "compass", x: 619, y: 28, scale: 0.8 },
+    { kitId: "capturemeter", x: 850, y: 190, scale: 0.85 },
+    { kitId: "killfeed", x: 1270, y: 58, scale: 0.75 },
+    { kitId: "streakmeter", x: 60, y: 430, scale: 0.85 },
+    { kitId: "equipselector", x: 1490, y: 380, scale: 0.85 },
+    { kitId: "waypoint", x: 520, y: 300, scale: 0.85 },
+    { kitId: "keycap", x: 660, y: 310, scale: 0.8 },
+    { kitId: "dmgarc", x: 802, y: 382 },
+    { kitId: "crosshair", x: 857, y: 437 },
+    { kitId: "hitmarker", x: 918, y: 418, scale: 0.9 },
+    { kitId: "dmgnumber", x: 1160, y: 350, scale: 0.85 },
+    { kitId: "dmgnumber", x: 1130, y: 240, scale: 0.6 },
+    { kitId: "respawn", x: 850, y: 640, scale: 0.9 },
+    { kitId: "lives", x: 70, y: 945, scale: 0.9 },
+    { kitId: "buffframe", x: 640, y: 800, scale: 0.6 },
+    { kitId: "buffframe", x: 760, y: 800, scale: 0.6 },
+    { kitId: "hotbar", x: 560, y: 900, scale: 0.85 },
+    { kitId: "magazine", x: 1530, y: 878, scale: 0.9 },
+    { kitId: "ammo", x: 1550, y: 905 },
+    // alt centerpiece: reticle (released) can swap in for the crosshair
+    // staged: glyphtarget — icon child on the waypoint marker
+    // staged: glyphshield — beside the buff row
+    // staged: glyphskull — killfeed row icon (id joins the KitComponentId
+    // union when the glyph set releases)
   ] },
-  "Arena HUD": { items: [
-    { kitId: "vsbar", x: 430, y: 40, scale: 0.9 },
-    { kitId: "scorebug", x: 820, y: 170, scale: 0.85 },
-    { kitId: "minimap", x: 1540, y: 130, scale: 0.9 },
-    { kitId: "streakmeter", x: 60, y: 300, scale: 0.85 },
-    { kitId: "joystick", x: 110, y: 600 },
-    { kitId: "hotbar", x: 510, y: 890, scale: 0.9 },
-    { kitId: "respawn", x: 780, y: 470, scale: 0.9 },
-    { kitId: "iconbtn", x: 1720, y: 620, scale: 0.85 },
+  /* Arena brawl HUD over the monster-pit melee: vs banner + score up top,
+     nameplates on the combatants, weapon wheel at the thumb line. */
+  "Arena HUD": { bg: "/backdrops/lib/monsterfire-melee.webp", items: [
+    { kitId: "vsbar", x: 430, y: 36, scale: 0.95 },
+    { kitId: "scorebug", x: 600, y: 145, scale: 0.85 },
+    { kitId: "chip", x: 1275, y: 155, scale: 0.8 },
+    { kitId: "killfeed", x: 1250, y: 250, scale: 0.85 },
+    { kitId: "streakmeter", x: 70, y: 230, scale: 0.85 },
+    { kitId: "buffframe", x: 70, y: 470, scale: 0.85 },
+    { kitId: "nameplate", x: 220, y: 375, scale: 0.75 },
+    { kitId: "nameplate", x: 1150, y: 420, scale: 0.75 },
+    { kitId: "respawn", x: 730, y: 400, scale: 0.9 },
+    { kitId: "minimap", x: 1540, y: 765, scale: 0.9 },
+    { kitId: "weaponwheel", x: 725, y: 600, scale: 0.62 },
   ] },
+  /* Skill tree & quests: a diamond skill web on the left two-thirds —
+     bead trails listed BEFORE nodes so node art paints over trail ends —
+     quest rail right, dialogue at the floor. */
   "RPG quest": { bg: "/backdrops/strategy-keep.jpg", items: [
-    { kitId: "nameplate", x: 60, y: 50, scale: 0.9 },
-    { kitId: "partyframe", x: 60, y: 210, scale: 0.85 },
-    { kitId: "waypoint", x: 880, y: 40, scale: 0.85 },
-    { kitId: "questpanel", x: 1290, y: 130, scale: 0.8 },
-    { kitId: "loottag", x: 620, y: 430, scale: 0.85 },
-    { kitId: "dialoguebox", x: 430, y: 700, scale: 0.9 },
-    { kitId: "xpbar", x: 560, y: 950, scale: 0.9 },
+    { kitId: "emblembar", x: 50, y: 40, scale: 0.8 },
+    { kitId: "pathconnector", x: 191, y: 287, scale: 0.5 },
+    { kitId: "pathconnector", x: 191, y: 452, scale: 0.5 },
+    { kitId: "pathconnector", x: 453, y: 207, scale: 0.5 },
+    { kitId: "pathconnector", x: 453, y: 532, scale: 0.5 },
+    { kitId: "pathconnector", x: 716, y: 290, scale: 0.5 },
+    { kitId: "pathconnector", x: 716, y: 450, scale: 0.5 },
+    { kitId: "pathconnector", x: 976, y: 370, scale: 0.5 },
+    { kitId: "skillnode", x: 62, y: 314, scale: 0.85 },
+    { kitId: "skillnode", x: 334, y: 160, scale: 0.75 },
+    { kitId: "skillnode", x: 334, y: 490, scale: 0.75 },
+    { kitId: "skillnode", x: 599, y: 165, scale: 0.75 },
+    { kitId: "skillnode", x: 599, y: 485, scale: 0.75 },
+    { kitId: "skillnode", x: 859, y: 325, scale: 0.75 },
+    { kitId: "skillnode", x: 1107, y: 314, scale: 0.85 },
+    { kitId: "questpanel", x: 1306, y: 144, scale: 0.8 },
+    { kitId: "choicelist", x: 1306, y: 574, scale: 0.8 },
+    { kitId: "dialoguebox", x: 466, y: 633, scale: 0.8 },
+    { kitId: "xpbar", x: 407, y: 872, scale: 1.1 },
+    // staged: glyphquests, glyphlock, glyphcheckmark (node states) — land
+    // with their set's release
   ] },
+  /* Social tavern: who's-online panel left, bounty board right, the
+     barkeep conversation at the hearth, ENTER TOWN on the scene's door. */
   "Tavern hub": { bg: "/backdrops/tavern.jpg", items: [
-    { kitId: "header", x: 560, y: 40 },
-    { kitId: "avatarframe", x: 60, y: 44, scale: 0.85 },
-    { kitId: "currency", x: 1550, y: 50, scale: 0.85 },
-    { kitId: "primary", x: 740, y: 500 },
-    { kitId: "friendrow", x: 1280, y: 290, scale: 0.85 },
-    { kitId: "friendrow", x: 1280, y: 420, scale: 0.85 },
-    { kitId: "clancrest", x: 1340, y: 560, scale: 0.8 },
-    { kitId: "chatbubble", x: 240, y: 560, scale: 0.85 },
-    { kitId: "dialoguebox", x: 430, y: 760, scale: 0.9 },
+    { kitId: "panel", x: 60, y: 170, scale: 0.75 },
+    { kitId: "friendrow", x: 130, y: 210, scale: 0.78, label: "NOVA_KNIGHT" },
+    { kitId: "friendrow", x: 130, y: 310, scale: 0.78, label: "KAIRO_77" },
+    { kitId: "friendrow", x: 130, y: 410, scale: 0.78, label: "EMBER_MAE" },
+    { kitId: "panel", x: 1170, y: 180, scale: 0.88 },
+    { kitId: "datarow", x: 1266, y: 209, scale: 0.68 },
+    { kitId: "datarow", x: 1266, y: 343, scale: 0.68 },
+    { kitId: "datarow", x: 1266, y: 477, scale: 0.68 },
+    { kitId: "chatbubble", x: 330, y: 600, scale: 0.75, label: "anyone up for the ember run?" },
+    { kitId: "avatarframe", x: 358, y: 830, scale: 0.85 },
+    { kitId: "dialoguebox", x: 555, y: 800, scale: 0.8, label: "Warm yourself — the pass can wait." },
+    { kitId: "secondary", x: 751, y: 636, scale: 0.62, label: "ENTER TOWN" },
+    { kitId: "iconbtn", x: 1586, y: 36, scale: 0.85 },
+    { kitId: "notifydot", x: 1734, y: 36, scale: 0.85 },
   ] },
-  "Card table": { bg: "/backdrops/valley.jpg", items: [
-    { kitId: "scorebug", x: 780, y: 40, scale: 0.85 },
-    { kitId: "chip", x: 90, y: 60, scale: 0.9 },
-    { kitId: "cardback", x: 540, y: 280, scale: 0.9 },
-    { kitId: "cardback", x: 810, y: 260, scale: 0.9 },
-    { kitId: "pack", x: 1180, y: 260, scale: 0.9 },
-    { kitId: "endturn", x: 1560, y: 830, scale: 0.9 },
-    { kitId: "avatarframe", x: 70, y: 820, scale: 0.85 },
+  /* Card duel table at the midnight club: opponent seat + fan up top, the
+     table itself stays open, player seat and deck at the near rail. */
+  "Card table": { bg: "/backdrops/lib/midnight-meeple-club.webp", items: [
+    { kitId: "vsbar", x: 445, y: 18, scale: 0.9 },
+    { kitId: "avatarframe", x: 48, y: 40, scale: 0.8 },
+    { kitId: "chip", x: 56, y: 245, scale: 0.85 },
+    { kitId: "cardback", x: 675, y: 150, scale: 0.42 },
+    { kitId: "cardback", x: 850, y: 134, scale: 0.42 },
+    { kitId: "cardback", x: 1025, y: 150, scale: 0.42 },
+    { kitId: "energymeter", x: 40, y: 420, scale: 0.85 },
+    { kitId: "combo", x: 590, y: 395, scale: 0.8 },
+    { kitId: "endturn", x: 1660, y: 430, scale: 0.9 },
+    { kitId: "pack", x: 1400, y: 650, scale: 0.5 },
+    { kitId: "cardback", x: 1630, y: 662, scale: 0.5 },
+    { kitId: "emotewheel", x: 245, y: 585, scale: 0.42 },
+    { kitId: "avatarframe", x: 48, y: 805, scale: 0.85 },
+    { kitId: "chip", x: 250, y: 905, scale: 0.85 },
+    // staged: glyphcrown — the winner's crown garnish, lands when the glyph rack releases
   ] },
+  /* Open-world street HUD: compass with the waypoint marking a building
+     down the block, quest tracker right, pickup + interact prompt mid. */
   "Open world": { bg: "/backdrops/city-streets.jpg", items: [
-    { kitId: "chip", x: 70, y: 50, scale: 0.9 },
-    { kitId: "waypoint", x: 850, y: 40, scale: 0.85 },
-    { kitId: "currency", x: 1550, y: 50, scale: 0.85 },
-    { kitId: "toast", x: 1200, y: 170, scale: 0.85 },
-    { kitId: "buffframe", x: 70, y: 560, scale: 0.85 },
+    { kitId: "heartmeter", x: 70, y: 50, scale: 0.9 },
+    { kitId: "compass", x: 640, y: 40, scale: 0.9 },
+    { kitId: "waypoint", x: 938, y: 210, scale: 0.85 },
+    { kitId: "currency", x: 1400, y: 50, scale: 0.85 },
+    { kitId: "iconbtn", x: 1710, y: 48, scale: 0.85 },
+    { kitId: "questpanel", x: 1330, y: 300, scale: 0.8 },
+    { kitId: "loottag", x: 560, y: 480, scale: 0.85 },
+    { kitId: "keycap", x: 703, y: 620, scale: 0.9 },
     { kitId: "minimap", x: 70, y: 730, scale: 0.95 },
-    { kitId: "compass", x: 620, y: 935, scale: 0.9 },
+    { kitId: "hotbar", x: 435, y: 900, scale: 0.9 },
   ] },
-  "Racing HUD": { items: [
-    { kitId: "circuit", x: 60, y: 80 },
-    { kitId: "leaderboard", x: 1460, y: 30, scale: 0.8 },
-    { kitId: "telemetry", x: 1450, y: 330, scale: 0.85 },
-    { kitId: "laptimes", x: 60, y: 620, scale: 0.9 },
-    { kitId: "tacho", x: 1290, y: 620, scale: 1.05 },
+  /* Racing start grid at the palmside pit: gantry centered, timing column
+     left, telemetry + the three-gauge dash cluster right. */
+  "Racing HUD": { bg: "/backdrops/lib/palmside-pitstop.webp", items: [
+    { kitId: "startlights", x: 723, y: 30 },
+    { kitId: "chip", x: 95, y: 10, scale: 0.6 },
+    { kitId: "laptimes", x: 60, y: 75, scale: 0.9 },
+    { kitId: "leaderboard", x: 60, y: 430, scale: 0.8 },
+    { kitId: "circuit", x: 60, y: 800, scale: 0.75 },
+    { kitId: "telemetry", x: 1435, y: 170, scale: 0.85 },
+    { kitId: "tacho", x: 1212, y: 756, scale: 0.48 },
+    { kitId: "speedo", x: 1428, y: 716, scale: 0.48 },
+    { kitId: "speedo2", x: 1645, y: 736, scale: 0.48 },
+    // staged: timerdigits — race clock (release with the timer set)
+    // { kitId: "timerdigits", x: 1500, y: 40, scale: 0.9 },
+    // staged: glyphcheckpoint, glyphtimer — swappable icon children for the
+    // gantry/clock (release with the glyph set)
   ] },
-  "Versus": { items: [
-    { kitId: "vsbar", x: 460, y: 60 },
-    { kitId: "badge", x: 480, y: 300, scale: 0.9 },
-    { kitId: "badge", x: 1260, y: 300, scale: 0.9 },
-    { kitId: "bignum", x: 770, y: 420, scale: 1.1 },
-    { kitId: "primary", x: 700, y: 790, scale: 1.05 },
+  /* Matchup card on the redline scene: mirrored fighters — frame, crest,
+     nameplate, rank shield per side — season record up top, CTA between. */
+  "Versus": { bg: "/backdrops/lib/redline-rebellion.webp", items: [
+    { kitId: "scorebug", x: 595, y: 0, scale: 0.85 },
+    { kitId: "chip", x: 1295, y: 0, scale: 0.9 },
+    { kitId: "vsbar", x: 396, y: 128 },
+    { kitId: "avatarframe", x: 232, y: 297, scale: 1.15 },
+    { kitId: "avatarframe", x: 1351, y: 297, scale: 1.15 },
+    { kitId: "clancrest", x: 546, y: 373, scale: 0.75 },
+    { kitId: "clancrest", x: 1164, y: 373, scale: 0.75 },
+    { kitId: "nameplate", x: 96, y: 619, scale: 0.8 },
+    { kitId: "nameplate", x: 1215, y: 619, scale: 0.8 },
+    { kitId: "badge", x: 311, y: 739, scale: 0.85 },
+    { kitId: "badge", x: 1430, y: 739, scale: 0.85 },
+    { kitId: "primary", x: 681, y: 729, scale: 1.05 },
+    { kitId: "emblembar", x: 640, y: 954, scale: 0.9 },
   ] },
   /* the owner: "let's have a match 3 mobile template in the dropdown that
      populates the correct match 3 layout" — the real portrait shape: kit
      header (moves + timer + goal bar), the 7×9 tile grid, boosters at the
      thumb line. Released with the set (owner order, 2026-08-21). */
-  "Match-3 (mobile)": { aspect: "mobile", items: [
-    { kitId: "movecounter", x: 10, y: 30, scale: 0.38 },
-    { kitId: "stopwatch", x: 286, y: 26, scale: 0.3 },
-    { kitId: "segbar", x: 86, y: 118, scale: 0.3 },
+  "Match-3 (mobile)": { aspect: "mobile", bg: "/backdrops/lib/candy-river-quest.webp", items: [
+    { kitId: "movecounter", x: 0, y: 0, scale: 0.34 },
+    { kitId: "stopwatch", x: 229, y: 0, scale: 0.28 },
+    { kitId: "glyphpause", x: 320, y: 0, scale: 0.16 },
+    { kitId: "segbar", x: 70, y: 99, scale: 0.28 },
     ...M3_GRID,
-    { kitId: "booster", x: 42, y: 730, scale: 0.45 },
-    { kitId: "booster", x: 148, y: 730, scale: 0.45 },
-    { kitId: "booster", x: 254, y: 730, scale: 0.45 },
+    { kitId: "combo", x: 191, y: 327, scale: 0.42 },
+    { kitId: "booster", x: 0, y: 654, scale: 0.38 },
+    { kitId: "booster", x: 84, y: 654, scale: 0.38 },
+    { kitId: "slot", x: 175, y: 663, scale: 0.34 },
+    { kitId: "slot", x: 263, y: 663, scale: 0.34 },
+    { kitId: "glyphhammer", x: 192, y: 692, scale: 0.21 },
+    { kitId: "glyphmagnet", x: 290, y: 690, scale: 0.21 },
+    { kitId: "qtybadge", x: 214, y: 676, scale: 0.18 },
+    // staged: glyphaddtime — +time chip seated on the stopwatch's dark dial edge
+    // staged: glyphtimer — on the segbar's dark left cap
   ] },
-  "RPG party": { items: [
-    { kitId: "header", x: 560, y: 30 },
-    { kitId: "datarow", x: 120, y: 350, scale: 0.9 },
-    { kitId: "datarow", x: 120, y: 515, scale: 0.9 },
-    { kitId: "datarow", x: 120, y: 680, scale: 0.9 },
-    { kitId: "panel", x: 1220, y: 340, scale: 0.75 },
-    ...[0, 1, 2, 3].map((i) => ({ kitId: "slot" as KitComponentId, x: 1220 + i * 165, y: 810, scale: 0.8 })),
-    { kitId: "small", x: 70, y: 60 },
+  /* Raid party HUD under the twin-moon pagoda: party stack left with the
+     player's buff row, boss plate + floating hits, mana rails at the feet. */
+  "RPG party": { bg: "/backdrops/lib/twin-moon-pagoda.webp", items: [
+    { kitId: "partyframe", x: 45, y: 120, scale: 0.85 },
+    { kitId: "buffframe", x: 90, y: 292, scale: 0.42 },
+    { kitId: "buffframe", x: 185, y: 292, scale: 0.42 },
+    { kitId: "buffframe", x: 280, y: 292, scale: 0.42 },
+    { kitId: "partyframe", x: 45, y: 375, scale: 0.85 },
+    { kitId: "partyframe", x: 45, y: 535, scale: 0.85 },
+    { kitId: "partyframe", x: 45, y: 695, scale: 0.85 },
+    { kitId: "nameplate", x: 600, y: 60 },
+    { kitId: "dmgnumber", x: 900, y: 240, scale: 0.75 },
+    { kitId: "dmgnumber", x: 1160, y: 420, scale: 0.5 },
+    { kitId: "chatbubble", x: 40, y: 850, scale: 0.8 },
+    { kitId: "manarails", x: 520, y: 760, scale: 0.7 },
+    { kitId: "manarails", x: 1120, y: 760, scale: 0.7 },
+    { kitId: "xpbar", x: 620, y: 880 },
+    // staged: healthglobe · staged: quickslots · staged: vitalbar ·
+    // staged: cooldown · staged: glyphheart · staged: glyphenergy
   ] },
-  "Inventory": { items: [
-    { kitId: "resource", x: 70, y: 55 },
-    { kitId: "chip", x: 640, y: 70, scale: 0.85 },
-    { kitId: "chip", x: 870, y: 70, scale: 0.85 },
-    { kitId: "chip", x: 1100, y: 70, scale: 0.85 },
-    ...([0, 1, 2] as const).flatMap((r) => [0, 1, 2, 3].map((c) => (
-      { kitId: "slot" as KitComponentId, x: 640 + c * 180, y: 240 + r * 180, scale: 0.9 }
-    ))),
-    { kitId: "rarityframe", x: 1450, y: 240, scale: 0.8 },
-    { kitId: "small", x: 1450, y: 700 },
+  /* Character & inventory: paper-doll panel left (six equip slots around
+     the shield silhouette), the 9/12 grid + scrollbar right, compare
+     strip on one baseline at the floor. */
+  "Inventory": { bg: "/backdrops/lib/teal-banner-keep.webp", items: [
+    { kitId: "panel", x: 60, y: 170, scale: 1.05 },
+    { kitId: "panel", x: 950, y: 160, scale: 1.12 },
+    { kitId: "tabback", x: 70, y: 36, scale: 0.8 },
+    { kitId: "tab", x: 920, y: 90, scale: 0.8 },
+    { kitId: "tab", x: 1150, y: 90, scale: 0.8 },
+    { kitId: "tab", x: 1380, y: 90, scale: 0.8 },
+    { kitId: "currency", x: 1600, y: 44, scale: 0.85 },
+    { big: { gid: "shield" }, x: 364, y: 315, scale: 0.8 },
+    { kitId: "equipslot", x: 130, y: 200, scale: 0.8 },
+    { kitId: "equipslot", x: 130, y: 360, scale: 0.8 },
+    { kitId: "equipslot", x: 130, y: 520, scale: 0.8 },
+    { kitId: "equipslot", x: 690, y: 200, scale: 0.8 },
+    { kitId: "equipslot", x: 690, y: 360, scale: 0.8 },
+    { kitId: "equipslot", x: 690, y: 520, scale: 0.8 },
+    { kitId: "invgrid", x: 1030, y: 200, scale: 0.84 },
+    { kitId: "scrollbar", x: 1720, y: 205, scale: 0.9 },
+    { kitId: "loottag", x: 1120, y: 590, scale: 0.85 },
+    { kitId: "slot", x: 150, y: 790, scale: 0.9 },
+    { kitId: "glyphgem", x: 211, y: 852, scale: 0.42 },
+    { kitId: "rarityframe", x: 430, y: 810, scale: 0.85 },
+    { kitId: "qtybadge", x: 528, y: 818, scale: 0.6 },
+    { kitId: "stepper", x: 700, y: 830, scale: 0.8 },
+    // staged: tooltip — compare callout, lands when System chrome releases
+    // staged: datarow — stat readout row under the paper doll
+    // staged: glyphkey — key icon child on a grid stack
   ] },
-  "Level select": { items: [
-    { kitId: "header", x: 560, y: 60 },
-    { kitId: "ring", x: 60, y: 55, scale: 0.8 },
-    { kitId: "iconbtn", x: 1680, y: 60, scale: 0.9 },
-    ...[0, 1, 2, 3, 4].map((i) => ({ kitId: "slot" as KitComponentId, x: 460 + i * 210, y: 380, scale: 0.95 })),
-    { kitId: "seasontrack", x: 480, y: 640, scale: 0.85 },
-    { kitId: "primary", x: 700, y: 800 },
+  /* the Brightside saga map, posed on its own owner art: numbered nodes on
+     the painted trail (cleared levels wear their star fans, the current one
+     pulses, the future one locks), best-result pills beside the cleared
+     levels, lives + chapter progress up top, season banner mid, nav below. */
+  "Level select": { bg: "/backdrops/brightside/level-select.jpg", aspect: "mobile", items: [
+    { kitId: "pathconnector", x: 206, y: 623, scale: 0.3, rot: -54, v: 1 },
+    { kitId: "pathconnector", x: 222, y: 512, scale: 0.3, rot: 65, v: 1 },
+    { kitId: "pathconnector", x: 198, y: 407, scale: 0.3, rot: -88, v: 1 },
+    { kitId: "pathconnector", x: 220, y: 304, scale: 0.3, rot: -68, v: 0.25 },
+    { kitId: "levelnode", x: 190, y: 676, scale: 0.22, ov: "stars:3", label: "1" },
+    { kitId: "levelnode", x: 273, y: 561, scale: 0.22, ov: "stars:2", label: "2" },
+    { kitId: "levelnode", x: 222, y: 454, scale: 0.22, ov: "stars:3", label: "3" },
+    { kitId: "levelnode", x: 225, y: 351, scale: 0.22, label: "4" },
+    { kitId: "levelnode", x: 267, y: 248, scale: 0.22, ov: "locked", label: "5" },
+    { kitId: "starrating", x: 97, y: 686, scale: 0.12, v: 1 },
+    { kitId: "starrating", x: 180, y: 571, scale: 0.12, v: 0.67 },
+    { kitId: "starrating", x: 129, y: 464, scale: 0.12, v: 1 },
+    { kitId: "glyphstar", x: 259, y: 328, scale: 0.09 },
+    { kitId: "header", x: 100, y: 10, scale: 0.24, label: "Sky Isles" },
+    { kitId: "avatarframe", x: 4, y: 6, scale: 0.22 },
+    { kitId: "currency", x: 286, y: 14, scale: 0.22 },
+    { kitId: "heartmeter", x: 6, y: 88, scale: 0.22 },
+    { kitId: "ring", x: 326, y: 86, scale: 0.2 },
+    { kitId: "seasontrack", x: 14, y: 150, scale: 0.24 },
+    { kitId: "bottomnav", x: 48, y: 736, scale: 0.37 },
+    { kitId: "notifydot", x: 317, y: 757, scale: 0.2 },
+    // staged: glyphflag — chapter-start pennant at the trailhead
+    // { kitId: "glyphflag", x: 155, y: 735, scale: 0.07 },
+    // staged: glyphcheckpoint — trail checkpoint on the bend past level 2
+    // { kitId: "glyphcheckpoint", x: 291, y: 505, scale: 0.07 },
+    // staged: glyphlock — swappable lock child on the sealed level 5
+    // { kitId: "glyphlock", x: 281, y: 244, scale: 0.07 },
+    // staged: glyphcrown — the chapter-end crown by the castle gate
+    // { kitId: "glyphcrown", x: 289, y: 168, scale: 0.08 },
+    // staged: glyphhome — swappable icon child for the nav's MAP cell
+    // { kitId: "glyphhome", x: 104, y: 758, scale: 0.07 },
+    // staged: glyphprofile — swappable icon child for the nav's HEROES cell
+    // { kitId: "glyphprofile", x: 217, y: 758, scale: 0.07 },
+    // staged: glyphplay — play affordance riding the current node
+    // { kitId: "glyphplay", x: 239, y: 352, scale: 0.08 },
   ] },
-  "Victory": { items: [
-    { kitId: "header", x: 520, y: 110, scale: 1.1 },
-    { kitId: "achievetoast", x: 1230, y: 130, scale: 0.85 },
-    { kitId: "orb", x: 600, y: 450, scale: 0.9 },
-    { kitId: "bignum", x: 770, y: 440 },
-    { kitId: "orb", x: 1230, y: 450, scale: 0.9 },
-    { kitId: "starrating", x: 800, y: 640, scale: 0.9 },
-    { kitId: "primary", x: 700, y: 780, scale: 1.05 },
+  /* Chest-opening rewards ceremony (starter-boards round): the reveal fan
+     — rare / legendary / mystery, an orb glowing behind the big pull —
+     counts riding each card, the wallet up top, and the claim row with
+     its 2×-ad sibling at the thumb line. Composed for the phone portrait
+     like the owner's own Victory board (valley backdrop kin). */
+  "Victory": { aspect: "mobile", bg: "/backdrops/valley.jpg", items: [
+    { kitId: "currency", x: 250, y: 34, scale: 0.34 },
+    { kitId: "header", x: 18, y: 104, scale: 0.32, label: "CHEST OPENED" },
+    // the burst — star + coin spray around the reveal (swappable glyph children)
+    { kitId: "glyphstar", x: 48, y: 246, scale: 0.2 },
+    { kitId: "glyphstar", x: 300, y: 226, scale: 0.26 },
+    // registry-derived glyph id (LIVE_GLYPHS) — the union lists only the
+    // hand-carved subset, so the cast follows the tray's own pattern
+    { kitId: "glyphcoinstack" as KitComponentId, x: 34, y: 304, scale: 0.24 },
+    // the glow behind the legendary pull (support) — drawn first, sits behind
+    { kitId: "orb", x: 90, y: 376, scale: 1.1 },
+    { kitId: "rewardcard", x: 18, y: 420, scale: 0.38, v: 0.5, label: "Sky Crystal" },
+    { kitId: "rewardcard", x: 272, y: 420, scale: 0.38, ov: "mystery" },
+    { kitId: "rewardcard", x: 133, y: 395, scale: 0.46, v: 1, label: "Sun Shard" },
+    // each count rides its card's qty seat (the corner-pill contract)
+    { kitId: "qtybadge", x: 28, y: 520, scale: 0.3, label: "×40" },
+    { kitId: "qtybadge", x: 158, y: 516, scale: 0.34, label: "×1" },
+    { kitId: "qtybadge", x: 289, y: 520, scale: 0.3, label: "×?" },
+    { kitId: "claimbtn", x: 14, y: 706, scale: 0.38 },
+    { kitId: "claimbtn", x: 200, y: 706, scale: 0.38, ov: "2x" },
+    /* Staged garnish — land these lines in the blessed batch that releases
+       the chest set (audition shot: starter-boards/shots/victory-06-garnish.png).
+       v: 0 poses the chest READY — an opened ceremony, not a 4h58m gate. */
+    // staged: chest — { kitId: "chest", x: 138, y: 580, scale: 0.36, v: 0 },
+    // staged: chestpanel — backplate behind the fan, alternate to the orb glow:
+    //   { kitId: "chestpanel", x: 0, y: 350, scale: 0.56 },
+    // staged: giftbox — { kitId: "giftbox", x: 30, y: 600, scale: 0.3 },
+    // staged: rewardtray — "also inside" strip, alternate seat to chest:
+    //   { kitId: "rewardtray", x: 40, y: 610, scale: 0.3 },
+    // staged: glyphchest — { kitId: "glyphchest" as KitComponentId, x: 330, y: 320, scale: 0.26 },
+    // staged: glyphgift — { kitId: "glyphgift" as KitComponentId, x: 24, y: 176, scale: 0.24 },
+    // staged: glyphstarformation — { kitId: "glyphstarformation" as KitComponentId, x: 140, y: 14, scale: 0.4 },
   ] },
+  /* Settings sheet on the bare navy stage: one full-frame panel, section
+     nav + scrollbar left, composed rows right (music, sfx, dropdown, the
+     2×2 choice group), profile mini-card bottom-left. */
   "Settings": { items: [
-    { kitId: "header", x: 620, y: 30, scale: 0.9 },
-    { kitId: "searchfield", x: 640, y: 230, scale: 0.9 },
-    { kitId: "setrow", x: 640, y: 380, scale: 0.9 },
-    { kitId: "slider", x: 640, y: 520 },
-    { kitId: "segment", x: 640, y: 660, scale: 0.9 },
-    { kitId: "dropdown", x: 1240, y: 380, scale: 0.8 },
-    { kitId: "checkbox", x: 1310, y: 550 },
-    { kitId: "toggle", x: 700, y: 800 },
-    { kitId: "toggle", x: 1000, y: 800 },
-    { kitId: "small", x: 1330, y: 710 },
+    { kitId: "panel", x: 73, y: 0, scale: 1.7 },
+    { kitId: "panel", x: 271, y: 568, scale: 0.6 },
+    { kitId: "tab", x: 229, y: 32, scale: 1.0 },
+    { kitId: "listmenu", x: 255, y: 199, scale: 0.78 },
+    { kitId: "scrollbar", x: 677, y: 245, scale: 0.58 },
+    { kitId: "setrow", x: 845, y: 190, scale: 0.72 },
+    { kitId: "glyphmusic", x: 791, y: 231, scale: 0.38 },
+    { kitId: "slider", x: 845, y: 335, scale: 0.72 },
+    { kitId: "glyphsound", x: 791, y: 355, scale: 0.38 },
+    { kitId: "toggle", x: 1277, y: 311, scale: 0.72 },
+    { kitId: "dropdown", x: 853, y: 444, scale: 0.66 },
+    { kitId: "keycap", x: 1185, y: 709, scale: 0.66 },
+    { kitId: "checkbox", x: 874, y: 595, scale: 0.62 },
+    { kitId: "checkbox", x: 1014, y: 595, scale: 0.62 },
+    { kitId: "radio", x: 874, y: 715, scale: 0.62 },
+    { kitId: "radio", x: 1014, y: 715, scale: 0.62 },
+    { kitId: "input", x: 320, y: 628, scale: 0.58 },
+    { kitId: "small", x: 515, y: 725, scale: 0.66 },
+    // staged: gearicon — beside the TAB chip, e.g. { kitId: "gearicon", x: 500, y: 32, scale: 0.8 }
+    // staged: glyphsettings — icon child on the tab (seats unverified — Core-only render)
   ] },
 };
 /* New starter screens ship GATED — admin-only until the owner releases

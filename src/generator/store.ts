@@ -365,7 +365,7 @@ interface GenStore {
   saveBoardItemAsAsset: (id: string, name: string) => void;
   /** Append a pre-placed set of pieces (starter templates, ghost drops) —
    *  kit pieces, big-glyph tiles, or saved library assets (`libId`). */
-  addBoardItems: (items: { kitId?: KitComponentId; big?: BigGlyphFx; libId?: string; x: number; y: number; scale?: number; ov?: string }[]) => void;
+  addBoardItems: (items: { kitId?: KitComponentId; big?: BigGlyphFx; libId?: string; x: number; y: number; scale?: number; ov?: string; v?: number; label?: string; rot?: number }[]) => void;
   /** Drop a live kit component on the board — follows the master style.
    *  `ov` picks a render variant (the ghost joystick). */
   addKitToBoard: (kitId: KitComponentId, ov?: string) => void;
@@ -1977,6 +1977,10 @@ export const useGen = create<GenStore>((set, get) => ({
          pass through untouched, and nothing can ever land invisible */
       x: Math.min(W - 60, Math.max(0, it.x)), y: Math.min(H - 40, Math.max(0, it.y)),
       ...(it.scale ? { scale: it.scale } : {}), ...(it.ov ? { ov: it.ov } : {}),
+      /* starter poses ride the same instance fields the Inspector edits —
+         value (star fans, meter fills), pinned words, a turned trail bead */
+      ...(it.v !== undefined ? { v: it.v } : {}), ...(it.label !== undefined ? { label: it.label } : {}),
+      ...(it.rot ? { rot: it.rot } : {}),
     }));
     mutateBoards(get, set, null, (bs) => bs.map((b) => (b.id === get().activeBoard ? { ...b, items: [...b.items, ...add] } : b)));
     set({ boardSel: null });
