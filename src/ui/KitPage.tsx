@@ -8,7 +8,7 @@ import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, Shape }
 import { renderBevel, renderKit, renderTypeSpecimen } from "@/generator/bevel";
 import { silhouetteMeta, SILHOUETTES } from "@/generator/silhouettes";
 import { previewSvg } from "@/generator/icons";
-import { downloadSettings, downloadSvg, downloadZip, downloadSpriteSheet, buildSpriteSheetBytes, svgToPngBytesTight, setEmbedFont, fontDataUri } from "@/generator/exportUtils";
+import { downloadSettings, downloadSvg, downloadZip, downloadSpriteSheet, buildSpriteSheetBytes, svgToPngBytesTight, setEmbedFont, fontDataUri, measureSliceRGBA } from "@/generator/exportUtils";
 import { downloadEngineExport, fetchKitFont, collectExportBoards } from "@/generator/engineExport";
 import { updateProjectDoc, loadProjectDoc } from "@/generator/cloud";
 import { guardedExport } from "@/generator/exportGate";
@@ -1398,10 +1398,15 @@ export function sliceRisks(c: GenConfig): string[] {
   return r;
 }
 
-/** Banner rendered with its three-slice guides: fixed caps, stretch middle,
- *  text-safe area — computed from the real silhouette metadata. The demo
- *  scales itself into `fit` px so a very wide banner never dominates the
- *  page; the ruler label reports its true shell width. */
+/** Banner rendered with its nine-slice guides: fixed caps, stretch middle,
+ *  text-safe area. The cap guides are MEASURED from the drawn silhouette by
+ *  the same curvature walk the Unity export ships (measureSliceRGBA), so an
+ *  asymmetric shape shows its true per-edge borders — the fraction contract
+ *  (capScale) survives only as the fallback, exactly like the exporter
+ *  (round 48 audit: the old symmetric capScale guides predate the measured
+ *  borders and the cap-geometry rework). The demo scales itself into `fit`
+ *  px so a very wide banner never dominates the page; the ruler label
+ *  reports its true shell width. */
 function SliceDemo({ cfg, label, size = "m", fit = 520, ruler }: { cfg: GenConfig; label: string; size?: KitSize; fit?: number; ruler?: boolean }) {
   const { kitShapes, kitTextOy, kitTextOx } = useGen();
   const shape = kitShapes.header ?? "banner";
@@ -1409,25 +1414,59 @@ function SliceDemo({ cfg, label, size = "m", fit = 520, ruler }: { cfg: GenConfi
   const oy = kitTextOy[`header:${size}`];
   const hx = kitTextOx[`header:${size}`];
   const svg = useMemo(() => renderKit(cfg, "header", size, "default", undefined, kitShapes.header, { label, textOy: oy, textOx: hx }), [cfg, label, size, kitShapes.header, oy, hx]);
+  /* ground truth: rasterize this very render and walk each edge's profile
+     to where its curvature flattens — the numbers kit-manifest.json ships.
+     null (walk distrusts the render, canvas unavailable) → formula fallback. */
+  const [mz, setMz] = useState<{ left: number; right: number; top: number; bottom: number } | null>(null);
+  useEffect(() => {
+    let dead = false;
+    setMz(null);
+    const m = /viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/.exec(svg);
+    if (!m) return;
+    const w = Math.max(1, Math.round(+m[3])), h = Math.max(1, Math.round(+m[4]));
+    const img = new Image();
+    img.onload = () => {
+      if (dead) return;
+      try {
+        const cv = document.createElement("canvas");
+        cv.width = w; cv.height = h;
+        const cx = cv.getContext("2d");
+        if (!cx) return;
+        cx.drawImage(img, 0, 0, w, h);
+        setMz(measureSliceRGBA(cx.getImageData(0, 0, w, h).data, w, h, 1));
+      } catch { /* leave the formula fallback standing */ }
+    };
+    img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+    return () => { dead = true; };
+  }, [svg]);
   const geo = useMemo(() => {
     const m = svg.match(/viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/);
     if (!m || !met) return null;
-    const pad = -+m[1], total = +m[3];
-    const h = 158 * ({ s: 0.72, m: 1, l: 1.22 } as const)[size];
+    const pad = -+m[1], total = +m[3], totalH = +m[4];
     /* the DRAWN shell stamp is the truth — the old fixed-margin assumption
        (52px each side) drifted every guide as soon as the canvas grew
        around effects (owner: "the standard diagram looks off-centered") */
     const shm = /data-shell="([-\d. ]+)"/.exec(svg) ?? /data-shell0="([-\d. ]+)"/.exec(svg);
     const shv = shm?.[1].split(" ").map(Number);
     const shellW = shv && shv.length === 4 ? shv[2] : total - pad * 2 - 104;
-    const cap = met.capScale * h, safe = met.content.left * h;
+    /* guide sizing follows the drawn shell height too — the hard-coded
+       158px table predated the cap-geometry rework */
+    const h = shv && shv.length === 4 ? shv[3] : 158 * ({ s: 0.72, m: 1, l: 1.22 } as const)[size];
     const x0 = shv && shv.length === 4 ? shv[0] - +m[1] : pad + 52;
+    /* caps: the measured walk when it trusts the render; else the
+       exporter's own fallback — capScale floored at 22% of shell height */
+    const capF = Math.max(met.capScale * h, h * 0.22);
+    const capLx = mz ? mz.left : x0 + capF;
+    const capRx = mz ? total - mz.right : x0 + shellW - capF;
     return {
       total, shellW: Math.round(shellW),
-      capL: ((x0 + cap) / total) * 100, capR: ((x0 + shellW - cap) / total) * 100,
-      safeL: ((x0 + safe) / total) * 100, safeR: ((x0 + shellW - safe) / total) * 100,
+      capL: (capLx / total) * 100, capR: (capRx / total) * 100,
+      capT: mz ? (mz.top / totalH) * 100 : null, capB: mz ? ((totalH - mz.bottom) / totalH) * 100 : null,
+      /* text-safe insets are per side — asymmetric silhouettes carry
+         different left/right contents (the pointer tag's tail end) */
+      safeL: ((x0 + met.content.left * h) / total) * 100, safeR: ((x0 + shellW - met.content.right * h) / total) * 100,
     };
-  }, [svg, met, size]);
+  }, [svg, met, size, mz]);
   const scale = geo ? Math.min(0.44, fit / geo.total) : 0.44;
   return (
     <div>
@@ -1437,6 +1476,8 @@ function SliceDemo({ cfg, label, size = "m", fit = 520, ruler }: { cfg: GenConfi
           <>
             <span className="kp-guide cap" style={{ left: `${geo.capL}%` }} />
             <span className="kp-guide cap" style={{ left: `${geo.capR}%` }} />
+            {geo.capT != null && <span className="kp-guide cap h" style={{ top: `${geo.capT}%` }} />}
+            {geo.capB != null && <span className="kp-guide cap h" style={{ top: `${geo.capB}%` }} />}
             <span className="kp-guide safe" style={{ left: `${geo.safeL}%` }} />
             <span className="kp-guide safe" style={{ left: `${geo.safeR}%` }} />
           </>
@@ -1506,7 +1547,7 @@ function KitDebugStrip() {
 }
 
 export function KitPage() {
-  const { cfg, kitClones, kitDesigns, kitTextFill, setPhase, kitName, setKitName, saveUserPreset, updateMaster, viewer, isAdmin, componentReleases: releases, setComponentRelease, setComponentReleasesBatch } = useGen();
+  const { cfg, kitClones, setPhase, kitName, setKitName, saveUserPreset, updateMaster, viewer, isAdmin, componentReleases: releases, setComponentRelease, setComponentReleasesBatch } = useGen();
   // the staging bay opens by hand only — it must never pop up mid-demo
   // (owner: "when I'm showing off the site, I don't want that stuff to
   // immediately pop up"), so collapsed is the default every load. Within
@@ -2375,9 +2416,9 @@ const kitTier = useGen((s) => s.tier);
             </button>
           </div>
           <div className="kp-actrow">
-            <button className="kp-editkit" onClick={() => setPhase("master")} title="Open this kit in the editor — every control shapes it live"
+            <button className="kp-editkit" onClick={() => setPhase("master")} title="Open the master in the editor — every control reshapes the whole kit live"
               style={{ background: cfg.effects.Bevel ?? "#0E9CC9", color: isDarkBg(cfg.effects.Bevel ?? "#0E9CC9") ? "#ffffff" : "#0d0f16" }}>
-              <PenTool size={16} strokeWidth={2.3} /> Edit this Kit
+              <PenTool size={16} strokeWidth={2.3} /> Edit master component
             </button>
             <button className="kp-share" onClick={() => void shareKit()} title="Copy a link that opens this kit for anyone — view only">
               {shared ? "Link copied ✓" : "Share kit"}
@@ -2714,8 +2755,8 @@ const kitTier = useGen((s) => s.tier);
       </Sec>
 
       {/* ── 04 · nine-slice & anatomy — the stretch contract closes Foundations ── */}
-      <Sec n="04" title="Nine-Slice & Anatomy" note="Corners fixed, edges stretch on one axis, the center stretches on both. Every silhouette ships this contract as data (9slice.json).">
-        <p className="kp-note">Every silhouette is procedural three-slice geometry: caps are sized by height and never distort; only the middle stretches. Magenta dashes mark the fixed caps, green marks the text-safe area.</p>
+      <Sec n="04" title="Nine-Slice & Anatomy" note="Corners fixed, edges stretch on one axis, the center stretches on both. The Unity kit ships borders measured from each edge's drawn curvature (kit-manifest.json); the SVG pack carries the fraction contract (9slice.json).">
+        <p className="kp-note">Every silhouette is procedural sliced geometry: caps never distort; only the middle stretches. Magenta dashes mark the fixed caps — measured from this design's own drawn curvature, the same walk the Unity export uses, so an asymmetric silhouette wears a wider cap on its decorated end. Green marks the text-safe area.</p>
         {sliceRisks(cfg).length > 0 && (
           <div className="kp-slicenote">
             <b>Heads-up — this design carries effects a stretched slice can't keep:</b>
@@ -2967,23 +3008,14 @@ const kitTier = useGen((s) => s.tier);
           { cap: "Selected", piece: { id: "tab", label: "TAB", baseState: "pressed" } },
           { cap: "Disabled", piece: { id: "tab", label: "TAB", baseState: "disabled" } },
         ]} />
-        <div className="kp-subhead">Banner / Stretch</div>
-        <div className="kp-tray kp-banners">
-          <div>
-            <SliceDemo cfg={applyKitTextFill(applyKitDesign(cfg, kitDesigns.header), kitTextFill.header)} label={label} fit={380} ruler />
-            <div className="kp-cap"><span>Standard</span></div>
-          </div>
-          <div>
-            <SliceDemo cfg={applyKitTextFill(applyKitDesign(cfg, kitDesigns.header), kitTextFill.header)} label="CONTINUE YOUR ADVENTURE" size="l" fit={520} ruler />
-            <div className="kp-cap"><span>Wide</span></div>
-          </div>
-        </div>
+        {/* the banner stretch previews left in round 48 — the Nine-Slice &
+            Anatomy chapter already tells the whole stretch story (owner:
+            "don't think we also need banner stretch previews in the kit") */}
         <div className="kp-tray">
           <Piece id="header" caption="Banner · editable" />
         </div>
         <div className="kp-meta">
-          <span>Fixed caps (dashed magenta)</span><span>Stretch region between caps</span><span>Text-safe area (dashed green)</span>
-          <span>Min width ≈ 2× cap</span><span>Recommended label ≤ 18 chars</span><span>Tested to 29 chars (Wide)</span>
+          <span>Min width ≈ 2× cap</span><span>Recommended label ≤ 18 chars</span><span>Stretch behavior · Nine-Slice &amp; Anatomy</span>
         </div>
       </Sec>
 
@@ -3871,7 +3903,7 @@ const kitTier = useGen((s) => s.tier);
           <dl className="kp-spec">
             <div className="kp-specline"><dt>Already wired</dt><dd>State and idle motion arrive per this kit&apos;s own dials — nothing to call. Hover glow, press travel and disabled dim are <code>StateFx</code>; the idle wipe and edge shines are <code>WipeShine</code> / <code>EdgeShine</code>. Tune the public fields, or delete the component and the piece is exactly what it was.</dd></div>
             <div className="kp-specline"><dt>Value-driven</dt><dd>Bars, rings, meters, dials and trackers expose <code>SetValue(0..1)</code> — the motion IS the value changing, so drive it with any tween you like; board poses strike the same method. Richer verbs where a piece speaks a domain: <code>SetSeconds</code> on the stopwatch and cooldown, <code>SetStep</code>, <code>SetPage</code>, <code>ArmChamber</code> on the weapon wheel. On Unity 2022.3 the numeral readouts (the stopwatch and cooldown seconds, the start-light caption, the step digits) hold their seeded word while the arcs, hands and lights move — live ticking text is 2023.2+.</dd></div>
-            <div className="kp-specline"><dt>One call</dt><dd>Celebrations and ambient loops are single methods: <code>ComboPop.Pop()</code>, <code>ClaimBurst.Fire()</code>, <code>Play()</code>/<code>Stop()</code> on the spinner. The attention pulse and glow cycle demoed above ship as real behaviors — Add Component → UI Kit Maker → Attention Pulse or Glow Cycle on any piece; the glow cycles in this kit&apos;s own Glow color.</dd></div>
+            <div className="kp-specline"><dt>One call</dt><dd>Celebrations and ambient loops are single methods: <code>ComboPop.Pop()</code>, <code>ClaimBurst.Fire()</code>, <code>DmgNumber.Show(damage)</code> (spawn one per hit, pass the damage), <code>Play()</code>/<code>Stop()</code> on the spinner. The attention pulse and glow cycle demoed above ship as real behaviors — Add Component → UI Kit Maker → Attention Pulse or Glow Cycle on any piece; the glow cycles in this kit&apos;s own Glow color.</dd></div>
           </dl>
           <p className="kp-mounote">
             The complete table — every component name, field and trigger — travels with the export as the
