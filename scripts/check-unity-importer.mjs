@@ -3203,6 +3203,31 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("emotewheel left the board value strike (round 44, item 11)");
 }
 
+/* ── ROUND 44 · S26 (item 39 — stopwatch): the arc, hand and hub leave
+   the face as rotation-true atoms (dial-centered square canvases, half-
+   disc caps so the translucent arc never doubles), and
+   PatternBreakStopwatch drives arc + hand + alarm mood + readout from
+   ONE value. base.png stays byte-identical (the ring's compatibility
+   rule). ── */
+{
+  if (!/opts\.part === "arc" \|\| opts\.part === "cap-start" \|\| opts\.part === "cap-head" \|\| opts\.part === "hand" \|\| opts\.part === "hub" \|\| opts\.part === "hub-alarm"/.test(bevelSrc)
+      || !/const faceOnly = opts\.part === "face";/.test(bevelSrc))
+    errors.push("the stopwatch part renders left bevel (round 44, item 39)");
+  if (!/`\$\{uid\}\/face\.png`/.test(src) || !/`\$\{uid\}\/cap-head\.png`/.test(src) || !/`\$\{uid\}\/hub-alarm\.png`/.test(src)
+      || !/gauge: \{ x: 0, y: 0, fs: 0, unitY: 0, unitFs: 0, dialX: dcx \* PNG_SCALE, dialY: dcy \* PNG_SCALE \}/.test(src))
+    errors.push("the stopwatch atoms (or the face row's dial-center stamp) left the exporter (round 44, item 39)");
+  if (!/const STOPWATCH_RUNTIME = `using UnityEngine;/.test(src)
+      || !/files\.push\(\{ path: "Runtime\/PatternBreakStopwatch\.cs", data: STOPWATCH_RUNTIME \}\);/.test(src)
+      || !/"Runtime\/PatternBreakStopwatch\.cs",/.test(src))
+    errors.push("Stopwatch's runtime or its registration (files + sharedScripts BOTH — the law) left the exporter (round 44, item 39)");
+  if (!/if \(baseAsset\.component == "stopwatch"\) \{/.test(cs)
+      || !/rigSW\.hubAlarm = hubAlarmSW;/.test(cs)
+      || !/rigSW2\.readout = tSW; break;/.test(cs))
+    errors.push("the Stopwatch prefab wiring (or its readout join) left the importer (round 44, item 39)");
+  if (!/var pswS = inst\.GetComponent<PatternBreakStopwatch>\(\);/.test(cs))
+    errors.push("stopwatch left the board value strike (round 44, item 39)");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);

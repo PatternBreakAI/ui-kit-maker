@@ -9931,6 +9931,37 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const faceR = faceR0;
       const rHand = faceR - 18 * k;
       const arcR = faceR - 10 * k;
+      /* ── ENGINE ATOMS (round 44, item 39 — the ring rig's arc road):
+         value ink leaves the face and returns as rotation-true atoms on
+         ONE face-centered square canvas (the buff-sweep discipline —
+         Radial360 wedges and hand rotation pivot on the canvas center):
+         arc       — the FULL remaining-time ring, WHITE at the app's own
+                     0.4 alpha (flat ink, rotationally uniform); the
+                     kit's Glow rides Image.color, the alarm swap too.
+         cap-start / cap-head — the arc's round line caps as HALF-discs
+                     (the protruding half only — a full dot would double
+                     the translucent arc where they overlap), parked at
+                     12 o'clock; the rig rotates the head to the value.
+         hand      — both hand lines parked at 12 o'clock, WHITE (the
+                     app's glow/white mix and the alarm swap ride
+                     Image.color).
+         hub / hub-alarm — the candy pivot knob in both moods (a candy
+                     gradient can't tint, so the looks swap). */
+      if (opts.part === "arc" || opts.part === "cap-start" || opts.part === "cap-head" || opts.part === "hand" || opts.part === "hub" || opts.part === "hub-alarm") {
+        const sideSW = Math.ceil((faceR + 8 * k) * 2);
+        const capR = 2.5 * k, capY = cy3 - arcR;
+        const innerSW = opts.part === "arc"
+          ? `<circle cx="${cx3}" cy="${cy3}" r="${arcR.toFixed(1)}" fill="none" stroke="#FFFFFF" stroke-width="${(5 * k).toFixed(1)}" opacity="0.4"/>`
+          : opts.part === "cap-start"
+            ? `<path d="M ${cx3} ${(capY - capR).toFixed(2)} A ${capR.toFixed(2)} ${capR.toFixed(2)} 0 0 0 ${cx3} ${(capY + capR).toFixed(2)} Z" fill="#FFFFFF" opacity="0.4"/>`
+            : opts.part === "cap-head"
+              ? `<path d="M ${cx3} ${(capY - capR).toFixed(2)} A ${capR.toFixed(2)} ${capR.toFixed(2)} 0 0 1 ${cx3} ${(capY + capR).toFixed(2)} Z" fill="#FFFFFF" opacity="0.4"/>`
+              : opts.part === "hand"
+                ? `<line x1="${cx3}" y1="${cy3}" x2="${cx3}" y2="${(cy3 - rHand).toFixed(1)}" stroke="#FFFFFF" stroke-width="${(3.4 * k).toFixed(1)}" stroke-linecap="round"/><line x1="${cx3}" y1="${cy3}" x2="${cx3}" y2="${(cy3 + 14 * k).toFixed(1)}" stroke="#FFFFFF" stroke-width="${(3.4 * k).toFixed(1)}" stroke-linecap="round"/>`
+                : candyKnob(cx3, cy3, 8 * k, opts.part === "hub-alarm" ? alarm : bevel);
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${sideSW}" height="${sideSW}" viewBox="${(cx3 - sideSW / 2).toFixed(1)} ${(cy3 - sideSW / 2).toFixed(1)} ${sideSW} ${sideSW}" role="img" aria-label="stopwatch ${opts.part}">${innerSW}</svg>`;
+      }
+      const faceOnly = opts.part === "face"; // the rig's ground: no arc, no hand, no hub
       const large = v3 > 0.5 ? 1 : 0;
       const arc = v3 > 0.01
         ? `<path d="M ${cx3} ${(cy3 - arcR).toFixed(1)} A ${arcR.toFixed(1)} ${arcR.toFixed(1)} 0 ${large} 1 ${(cx3 + Math.cos(aH) * arcR).toFixed(1)} ${(cy3 + Math.sin(aH) * arcR).toFixed(1)}" fill="none" stroke="${urgent ? alarm : glow}" stroke-width="${(5 * k).toFixed(1)}" stroke-linecap="round" opacity="0.4"/>`
@@ -9954,10 +9985,10 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
   <g transform="translate(${(cx3 - (ssx + ssw / 2)).toFixed(1)} ${(cy3 - (ssy + ssh / 2)).toFixed(1)})">${swInner}</g>
   <circle cx="${cx3}" cy="${cy3}" r="${faceR.toFixed(1)}" fill="${wellFill}"/>
   ${ticks}
-  ${arc}
-  <line x1="${cx3}" y1="${cy3}" x2="${(cx3 + Math.cos(aH) * rHand).toFixed(1)}" y2="${(cy3 + Math.sin(aH) * rHand).toFixed(1)}" stroke="${urgent ? alarm : hexMix(glow, "#FFFFFF", 0.35)}" stroke-width="${(3.4 * k).toFixed(1)}" stroke-linecap="round"/>
+  ${faceOnly ? "" : arc}
+  ${faceOnly ? "" : `<line x1="${cx3}" y1="${cy3}" x2="${(cx3 + Math.cos(aH) * rHand).toFixed(1)}" y2="${(cy3 + Math.sin(aH) * rHand).toFixed(1)}" stroke="${urgent ? alarm : hexMix(glow, "#FFFFFF", 0.35)}" stroke-width="${(3.4 * k).toFixed(1)}" stroke-linecap="round"/>
   <line x1="${cx3}" y1="${cy3}" x2="${(cx3 - Math.cos(aH) * 14 * k).toFixed(1)}" y2="${(cy3 - Math.sin(aH) * 14 * k).toFixed(1)}" stroke="${urgent ? alarm : hexMix(glow, "#FFFFFF", 0.35)}" stroke-width="${(3.4 * k).toFixed(1)}" stroke-linecap="round"/>
-  ${candyKnob(cx3, cy3, 8 * k, urgent ? alarm : bevel)}
+  ${candyKnob(cx3, cy3, 8 * k, urgent ? alarm : bevel)}`}
   ${contentText(tLabel, cx3, cy3 + r0 * 0.5, Math.min(d2 * 0.155 * typeK, r0 * 0.42), { anchor: "middle", keepCase: true, opacity: dim })}
 </g>
 </svg>`;

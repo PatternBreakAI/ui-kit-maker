@@ -4283,7 +4283,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         combo: "Combo burst — CLICK IT IN PLAY: the ComboPop rig replays the app's exact celebration (squash, overshoot, settle) and ClaimBurst throws the sparks; call ComboPop.Pop() on every multiplier tick. The tilted numeral is art by the warped-stamp contract (per-copy words ride posed skins).",
         booster: "Booster button — a REAL button (Sprite Swap states); the booster glyph is a LIVE Image child and the count badge a live plate child with its count RIDING it (the ×0 FREE ribbon ships the same way).",
         flipclock: "Flip countdown — the tile digits and caption are LIVE seats; drive them from your own clock. Display piece.",
-        stopwatch: "Stopwatch — the readout is a LIVE seat; drive it from your own clock. Display piece.",
+        stopwatch: "Stopwatch — the dial FUNCTIONS (round 44): PatternBreakStopwatch drives the remaining-time arc (Radial360 + rotating round head), the sweep hand, the alarm mood below 25% and the m:ss readout from ONE value (SetValue 0..1, or SetSeconds on the 90s dial). The readout stays a LIVE seat — retype it and it is yours. Display piece.",
         scorebug: "Match score bug — Home and Away names, both scores and the clock are LIVE seats (the app's Home/Away word slots land verbatim); each team's color bar is a LIVE TINTABLE child (its sprite ships white, the slot color rides Image.color — retint a side in one edit). Display piece; the value slider stays the match clock, exactly as in the app.",
         friendrow: "Friend row — drop YOUR sprite on the Portrait child (the well clips it round); name, status and time are LIVE seats, the JOIN capsule is a REAL small-button child with its word riding it, and the presence dot a LIVE Image child (move it, delete it, or tint a copy for offline). Display piece.",
         clancrest: "Clan crest — the emblem is a LIVE Image child and the tag ribbon a live plate whose tag RIDES it. Display piece.",
@@ -4944,6 +4944,61 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
             component: uid, part: "sweepmask", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
             usage: "The face silhouette, opaque — the Sweep Window's Mask graphic (hidden), so the rotating hand clips exactly like the app's face clip.",
           }, false);
+        }
+        /* ── the STOPWATCH ATOMS (round 44, item 39 — RIG-3): the arc,
+           hand and hub leave the face and return as rotation-true atoms
+           on ONE dial-centered square canvas (the buff-sweep
+           discipline); the FACE is the rig's ground — base.png keeps the
+           baked pose byte-identical for old importers and kept prefabs
+           (the ring's compatibility rule). The dial center rides the
+           face row's gauge stamp (dialX/dialY — the crop-corrected
+           road the speedo needle already trusts); the arc row's ringV
+           stages the value. ── */
+        if (uid === "stopwatch") {
+          try {
+            const faceSvg0 = stripLoopsU(shell(uid, { ...uOpts, part: "face" }, undefined, uVal));
+            const dialSW = /viewBox="0 0 ([\d.]+) ([\d.]+)"/.exec(faceSvg0);
+            const faceSvg = iconSeatsU ? stripIconInk(stripWordInk(faceSvg0).svg).svg : stripWordInk(faceSvg0).svg;
+            // the dial center: the crown-and-caption canvas is fixed, so
+            // the center is the render's own cx3/cy3 — recover them from
+            // the hand atom's square window (its canvas centers the dial)
+            const handSvgSW = shell(uid, { ...uOpts, part: "hand" }, undefined, uVal);
+            const vbH = /viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/.exec(handSvgSW);
+            if (dialSW && vbH) {
+              const dcx = +vbH[1] + +vbH[3] / 2, dcy = +vbH[2] + +vbH[4] / 2;
+              await addPng(`${uid}/face.png`, faceSvg, {
+                component: uid, part: "face", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+                usage: "Stopwatch face, still — the LIVE rig's ground (the generated prefab wears it; base.png keeps the baked pose for older importers). The readout is a LIVE seat riding this row.",
+                ...seatsU,
+                gauge: { x: 0, y: 0, fs: 0, unitY: 0, unitFs: 0, dialX: dcx * PNG_SCALE, dialY: dcy * PNG_SCALE },
+              }, true, uid);
+              await addPng(`${uid}/arc.png`, shell(uid, { ...uOpts, part: "arc" }, undefined, uVal), {
+                component: uid, part: "arc", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true,
+                usage: "The remaining-time ring, full circle, WHITE at the app's own alpha — Image Filled / Radial360 (origin Top, clockwise) cuts it clean at ANY value; the kit's Glow (and the alarm swap) ride Image.color (PatternBreakStopwatch drives it).",
+                ringV: Math.max(0.005, Math.min(1, uVal ?? 0.62)),
+              }, false);
+              await addPng(`${uid}/cap-start.png`, shell(uid, { ...uOpts, part: "cap-start" }, undefined, uVal), {
+                component: uid, part: "cap-start", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true,
+                usage: "The arc's round START cap (the protruding half only, so the translucent arc never doubles) — parked at 12 o'clock.",
+              }, false);
+              await addPng(`${uid}/cap-head.png`, shell(uid, { ...uOpts, part: "cap-head" }, undefined, uVal), {
+                component: uid, part: "cap-head", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true,
+                usage: "The arc's round HEAD cap — PatternBreakStopwatch rotates it to the value line.",
+              }, false);
+              await addPng(`${uid}/hand.png`, shell(uid, { ...uOpts, part: "hand" }, undefined, uVal), {
+                component: uid, part: "hand", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true,
+                usage: "The sweep hand + counterweight, parked at 12 o'clock WHITE — the rig rotates it to the value and tints it the app's own mix (alarm included).",
+              }, false);
+              await addPng(`${uid}/hub.png`, shell(uid, { ...uOpts, part: "hub" }, undefined, uVal), {
+                component: uid, part: "hub", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+                usage: "The candy pivot knob — rides OVER the hand, exactly the app's stack.",
+              }, false);
+              await addPng(`${uid}/hub-alarm.png`, shell(uid, { ...uOpts, part: "hub-alarm" }, undefined, uVal), {
+                component: uid, part: "hub-alarm", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+                usage: "The pivot knob in the ALARM mood — the rig swaps it in below 25% (a candy gradient can't tint).",
+              }, false);
+            }
+          } catch { /* base.png still ships — the static road stands */ }
         }
         /* the streak meter's LIT ignition pose (owner: "should ignite") —
            the same marked group cut from a FULL-streak render, shipped
@@ -6362,6 +6417,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Runtime/PatternBreakStartLights.cs", data: START_LIGHTS_RUNTIME });
   files.push({ path: "Runtime/PatternBreakStarRating.cs", data: STAR_RATING_RUNTIME });
   files.push({ path: "Runtime/PatternBreakEmoteWheel.cs", data: EMOTE_WHEEL_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakStopwatch.cs", data: STOPWATCH_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitTrace.cs", data: KIT_TRACE_RUNTIME });
   files.push({ path: "Runtime/PatternBreakSafeArea.cs", data: SAFE_AREA_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitPiece.cs", data: KIT_PIECE_RUNTIME });
@@ -6442,6 +6498,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     "Runtime/PatternBreakPageDots.cs", "Runtime/PatternBreakStartLights.cs",
     "Runtime/PatternBreakStarRating.cs",
     "Runtime/PatternBreakEmoteWheel.cs",
+    "Runtime/PatternBreakStopwatch.cs",
     "Runtime/PatternBreakKitTrace.cs",
     "Runtime/PatternBreakSafeArea.cs",
     "Runtime/PatternBreakKitPiece.cs",
@@ -7099,6 +7156,91 @@ namespace PatternBreak {
       bool fullS = stars >= 3;
       if (celebration != null && celebration.activeSelf != fullS) celebration.SetActive(fullS);
       if (replay != null && replay.activeSelf != fullS) replay.SetActive(fullS);
+    }
+    void OnEnable() { Apply(); }
+#if UNITY_EDITOR
+    void OnValidate() { UnityEditor.EditorApplication.delayCall += () => { if (this != null) Apply(); }; }
+#endif
+  }
+}
+`;
+
+/* the STOPWATCH rig (round 44, item 39 — RIG-3): the dial FUNCTIONS.
+   value = share of the 90-second dial remaining (the app's own scale);
+   the arc scissors Radial360 with a rotating round head cap, the hand
+   sweeps, the alarm mood arrives below 25% (arc/hand retint, hub look
+   swaps), and the readout seat follows when it still wears a clock word.
+   Everything stays ordinary Inspector children. */
+const STOPWATCH_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+#if UNITY_2023_2_OR_NEWER
+using TMPro;
+#endif
+
+namespace PatternBreak {
+  [AddComponentMenu("UI Kit Maker/Stopwatch")]
+  [ExecuteAlways]
+  public class PatternBreakStopwatch : MonoBehaviour {
+    [Tooltip("Time remaining as a share of the dial (0..1) — drive this, SetValue, or SetSeconds. Below the alarm line the arc, hand and hub take the app's alarm mood.")]
+    [Range(0f, 1f)] public float value = 0.62f;
+    [Tooltip("The dial's full run in seconds — the app's stopwatch reads 90.")]
+    public float dialSeconds = 90f;
+    [Tooltip("Alarm below this share (the app's own 25% rule).")]
+    public float alarmBelow = 0.25f;
+    [Header("Wired on import — the app's own parts")]
+    public Image arc;
+    public Image capStart;
+    public RectTransform capHead;
+    public RectTransform hand;
+    public Image hub;
+    public Sprite hubRest;
+    public Sprite hubAlarm;
+    [Tooltip("The arc's resting ink (the kit's Glow).")]
+    public Color ink = Color.white;
+    [Tooltip("The hand's resting ink (the app's glow/white mix).")]
+    public Color handInk = Color.white;
+    [Tooltip("The alarm ink (the app's red, mixed toward the kit).")]
+    public Color alarmInk = new Color(1f, 0.35f, 0.4f);
+#if UNITY_2023_2_OR_NEWER
+    [Tooltip("The readout seat (generated wiring) — rewritten m:ss only while it still wears a clock word; retype it and it is yours.")]
+    public TMP_Text readout;
+#endif
+    public void SetSeconds(float s) { value = dialSeconds > 0.01f ? Mathf.Clamp01(s / dialSeconds) : 0f; Apply(); }
+    public void SetValue(float v) { value = Mathf.Clamp01(v); Apply(); }
+    static bool LooksLikeClock(string s) {
+      if (string.IsNullOrEmpty(s) || s.Length > 6) return false;
+      bool colon = false;
+      foreach (var ch in s) { if (ch == ':') { if (colon) return false; colon = true; } else if (ch < '0' || ch > '9') return false; }
+      return colon;
+    }
+    public void Apply() {
+      bool urgent = value <= alarmBelow;
+      var aC = urgent ? alarmInk : ink;
+      var hC = urgent ? alarmInk : handInk;
+      bool showArc = value > 0.01f;
+      if (arc != null) { arc.fillAmount = Mathf.Clamp01(value); if (arc.color != aC) arc.color = aC; if (arc.enabled != showArc) arc.enabled = showArc; }
+      float ang = -Mathf.Clamp01(value) * 360f;
+      if (capHead != null) {
+        capHead.localRotation = Quaternion.Euler(0f, 0f, ang);
+        var ci = capHead.GetComponent<Image>();
+        if (ci != null) { if (ci.color != aC) ci.color = aC; if (ci.enabled != showArc) ci.enabled = showArc; }
+      }
+      if (capStart != null) { if (capStart.color != aC) capStart.color = aC; if (capStart.enabled != showArc) capStart.enabled = showArc; }
+      if (hand != null) {
+        hand.localRotation = Quaternion.Euler(0f, 0f, ang);
+        var hi = hand.GetComponent<Image>();
+        if (hi != null && hi.color != hC) hi.color = hC;
+      }
+      if (hub != null) {
+        var want = urgent && hubAlarm != null ? hubAlarm : hubRest;
+        if (want != null && hub.sprite != want) hub.sprite = want;
+      }
+#if UNITY_2023_2_OR_NEWER
+      if (readout != null && LooksLikeClock(readout.text)) {
+        int s = Mathf.Max(0, Mathf.RoundToInt(Mathf.Clamp01(value) * dialSeconds));
+        readout.text = (s / 60) + ":" + (s % 60).ToString("00");
+      }
+#endif
     }
     void OnEnable() { Apply(); }
 #if UNITY_EDITOR
@@ -14341,6 +14483,8 @@ namespace PatternBreak {
             if (srrS != null && it.value > 0f) srrS.SetValue(Mathf.Clamp01(it.value));
             var ewS = inst.GetComponent<PatternBreakEmoteWheel>();
             if (ewS != null && it.value > 0f) ewS.SetValue(Mathf.Clamp01(it.value));
+            var pswS = inst.GetComponent<PatternBreakStopwatch>();
+            if (pswS != null && it.value > 0f) pswS.SetValue(Mathf.Clamp01(it.value));
             var gdS = inst.GetComponent<GaugeDial>();
             if (gdS != null && it.value > 0f) { gdS.value = Mathf.Clamp01(it.value); gdS.Apply(); }
             var ktS = inst.GetComponent<KitTimer>();
@@ -16725,6 +16869,70 @@ namespace PatternBreak {
           bsw.Apply();
         }
       }
+      /* ── the STOPWATCH FUNCTIONS (round 44, item 39 — the ring rig's
+         arc road): with the atoms aboard, the root wears the still FACE
+         (base.png keeps the baked pose — the ring's compatibility rule)
+         and the dial rebuilds LIVE at the face row's stamped center:
+         Radial360 arc + rotating round head cap + sweeping hand + candy
+         hub, PatternBreakStopwatch driving them all from one value —
+         alarm mood below 25% exactly like the app. Old zips keep the
+         static bake. ── */
+      if (baseAsset.component == "stopwatch") {
+        var faceSW = S(root + "/assets/stopwatch/stopwatch-face.png");
+        var arcSW = S(root + "/assets/stopwatch/stopwatch-arc.png");
+        var handSW = S(root + "/assets/stopwatch/stopwatch-hand.png");
+        PBAsset faceRowSW = null, arcRowSW = null;
+        foreach (var aSW in m.assets) if (aSW != null && aSW.component == "stopwatch") { if (aSW.part == "face") faceRowSW = aSW; else if (aSW.part == "arc") arcRowSW = aSW; }
+        if (faceSW != null && arcSW != null && handSW != null && faceRowSW != null && faceRowSW.gauge != null && faceSW.rect.width > 2f) {
+          var bodySW = BodyImage(go);
+          if (bodySW != null) bodySW.sprite = faceSW;
+          var anchSW = new Vector2(Mathf.Clamp01(faceRowSW.gauge.dialX / faceSW.rect.width), 1f - Mathf.Clamp01(faceRowSW.gauge.dialY / faceSW.rect.height));
+          System.Func<string, Sprite, Image> dialChild = (nm, sp9) => {
+            var cGo = new GameObject(nm, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            cGo.transform.SetParent(go.transform, false);
+            var cRt = cGo.GetComponent<RectTransform>();
+            cRt.anchorMin = cRt.anchorMax = anchSW;
+            cRt.pivot = new Vector2(0.5f, 0.5f);
+            cRt.anchoredPosition = Vector2.zero;
+            cRt.sizeDelta = new Vector2(sp9.rect.width / (pngScale > 0 ? pngScale : 2), sp9.rect.height / (pngScale > 0 ? pngScale : 2));
+            var cIm = cGo.GetComponent<Image>();
+            cIm.sprite = sp9; cIm.raycastTarget = false; cIm.preserveAspect = false;
+            return cIm;
+          };
+          var arcImgSW = dialChild("Arc", arcSW);
+          arcImgSW.type = Image.Type.Filled;
+          arcImgSW.fillMethod = Image.FillMethod.Radial360;
+          arcImgSW.fillOrigin = (int)Image.Origin360.Top;
+          arcImgSW.fillClockwise = true;
+          var capStartSW = S(root + "/assets/stopwatch/stopwatch-cap-start.png");
+          var capHeadSW = S(root + "/assets/stopwatch/stopwatch-cap-head.png");
+          Image capStartImgSW = capStartSW != null ? dialChild("Arc Cap Start", capStartSW) : null;
+          Image capHeadImgSW = capHeadSW != null ? dialChild("Arc Cap Head", capHeadSW) : null;
+          var handImgSW = dialChild("Hand", handSW);
+          var hubSW = S(root + "/assets/stopwatch/stopwatch-hub.png");
+          var hubAlarmSW = S(root + "/assets/stopwatch/stopwatch-hub-alarm.png");
+          Image hubImgSW = hubSW != null ? dialChild("Hub", hubSW) : null;
+          var rigSW = go.AddComponent<PatternBreakStopwatch>();
+          rigSW.arc = arcImgSW;
+          rigSW.capStart = capStartImgSW;
+          rigSW.capHead = capHeadImgSW != null ? (RectTransform)capHeadImgSW.transform : null;
+          rigSW.hand = (RectTransform)handImgSW.transform;
+          rigSW.hub = hubImgSW;
+          rigSW.hubRest = hubSW;
+          rigSW.hubAlarm = hubAlarmSW;
+          Color glowSW, bevelSW;
+          if (m.palette != null && ColorUtility.TryParseHtmlString(m.palette.glow ?? "", out glowSW)) {
+            rigSW.ink = glowSW;
+            rigSW.handInk = Color.Lerp(glowSW, Color.white, 0.35f);
+          }
+          Color alarmBaseSW = new Color(1f, 0.302f, 0.353f); // the app's #FF4D5A
+          if (m.palette != null && ColorUtility.TryParseHtmlString(m.palette.bevel ?? "", out bevelSW))
+            rigSW.alarmInk = Color.Lerp(alarmBaseSW, bevelSW, 0.18f);
+          else rigSW.alarmInk = alarmBaseSW;
+          rigSW.value = arcRowSW != null && arcRowSW.ringV > 0f ? Mathf.Clamp01(arcRowSW.ringV) : 0.62f;
+          rigSW.Apply();
+        }
+      }
       if (baseAsset.component == "badge" && label == null) {
         var glyph = S(root + "/assets/icons/star.png");
         if (glyph == null) glyph = S(root + "/assets/icons/gem.png");
@@ -16760,6 +16968,23 @@ namespace PatternBreak {
       // live TEXT SEATS (the list row's title + subtitle): the maker's own
       // words from the manifest — no-op for families without seat rows
       WireTextSeats(go, root, m, pngScale);
+      /* the stopwatch readout follows the dial (round 44, item 39): the
+         clock-worded seat joins the rig AFTER the words seed — a seat the
+         dev retypes to a non-clock word is theirs and never rewritten */
+      if (baseAsset.component == "stopwatch") {
+        var rigSW2 = go.GetComponent<PatternBreakStopwatch>();
+        if (rigSW2 != null) {
+#if UNITY_2023_2_OR_NEWER
+          foreach (var tSW in go.GetComponentsInChildren<TMPro.TMP_Text>(true)) {
+            var s9 = tSW != null ? tSW.text : null;
+            bool clockSW = !string.IsNullOrEmpty(s9) && s9.Length <= 6 && s9.IndexOf(':') > 0;
+            if (clockSW) { foreach (var ch9 in s9) if (ch9 != ':' && (ch9 < '0' || ch9 > '9')) { clockSW = false; break; } }
+            if (clockSW) { rigSW2.readout = tSW; break; }
+          }
+#endif
+          rigSW2.Apply();
+        }
+      }
 #if UNITY_2023_2_OR_NEWER
       // the kit's designed state ink/shift follows the face swap (only
       // wired when the kit forks its states)
