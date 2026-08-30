@@ -3545,6 +3545,33 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the TMP seat kern-off consumption left the importer (round 48, S39 — DressSeatText probe+apply and the LTS road)");
 }
 
+/* ── ROUND 49 · S40 (the slot button fleet, exporter half of d7c83a2):
+   slotbtn rides the universal interactive road (skins + Button + live
+   glyph + chip), staged-gated like the family; the manifest ships the
+   curated fleet list ONLY when released; and the importer builds one
+   thin Prefab Variant per entry — manifest-driven so wave 2 (the glyph
+   rack) is additive with zero importer change. ── */
+{
+  if (!/"orderticket", "chest", "giftbox",[\s\S]{0,500}"slotbtn"\]\);/.test(src))
+    errors.push("slotbtn left the UNIVERSAL_INTERACTIVE road — no skins, no Button, no fleet (round 49, S40)");
+  if (!/\["slotbtn", "slotbtn"\],/.test(src))
+    errors.push("slotbtn lost its stateFx dials row — the prefab presses without the kit's glow/lift (round 49, S40)");
+  if (!/\.\.\.\(stagedShips\("slotbtn"\) \? \{\s*slotFleet:/.test(src)
+      || !/\.map\(\(g\) => \(\{ name: g\.charAt\(0\)\.toUpperCase\(\) \+ g\.slice\(1\), file: `assets\/icons\/\$\{g\}\.png` \}\)\),/.test(src))
+    errors.push("the slot fleet list lost its staged gate or its shipped-sprite shape (round 49, S40)");
+  if (!/public PBFleetEntry\[\] slotFleet;/.test(src) || !/class PBFleetEntry \{ public string name; public string file; \}/.test(src))
+    errors.push("PBManifest lost the fleet entries (round 49, S40)");
+  if (!/static bool SlotFleetPrefabs\(string dir, string root, PBManifest m, bool quiet\) \{/.test(cs)
+      || !/SlotFleetPrefabs\(dir, root, m, staging\)/.test(cs)
+      || !/var gT = inst\.transform\.Find\("Icon glyph"\);/.test(cs)
+      || !/"\/Slot Button – " \+ FileSafeWord\(fe\.name\) \+ "\.prefab"/.test(cs)
+      || !/PrefabUtility\.GetPrefabAssetType\(saved\) == PrefabAssetType\.Variant\s*&& \(GameObject\)PrefabUtility\.GetCorrespondingObjectFromSource\(saved\) == basePf;[\s\S]{0,900}Slot Button fleet/.test(cs))
+    errors.push("the slot fleet builder (thin Prefab Variants off the live glyph child) left the importer (round 49, S40)");
+  if (!/"Slotbtn", "Slot Button – Gem", "Slot Button – Sword", "Slot Button – Key", "Slot Button – Hammer", "Slot Button – Gear", "Slot Button – Check"/.test(cs)
+      || !/else if \(sf == "slotbtn"\) foreach \(var fv in new\[\] \{ "Slot Button – Gem"/.test(cs))
+    errors.push("the Playground lost the slot button's representative row or its staged hiding (round 49, S40)");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);

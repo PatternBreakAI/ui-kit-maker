@@ -760,7 +760,13 @@ const UNIVERSAL_INTERACTIVE = new Set<KitComponentId>(["ghost", "claimbtn", "lev
      the kit page's own meta ("chests, gifts, cards and claims are real
      buttons"). stagedShips gates their EMISSION: the road stands ready
      and ships the moment the owner releases them. */
-  "orderticket", "chest", "giftbox"]);
+  "orderticket", "chest", "giftbox",
+  /* the SLOT BUTTON (round 49 commission — d7c83a2's Unity half): the
+     item slot's framed look as a REAL pressing button; the glyph is the
+     point (a live child), the qty chip a real small-button child with
+     its riding count. Staged like the family — roads ready, ships on
+     the owner's release. */
+  "slotbtn"]);
 const UNIVERSAL_DISPLAY = new Set<KitComponentId>(["qtybadge", "resource", "currency", "movecounter", "ring", "avatarframe", "bottomnav",
   /* the FULL-CATALOG round (owner roster, 2026-08-28: "Include the following
      exports in the Playground scene") — chrome & foundations first: every
@@ -4300,6 +4306,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         levelnode: "Level-map node — a REAL button (Sprite Swap states); the level number is LIVE text. Star/lock poses ride per-copy posed skins.",
         dailycell: "Daily reward cell — a REAL button; the day word is a LIVE seat and the reward glyph a LIVE Image child (swap the sprite in the Inspector). Claimed/today/locked poses ride per-copy posed skins.",
         boostercard: "Booster card — a REAL button; name/effect words are LIVE seats, the glyph a LIVE Image child, and the qty pill a REAL small-button child with its live count over it (per-copy content rides posed skins).",
+        slotbtn: "Slot button — the item slot's framed look as a REAL button (Sprite Swap states, glow + lift): the glyph is a LIVE Image child (swap it in the Inspector; icons/* fit the seat — the per-glyph fleet in Prefabs/Variants wears them ready-made), and a typed qty pins the corner chip as a real small-button child with its riding count.",
         resource: "Resource chip — the count is a LIVE seat and the medallion is a LIVE Image child (swap the sprite in the Inspector). Display piece.",
         currency: "Currency chip — the count is a LIVE seat and the coin a LIVE Image child (swap the sprite in the Inspector). Display piece.",
         ghost: "Ghost button — the labeled button family, live word + Sprite Swap states, exactly like the primary.",
@@ -6201,6 +6208,20 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         KIT_COMPONENTS.filter((c) => !kitVisible(c.id, st.releases ?? {}, false)
           && !usedOnBoards0.has(PREFAB_FAMILY[c.id] ?? c.id))
           .map((c) => PREFAB_FAMILY[c.id] ?? c.id))],
+      /* the SLOT BUTTON FLEET (round 49 commission — "each icon/glyph
+         gets its own button counterpart"): the curated stock roster the
+         importer builds thin Prefab Variants from — each entry names a
+         shipped sprite the variant's live glyph child wears. Wave 2 (the
+         semantic glyph rack) is ADDITIVE by design: new entries point at
+         their own shipped files and the importer needs no change.
+         Staged-gated like every slotbtn byte: an unreleased family ships
+         no fleet list at all. */
+      ...(stagedShips("slotbtn") ? {
+        slotFleet: (["gem", "star", "heart", "zap", "sword", "shield", "skull", "trophy", "gift", "key", "flask", "scroll", "leaf", "hammer",
+          "magnet", "rocket", "crosshair", "lock", "map", "clock", "bag", "helmet", "boots", "gear", "play", "pause", "check", "warning"] as const)
+          .filter((g) => !!STOCK_ICONS[g])
+          .map((g) => ({ name: g.charAt(0).toUpperCase() + g.slice(1), file: `assets/icons/${g}.png` })),
+      } : {}),
       /* the text-seat unit contract version — the importer soft-gates on
          it so a future contract change can never be misread as this one */
       seatSpace: "sprite-fraction-v2",
@@ -6507,6 +6528,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
                  ["dailycell", "dailycell"], ["boostercard", "boostercard"], ["rewardcard", "rewardcard"],
                  ["orderticket", "orderticket"], ["chest", "chest"], ["giftbox", "giftbox"],
                  ["skillnode", "skillnode"], ["booster", "booster"],
+                 // the slot button presses like its group (round 49) — staged-gated below
+                 ["slotbtn", "slotbtn"],
                  /* the 2x reward button presses for real (round 43 review
                     blocker) — the variant family rides the base piece's
                     own state dials */
@@ -12128,13 +12151,16 @@ namespace PatternBreak {
   [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float artW; public float artH; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string stampMask; public bool bakedFallback; public int stampLive; public float stampFs; public string stampInk; public string stampSplashInk; public string stampCase; public float stampDx; public float stampDy; public float stampW; public float stampH; public string posed; public float posedW; public float posedH; public float posedDx; public float posedDy; public string posedHover; public string posedPressed; public string posedDisabled; public float posedLabelDx; public float posedLabelDy; public string shadow; public float shadowW; public float shadowH; public float shadowDx; public float shadowDy; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; public PBBig big; public PBIconChild[] posedIcons; }
   [Serializable] class PBBoardBg { public string file; public float opacity; public float blur; public float saturation; public float hue; public float brightness; public float contrast; public float noise; public string overlay; public float overlayStrength; public string overlayBlend; public bool original; }
   [Serializable] class PBBoard { public string name; public int w; public int h; public PBBoardBg bg; public PBBoardItem[] items; }
-  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public string seatSpace; public string[] stagedFamilies; public PBWell globeWell; public PBSeasonGeo seasonTrack; public PBDotsGeo pageDots; public PBDotsGeo startLights; public PBDotsGeo steps; public PBPathGeo pathConnector; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBTimerBlock timer; public PBMenu menu; public PBRarity rarity; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; }
+  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public string seatSpace; public string[] stagedFamilies; public PBFleetEntry[] slotFleet; public PBWell globeWell; public PBSeasonGeo seasonTrack; public PBDotsGeo pageDots; public PBDotsGeo startLights; public PBDotsGeo steps; public PBPathGeo pathConnector; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBTimerBlock timer; public PBMenu menu; public PBRarity rarity; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; }
   [Serializable] class PBLockEntry { public string file; public string sha256; }
   /* the word each labeled family's prefab was last SEEDED with — the
      ownership ledger: a re-import re-seeds only a label still equal to
      its last seed; anything else is the dev's typing and stays */
   [Serializable] class PBSeedEntry { public string family; public string word; }
   [Serializable] class PBVariantEntry { public string path; public string word; }
+  /* the slot button's glyph fleet (round 49) — name + the shipped sprite
+     the variant's live glyph child wears; wave 2 entries just append */
+  [Serializable] class PBFleetEntry { public string name; public string file; }
   /* pendingMissing rides PARALLEL to pendingScenes (same index = same
      scene): the missing count the last build ended on. Two builds in a
      row ending on the SAME count is the un-armable-forever tripwire —
@@ -13676,9 +13702,16 @@ namespace PatternBreak {
             else if (sf == "scrollview") stagedNames.Add("ScrollView");
             else if (sf == "countbadge") stagedNames.Add("CountBadge");
             else if (sf == "rarityframe") stagedNames.Add("RarityFrame");
+            /* the slot button's shelved fleet representatives hide with
+               their family (round 49) — the full set lives in
+               Prefabs/Variants, which the shelf never walks */
+            else if (sf == "slotbtn") foreach (var fv in new[] { "Slot Button – Gem", "Slot Button – Sword", "Slot Button – Key", "Slot Button – Hammer", "Slot Button – Gear", "Slot Button – Check" }) stagedNames.Add(fv);
           }
         var SECTIONS = new (string title, string[] names)[] {
-          ("BUTTONS", new[] { "ButtonPrimary", "ButtonSecondary", "ButtonSmall", "Iconbtn", "Chip", "Endturn", "Keycap", "KeycapSpace", "Padbtn", "PadbtnB", "PadbtnX", "PadbtnY", "Pricebtn", "Claimbtn", "Ghost" }),
+          /* the slot button shelves with a REPRESENTATIVE handful of its
+             glyph fleet (round 49 — the shelf stays sane; all 28 live in
+             Prefabs/Variants, which the walk below never shelves) */
+          ("BUTTONS", new[] { "ButtonPrimary", "ButtonSecondary", "ButtonSmall", "Iconbtn", "Slotbtn", "Slot Button – Gem", "Slot Button – Sword", "Slot Button – Key", "Slot Button – Hammer", "Slot Button – Gear", "Slot Button – Check", "Chip", "Endturn", "Keycap", "KeycapSpace", "Padbtn", "PadbtnB", "PadbtnX", "PadbtnY", "Pricebtn", "Claimbtn", "Ghost" }),
           ("CHOICE CONTROLS & FIELDS", new[] { "Checkbox", "Radio", "CheckboxToggle", "RadioToggle", "Switch", "Stepper", "Input", "Dropdown", "Setrow", "Listmenu", "Joystick", "JoystickGhost", "Firebutton" }),
           ("SLIDERS & PROGRESS", new[] { "Slider", "ProgressBar", "SegmentMeter", "VsBar", "EmblemBar", "Loadbar", "HealthGlobe", "Ring", "SeasonTrack", "Cooldown", "Vitalbar" }),
           ("NAVIGATION & CHROME", new[] { "Tab", "TabBack", "Bottomnav", "HeaderBanner", "Panel", "Dialog", "DataRow", "ItemSlot", "ScrollView", "Scrollbar", "Badge", "CountBadge", "Notifydot", "Avatarframe", "Pagedots", "Steps", "Spinner" }),
@@ -22355,6 +22388,7 @@ namespace PatternBreak {
       if (StreakIgniteWire(dir, root, staging)) any = true;
       if (ComboPopWire(dir, root, m, staging)) any = true;
       if (DmgNumberWire(dir, root, m, staging)) any = true;
+      if (SlotFleetPrefabs(dir, root, m, staging)) any = true;
 #if UNITY_2023_2_OR_NEWER
       if (HeroLabelPrefab(dir, root)) any = true;
 #endif
@@ -22481,6 +22515,57 @@ namespace PatternBreak {
         if (!quiet) Debug.Log("UI Kit Maker: the Damage number is a dev instrument — call PatternBreakDmgNumber.Show(n) (or set Value in the Inspector to preview) and it composes the kit's own digits at the authored seat and plays the app's float-up-and-fade.");
         return true;
       } finally { PrefabUtility.UnloadPrefabContents(contents); }
+    }
+    /* the SLOT BUTTON FLEET (round 49 commission — the owner: "each
+       icon/glyph gets its own button counterpart"): one THIN Prefab
+       Variant per manifest fleet entry — the Slotbtn base carries the
+       state skins, the Button, the chip and every rig; each variant
+       overrides only the live glyph child's sprite and its own name
+       ("Slot Button – Gem"), so a kit restyle flows into the whole
+       fleet through the base (the label-variant machinery's law).
+       Manifest-driven ON PURPOSE: wave 2 (the semantic glyph rack)
+       just appends entries pointing at its own shipped sprites — the
+       importer needs no change. Staged-gated by construction: an
+       unreleased family ships neither the base row nor the fleet list,
+       so there is nothing to build. Built once; an existing file is
+       the dev's (kept), and a deleted one stays deleted under the
+       prefab-seeding ledger. */
+    static bool SlotFleetPrefabs(string dir, string root, PBManifest m, bool quiet) {
+      if (m == null || m.slotFleet == null || m.slotFleet.Length == 0) return false;
+      var basePf = AssetDatabase.LoadAssetAtPath<GameObject>(dir + "/Slotbtn.prefab");
+      if (basePf == null) return false; // staged (or pruned) — nothing to wear the glyphs
+      var vdir = dir + "/Variants";
+      if (!AssetDatabase.IsValidFolder(vdir)) AssetDatabase.CreateFolder(dir, "Variants");
+      int made = 0, kept = 0, missing = 0;
+      var pscene = UnityEditor.SceneManagement.EditorSceneManager.NewPreviewScene();
+      try {
+        foreach (var fe in m.slotFleet) {
+          if (fe == null || string.IsNullOrEmpty(fe.name) || string.IsNullOrEmpty(fe.file)) continue;
+          var glyphSp = S(root + "/" + fe.file);
+          if (glyphSp == null) { missing++; continue; } // a wave ahead of its sprites — quietly ready
+          var path = vdir + "/Slot Button – " + FileSafeWord(fe.name) + ".prefab";
+          if (AssetDatabase.LoadAssetAtPath<GameObject>(path) != null) { kept++; continue; } // theirs after creation
+          var inst = (GameObject)PrefabUtility.InstantiatePrefab(basePf, pscene);
+          if (inst == null) continue;
+          try {
+            var gT = inst.transform.Find("Icon glyph");
+            var gImg = gT != null ? gT.GetComponent<Image>() : null;
+            if (gImg == null) continue; // no glyph child (the maker shipped an empty well) — the fleet sits out
+            gImg.sprite = glyphSp;
+            PrefabUtility.RecordPrefabInstancePropertyModifications(gImg);
+            var saved = PrefabUtility.SaveAsPrefabAsset(inst, path);
+            if (saved == null) continue;
+            made++;
+            bool linked = PrefabUtility.GetPrefabAssetType(saved) == PrefabAssetType.Variant
+              && (GameObject)PrefabUtility.GetCorrespondingObjectFromSource(saved) == basePf;
+            if (!linked)
+              Debug.LogWarning("UI Kit Maker: '" + Path.GetFileName(path) + "' saved as a plain prefab, NOT a Prefab Variant of Slotbtn — future kit restyles will not flow into it (it still works as a frozen copy). Deleting the file and re-importing retries.");
+          } finally { UnityEngine.Object.DestroyImmediate(inst); }
+        }
+      } finally { UnityEditor.SceneManagement.EditorSceneManager.ClosePreviewScene(pscene); }
+      if (!quiet && (made > 0 || missing > 0))
+        Debug.Log("UI Kit Maker: the Slot Button fleet — " + made + " glyph variant(s) built in Prefabs/Variants" + (kept > 0 ? ", " + kept + " kept (yours after creation)" : "") + (missing > 0 ? ", " + missing + " entry(ies) waiting on their sprites (a future wave ships them)" : "") + ". Each is a thin Prefab Variant of Slotbtn — restyle the kit and the whole fleet follows; only the glyph is its own.");
+      return made > 0;
     }
     /* the STREAK METER IGNITES (owner roster, round 41: "should ignite") —
        the generated Streakmeter prefab gains the StreakIgnite rig with
