@@ -1359,6 +1359,11 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
        able to control / customize the icon on the streak counter") */
     { id: "endicon", name: "Ignition icon", kind: "choice", choices: STREAK_GLYPHS,
       note: "The glyph that lights when the streak fills — Factory is the zap. None removes it; size and weight follow Typography → Icons." },
+    /* round 48 (owner: "i can't change the icon color of the streak meter
+       (non-ignited)") — the unlit pose wore a baked dim white while the
+       lit pose answered the Glow role. One well inks the ghost. */
+    { id: "offink", name: "Idle icon color", kind: "color", def: "#FFFFFF",
+      note: "The ignition glyph's UNLIT pose — the ghost it wears while the streak builds. Factory is a dim HUD white; a pick here inks it alone. The lit pose follows the kit's Glow role." },
   ],
   joystick: [
     /* the overlay stick's stroke-and-glass ink all mixes from one hue

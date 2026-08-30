@@ -7265,11 +7265,15 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       // None removes it, names resolve like the wheels' glyph slots
       const pickS9 = opts.slots?.endicon;
       const zapIc = pickS9 === "None" ? null : (pickS9 && STOCK_ICONS[pickS9.toLowerCase()]) || STOCK_ICONS.zap;
+      /* the unlit pose answers its color slot (KIT_SLOTS.streakmeter,
+         round 48: "i can't change the icon color of the streak meter
+         (non-ignited)") — untouched it keeps the factory dim white */
+      const offInk = opts.slots?.offink ?? "rgba(255,255,255,0.35)";
       // the ignition glyph is marked swappable ink (the law) — the export
       // ships BOTH poses (ghost + lit) and the StreakIgnite rig swaps them
       inner += (zapIc ? `<g data-part="icon" data-icon="endicon" data-icon-nick="Ignition glyph">` + (full && state !== "disabled"
         ? `<g style="filter: drop-shadow(0 0 ${(7 * k).toFixed(1)}px ${hexRgba(glow, 0.85)})">${themedIcon(zapIc, zapX, cy - 17 * k, 34 * k, lighten(glow, 0.3), 2.4)}</g>`
-        : iconGroup(zapIc, zapX, cy - 17 * k, 34 * k, "rgba(255,255,255,0.35)", { strokeWidth: 2.2 * iconWK })) + `</g>` : "");
+        : iconGroup(zapIc, zapX, cy - 17 * k, 34 * k, offInk, { strokeWidth: 2.2 * iconWK })) + `</g>` : "");
       // round 44 (item 40): the cell run's zone stamp — the engine's cell
       // scissor cuts by it (an attribute; the drawing is untouched)
       return stampTrack(inject(shell.replace("<svg ", '<svg data-streakmeter="1" '), inner), cellsX, cellsW);
