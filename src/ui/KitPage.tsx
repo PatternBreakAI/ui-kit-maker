@@ -67,8 +67,6 @@ function chapterNumber(id: string, hasClones: boolean): string {
    entire page — hundreds of pieces — to repaint one highlighted tab. */
 function ChapterTabs() {
   const setPhase = useGen((s) => s.setPhase);
-  const kitSizes = useGen((s) => s.kitSizes);
-  const setKitSizeAll = useGen((s) => s.setKitSizeAll);
   const releases = useGen((s) => s.componentReleases);
   const kitClones = useGen((s) => s.kitClones);
   const isAdmin = useGen((s) => s.isAdmin);
@@ -122,10 +120,6 @@ function ChapterTabs() {
     };
     seek();
   };
-  // size is a KIT decision now — one switch up here instead of chips on
-  // every cell. Mixed sizes (older saves) read as M until the next click
-  // normalizes the kit.
-  const sizeAll: KitSize = Object.values(kitSizes).some((v) => effKitSize(v) === "m") ? "m" : "l";
   // the user's clones carry their own chapter — it slots in AFTER the
   // Foundations story, leading the components zone, and its tab exists
   // only while visible clones do (owner IA round: nothing before the story)
@@ -181,14 +175,10 @@ function ChapterTabs() {
           </span>
         )}
       </span>
-      <span className="kp-tabsizes" role="group" aria-label="Kit size">
-        <span className="kp-tabsizelab">Size</span>
-        {(["m", "l"] as const).map((s) => (
-          <button key={s} className={sizeAll === s ? "on" : ""}
-            title={s === "m" ? "Medium — the whole kit" : "Large — the whole kit"}
-            onClick={() => setKitSizeAll(s)}>{s.toUpperCase()}</button>
-        ))}
-      </span>
+      {/* the SIZE M|L switch lived here — retired on the owner's order
+          ("get rid of the ML sizing tool in the nav, just leave it on L"):
+          the page documents the kit at L, full stop. Only the Primary ramp
+          still shows an explicit M for scale contrast. */}
       <button className="kp-tabedit" onClick={() => setPhase("master")} title="Back to the component editor">
         <PenTool size={13} strokeWidth={2} /> Editor
       </button>
@@ -416,15 +406,16 @@ function flatPiece(c: GenConfig, flat?: boolean): GenConfig {
 /** Shared plumbing for every live piece on this page. The page is always
  *  alive — clicking a piece plays it; editing goes through the ✎ button. */
 function usePiece(p: PieceOpts) {
-  const { cfg, kitClones, kitShapes, kitSizes, kitDesigns, kitLocks, kitTextOy, kitTextOx, kitTextFill, kitIcons, kitLabels, kitNoText, kitSubs, kitSlotVals, kitVals, kitRow, kitBar, setFocus, setKitKind, setKitOverlay } = useGen();
+  const { cfg, kitClones, kitShapes, kitDesigns, kitLocks, kitTextOy, kitTextOx, kitTextFill, kitIcons, kitLabels, kitNoText, kitSubs, kitSlotVals, kitVals, kitRow, kitBar, setFocus, setKitKind, setKitOverlay } = useGen();
   /* clone-aware (mirrors Panel/CanvasView): a duplicated piece renders
      through its BASE component — renderKit and LiveArt refuse clone ids —
      while every per-piece map read stays keyed by the piece's own id */
   const base = baseOf(p.id);
-  // an explicit size (the Primary ramp) is fixed; everything else follows the
-  // kit-wide size from the floating nav's M/L switch
-  // the documentation shows medium and large only — a stored Small reads as Medium
-  const size = p.size ?? effKitSize(kitSizes[p.id]);
+  // an explicit size (the Primary ramp) is fixed; everything else is L —
+  // the nav's kit-wide M/L switch is retired (owner: "get rid of the ML
+  // sizing tool in the nav, just leave it on L"), and kitSizes has no
+  // writers left, so the page documents the kit at Large permanently
+  const size = p.size ?? "l";
   // a pinned component renders its own snapshot, not the master's style —
   // and a per-piece text color rides on top of either. Memoized: a fresh
   // object here on every render (this hook re-runs on ANY store change)

@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, GridStyle, CandyTokens, Shape, KitDesign, KitSlice } from "./model";
-import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, rollStatement, classicRack, presetById, PRESETS, PATTERN_TYPES, GAME_FONTS, customFontNames, ctaForFont, darken, hexMix, registerCustomFont, pickDesign, designDiff, deepMergeDesign, KIT_COMPONENTS, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, clampWeight, fontByName, sanitizeUnitySlug, baseOf, mintCloneId, CLONE_INELIGIBLE, isGlyphPiece, resolveKitIcon } from "./model";
+import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, rollStatement, classicRack, presetById, PRESETS, PATTERN_TYPES, GAME_FONTS, customFontNames, ctaForFont, darken, hexMix, registerCustomFont, pickDesign, designDiff, deepMergeDesign, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, clampWeight, fontByName, sanitizeUnitySlug, baseOf, mintCloneId, CLONE_INELIGIBLE, isGlyphPiece, resolveKitIcon } from "./model";
 import type { KitClone } from "./model";
 import { ensureFont, fontReady, awaitFonts } from "./fonts";
 import { delBgOriginal, getBgOriginal, putBgOriginal } from "./bgvault";
@@ -708,11 +708,6 @@ interface GenStore {
   pushRecentColor: (hex: string) => void;
   rmRecentColor: (hex: string) => void;
   setPhase: (p: "master" | "kit" | "board") => void;
-  setKitSize: (id: KitComponentId, s: KitSize) => void;
-  /** One kit-wide size — the floating nav's M/L switch (owner: per-cell
-   *  size chips were noise; size is a kit decision). Locked pieces keep
-   *  their own snapshot size. */
-  setKitSizeAll: (s: KitSize) => void;
   setZoom: (z: number) => void;
   setPanMode: (v: boolean) => void;
   setGridStyle: (v: GridStyle) => void;
@@ -1536,7 +1531,10 @@ const KIT_STORE_KEY: Record<string, string> = {
    stay ATOMIC: applying a look that carries no clones resets the registry
    together with the maps (a look arrives whole), and one that does carries
    registry + entries as one piece. */
-const WS_MAPS = ["kitClones", "kitDesigns", "kitShapes", "kitIcons", "kitLabels", "kitNoText", "kitSubs", "kitTextFill", "kitTextOy", "kitTextOx", "kitBar", "kitSlotVals", "kitVals", "kitSizes", "kitSlices"] as const;
+/* kitSizes left this list with the M/L switch's retirement — the kit is
+   documented and exported at L everywhere, so looks neither carry nor
+   apply per-piece sizes any more. */
+const WS_MAPS = ["kitClones", "kitDesigns", "kitShapes", "kitIcons", "kitLabels", "kitNoText", "kitSubs", "kitTextFill", "kitTextOy", "kitTextOx", "kitBar", "kitSlotVals", "kitVals", "kitSlices"] as const;
 
 /** The kit layer as it stands right now — what a publish attaches. */
 export function workspaceOf(s: Record<string, unknown>): Record<string, unknown> {
@@ -2295,7 +2293,7 @@ export const useGen = create<GenStore>((set, get) => ({
     const st = get();
     return {
       v: 1, cfg: st.cfg, kitName: st.kitName, kitClones: st.kitClones, kitShapes: st.kitShapes, kitDesigns: st.kitDesigns,
-      kitTextFill: st.kitTextFill, kitLabels: st.kitLabels, kitNoText: st.kitNoText, kitSubs: st.kitSubs, kitIcons: st.kitIcons, kitSizes: st.kitSizes, kitSlotVals: st.kitSlotVals, kitVals: st.kitVals,
+      kitTextFill: st.kitTextFill, kitLabels: st.kitLabels, kitNoText: st.kitNoText, kitSubs: st.kitSubs, kitIcons: st.kitIcons, kitSlotVals: st.kitSlotVals, kitVals: st.kitVals,
       kitBar: st.kitBar, kitTextOy: st.kitTextOy, kitTextOx: st.kitTextOx, kitLocks: st.kitLocks,
       unitySlug: st.unitySlug, unityKitVer: st.unityKitVer,
       // the stage travels with the kit — only portable (data:) backdrops
@@ -2350,7 +2348,9 @@ export const useGen = create<GenStore>((set, get) => ({
       kitIcons: (p.kitIcons as GenStore["kitIcons"]) ?? {},
       kitSlotVals: (p.kitSlotVals as GenStore["kitSlotVals"]) ?? {},
       kitVals: (p.kitVals as GenStore["kitVals"]) ?? {},
-      kitSizes: (p.kitSizes as GenStore["kitSizes"]) ?? {},
+      // per-piece sizes in old payloads are ignored — the M/L switch is
+      // retired and the kit stands at L everywhere
+      kitSizes: {},
       kitBar: (p.kitBar as GenStore["kitBar"]) ?? {},
       kitTextOy: (p.kitTextOy as GenStore["kitTextOy"]) ?? {},
       kitTextOx: (p.kitTextOx as GenStore["kitTextOx"]) ?? {},
@@ -3528,18 +3528,10 @@ export const useGen = create<GenStore>((set, get) => ({
      we click to the board it should be sized to fit"). fitOf() multiplies
      the shared zoom, so 1 IS the fitted view. */
   setPhase: (p) => set({ phase: p, canvasMode: "design" as const, ...(p === "kit" || p === "board" ? { zoom: 1 } : {}) }),
-  setKitSize: (id, s) => { if (get().kitLocks[id]) return; pushHistory(get()); set((st) => ({ kitSizes: { ...st.kitSizes, [id]: s } })); },
-  setKitSizeAll: (s) => {
-    pushHistory(get());
-    set((st) => {
-      const sizes = { ...st.kitSizes };
-      for (const c of KIT_COMPONENTS) { if (!st.kitLocks[c.id]) sizes[c.id] = s; }
-      // clones follow the kit-wide switch too — skipping them left a
-      // duplicate stuck at a stale size (componentization survey)
-      for (const id of Object.keys(st.kitClones)) { if (!st.kitLocks[id as KitComponentId]) sizes[id as KitComponentId] = s; }
-      return { kitSizes: sizes };
-    });
-  },
+  /* setKitSize / setKitSizeAll retired with the kit page's M/L switch
+     (owner: "get rid of the ML sizing tool in the nav, just leave it on
+     L") — kitSizes now has NO writers, so every effKitSize/`?? "l"` read
+     across the app resolves to Large, permanently. */
   setZoom: (z) => set({ zoom: Math.max(0.4, Math.min(capsOf(get().tier).zoomMax, Math.round(z * 10) / 10)) }),
   setPanMode: (v) => set({ panMode: v }),
   setGridStyle: (v) => set({ gridStyle: v }),
