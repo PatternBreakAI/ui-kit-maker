@@ -2302,7 +2302,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
       || !/\.\.\.\(mk\.nick \? \{ nick: mk\.nick \} : \{\}\),/.test(src)
       || !/\.\.\.\(t\.getAttribute\("data-seat-rider"\) \? \{ rider: t\.getAttribute\("data-seat-rider"\)! \} : \{\}\),/.test(src))
     errors.push("the export no longer carries the friendly child names (nick) or the badge count's rider through to the manifest");
-  if (!/public float strokeEmPct; public string rider; \}/.test(cs)
+  if (!/public float strokeEmPct; public string rider; public bool unkern; \}/.test(cs) // round 48 appended the smashed-pair flag
       || !/static void AdoptSeatRiders\(GameObject host, PBAsset row\)/.test(cs)
       || !/AdoptSeatRiders\(host, row\);/.test(cs)
       || !/AdoptSeatRiders\(contents, rowUA\);/.test(cs))
@@ -3432,11 +3432,11 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
    the run (nub pill owning the short tail, faded-lead caps blending into
    the ramp), and a mirrored cap seats pivot-first with NO flip. ── */
 {
-  if (!/float shrink = stretchRun \? Mathf\.Clamp01\(runW \/ Mathf\.Max\(1f, capW\)\) : Mathf\.Clamp01\(runW \/ Mathf\.Max\(1f, 2f \* r\)\);/.test(src)
-      || !/void ApplyStretched\(float v, float runW, float areaW, float areaH, float capW, bool showFill, bool showCap\) \{/.test(src)
+  if (!/float shrink = stretchRun \? Mathf\.Clamp01\(runW \/ Mathf\.Max\(1f, capBodyW\)\) : Mathf\.Clamp01\(runW \/ Mathf\.Max\(1f, 2f \* r\)\);/.test(src)
+      || !/void ApplyStretched\(float v, float runW, float areaW, float areaH, float capBodyW, bool showFill, bool showCap\) \{/.test(src)
       || !/public bool stretchRun;/.test(src)
       || !/public RectTransform nub;/.test(src))
-    errors.push("KitBarFill lost the stretch-run road — ramped mercuries (the VS bar) window the wrong ink again (round 47, S36)");
+    errors.push("KitBarFill lost the stretch-run road — ramped mercuries (the VS bar) window the wrong ink again (round 47, S36; round 48 renamed the head span to its BODY)");
   if (!/var sc = capHead\.localScale; sc\.x = Mathf\.Max\(0\.01f, shrink\); sc\.y = Mathf\.Max\(0\.01f, shrink\); capHead\.localScale = sc;/.test(src)
       || /\(fromRight \? -1f : 1f\) \* Mathf\.Max\(0\.01f, shrink\)/.test(src))
     errors.push("the mirrored cap's x-flip is back — the pre-mirrored right bead lands on naked track again (round 47, S36)");
@@ -3489,6 +3489,60 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("DmgNumberWire (or its call) left the importer (round 47, S37)");
   if (!/PatternBreakDmgNumber\*\* — the damage number as a dev instrument:/.test(src))
     errors.push("the QuickStart's one-call lane lost the DmgNumber entry (round 47, S37)");
+}
+
+/* ── ROUND 48 · S38 (owner Unity notes on the bar rig): (1) SEATS — the
+   fill/cap atoms crop to their GLOW BLEED, and mapping the whole sprite
+   onto the zone seated the ink 10-24px right of the well ("the fill
+   needs to line up with the start of the well"). The atoms now stamp
+   their BODY boxes (data-fillbody), the manifest carries them, and
+   KitBarFill maps its whole value space through the body fractions —
+   0/1 defaults keep old zips byte-identical. (2) SEGBAR — the per-cell
+   gloss clips to the cell's own pill body (the progress/slider
+   containment mandate: gloss ∩ fill ∩ silhouette). ── */
+{
+  if (!/data-fillbody="\$\{/.test(bevelSrc) || (bevelSrc.match(/data-fillbody="\$\{/g) ?? []).length < 5
+      || (src.match(/data-fillbody="\$\{/g) ?? []).length < 4)
+    errors.push("the fill/cap atoms lost their data-fillbody stamps (round 48, S38: progress+cap, slider+cap, vsbar overlays in bevel; display bars + rails in the exporter)");
+  if (!/const fbm = \/data-fillbody="\(\[-\\d\. \]\+\)"\/\.exec\(q\.svg\);/.test(src)
+      || !/body\?: \{ x: number; w: number \} \| null;/.test(src)
+      || !/\.\.\.\(fillBody \? \{ body: fillBody \} : \{\}\)/.test(src))
+    errors.push("addPng lost the body-box parse or its manifest emission (round 48, S38)");
+  if (!/public PBTrack body;/.test(src))
+    errors.push("PBAsset lost the body field — the importer can no longer read the true ink spans (round 48, S38)");
+  if (!/public float bodyU0 = 0f;/.test(src) || !/public float capU0 = 0f;/.test(src)
+      || !/float capBodyW = capW \* capSpan;/.test(src)
+      || !/fill\.fillAmount = \(fromRight \? 1f - bodyU1 : bodyU0\) \+ fill\.fillAmount \* span;/.test(src)
+      || !/capHead\.anchoredPosition = new Vector2\(fromRight \? -capU0 \* capW \* shrink : \(1f - capU1\) \* capW \* shrink, 0f\);/.test(src))
+    errors.push("KitBarFill lost the body-space value map — fills seat right of the well again (round 48, S38)");
+  if (!/static void WireBarBodies\(GameObject area, PBManifest m\) \{/.test(cs)
+      || !/static PBAsset RowOfSprite\(PBManifest m, Sprite sp\) \{/.test(cs)
+      || (cs.match(/WireBarBodies\(/g) ?? []).length < 7)
+    errors.push("WireBarBodies (or enough of its call sites — BuildBarFill, Slider, VsBar x2, rails, graft) left the importer (round 48, S38)");
+  if (!/<clipPath id="\$\{gid\}g\$\{i\}">/.test(bevelSrc))
+    errors.push("the segbar per-cell gloss clip is gone — highlights overrun the pills again (round 48, S38)");
+}
+
+/* ── ROUND 48 · S39 (cross-lane, the smashed-pair guard reaches the
+   export): (a) the baked face's kerning table drops any pair whose own
+   kern fuses the strokes — the app's kernCollides is the one arbiter;
+   (b) a kern-guarded seat word ships unkern:true and the live TMP seat
+   renders with kerning off, per label, on both rungs. ── */
+{
+  if (!/, kernCollides \} from "\.\/bevel";/.test(src)
+      || !/if \(kp < 0 && kernCollides\(a \+ b, family, weight, !!base\.type\.italic, \(base\.type\.spacing \?\? 0\) \/ 100\)\) continue;/.test(src))
+    errors.push("the baked kerning table lost the smashed-pair guard — TMP fuses I into V again on hero labels (round 48, S39)");
+  if (!/if \(\/font-kerning:\\s\*none\/\.test\(p\.getAttribute\("style"\) \?\? ""\) \|\| p\.getAttribute\("font-kerning"\) === "none"\) unkern = true;/.test(src)
+      || !/\.\.\.\(unkern \? \{ unkern: true \} : \{\}\),/.test(src)
+      || !/unkern\?: boolean;/.test(src))
+    errors.push("the seat parse lost the unkern flag — guarded words kern again in Unity (round 48, S39)");
+  if (!/public bool unkern; \}/.test(src)
+      || !/static bool SeatKernIsOff\(TMPro\.TMP_Text t\) \{/.test(cs)
+      || !/static void SeatKernOff\(TMPro\.TMP_Text t\) \{/.test(cs)
+      || !/if \(seat\.unkern\) SeatKernOff\(t\); \/\/ the smashed-pair guard, this label only/.test(cs)
+      || !/&& \(!seat\.unkern \|\| SeatKernIsOff\(t\)\)/.test(cs)
+      || !/if \(seat\.unkern\) SeatKernOff\(tL\); \/\/ the smashed-pair guard rides the LTS rung too/.test(src))
+    errors.push("the TMP seat kern-off consumption left the importer (round 48, S39 — DressSeatText probe+apply and the LTS road)");
 }
 
 if (errors.length) {

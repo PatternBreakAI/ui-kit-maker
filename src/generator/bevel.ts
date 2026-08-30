@@ -5225,7 +5225,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
            (mazepill's ellipse, any ornate shell) the highlight ends where
            the mercury ends instead of hanging past the curve. Unity's
            scissor then cuts fill and baked highlight together. */
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="${cw9}" height="${ch9}" viewBox="0 0 ${cw9} ${ch9}">
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${cw9}" height="${ch9}" viewBox="0 0 ${cw9} ${ch9}" data-fillbody="${bx.toFixed(1)} ${trackW.toFixed(1)}">
           <defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient>${sfxF.defs}<clipPath id="${gid}m"><path d="${clipF}"/></clipPath></defs>
           ${sfxF.open}<path d="${clipF}" fill="url(#${gid})" opacity="0.95"/>${sfxF.close}
           <g clip-path="url(#${gid}m)"><path d="${roundRect(bx - 2, by + bh * 0.08, Math.max(0, trackW + 2 - 4 * k), bh * 0.34, bh * 0.17)}" fill="#FFFFFF" opacity="0.3"/>${sfxF.over}</g></svg>`;
@@ -5246,7 +5246,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const glossCs = `<path d="${roundRect(bx - 2, by + bh * 0.08, Math.max(0, fwCs + 2 - 4 * k), bh * 0.34, bh * 0.17)}" fill="#FFFFFF" opacity="0.3"/>`;
         const ch9s = Math.ceil(h + 60);
         const wx0s = fx1s - bh - 8, wwCs = Math.ceil(bh + 16);
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="${wwCs}" height="${ch9s}" viewBox="${wx0s.toFixed(1)} 0 ${wwCs} ${ch9s}">
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${wwCs}" height="${ch9s}" viewBox="${wx0s.toFixed(1)} 0 ${wwCs} ${ch9s}" data-fillbody="${wx0s.toFixed(1)} ${(bh + 8).toFixed(1)}">
           <defs><linearGradient id="${gidCs}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient>${sfxCs.defs}<clipPath id="${gidCs}w"><path d="${clipCs}"/></clipPath><clipPath id="${gidCs}f"><path d="${slFillC}"/></clipPath></defs>
           <g clip-path="url(#${gidCs}w)">${sfxCs.open}<path d="${slFillC}" fill="url(#${gidCs})" opacity="0.95"/>${sfxCs.close}
           <g clip-path="url(#${gidCs}f)">${glossCs}${sfxCs.over}</g></g></svg>`;
@@ -5317,7 +5317,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
            BarFx overlays clip to the mercury silhouette, so the baked
            highlight ends where the mercury ends on shaped caps; Unity's
            Filled scissor cuts fill and highlight together. */
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="${cw9}" height="${ch9}" viewBox="0 0 ${cw9} ${ch9}">
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${cw9}" height="${ch9}" viewBox="0 0 ${cw9} ${ch9}" data-fillbody="${bx.toFixed(1)} ${trackW.toFixed(1)}">
           <defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient>${sfxF.defs}<clipPath id="${gid}m"><path d="${clipF}"/></clipPath></defs>
           ${sfxF.open}<path d="${clipF}" fill="url(#${gid})" opacity="0.95"/>${sfxF.close}
           <g clip-path="url(#${gid}m)"><path d="${roundRect(bx - 2, by + bh * 0.08, Math.max(0, trackW + 2 - bh * 0.1), bh * 0.34, bh * 0.17)}" fill="#FFFFFF" opacity="0.3"/>${sfxF.over}</g></svg>`;
@@ -5343,7 +5343,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const glossC = `<path d="${roundRect(bx - 2, by + bh * 0.08, Math.max(0, fwC + 2 - bh * 0.1), bh * 0.34, bh * 0.17)}" fill="#FFFFFF" opacity="0.3"/>`;
         const ch9C = Math.ceil(h + 60);
         const wx0 = fx1C - bh - 8, wwC = Math.ceil(bh + 16);
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="${wwC}" height="${ch9C}" viewBox="${wx0.toFixed(1)} 0 ${wwC} ${ch9C}">
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${wwC}" height="${ch9C}" viewBox="${wx0.toFixed(1)} 0 ${wwC} ${ch9C}" data-fillbody="${wx0.toFixed(1)} ${(bh + 8).toFixed(1)}">
           <defs><linearGradient id="${gidC}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient>${pfxC.defs}<clipPath id="${gidC}w"><path d="${mercPC}"/></clipPath><clipPath id="${gidC}f"><path d="${mercDC}"/></clipPath></defs>
           <g clip-path="url(#${gidC}w)">${pfxC.open}<path d="${mercDC}" fill="url(#${gidC})" opacity="0.95"/>${pfxC.close}
           <g clip-path="url(#${gidC}f)">${glossC}${pfxC.over}</g></g></svg>`;
@@ -5438,7 +5438,12 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
              cell edge, so the end reads like the XP bar's bead at any
              count. End cells still marry the caps through the well clip. */
           const body = `<rect x="${xC.toFixed(1)}" y="${by.toFixed(1)}" width="${wC.toFixed(1)}" height="${bh.toFixed(1)}" rx="${Math.min(cellW / 2, bh / 2).toFixed(1)}" fill="${on ? `url(#${gid})` : "rgba(255,255,255,0.07)"}"${on ? ` opacity="${dim}"` : ""}/>`;
-          if (on) litCells += body + `<rect x="${xC.toFixed(1)}" y="${(by + bh * 0.08).toFixed(1)}" width="${wC.toFixed(1)}" height="${(bh * 0.3).toFixed(1)}" rx="${(bh * 0.15).toFixed(1)}" fill="#FFFFFF" opacity="0.28"/>`;
+          /* round 48 (owner: "the highlights in the individual segments
+             are extending beyond the mercury"): the containment mandate
+             reaches the cells — gloss ∩ cell body ∩ silhouette, the
+             progress/slider construction. The straight gloss rect ran
+             past every pill's rounded corners. */
+          if (on) litCells += body + `<clipPath id="${gid}g${i}"><rect x="${xC.toFixed(1)}" y="${by.toFixed(1)}" width="${wC.toFixed(1)}" height="${bh.toFixed(1)}" rx="${Math.min(cellW / 2, bh / 2).toFixed(1)}"/></clipPath><g clip-path="url(#${gid}g${i})"><rect x="${xC.toFixed(1)}" y="${(by + bh * 0.08).toFixed(1)}" width="${wC.toFixed(1)}" height="${(bh * 0.3).toFixed(1)}" rx="${(bh * 0.15).toFixed(1)}" fill="#FFFFFF" opacity="0.28"/></g>`;
           else offCells += body;
         }
       } else {
@@ -5604,9 +5609,14 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
            atoms window the whole short pill */
         const wx0F = capF ? (rightF ? x0R9 - 8 : fxL9 - bh - 8) : nubF ? (rightF ? x0R9 - 10 : bx - 10) : 0;
         const wwF = capF ? Math.ceil(bh + 16) : Math.ceil(bh + 20);
+        /* the BODY box (round 48, the seat field note): the drawn run on
+           fills/nubs, the bead's span on caps — viewBox units */
+        const bodyAttrF = capF
+          ? (rightF ? `${x0R9.toFixed(1)} ${(bh + 8).toFixed(1)}` : `${(fxL9 - bh - 8).toFixed(1)} ${(bh + 8).toFixed(1)}`)
+          : (rightF ? `${x0R9.toFixed(1)} ${runF.toFixed(1)}` : `${bx.toFixed(1)} ${runF.toFixed(1)}`);
         const openF = capF || nubF
-          ? `width="${wwF}" height="${ch9}" viewBox="${wx0F.toFixed(1)} 0 ${wwF} ${ch9}"`
-          : `width="${cw9}" height="${ch9}" viewBox="0 0 ${cw9} ${ch9}"`;
+          ? `width="${wwF}" height="${ch9}" viewBox="${wx0F.toFixed(1)} 0 ${wwF} ${ch9}" data-fillbody="${bodyAttrF}"`
+          : `width="${cw9}" height="${ch9}" viewBox="0 0 ${cw9} ${ch9}" data-fillbody="${bodyAttrF}"`;
         /* the lead-in fade (round 47): the bead's straight lead carries the
            ramp's END columns; parked mid-run those columns clash with the
            compressed body under it — a 14px alpha ramp on the window's

@@ -13,7 +13,7 @@ import { stampFilter, stampFilterPad, boardBgFilter, drawBoardNoise, drawBoardOv
    the Uploads/Art drawer never ships in the Unity download (round 44) */
 import { bigGlyphById } from "./bigGlyphs";
 import { applyKitDesign, applyKitTextFill, baseOf, darken, hexMix, lighten, fontByName, isCloneId, isFlipShape, isGlyphPiece, KIT_COMPONENTS, KIT_SHAPE, KIT_SLICEABLE, STOCK_ICONS, effKitSize, kitVisible, resolveKitIcon, sanitizeUnitySlug } from "./model";
-import { renderKit, renderBevel, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps, padSvg, resolveMenuStyle } from "./bevel";
+import { renderKit, renderBevel, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps, padSvg, resolveMenuStyle, kernCollides } from "./bevel";
 import type { KitOpts } from "./bevel";
 import { flattenPath } from "./importedShapes";
 import { silhouetteMeta } from "./silhouettes";
@@ -101,6 +101,14 @@ interface AssetMeta {
    *  stamp the VERTICAL band (y, h — same file-px frame); absent = the
    *  old symmetric centering, so every existing consumer is byte-still. */
   track?: { x: number; w: number; y?: number; h?: number } | null;
+  /** The mercury/bead BODY box inside this sprite (x, w in file px at
+   *  pngScale — fill and cap rows of the linear bar rigs). The atoms
+   *  crop to their glow bleed, and mapping the whole sprite onto the
+   *  zone seated the ink 10-24px right of the well (round 48, owner
+   *  field: "the fill needs to line up with the start of the well").
+   *  KitBarFill maps its value space through these; absent = the whole
+   *  sprite, so old zips keep today's behavior byte for byte. */
+  body?: { x: number; w: number } | null;
   /** The bake's silhouette is MIRRORED (~flip) — flip provenance so board
    *  scenes can honor a mirrored board copy against an unmirrored sprite
    *  (and so field reports can name which side lost the flip). */
@@ -240,6 +248,11 @@ interface AssetMeta {
      *  disable or delete as ONE group (the bottomnav badge's plate +
      *  count). Absent = the word sits on the Words tree as ever. */
     rider?: string;
+    /** round 48 (the smashed-pair guard, cross-lane): this seat's word
+     *  trips kernCollides in its own face — the app renders it with
+     *  kerning off, and the live TMP seat must too (per-label, never
+     *  global). Parsed from the render's own font-kerning:none. */
+    unkern?: boolean;
   }[];
   /** The piece's content-text recipe for its DRESSED seats (same shape the
    *  gauges ship as gauge.ink) — effects only; each seat carries its fill. */
@@ -2816,6 +2829,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       let warped = !!t.querySelector("textPath");
       let ghosted = false;
       let dressed = false;
+      /* round 48 (the smashed-pair guard): the app renders a kern-guarded
+         word with font-kerning:none — the seat carries the flag so the
+         live TMP applies the same guard, per-label */
+      let unkern = false;
       let tdx = 0, tdy = 0;
       for (let p: Element | null = t; p && p.tagName.toLowerCase() !== "svg"; p = p.parentElement) {
         const tf = p.getAttribute("transform") ?? "";
@@ -2826,6 +2843,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         }
         if (p.getAttribute("opacity") === "0") ghosted = true;
         if (p !== t && p.getAttribute("filter")) dressed = true;
+        if (/font-kerning:\s*none/.test(p.getAttribute("style") ?? "") || p.getAttribute("font-kerning") === "none") unkern = true;
       }
       if (warped || ghosted) continue;
       /* multi-ink tspans (the telemetry THR/BRK/SPD legend) become ONE
@@ -2907,6 +2925,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         // a word marked to RIDE an icon seat travels with that live child
         // (the bottomnav badge count on its plate) — see AssetMeta.rider
         ...(t.getAttribute("data-seat-rider") ? { rider: t.getAttribute("data-seat-rider")! } : {}),
+        ...(unkern ? { unkern: true } : {}),
       });
       if (seats.length >= 40) break; // sanity cap
     }
@@ -3357,6 +3376,24 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           };
         }
       }
+      /* the mercury/bead BODY box (round 48 — the owner's seat field
+         note): stamped deliberately on fill/cap atom docs only
+         (data-fillbody never rides a root render), crop-corrected the
+         same way as the zone, so the rig knows where the ink truly ends
+         inside the glow-padded crop */
+      let fillBody: AssetMeta["body"] = null;
+      {
+        const fbm = /data-fillbody="([-\d. ]+)"/.exec(q.svg);
+        const vbm2 = /viewBox="(-?[\d.]+) (-?[\d.]+)/.exec(q.svg);
+        if (fbm && vbm2) {
+          const [fbx, fbw] = fbm[1].split(" ").map(Number);
+          if (Number.isFinite(fbx) && Number.isFinite(fbw) && fbw > 1)
+            fillBody = {
+              x: Math.round(((fbx - +vbm2[1]) * PNG_SCALE - (raster.box?.x0 ?? 0)) * 10) / 10,
+              w: Math.round(fbw * PNG_SCALE * 10) / 10,
+            };
+        }
+      }
       /* TEXT SEATS normalize here: measured in the bake's viewBox units,
          shipped as FRACTIONS of the cropped file — same crop box as the
          shell row, then divided by the final raster dimensions. The
@@ -3481,7 +3518,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       // per-piece forks can arm the edge shine even when the kit default is
       // off, so any armed fork keeps the outlines flowing into the manifest
       const idleOutline = (st.cfg.idle?.edge || Object.values(st.kitDesigns ?? {}).some((kd) => kd?.idle?.edge)) && q.meta.part === "base" ? sampleOutline(q.svg) : null;
-      manifest.push({ file: `assets/${q.path}`, nativeW: w, nativeH: h, sha256: await sha256Hex(bytes), shell: shellBox, ...(trackZone ? { track: trackZone } : {}), ...(idleOutline ? { outline: idleOutline } : {}), ...q.meta });
+      manifest.push({ file: `assets/${q.path}`, nativeW: w, nativeH: h, sha256: await sha256Hex(bytes), shell: shellBox, ...(trackZone ? { track: trackZone } : {}), ...(fillBody ? { body: fillBody } : {}), ...(idleOutline ? { outline: idleOutline } : {}), ...q.meta });
       /* the piece's own aura, derived from the sprite we just made — the
          silhouette blurred exactly the way the app blurs it. Only for the
          families that swap: a panel has no hover to announce. */
@@ -4532,11 +4569,17 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
             if (fo && co && co.box[3] > 2 && capH9 > 2) {
               const [cgx, , cgw, cgh] = co.box;
               const wx0 = cgx + cgw - cgh - 8, ww = Math.ceil(cgh + 16);
+              /* round 48 (owner: fill+cap seated right of the well): the
+                 BODY boxes ride the atoms — the mercury's drawn run on
+                 the fill, the bead's span (window to drawn end) on the
+                 cap — so the rig maps its value space through the true
+                 ink, not the glow-padded crop */
               barCapSvgU = co.svg
                 .replace(/viewBox="[^"]+"/, `viewBox="${wx0.toFixed(1)} 0 ${ww} ${Math.ceil(capH9)}"`)
                 .replace(/ width="[\d.]+"/, ` width="${ww}"`)
-                .replace(/ height="[\d.]+"/, ` height="${Math.ceil(capH9)}"`);
-              barFillSvgU = fo.svg;
+                .replace(/ height="[\d.]+"/, ` height="${Math.ceil(capH9)}"`)
+                .replace("<svg ", `<svg data-fillbody="${wx0.toFixed(1)} ${(cgh + 8).toFixed(1)}" `);
+              barFillSvgU = fo.svg.replace("<svg ", `<svg data-fillbody="${fo.box[0].toFixed(1)} ${fo.box[2].toFixed(1)}" `);
               baseSvgU = stripBarFill(baseSvgU).svg;
             }
           } catch { barFillSvgU = null; barCapSvgU = null; }
@@ -4568,11 +4611,13 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
                 const [gx, gy, gw, gh] = g9.box;
                 const wx0 = gx + gw - gh - 8, ww = Math.ceil(gh + 16);
                 return {
-                  name: g9.name, fill: g9.svg,
+                  // round 48: the rails carry their body boxes too
+                  name: g9.name, fill: g9.svg.replace("<svg ", `<svg data-fillbody="${gx.toFixed(1)} ${gw.toFixed(1)}" `),
                   cap: g9.svg
                     .replace(/viewBox="[^"]+"/, `viewBox="${wx0.toFixed(1)} 0 ${ww} ${Math.ceil(capHMR)}"`)
                     .replace(/ width="[\d.]+"/, ` width="${ww}"`)
-                    .replace(/ height="[\d.]+"/, ` height="${Math.ceil(capHMR)}"`),
+                    .replace(/ height="[\d.]+"/, ` height="${Math.ceil(capHMR)}"`)
+                    .replace("<svg ", `<svg data-fillbody="${wx0.toFixed(1)} ${(gh + 8).toFixed(1)}" `),
                   dx: r1m(gx + gw / 2 - (shDm[0] + shDm[2] / 2)),
                   dy: r1m(gy + riseMR + gh / 2 - (shDm[1] + shDm[3] / 2)),
                   w9: r1m(gw), h9: r1m(gh),
@@ -6974,7 +7019,15 @@ export async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Arr
     for (const ch of BAKE_GLYPHS) solo.set(ch, mx.measureText(ch).width);
     for (const a of BAKE_GLYPHS) for (const b of BAKE_GLYPHS) {
       const kp = mx.measureText(a + b).width - solo.get(a)! - solo.get(b)!;
-      if (Math.abs(kp) > 0.1) kerning.push({ l: a.codePointAt(0)!, r: b.codePointAt(0)!, k: Math.round(kp * BAKE_S * 10) / 10 });
+      if (Math.abs(kp) > 0.1) {
+        /* round 48 (cross-lane, the smashed-pair guard): a pair whose own
+           kern fuses the strokes (kernCollides — Fredoka's I·V at
+           −0.15em) never enters the shipped table; TMP then lays the
+           pair at its unkerned advances, exactly the app's guarded
+           rendering. The app's guard IS the arbiter — one philosophy. */
+        if (kp < 0 && kernCollides(a + b, family, weight, !!base.type.italic, (base.type.spacing ?? 0) / 100)) continue;
+        kerning.push({ l: a.codePointAt(0)!, r: b.codePointAt(0)!, k: Math.round(kp * BAKE_S * 10) / 10 });
+      }
     }
   }
   for (const ch of BAKE_GLYPHS + " ") {
@@ -7291,12 +7344,20 @@ namespace PatternBreak {
     public bool stretchRun;
     [Tooltip("The whole-mercury pill for the short-run tail (generated on ramped bars): below one head-width the app draws a stadium with the full ramp squeezed in — no static head can fake that — so this atom squashes to the run and cross-fades out as the bar grows.")]
     public RectTransform nub;
+    [Tooltip("The mercury BODY inside the fill sprite, as fractions of its width (generated from the manifest's body box). The atom's crop carries glow bleed — mapping the whole sprite onto the zone seated the ink 10-24px right of the well (round 48, owner field). 0/1 = the whole sprite (old zips keep today's look).")]
+    public float bodyU0 = 0f;
+    public float bodyU1 = 1f;
+    [Tooltip("The bead BODY inside the cap sprite (width fractions, generated) — the bead's true edge parks on the value line, not the glow bleed's.")]
+    public float capU0 = 0f;
+    public float capU1 = 1f;
     float value = -1f; float wroteFill = float.NaN;
     float Snap(float v) { v = Mathf.Clamp01(v); return snapSteps > 0 ? Mathf.Round(v * snapSteps) / snapSteps : v; }
     public void SetValue(float v) { value = Snap(v); Apply(); }
     public void Apply() {
       if (fill == null) return;
-      if (value < 0f) value = Snap(fill.fillAmount);
+      // a cold load reads the serialized cut back through the body map,
+      // so re-imports never ratchet the value by the margin (round 48)
+      if (value < 0f) value = Snap(bodyU0 > 0.0005f || bodyU1 < 0.9995f ? Mathf.Clamp01((fill.fillAmount - (fromRight ? 1f - bodyU1 : bodyU0)) / Mathf.Max(0.05f, bodyU1 - bodyU0)) : fill.fillAmount);
       float v = value;
       var capImg = capHead != null ? capHead.GetComponent<Image>() : null;
       var area = transform as RectTransform;
@@ -7310,13 +7371,20 @@ namespace PatternBreak {
          sprites crop to the mercury band), so the bead stays circular at
          any bar height — pngScale cancels in the ratio */
       float capW = areaH * (capImg.sprite.rect.width / Mathf.Max(1f, capImg.sprite.rect.height));
+      /* the BODY spans (round 48, owner field: "the fill needs to line up
+         with the start of the well"): the atoms crop to their glow bleed,
+         so the true ink is a sub-span of each sprite — every seat and cut
+         below speaks body space, and 0/1 defaults keep old zips exact */
+      float span = bodyU1 - bodyU0 > 0.05f ? bodyU1 - bodyU0 : 1f;
+      float capSpan = capU1 - capU0 > 0.05f ? capU1 - capU0 : 1f;
+      float capBodyW = capW * capSpan;
       float r = areaH * 0.5f;
       bool full = v >= 0.995f;
       float runW = areaW * v;
-      /* stretch mode normalizes the shrink by the head itself — the head
+      /* stretch mode normalizes the shrink by the head's BODY — the bead
          may never outgrow the run (the windowed rung keeps its round-44
          2r rule so old prefabs render exactly as shipped) */
-      float shrink = stretchRun ? Mathf.Clamp01(runW / Mathf.Max(1f, capW)) : Mathf.Clamp01(runW / Mathf.Max(1f, 2f * r)); // the app: r = min(h/2, run/2)
+      float shrink = stretchRun ? Mathf.Clamp01(runW / Mathf.Max(1f, capBodyW)) : Mathf.Clamp01(runW / Mathf.Max(1f, 2f * r)); // the app: r = min(h/2, run/2)
       bool showCap = showFill && !full;
       if (capHead.gameObject.activeSelf != showCap) capHead.gameObject.SetActive(showCap);
       if (showCap) {
@@ -7325,24 +7393,31 @@ namespace PatternBreak {
         capHead.anchorMax = new Vector2(ax, 1f);
         capHead.pivot = new Vector2(fromRight ? 0f : 1f, 0.5f);
         capHead.sizeDelta = new Vector2(capW, 0f);
-        capHead.anchoredPosition = Vector2.zero;
+        /* the bead's TRUE edge parks on the value line — the glow bleed
+           past the bead overhangs it, exactly like the app's halo */
+        capHead.anchoredPosition = new Vector2(fromRight ? -capU0 * capW * shrink : (1f - capU1) * capW * shrink, 0f);
         /* a MIRRORED bar's head atom ships PRE-MIRRORED (vsbar cap-r), so
            it seats pivot-first INTO the run. The old extra x-flip threw
            it onto naked track left of the value line (round 47, owner
            field: the right cap sat detached from its fill). */
         var sc = capHead.localScale; sc.x = Mathf.Max(0.01f, shrink); sc.y = Mathf.Max(0.01f, shrink); capHead.localScale = sc;
       }
-      if (stretchRun) { ApplyStretched(v, runW, areaW, areaH, capW, showFill, showCap); return; }
+      if (stretchRun) { ApplyStretched(v, runW, areaW, areaH, capBodyW, showFill, showCap); return; }
       var wrt = fill.rectTransform;
-      // heal the anchors if stretch mode was toggled off in the Inspector
-      if (wrt.anchorMin.x != 0f || wrt.anchorMax.x != 1f) { var w0 = wrt.anchorMin; w0.x = 0f; wrt.anchorMin = w0; var w1 = wrt.anchorMax; w1.x = 1f; wrt.anchorMax = w1; wrt.offsetMin = Vector2.zero; wrt.offsetMax = Vector2.zero; }
+      /* the fill child OVERHANGS the zone by its margin fractions, so the
+         BODY lands zone-true (round 48) — 0/1 margins = the old 0..1 */
+      float exMin = -bodyU0 / span, exMax = 1f + (1f - bodyU1) / span;
+      if (wrt.anchorMin.x != exMin || wrt.anchorMax.x != exMax) { var w0 = wrt.anchorMin; w0.x = exMin; wrt.anchorMin = w0; var w1 = wrt.anchorMax; w1.x = exMax; wrt.anchorMax = w1; wrt.offsetMin = Vector2.zero; wrt.offsetMax = Vector2.zero; }
       if (nub != null && nub.gameObject.activeSelf) nub.gameObject.SetActive(false);
       if (showCap) {
         // the crop's straight cut retreats under the bead's solid body —
         // its full-height corners can never poke past the curve
-        float capFrac = areaW > 1f ? (capW * shrink) / areaW : 0f;
+        float capFrac = areaW > 1f ? (capBodyW * shrink) / areaW : 0f;
         fill.fillAmount = Mathf.Max(0f, v - capFrac * 0.5f);
       } else fill.fillAmount = v;
+      // the cut maps through the body too — the scissor line stays true
+      // (a mirrored bar's Filled origin counts from the OTHER margin)
+      if (bodyU0 > 0.0005f || bodyU1 < 0.9995f) fill.fillAmount = (fromRight ? 1f - bodyU1 : bodyU0) + fill.fillAmount * span;
       wroteFill = fill.fillAmount;
     }
     /* the RAMP road (round 47, owner field: the VS bar's cap wore ink from
@@ -7351,22 +7426,27 @@ namespace PatternBreak {
        value), the faded-lead bead parks on the drain edge, and the nub
        pill owns the short tail where the app squeezes the full ramp into
        one stadium. SetValue and raw fillAmount writes both still drive it. */
-    void ApplyStretched(float v, float runW, float areaW, float areaH, float capW, bool showFill, bool showCap) {
+    void ApplyStretched(float v, float runW, float areaW, float areaH, float capBodyW, bool showFill, bool showCap) {
       if (v >= 0.995f) v = 1f; // full = the sprite's own authored end, unsqueezed
+      float span = bodyU1 - bodyU0 > 0.05f ? bodyU1 - bodyU0 : 1f;
       var frt = fill.rectTransform;
       var a0 = frt.anchorMin; var a1 = frt.anchorMax;
-      a0.x = fromRight ? 1f - v : 0f; a1.x = fromRight ? 1f : v;
+      /* the sprite's BODY compresses into the run; the crop margins ride
+         outside it (round 48) — 0/1 margins reduce to the plain [0..v] */
+      a0.x = fromRight ? 1f - bodyU1 * v / span : -bodyU0 * v / span;
+      a1.x = fromRight ? 1f + (1f - bodyU1) * v / span : (1f - bodyU0) * v / span;
       if (frt.anchorMin != a0) frt.anchorMin = a0;
       if (frt.anchorMax != a1) frt.anchorMax = a1;
       if (frt.offsetMin != Vector2.zero) frt.offsetMin = Vector2.zero;
       if (frt.offsetMax != Vector2.zero) frt.offsetMax = Vector2.zero;
-      float shrink = Mathf.Clamp01(runW / Mathf.Max(1f, capW));
+      float shrink = Mathf.Clamp01(runW / Mathf.Max(1f, capBodyW));
       if (showCap) {
         // the straight cut retreats to the bead's midline — within the
         // stretched rect the cut is a fraction of the RUN, not the area
-        float capFrac = runW > 1f ? (capW * shrink) / runW : 0f;
+        float capFrac = runW > 1f ? (capBodyW * shrink) / runW : 0f;
         fill.fillAmount = Mathf.Max(0f, 1f - capFrac * 0.5f);
       } else fill.fillAmount = showFill ? 1f : 0f;
+      if (bodyU0 > 0.0005f || bodyU1 < 0.9995f) fill.fillAmount = (fromRight ? 1f - bodyU1 : bodyU0) + fill.fillAmount * span;
       wroteFill = fill.fillAmount;
       var nubImg = nub != null ? nub.GetComponent<Image>() : null;
       float nubW = nubImg != null && nubImg.sprite != null ? areaH * (nubImg.sprite.rect.width / Mathf.Max(1f, nubImg.sprite.rect.height)) : 0f;
@@ -11967,7 +12047,7 @@ namespace PatternBreak {
      gauge contract; the importer multiplies by the prefab's live rect.
      Readers gate on text non-empty AND ffs > 0 (px-era rows and
      JsonUtility's default-constructed nested objects both read 0). */
-  [Serializable] class PBSeat { public string text; public float fx; public float fy; public float ffs; public float midEm; public string anchor; public int row; public bool kit; public bool dressed; public int weight; public bool italic; public float spacingEmPct; public string fillMode; public string fill; public string fill2; public float fillOpacity; public string stroke; public float strokeA; public float strokeEmPct; public string rider; }
+  [Serializable] class PBSeat { public string text; public float fx; public float fy; public float ffs; public float midEm; public string anchor; public int row; public bool kit; public bool dressed; public int weight; public bool italic; public float spacingEmPct; public string fillMode; public string fill; public string fill2; public float fillOpacity; public string stroke; public float strokeA; public float strokeEmPct; public string rider; public bool unkern; }
   /* the piece's kit icon beside its words (round 26 — the chip's star):
      center offset from the shell center in design px, rendered size, the
      shipped white glyph, and the app's ink. s 0 / file "" on older
@@ -11986,7 +12066,7 @@ namespace PatternBreak {
        posed pixels with its plate — rebuilt as live TMP ON the live child
        (wordDx/wordDy = word center from the CHILD center, board px). */
     public string word; public float wordFs; public float wordDx; public float wordDy; public string wordInk; public int wordW; }
-  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public PBTrack track; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelInk; public string labelInk2; public float leading; public string labelText; public PBIconSeat icon; public PBGauge gauge; public PBChart chart; public PBLoot loot; public PBSeat[] textSeats; public PBStyle seatInk; public float ringV; public PBIconChild[] iconSeats; public float fireDx; public float fireDy; public float fireW; public float railDx; public float railDy; public float railW; public float railH; public string labelAnchor; }
+  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public PBTrack track; public PBTrack body; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelInk; public string labelInk2; public float leading; public string labelText; public PBIconSeat icon; public PBGauge gauge; public PBChart chart; public PBLoot loot; public PBSeat[] textSeats; public PBStyle seatInk; public float ringV; public PBIconChild[] iconSeats; public float fireDx; public float fireDy; public float fireW; public float railDx; public float railDy; public float railW; public float railH; public string labelAnchor; }
   [Serializable] class PBStyleOutline { public string color; public string color2; public float width; }
   [Serializable] class PBStyleGlow { public string color; public float size; public float opacity; }
   [Serializable] class PBStyleShadow { public string color; public float x; public float y; public float blur; public float opacity; }
@@ -18534,10 +18614,43 @@ namespace PatternBreak {
          dev contract stands (drive fillAmount; the head follows). Old
          zips without the cap atom keep today's behavior exactly. */
       WireBarCap(area, fImg, root, fam, fromRight, staged);
+      WireBarBodies(area, m); // round 48: the body boxes seat the ink zone-true
       return frt;
     }
     static void WireBarCap(GameObject area, Image fImg, string root, string fam, bool fromRight, float staged) {
       WireBarCap(area, fImg, root, fam, fromRight, staged, null);
+    }
+    /* round 48 (owner field: "the fill needs to line up with the start of
+       the well"): the atoms' crops carry glow bleed — the manifest's body
+       boxes hand the rig the true mercury/bead spans. Resolved off each
+       sprite's own file so every road (fresh builds, grafts, rails, the
+       slider) rides the same wire. Old zips ship no body rows: the 0/1
+       defaults keep them byte-identical. */
+    static void WireBarBodies(GameObject area, PBManifest m) {
+      var kbf = area != null ? area.GetComponent<KitBarFill>() : null;
+      if (kbf == null || m == null || m.assets == null) return;
+      if (kbf.fill != null && kbf.fill.sprite != null) {
+        var rowF = RowOfSprite(m, kbf.fill.sprite);
+        if (rowF != null && rowF.body != null && rowF.body.w > 2f && kbf.fill.sprite.rect.width > 2f) {
+          kbf.bodyU0 = Mathf.Clamp01(rowF.body.x / kbf.fill.sprite.rect.width);
+          kbf.bodyU1 = Mathf.Clamp01((rowF.body.x + rowF.body.w) / kbf.fill.sprite.rect.width);
+        }
+      }
+      var capImgW = kbf.capHead != null ? kbf.capHead.GetComponent<Image>() : null;
+      if (capImgW != null && capImgW.sprite != null) {
+        var rowC = RowOfSprite(m, capImgW.sprite);
+        if (rowC != null && rowC.body != null && rowC.body.w > 2f && capImgW.sprite.rect.width > 2f) {
+          kbf.capU0 = Mathf.Clamp01(rowC.body.x / capImgW.sprite.rect.width);
+          kbf.capU1 = Mathf.Clamp01((rowC.body.x + rowC.body.w) / capImgW.sprite.rect.width);
+        }
+      }
+      kbf.Apply();
+    }
+    static PBAsset RowOfSprite(PBManifest m, Sprite sp) {
+      if (m == null || m.assets == null || sp == null) return null;
+      var pR = AssetDatabase.GetAssetPath(sp).Replace("\\\\", "/");
+      foreach (var aR in m.assets) if (aR != null && aR.file != null && pR.EndsWith("/" + aR.file)) return aR;
+      return null;
     }
     static void WireBarCap(GameObject area, Image fImg, string root, string fam, bool fromRight, float staged, string capNameOverride) {
       var kbf = area.AddComponent<KitBarFill>();
@@ -18701,6 +18814,7 @@ namespace PatternBreak {
         var frtR = fgoR.GetComponent<RectTransform>();
         frtR.anchorMin = Vector2.zero; frtR.anchorMax = Vector2.one; frtR.offsetMin = Vector2.zero; frtR.offsetMax = Vector2.zero;
         WireBarCap(areaR, fiR, root, fam, false, rowR.ringV > 0f ? Mathf.Clamp01(rowR.ringV) : 0.6f, "cap-" + railN);
+        WireBarBodies(areaR, m); // round 48: the body boxes seat the ink zone-true
       }
     }
     static bool ProgressPrefab(string dir, string root, int pngScale, PBManifest m) {
@@ -18762,7 +18876,12 @@ namespace PatternBreak {
       // zone, inner edge anchored to CENTER so a stretched bar widens the
       // wells while the axis reserve holds (the app's stretch rule)
       if (fillL != null) {
-        float fw = fillL.rect.width / pngScale, fh = fillL.rect.height / pngScale;
+        /* round 48: the half-run AREA sizes from the mercury's BODY where
+           the row ships it — the crop's glow margins overhung the run by
+           ~9px per side (the r47 run-scale measurement, now closed) */
+        PBAsset rowFL = null;
+        foreach (var aFL in m != null && m.assets != null ? m.assets : new PBAsset[0]) if (aFL != null && aFL.component == "vsbar" && aFL.part == "fill-l") { rowFL = aFL; break; }
+        float fw = (rowFL != null && rowFL.body != null && rowFL.body.w > 2f ? rowFL.body.w : fillL.rect.width) / pngScale, fh = fillL.rect.height / pngScale;
         float inY = Mathf.Max(2f, (trackH - fh) * 0.5f);
         var area = new GameObject("FillL Area", typeof(RectTransform));
         area.transform.SetParent(go.transform, false);
@@ -18781,9 +18900,12 @@ namespace PatternBreak {
         frt.anchorMin = Vector2.zero; frt.anchorMax = Vector2.one; frt.offsetMin = Vector2.zero; frt.offsetMax = Vector2.zero;
         // round 44 (owner item 43): the drain bead rides the health line
         WireBarCap(area, fi, root, "vsbar", false, 0.72f);
+        WireBarBodies(area, m); // round 48: the body boxes seat the ink zone-true
       }
       if (fillR != null) {
-        float fw = fillR.rect.width / pngScale, fh = fillR.rect.height / pngScale;
+        PBAsset rowFR = null;
+        foreach (var aFR in m != null && m.assets != null ? m.assets : new PBAsset[0]) if (aFR != null && aFR.component == "vsbar" && aFR.part == "fill-r") { rowFR = aFR; break; }
+        float fw = (rowFR != null && rowFR.body != null && rowFR.body.w > 2f ? rowFR.body.w : fillR.rect.width) / pngScale, fh = fillR.rect.height / pngScale;
         float inY = Mathf.Max(2f, (trackH - fh) * 0.5f);
         var area = new GameObject("FillR Area", typeof(RectTransform));
         area.transform.SetParent(go.transform, false);
@@ -18802,6 +18924,7 @@ namespace PatternBreak {
         frt.anchorMin = Vector2.zero; frt.anchorMax = Vector2.one; frt.offsetMin = Vector2.zero; frt.offsetMax = Vector2.zero;
         // the right fighter's bead, mirrored (fillOrigin Right)
         WireBarCap(area, fi, root, "vsbar", true, 0.58f);
+        WireBarBodies(area, m); // round 48: the body boxes seat the ink zone-true
       }
       var medal = S(root + "/assets/vsbar/vsbar-medal.png");
       if (medal != null) {
@@ -20026,6 +20149,31 @@ namespace PatternBreak {
       rrt.anchoredPosition = Vector2.zero;
       return false;
     }
+    /* round 48 (the smashed-pair guard, cross-lane): a kern-guarded seat
+       word renders with TMP kerning OFF — per label, never global, on
+       BOTH rungs. The toggle rides reflection so every shipped TMP
+       version compiles: the enableKerning property where it exists (all
+       current TMPs), a cleared fontFeatures list where a future TMP
+       retires it. */
+    static bool SeatKernIsOff(TMPro.TMP_Text t) {
+      var pK = typeof(TMPro.TMP_Text).GetProperty("enableKerning");
+      if (pK != null) { try { return !(bool)pK.GetValue(t, null); } catch { return false; } }
+      var pF = typeof(TMPro.TMP_Text).GetProperty("fontFeatures");
+      if (pF != null) { try { var v = pF.GetValue(t, null) as System.Collections.ICollection; return v != null && v.Count == 0; } catch { return false; } }
+      return true; // no kerning surface at all — nothing to guard
+    }
+    static void SeatKernOff(TMPro.TMP_Text t) {
+      var pK = typeof(TMPro.TMP_Text).GetProperty("enableKerning");
+      if (pK != null) { try { pK.SetValue(t, false, null); return; } catch { /* fall through */ } }
+      var pF = typeof(TMPro.TMP_Text).GetProperty("fontFeatures");
+      if (pF != null) {
+        try {
+          var v = pF.GetValue(t, null);
+          var clear = v != null ? v.GetType().GetMethod("Clear") : null;
+          if (clear != null) clear.Invoke(v, null);
+        } catch { /* the label keeps the face's kerns — the stamp note stands */ }
+      }
+    }
 #if UNITY_2023_2_OR_NEWER
     /* which face + material a seat wears — one resolver for builder,
        dresser and probe, so they can never disagree. aboardWeight names
@@ -20093,6 +20241,7 @@ namespace PatternBreak {
         && t.enableVertexGradient == grad
         && (grad ? t.colorGradient.topLeft == top && t.colorGradient.bottomLeft == bot && t.color == Color.white : t.color == top)
         && matOk
+        && (!seat.unkern || SeatKernIsOff(t))
         && SeatHardened(t);
       if (current || !apply) return current;
       if (face != null && t.font != face) t.font = face;
@@ -20104,6 +20253,7 @@ namespace PatternBreak {
       if (grad) { t.enableVertexGradient = true; t.colorGradient = new VertexGradient(top, top, bot, bot); t.color = Color.white; }
       else { t.enableVertexGradient = false; t.color = top; }
       if (mat != null && face != null && t.font == face) t.fontSharedMaterial = mat;
+      if (seat.unkern) SeatKernOff(t); // the smashed-pair guard, this label only
       return false;
     }
     /* the row layout, recomputed the same way everywhere */
@@ -20552,6 +20702,7 @@ namespace PatternBreak {
           if (seat.fillOpacity > 0f) inkL.a *= Mathf.Clamp01(seat.fillOpacity / 100f);
           tL.color = inkL;
         }
+        if (seat.unkern) SeatKernOff(tL); // the smashed-pair guard rides the LTS rung too
         SeatRect(goL.GetComponent<RectTransform>(), seat, faceL, rootH, inRowL, inRowL ? rowFyL[seat.row] : 0f, true);
       }
     }
@@ -21385,6 +21536,7 @@ namespace PatternBreak {
          the extremes — the Slider keeps writing fillAmount and the rig's
          change-guarded follow re-parks the bead. */
       WireBarCap(area, fImg, root, "slider", false, 0.62f);
+      WireBarBodies(area, m); // round 48: the body boxes seat the ink zone-true
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/Slider.prefab");
       UnityEngine.Object.DestroyImmediate(go);
       return true;
@@ -23007,6 +23159,7 @@ namespace PatternBreak {
                     continue;
                   }
                   WireBarCap(arT.gameObject, fiI, root, famBarK, ln[2] == "cap-r", Mathf.Clamp01(fiI.fillAmount));
+                  WireBarBodies(arT.gameObject, m); // round 48: the graft rides the body wire too
                 }
                 PrefabUtility.SaveAsPrefabAsset(contentsBC, path);
                 capRigged++;
