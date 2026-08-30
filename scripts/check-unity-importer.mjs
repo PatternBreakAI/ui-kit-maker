@@ -2889,15 +2889,15 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("respawn's conditional zone stamp left bevel — Barheight Hidden must ship no zone (round 44, item 30)");
   if (!/function barFillOnlySvg\(/.test(src) || !/function stripBarFill\(/.test(src))
     errors.push("the RIG-1 bar un-burn hands (barFillOnlySvg/stripBarFill) left the exporter");
-  if (!/const barRigU = uid === "loadbar" \|\| uid === "popmeter" \|\| uid === "respawn" \|\| uid === "buildqueue" \|\| uid === "xpbar";/.test(src))
-    errors.push("the display-bar rig gate left the universal loop (five families incl. xpbar)");
+  if (!/const barRigU = uid === "loadbar" \|\| uid === "popmeter" \|\| uid === "respawn" \|\| uid === "buildqueue" \|\| uid === "xpbar" \|\| uid === "unitplate";/.test(src))
+    errors.push("the display-bar rig gate left the universal loop (six families incl. xpbar + unitplate)");
   if (!/tzy \+ riseDyT/.test(src))
     errors.push("the track band lost its riseDy correction — the zone would seat a full extrusion headroom too high (round 44 field lesson)");
   if (!/track\?: \{ x: number; w: number; y\?: number; h\?: number \} \| null;/.test(src))
     errors.push("AssetMeta.track lost the optional vertical band");
   if (!/float bandCy = -1f;/.test(cs) || !/float topGap = bandCy - fillH \* 0\.5f, botGap = trackH - bandCy - fillH \* 0\.5f;/.test(cs))
     errors.push("BuildBarFill lost the vertical-band seat (round 44) — off-centerline bars would center mid-shell");
-  if (!/if \(baseAsset\.component == "loadbar" \|\| baseAsset\.component == "popmeter" \|\| baseAsset\.component == "respawn" \|\| baseAsset\.component == "buildqueue" \|\| baseAsset\.component == "xpbar"\)/.test(cs)
+  if (!/if \(baseAsset\.component == "loadbar" \|\| baseAsset\.component == "popmeter" \|\| baseAsset\.component == "respawn" \|\| baseAsset\.component == "buildqueue" \|\| baseAsset\.component == "xpbar" \|\| baseAsset\.component == "unitplate"\)/.test(cs)
       || !/string famDB = spritePath\.EndsWith\("\/loadbar-base\.png"\) \? "loadbar"/.test(cs))
     errors.push("the display bars' FamilyPrefab wiring or kept-project Fill graft left the importer (round 44)");
   const liveArtSrc = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../src/ui/LiveArt.tsx"), "utf8");
@@ -2968,9 +2968,36 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("WireManaRails (or its FamilyPrefab call) left the importer — the twin rails ship baked (round 44, item 21)");
   if (!/stK9\.SetValue\(Mathf\.Clamp01\(0\.15f \+ \(1f - vMn9\) \* 0\.7f\)\);/.test(cs))
     errors.push("the manarails board strike lost the stamina coupling — boards would pose only one rail (round 44, item 21)");
-  if (!/spritePath\.EndsWith\("\/xpbar-base\.png"\) \? "xpbar" : null;/.test(cs)
+  if (!/spritePath\.EndsWith\("\/xpbar-base\.png"\) \? "xpbar"/.test(cs)
       || !/fPrev\.file == "assets\/manarails\/manarails-fill-mana\.png"/.test(cs))
     errors.push("the kept-project grafts (xpbar Fill / manarails twin-rail era gate) left the importer (round 44)");
+}
+
+/* ── ROUND 44 · S16 (RIG-1 riders batch 3 — unitplate 42 / partyframe 25):
+   the unit plate's HP mercury joins the six-family universal rig (with
+   the board value strike the dossier flagged — plates on posed boards
+   must land on their value, never render empty); the party frame's twin
+   HP/MP rails ride the generalized named-rail road with the level knob
+   un-burned and its "12" riding live. ── */
+{
+  if (!/const atomsUP = opts\.part === "fill";/.test(bevelSrc) || !/stampTrack\(inject\(shell\.replace\("<svg ", '<svg data-unitplate="1" '\), parts\), tx0 \+ gU, txw - gU \* 2, railY \+ gU, mHU\)/.test(bevelSrc))
+    errors.push("unitplate lost its atom force-full gate or banded track stamp — the plate's HP can't rig (round 44, item 42)");
+  if (!/const atomsPF = opts\.part === "fill";/.test(bevelSrc) || !/data-barfill-name="\$\{nm9\}"/.test(bevelSrc))
+    errors.push("partyframe lost its atom force-full gate or named HP/MP mercury marks (round 44, item 25)");
+  if (!/data-seat-rider="knob">12<\/text>/.test(bevelSrc))
+    errors.push("partyframe's level number no longer rides the knob — the 12 burns back beside a live bubble (round 44, item 25)");
+  if (!/partyframe: \{ primary: "hp", rest: 0\.78, couple: \(v\) => 0\.25 \+ \(1 - v\) \* 0\.5 \},/.test(src))
+    errors.push("the named-rail family table lost partyframe (or its coupling law) — the twin rails can't stage the app's pose (round 44, item 25)");
+  if (!/static void WireNamedRails\(GameObject go, Sprite baseSp, PBAsset baseRow, string root, int pngScale, PBManifest m, string fam, string\[\] rails, string\[\] nices\)/.test(cs)
+      || !/WireNamedRails\(go, baseSp, baseAsset, root, pngScale, m, "partyframe", new string\[\] \{ "hp", "mp" \}, new string\[\] \{ "HP", "MP" \}\);/.test(cs))
+    errors.push("WireNamedRails (or partyframe's FamilyPrefab call) left the importer — the HP/MP rails ship baked (round 44, item 25)");
+  if (!/it\.component == "unitplate"\) && it\.value > 0f/.test(cs))
+    errors.push("unitplate left the board value strike — posed plates would render an EMPTY rail (round 44, item 42, the dossier's silent regression)");
+  if (!/mpK9\.SetValue\(Mathf\.Clamp01\(0\.25f \+ \(1f - vHp9\) \* 0\.5f\)\);/.test(cs))
+    errors.push("the partyframe board strike lost the MP coupling — boards would pose only one rail (round 44, item 25)");
+  if (!/spritePath\.EndsWith\("\/unitplate-base\.png"\) \? "unitplate" : null;/.test(cs)
+      || !/fPrev\.file == "assets\/partyframe\/partyframe-fill-hp\.png"/.test(cs))
+    errors.push("the kept-project grafts (unitplate Fill / partyframe twin-rail era gate) left the importer (round 44)");
 }
 
 if (errors.length) {

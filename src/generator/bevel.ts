@@ -6829,26 +6829,31 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
           <ellipse cx="${pcx.toFixed(1)}" cy="${(cy + pr * 0.75).toFixed(1)}" rx="${(pr * 0.62).toFixed(1)}" ry="${(pr * 0.5).toFixed(1)}" fill="rgba(255,255,255,0.4)"/>
         </g>
         <circle cx="${pcx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${pr.toFixed(1)}" fill="none" stroke="${darken(bevel, 0.35)}" stroke-width="1.6"/>
-        ${candyKnob(pcx - pr * 0.72, cy + pr * 0.74, 12 * k, knobC)}
-        <text x="${(pcx - pr * 0.72).toFixed(1)}" y="${(cy + pr * 0.74 + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(13 * k).toFixed(1)}" font-weight="900" fill="${darken(bevel, 0.55)}" text-anchor="middle" dominant-baseline="central">12</text>`;
+        <g data-part="icon" data-icon="knob" data-icon-nick="Level knob">${candyKnob(pcx - pr * 0.72, cy + pr * 0.74, 12 * k, knobC)}</g>
+        <text x="${(pcx - pr * 0.72).toFixed(1)}" y="${(cy + pr * 0.74 + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(13 * k).toFixed(1)}" font-weight="900" fill="${darken(bevel, 0.55)}" text-anchor="middle" dominant-baseline="central" data-seat-rider="knob">12</text>`;
       const tx0 = pcx + pr + 16 * k, txw = 39 + w - inset - 12 * k - tx0;
-      const vHP = clamp(value ?? 0.78, 0, 1);
-      const vMP = clamp(0.25 + (1 - vHP) * 0.5, 0, 1);
+      /* round 44 (item 25, RIG-1 ×2 + RIG-4): the fill ATOMS render both
+         rails at full run (the coupled MP scrub never reaches 1 on its
+         own — max 0.75); the level knob above is marked swappable ink
+         and the "12" RIDES it as a live word */
+      const atomsPF = opts.part === "fill";
+      const vHP = atomsPF ? 1 : clamp(value ?? 0.78, 0, 1);
+      const vMP = atomsPF ? 1 : clamp(0.25 + (1 - vHP) * 0.5, 0, 1);
       const railH = 14 * k;
-      const rail9 = (ry: number, vR: number, cR: string) => {
+      const rail9 = (ry: number, vR: number, cR: string, nm9: string) => {
         const gid9b = "pr" + UID++;
         // progress-bar canon: mercury floats in the container with air
         const g9 = 2.5 * k, mH9 = railH - g9 * 2, mW9 = Math.max(0, (txw - g9 * 2) * vR);
         return `<rect x="${tx0.toFixed(1)}" y="${ry.toFixed(1)}" width="${txw.toFixed(1)}" height="${railH.toFixed(1)}" rx="${(railH / 2).toFixed(1)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.8)}" stroke="rgba(0,0,0,0.3)" stroke-width="0.8"/>` +
           `<defs><linearGradient id="${gid9b}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(cR, 0.45)}"/><stop offset="1" stop-color="${darken(cR, 0.3)}"/></linearGradient></defs>` +
-          (vR > 0.04 ? `<rect x="${(tx0 + g9).toFixed(1)}" y="${(ry + g9).toFixed(1)}" width="${mW9.toFixed(1)}" height="${mH9.toFixed(1)}" rx="${(mH9 / 2).toFixed(1)}" fill="url(#${gid9b})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 2.5px ${hexRgba(cR, 0.55)})"` : ""}/>` : "");
+          (vR > 0.04 ? `<g data-barfill="${(tx0 + g9).toFixed(1)} ${(ry + g9).toFixed(1)} ${mW9.toFixed(1)} ${mH9.toFixed(1)}" data-barfill-name="${nm9}"><rect x="${(tx0 + g9).toFixed(1)}" y="${(ry + g9).toFixed(1)}" width="${mW9.toFixed(1)}" height="${mH9.toFixed(1)}" rx="${(mH9 / 2).toFixed(1)}" fill="url(#${gid9b})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 2.5px ${hexRgba(cR, 0.55)})"` : ""}/></g>` : "");
       };
       const parts = portrait +
         contentText(opts.label ?? "KIRA", tx0, 30 + inset + 20 * k, 24 * k * typeK, { keepCase: true }) +
         // themed like the name — a white ghost glyph vanished on light
         // faces; marked swappable ink (the law): the class glyph ships live
         (STOCK_ICONS.sword ? `<g data-part="icon" data-icon="class" data-icon-nick="Class glyph">${themedIcon(STOCK_ICONS.sword, 39 + w - inset - 30 * k, 30 + inset + 8 * k, 22 * k, hexMix(glow, "#FFFFFF", 0.25), 2)}</g>` : "") +
-        rail9(cy + 8 * k, vHP, "#4ade80") + rail9(cy + 28 * k, vMP, "#38bdf8");
+        rail9(cy + 8 * k, vHP, "#4ade80", "hp") + rail9(cy + 28 * k, vMP, "#38bdf8", "mp");
       return inject(shell.replace("<svg ", '<svg data-partyframe="1" '), parts);
     }
     case "dmgnumber": {
@@ -8337,7 +8342,10 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const cy = 30 + h / 2;
       const pr = 33 * k, pcx = 39 + insetC + pr + 8 * k;
       const gidU = "up" + UID++;
-      const vHP = clamp(value ?? 0.82, 0, 1);
+      /* round 44 (item 42, RIG-1): the fill atom renders the run at 100%
+         so KitBarFill can scissor it — marked ink below, zone stamped */
+      const atomsUP = opts.part === "fill";
+      const vHP = atomsUP ? 1 : clamp(value ?? 0.82, 0, 1);
       const HPC = "#4ADE80";
       const tx0 = pcx + pr + 14 * k, txw = 39 + w - insetC - 12 * k - tx0;
       const railH = 13 * k, railY = cy + 4 * k;
@@ -8355,13 +8363,17 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         (() => { const nm = opts.label ?? "VANGUARD"; const fsN0 = 23 * k * typeK;
           return contentText(nm, tx0, 30 + inset + 18 * k, fsN0 * Math.min(1, (txw + 8 * k) / Math.max(1, nm.length * fsN0 * 0.62)), { keepCase: true }); })() +
         `<rect x="${tx0.toFixed(1)}" y="${railY.toFixed(1)}" width="${txw.toFixed(1)}" height="${railH.toFixed(1)}" rx="${(railH / 2).toFixed(1)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.8)}"/>` +
-        (vHP > 0.04 ? `<rect x="${(tx0 + gU).toFixed(1)}" y="${(railY + gU).toFixed(1)}" width="${Math.max(0, (txw - gU * 2) * vHP).toFixed(1)}" height="${mHU.toFixed(1)}" rx="${(mHU / 2).toFixed(1)}" fill="url(#${gidU}h)"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 2.5px ${hexRgba(HPC, 0.55)})"` : ""}/>` : "") +
+        // round 44 (item 42): the HP mercury is MARKED ink — it ships as
+        // a Filled atom the rig drives; the track stays anatomy
+        (vHP > 0.04 ? `<g data-barfill="${(tx0 + gU).toFixed(1)} ${(railY + gU).toFixed(1)} ${Math.max(0, (txw - gU * 2) * vHP).toFixed(1)} ${mHU.toFixed(1)}"><rect x="${(tx0 + gU).toFixed(1)}" y="${(railY + gU).toFixed(1)}" width="${Math.max(0, (txw - gU * 2) * vHP).toFixed(1)}" height="${mHU.toFixed(1)}" rx="${(mHU / 2).toFixed(1)}" fill="url(#${gidU}h)"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 2.5px ${hexRgba(HPC, 0.55)})"` : ""}/></g>` : "") +
         // stat glyphs are marked swappable ink (the law)
         (STOCK_ICONS.sword ? `<g data-part="icon" data-icon="atk" data-icon-nick="Attack glyph">${iconGroup(STOCK_ICONS.sword, tx0, railY + railH + 8 * k, 18 * k, infoInk, { strokeWidth: 2 * iconWK })}</g>` : "") +
         infoText("12", tx0 + 24 * k, railY + railH + 17 * k, 15 * k, "start", 800) +
         (STOCK_ICONS.shield ? `<g data-part="icon" data-icon="def" data-icon-nick="Defense glyph">${iconGroup(STOCK_ICONS.shield, tx0 + 52 * k, railY + railH + 8 * k, 18 * k, infoInk, { strokeWidth: 2 * iconWK })}</g>` : "") +
         infoText("8", tx0 + 76 * k, railY + railH + 17 * k, 15 * k, "start", 800);
-      return inject(shell.replace("<svg ", '<svg data-unitplate="1" '), parts);
+      // the stamp speaks the mercury run + band (round 44, item 42) —
+      // the rig seats exactly here; margin squeezes ride the drawn frame
+      return stampTrack(inject(shell.replace("<svg ", '<svg data-unitplate="1" '), parts), tx0 + gU, txw - gU * 2, railY + gU, mHU);
     }
     case "techcard": {
       /* Strategy · tech-tree card — icon medallion, name, cost, connector
