@@ -4288,7 +4288,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         invgrid: "Inventory grid — every cell glyph is a LIVE Image child (the app's cell pickers steer them) and the count chips are live plates with their numbers riding them. The selection ring is NOT baked: compose invgrid/cell-ring.png over any cell (the board scenes wire InvGridSelect for you). Display piece.",
         partyframe: "Party frame — drop YOUR sprite on the Portrait child (the well clips it round); the name is a LIVE seat and the class glyph a LIVE Image child. HP and MP are each their own Filled fill with the rounded head (drive HP/MP fillAmount or KitBarFill.SetValue), and the level bubble is a LIVE Level knob child with the number riding it. Display piece.",
         compass: "Compass ribbon — the cardinal letters are LIVE seats and the Heading caret a LIVE child (restyle or delete it). The tick ribbon bakes at the staged heading (per-copy headings ride posed skins). Display piece.",
-        dmgnumber: "Damage number — the tilted digits stay in the art by the warped-stamp contract (rotation IS the art; per-copy magnitudes ride posed skins). Scale freely. Display piece.",
+        dmgnumber: "Damage number — a DEV INSTRUMENT (round 47): PatternBreakDmgNumber.Show(n) composes the amount from the kit's own damage digits at the authored seat and plays the app's float-up-and-fade; Value 0 keeps the authored number byte-for-byte as a live, swappable child.",
         equipslot: "Equipment slot — the ghost silhouette showing what belongs is a LIVE Image child; the app's icon picker steers it and the Inspector swaps it. Display piece.",
         skillnode: "Skill-tree node — a REAL button (Sprite Swap states); the skill glyph is a LIVE Image child. Learned/locked poses ride per-copy posed skins.",
         ammo: "Ammo counter — LIVE: the three bars are ONE thirds meter (KitCellMeter — drive Value or SetValue; bars go dark left→right as ammo depletes) and both counts are LIVE seats. Display piece.",
@@ -4361,7 +4361,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
            export-side attribute, the app render untouched). Seats then
            speak canvas-center offsets; the importer's child math follows
            the row's shell like any family. */
-        if (uid === "combo" && !/data-shell=/.test(fullU)) {
+        if ((uid === "combo" || uid === "dmgnumber") && !/data-shell=/.test(fullU)) {
           const vbC9 = /viewBox="0 0 ([\d.]+) ([\d.]+)"/.exec(fullU);
           if (vbC9) fullU = fullU.replace("<svg ", `<svg data-shell="0 0 ${vbC9[1]} ${vbC9[2]}" `);
         }
@@ -4727,6 +4727,15 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
             comboSeatG = { gauge: { x: 0, y: 0, fs: 0, unitY: 0, unitFs: 0, dialX: scx9 * PNG_SCALE, dialY: scy9 * PNG_SCALE } };
           }
         }
+        /* the damage number's authored anchor rides the same crop-corrected
+           gauge road (the combo precedent) — DmgNumber composes there */
+        if (uid === "dmgnumber") {
+          const seatD9 = /data-dmgseat="([-\d. ]+)"/.exec(fullU);
+          if (seatD9) {
+            const [sdx9, sdy9] = seatD9[1].split(" ").map(Number);
+            comboSeatG = { gauge: { x: 0, y: 0, fs: 0, unitY: 0, unitFs: 0, dialX: sdx9 * PNG_SCALE, dialY: sdy9 * PNG_SCALE } };
+          }
+        }
         await addPng(`${uid}/base.png`, baseSvgU, {
           component: uid, part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
           usage: UNIVERSAL_USAGE[uid] ?? (GLYPH_BUTTONS.has(uid)
@@ -5086,6 +5095,29 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
               }, false);
             }
           } catch { /* the resting Multiplier child still ships */ }
+        }
+        /* ── the DAMAGE DIGIT SET (round 47 — the owner: a dev
+           instrument, not a picture): 0-9 + the thousands comma in the
+           number's full type dress, unrotated, one glyph per canvas;
+           each row's railW carries the glyph's advance in PNG px.
+           PatternBreakDmgNumber.Show(n) composes the amount from these
+           at the authored seat and plays the app's own float. ── */
+        if (uid === "dmgnumber") {
+          try {
+            for (const g9 of ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", ","]) {
+              const dSvg = shell(uid, { ...uOpts, part: "digit", label: g9 }, undefined, uVal);
+              const advD = +(/data-adv="([\d.]+)"/.exec(dSvg)?.[1] ?? "0");
+              if (!(advD > 1)) continue;
+              const dName = g9 === "," ? "comma" : g9;
+              await addPng(`${uid}/digit-${dName}.png`, dSvg, {
+                component: uid, part: `digit-${dName}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+                usage: g9 === ","
+                  ? "The thousands mark in the damage number's own dress — DmgNumber.Show groups big hits with it, the app's own formatting."
+                  : `The damage digit ${g9} — PatternBreakDmgNumber.Show(n) composes the amount from the digit set at the authored seat.`,
+                railW: Math.round(advD * PNG_SCALE * 10) / 10,
+              }, false);
+            }
+          } catch { /* the resting Damage number child still ships */ }
         }
         /* ── the CHAMBER LOOKS (round 44, item 44 — RIG-7): every
            chamber's glyph ships BOTH looks on its fixed frame — armed
@@ -6637,6 +6669,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Runtime/PatternBreakInvGrid.cs", data: INVGRID_RUNTIME });
   files.push({ path: "Runtime/PatternBreakStreakIgnite.cs", data: STREAK_IGNITE_RUNTIME });
   files.push({ path: "Runtime/PatternBreakComboPop.cs", data: COMBO_POP_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakDmgNumber.cs", data: DMG_NUMBER_RUNTIME });
   files.push({ path: "Runtime/PatternBreakCountdownLabel.cs", data: COUNTDOWN_RUNTIME });
   files.push({ path: "Runtime/PatternBreakIdleShine.cs", data: IDLE_SHINE_RUNTIME });
   files.push({ path: "Runtime/PatternBreakPopNumber.cs", data: POP_NUMBER_RUNTIME });
@@ -6731,6 +6764,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     "Runtime/PatternBreakPopNumber.cs", "Runtime/PatternBreakRadarDemo.cs",
     "Runtime/PatternBreakClaimBurst.cs", "Runtime/PatternBreakInvGrid.cs",
     "Runtime/PatternBreakStreakIgnite.cs", "Runtime/PatternBreakComboPop.cs",
+    "Runtime/PatternBreakDmgNumber.cs",
     "Runtime/PatternBreakStateFx.cs", "Runtime/UIKitGlintInk.shader",
     "Runtime/PatternBreakRingFill.cs",
     "Runtime/PatternBreakBuffSweep.cs",
@@ -8200,6 +8234,124 @@ namespace PatternBreak {
       rt.localScale = new Vector3(s0.x * sc, s0.y * sc, s0.z);
       rt.localRotation = r0 * Quaternion.Euler(0f, 0f, ang);
       if (f >= 1f) { rt.localScale = s0; rt.localRotation = r0; t = -1f; }
+    }
+  }
+}
+`;
+
+/* the DAMAGE NUMBER as a DEV INSTRUMENT (round 47, owner: "it must be a
+   dev instrument, not a picture") — the combo digit road applied to the
+   floating combat number: Show(n) composes the amount from the kit's
+   own damage digits at the authored seat (thousands grouped like the
+   app) and plays the app's SMIL flight, keyframe for keyframe on LINEAR
+   segments (SMIL's own calcMode): pop 0.7→1.09→0.98→1 @ 0/.06/.10/.14
+   (crit 0.55→1.16→0.97→1), float +8→−6→−26 of the 210 design height
+   @ 0/.4/1, fade 0→1→1→0 @ 0/.05/.72/1, over 2.6s (crit 3s). Value 0
+   keeps the kit's authored number byte-for-byte as the live child. */
+const DMG_NUMBER_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+
+namespace PatternBreak {
+  [AddComponentMenu("UI Kit Maker/Damage Number")]
+  public class PatternBreakDmgNumber : MonoBehaviour {
+    [Tooltip("Inspector preview / the resting amount: 0 keeps the kit's authored number sprite byte-for-byte; 1+ composes the kit-dressed digits at the authored seat, thousands grouped like the app. Show(n) sets it AND plays the flight.")]
+    public int value = 0;
+    [Tooltip("One flight in seconds — the app's loop runs 2.6s (crit rides 3s via the app's own ratio).")]
+    public float seconds = 2.6f;
+    [Tooltip("The app's crit beat — harder spawn pop and the longer flight (the app goes crit past 70% magnitude).")]
+    public bool crit;
+    [Tooltip("The resting Damage number child (generated wiring) — hidden while a composed amount shows.")]
+    public Image numberSeat;
+    [Tooltip("The damage digits 0-9, the kit's own dress (generated).")]
+    public Sprite[] digitSprites = new Sprite[0];
+    [Tooltip("The thousands mark (generated).")]
+    public Sprite commaSprite;
+    [Tooltip("Per-digit advance in UI units, matched to digitSprites (generated).")]
+    public float[] digitAdvance = new float[0];
+    public float commaAdvance;
+    [Tooltip("UI units per sprite px — 1 / the export's pngScale (generated).")]
+    public float glyphScale = 0.5f;
+    [Tooltip("The number's authored tilt — the app's own −6° (Unity CCW).")]
+    public float numberTilt = 6f;
+    [Tooltip("The authored anchor minus the resting child's center, UI units (generated).")]
+    public Vector2 seatOffset = Vector2.zero;
+    const string MOUNT = "Number (auto)";
+    public void SetValue(int n) { value = Mathf.Max(0, n); Apply(); }
+    public void Show(int n) { SetValue(n); Play(); }
+    public void Play() { if (rt == null) rt = (RectTransform)transform; t = 0f; }
+    public void Apply() {
+      if (numberSeat == null) return;
+      var seatRt = numberSeat.rectTransform;
+      var mountT = seatRt.Find(MOUNT);
+      bool compose = value >= 1 && digitSprites.Length >= 10 && digitAdvance.Length >= 10;
+      if (!compose) {
+        // 0 (or missing atoms) = the authored number, exactly as shipped
+        if (!numberSeat.enabled) numberSeat.enabled = true;
+        if (mountT != null) mountT.gameObject.SetActive(false);
+        return;
+      }
+      var mount = mountT as RectTransform;
+      if (mount == null) {
+        var g = new GameObject(MOUNT, typeof(RectTransform));
+        g.transform.SetParent(seatRt, false);
+        mount = (RectTransform)g.transform;
+        mount.anchorMin = mount.anchorMax = new Vector2(0.5f, 0.5f);
+        mount.pivot = new Vector2(0.5f, 0.5f);
+        mount.sizeDelta = Vector2.zero;
+      }
+      mount.gameObject.SetActive(true);
+      mount.anchoredPosition = seatOffset;
+      mount.localRotation = Quaternion.Euler(0f, 0f, numberTilt);
+      numberSeat.enabled = false;
+      for (int i = mount.childCount - 1; i >= 0; i--) { var ch = mount.GetChild(i).gameObject; if (Application.isPlaying) Destroy(ch); else DestroyImmediate(ch); }
+      // the app's own formatting: thousands grouped with the comma glyph
+      string s9 = Mathf.Min(value, 9999999).ToString();
+      string grouped = "";
+      for (int i = 0; i < s9.Length; i++) { if (i > 0 && (s9.Length - i) % 3 == 0 && commaSprite != null) grouped += ","; grouped += s9[i]; }
+      float total = 0f;
+      foreach (var c9 in grouped) total += c9 == ',' ? commaAdvance : digitAdvance[c9 - '0'];
+      float x9 = -total / 2f;
+      foreach (var c9 in grouped) {
+        var sp9 = c9 == ',' ? commaSprite : digitSprites[c9 - '0'];
+        float adv9 = c9 == ',' ? commaAdvance : digitAdvance[c9 - '0'];
+        if (sp9 == null) { x9 += adv9; continue; }
+        var g9 = new GameObject("Glyph", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        g9.transform.SetParent(mount, false);
+        var im9 = g9.GetComponent<Image>(); im9.sprite = sp9; im9.raycastTarget = false;
+        var rt9 = (RectTransform)g9.transform;
+        rt9.anchorMin = rt9.anchorMax = new Vector2(0.5f, 0.5f);
+        rt9.pivot = new Vector2(0.5f, 0.5f);
+        rt9.anchoredPosition = new Vector2(x9 + adv9 / 2f, 0f);
+        rt9.sizeDelta = new Vector2(sp9.rect.width * glyphScale, sp9.rect.height * glyphScale);
+        x9 += adv9;
+      }
+    }
+    void OnEnable() { Apply(); }
+#if UNITY_EDITOR
+    void OnValidate() { UnityEditor.EditorApplication.delayCall += () => { if (this != null) Apply(); }; }
+#endif
+    RectTransform rt; Vector3 s0; Vector2 p0; CanvasGroup grp; float t = -1f;
+    void Awake() { rt = (RectTransform)transform; s0 = rt.localScale; p0 = rt.anchoredPosition; }
+    // piecewise-LINEAR segment — SMIL's default calcMode, the app's own easing
+    static float Seg(float f, float k0, float k1, float v0, float v1) { return Mathf.Lerp(v0, v1, (f - k0) / Mathf.Max(0.0001f, k1 - k0)); }
+    void OnDisable() { if (t >= 0f && rt != null) { rt.localScale = s0; rt.anchoredPosition = p0; if (grp != null) grp.alpha = 1f; t = -1f; } }
+    void Update() {
+      if (t < 0f || rt == null || !Application.isPlaying) return;
+      t += Time.deltaTime;
+      // the app's SMIL, keyframe for keyframe (crit stretches by the app's own 3s/2.6s)
+      float f = Mathf.Clamp01(t / Mathf.Max(0.05f, crit ? seconds * (3f / 2.6f) : seconds));
+      float sc = crit
+        ? (f < 0.06f ? Seg(f, 0f, 0.06f, 0.55f, 1.16f) : f < 0.1f ? Seg(f, 0.06f, 0.1f, 1.16f, 0.97f) : f < 0.14f ? Seg(f, 0.1f, 0.14f, 0.97f, 1f) : 1f)
+        : (f < 0.06f ? Seg(f, 0f, 0.06f, 0.7f, 1.09f) : f < 0.1f ? Seg(f, 0.06f, 0.1f, 1.09f, 0.98f) : f < 0.14f ? Seg(f, 0.1f, 0.14f, 0.98f, 1f) : 1f);
+      // float +8 -> -6 -> -26 of the app's 210 design height (svg y runs down)
+      float dySvg = f < 0.4f ? Seg(f, 0f, 0.4f, 8f, -6f) : Seg(f, 0.4f, 1f, -6f, -26f);
+      float a9 = f < 0.05f ? Seg(f, 0f, 0.05f, 0f, 1f) : f < 0.72f ? 1f : Seg(f, 0.72f, 1f, 1f, 0f);
+      if (grp == null) { grp = GetComponent<CanvasGroup>(); if (grp == null) grp = gameObject.AddComponent<CanvasGroup>(); }
+      rt.localScale = new Vector3(s0.x * sc, s0.y * sc, s0.z);
+      rt.anchoredPosition = p0 + new Vector2(0f, -dySvg / 210f * rt.rect.height);
+      grp.alpha = a9;
+      // the flight ENDS faded out — damage numbers die; Show respawns one
+      if (f >= 1f) { rt.localScale = s0; rt.anchoredPosition = p0; t = -1f; }
     }
   }
 }
@@ -10902,6 +11054,12 @@ text is 2023.2+, the same rung rule as the step-4 word note.
   celebration digits at the authored seat, then \`Pop()\` on every
   multiplier tick (clicking the piece in Play mode fires it too). The
   app's exact squash-overshoot-settle.
+- **PatternBreakDmgNumber** — the damage number as a dev instrument:
+  \`Show(n)\` composes the amount from the kit's own damage digits at
+  the authored seat (thousands grouped, the app's formatting) and plays
+  the app's float-up-and-fade, SMIL keyframes mirrored; the Inspector
+  \`Value\` field previews with no code, and 0 keeps the kit's authored
+  number byte-for-byte.
 - **ClaimBurst** — \`Fire()\` throws the themed spark celebration
   (claim-worded pieces arrive with it wired to the click).
 - **PatternBreakSpinner** — spins by itself in Play mode;
@@ -22044,6 +22202,7 @@ namespace PatternBreak {
       if (!anyGlyph && !hadGlyphDir && AssetDatabase.IsValidFolder(glyphDir)) AssetDatabase.DeleteAsset(glyphDir);
       if (StreakIgniteWire(dir, root, staging)) any = true;
       if (ComboPopWire(dir, root, m, staging)) any = true;
+      if (DmgNumberWire(dir, root, m, staging)) any = true;
 #if UNITY_2023_2_OR_NEWER
       if (HeroLabelPrefab(dir, root)) any = true;
 #endif
@@ -22111,6 +22270,63 @@ namespace PatternBreak {
         if (contents.GetComponent<ClaimBurst>() == null) AddClaimBurst(contents, root, "combo", m);
         PrefabUtility.SaveAsPrefabAsset(contents, pathCP);
         if (!quiet) Debug.Log("UI Kit Maker: the Combo prefab celebrates — click it in Play (or call ComboPop.Pop() / ClaimBurst.Fire() from your game) and it pops exactly like the app; round 47: SetCount(n) deals the multiplier from the kit's own digits.");
+        return true;
+      } finally { PrefabUtility.UnloadPrefabContents(contents); }
+    }
+    /* the DAMAGE NUMBER becomes a DEV INSTRUMENT (round 47, owner) — the
+       ComboPop pattern on the floating combat number: the digit set +
+       advances + the authored seat wire in; value rests 0 (the shipped
+       number child — pixel parity), and Show(n) composes the kit's own
+       damage digits at the exact seat and plays the app's flight. Old
+       zips (no digit atoms) keep the static child. Wired once at
+       generation; thereafter the prefab is the dev's. */
+    static bool DmgNumberWire(string dir, string root, PBManifest m, bool quiet) {
+      var pathDN = dir + "/Dmgnumber.prefab";
+      if (AssetDatabase.LoadAssetAtPath<GameObject>(pathDN) == null) return false;
+      var contents = PrefabUtility.LoadPrefabContents(pathDN);
+      try {
+        if (contents.GetComponent<PatternBreakDmgNumber>() != null) return false; // wired — and thereafter yours
+        var seatTD = contents.transform.Find("Damage number");
+        var seatImgD = seatTD != null ? seatTD.GetComponent<Image>() : null;
+        if (seatImgD == null || m == null || m.assets == null) return false;
+        float psD = m.pngScale > 0 ? m.pngScale : 2f;
+        var digitsD = new Sprite[10]; var advD = new float[10];
+        bool allD = true;
+        for (int iD = 0; iD < 10; iD++) {
+          digitsD[iD] = S(root + "/assets/dmgnumber/dmgnumber-digit-" + iD + ".png");
+          PBAsset rowD = null;
+          foreach (var aD in m.assets) if (aD != null && aD.component == "dmgnumber" && aD.part == "digit-" + iD) { rowD = aD; break; }
+          if (digitsD[iD] == null || rowD == null || rowD.railW < 1f) { allD = false; break; }
+          advD[iD] = rowD.railW / psD;
+        }
+        PBAsset rowCommaD = null, baseDD = null;
+        foreach (var aD in m.assets) if (aD != null && aD.component == "dmgnumber") { if (aD.part == "digit-comma") rowCommaD = aD; else if (aD.part == "base") baseDD = aD; }
+        var bsDD = contents.GetComponent<Image>() != null ? contents.GetComponent<Image>().sprite : null;
+        if (!allD || baseDD == null || baseDD.gauge == null || baseDD.shell == null || bsDD == null || bsDD.rect.width <= 2f) return false; // old zip — the static child stands
+        var dmgC = contents.AddComponent<PatternBreakDmgNumber>();
+        dmgC.numberSeat = seatImgD;
+        dmgC.digitSprites = digitsD;
+        dmgC.digitAdvance = advD;
+        dmgC.commaSprite = S(root + "/assets/dmgnumber/dmgnumber-digit-comma.png");
+        dmgC.commaAdvance = rowCommaD != null && rowCommaD.railW > 1f ? rowCommaD.railW / psD : 0f;
+        dmgC.glyphScale = 1f / psD;
+        /* the authored anchor vs the resting child's cut-box center, in
+           ROOT UI units — the compose lands on the app's own text
+           anchor, not the glow-padded crop's middle (the combo lesson) */
+        PBIconChild seatRowD = null;
+        if (baseDD.iconSeats != null) foreach (var icD in baseDD.iconSeats) if (icD != null && icD.name == "number") { seatRowD = icD; break; }
+        if (seatRowD != null) {
+          var rootRtD = (RectTransform)contents.transform;
+          float fxSeatD = (baseDD.shell.x + baseDD.shell.w / 2f + seatRowD.dx * psD) / bsDD.rect.width;
+          float fySeatD = 1f - (baseDD.shell.y + baseDD.shell.h / 2f + seatRowD.dy * psD) / bsDD.rect.height;
+          float axD = baseDD.gauge.dialX / bsDD.rect.width;
+          float ayD = 1f - baseDD.gauge.dialY / bsDD.rect.height;
+          dmgC.seatOffset = new Vector2((axD - fxSeatD) * rootRtD.sizeDelta.x, (ayD - fySeatD) * rootRtD.sizeDelta.y);
+        }
+        dmgC.value = 0; // rest = the authored number, byte-for-byte
+        dmgC.Apply();
+        PrefabUtility.SaveAsPrefabAsset(contents, pathDN);
+        if (!quiet) Debug.Log("UI Kit Maker: the Damage number is a dev instrument — call PatternBreakDmgNumber.Show(n) (or set Value in the Inspector to preview) and it composes the kit's own digits at the authored seat and plays the app's float-up-and-fade.");
         return true;
       } finally { PrefabUtility.UnloadPrefabContents(contents); }
     }

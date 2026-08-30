@@ -3452,6 +3452,45 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
       errors.push(`the ${nubRow} nub atom stopped shipping (round 47, S36)`);
 }
 
+/* ── ROUND 47 · S37 (owner: the damage number must be a dev instrument,
+   not a picture): the combo digit road applied to dmgnumber — the
+   number un-burns to a live child, the damage digit set (0-9 + comma)
+   ships with advances, and PatternBreakDmgNumber.Show(n) composes the
+   amount at the authored seat and plays the app's SMIL flight with the
+   SAME keyframes the app animates. ── */
+{
+  if (!/data-part="icon" data-icon="number" data-icon-nick="Damage number"/.test(bevelSrc)
+      || !/data-dmgseat="\$\{cxD\.toFixed\(1\)\} \$\{cyD\.toFixed\(1\)\}"/.test(bevelSrc)
+      || !/aria-label="damage digit \$\{g9\}"/.test(bevelSrc))
+    errors.push("the damage number's un-burn marks / seat stamp / digit atom render left bevel (round 47, S37)");
+  if (!/const DMG_NUMBER_RUNTIME = `using UnityEngine;/.test(src)
+      || !/files\.push\(\{ path: "Runtime\/PatternBreakDmgNumber\.cs", data: DMG_NUMBER_RUNTIME \}\);/.test(src)
+      || !/"Runtime\/PatternBreakDmgNumber\.cs",/.test(src))
+    errors.push("DmgNumber's runtime or its registration (files + sharedScripts BOTH — the law) left the exporter (round 47, S37)");
+  if (!/public void Show\(int n\) \{ SetValue\(n\); Play\(\); \}/.test(src)
+      || !/dmgC\.value = 0; \/\/ rest = the authored number, byte-for-byte/.test(cs))
+    errors.push("DmgNumber lost Show or its rest-parity wiring (round 47, S37)");
+  /* the SMIL ↔ C# cross-pin: the app's keyframes and the runtime's must
+     name the SAME numbers — retune one and this fails until the other
+     follows */
+  const smilD = /values="\$\{crit \? "0\.55;1\.16;0\.97;1;1" : "0\.7;1\.09;0\.98;1;1"\}" keyTimes="0;0\.06;0\.1;0\.14;1"/.test(bevelSrc)
+    && /values="0;1;1;0" keyTimes="0;0\.05;0\.72;1"/.test(bevelSrc)
+    && /keyTimes="0;0\.4;1"/.test(bevelSrc)
+    && /crit \? "3s" : "2\.6s"/.test(bevelSrc);
+  const flightD = /Seg\(f, 0f, 0\.06f, 0\.55f, 1\.16f\)/.test(src) && /Seg\(f, 0f, 0\.06f, 0\.7f, 1\.09f\)/.test(src)
+    && /Seg\(f, 0\.06f, 0\.1f, 1\.09f, 0\.98f\)/.test(src) && /Seg\(f, 0\.1f, 0\.14f, 0\.98f, 1f\)/.test(src)
+    && /Seg\(f, 0f, 0\.4f, 8f, -6f\)/.test(src) && /Seg\(f, 0\.4f, 1f, -6f, -26f\)/.test(src)
+    && /Seg\(f, 0f, 0\.05f, 0f, 1f\)/.test(src) && /Seg\(f, 0\.72f, 1f, 1f, 0f\)/.test(src)
+    && /public float seconds = 2\.6f;/.test(src) && /seconds \* \(3f \/ 2\.6f\)/.test(src)
+    && /-dySvg \/ 210f \* rt\.rect\.height/.test(src);
+  if (!smilD || !flightD)
+    errors.push("the damage number's SMIL and the shipped C# flight no longer name the same keyframes — retune both together (round 47, S37)");
+  if (!/DmgNumberWire\(dir, root, m, staging\)/.test(cs) || !/var seatTD = contents\.transform\.Find\("Damage number"\);/.test(cs))
+    errors.push("DmgNumberWire (or its call) left the importer (round 47, S37)");
+  if (!/PatternBreakDmgNumber\*\* — the damage number as a dev instrument:/.test(src))
+    errors.push("the QuickStart's one-call lane lost the DmgNumber entry (round 47, S37)");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);

@@ -7053,6 +7053,24 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          live in games. SMIL like the tech card's breathing ring, so it plays
          anywhere the SVG does; disabled stays a calm still. Crit pops harder
          and its sparks flash only around the impact beat. */
+      /* ── ENGINE ATOM (the combo digit road, round 47 — a dev
+         instrument, not a picture): ONE glyph in the number's full type
+         dress, UNROTATED, centered on its own canvas.
+         PatternBreakDmgNumber.Show composes the amount from these at
+         the authored seat (the −6° tilt returns as the mount's
+         rotation). data-adv carries the glyph's advance in design px —
+         the rendered face's own shaping PLUS the type's letter-spacing,
+         the same run arithmetic the app's single <text> lays down. ── */
+      if (opts.part === "digit") {
+        const g9 = opts.label ?? "0";
+        const w9D = Math.max(700, cfg.type.weight);
+        const m9D = measureLive(g9, cfg.type.font, w9D, !!cfg.type.italic) ?? measureLabel(g9, cfg.type.font, w9D, !!cfg.type.italic);
+        const advG = (m9D !== null ? m9D : 0.62) * fsD + fsD * (cfg.type.spacing / 100);
+        const Wd = Math.ceil(Math.max(advG, fsD * 0.5) + fsD * 1.6), Hd = Math.ceil(fsD * 2.4);
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${Wd}" height="${Hd}" viewBox="0 0 ${Wd} ${Hd}" data-adv="${advG.toFixed(1)}" role="img" aria-label="damage digit ${g9}">
+${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
+</svg>`;
+      }
       const live = state !== "disabled";
       const durD = crit ? "3s" : "2.6s";
       const popD = live ? `<animateTransform attributeName="transform" type="scale" additive="sum" values="${crit ? "0.55;1.16;0.97;1;1" : "0.7;1.09;0.98;1;1"}" keyTimes="0;0.06;0.1;0.14;1" dur="${durD}" repeatCount="indefinite"/>` : "";
@@ -7061,8 +7079,12 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const sparksD = sparks && live
         ? `<g>${sparks}<animate attributeName="opacity" values="0;1;1;0;0" keyTimes="0;0.07;0.4;0.62;1" dur="${durD}" repeatCount="indefinite"/></g>`
         : sparks;
-      return `<svg xmlns="http://www.w3.org/2000/svg" width="${WD.toFixed(0)}" height="${HD.toFixed(0)}" viewBox="0 0 ${WD.toFixed(0)} ${HD.toFixed(0)}" data-dmgnumber="1" role="img" aria-label="damage ${amt}">
-<g opacity="${dim}">${fadeD}<g>${floatD}<g transform="translate(${cxD.toFixed(1)} ${cyD.toFixed(1)})"><g>${popD}<g transform="translate(${(-cxD).toFixed(1)} ${(-cyD).toFixed(1)})">${sparksD}<g transform="rotate(-6 ${cxD.toFixed(1)} ${cyD.toFixed(1)})">${contentText(amt, cxD, cyD, fsD, { anchor: "middle", keepCase: true })}</g>${critWord}</g></g></g></g></g>
+      /* round 47 (the combo precedent): the number is MARKED swappable
+         ink — the export strips it to a live "Damage number" child, and
+         DmgNumber's Show swaps in composed digits at this exact seat
+         (data-dmgseat, geometry only — zero raster change) */
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${WD.toFixed(0)}" height="${HD.toFixed(0)}" viewBox="0 0 ${WD.toFixed(0)} ${HD.toFixed(0)}" data-dmgnumber="1" data-dmgseat="${cxD.toFixed(1)} ${cyD.toFixed(1)}" role="img" aria-label="damage ${amt}">
+<g opacity="${dim}">${fadeD}<g>${floatD}<g transform="translate(${cxD.toFixed(1)} ${cyD.toFixed(1)})"><g>${popD}<g transform="translate(${(-cxD).toFixed(1)} ${(-cyD).toFixed(1)})">${sparksD}<g data-part="icon" data-icon="number" data-icon-nick="Damage number"><g transform="rotate(-6 ${cxD.toFixed(1)} ${cyD.toFixed(1)})">${contentText(amt, cxD, cyD, fsD, { anchor: "middle", keepCase: true })}</g></g>${critWord}</g></g></g></g></g>
 </svg>`;
     }
     case "loottag": {
