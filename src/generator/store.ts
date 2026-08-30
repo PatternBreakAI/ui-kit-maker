@@ -415,6 +415,11 @@ interface GenStore {
   boardShadowLast: KitShadowFx | null;
   /** Pin THIS instance's text; null returns it to the kit-wide specimen label. */
   setBoardItemLabel: (id: string, label: string | null) => void;
+  /** Pin THIS instance's render-variant overlay — the Inspector's glyph
+   *  picker writes "icon:<stock>" (the starter deals' framed-icon grammar,
+   *  now hand-editable). null/empty returns the copy to its factory face
+   *  (or the kit-wide Icons pick). */
+  setBoardItemOv: (id: string, ov: string | null) => void;
   /** Drop a type stamp on the active board. */
   /** Drop lettering on the board — the kit's full splash treatment, or
    *  (plain = true) the PLAIN tier: kit face, flat pickable color. */
@@ -2063,6 +2068,11 @@ export const useGen = create<GenStore>((set, get) => ({
   setBoardItemLabel: (id, label) => mutateItem(get, set, `label:${id}`, id, (b) => {
     const next = { ...b };
     if (label === null || label === "") delete next.label; else next.label = label;
+    return next;
+  }),
+  setBoardItemOv: (id, ov) => mutateItem(get, set, `ov:${id}`, id, (b) => {
+    const next = { ...b };
+    if (ov === null || ov === "") delete next.ov; else next.ov = ov;
     return next;
   }),
   addStampToBoard: (plain) => {

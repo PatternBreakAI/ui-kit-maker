@@ -1113,6 +1113,9 @@ export type KitComponentId =
   | "bottomnav"
   // booster info card (staged) — glyph well, name, effect line, qty chip
   | "boostercard"
+  // slot button (staged) — the item slot's framed-well look as a REAL
+  // pressing button; the glyph is the point (owner commission, round 49)
+  | "slotbtn"
   // the semantic glyph rack (glyphLibrary.ts) — every glyph is a full kit
   // citizen: its own per-piece forks, sizes, board placement. All staged.
   | "glyphcoin" | "glyphgem" | "glyphheart" | "glyphenergy" | "glyphticket" | "glyphkey" | "glyphstar"
@@ -1262,6 +1265,14 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
       note: "The notification number riding the badge plate. Factory is white; a pick here inks it alone. The 0-count FREE ribbon keeps its gold." },
     { id: "plateColor", name: "Badge plate", kind: "color", def: "#0E9CC9",
       note: "The count badge's plate (halo included). Factory follows the kit's Bevel role under Effects; a pick here forks this piece's plate alone." },
+  ],
+  slotbtn: [
+    /* the corner count chip is an OPTIONAL word (the slot family's ×250
+       contract): untouched, the button stays clean; a typed count pins
+       the quantity-badge pill to the well's corner. Kit-wide here; a
+       board copy's glyph is per-copy via the Inspector's glyph picker. */
+    { id: "qty", name: "Qty chip", kind: "free", def: "", maxLen: 6,
+      note: "The corner count chip — type ×250 (or 99+) to pin it to the well's corner. Empty keeps the button clean. It speaks the quantity-badge voice and dims with the disabled state." },
   ],
   boostercard: [
     /* name rides the main Text control (KIT_LABEL_EDITABLE); the second
@@ -1735,6 +1746,10 @@ export const KIT_COMPONENTS: { id: KitComponentId; name: string; staged?: true; 
   /* the vertical booster info card — the booster button's reading twin:
      glyph well, name, effect line, qty chip. Staged per the standing rule. */
   { id: "boostercard", name: "Booster card", staged: true },
+  /* the slot button — the item slot's framed-well look as a REAL pressing
+     button (owner: "make these real buttons on the back end and add them
+     to the kit"). Staged per the standing rule. */
+  { id: "slotbtn", name: "Slot button", staged: true },
   { id: "pricebtn", name: "Price button" },
   { id: "energymeter", name: "Energy meter" },
   { id: "buildqueue", name: "Build queue" },
@@ -1815,7 +1830,7 @@ export const STAGED_KIT = new Set<KitComponentId>(KIT_COMPONENTS.filter((c) => c
    piece belongs to at most one group; anything unlisted simply has no
    group and its scope picker offers Kit and Piece only. */
 export const KIT_GROUPS: { id: string; name: string; members: KitComponentId[] }[] = [
-  { id: "buttons", name: "Buttons", members: ["primary", "secondary", "small", "ghost", "iconbtn", "pricebtn", "claimbtn", "endturn", "padbtn", "keycap"] },
+  { id: "buttons", name: "Buttons", members: ["primary", "secondary", "small", "ghost", "iconbtn", "slotbtn", "pricebtn", "claimbtn", "endturn", "padbtn", "keycap"] },
   { id: "choice", name: "Choice controls", members: ["checkbox", "radio", "toggle", "segment", "stepper"] },
   { id: "fields", name: "Fields", members: ["input", "searchfield", "dropdown", "setrow", "listmenu"] },
   { id: "bars", name: "Bars & meters", members: ["progress", "segbar", "slider", "loadbar", "xpbar", "vitalbar", "heartmeter", "energymeter", "capturemeter", "streakmeter", "vsbar", "cooldown"] },
@@ -2219,6 +2234,7 @@ export const KIT_SHAPE: Partial<Record<KitComponentId, Shape>> = {
   resource: "pill",
   datarow: "kenneyRect",
   slot: "kenneyRect",
+  slotbtn: "kenneyRect", // the slot's silhouette — the button wears its frame
   leaderboard: "kenneyRect", // rows are rectangular content — oval shells clip them
   laptimes: "kenneyRect",    // plots are rectangular too
   telemetry: "kenneyRect",

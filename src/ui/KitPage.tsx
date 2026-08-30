@@ -2922,6 +2922,27 @@ const kitTier = useGen((s) => s.tier);
           // Button · Locked pose parked by the owner (2026-08-15) — restore by uncommenting:
           // { cap: "Locked", piece: { id: "small", label: "", icon: STOCK_ICONS.lock, baseState: "disabled" } },
         ]} />
+        {/* the slot button — the item slot's framed look as a real pressing
+            button (owner commission, round 49). Staged: this block joins the
+            body only ONCE RELEASED (the bay doctrine — an unreleased piece
+            in the real chapters reads as a leak, admin included; Piece
+            would null itself anyway). Pre-release the admin tests it from
+            the bay, the editor and the Board. */}
+        {kitVisible("slotbtn", releases, false) && (<>
+          <div className="kp-subhead">Slot button</div>
+          <p className="kp-note">The item-slot look — frame, dark well, glyph — as a real pressing button. Swap the glyph in Component content (per copy on the Board); type a count in Qty chip for the corner pill.</p>
+          <div className="kp-tray">
+            <Piece id="slotbtn" caption="Slot button" />
+            <Piece id="slotbtn" caption="Slot button · Hammer" icon={STOCK_ICONS.hammer} />
+            <Piece id="slotbtn" caption="Slot button · Qty chip" slots={{ qty: "×250" }} />
+          </div>
+          <StateStrip variants={[
+            { cap: "Default", piece: { id: "slotbtn" } },
+            { cap: "Hover / Focus", piece: { id: "slotbtn", baseState: "hover" } },
+            { cap: "Pressed", piece: { id: "slotbtn", baseState: "pressed" } },
+            { cap: "Disabled", piece: { id: "slotbtn", baseState: "disabled" } },
+          ]} />
+        </>)}
       </Sec>
 
       {/* ── 02 · choice controls ── */}

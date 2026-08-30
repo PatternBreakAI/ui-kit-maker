@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceBetween, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceBetween, ArrowDown, ArrowUp, BookmarkPlus, BringToFront, Copy, Download, Grid3x3, ImagePlus, LayoutTemplate, Lock, Monitor, Plus, Search, SendToBack, Shield, Smartphone, SquarePen, Trash2, Type, X } from "lucide-react";
+import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceBetween, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceBetween, ArrowDown, ArrowUp, BookmarkPlus, BringToFront, Copy, Download, Grid3x3, ImagePlus, LayoutTemplate, Lock, Monitor, Plus, RotateCcw, Search, SendToBack, Shield, Smartphone, SquarePen, Trash2, Type, X } from "lucide-react";
 import { useGen, rehydrateBoardBgs, boardBgFilter, boardScaleMin, drawBoardNoise, drawBoardOverlays, stampFilter, stampSvg, warpStampRaster, importUserAssetFile, kitShadowFilter, suppressCastShadow } from "@/generator/store";
 import type { UserAsset, UserLogoFx } from "@/generator/store";
 import { normalizeShipCopy, captureVideoPoster } from "@/generator/bgvault";
@@ -7,7 +7,8 @@ import { importBgAsset, bgAssetStatusLine, onAssetActivity, bgAssetDisplayUrl } 
 import { BACKDROP_LIBRARY, BACKDROP_CATEGORIES, backdropThumb, backdropUrl } from "@/generator/backdropLibrary";
 import type { BoardDef, BoardItem } from "@/generator/store";
 import { renderBevel, renderKit, VALUE_DRIVEN } from "@/generator/bevel";
-import { KIT_COMPONENTS, applyKitDesign, applyKitTextFill, baseOf, fontByName, isGlyphFamily, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
+import { KIT_COMPONENTS, STOCK_ICONS, applyKitDesign, applyKitTextFill, baseOf, fontByName, isGlyphFamily, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
+import { previewSvg } from "@/generator/icons";
 import { LIVE_GLYPHS } from "@/generator/glyphLibrary";
 import { BIG_GLYPHS, BIG_GLYPH_BASE, bigGlyphById, bigGlyphThumb, bigGlyphMid, bigGlyphUrl, bigGlyphFilter, type BigGlyphDef, type BigGlyphFx } from "@/generator/bigGlyphs";
 import type { GenConfig, KitComponentId } from "@/generator/model";
@@ -69,7 +70,7 @@ async function downloadPieceRaster(pc: { svg: string; cfg: GenConfig }, name: st
    (the same suffix convention the flip shapes use): "joystick~ghost" is
    the overlay stick — one component, two placeable faces. */
 const ASSET_GROUPS: { name: string; ids: string[] }[] = [
-  { name: "Buttons", ids: ["primary", "secondary", "small", "ghost", "iconbtn", "pricebtn", "endturn", "keycap", "padbtn"] },
+  { name: "Buttons", ids: ["primary", "secondary", "small", "ghost", "iconbtn", "slotbtn", "pricebtn", "endturn", "keycap", "padbtn"] },
   { name: "Containers & overlays", ids: ["panel", "header", "tab", "tabback", "dropdown", "dialog", "toast", "tooltip", "listmenu", "choicelist", "scrollbar", "input", "searchfield", "setrow"] },
   { name: "HUD & readouts", ids: ["resource", "chip", "badge", "datarow", "slot", "orb", "ring", "bignum", "xpbar", "vitalbar", "currency", "healthglobe", "manarails", "buffframe", "cooldown", "notifydot", "countbadge", "avatarframe", "nameplate", "loadbar", "spinner", "pagedots", "steps", "stepper"] },
   { name: "Timers", ids: ["flipclock", "stopwatch", "timerdigits"] },
@@ -100,6 +101,7 @@ const SEARCH_TERMS: Partial<Record<KitComponentId, string>> = {
   bignum: "score results points celebration count",
   dmgnumber: "damage floating hit crit numbers pop",
   firebutton: "fire shoot trigger pad thumb button attack weapon armed carousel",
+  slotbtn: "slot button item frame well glyph icon tile press booster power-up consumable qty count chip",
   countbadge: "notification count red badge alert number unread pip",
   levelnode: "saga map level select world stage lock",
   pathconnector: "saga map path world trail dots",
@@ -137,6 +139,21 @@ const SEARCH_TERMS: Partial<Record<KitComponentId, string>> = {
 for (const g of LIVE_GLYPHS) {
   SEARCH_TERMS[`glyph${g.id}` as KitComponentId] = `icon glyph treated ${g.name.toLowerCase()} ${g.category.toLowerCase().replace(/[&]/g, " ")}`;
 }
+
+/* The Inspector's per-copy glyph rack — the families whose board copies
+   seat an instance glyph through ov "icon:<stock>" (the starter deals'
+   framed-icon grammar, now hand-editable: "we'll need to be able to edit
+   these in the app", owner). The keys are STOCK_ICONS names — exactly
+   what the ov grammar resolves — curated to glyphs that read at tile
+   size. The kit-wide Icons pick still serves whole-family swaps; this
+   rack is THIS COPY only, and the copy's pick wins (instance-text rule). */
+const INSTANCE_GLYPH = new Set<KitComponentId>(["slotbtn", "slot", "iconbtn"]);
+const INSTANCE_GLYPH_KEYS = [
+  "gem", "star", "heart", "zap", "sword", "shield", "skull", "trophy",
+  "gift", "key", "flask", "scroll", "leaf", "hammer", "magnet", "rocket",
+  "crosshair", "lock", "map", "clock", "bag", "helmet", "boots", "gear",
+  "play", "pause", "check", "warning",
+] as const;
 
 /* Bundled backdrops — the owner's own scenes, served from public/. A path
    URL persists (and exports); only blob: uploads stay session-only. */
@@ -2484,6 +2501,33 @@ export function BoardView({ playing }: { playing: boolean }) {
                   onChange={(e) => useGen.getState().setBoardItemLabel(sel.id, e.target.value)} />
               </label>
             )}
+            {sel.kitId && INSTANCE_GLYPH.has(baseOf(sel.kitId)) && (!sel.ov || sel.ov.startsWith("icon:")) && (() => {
+              /* per-copy glyph — the ov "icon:<stock>" seat the starter
+                 deals pose, surfaced as a hand picker so a dealt slot
+                 button / item slot / icon button re-arms without the app's
+                 templates (max-editability; owner: "we'll need to be able
+                 to edit these in the app"). THIS copy only; a slot copy
+                 wearing a STATUS skin (locked, claimable…) keeps it — the
+                 rack only shows where an icon seat is what the ov holds. */
+              const curG = /^icon:(\w+)$/.exec(sel.ov ?? "")?.[1] ?? "";
+              return (
+                <div className="bd-slider" role="group" aria-label="Instance glyph"
+                  title="The glyph in this copy's well — this copy only. The ↺ tile follows the kit again: the family's stock glyph, or your kit-wide pick under Icons.">
+                  Glyph — this copy{curG ? ` · ${curG}` : ""}
+                  <div className="icongrid bd-glyphgrid">
+                    <button className={curG ? "" : "on"} title="Factory — follow the kit" aria-label="Factory glyph"
+                      onClick={() => useGen.getState().setBoardItemOv(sel.id, null)}>
+                      <RotateCcw size={14} strokeWidth={2} />
+                    </button>
+                    {INSTANCE_GLYPH_KEYS.map((gk) => STOCK_ICONS[gk] ? (
+                      <button key={gk} className={curG === gk ? "on" : ""} title={gk} aria-label={`Glyph ${gk}`}
+                        onClick={() => useGen.getState().setBoardItemOv(sel.id, `icon:${gk}`)}
+                        dangerouslySetInnerHTML={{ __html: previewSvg(STOCK_ICONS[gk]) }} />
+                    ) : null)}
+                  </div>
+                </div>
+              );
+            })()}
             {sel.kitId && (() => {
               /* per-copy drop shadow (owner: "you can't always tell if you
                  need a drop shadow at the editing level") — while on, it
