@@ -2295,4 +2295,8 @@ export const STOCK_ICONS: Record<string, IconDef> = {
   map: { lib: "lucide", name: "Map", viewBox: "0 0 24 24", inner: '<path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z"/><path d="M15 5.764v15"/><path d="M9 3.236v15"/>', mode: "stroke" },
   // booster glyph (booster card) — same canonical-Lucide embedding rules
   hammer: { lib: "lucide", name: "Hammer", viewBox: "0 0 24 24", inner: '<path d="m15 12-8.373 8.373a1 1 0 1 1-3-3L12 9"/><path d="m18 15 4-4"/><path d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172V7l-2.26-2.26a6 6 0 0 0-4.202-1.756L9 2.96l.92.82A6.18 6.18 0 0 1 12 8.4V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5"/>', mode: "stroke" },
+  // framed-icon swap glyphs (starter boards pose REAL frame+icon pieces,
+  // never a glyph stacked over a frame) — same canonical-Lucide embedding rules
+  magnet: { lib: "lucide", name: "Magnet", viewBox: "0 0 24 24", inner: '<path d="m6 15-4-4 6.75-6.77a7.79 7.79 0 0 1 11 11L13 22l-4-4 6.39-6.36a2.14 2.14 0 0 0-3-3L6 15"/><path d="m5 8 4 4"/><path d="m12 15 4 4"/>', mode: "stroke" },
+  rocket: { lib: "lucide", name: "Rocket", viewBox: "0 0 24 24", inner: '<path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>', mode: "stroke" },
 };

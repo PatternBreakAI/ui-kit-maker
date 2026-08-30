@@ -5095,10 +5095,14 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       return build(cfg, state, { x: 39, y: 30, h: 100 * k, fs: 32 * k, iconSize: 26 * k }, { label: opts.label ?? "GO", iconDef: null, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx, faceLayer: opts.faceLayer });
     case "ghost":
       return build(cfg, state, { x: 39, y: 30, h: 110 * k, fs: 34 * k, iconSize: 28 * k }, { secondary: true, label: opts.label ?? "Ghost", iconDef: null, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx });
-    case "iconbtn":
+    case "iconbtn": {
       /* explicit null = removed (resolveKitIcon's "none", and the engine
-         export's bare shell — the glyph ships separately in icons/) */
-      return build(cfg, state, { x: 33, y: 27, h: 132 * k, fs: 0, iconSize: 56 * k }, { iconDef: opts.icon === undefined ? cfg.icon.def ?? DEFAULT_ICON : opts.icon, label: "", fixedW: 132 * k, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx });
+         export's bare shell — the glyph ships separately in icons/).
+         ov "icon:<stock>" = THIS INSTANCE's glyph (the starter boards'
+         framed-icon grammar, slot kin); a kit-wide Icon pick still wins. */
+      const ovIcB = opts.icon === undefined ? /^icon:(\w+)$/.exec(opts.overlay ?? "") : null;
+      return build(cfg, state, { x: 33, y: 27, h: 132 * k, fs: 0, iconSize: 56 * k }, { iconDef: opts.icon === undefined ? (ovIcB ? STOCK_ICONS[ovIcB[1]] : undefined) ?? cfg.icon.def ?? DEFAULT_ICON : opts.icon, label: "", fixedW: 132 * k, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx });
+    }
     case "chip":
       return build(cfg, state, { x: 39, y: 30, h: 86 * k, fs: 28 * k, iconSize: 24 * k }, { label: opts.label ?? "NEW", iconDef: opts.icon === undefined ? STOCK_ICONS.star : opts.icon, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx, faceLayer: opts.faceLayer });
     case "badge": {
@@ -9902,7 +9906,14 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       const inset = bw + 5;
       const cx2 = 33 + s2 / 2, cy2 = 27 + s2 / 2;
       const inner = s2 - inset * 2;
-      const ov = opts.overlay ?? (opts.icon === null ? "empty" : "");
+      /* ov "icon:<stock>" seats a glyph in the well as THIS INSTANCE's item
+         — the starter boards' framed-icon grammar (owner: a framed icon is
+         one real piece, "like the item slots", never a glyph stacked over a
+         frame; the fire button's glyph-… rig ovs are kin). A kit-wide Icon
+         pick (opts.icon) still wins; the status ovs are untouched. */
+      const ovIc = /^icon:(\w+)$/.exec(opts.overlay ?? "");
+      const icSeat = opts.icon !== undefined ? opts.icon : ovIc ? STOCK_ICONS[ovIc[1]] : undefined;
+      const ov = (ovIc ? undefined : opts.overlay) ?? (icSeat === null ? "empty" : "");
       const dimmed = ov === "locked" || ov.startsWith("cooldown");
       const parts: string[] = [];
       // the well mirrors the slot's own silhouette — a round slot gets a
@@ -9911,13 +9922,13 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       parts.push(`<path d="${wellPath}" fill="${wellFill}" opacity="0.9"/>`);
       if (ov === "empty") {
         parts.push(`<path d="${shapePath(sov ?? cfg.shape, 33 + inset + 8, 27 + inset + 8, inner - 16, inner - 16, Math.max(0, cfg.bevel.softness - 10))}" fill="none" stroke="rgba(255,255,255,0.28)" stroke-width="2" stroke-dasharray="6 5"/>`);
-      } else if (opts.icon && !ov.startsWith("level")) {
+      } else if (icSeat && !ov.startsWith("level")) {
         // type treatment: the outline underlay and a lit fill, like the label
         // (level slots skip the icon — the number is the content, nothing
         // may ghost behind it). iconScale > 1 makes the icon the star of
         // the tile — match-3 boards, gem grids.
         const isc = clamp(opts.iconScale ?? 1, 0.5, 1.45);
-        parts.push(themedIcon(opts.icon, cx2 - inner * 0.3 * isc, cy2 - inner * 0.3 * isc, inner * 0.6 * isc, hexMix(glow, "#FFFFFF", 0.3), 2));
+        parts.push(themedIcon(icSeat, cx2 - inner * 0.3 * isc, cy2 - inner * 0.3 * isc, inner * 0.6 * isc, hexMix(glow, "#FFFFFF", 0.3), 2));
       }
       if (dimmed) parts.push(`<path d="${wellPath}" fill="rgba(6,8,16,0.62)"/>`);
       if (ov === "locked") parts.push(iconGroup(STOCK_ICONS.lock, cx2 - 13, cy2 - 13, 26, "rgba(255,255,255,0.85)", { strokeWidth: 2.2 * iconWK }));

@@ -380,16 +380,20 @@ const BOARD_TEMPLATES: Record<string, Tpl> = {
   "Match-3 (mobile)": { aspect: "mobile", bg: "/backdrops/lib/candy-river-quest.webp", items: [
     { kitId: "movecounter", x: 0, y: 0, scale: 0.34 },
     { kitId: "stopwatch", x: 229, y: 0, scale: 0.28 },
-    { kitId: "glyphpause", x: 320, y: 0, scale: 0.16 },
+    // the pause control is ONE component — an icon button wearing the
+    // pause glyph (owner: manipulate an existing component, don't cobble)
+    { kitId: "iconbtn", ov: "icon:pause", x: 312, y: 0, scale: 0.28 },
     { kitId: "segbar", x: 70, y: 99, scale: 0.28 },
     ...M3_GRID,
     { kitId: "combo", x: 191, y: 327, scale: 0.42 },
     { kitId: "booster", x: 0, y: 654, scale: 0.38 },
     { kitId: "booster", x: 84, y: 654, scale: 0.38 },
-    { kitId: "slot", x: 175, y: 663, scale: 0.34 },
-    { kitId: "slot", x: 263, y: 663, scale: 0.34 },
-    { kitId: "glyphhammer", x: 192, y: 692, scale: 0.21 },
-    { kitId: "glyphmagnet", x: 290, y: 690, scale: 0.21 },
+    /* the booster tray's items are REAL framed icons — the slot family
+       carrying its glyph as ONE piece (owner's framed-icon rule: use the
+       frame+icon components "like the item slots", never a glyph stacked
+       over a frame); the qty chip keeps its corner seat */
+    { kitId: "slot", ov: "icon:hammer", x: 175, y: 663, scale: 0.34 },
+    { kitId: "slot", ov: "icon:magnet", x: 263, y: 663, scale: 0.34 },
     { kitId: "qtybadge", x: 214, y: 676, scale: 0.18 },
     // staged: glyphaddtime — +time chip seated on the stopwatch's dark dial edge
     // staged: glyphtimer — on the segbar's dark left cap
@@ -435,8 +439,9 @@ const BOARD_TEMPLATES: Record<string, Tpl> = {
     { kitId: "invgrid", x: 1030, y: 200, scale: 0.84 },
     { kitId: "scrollbar", x: 1720, y: 205, scale: 0.9 },
     { kitId: "loottag", x: 1120, y: 590, scale: 0.85 },
-    { kitId: "slot", x: 150, y: 790, scale: 0.9 },
-    { kitId: "glyphgem", x: 211, y: 852, scale: 0.42 },
+    // one REAL framed icon — the slot carries its gem itself (owner's
+    // framed-icon rule), not a glyph posed over an empty well
+    { kitId: "slot", ov: "icon:gem", x: 150, y: 790, scale: 0.9 },
     { kitId: "rarityframe", x: 430, y: 810, scale: 0.85 },
     { kitId: "qtybadge", x: 528, y: 818, scale: 0.6 },
     { kitId: "stepper", x: 700, y: 830, scale: 0.8 },
@@ -562,10 +567,11 @@ const BOARD_TEMPLATES: Record<string, Tpl> = {
     { kitId: "weaponwheel", x: 152, y: 384, scale: 0.3 },
     { kitId: "qtybadge", x: 224, y: 563, scale: 0.3 },
     { kitId: "joystick", x: 2, y: 645, scale: 0.42 },
-    { kitId: "padbtn", x: 167, y: 728, scale: 0.42 },
-    { kitId: "glyphrocket", x: 194, y: 758, scale: 0.12 },
+    // the ability button is a REAL icon button carrying its rocket as one
+    // piece (owner's framed-icon rule) — not a glyph over a gamepad cap
+    { kitId: "iconbtn", ov: "icon:rocket", x: 167, y: 728, scale: 0.36 },
     { kitId: "firebutton", x: 222, y: 643, scale: 0.42 },
-    // NOTE: vitalbar / countbadge / firebutton / both glyphs are staged
+    // NOTE: vitalbar / countbadge / firebutton / glyphplus are staged
     // families — this key stays in STAGED_TEMPLATES until they release
   ] },
   /* Daily bonus sheet: countdown, the 7-day calendar (claimed / today /
