@@ -532,6 +532,124 @@ const BOARD_TEMPLATES: Record<string, Tpl> = {
     // staged: gearicon — beside the TAB chip, e.g. { kitId: "gearicon", x: 500, y: 32, scale: 0.8 }
     // staged: glyphsettings — icon child on the tab (seats unverified — Core-only render)
   ] },
+  /* ── New starters (§4B) — every key below ships in STAGED_TEMPLATES
+     until the owner releases it ─────────────────────────────────────── */
+  /* Touch shooter over the neon convoy: virtual stick + fire cluster at
+     the thumbs, wheel open right-mid, map with a medkit blip up top. */
+  "Mobile ops HUD": { bg: "/backdrops/lib/neon-convoy.webp", aspect: "mobile", items: [
+    { kitId: "minimap", x: 2, y: 36, scale: 0.3 },
+    { kitId: "glyphplus", x: 61, y: 103, scale: 0.06 },
+    { kitId: "countbadge", x: 68, y: 108, scale: 0.3 },
+    { kitId: "vitalbar", x: 161, y: 36, scale: 0.3 },
+    { kitId: "cooldown", x: 296, y: 108, scale: 0.3 },
+    { kitId: "waypoint", x: 154, y: 200, scale: 0.4 },
+    { kitId: "weaponwheel", x: 152, y: 384, scale: 0.3 },
+    { kitId: "qtybadge", x: 224, y: 563, scale: 0.3 },
+    { kitId: "joystick", x: 2, y: 645, scale: 0.42 },
+    { kitId: "padbtn", x: 167, y: 728, scale: 0.42 },
+    { kitId: "glyphrocket", x: 194, y: 758, scale: 0.12 },
+    { kitId: "firebutton", x: 222, y: 643, scale: 0.42 },
+    // NOTE: vitalbar / countbadge / firebutton / both glyphs are staged
+    // families — this key stays in STAGED_TEMPLATES until they release
+  ] },
+  /* Daily bonus sheet: countdown, the 7-day calendar (claimed / today /
+     locked), claim under the grid, refill row, carousel pips. */
+  "Daily bonus": { aspect: "mobile", bg: "/backdrops/lib/strawberry-skyfall.webp", items: [
+    { kitId: "header", x: 39, y: 27, scale: 0.3, label: "DAILY BONUS" },
+    { kitId: "flipclock", x: 86, y: 130, scale: 0.32, label: "23:14:09" },
+    { kitId: "dailycell", ov: "check", x: 7, y: 241, scale: 0.4, label: "DAY 1" },
+    { kitId: "dailycell", ov: "check", x: 94, y: 241, scale: 0.4, label: "DAY 2" },
+    { kitId: "dailycell", x: 179, y: 231, scale: 0.46, label: "TODAY" },
+    { kitId: "dailycell", x: 279, y: 241, scale: 0.4, label: "DAY 4" },
+    { kitId: "dailycell", x: 56, y: 364, scale: 0.4, label: "DAY 5" },
+    { kitId: "dailycell", x: 143, y: 364, scale: 0.4, label: "DAY 6" },
+    { kitId: "dailycell", ov: "locked", x: 230, y: 364, scale: 0.4, label: "DAY 7" },
+    { kitId: "claimbtn", x: 78, y: 500, scale: 0.5, label: "CLAIM" },
+    { kitId: "energymeter", x: 71, y: 628, scale: 0.38, v: 0.6 },
+    { kitId: "pagedots", x: 120, y: 740, scale: 0.6 },
+    // staged: spinwheel, gifticon, glyphcalendar, glyphstreak,
+    // glyphprizewheel, glyphticket, glyphpiggybank — land with their sets
+  ] },
+  /* Store screen, tavern-counter kin of the owner's Shop board: wallet
+     pills up top, featured bundle + card-pack SKUs, the gem ladder in
+     ascending sizes with a price button per row, nav dock below. */
+  "Shop": { aspect: "mobile", bg: "/backdrops/tavern.jpg", items: [
+    { kitId: "resource", x: 0, y: 0, scale: 0.3 },
+    { kitId: "currency", x: 218, y: 0, scale: 0.3 },
+    { kitId: "tab", x: 47, y: 54, scale: 0.38 },
+    { kitId: "tab", x: 154, y: 54, scale: 0.38 },
+    { kitId: "boostercard", x: 0, y: 124, scale: 0.5 },
+    { kitId: "pack", x: 172, y: 130, scale: 0.32 },
+    { kitId: "stepper", x: 156, y: 371, scale: 0.3 },
+    { kitId: "glyphgem", x: 43, y: 443, scale: 0.24 },
+    { kitId: "pricebtn", x: 204, y: 441, scale: 0.3 },
+    { kitId: "glyphgem", x: 36, y: 519, scale: 0.28 },
+    { kitId: "pricebtn", x: 204, y: 528, scale: 0.3 },
+    { kitId: "glyphgem", x: 20, y: 584, scale: 0.36 },
+    { kitId: "qtybadge", x: 81, y: 665, scale: 0.3 },
+    { kitId: "pricebtn", x: 204, y: 615, scale: 0.3 },
+    { kitId: "bottomnav", x: 0, y: 707, scale: 0.4 },
+    // staged garnish (dialog confirm sheet, countbadge, glyphcart,
+    // glyphsale, glyphcoin, glyphcoinsingle, glyphcoinpile) lands only
+    // with its release batch — bottomnav's STORE cell already carries a
+    // cart natively
+  ] },
+  /* Strategy base over the autumnhorn village: build queue docked left,
+     unit plates on the villagers, research card right, day bar + wallet
+     up top, END TURN at the corner. */
+  "Base command": { bg: "/backdrops/lib/autumnhorn-village.webp", items: [
+    { kitId: "emblembar", x: 645, y: 35, scale: 0.9 },
+    { kitId: "popmeter", x: 40, y: 30, scale: 0.9 },
+    { kitId: "resource", x: 1600, y: 30, scale: 0.85 },
+    { kitId: "resource", x: 1600, y: 145, scale: 0.85 },
+    { kitId: "unitplate", x: 330, y: 290, scale: 0.85 },
+    { kitId: "unitplate", x: 950, y: 470, scale: 0.85 },
+    { kitId: "unitplate", x: 430, y: 620, scale: 0.85 },
+    { kitId: "techcard", x: 1590, y: 370, scale: 0.9 },
+    { kitId: "buildqueue", x: 50, y: 825, scale: 0.95 },
+    { kitId: "glyphhammer", x: 666, y: 817, scale: 0.42 },
+    { kitId: "minimap", x: 1640, y: 735, scale: 0.85 },
+    { kitId: "endturn", x: 1420, y: 775, scale: 0.9 },
+    // staged: toast — { kitId: "toast", x: 1180, y: 170, scale: 0.85 },
+    // staged: glyphshield — { kitId: "glyphshield", x: 1150, y: 500, scale: 0.4 } (over the knight)
+  ] },
+  /* Clan hall at castlewood: crest + rank medals up top, the top-3 podium
+     over the TOP 5 panel, member rows, clan chat + quick-react, nav dock. */
+  "Clan hall": { aspect: "mobile", bg: "/backdrops/lib/castlewood-crown.webp", items: [
+    { kitId: "clancrest", x: 137, y: 18, scale: 0.5 },
+    { kitId: "badge", x: 82, y: 54, scale: 0.3 },
+    { kitId: "badge", x: 252, y: 54, scale: 0.3 },
+    { kitId: "notifydot", x: 292, y: 28, scale: 0.4 },
+    { kitId: "avatarframe", x: 150, y: 138, scale: 0.36 },
+    { kitId: "avatarframe", x: 60, y: 152, scale: 0.3 },
+    { kitId: "avatarframe", x: 256, y: 152, scale: 0.3 },
+    { kitId: "leaderboard", x: 47, y: 226, scale: 0.62 },
+    { kitId: "friendrow", x: 24, y: 446, scale: 0.42 },
+    { kitId: "friendrow", x: 24, y: 508, scale: 0.42 },
+    { kitId: "chatbubble", x: 12, y: 606, scale: 0.34 },
+    { kitId: "emotewheel", x: 184, y: 552, scale: 0.3 },
+    { kitId: "bottomnav", x: 6, y: 720, scale: 0.53 },
+    // staged: trophy, trophyicon, glyphfriends, glyphleaderboard, glyphmail,
+    // glyphnotification, glyphtrophy, glyphmedal — suggested seats: glyphmail
+    // on the requests bell, glyphtrophy/glyphmedal as swappable badge icons,
+    // trophyicon beside the podium champion
+  ] },
+  /* Loading screen — sparse by design, the scene carries it: tip card
+     center with carousel pips, connect steps and the loading bar at the
+     foot. Composed 16:9 ON PURPOSE with no aspect key — it reflows onto
+     mobile boards instead of retuning them. */
+  "Loading": { bg: "/backdrops/lib/frostwhistle-summit.webp", items: [
+    { kitId: "panel", x: 625, y: 243, scale: 0.78 },
+    { kitId: "pagedots", x: 836, y: 571 },
+    { kitId: "steps", x: 723, y: 727, scale: 0.9 },
+    { kitId: "loadbar", x: 455, y: 856 },
+    // staged: glyphrocket — tip-card illustration; lands when the glyph set releases
+    // { kitId: "glyphrocket", x: 760, y: 400, scale: 0.5 },
+    // staged: tooltip — floating "did you know" callout beside the tip card
+    // { kitId: "tooltip", x: 1350, y: 400, scale: 0.85 },
+    // staged: spinner — busy comet beside the loadbar's tail
+    // { kitId: "spinner", x: 1590, y: 900, scale: 0.8 },
+  ] },
 };
 /* New starter screens ship GATED — admin-only until the owner releases
    them (standing rule: new assets ship gated). Component staging can't
