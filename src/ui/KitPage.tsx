@@ -3819,6 +3819,30 @@ const kitTier = useGen((s) => s.tier);
           ))}
         </div>
         <div className="kp-meta"><span>Durations scale with --mo-dur</span><span>Magnitude scales with --mo-mag</span><span>prefers-reduced-motion disables every behavior</span></div>
+        {/* A6 (round 46): THE definitive answer to "how does a developer
+            access these animations in the Unity export?" — copy mirrors
+            the QuickStart's "Driving the animations" section (the R2
+            answer file); the three lanes and component names must stay
+            consistent with the shipped Runtime/*.cs. */}
+        <div className="kp-mounity">
+          <h3>Driving the animations in Unity</h3>
+          <p>
+            Every motion this kit ships is a <b>named PatternBreak component on the prefab</b> — visible in the
+            Inspector with tooltipped public fields and plain public methods. No animation clips, no Animator
+            controllers, no magic strings, no scene lookups. Each motion falls into one of three access lanes:
+          </p>
+          <dl className="kp-spec">
+            <div className="kp-specline"><dt>Already wired</dt><dd>State and idle motion arrive per this kit&apos;s own dials — nothing to call. Hover glow, press travel and disabled dim are <code>StateFx</code>; the idle wipe and edge shines are <code>WipeShine</code> / <code>EdgeShine</code>. Tune the public fields, or delete the component and the piece is exactly what it was.</dd></div>
+            <div className="kp-specline"><dt>Value-driven</dt><dd>Bars, rings, meters, dials and trackers expose <code>SetValue(0..1)</code> — the motion IS the value changing, so drive it with any tween you like; board poses strike the same method. Richer verbs where a piece speaks a domain: <code>SetSeconds</code> on the stopwatch and cooldown, <code>SetStep</code>, <code>SetPage</code>, <code>ArmChamber</code> on the weapon wheel.</dd></div>
+            <div className="kp-specline"><dt>One call</dt><dd>Celebrations and ambient loops are single methods: <code>ComboPop.Pop()</code>, <code>ClaimBurst.Fire()</code>, <code>Play()</code>/<code>Stop()</code> on the spinner. The attention pulse and glow cycle demoed above ship as real behaviors — Add Component → UI Kit Maker → Attention Pulse or Glow Cycle on any piece; the glow cycles in this kit&apos;s own Glow color.</dd></div>
+          </dl>
+          <p className="kp-mounote">
+            The complete table — every component name, field and trigger — travels with the export as the
+            &ldquo;Driving the animations&rdquo; section of <code>Documentation/QuickStart.md</code>. The one-shot cards
+            above (bounce, shake, pop, press, slide-in, rise) are generic transforms to apply with your own tween;
+            the kit&apos;s own equivalents (ComboPop&apos;s pop, StateFx&apos;s press) arrive as components.
+          </p>
+        </div>
       </Sec>
 
       {/* ── proof of system — the chapter's conclusion ── */}

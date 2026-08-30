@@ -1219,6 +1219,14 @@ svg:hover .kit-shine--armed, svg:hover .kit-edgeshine--armed { animation-play-st
 @media (max-width: 1400px) { .kp-motion { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .kp-motion .kp-mostage { min-height: 168px; width: 100%; align-items: center; justify-content: center; }
 .kp-motion .kp-part { padding: 20px 16px 16px; }
+/* A6 · the developer animation story — the Motion chapter's Unity answer
+   (copy mirrors the export's QuickStart "Driving the animations" section) */
+.kp-mounity { margin-top: 34px; max-width: 920px; }
+.kp-mounity h3 { margin: 0 0 8px; font-size: 15.5px; font-weight: 800; letter-spacing: .02em; }
+.kp-mounity > p { margin: 0 0 10px; max-width: 78ch; font-size: 13.5px; line-height: 1.6; color: var(--kp-ink2); }
+.kp-mounity .kp-spec { max-width: none; margin: 4px 0 0; }
+.kp-mounity code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; padding: 1px 5px; border-radius: 5px; background: color-mix(in srgb, currentColor 9%, transparent); white-space: nowrap; }
+.kp-mounote { margin: 12px 0 0; max-width: 78ch; font-size: 12.5px; line-height: 1.6; color: var(--kp-ink3, var(--kp-ink2)); }
 
 /* pattern-card pieces reclaim more of their glow pad — no clipped headers */
 .kp-patterns .gp-piece { margin: -15px -6px; }
