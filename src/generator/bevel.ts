@@ -7809,12 +7809,18 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const [sx, sy, sw] = shellM[1].split(" ").map(Number);
       const count = Math.max(0, Math.min(99, Math.round(clamp(value ?? 0.4, 0, 1) * 10)));
       const bcx = sx + sw - 10 * k, bcy = sy + 12 * k, br = 19 * k;
+      /* the count badge answers its color wells (KIT_SLOTS.booster, round
+         48: "can't change the color of the notification number") —
+         untouched, the plate keeps the kit's Bevel role (halo included)
+         and the numeral its factory white; the FREE ribbon stays gold */
+      const plateC = opts.slots?.plateColor ?? bevel;
+      const countC = opts.slots?.countColor ?? "#FFFFFF";
       /* the badge plate is marked swappable ink and its word RIDES it
          (maximum-editability law, the bottomnav grammar): move, restyle
          or delete plate + count as one on the live prefab */
       const badge = count > 0
-        ? `<g data-part="icon" data-icon="badge" data-icon-nick="Badge plate" data-badge="1"><circle cx="${bcx.toFixed(1)}" cy="${bcy.toFixed(1)}" r="${br.toFixed(1)}" fill="${bevel}" stroke="rgba(255,255,255,0.9)" stroke-width="${(2.6 * k).toFixed(1)}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(bevel, 0.6)})"` : ""}/></g>
-          <text x="${bcx.toFixed(1)}" y="${(bcy + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(22 * k).toFixed(1)}" font-weight="900" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central" data-seat-rider="badge">${count}</text>`
+        ? `<g data-part="icon" data-icon="badge" data-icon-nick="Badge plate" data-badge="1"><circle cx="${bcx.toFixed(1)}" cy="${bcy.toFixed(1)}" r="${br.toFixed(1)}" fill="${plateC}" stroke="rgba(255,255,255,0.9)" stroke-width="${(2.6 * k).toFixed(1)}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(plateC, 0.6)})"` : ""}/></g>
+          <text x="${bcx.toFixed(1)}" y="${(bcy + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(22 * k).toFixed(1)}" font-weight="900" fill="${countC}" text-anchor="middle" dominant-baseline="central" data-seat-rider="badge">${count}</text>`
         : `<g data-part="icon" data-icon="badge" data-icon-nick="Free ribbon" data-badge="1"><rect x="${(bcx - 34 * k).toFixed(1)}" y="${(bcy - 12 * k).toFixed(1)}" width="${(52 * k).toFixed(1)}" height="${(24 * k).toFixed(1)}" rx="${(12 * k).toFixed(1)}" fill="#FACC15" stroke="#92400E" stroke-width="1.4"/></g>
           <text x="${(bcx - 8 * k).toFixed(1)}" y="${(bcy + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(14 * k).toFixed(1)}" font-weight="900" letter-spacing="0.06em" fill="#7C2D12" text-anchor="middle" dominant-baseline="central" data-seat-rider="badge">FREE</text>`;
       return inject(shell.replace("<svg ", '<svg data-booster="1" '), badge);

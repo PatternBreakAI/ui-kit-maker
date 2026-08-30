@@ -1252,6 +1252,17 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
     { id: "active", name: "Active cell", kind: "value",
       note: "Driven by the value slider, in quarters — 0–24% lights cell 1, 25–49% cell 2, 50–74% cell 3, 75–100% cell 4." },
   ],
+  booster: [
+    /* the owner, field round 48: "can't change the color of the
+       notification number in the booster button" — the count rode its
+       plate in baked white, and the plate itself wore the kit's Bevel
+       role with no per-piece say. Two wells answer (the hotbar count-well
+       precedent); untouched, both keep the factory bytes exactly. */
+    { id: "countColor", name: "Count color", kind: "color", def: "#FFFFFF",
+      note: "The notification number riding the badge plate. Factory is white; a pick here inks it alone. The 0-count FREE ribbon keeps its gold." },
+    { id: "plateColor", name: "Badge plate", kind: "color", def: "#0E9CC9",
+      note: "The count badge's plate (halo included). Factory follows the kit's Bevel role under Effects; a pick here forks this piece's plate alone." },
+  ],
   boostercard: [
     /* name rides the main Text control (KIT_LABEL_EDITABLE); the second
        line is the house sub-label pattern — the dialogue box's split */
