@@ -2771,7 +2771,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/return stampTrack\(inject\(track, bullets \+ txt\), 39 \+ 16 \* k, 23 \* k\);/.test(bevelSrc)
       || !/return stampTrack\(inject\(shell\.replace\("<svg ", '<svg data-energymeter="1" '\), inner\), cellsX, cellsW\);/.test(bevelSrc))
     errors.push("the cell meters' zone stamps left bevel — the engine scissor cannot land in the gaps");
-  if (!/const cellRig = uid === "energymeter" \|\| uid === "ammo";/.test(src)
+  if (!/const cellRig = uid === "energymeter" \|\| uid === "ammo" \|\| uid === "magazine" \|\| uid === "streakmeter";/.test(src)
       || !/await addPng\(`\$\{uid\}\/lit\.png`, litSvgU, \{/.test(src))
     errors.push("the cell-rig emission (empty base + full lit, one crop group) is gone");
   if (!/public class KitCellMeter : MonoBehaviour \{/.test(src)
@@ -2781,7 +2781,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/files\.push\(\{ path: "Runtime\/PatternBreakCellMeter\.cs", data: CELL_METER_RUNTIME \}\);/.test(src)
       || !/"Runtime\/PatternBreakCellMeter\.cs",/.test(src))
     errors.push("PatternBreakCellMeter.cs must ride BOTH files.push and sharedScripts (the IdleShine CS0246 lesson)");
-  if (!/if \(baseAsset\.component == "energymeter" \|\| baseAsset\.component == "ammo" \|\| baseAsset\.component == "lives"\) \{/.test(cs)
+  if (!/if \(baseAsset\.component == "energymeter" \|\| baseAsset\.component == "ammo" \|\| baseAsset\.component == "lives" \|\| baseAsset\.component == "magazine" \|\| baseAsset\.component == "streakmeter"\) \{/.test(cs)
       || !/var kcmSeg = go\.AddComponent<KitCellMeter>\(\);/.test(cs)
       || !/var kcmS = inst\.GetComponent<KitCellMeter>\(\);/.test(cs)
       || !/var kcmSg = inst\.GetComponent<KitCellMeter>\(\);/.test(cs))
@@ -3130,11 +3130,54 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the compass caret lost its mark (round 44, R7)");
   if (!/let livesOut: \{ lit: string; staged: number; n: number \} \| null = null;/.test(src) || !/aria-label="lives: \(\\d\+\) of \(\\d\+\)"/.test(src))
     errors.push("the lives lit-overlay road left the exporter (round 44, R6)");
-  if (!/baseAsset\.component == "energymeter" \|\| baseAsset\.component == "ammo" \|\| baseAsset\.component == "lives"/.test(cs)
+  if (!/baseAsset\.component == "energymeter" \|\| baseAsset\.component == "ammo" \|\| baseAsset\.component == "lives" \|\| baseAsset\.component == "magazine" \|\| baseAsset\.component == "streakmeter"/.test(cs)
       || !/if \(famCM == "lives" && litRowCM != null && litRowCM\.railW > 0\.5f\) kcm\.cells = Mathf\.RoundToInt\(litRowCM\.railW\);/.test(cs))
     errors.push("lives left the cell-meter wiring (or its railW heart count) (round 44, R6)");
   if (!/spritePath\.EndsWith\("\/lives-base\.png"\) \? "lives" : null;/.test(cs))
     errors.push("lives left the kept-project cell graft chain (round 44, R6)");
+}
+
+/* ── ROUND 44 · S23 (item 35 — starrating): the three stars, the
+   celebration flare and the Replay button are LIVE children on ONE
+   shared frame; the two star LOOKS ship as atoms; PatternBreakStarRating
+   makes the score a dial (celebration + replay only at full marks). ── */
+{
+  if (!/data-icon="star\$\{i \+ 1\}" \$\{sBox\} data-icon-nick="Star \$\{i \+ 1\}"/.test(bevelSrc)
+      || !/data-icon="flare" data-icon-nick="Celebration flare"/.test(bevelSrc)
+      || !/data-icon="replay" data-icon-btn="1" data-icon-nick="Replay button"/.test(bevelSrc))
+    errors.push("the starrating marks left bevel — stars/flare/replay burn back (round 44, item 35)");
+  if (!/\["star-earned", 1, /.test(src) || !/\["star-unearned", 0, /.test(src))
+    errors.push("the star LOOK atoms left the exporter (round 44, item 35)");
+  if (!/const STAR_RATING_RUNTIME = `using UnityEngine;/.test(src)
+      || !/files\.push\(\{ path: "Runtime\/PatternBreakStarRating\.cs", data: STAR_RATING_RUNTIME \}\);/.test(src)
+      || !/"Runtime\/PatternBreakStarRating\.cs",/.test(src))
+    errors.push("StarRating's runtime or its registration (files + sharedScripts BOTH — the law) left the exporter (round 44, item 35)");
+  if (!/if \(baseAsset\.component == "starrating"\) \{/.test(cs)
+      || !/rigSR\.stars = unRowSR != null && unRowSR\.ringV > 0f \? Mathf\.RoundToInt\(Mathf\.Clamp01\(unRowSR\.ringV\) \* 3f\) : 3;/.test(cs))
+    errors.push("the StarRating prefab wiring (or its staged-score rest) left the importer (round 44, item 35)");
+  if (!/inst\.GetComponent<PatternBreakStarRating>\(\);/.test(cs))
+    errors.push("starrating left the board value strike (round 44, item 35)");
+}
+
+/* ── ROUND 44 · S24 (items 20 + 40 — magazine + streakmeter cells join
+   the cell-meter road): base rests all-dark, the Lit strip lights whole
+   cells by the zone stamp; the streak's ONE dial (StreakIgnite) drives
+   cells + ignition together. ── */
+{
+  if (!/data-magazine="1" role="img" aria-label="magazine \$\{Math\.round\(vM9 \* cap\)\} of \$\{cap\}"><g opacity="\$\{state === "disabled" \? 0\.4 : 1\}">\$\{pips\}<\/g><\/svg>`, padM, nM \* pipW \+ \(nM - 1\) \* gapM2\)/.test(bevelSrc))
+    errors.push("the magazine's pip-run stamp left bevel — the snapper can't seat (round 44, item 20)");
+  if (!/inject\(shell\.replace\("<svg ", '<svg data-streakmeter="1" '\), inner\), cellsX, cellsW\)/.test(bevelSrc))
+    errors.push("the streakmeter's cell-run stamp left bevel (round 44, item 40)");
+  if (!/rx="\$\{Math\.min\(cellW9 \/ 2, 12 \* k\)\.toFixed\(1\)\}"/.test(bevelSrc))
+    errors.push("the streakmeter cells lost the mercury rounding (round 44, item 40)");
+  if (!/uid === "energymeter" \|\| uid === "ammo" \|\| uid === "magazine" \|\| uid === "streakmeter"/.test(src))
+    errors.push("magazine/streakmeter left the cell-rig emission (round 44, items 20 + 40)");
+  if (!/public KitCellMeter cells;/.test(src) || !/if \(cells != null && \(force \|\| !Mathf\.Approximately\(fwd, value\)\)\) \{ fwd = value; cells\.SetValue\(value\); \}/.test(src))
+    errors.push("StreakIgnite lost its one-dial cell forward (round 44, item 40)");
+  if (!/if \(kcmSI != null\) \{ rig\.cells = kcmSI; rig\.value = kcmSI\.value; \}/.test(cs))
+    errors.push("StreakIgniteWire no longer links the cell meter (round 44, item 40)");
+  if (!/var sigS = inst\.GetComponent<StreakIgnite>\(\);/.test(cs))
+    errors.push("the streak meter left the board value strike (round 44, item 40)");
 }
 
 if (errors.length) {

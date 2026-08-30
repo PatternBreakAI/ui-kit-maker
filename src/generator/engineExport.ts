@@ -4263,9 +4263,9 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         skillnode: "Skill-tree node — a REAL button (Sprite Swap states); the skill glyph is a LIVE Image child. Learned/locked poses ride per-copy posed skins.",
         ammo: "Ammo counter — LIVE: the three bars are ONE thirds meter (KitCellMeter — drive Value or SetValue; bars go dark left→right as ammo depletes) and both counts are LIVE seats. Display piece.",
         killfeed: "Kill-feed row — killer and victim are LIVE seats and the weapon glyph a LIVE Image child (swap the sprite in the Inspector). Stack rows in a vertical layout. Display piece.",
-        magazine: "Magazine — round pips bake at the staged count and the readout is a LIVE seat (per-copy counts ride posed skins). Display piece.",
+        magazine: "Magazine — LIVE (round 44): the twelve round pips rest dark and the Lit layer lights whole rounds (KitCellMeter: drive Value or SetValue); the readout is a LIVE seat — drive both from your ammo count. Display piece.",
         equipselector: "Equipment selector — every carousel item's glyph is a LIVE Image child, the armed name a LIVE seat, the Armed ring a LIVE child, and BOTH chevrons are REAL Button children (wire them to your carousel; icons/back + icons/forward fit the seats). The slot plates bake at the staged pose.",
-        streakmeter: "Streak meter — the label is a LIVE seat and the Ignition glyph a LIVE Image child that IGNITES: the StreakIgnite rig swaps in the lit pose and pulses when you drive its value to full (both poses ship). Display piece.",
+        streakmeter: "Streak meter — LIVE, one dial (round 44): drive StreakIgnite's value and the five cells light whole (the Lit layer's snap scissor) while the Ignition glyph — a LIVE Image child — swaps to its lit pose and pulses at full streak (both poses ship). The label is a LIVE seat. Display piece.",
         waypoint: "Waypoint — the objective letter and distance are LIVE seats on the diamond. Spatial piece: it reads over live footage. Display piece.",
         capturemeter: "Capture point — LIVE: the point letter is a LIVE seat and the capture ring a Radial360 rig (drive the Fill child's fillAmount or KitRingFill.SetValue — the end caps ride the head, clean at any value). Display piece.",
         respawn: "Respawn timer — LIVE: heading and seconds are seats and the drain bar is a Filled fill with the rounded head (drive Fill's fillAmount or KitBarFill.SetValue from the same countdown that writes the seconds). Display piece.",
@@ -4452,7 +4452,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
            the last lit cell (zone = the data-track stamp riding both
            rows); the seats keep the STAGED words (textSeatsOf renders
            its own truth at the staged value). */
-        const cellRig = uid === "energymeter" || uid === "ammo";
+        /* round 44 tail: the magazine (item 20) and the streak meter's
+           cells (item 40) join the same road — base rests all-dark, the
+           Lit strip lights whole cells, the zone stamp snaps the cut */
+        const cellRig = uid === "energymeter" || uid === "ammo" || uid === "magazine" || uid === "streakmeter";
         let litSvgU: string | null = null;
         if (cellRig) {
           try {
@@ -4866,10 +4869,12 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         if (cellRig && litSvgU) {
           await addPng(`${uid}/lit.png`, litSvgU, {
             component: uid, part: "lit", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
-            usage: uid === "ammo"
-              ? "The thirds meter, ALL THREE lit — the prefab's Lit layer scissors from the RIGHT per remaining third (KitCellMeter: drive Value or SetValue; bars go dark left→right as ammo depletes)."
-              : "The energy cells, ALL TEN lit — the prefab's Lit layer scissors per whole cell (KitCellMeter: drive Value or SetValue; the cut snaps into the gaps).",
-            ringV: Math.max(0, Math.min(1, uVal ?? (uid === "ammo" ? 1 : 0.8))),
+            usage: ({
+              ammo: "The thirds meter, ALL THREE lit — the prefab's Lit layer scissors from the RIGHT per remaining third (KitCellMeter: drive Value or SetValue; bars go dark left→right as ammo depletes).",
+              magazine: "The round pips, ALL TWELVE lit — the prefab's Lit layer scissors per whole round (KitCellMeter: drive Value or SetValue; the cut snaps into the gaps). The readout seat is yours to drive beside it.",
+              streakmeter: "The streak cells, ALL FIVE lit — the prefab's Lit layer scissors per whole cell; ONE dial drives everything (StreakIgnite: value lights the cells and IGNITES the glyph at full).",
+            } as Record<string, string>)[uid] ?? "The energy cells, ALL TEN lit — the prefab's Lit layer scissors per whole cell (KitCellMeter: drive Value or SetValue; the cut snaps into the gaps).",
+            ringV: Math.max(0, Math.min(1, uVal ?? (uid === "ammo" ? 1 : uid === "magazine" ? 0.66 : uid === "streakmeter" ? 0.64 : 0.8))),
           }, true, uid);
         }
         if (buffRig) {
@@ -7262,11 +7267,14 @@ namespace PatternBreak {
     public Sprite ghost;
     [Tooltip("The lit pose — the app's own full-streak render of the same glyph, halo included.")]
     public Sprite lit;
+    [Tooltip("The cell meter (generated wiring, round 44) — the SAME value lights whole cells: drive StreakIgnite's value and cells + ignition follow together.")]
+    public KitCellMeter cells;
     [Tooltip("Pulse amplitude at full streak (fraction of scale).")]
     public float pulse = 0.12f;
     [Tooltip("Pulse period in seconds.")]
     public float period = 0.9f;
     Vector2 baseSize; Vector3 baseScale; bool sized; bool wasLit;
+    float fwd = float.NaN;
     public void SetValue(float v) { value = Mathf.Clamp01(v); }
     [ContextMenu("Ignite (value = 1)")] void IgniteNow() { value = 1f; }
     [ContextMenu("Stand down (value = 0.6)")] void StandDown() { value = 0.6f; }
@@ -7277,6 +7285,10 @@ namespace PatternBreak {
     }
     void Update() { Apply(false); }
     void Apply(bool force) {
+      // one dial, two hands (round 44, item 40): the cells light whole
+      // through the meter's own snap — change-guarded so a raw write on
+      // the meter isn't fought every frame
+      if (cells != null && (force || !Mathf.Approximately(fwd, value))) { fwd = value; cells.SetValue(value); }
       if (glyph == null) return;
       bool isLit = value >= 0.999f && lit != null;
       if (isLit != wasLit || force) {
@@ -14218,6 +14230,11 @@ namespace PatternBreak {
             // cell meters snap the board's staged charge to whole cells
             var kcmS = inst.GetComponent<KitCellMeter>();
             if (kcmS != null && it.value > 0f) kcmS.SetValue(Mathf.Clamp01(it.value));
+            /* the streak meter strikes through its ONE dial (round 44,
+               item 40) — the rig re-forwards to the cells, so the strike
+               must land on the rig or its rest value wins at runtime */
+            var sigS = inst.GetComponent<StreakIgnite>();
+            if (sigS != null && it.value > 0f) sigS.SetValue(Mathf.Clamp01(it.value));
             // the RIG-5 discrete rigs strike the board's pose too (round 44)
             var pdS = inst.GetComponent<PatternBreakPageDots>();
             if (pdS != null && it.value > 0f) pdS.SetValue(Mathf.Clamp01(it.value));
@@ -16442,7 +16459,7 @@ namespace PatternBreak {
          mirrors: bars go dark left→right as ammo depletes (the lit
          cells keep the right). Old zips without the lit atom keep the
          static bake. */
-      if (baseAsset.component == "energymeter" || baseAsset.component == "ammo" || baseAsset.component == "lives") {
+      if (baseAsset.component == "energymeter" || baseAsset.component == "ammo" || baseAsset.component == "lives" || baseAsset.component == "magazine" || baseAsset.component == "streakmeter") {
         var famCM = baseAsset.component;
         var litCM = S(root + "/assets/" + famCM + "/" + famCM + "-lit.png");
         if (litCM != null) {
@@ -16458,7 +16475,7 @@ namespace PatternBreak {
           var kcm = go.AddComponent<KitCellMeter>();
           kcm.lit = liCM;
           // the lives row speaks its own heart count (railW — round 44, R6)
-          kcm.cells = famCM == "ammo" ? 3 : famCM == "lives" ? 5 : 10;
+          kcm.cells = famCM == "ammo" ? 3 : famCM == "lives" || famCM == "streakmeter" ? 5 : famCM == "magazine" ? 12 : 10;
           kcm.fromRight = mirCM;
           PBAsset litRowCM = null;
           foreach (var aCM in m.assets) if (aCM != null && aCM.component == famCM && aCM.part == "lit") { litRowCM = aCM; break; }
@@ -16467,7 +16484,10 @@ namespace PatternBreak {
             kcm.zone0 = Mathf.Clamp01(litRowCM.track.x / litCM.rect.width);
             kcm.zone1 = Mathf.Clamp01((litRowCM.track.x + litRowCM.track.w) / litCM.rect.width);
           }
-          kcm.SetValue(litRowCM != null && litRowCM.ringV > 0f ? Mathf.Clamp01(litRowCM.ringV) : (famCM == "ammo" ? 1f : famCM == "lives" ? 0.6f : 0.8f));
+          kcm.SetValue(litRowCM != null && litRowCM.ringV > 0f ? Mathf.Clamp01(litRowCM.ringV) : (famCM == "ammo" ? 1f : famCM == "lives" ? 0.6f : famCM == "magazine" ? 0.66f : famCM == "streakmeter" ? 0.64f : 0.8f));
+          /* the Lit strip lands directly over the base — but UNDER the
+             live children (words, glyphs): first in the paint order */
+          lgoCM.transform.SetSiblingIndex(0);
         }
       }
       /* ── the RIG-1 DISPLAY BARS (round 44, items 19/27/30 + buildqueue):
@@ -20613,8 +20633,12 @@ namespace PatternBreak {
         rig.glyph = imgSI;
         rig.ghost = imgSI.sprite;
         rig.lit = litSI;
+        /* round 44 (item 40): ONE dial — the cell meter joins the rig, and
+           the rig rests on the meter's own staged value so nothing moves */
+        var kcmSI = contents.GetComponent<KitCellMeter>();
+        if (kcmSI != null) { rig.cells = kcmSI; rig.value = kcmSI.value; }
         PrefabUtility.SaveAsPrefabAsset(contents, pathSI);
-        if (!quiet) Debug.Log("UI Kit Maker: the Streakmeter prefab can IGNITE — drive Streak Ignite's value to 1 (or its context menu) and the glyph lights and pulses; both poses are ordinary swappable sprites.");
+        if (!quiet) Debug.Log("UI Kit Maker: the Streakmeter prefab can IGNITE — drive Streak Ignite's value to 1 (or its context menu) and the glyph lights and pulses (round 44: the cells light whole from the same value); both poses are ordinary swappable sprites.");
         return true;
       } finally { PrefabUtility.UnloadPrefabContents(contents); }
     }

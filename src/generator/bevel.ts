@@ -7086,7 +7086,9 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         pips += `<rect x="${px9.toFixed(1)}" y="${padM}" width="${pipW.toFixed(1)}" height="${pipH.toFixed(1)}" rx="${(pipW / 2).toFixed(1)}" fill="${on ? `url(#${gidM9})` : "rgba(255,255,255,0.14)"}" stroke="${on ? darken(glow, 0.4) : "rgba(255,255,255,0.18)"}" stroke-width="1"${on && state !== "disabled" ? ` style="filter: drop-shadow(0 0 2.5px ${hexRgba(glow, 0.5)})"` : ""}/>`;
       }
       pips += hudText(`${Math.round(vM9 * cap)} / ${cap}`, WM - padM, HM / 2 + 1, 24 * k, "end");
-      return `<svg xmlns="http://www.w3.org/2000/svg" width="${WM.toFixed(0)}" height="${HM.toFixed(0)}" viewBox="0 0 ${WM.toFixed(0)} ${HM.toFixed(0)}" data-magazine="1" role="img" aria-label="magazine ${Math.round(vM9 * cap)} of ${cap}"><g opacity="${state === "disabled" ? 0.4 : 1}">${pips}</g></svg>`;
+      // round 44 (item 20): the pip run's zone stamp — the engine's cell
+      // scissor cuts by it (attributes never rasterize; bytes stand still)
+      return stampTrack(`<svg xmlns="http://www.w3.org/2000/svg" width="${WM.toFixed(0)}" height="${HM.toFixed(0)}" viewBox="0 0 ${WM.toFixed(0)} ${HM.toFixed(0)}" data-magazine="1" role="img" aria-label="magazine ${Math.round(vM9 * cap)} of ${cap}"><g opacity="${state === "disabled" ? 0.4 : 1}">${pips}</g></svg>`, padM, nM * pipW + (nM - 1) * gapM2);
     }
     case "equipselector": {
       /* Shooter · equipment selector — a CONTINUOUS carousel: value*3 is a
@@ -7172,7 +7174,10 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       for (let i = 0; i < nS9; i++) {
         const cx9 = cellsX + i * (cellW9 + 6 * k);
         const on = i < litS;
-        inner += `<rect x="${cx9.toFixed(1)}" y="${(cy - 12 * k).toFixed(1)}" width="${cellW9.toFixed(1)}" height="${(24 * k).toFixed(1)}" rx="${(5 * k).toFixed(1)}" fill="${on ? `url(#${gidS9})` : "rgba(255,255,255,0.1)"}" stroke="${on ? darken(glow, 0.35) : "rgba(255,255,255,0.12)"}" stroke-width="1"${on && state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(3 * k).toFixed(1)}px ${hexRgba(glow, 0.5)})"` : ""}/>`;
+        /* round 44 (kit-wide mercury ruling): the cells wear the mercury's
+           own rounding, so the streak's visible end reads like the XP
+           bar's bead at any count */
+        inner += `<rect x="${cx9.toFixed(1)}" y="${(cy - 12 * k).toFixed(1)}" width="${cellW9.toFixed(1)}" height="${(24 * k).toFixed(1)}" rx="${Math.min(cellW9 / 2, 12 * k).toFixed(1)}" fill="${on ? `url(#${gidS9})` : "rgba(255,255,255,0.1)"}" stroke="${on ? darken(glow, 0.35) : "rgba(255,255,255,0.12)"}" stroke-width="1"${on && state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(3 * k).toFixed(1)}px ${hexRgba(glow, 0.5)})"` : ""}/>`;
       }
       const zapX = 39 + w - inset - 52 * k;
       // the ignition glyph is a content slot (owner ask) — Factory = zap,
@@ -7184,7 +7189,9 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       inner += (zapIc ? `<g data-part="icon" data-icon="endicon" data-icon-nick="Ignition glyph">` + (full && state !== "disabled"
         ? `<g style="filter: drop-shadow(0 0 ${(7 * k).toFixed(1)}px ${hexRgba(glow, 0.85)})">${themedIcon(zapIc, zapX, cy - 17 * k, 34 * k, lighten(glow, 0.3), 2.4)}</g>`
         : iconGroup(zapIc, zapX, cy - 17 * k, 34 * k, "rgba(255,255,255,0.35)", { strokeWidth: 2.2 * iconWK })) + `</g>` : "");
-      return inject(shell.replace("<svg ", '<svg data-streakmeter="1" '), inner);
+      // round 44 (item 40): the cell run's zone stamp — the engine's cell
+      // scissor cuts by it (an attribute; the drawing is untouched)
+      return stampTrack(inject(shell.replace("<svg ", '<svg data-streakmeter="1" '), inner), cellsX, cellsW);
     }
     case "waypoint": {
       /* Shooter · objective waypoint — diamond marker + distance readout;
