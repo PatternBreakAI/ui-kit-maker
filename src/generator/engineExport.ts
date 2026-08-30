@@ -3190,6 +3190,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
          (the masked child stretches the sprite over the well rect 1:1);
          everything else crops to its drawn alpha box + 2px of AA air */
       let bx: number, by: number, bw9: number, bh9: number;
+      let measured = false; // the alpha-branch box may verify-and-widen below
       if (mk.box && mk.box.length === 4 && mk.box.every(Number.isFinite) && mk.box[2] > 1 && mk.box[3] > 1) {
         // fixed frame (round 44): every look of this mark shares one canvas
         bx = mk.box[0]; by = mk.box[1] + riseDy; bw9 = mk.box[2]; bh9 = mk.box[3];
@@ -3237,12 +3238,33 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           bw9 = (ab.x1 - ab.x0 + 1) / (PNG_SCALE * dscX) + pad * 2;
           bh9 = (ab.y1 - ab.y0 + 1) / (PNG_SCALE * dscY) + pad * 2;
         }
+        measured = true;
       }
       if (!(bw9 > 1) || !(bh9 > 1)) continue;
-      const spr = only
-        .replace(/viewBox="[^"]+"/, `viewBox="${bx.toFixed(1)} ${by.toFixed(1)} ${bw9.toFixed(1)} ${bh9.toFixed(1)}"`)
-        .replace(/ width="[\d.]+"/, ` width="${Math.ceil(bw9)}"`)
-        .replace(/ height="[\d.]+"/, ` height="${Math.ceil(bh9)}"`);
+      const sprOf = (x9: number, y9: number, w9: number, h9: number) => only
+        .replace(/viewBox="[^"]+"/, `viewBox="${x9.toFixed(1)} ${y9.toFixed(1)} ${w9.toFixed(1)} ${h9.toFixed(1)}"`)
+        .replace(/ width="[\d.]+"/, ` width="${Math.ceil(w9)}"`)
+        .replace(/ height="[\d.]+"/, ` height="${Math.ceil(h9)}"`);
+      let spr = sprOf(bx, by, bw9, bh9);
+      /* round-50 follow-up (the two dev instruments' 2% residue): the
+         SHIPPED window is the artifact the class rule measures, and
+         Chromium dithers a huge blur's sub-2% tail differently at
+         different canvas sizes — a box measured clean on the wide window
+         can still read alpha 4-5 at its own edge once rastered at
+         shipped size. So a MEASURED box verifies its own raster and
+         widens (bounded, keep-the-best) until the falloff completes;
+         a box already clean ships byte-identical, and authored frames
+         (data-icon-box windows, wells) never iterate. */
+      if (measured) {
+        let bestE = await svgEdgeAlphaMax(spr, PNG_SCALE).catch(() => 0);
+        let cx9 = bx, cy9 = by, cw9 = bw9, ch9 = bh9;
+        for (let t9 = 0; t9 < 3 && bestE > 1; t9++) {
+          cx9 -= 4; cy9 -= 4; cw9 += 8; ch9 += 8;
+          const cand = sprOf(cx9, cy9, cw9, ch9);
+          const e9 = await svgEdgeAlphaMax(cand, PNG_SCALE).catch(() => 255);
+          if (e9 < bestE) { spr = cand; bestE = e9; bx = cx9; by = cy9; bw9 = cw9; bh9 = ch9; }
+        }
+      }
       const pathIc = `${spritePrefix ?? uid}/icon-${mk.name}.png`;
       await addPng(pathIc, spr, {
         component: spritePrefix ?? uid, part: `icon-${mk.name}`, nineSlice: null,

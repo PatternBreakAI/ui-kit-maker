@@ -3602,6 +3602,9 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/const rb = await svgAlphaBox\(wide, PNG_SCALE, 1\)\.catch\(\(\) => null\);/.test(src)
       || !/bw9 = \(Math\.max\(abW\.x1, rb\.x1\) - Math\.min\(abW\.x0, rb\.x0\) \+ 1\) \/ \(PNG_SCALE \* dscX\) \+ pad \* 2;/.test(src))
     errors.push("iconSeatsOf lost the widened-window reach measurement — ringed marks cut their halos at ink+2 again (round 50, S41)");
+  if (!/if \(e9 < bestE\) \{ spr = cand; bestE = e9; bx = cx9; by = cy9; bw9 = cw9; bh9 = ch9; \}/.test(src)
+      || !/let bestE = await svgEdgeAlphaMax\(spr, PNG_SCALE\)\.catch\(\(\) => 0\);/.test(src))
+    errors.push("the measured seat box no longer verifies its own shipped-size raster (bounded verify-and-widen) — sub-2% tail noise ships unchecked (round 50 follow-up, S41)");
   if (!/ink\?: \{ x: number; y: number; w: number; h: number \} \| null;/.test(src)
       || !/\.\.\.\(inkBox \? \{ ink: inkBox \} : \{\}\),/.test(src)
       || !/if \(slack >= 6\)/.test(src))
