@@ -5700,7 +5700,10 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const on9 = i === selN && state !== "disabled";
         if (on9) {
           const hotR = state === "hover", pressR = state === "pressed";
-          inner9 += `<rect x="${x0.toFixed(1)}" y="${ry.toFixed(1)}" width="${rw.toFixed(1)}" height="${(rowH - 6 * k).toFixed(1)}" rx="${(10 * k).toFixed(1)}" fill="${hexRgba(glow, pressR ? 0.4 : hotR ? 0.32 : 0.22)}" stroke="${hexRgba(glow, hotR || pressR ? 0.95 : 0.65)}" stroke-width="${hotR ? 2.2 : 1.4}"${hotR ? ` style="filter: drop-shadow(0 0 ${(6 * k).toFixed(1)}px ${hexRgba(glow, 0.55)})"` : ""}/>`;
+          // round 44 (R2, RIG-6): the active-row bar is MARKED ink — it
+          // ships as a live child (slide it a row pitch, or delete it);
+          // rows draw nothing at rest, so the bar is purely additive
+          inner9 += `<g data-part="icon" data-icon="ring" data-icon-nick="Row highlight"><rect x="${x0.toFixed(1)}" y="${ry.toFixed(1)}" width="${rw.toFixed(1)}" height="${(rowH - 6 * k).toFixed(1)}" rx="${(10 * k).toFixed(1)}" fill="${hexRgba(glow, pressR ? 0.4 : hotR ? 0.32 : 0.22)}" stroke="${hexRgba(glow, hotR || pressR ? 0.95 : 0.65)}" stroke-width="${hotR ? 2.2 : 1.4}"${hotR ? ` style="filter: drop-shadow(0 0 ${(6 * k).toFixed(1)}px ${hexRgba(glow, 0.55)})"` : ""}/></g>`;
         }
         // small-white rule: a dark understroke beneath every row glyph —
         // marked swappable ink (maximum-editability law): each row glyph
@@ -6697,11 +6700,28 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const choices = [(opts.slots?.c1 ?? "Ask about the ruins").slice(0, 40), (opts.slots?.c2 ?? "Show the sealed letter").slice(0, 40), (opts.slots?.c3 ?? "Leave — for now").slice(0, 40)];
       const x0 = 42 + inset + 8 * k, rw = w - inset * 2 - 16 * k;
       let inner = "";
+      /* round 44 (R3, RIG-6): every capsule now draws the RESTING look
+         and the active dressing rides a MARKED bridge overlay — the
+         hotbar's bridge law solved exactly for color: resting-then-X
+         composites to the app's active paint on ANY backdrop
+         (X = (a1·G − a0·(1−ax)·W)/ax with ax = 1 − (1−a1)/(1−a0)). */
+      const glowP9 = HEX6.test(glow) ? parseInt(glow.slice(1), 16) : 0x9ff4d4;
+      const gCh9 = [(glowP9 >> 16) & 255, (glowP9 >> 8) & 255, glowP9 & 255];
+      const bridge9 = (a0: number, a1: number, w0: number) => {
+        const ax = 1 - (1 - a1) / (1 - a0);
+        const ch = (g9: number) => Math.round(Math.max(0, Math.min(255, (a1 * g9 - a0 * (1 - ax) * w0) / ax)));
+        return { c: `rgba(${ch(gCh9[0])},${ch(gCh9[1])},${ch(gCh9[2])},${ax.toFixed(4)})` };
+      };
       choices.forEach((c9, i) => {
         const ry = 33 + inset + 10 * k + i * rowH;
         const on9 = i === sel && state !== "disabled";
         const hotC = on9 && state === "hover", pressC = on9 && state === "pressed";
-        inner += `<rect x="${x0.toFixed(1)}" y="${ry.toFixed(1)}" width="${rw.toFixed(1)}" height="${(rowH - 12 * k).toFixed(1)}" rx="${(14 * k).toFixed(1)}" fill="${on9 ? hexRgba(glow, pressC ? 0.4 : hotC ? 0.32 : 0.22) : "rgba(255,255,255,0.06)"}" stroke="${on9 ? hexRgba(glow, hotC || pressC ? 0.95 : 0.65) : "rgba(255,255,255,0.14)"}" stroke-width="${hotC ? 2.2 : 1.4}"${hotC ? ` style="filter: drop-shadow(0 0 ${(6 * k).toFixed(1)}px ${hexRgba(glow, 0.55)})"` : ""}/>`;
+        inner += `<rect x="${x0.toFixed(1)}" y="${ry.toFixed(1)}" width="${rw.toFixed(1)}" height="${(rowH - 12 * k).toFixed(1)}" rx="${(14 * k).toFixed(1)}" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.14)" stroke-width="1.4"/>`;
+        if (on9) {
+          const bF = bridge9(0.06, pressC ? 0.4 : hotC ? 0.32 : 0.22, 255);
+          const bS = bridge9(0.14, hotC || pressC ? 0.95 : 0.65, 255);
+          inner += `<g data-part="icon" data-icon="ring" data-icon-nick="Choice highlight"><rect x="${x0.toFixed(1)}" y="${ry.toFixed(1)}" width="${rw.toFixed(1)}" height="${(rowH - 12 * k).toFixed(1)}" rx="${(14 * k).toFixed(1)}" fill="${bF.c}" stroke="${bS.c}" stroke-width="${hotC ? 2.2 : 1.4}"${hotC ? ` style="filter: drop-shadow(0 0 ${(6 * k).toFixed(1)}px ${hexRgba(glow, 0.55)})"` : ""}/></g>`;
+        }
         // the active-choice marker is marked swappable ink (the law)
         if (on9 && STOCK_ICONS.play) inner += `<g data-part="icon" data-icon="marker" data-icon-nick="Choice marker">${themedIcon(STOCK_ICONS.play, x0 + 14 * k, ry + (rowH - 12 * k) / 2 - 11 * k, 22 * k, glow, 2.4)}</g>`;
         inner += contentText(c9, x0 + (on9 ? 48 : 24) * k, ry + (rowH - 12 * k) / 2 + 1, 23 * k * typeK, { keepCase: true, list: true, opacity: on9 ? 1 : 0.8 });
@@ -7109,11 +7129,17 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       // armed ring + name live at the fixed center; they fade during travel
       const settle = clamp(1 - minD * 2.2, 0, 1);
       if (settle > 0.02) {
-        innerE += `<rect x="${(cxM - midS / 2 - 3).toFixed(1)}" y="${(cyE - midS / 2 - 3).toFixed(1)}" width="${(midS + 6).toFixed(1)}" height="${(midS + 6).toFixed(1)}" rx="${(14 * k).toFixed(1)}" fill="none" stroke="${hexRgba(glow, (hotE ? 1 : 0.8) * settle)}" stroke-width="${hotE ? 3 : 2.2}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${((hotE ? 8 : 5) * k).toFixed(1)}px ${hexRgba(glow, 0.6 * settle)})"` : ""}/>`;
+        // round 44 (R5, RIG-6): the armed ring is MARKED ink — a live
+        // child on the center slot (the invgrid cell-ring precedent)
+        innerE += `<g data-part="icon" data-icon="ring" data-icon-nick="Armed ring"><rect x="${(cxM - midS / 2 - 3).toFixed(1)}" y="${(cyE - midS / 2 - 3).toFixed(1)}" width="${(midS + 6).toFixed(1)}" height="${(midS + 6).toFixed(1)}" rx="${(14 * k).toFixed(1)}" fill="none" stroke="${hexRgba(glow, (hotE ? 1 : 0.8) * settle)}" stroke-width="${hotE ? 3 : 2.2}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${((hotE ? 8 : 5) * k).toFixed(1)}px ${hexRgba(glow, 0.6 * settle)})"` : ""}/></g>`;
       }
       const chev = (x9: number, flip: boolean) =>
         `<path d="M ${(x9 + (flip ? 7 : -7) * k).toFixed(1)} ${(cyE - 10 * k).toFixed(1)} L ${(x9 + (flip ? -5 : 5) * k).toFixed(1)} ${cyE.toFixed(1)} L ${(x9 + (flip ? 7 : -7) * k).toFixed(1)} ${(cyE + 10 * k).toFixed(1)}" fill="none" stroke="#9AA6B8" stroke-width="${(2.6 * k).toFixed(1)}" stroke-linecap="round" stroke-linejoin="round"/>`;
-      innerE = chev(padE + 8 * k, false) + innerE + chev(WE - padE - 8 * k, true);
+      /* round 44 (R5, RIG-4 btn): the chevrons are INTERACTIVE in the app
+         (click side = next/previous) — they ship as real Button children
+         devs wire to their carousel (icons/back + icons/forward fit) */
+      innerE = `<g data-part="icon" data-icon="prev" data-icon-btn="1" data-icon-nick="Previous button">${chev(padE + 8 * k, false)}</g>` + innerE +
+        `<g data-part="icon" data-icon="next" data-icon-btn="1" data-icon-nick="Next button">${chev(WE - padE - 8 * k, true)}</g>`;
       innerE += `<g opacity="${settle.toFixed(2)}">${contentText(opts.label ?? armedI.it.nm, cxM, padE + midS + 20 * k, 19 * k * typeK, { anchor: "middle" })}</g>`;
       // the stamped track lets play mode cycle by click side (left/right)
       // data-shell pins the piece box (the un-burn's seat frame AND the
@@ -10228,16 +10254,22 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          reassembled from the same substrings, byte-identical. */
       const lbDefs = `<defs><linearGradient id="${gid10}s" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${hexRgba(bevel, 0.45)}"/><stop offset="0.5" stop-color="${hexRgba(glow, 0.5)}"/><stop offset="1" stop-color="${hexRgba(bevel, 0.45)}"/></linearGradient></defs>`;
       const lbTicks =
-        `<rect x="${(x1 - 30 * k).toFixed(1)}" y="${(headY - 5 * k).toFixed(1)}" width="${(20 * k).toFixed(1)}" height="${(3.5 * k).toFixed(1)}" rx="${(1.8 * k).toFixed(1)}" fill="${hexRgba(glow, 0.7)}"/>` +
-        `<rect x="${(x1 - 8 * k).toFixed(1)}" y="${(headY - 5 * k).toFixed(1)}" width="${(8 * k).toFixed(1)}" height="${(3.5 * k).toFixed(1)}" rx="${(1.8 * k).toFixed(1)}" fill="rgba(255,255,255,0.3)"/>` +
+        // round 44 (R4, RIG-6): the legend dash pills are MARKED ink —
+        // one live child, movable or deletable in the Inspector
+        `<g data-part="icon" data-icon="legend" data-icon-nick="Legend dashes"><rect x="${(x1 - 30 * k).toFixed(1)}" y="${(headY - 5 * k).toFixed(1)}" width="${(20 * k).toFixed(1)}" height="${(3.5 * k).toFixed(1)}" rx="${(1.8 * k).toFixed(1)}" fill="${hexRgba(glow, 0.7)}"/>` +
+        `<rect x="${(x1 - 8 * k).toFixed(1)}" y="${(headY - 5 * k).toFixed(1)}" width="${(8 * k).toFixed(1)}" height="${(3.5 * k).toFixed(1)}" rx="${(1.8 * k).toFixed(1)}" fill="rgba(255,255,255,0.3)"/></g>` +
         // rank column divider + row hairlines — the instrument grid
         `<line x1="${(x0 + 22 * k).toFixed(1)}" y1="${(listY0 + 3 * k).toFixed(1)}" x2="${(x0 + 22 * k).toFixed(1)}" y2="${(listY0 + rowH * rows.length - 3 * k).toFixed(1)}" stroke="rgba(255,255,255,0.14)" stroke-width="1"/>` +
         rows.map((_, i) => i === 0 ? "" :
           `<line x1="${(x0 - 6 * k).toFixed(1)}" y1="${(listY0 + rowH * i).toFixed(1)}" x2="${(x1 + 6 * k).toFixed(1)}" y2="${(listY0 + rowH * i).toFixed(1)}" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>`).join("");
       const lbHl = (r: { you: boolean }, i: number) => {
         const yC = listY0 + rowH * (i + 0.5);
+        /* round 44 (R4, RIG-6): the YOUR-ROW band is MARKED ink — a live
+           child a dev slides to any row. Stripping it also frees the
+           nine-slice stretch region (the band used to distort on resize).
+           The cut keeps the doc's defs, so the sheen gradient travels. */
         return r.you
-          ? `<rect x="${(x0 - 8 * k).toFixed(1)}" y="${(yC - rowH * 0.46).toFixed(1)}" width="${(x1 - x0 + 16 * k).toFixed(1)}" height="${(rowH * 0.92).toFixed(1)}" rx="${(8 * k).toFixed(1)}" fill="url(#${gid10}s)" stroke="${hexRgba(glow, 0.9)}" stroke-width="1.6"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(glow, 0.5)})"` : ""}/>`
+          ? `<g data-part="icon" data-icon="ring" data-icon-nick="Your-row highlight"><rect x="${(x0 - 8 * k).toFixed(1)}" y="${(yC - rowH * 0.46).toFixed(1)}" width="${(x1 - x0 + 16 * k).toFixed(1)}" height="${(rowH * 0.92).toFixed(1)}" rx="${(8 * k).toFixed(1)}" fill="url(#${gid10}s)" stroke="${hexRgba(glow, 0.9)}" stroke-width="1.6"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(glow, 0.5)})"` : ""}/></g>`
           : "";
       };
       if (opts.part === "base")

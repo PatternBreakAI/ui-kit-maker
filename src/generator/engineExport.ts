@@ -4246,13 +4246,13 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         notifydot: "Notification badge — the bell/scroll glyph is a LIVE Image child and the red counter a live plate child whose count RIDES it (delete the pair as one, or drive the count). Display piece.",
         loadbar: "Loading bar — LIVE: caption and percent are seats and the mercury is a Filled fill with the rounded head riding the value line (drive Fill's fillAmount or KitBarFill.SetValue). Display piece.",
         setrow: "Settings row — a WORKING control: the mini-slider is a real Unity Slider (drag the candy knob or set Slider.value; the Filled mercury and rounded head follow). The row label and value readout are LIVE seats — the readout is not wired to the slider, hook it to Slider.onValueChanged or retype it.",
-        listmenu: "List menu — four rows: every row glyph is a LIVE Image child and every word a LIVE seat; the highlight bar bakes on the staged row. Display piece: wire per-row buttons over it.",
+        listmenu: "List menu — four rows: every row glyph is a LIVE Image child, every word a LIVE seat, and the Row highlight is a LIVE child too (slide it one row pitch to move the selection, or delete it). Wire per-row buttons over it.",
         scrollbar: "LEGACY SHEET (kept projects) — the flat strip with the thumb baked. The REAL road is the wired Scrollbar prefab: scrollbar-track.9 + scrollbar-thumb.9 with a genuine UnityEngine.UI.Scrollbar (drive Scrollbar.value; pair with your ScrollRect).",
         steps: "Step indicator — wizard pips; the step numbers are LIVE seats. Display piece.",
         pagedots: "Page dots — DRIVABLE (round 44): the PageDots prefab deals the strip live from pagedots-dot/knob at the kit's own pitch (PatternBreakPageDots — SetPage/SetCount, or SetValue 0..1). This baked sheet stays for older scenes and board stamps.",
         questpanel: "Quest tracker — eyebrow, title, objectives and counts are LIVE seats (title is the live Label, pinned left like the app draws it). Every objective pip is a LIVE Image child — swap it between the shipped pip-done / pip-active / pip-empty looks to toggle a row. The footer mercury is a Filled fill that snaps to WHOLE objectives (drive Fill's fillAmount or KitBarFill.SetValue; snapSteps 3). The 1/3 and 2/3 count words are seats, not wired to the bar — retype them to match your value. Display piece.",
         dialoguebox: "Dialogue box — both lines are LIVE seats, the speaker plate a live child whose NAME rides it (move or delete plate + name as one), and the continue caret its OWN live child (owner ruling, round 44 — blink it, bob it or swap it; icons/* fit the seat). Display piece.",
-        choicelist: "Dialogue choices — all three responses and their hotkey digits are LIVE seats; the active-choice marker is a LIVE Image child. Wire per-choice buttons over the capsules. Display piece.",
+        choicelist: "Dialogue choices — all three responses and their hotkey digits are LIVE seats; the active-choice marker AND the Choice highlight are LIVE children (slide highlight + marker a row pitch to move the selection). All capsules rest uniform underneath. Wire per-choice buttons over the capsules.",
         manarails: "Mana & stamina rails — LIVE: each rail is its own Filled fill with the rounded head (drive Mana/Stamina fillAmount or KitBarFill.SetValue) and each rail glyph a LIVE Image child. Display piece.",
         xpbar: "XP bar — LIVE: the NEXT line and XP readout are seats, the mercury is a Filled fill with the rounded head (drive Fill's fillAmount or KitBarFill.SetValue; the milestone notch cuts ride the fill), and the level knob is a live child whose number RIDES it. Display piece.",
         invgrid: "Inventory grid — every cell glyph is a LIVE Image child (the app's cell pickers steer them) and the count chips are live plates with their numbers riding them. The selection ring is NOT baked: compose invgrid/cell-ring.png over any cell (the board scenes wire InvGridSelect for you). Display piece.",
@@ -4264,7 +4264,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         ammo: "Ammo counter — LIVE: the three bars are ONE thirds meter (KitCellMeter — drive Value or SetValue; bars go dark left→right as ammo depletes) and both counts are LIVE seats. Display piece.",
         killfeed: "Kill-feed row — killer and victim are LIVE seats and the weapon glyph a LIVE Image child (swap the sprite in the Inspector). Stack rows in a vertical layout. Display piece.",
         magazine: "Magazine — round pips bake at the staged count and the readout is a LIVE seat (per-copy counts ride posed skins). Display piece.",
-        equipselector: "Equipment selector — every carousel item's glyph is a LIVE Image child and the armed name a LIVE seat; the carousel pose bakes at the staged position. Display piece.",
+        equipselector: "Equipment selector — every carousel item's glyph is a LIVE Image child, the armed name a LIVE seat, the Armed ring a LIVE child, and BOTH chevrons are REAL Button children (wire them to your carousel; icons/back + icons/forward fit the seats). The slot plates bake at the staged pose.",
         streakmeter: "Streak meter — the label is a LIVE seat and the Ignition glyph a LIVE Image child that IGNITES: the StreakIgnite rig swaps in the lit pose and pulses when you drive its value to full (both poses ship). Display piece.",
         waypoint: "Waypoint — the objective letter and distance are LIVE seats on the diamond. Spatial piece: it reads over live footage. Display piece.",
         capturemeter: "Capture point — LIVE: the point letter is a LIVE seat and the capture ring a Radial360 rig (drive the Fill child's fillAmount or KitRingFill.SetValue — the end caps ride the head, clean at any value). Display piece.",
@@ -5197,8 +5197,14 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     await addPng("circuit/track.png", ccSvg, { component: "circuit", part: "track", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Circuit ribbon with start/finish tick. Position markers are live engine sprites; the venue label arrives as live text on the Circuit prefab.", ...textSeatsOf("circuit", ccSvg) });
   }
   {
+    /* round 44 (R4, RIG-6): the YOUR-ROW gold band + legend dash pills
+       un-burn to live children — stripping the band also frees the
+       nine-slice stretch region (it used to distort on resize). The
+       fail-safe rule: no seats, no strip. */
     const lbSvg = shell("leaderboard", { part: "base" }, slim);
-    await addPng("leaderboard/base.9.png", lbSvg, { component: "leaderboard", part: "base", nineSlice: sliceOf("leaderboard", 250), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Position-list panel. Heading and rows arrive as live text on the Leaderboard prefab — duplicate a Row to extend the standings.", ...textSeatsOf("leaderboard", lbSvg, {}, slim) }, true);
+    const lbSeats = await iconSeatsOf("leaderboard", lbSvg);
+    const lbOut = lbSeats ? stripMarkedIcons(lbSvg).svg : lbSvg;
+    await addPng("leaderboard/base.9.png", lbOut, { component: "leaderboard", part: "base", nineSlice: sliceOf("leaderboard", 250), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Position-list panel — heading and rows arrive as live text (duplicate a Row to extend the standings); the your-row highlight and the legend dashes are LIVE children (slide the highlight to any row, or delete it). Stretches clean: the band no longer sits in the slice's stretch zone.", ...textSeatsOf("leaderboard", lbSvg, {}, slim), ...(lbSeats ? { iconSeats: lbSeats } : {}) }, true);
   }
   {
     const lpSvg = shell("laptimes", { part: "base" }, slim);

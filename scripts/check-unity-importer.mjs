@@ -3103,6 +3103,25 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the kept-project stepper graft era gate left the importer (round 44, item 37)");
 }
 
+/* ── ROUND 44 · S21 (the RIG-6 selection sweep — R2 listmenu, R3
+   choicelist, R4 leaderboard, R5 equipselector): every baked selection
+   dress becomes a live child; the choicelist's active capsule rides an
+   EXACT color-solved bridge; the leaderboard's gold band leaves the
+   nine-slice stretch region; the equipselector's chevrons become real
+   Buttons. ── */
+{
+  if (!/data-icon-nick="Row highlight"/.test(bevelSrc))
+    errors.push("the list menu's active-row bar lost its mark (round 44, R2)");
+  if (!/const bridge9 = \(a0: number, a1: number, w0: number\) => \{/.test(bevelSrc) || !/data-icon-nick="Choice highlight"/.test(bevelSrc))
+    errors.push("the choicelist's exact bridge overlay left bevel — the active capsule burns back (round 44, R3)");
+  if (!/data-icon-nick="Your-row highlight"/.test(bevelSrc) || !/data-icon-nick="Legend dashes"/.test(bevelSrc))
+    errors.push("the leaderboard's gold band or legend pills lost their marks (round 44, R4)");
+  if (!/data-icon="prev" data-icon-btn="1" data-icon-nick="Previous button"/.test(bevelSrc) || !/data-icon="next" data-icon-btn="1" data-icon-nick="Next button"/.test(bevelSrc) || !/data-icon-nick="Armed ring"/.test(bevelSrc))
+    errors.push("the equipselector's chevron Buttons or armed ring lost their marks (round 44, R5)");
+  if (!/const lbSeats = await iconSeatsOf\("leaderboard", lbSvg\);/.test(src) || !/const lbOut = lbSeats \? stripMarkedIcons\(lbSvg\)\.svg : lbSvg;/.test(src))
+    errors.push("the leaderboard emission no longer strips its marked children — the band stays inside the stretch zone (round 44, R4)");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);
