@@ -96,8 +96,11 @@ interface AssetMeta {
   /** The bar family's WELL ZONE inside the shipped sprite (x, w in file
    *  px at pngScale), parsed from the render's own data-track stamp —
    *  the bar prefabs seat their mercury exactly on the app's zone
-   *  instead of guessing symmetric insets (round 21). */
-  track?: { x: number; w: number } | null;
+   *  instead of guessing symmetric insets (round 21). Round 44: bars off
+   *  the shell centerline (loadbar, popmeter, respawn, buildqueue) also
+   *  stamp the VERTICAL band (y, h — same file-px frame); absent = the
+   *  old symmetric centering, so every existing consumer is byte-still. */
+  track?: { x: number; w: number; y?: number; h?: number } | null;
   /** The bake's silhouette is MIRRORED (~flip) — flip provenance so board
    *  scenes can honor a mirrored board copy against an unmirrored sprite
    *  (and so field reports can name which side lost the flip). */
@@ -555,6 +558,33 @@ function markedIconOnlySvgs(svgIn: string): { name: string; btn: boolean; well: 
     }
     return out;
   } catch { return []; }
+}
+/* ── RIG-1 display bars (round 44, items 19/27/30 + buildqueue): the
+   mercury is MARKED ink now — data-barfill wraps each bar case's fill
+   drawing and stamps its drawn rect (x y w h, viewBox units). These two
+   hands un-burn it: the base bakes trackified; the fill/cap atoms
+   re-render ONLY the mercury (defs, gradients and filters kept, so the
+   sprite is the app's exact dressing). ── */
+function barFillOnlySvg(svgIn: string): { svg: string; box: [number, number, number, number] } | null {
+  try {
+    const dom = new DOMParser().parseFromString(svgIn, "image/svg+xml");
+    const keep = dom.querySelector("[data-barfill]");
+    if (!keep) return null;
+    const box = (keep.getAttribute("data-barfill") ?? "").split(" ").map(Number);
+    if (box.length !== 4 || box.some((v) => !Number.isFinite(v))) return null;
+    for (const el of Array.from(dom.querySelectorAll(ICON_DRAWABLE_SEL)))
+      if (!el.closest("defs") && !keep.contains(el)) el.remove();
+    return { svg: new XMLSerializer().serializeToString(dom.documentElement), box: box as [number, number, number, number] };
+  } catch { return null; }
+}
+function stripBarFill(svgIn: string): { svg: string; stripped: boolean } {
+  try {
+    const dom = new DOMParser().parseFromString(svgIn, "image/svg+xml");
+    const gs = Array.from(dom.querySelectorAll("[data-barfill]"));
+    if (!gs.length) return { svg: svgIn, stripped: false };
+    for (const g of gs) g.remove();
+    return { svg: new XMLSerializer().serializeToString(dom.documentElement), stripped: true };
+  } catch { return { svg: svgIn, stripped: false }; }
 }
 function stripMarkedIcons(svgIn: string): { svg: string; iconsStripped: number } {
   try {
@@ -3244,10 +3274,23 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         const tzm = /data-track="([-\d. ]+)"/.exec(q.svg);
         const vbm = /viewBox="(-?[\d.]+) (-?[\d.]+)/.exec(q.svg);
         if (tzm && vbm) {
-          const [tzx, tzw] = tzm[1].split(" ").map(Number);
+          const [tzx, tzw, tzy, tzh] = tzm[1].split(" ").map(Number);
+          /* the stamp speaks the PRE-SHIFT frame (its numbers ride inside
+             the extrusion-headroom translate) — the vertical band shifts
+             by the drawn-vs-raw shell delta, the iconSeatsOf riseDy rule;
+             x needs no correction (the rise is vertical only) */
+          const shDt = /data-shell="([-\d. ]+)"/.exec(q.svg)?.[1].split(" ").map(Number);
+          const sh0t = /data-shell0="([-\d. ]+)"/.exec(q.svg)?.[1].split(" ").map(Number);
+          const riseDyT = shDt && sh0t && shDt.length === 4 && sh0t.length === 4 ? shDt[1] - sh0t[1] : 0;
           trackZone = {
             x: Math.round(((tzx - +vbm[1]) * PNG_SCALE - (raster.box?.x0 ?? 0)) * 10) / 10,
             w: Math.round(tzw * PNG_SCALE * 10) / 10,
+            /* round 44: the optional vertical band travels the same crop
+               road; two-number stamps ship exactly what they always did */
+            ...(Number.isFinite(tzy) && Number.isFinite(tzh) ? {
+              y: Math.round(((tzy + riseDyT - +vbm[2]) * PNG_SCALE - (raster.box?.y0 ?? 0)) * 10) / 10,
+              h: Math.round(tzh * PNG_SCALE * 10) / 10,
+            } : {}),
           };
         }
       }
@@ -4048,7 +4091,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         nameplate: "Nameplate — the name is a LIVE seat, the rank star a LIVE Image child, and the title ribbon a live plate child whose word RIDES it (move, restyle or delete plate + word as one). Display piece.",
         stepper: "Stepper — minus cap, snapped cells, plus cap in one strip; the +/− cap marks are LIVE seats. Display piece: wire your own buttons over the caps (two hits, never one).",
         notifydot: "Notification badge — the bell/scroll glyph is a LIVE Image child and the red counter a live plate child whose count RIDES it (delete the pair as one, or drive the count). Display piece.",
-        loadbar: "Loading bar — caption and percent are LIVE seats; the mercury bakes at the staged value (per-copy values ride posed skins). Display piece.",
+        loadbar: "Loading bar — LIVE: caption and percent are seats and the mercury is a Filled fill with the rounded head riding the value line (drive Fill's fillAmount or KitBarFill.SetValue). Display piece.",
         setrow: "Settings row — the row label and value readout are LIVE seats; the mini-slider is anatomy. Display piece: compose the wired Slider prefab over it for a working control.",
         listmenu: "List menu — four rows: every row glyph is a LIVE Image child and every word a LIVE seat; the highlight bar bakes on the staged row. Display piece: wire per-row buttons over it.",
         scrollbar: "Scrollbar — vertical strip, sunken track, candy thumb baked at the staged position. Display piece; pair with your own ScrollRect (the ScrollView prefab shows the wiring).",
@@ -4072,7 +4115,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         streakmeter: "Streak meter — the label is a LIVE seat and the Ignition glyph a LIVE Image child that IGNITES: the StreakIgnite rig swaps in the lit pose and pulses when you drive its value to full (both poses ship). Display piece.",
         waypoint: "Waypoint — the objective letter and distance are LIVE seats on the diamond. Spatial piece: it reads over live footage. Display piece.",
         capturemeter: "Capture point — LIVE: the point letter is a LIVE seat and the capture ring a Radial360 rig (drive the Fill child's fillAmount or KitRingFill.SetValue — the end caps ride the head, clean at any value). Display piece.",
-        respawn: "Respawn timer — heading and seconds are LIVE seats (drive the seconds from your own countdown; per-copy poses ride posed skins). Display piece.",
+        respawn: "Respawn timer — LIVE: heading and seconds are seats and the drain bar is a Filled fill with the rounded head (drive Fill's fillAmount or KitBarFill.SetValue from the same countdown that writes the seconds). Display piece.",
         weaponwheel: "Weapon wheel — all six chamber glyphs are LIVE Image children and the hub/tag words LIVE seats; the cylinder pose bakes at the staged rotation. Display piece.",
         crosshair: "Crosshair — shell-free spatial art with the dark understroke; scale freely (Preserve Aspect). Display piece.",
         hitmarker: "Hit marker — shell-free spatial art; flash it from your own hit events. Display piece.",
@@ -4093,10 +4136,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         clancrest: "Clan crest — the emblem is a LIVE Image child and the tag ribbon a live plate whose tag RIDES it. Display piece.",
         chatbubble: "Chat bubble — sender, timestamp and every message line are LIVE seats on the speech silhouette. Display piece.",
         emotewheel: "Emote wheel — every sector's emote AND the hub's pick are LIVE Image children (the app's emote slots land verbatim); the wheel pose bakes at the staged selection. Display piece.",
-        buildqueue: "Build queue — the unit glyph is a LIVE Image child (editable down to the icon, as asked); name and queue line are LIVE seats; progress bakes at the staged value. Display piece.",
+        buildqueue: "Build queue — LIVE: the unit glyph is a LIVE Image child (editable down to the icon, as asked), name and queue line are seats, and the progress bar is a Filled fill with the rounded head (drive Fill's fillAmount or KitBarFill.SetValue). Display piece.",
         unitplate: "Unit plate — drop YOUR sprite on the Portrait child; the name and stat numbers are LIVE seats and the attack/defense glyphs LIVE Image children. Display piece.",
         techcard: "Tech card (researchable) — the tech glyph is a LIVE Image child (editable down to the icon); the name and cost are LIVE seats and the cost gem its own LIVE Image child beside the number. Researched/locked poses ride per-copy posed skins. Display piece.",
-        popmeter: "Population meter — the population glyph is a LIVE Image child and the count a LIVE seat; the supply bar bakes at the staged share. Display piece.",
+        popmeter: "Population meter — LIVE: the population glyph is a LIVE Image child, the count a seat, and the supply bar a Filled fill with the rounded head (drive Fill's fillAmount or KitBarFill.SetValue; the app's near-cap alarm red stays an app-side draw for now). Display piece.",
         pack: "Card pack — the pack art with its live word; open ceremonies are your game's (ClaimBurst fires on CLAIM-labeled copies). Display piece.",
         cardback: "Card back — the deck's face-down art with its live emblem child. Display piece.",
         orderticket: "Kitchen order ticket — a REAL button; dish name and recipe lines are LIVE seats and the dish glyph a LIVE Image child. Served/urgent poses ride per-copy posed skins.",
@@ -4258,6 +4301,37 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
             litSvgU = iconSeatsU ? stripIconInk(stripWordInk(oneSvg).svg).svg : stripWordInk(oneSvg).svg;
           } catch { litSvgU = null; }
         }
+        /* ── the RIG-1 DISPLAY-BAR ATOMS (round 44, items 19/27/30 +
+           buildqueue — the kit-wide mercury mandate): the mercury is
+           MARKED ink (data-barfill, stamped with its drawn rect), so the
+           base bakes TRACKIFIED while the fill re-renders at 100% as its
+           own Filled atom and the bead windows out of the v=0.8 drawing
+           (the progress cap's window trick, generalized). KitBarFill
+           rides the fill at the staged value (ringV on the fill row);
+           the run's zone — horizontal AND vertical band — rides the base
+           row's extended data-track stamp (no separate track part ships,
+           the cell meters' rule). The strip only happens once both atoms
+           render, so a failed atom leaves today's baked bar intact. */
+        const barRigU = uid === "loadbar" || uid === "popmeter" || uid === "respawn" || uid === "buildqueue";
+        let barFillSvgU: string | null = null, barCapSvgU: string | null = null;
+        if (barRigU) {
+          try {
+            const fo = barFillOnlySvg(stripLoopsU(shell(uid, { ...uOpts, part: "fill" }, undefined, 1)));
+            const capFull = stripLoopsU(shell(uid, { ...uOpts, part: "fill" }, undefined, 0.8));
+            const co = barFillOnlySvg(capFull);
+            const capH9 = +(/viewBox="[-\d.]+ [-\d.]+ [\d.]+ ([\d.]+)"/.exec(capFull)?.[1] ?? "0");
+            if (fo && co && co.box[3] > 2 && capH9 > 2) {
+              const [cgx, , cgw, cgh] = co.box;
+              const wx0 = cgx + cgw - cgh - 8, ww = Math.ceil(cgh + 16);
+              barCapSvgU = co.svg
+                .replace(/viewBox="[^"]+"/, `viewBox="${wx0.toFixed(1)} 0 ${ww} ${Math.ceil(capH9)}"`)
+                .replace(/ width="[\d.]+"/, ` width="${ww}"`)
+                .replace(/ height="[\d.]+"/, ` height="${Math.ceil(capH9)}"`);
+              barFillSvgU = fo.svg;
+              baseSvgU = stripBarFill(baseSvgU).svg;
+            }
+          } catch { barFillSvgU = null; barCapSvgU = null; }
+        }
         await addPng(`${uid}/base.png`, baseSvgU, {
           component: uid, part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
           usage: UNIVERSAL_USAGE[uid] ?? (GLYPH_BUTTONS.has(uid)
@@ -4269,6 +4343,18 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           ...(ringRig || buffRig ? {} : seatsU),
           ...(iconSeatsU ? { iconSeats: iconSeatsU } : {}),
         }, true, interactive || buffRig || cellRig ? uid : undefined);
+        if (barRigU && barFillSvgU && barCapSvgU) {
+          const stagedBar = Math.max(0, Math.min(1, uVal ?? ({ loadbar: 0.62, popmeter: 0.84, respawn: 0.6, buildqueue: 0.55 } as Record<string, number>)[uid] ?? 0.62));
+          await addPng(`${uid}/fill.png`, barFillSvgU, {
+            component: uid, part: "fill", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+            usage: "The mercury at 100% — the app's own dressing (gradient, gloss, glow) alone on the canvas; the prefab's Filled image scissors it to the live value and KitBarFill parks the rounded head (drive fillAmount or SetValue).",
+            ringV: stagedBar,
+          }, true);
+          await addPng(`${uid}/cap.png`, barCapSvgU, {
+            component: uid, part: "cap", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+            usage: "The mercury's rounded head — KitBarFill parks it on the value line (hides at 0, yields to the full-run bead at 100%).",
+          }, true);
+        }
         if (cellRig && litSvgU) {
           await addPng(`${uid}/lit.png`, litSvgU, {
             component: uid, part: "lit", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
@@ -10004,7 +10090,10 @@ namespace PatternBreak {
   [Serializable] class PBShellBox { public float x; public float y; public float w; public float h; }
   /* the bar family's WELL ZONE inside the sprite (round 21) — x/w in file
      px at pngScale; JsonUtility default-instances it, so gate on w > 2 */
-  [Serializable] class PBTrack { public float x; public float w; }
+  /* round 44: y/h = the optional VERTICAL band for bars off the shell
+     centerline; old rows leave them 0 (JsonUtility) and the symmetric
+     centering road runs exactly as before (gate on h > 2) */
+  [Serializable] class PBTrack { public float x; public float w; public float y; public float h; }
   /* the pass dials (owner round, field notes #3): wipeDur/edgeDur =
      seconds one PASS takes (freq only sets the rest between passes),
      wipeWidth = the band as % of the face, trigger "hover" arms the
@@ -13571,6 +13660,17 @@ namespace PatternBreak {
                 if (kbV != null) kbV.SetValue(Mathf.Clamp01(it.value));
               }
             }
+            /* the RIG-1 display bars strike the board's pose too (round 44
+               — future-proof: their board copies bake as stamps today,
+               but a live copy must land on its own value) */
+            if ((it.component == "loadbar" || it.component == "popmeter" || it.component == "respawn" || it.component == "buildqueue") && it.value > 0f) {
+              var dbT = inst.transform.Find("Fill Area/Fill");
+              var dbI = dbT != null ? dbT.GetComponent<Image>() : null;
+              if (dbI != null && dbI.type == Image.Type.Filled) {
+                var kbD = dbT.GetComponentInParent<KitBarFill>();
+                if (kbD != null) kbD.SetValue(Mathf.Clamp01(it.value)); else dbI.fillAmount = Mathf.Clamp01(it.value);
+              }
+            }
             if (it.component == "segbar" && it.value > 0f) {
               var sgT = inst.transform.Find("Lit");
               var sgI = sgT != null ? sgT.GetComponent<Image>() : null;
@@ -15686,6 +15786,21 @@ namespace PatternBreak {
           kcm.SetValue(litRowCM != null && litRowCM.ringV > 0f ? Mathf.Clamp01(litRowCM.ringV) : (famCM == "ammo" ? 1f : 0.8f));
         }
       }
+      /* ── the RIG-1 DISPLAY BARS (round 44, items 19/27/30 + buildqueue):
+         the mercury left the base — the fill atom + rounded cap ride
+         KitBarFill at the manifest's staged value (ringV on the fill
+         row); the zone (horizontal + vertical band) rides the base row's
+         data-track stamp. Old zips ship no fill atom and keep today's
+         baked look untouched. ── */
+      if (baseAsset.component == "loadbar" || baseAsset.component == "popmeter" || baseAsset.component == "respawn" || baseAsset.component == "buildqueue") {
+        var famB4 = baseAsset.component;
+        var fillB4 = S(root + "/assets/" + famB4 + "/" + famB4 + "-fill.png");
+        if (fillB4 != null) {
+          float stagedB4 = 0.62f;
+          foreach (var aF4 in m.assets) if (aF4 != null && aF4.component == famB4 && aF4.part == "fill" && aF4.ringV > 0f) { stagedB4 = Mathf.Clamp01(aF4.ringV); break; }
+          BuildBarFill(go, "Fill", fillB4, baseSp, pngScale, m, root, famB4, stagedB4, false);
+        }
+      }
       /* ── the BUFF FRAME's countdown FUNCTIONS (round 44, owner: "the
          countdown clock cannot be burned into the button shape"): with
          the sweep atoms aboard, the root wears the sweep-less PLATE
@@ -16146,16 +16261,27 @@ namespace PatternBreak {
       var rt0 = host.GetComponent<RectTransform>();
       float trackW = rt0.sizeDelta.x, trackH = rt0.sizeDelta.y;
       float fillW = fill.rect.width / pngScale, fillH = fill.rect.height / pngScale;
-      float upS = 0f; float zoneL = -1f, zoneR = -1f;
-      if (m != null && m.assets != null) foreach (var aT in m.assets) {
-        if (aT == null || aT.component != fam || aT.part != "track") continue;
-        if (aT.shell != null && aT.shell.h > 2f && track.rect.height > 1f)
-          upS = (0.5f - (aT.shell.y + aT.shell.h / 2f) / track.rect.height) * trackH;
-        if (aT.track != null && aT.track.w > 2f) {
-          zoneL = aT.track.x / pngScale;
-          zoneR = trackW - (aT.track.x + aT.track.w) / pngScale;
+      float upS = 0f; float zoneL = -1f, zoneR = -1f; float bandCy = -1f;
+      if (m != null && m.assets != null) {
+        PBAsset rowT = null;
+        foreach (var aT in m.assets) if (aT != null && aT.component == fam && aT.part == "track") { rowT = aT; break; }
+        /* round 44 (RIG-1 riders): the display bars stamp their zone on
+           the BASE row — no separate track part ships (the cell-meter
+           rule); the track row keeps winning where one exists */
+        if (rowT == null) foreach (var aT in m.assets) if (aT != null && aT.component == fam && aT.track != null && aT.track.w > 2f) { rowT = aT; break; }
+        if (rowT != null) {
+          if (rowT.shell != null && rowT.shell.h > 2f && track.rect.height > 1f)
+            upS = (0.5f - (rowT.shell.y + rowT.shell.h / 2f) / track.rect.height) * trackH;
+          if (rowT.track != null && rowT.track.w > 2f) {
+            zoneL = rowT.track.x / pngScale;
+            zoneR = trackW - (rowT.track.x + rowT.track.w) / pngScale;
+            /* the VERTICAL band (round 44): bars off the shell centerline
+               ship y/h — the fill centers ON the band (its own cropped
+               height carries the glow bleed, exactly the progress rule) */
+            if (rowT.track.h > 2f && track.rect.height > 1f)
+              bandCy = (rowT.track.y + rowT.track.h / 2f) / track.rect.height * trackH;
+          }
         }
-        break;
       }
       float inXL = zoneL >= 0f ? Mathf.Max(1f, zoneL) : Mathf.Max(2f, (trackW - fillW) * 0.5f);
       float inXR = zoneR >= 0f ? Mathf.Max(1f, zoneR) : Mathf.Max(2f, (trackW - fillW) * 0.5f);
@@ -16164,8 +16290,14 @@ namespace PatternBreak {
       area.transform.SetParent(host.transform, false);
       var art = area.GetComponent<RectTransform>();
       art.anchorMin = Vector2.zero; art.anchorMax = Vector2.one;
-      art.offsetMin = new Vector2(inXL, inY); art.offsetMax = new Vector2(-inXR, -inY);
-      art.anchoredPosition += new Vector2(0f, upS);
+      if (bandCy >= 0f) {
+        // band frame: y runs down in file px; Unity offsets run up
+        float topGap = bandCy - fillH * 0.5f, botGap = trackH - bandCy - fillH * 0.5f;
+        art.offsetMin = new Vector2(inXL, botGap); art.offsetMax = new Vector2(-inXR, -topGap);
+      } else {
+        art.offsetMin = new Vector2(inXL, inY); art.offsetMax = new Vector2(-inXR, -inY);
+        art.anchoredPosition += new Vector2(0f, upS);
+      }
       var fillGo = ImageObject(name, fill, pngScale);
       fillGo.transform.SetParent(area.transform, false);
       var fImg = fillGo.GetComponent<Image>();
@@ -20135,6 +20267,37 @@ namespace PatternBreak {
                 PrefabUtility.SaveAsPrefabAsset(contentsBC, path);
                 capRigged++;
               } finally { PrefabUtility.UnloadPrefabContents(contentsBC); }
+              continue;
+            }
+          }
+        }
+        /* the RIG-1 DISPLAY-BAR graft (round 44, items 19/27/30 +
+           buildqueue): a kept bar whose TRACKIFIED base just replaced the
+           burned bake grafts its Fill rig ON THE ARRIVAL IMPORT only
+           (the segbar Lit era rule — gated on the previous receipt not
+           knowing the fill atom). After that a deleted Fill is the
+           dev's choice and is never fought. */
+        {
+          string famDB = spritePath.EndsWith("/loadbar-base.png") ? "loadbar"
+            : spritePath.EndsWith("/popmeter-base.png") ? "popmeter"
+            : spritePath.EndsWith("/respawn-base.png") ? "respawn"
+            : spritePath.EndsWith("/buildqueue-base.png") ? "buildqueue" : null;
+          if (famDB != null && asset.transform.Find("Fill Area") == null && asset.GetComponentInChildren<KitBarFill>(true) == null) {
+            bool dbEra = true;
+            if (prevLock != null && prevLock.files != null)
+              foreach (var fPrev in prevLock.files) if (fPrev != null && fPrev.file == "assets/" + famDB + "/" + famDB + "-fill.png") { dbEra = false; break; }
+            var fillDB = dbEra ? S(root + "/assets/" + famDB + "/" + famDB + "-fill.png") : null;
+            var rootImgDB = BodyImage(asset);
+            if (fillDB != null && rootImgDB != null && rootImgDB.sprite != null
+                && AssetDatabase.GetAssetPath(rootImgDB.sprite).Replace("\\\\", "/") == root + "/assets/" + famDB + "/" + famDB + "-base.png") {
+              float stagedDB = 0.62f;
+              foreach (var aFD in m.assets) if (aFD != null && aFD.component == famDB && aFD.part == "fill" && aFD.ringV > 0f) { stagedDB = Mathf.Clamp01(aFD.ringV); break; }
+              var contentsDB = PrefabUtility.LoadPrefabContents(path);
+              try {
+                BuildBarFill(contentsDB, "Fill", fillDB, rootImgDB.sprite, m != null && m.pngScale > 0 ? m.pngScale : 2, m, root, famDB, stagedDB, false);
+                PrefabUtility.SaveAsPrefabAsset(contentsDB, path);
+                barRigged++;
+              } finally { PrefabUtility.UnloadPrefabContents(contentsDB); }
               continue;
             }
           }

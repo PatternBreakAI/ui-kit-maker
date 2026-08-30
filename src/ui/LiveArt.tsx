@@ -418,7 +418,9 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
   const trackCoord = (e: React.PointerEvent): { u: number; thirds: number } | null => {
     const el = ref.current?.querySelector("svg") as SVGSVGElement | null;
     const track = el?.getAttribute("data-track")?.split(" ").map(Number);
-    if (!el || !track || track.length !== 2 || !track[1]) return null;
+    // round 44: bar stamps may carry a vertical band (x w y h) for the
+    // export rig — the pointer math keeps reading the horizontal pair
+    if (!el || !track || track.length < 2 || !track[1]) return null;
     const r = el.getBoundingClientRect();
     if (!r.width) return null;
     const vb = el.viewBox.baseVal;

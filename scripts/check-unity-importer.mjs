@@ -344,8 +344,9 @@ if (!/addPng\("progress\/track\.9\.png", shell\("progress", \{ overlay: "track" 
   errors.push("the progress bar's assets must be the DRESSED part renders (overlay track/fill), not synthesized capsules (round 21)");
 if (!/const tzm = \/data-track=/.test(src))
   errors.push("the raster pass must capture the bar renders' data-track zone into the manifest (round 21)");
-if (!/class PBTrack \{ public float x; public float w; \}/.test(cs))
-  errors.push("PBTrack (the manifest's well-zone row) is missing from the importer (round 21)");
+// round 44 extends the zone with the optional vertical band (y/h, zero-gated)
+if (!/class PBTrack \{ public float x; public float w; public float y; public float h; \}/.test(cs))
+  errors.push("PBTrack (the manifest's well-zone row, x/w + the round-44 y/h band) is missing from the importer (round 21/44)");
 if (!/static RectTransform BuildBarFill\(/.test(cs) || !/aT\.track != null && aT\.track\.w > 2f/.test(cs))
   errors.push("the shared mercury-seat builder (BuildBarFill, manifest-zone seated) is missing (round 21)");
 if (!/BuildBarFill\(go, "Fill", fill, track, pngScale, m, root, "progress", 0\.62f, false\)/.test(cs))
@@ -2871,6 +2872,37 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
       || !/files\.push\(\{ path: "Runtime\/PatternBreakStartLights\.cs", data: START_LIGHTS_RUNTIME \}\);/.test(src)
       || !/"Runtime\/PatternBreakPageDots\.cs", "Runtime\/PatternBreakStartLights\.cs",/.test(src))
     errors.push("PatternBreakPageDots/StartLights must ride BOTH files.push AND sharedScripts (the IdleShine CS0246 lesson)");
+}
+
+/* ── ROUND 44 · S12 (RIG-1 riders batch 1 — loadbar 19 / popmeter 27 /
+   respawn 30 / buildqueue): the mercury is MARKED ink (data-barfill),
+   the base bakes trackified, and fill/cap atoms ride KitBarFill on the
+   base row's extended data-track band. ── */
+{
+  if (!/function stampTrack\(svg: string, x: number, w: number, y\?: number, h\?: number\): string/.test(bevelSrc))
+    errors.push("stampTrack lost the optional vertical band (round 44 — bars off the shell centerline need y/h)");
+  if ((bevelSrc.match(/data-barfill="/g) ?? []).length < 4)
+    errors.push("the four display bars' mercury marks (data-barfill) left bevel — the un-burn loses its ink map (round 44, items 19/27/30 + buildqueue)");
+  if (!/const nearCap = opts\.part === "fill" \? false : vP0 > 0\.9;/.test(bevelSrc))
+    errors.push("popmeter's fill atom lost its CALM gate — a red-baked run would alarm at every value (round 44, item 27)");
+  if (!/return barH9 > 0\.5 \? stampTrack\(outR9, barX9 \+ gR9, barW9 - gR9 \* 2, barY9 \+ gR9, mHR9\) : outR9;/.test(bevelSrc))
+    errors.push("respawn's conditional zone stamp left bevel — Barheight Hidden must ship no zone (round 44, item 30)");
+  if (!/function barFillOnlySvg\(/.test(src) || !/function stripBarFill\(/.test(src))
+    errors.push("the RIG-1 bar un-burn hands (barFillOnlySvg/stripBarFill) left the exporter");
+  if (!/const barRigU = uid === "loadbar" \|\| uid === "popmeter" \|\| uid === "respawn" \|\| uid === "buildqueue";/.test(src))
+    errors.push("the display-bar rig gate left the universal loop");
+  if (!/tzy \+ riseDyT/.test(src))
+    errors.push("the track band lost its riseDy correction — the zone would seat a full extrusion headroom too high (round 44 field lesson)");
+  if (!/track\?: \{ x: number; w: number; y\?: number; h\?: number \} \| null;/.test(src))
+    errors.push("AssetMeta.track lost the optional vertical band");
+  if (!/float bandCy = -1f;/.test(cs) || !/float topGap = bandCy - fillH \* 0\.5f, botGap = trackH - bandCy - fillH \* 0\.5f;/.test(cs))
+    errors.push("BuildBarFill lost the vertical-band seat (round 44) — off-centerline bars would center mid-shell");
+  if (!/if \(baseAsset\.component == "loadbar" \|\| baseAsset\.component == "popmeter" \|\| baseAsset\.component == "respawn" \|\| baseAsset\.component == "buildqueue"\)/.test(cs)
+      || !/string famDB = spritePath\.EndsWith\("\/loadbar-base\.png"\) \? "loadbar"/.test(cs))
+    errors.push("the display bars' FamilyPrefab wiring or kept-project Fill graft left the importer (round 44)");
+  const liveArtSrc = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../src/ui/LiveArt.tsx"), "utf8");
+  if (!/track\.length < 2 \|\| !track\[1\]/.test(liveArtSrc))
+    errors.push("LiveArt's track scrub must tolerate 4-number stamps (round 44) — a strict length===2 check kills pointer scrubbing on banded bars");
 }
 
 if (errors.length) {

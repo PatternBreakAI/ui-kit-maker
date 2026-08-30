@@ -4377,9 +4377,14 @@ export function addShine(svg: string, o?: { dur?: number; sweep?: number; width?
 
 /* Stamp the draggable run of a control (slider, progress, segment) onto the
    svg root in viewBox coordinates — play-mode pointer math reads it back and
-   stays exact no matter how the art is scaled or padded. */
-function stampTrack(svg: string, x: number, w: number): string {
-  return svg.replace("<svg ", `<svg data-track="${x.toFixed(1)} ${w.toFixed(1)}" `);
+   stays exact no matter how the art is scaled or padded.
+   Round 44 (RIG-1 riders): an optional VERTICAL band (y/h) joins the stamp
+   for bars that don't sit on the shell's centerline (loadbar, popmeter,
+   respawn, buildqueue — and the rails to come). Two-number stamps are
+   untouched, so every existing consumer keeps its exact bytes. */
+function stampTrack(svg: string, x: number, w: number, y?: number, h?: number): string {
+  const band = y !== undefined && h !== undefined ? ` ${y.toFixed(1)} ${h.toFixed(1)}` : "";
+  return svg.replace("<svg ", `<svg data-track="${x.toFixed(1)} ${w.toFixed(1)}${band}" `);
 }
 
 /** Per-piece overrides for the Kit page and its pattern mocks — labels,
@@ -5825,13 +5830,19 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          </linearGradient>
          <pattern id="${gidL}p" width="${(16 * k).toFixed(1)}" height="${(16 * k).toFixed(1)}" patternUnits="userSpaceOnUse" patternTransform="rotate(24)"><rect width="${(6 * k).toFixed(1)}" height="${(16 * k).toFixed(1)}" fill="#FFFFFF" opacity="0.14"/></pattern></defs>` +
         (vL0 > 0.02 ? (() => {
-          // negative-space canon: the mercury floats in the container pill
+          // negative-space canon: the mercury floats in the container pill.
+          // Round 44 (RIG-1): the WHOLE mercury (body + stripes + crest,
+          // so gloss scissors with fill) is MARKED ink — the export strips
+          // it from the base and re-renders it as the Filled fill atom;
+          // the group stamps its drawn rect for the cap window.
           const gL = 3.5 * k, mHL = barH - gL * 2, mWL = Math.max(0, (barW - gL * 2) * vL0);
-          return `<rect x="${(barX + gL).toFixed(1)}" y="${(barY + gL).toFixed(1)}" width="${mWL.toFixed(1)}" height="${mHL.toFixed(1)}" rx="${(mHL / 2).toFixed(1)}" fill="url(#${gidL})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(6 * k).toFixed(1)}px ${hexRgba(glow, 0.7)})"` : ""}/>
+          return `<g data-barfill="${(barX + gL).toFixed(1)} ${(barY + gL).toFixed(1)} ${mWL.toFixed(1)} ${mHL.toFixed(1)}"><rect x="${(barX + gL).toFixed(1)}" y="${(barY + gL).toFixed(1)}" width="${mWL.toFixed(1)}" height="${mHL.toFixed(1)}" rx="${(mHL / 2).toFixed(1)}" fill="url(#${gidL})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(6 * k).toFixed(1)}px ${hexRgba(glow, 0.7)})"` : ""}/>
           <rect x="${(barX + gL).toFixed(1)}" y="${(barY + gL).toFixed(1)}" width="${mWL.toFixed(1)}" height="${mHL.toFixed(1)}" rx="${(mHL / 2).toFixed(1)}" fill="url(#${gidL}p)"/>
-          <rect x="${(barX + gL + 5 * k).toFixed(1)}" y="${(barY + gL + 3 * k).toFixed(1)}" width="${Math.max(0, mWL - 10 * k).toFixed(1)}" height="${(mHL * 0.3).toFixed(1)}" rx="${(mHL * 0.15).toFixed(1)}" fill="#FFFFFF" opacity="0.5"/>`;
+          <rect x="${(barX + gL + 5 * k).toFixed(1)}" y="${(barY + gL + 3 * k).toFixed(1)}" width="${Math.max(0, mWL - 10 * k).toFixed(1)}" height="${(mHL * 0.3).toFixed(1)}" rx="${(mHL * 0.15).toFixed(1)}" fill="#FFFFFF" opacity="0.5"/></g>`;
         })() : "");
-      return inject(shell.replace("<svg ", '<svg data-loadbar="1" '), parts);
+      // the mercury RUN (inside the container's gap) + its vertical band —
+      // the export's Filled rig seats exactly here
+      return stampTrack(inject(shell.replace("<svg ", '<svg data-loadbar="1" '), parts), barX + 3.5 * k, barW - 7 * k, barY + 3.5 * k, barH - 7 * k);
     }
     case "setrow": {
       /* System chrome · settings row — label left, live mini-slider right.
@@ -7169,9 +7180,12 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         (barH9 > 0.5
           ? `<rect x="${barX9.toFixed(1)}" y="${barY9.toFixed(1)}" width="${barW9.toFixed(1)}" height="${barH9.toFixed(1)}" rx="${(barH9 / 2).toFixed(1)}" fill="${wellFill}"/>` +
             `<defs><linearGradient id="${gidR9}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(barC, 0.45)}"/><stop offset="1" stop-color="${darken(barC, 0.25)}"/></linearGradient></defs>` +
-            ((done ? 1 : vR9) > 0.03 && mHR9 > 0.5 ? `<rect x="${(barX9 + gR9).toFixed(1)}" y="${(barY9 + gR9).toFixed(1)}" width="${Math.max(0, (barW9 - gR9 * 2) * (done ? 1 : vR9)).toFixed(1)}" height="${mHR9.toFixed(1)}" rx="${(mHR9 / 2).toFixed(1)}" fill="url(#${gidR9})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 3px ${hexRgba(barC, 0.6)})"` : ""}/>` : "")
+            ((done ? 1 : vR9) > 0.03 && mHR9 > 0.5 ? `<g data-barfill="${(barX9 + gR9).toFixed(1)} ${(barY9 + gR9).toFixed(1)} ${Math.max(0, (barW9 - gR9 * 2) * (done ? 1 : vR9)).toFixed(1)} ${mHR9.toFixed(1)}"><rect x="${(barX9 + gR9).toFixed(1)}" y="${(barY9 + gR9).toFixed(1)}" width="${Math.max(0, (barW9 - gR9 * 2) * (done ? 1 : vR9)).toFixed(1)}" height="${mHR9.toFixed(1)}" rx="${(mHR9 / 2).toFixed(1)}" fill="url(#${gidR9})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 3px ${hexRgba(barC, 0.6)})"` : ""}/></g>` : "")
           : "");
-      return inject(shell.replace("<svg ", '<svg data-respawn="1" '), inner);
+      // round 44 (RIG-1): the drain bar's run + band — Barheight "Hidden"
+      // ships no zone (and no fill atom), exactly the app's own skip
+      const outR9 = inject(shell.replace("<svg ", '<svg data-respawn="1" '), inner);
+      return barH9 > 0.5 ? stampTrack(outR9, barX9 + gR9, barW9 - gR9 * 2, barY9 + gR9, mHR9) : outR9;
     }
     case "dmgarc": {
       /* Shooter · damage-direction arc — the crescent that says WHERE it
@@ -8249,8 +8263,8 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         infoText("×3 · 0:42", tx0 + barW9, barY9 - 14 * k, 16 * k, "end", 700) +
         `<rect x="${tx0.toFixed(1)}" y="${barY9.toFixed(1)}" width="${barW9.toFixed(1)}" height="${barH9.toFixed(1)}" rx="${(barH9 / 2).toFixed(1)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.8)}" stroke="rgba(0,0,0,0.3)" stroke-width="1"/>` +
         `<defs><linearGradient id="${gidB0}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(glow, 0.45)}"/><stop offset="1" stop-color="${darken(glow, 0.25)}"/></linearGradient></defs>` +
-        (vB0 > 0.03 ? `<rect x="${(tx0 + gB).toFixed(1)}" y="${(barY9 + gB).toFixed(1)}" width="${Math.max(0, (barW9 - gB * 2) * vB0).toFixed(1)}" height="${mH.toFixed(1)}" rx="${(mH / 2).toFixed(1)}" fill="url(#${gidB0})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 3px ${hexRgba(glow, 0.6)})"` : ""}/>` : "");
-      return inject(shell.replace("<svg ", '<svg data-buildqueue="1" '), parts);
+        (vB0 > 0.03 ? `<g data-barfill="${(tx0 + gB).toFixed(1)} ${(barY9 + gB).toFixed(1)} ${Math.max(0, (barW9 - gB * 2) * vB0).toFixed(1)} ${mH.toFixed(1)}"><rect x="${(tx0 + gB).toFixed(1)}" y="${(barY9 + gB).toFixed(1)}" width="${Math.max(0, (barW9 - gB * 2) * vB0).toFixed(1)}" height="${mH.toFixed(1)}" rx="${(mH / 2).toFixed(1)}" fill="url(#${gidB0})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 3px ${hexRgba(glow, 0.6)})"` : ""}/></g>` : "");
+      return stampTrack(inject(shell.replace("<svg ", '<svg data-buildqueue="1" '), parts), tx0 + gB, barW9 - gB * 2, barY9 + gB, mH);
     }
     case "unitplate": {
       /* Strategy · unit selection plate — portrait, name, HP, two stats.
@@ -8341,7 +8355,11 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const cy = 30 + h / 2;
       const vP0 = clamp(value ?? 0.84, 0, 1);
       const cap = parseInt(opts.max ?? "100", 10) || 100;
-      const nearCap = vP0 > 0.9;
+      /* the fill ATOM renders the full run in the CALM voice (round 44,
+         RIG-1): the Filled rig scissors a v=1 sprite, and a red-baked
+         run would alarm at every value — the near-cap warning stays an
+         app-draw behavior (runtime alarm is the disclosed follow-up) */
+      const nearCap = opts.part === "fill" ? false : vP0 > 0.9;
       const barC = nearCap ? "#FF4D5A" : glow;
       // the population glyph is marked swappable ink (owner: "editable
       // down to the icon")
@@ -8353,8 +8371,8 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const parts = usr + cnt +
         `<rect x="${barX.toFixed(1)}" y="${barY9.toFixed(1)}" width="${barW9.toFixed(1)}" height="${barH9.toFixed(1)}" rx="${(barH9 / 2).toFixed(1)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.8)}" stroke="rgba(0,0,0,0.3)" stroke-width="1"/>` +
         `<defs><linearGradient id="${gidP1}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(barC, 0.4)}"/><stop offset="1" stop-color="${darken(barC, 0.25)}"/></linearGradient></defs>` +
-        (vP0 > 0.03 ? `<rect x="${(barX + gP).toFixed(1)}" y="${(barY9 + gP).toFixed(1)}" width="${Math.max(0, (barW9 - gP * 2) * vP0).toFixed(1)}" height="${mHP.toFixed(1)}" rx="${(mHP / 2).toFixed(1)}" fill="url(#${gidP1})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 3px ${hexRgba(barC, 0.6)})"` : ""}/>` : "");
-      return inject(shell.replace("<svg ", '<svg data-popmeter="1" '), parts);
+        (vP0 > 0.03 ? `<g data-barfill="${(barX + gP).toFixed(1)} ${(barY9 + gP).toFixed(1)} ${Math.max(0, (barW9 - gP * 2) * vP0).toFixed(1)} ${mHP.toFixed(1)}"><rect x="${(barX + gP).toFixed(1)}" y="${(barY9 + gP).toFixed(1)}" width="${Math.max(0, (barW9 - gP * 2) * vP0).toFixed(1)}" height="${mHP.toFixed(1)}" rx="${(mHP / 2).toFixed(1)}" fill="url(#${gidP1})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 3px ${hexRgba(barC, 0.6)})"` : ""}/></g>` : "");
+      return stampTrack(inject(shell.replace("<svg ", '<svg data-popmeter="1" '), parts), barX + gP, barW9 - gP * 2, barY9 + gP, mHP);
     }
     case "endturn": {
       /* Strategy · end-turn button — the chunky radial: a real circular
