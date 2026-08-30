@@ -5740,13 +5740,18 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const gid9 = "sb" + UID++;
       const arrows = `<path d="M ${(tx0 - 8 * k).toFixed(1)} ${(30 + inset + 16 * k).toFixed(1)} L ${tx0.toFixed(1)} ${(30 + inset + 5 * k).toFixed(1)} L ${(tx0 + 8 * k).toFixed(1)} ${(30 + inset + 16 * k).toFixed(1)} Z" fill="rgba(255,255,255,0.5)"/>
         <path d="M ${(tx0 - 8 * k).toFixed(1)} ${(30 + h - inset - 16 * k).toFixed(1)} L ${tx0.toFixed(1)} ${(30 + h - inset - 5 * k).toFixed(1)} L ${(tx0 + 8 * k).toFixed(1)} ${(30 + h - inset - 16 * k).toFixed(1)} Z" fill="rgba(255,255,255,0.5)"/>`;
+      /* round 44 (item 32, RIG-7): the thumb is MARKED ink (capsule +
+         gloss as one group, its drawn rect stamped) so the export cuts a
+         real Scrollbar handle; the track ships thumb-suppressed as a
+         vertical nine-slice with the arrows living in the caps */
       const parts9 = `<rect x="${(tx0 - trackW / 2).toFixed(1)}" y="${ty0.toFixed(1)}" width="${trackW.toFixed(1)}" height="${th0.toFixed(1)}" rx="${(trackW / 2).toFixed(1)}" fill="${wellFill}" opacity="0.92"/>
         <defs><linearGradient id="${gid9}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${lighten(knobC, 0.5)}"/><stop offset="0.5" stop-color="${lighten(knobC, 0.75)}"/><stop offset="1" stop-color="${lighten(knobC, 0.2)}"/></linearGradient></defs>
-        <rect x="${(tx0 - trackW / 2 + 1.5).toFixed(1)}" y="${thumbY.toFixed(1)}" width="${(trackW - 3).toFixed(1)}" height="${thumbH.toFixed(1)}" rx="${((trackW - 3) / 2).toFixed(1)}" fill="url(#${gid9})" stroke="${darken(knobC, state === "pressed" ? 0.5 : 0.35)}" stroke-width="1.2"${state === "hover" ? ` style="filter: drop-shadow(0 0 ${(5 * k).toFixed(1)}px ${hexRgba(glow, 0.7)})"` : ""}/>
-        <rect x="${(tx0 - trackW * 0.16).toFixed(1)}" y="${(thumbY + 6 * k).toFixed(1)}" width="${(trackW * 0.2).toFixed(1)}" height="${(thumbH - 12 * k).toFixed(1)}" rx="${(trackW * 0.1).toFixed(1)}" fill="#FFFFFF" opacity="0.5"/>` + arrows;
+        <g data-sbthumb="${(tx0 - trackW / 2 + 1.5).toFixed(1)} ${thumbY.toFixed(1)} ${(trackW - 3).toFixed(1)} ${thumbH.toFixed(1)}"><rect x="${(tx0 - trackW / 2 + 1.5).toFixed(1)}" y="${thumbY.toFixed(1)}" width="${(trackW - 3).toFixed(1)}" height="${thumbH.toFixed(1)}" rx="${((trackW - 3) / 2).toFixed(1)}" fill="url(#${gid9})" stroke="${darken(knobC, state === "pressed" ? 0.5 : 0.35)}" stroke-width="1.2"${state === "hover" ? ` style="filter: drop-shadow(0 0 ${(5 * k).toFixed(1)}px ${hexRgba(glow, 0.7)})"` : ""}/>
+        <rect x="${(tx0 - trackW * 0.16).toFixed(1)}" y="${(thumbY + 6 * k).toFixed(1)}" width="${(trackW * 0.2).toFixed(1)}" height="${(thumbH - 12 * k).toFixed(1)}" rx="${(trackW * 0.1).toFixed(1)}" fill="#FFFFFF" opacity="0.5"/></g>` + arrows;
       // the stamped vertical run covers the thumb's travel — play mode drags
-      // the thumb along it, exact at any display scale
-      return inject(shell.replace("<svg ", `<svg data-scrollbar="1" data-vtrack="${(ty0 + thumbH / 2).toFixed(1)} ${(th0 - thumbH).toFixed(1)}" `), parts9);
+      // the thumb along it, exact at any display scale; data-sbgeo speaks
+      // the whole track rect + thumb height for the export's wiring
+      return inject(shell.replace("<svg ", `<svg data-scrollbar="1" data-vtrack="${(ty0 + thumbH / 2).toFixed(1)} ${(th0 - thumbH).toFixed(1)}" data-sbgeo="${(tx0 - trackW / 2).toFixed(1)} ${ty0.toFixed(1)} ${trackW.toFixed(1)} ${th0.toFixed(1)} ${thumbH.toFixed(1)}" `), parts9);
     }
     case "pagedots": {
       /* System chrome · pagination dots — carousel position. The active dot

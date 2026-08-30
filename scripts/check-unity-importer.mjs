@@ -2860,7 +2860,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
       || !/return PicturePrefab\(dir, root, pngScale, m, "pagedots\/pagedots-base\.png", "Pagedots", false\);/.test(cs)
       || !/return PicturePrefab\(dir, root, pngScale, m, "startlights\/startlights-base\.png", "Startlights", false\);/.test(cs))
     errors.push("a RIG-5 prefab road (or its old-zip picture fallback) left the importer (round 44)");
-  if (!/"firebutton", "pagedots", "dialog" \}/.test(cs))
+  if (!/"firebutton", "pagedots", "dialog", "scrollbar" \}/.test(cs))
     errors.push("pagedots/dialog left the family-road skip set — FamilyPrefab would double-own their prefabs (round 44)");
   if (!/var pdS = inst\.GetComponent<PatternBreakPageDots>\(\);/.test(cs) || !/var slgS = inst\.GetComponent<PatternBreakStartLights>\(\);/.test(cs))
     errors.push("the RIG-5 board-pose strikes left the importer (round 44)");
@@ -3050,6 +3050,28 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/spritePath\.EndsWith\("\/setrow-base\.png"\) \? "setrow" : null;/.test(cs)
       || !/if \(famDB == "setrow"\) WireSetrowSlider\(contentsDB, root, m, m != null && m\.pngScale > 0 \? m\.pngScale : 2\);/.test(cs))
     errors.push("the kept-project setrow graft (fill rig + Slider) left the importer (round 44, item 34)");
+}
+
+/* ── ROUND 44 · S19 (scrollbar, item 32 — RIG-7): the display strip
+   becomes a real UnityEngine.UI.Scrollbar — thumb-suppressed track.9
+   (arrows in the caps) + thumb.9, Sliding Area from the crop-normalized
+   lane, BottomToTop with the app's rest mirrored. The base row keeps
+   shipping byte-identical as the kept-projects' legacy sheet. ── */
+{
+  if (!/<g data-sbthumb="\$\{\(tx0 - trackW \/ 2 \+ 1\.5\)\.toFixed\(1\)\} \$\{thumbY\.toFixed\(1\)\}/.test(bevelSrc)
+      || !/data-sbgeo="\$\{\(tx0 - trackW \/ 2\)\.toFixed\(1\)\} \$\{ty0\.toFixed\(1\)\} \$\{trackW\.toFixed\(1\)\} \$\{th0\.toFixed\(1\)\} \$\{thumbH\.toFixed\(1\)\}"/.test(bevelSrc))
+    errors.push("the scrollbar's thumb mark or geometry stamp left bevel — the wired road can't cut (round 44, item 32)");
+  if (!/querySelectorAll\("\[data-sbthumb\]"\)/.test(src) || !/await addPng\(`\$\{uid\}\/track\.9\.png`, trackSvgB, \{/.test(src) || !/await addPng\(`\$\{uid\}\/thumb\.9\.png`, thumbSvgB, \{/.test(src))
+    errors.push("the scrollbar track/thumb emission left the exporter (round 44, item 32)");
+  if (!/static bool ScrollbarPrefab\(string dir, string root, int pngScale, PBManifest m\)/.test(cs)
+      || !/if \(ScrollbarPrefab\(dir, root, pngScale, m\)\) any = true;/.test(cs))
+    errors.push("ScrollbarPrefab (or its build call) left the importer — the strip ships display-only again (round 44, item 32)");
+  if (!/bar\.direction = Scrollbar\.Direction\.BottomToTop;/.test(cs) || !/bar\.value = 1f - restSB;/.test(cs))
+    errors.push("the Scrollbar lost its direction or the top-measured rest mirror (round 44, item 32)");
+  if (!/static void HealScrollbar\(string root, PBManifest m\)/.test(cs) || !/HealScrollbar\(root, manifest\);/.test(cs))
+    errors.push("the kept-project Scrollbar heal left the importer — display-era prefabs would never upgrade (round 44, item 32)");
+  if (!/if \(it\.component == "scrollbar" && it\.value > 0f\)/.test(cs) || !/sbB9\.value = 1f - Mathf\.Clamp01\(it\.value\);/.test(cs))
+    errors.push("scrollbar left the board value strike (round 44, item 32)");
 }
 
 if (errors.length) {

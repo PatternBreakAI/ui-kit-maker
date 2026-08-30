@@ -4247,7 +4247,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         loadbar: "Loading bar — LIVE: caption and percent are seats and the mercury is a Filled fill with the rounded head riding the value line (drive Fill's fillAmount or KitBarFill.SetValue). Display piece.",
         setrow: "Settings row — a WORKING control: the mini-slider is a real Unity Slider (drag the candy knob or set Slider.value; the Filled mercury and rounded head follow). The row label and value readout are LIVE seats — the readout is not wired to the slider, hook it to Slider.onValueChanged or retype it.",
         listmenu: "List menu — four rows: every row glyph is a LIVE Image child and every word a LIVE seat; the highlight bar bakes on the staged row. Display piece: wire per-row buttons over it.",
-        scrollbar: "Scrollbar — vertical strip, sunken track, candy thumb baked at the staged position. Display piece; pair with your own ScrollRect (the ScrollView prefab shows the wiring).",
+        scrollbar: "LEGACY SHEET (kept projects) — the flat strip with the thumb baked. The REAL road is the wired Scrollbar prefab: scrollbar-track.9 + scrollbar-thumb.9 with a genuine UnityEngine.UI.Scrollbar (drive Scrollbar.value; pair with your ScrollRect).",
         steps: "Step indicator — wizard pips; the step numbers are LIVE seats. Display piece.",
         pagedots: "Page dots — DRIVABLE (round 44): the PageDots prefab deals the strip live from pagedots-dot/knob at the kit's own pitch (PatternBreakPageDots — SetPage/SetCount, or SetValue 0..1). This baked sheet stays for older scenes and board stamps.",
         questpanel: "Quest tracker — eyebrow, title, objectives and counts are LIVE seats (title is the live Label, pinned left like the app draws it). Every objective pip is a LIVE Image child — swap it between the shipped pip-done / pip-active / pip-empty looks to toggle a row. The footer mercury is a Filled fill that snaps to WHOLE objectives (drive Fill's fillAmount or KitBarFill.SetValue; snapSteps 3). The 1/3 and 2/3 count words are seats, not wired to the bar — retype them to match your value. Display piece.",
@@ -4652,6 +4652,66 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
               }, false);
             }
           } catch { /* the seats above still ship */ }
+        }
+        /* ── the SCROLLBAR goes to Unity WIRED (round 44, item 32 —
+           RIG-7): scrollbar-track.9 (thumb-suppressed, vertical slice,
+           arrows in the caps) + scrollbar-thumb.9 for a real
+           UnityEngine.UI.Scrollbar. The base row keeps shipping
+           BYTE-IDENTICAL as the kept-projects' legacy sheet (the
+           stale-joystick lesson: never orphan a kept prefab's sprite). ── */
+        if (uid === "scrollbar") {
+          try {
+            const svB = stripLoopsU(shell(uid, uOpts, undefined, uVal));
+            const geoB = /data-sbgeo="([-\d. ]+)"/.exec(svB)?.[1].split(" ").map(Number);
+            const shDB = (/data-shell="([-\d. ]+)"/.exec(svB) ?? /data-shell0="([-\d. ]+)"/.exec(svB))?.[1].split(" ").map(Number);
+            const sh0B = /data-shell0="([-\d. ]+)"/.exec(svB)?.[1].split(" ").map(Number);
+            const riseB = shDB && sh0B && shDB.length === 4 && sh0B.length === 4 ? shDB[1] - sh0B[1] : 0;
+            if (geoB && geoB.length === 5 && geoB.every(Number.isFinite) && shDB && shDB.length === 4) {
+              const [zxB, zyB, zwB, zhB, thHB] = geoB;
+              // TRACK: strip the marked thumb; the lane rides a data-track
+              // stamp so the crop-normalizing parse seats it exactly
+              const domT = new DOMParser().parseFromString(svB, "image/svg+xml");
+              for (const g9 of Array.from(domT.querySelectorAll("[data-sbthumb]"))) g9.remove();
+              let trackSvgB = new XMLSerializer().serializeToString(domT.documentElement);
+              trackSvgB = trackSvgB.replace("<svg ", `<svg data-track="${zxB.toFixed(1)} ${zwB.toFixed(1)} ${zyB.toFixed(1)} ${zhB.toFixed(1)}" `);
+              const capT = Math.round((zyB + zwB / 2 + 6 - 30 + 10) * PNG_SCALE);
+              const capLR = Math.round((shDB[2] * 0.45 + 10) * PNG_SCALE);
+              /* the queue MEASURES slice caps and would stop them mid-
+                 arrow — the sliceMin floor (the dropdown-caret precedent)
+                 keeps the whole arrow zone + lane end inside the caps */
+              await addPng(`${uid}/track.9.png`, trackSvgB, {
+                component: uid, part: "track", nineSlice: { left: capLR, right: capLR, top: capT, bottom: capT }, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+                usage: "Vertical scrollbar track in the kit's own chrome — arrows live in the caps. Stretch vertically; the wired Scrollbar prefab rides it.",
+              }, true, undefined, { sliceMin: { top: capT, bottom: capT } });
+              // THUMB: the marked cut on its stamped frame (+pad), sliced
+              // so the handle stretches with Scrollbar.size honestly
+              const domH = new DOMParser().parseFromString(svB, "image/svg+xml");
+              const keepH = domH.querySelector("[data-sbthumb]");
+              if (keepH) {
+                for (const el of Array.from(domH.querySelectorAll(ICON_DRAWABLE_SEL)))
+                  if (!el.closest("defs") && !keepH.contains(el)) el.remove();
+                const padH = 5;
+                const bxH = zxB + 1.5 - padH, byH = zyB + (zhB - thHB) * Math.max(0, Math.min(1, uVal ?? 0.3)) + riseB - padH;
+                const bwH = zwB - 3 + padH * 2, bhH = thHB + padH * 2;
+                const thumbSvgB = new XMLSerializer().serializeToString(domH.documentElement)
+                  .replace(/viewBox="[^"]+"/, `viewBox="${bxH.toFixed(1)} ${byH.toFixed(1)} ${bwH.toFixed(1)} ${bhH.toFixed(1)}"`)
+                  .replace(/ width="[\d.]+"/, ` width="${Math.ceil(bwH)}"`)
+                  .replace(/ height="[\d.]+"/, ` height="${Math.ceil(bhH)}"`);
+                const capTh = Math.round(((zwB - 3) / 2 + padH + 2) * PNG_SCALE);
+                const capThLR = Math.round(((zwB - 3) * 0.45 + padH) * PNG_SCALE);
+                await addPng(`${uid}/thumb.9.png`, thumbSvgB, {
+                  component: uid, part: "thumb", nineSlice: { left: capThLR, right: capThLR, top: capTh, bottom: capTh }, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+                  usage: "The candy thumb — the Scrollbar's Handle (generated wiring; Scrollbar.size stretches it along the lane).",
+                  // rest value + travel geometry for the wiring: ringV =
+                  // the app's rest (measured from the TOP), railW = the
+                  // lane's run, railH = the thumb's own height (design px)
+                  ringV: Math.max(0.005, Math.min(1, uVal ?? 0.3)), railW: Math.round(zhB * 10) / 10, railH: Math.round(thHB * 10) / 10,
+                  // the floor keeps the gloss stripe's rounded ends inside
+                  // the caps — the stretch zone stays truly uniform
+                }, false, undefined, { sliceMin: { top: capTh, bottom: capTh } });
+              }
+            }
+          } catch { /* the legacy sheet still ships */ }
         }
         if (cellRig && litSvgU) {
           await addPng(`${uid}/lit.png`, litSvgU, {
@@ -11367,7 +11427,7 @@ namespace PatternBreak {
       // missing state wiring is added, stale label dress is re-applied —
       // in place, surgical, no menu hunt (fresh generations are current
       // by construction and skip this)
-      if (prefabsReady && !prefabsNew) { MaintainExamplePrefabs(root, manifest, prev); GenerateMissingPrefabs(root, manifest, prev); HealScrollView(root, manifest); }
+      if (prefabsReady && !prefabsNew) { MaintainExamplePrefabs(root, manifest, prev); GenerateMissingPrefabs(root, manifest, prev); HealScrollView(root, manifest); HealScrollbar(root, manifest); }
       /* the renamed files' short-named twins go LAST — the maintenance
          pass above has re-pointed every prefab reference off them */
       foreach (var twin in renameTwins) AssetDatabase.DeleteAsset(root + "/" + twin);
@@ -13983,6 +14043,12 @@ namespace PatternBreak {
               // writes fillAmount and the rig's follow re-parks the bead
               var slS9 = inst.GetComponentInChildren<Slider>(true);
               if (slS9 != null) slS9.value = Mathf.Clamp01(it.value);
+            }
+            if (it.component == "scrollbar" && it.value > 0f) {
+              // the app measures the thumb from the top; BottomToTop
+              // measures from the bottom — mirror the pose
+              var sbB9 = inst.GetComponentInChildren<Scrollbar>(true);
+              if (sbB9 != null) sbB9.value = 1f - Mathf.Clamp01(it.value);
             }
             if (it.component == "partyframe" && it.value > 0f) {
               // the board's value drives HP (the app's rule); MP
@@ -19725,6 +19791,80 @@ namespace PatternBreak {
       UnityEngine.Object.DestroyImmediate(go);
       return true;
     }
+    /* the STANDALONE SCROLLBAR goes wired (round 44, item 32 — RIG-7):
+       the ScrollView's bar block, freed — track.9 (thumb-suppressed, the
+       kit's own arrows in the caps) + thumb.9 + a real Scrollbar
+       (BottomToTop, the kit's pixels in every state). Sliding Area
+       insets come from the track row's crop-normalized lane; size and
+       rest come from the thumb row's geometry. */
+    static bool ScrollbarPrefab(string dir, string root, int pngScale, PBManifest m) {
+      var trackSB = S(root + "/assets/scrollbar/scrollbar-track.9.png");
+      var thumbSB = S(root + "/assets/scrollbar/scrollbar-thumb.9.png");
+      if (trackSB == null || thumbSB == null) return false;
+      float psB = pngScale > 0 ? pngScale : 2f;
+      PBAsset rowTB = null, rowHB = null;
+      foreach (var aB in m.assets) { if (aB == null || aB.component != "scrollbar") continue; if (aB.part == "track") rowTB = aB; if (aB.part == "thumb") rowHB = aB; }
+      var go = ImageObject("Scrollbar", trackSB, pngScale);
+      go.GetComponent<Image>().type = Image.Type.Sliced;
+      var bar = go.AddComponent<Scrollbar>();
+      var slideB = new GameObject("Sliding Area", typeof(RectTransform));
+      slideB.transform.SetParent(go.transform, false);
+      var srtB = slideB.GetComponent<RectTransform>();
+      srtB.anchorMin = Vector2.zero; srtB.anchorMax = Vector2.one;
+      float inL = 4f, inR = 4f, inT = 10f, inB = 10f;
+      if (rowTB != null && rowTB.track != null && rowTB.track.w > 2f && trackSB.rect.width > 2f && trackSB.rect.height > 2f) {
+        inL = rowTB.track.x / psB;
+        inR = (trackSB.rect.width - rowTB.track.x - rowTB.track.w) / psB;
+        inT = rowTB.track.y / psB;
+        inB = (trackSB.rect.height - rowTB.track.y - rowTB.track.h) / psB;
+      }
+      srtB.offsetMin = new Vector2(inL, inB); srtB.offsetMax = new Vector2(-inR, -inT);
+      var hdB = ImageObject("Handle", thumbSB, pngScale);
+      hdB.transform.SetParent(slideB.transform, false);
+      var hiB = hdB.GetComponent<Image>();
+      hiB.type = Image.Type.Sliced;
+      var hrtB = hdB.GetComponent<RectTransform>();
+      hrtB.anchorMin = Vector2.zero; hrtB.anchorMax = Vector2.one;
+      hrtB.offsetMin = Vector2.zero; hrtB.offsetMax = Vector2.zero;
+      bar.handleRect = hrtB;
+      bar.targetGraphic = hiB;
+      bar.direction = Scrollbar.Direction.BottomToTop;
+      float restSB = rowHB != null && rowHB.ringV > 0f ? Mathf.Clamp01(rowHB.ringV) : 0.3f;
+      bar.size = rowHB != null && rowHB.railW > 2f && rowHB.railH > 1f ? Mathf.Clamp01(rowHB.railH / rowHB.railW) : 0.32f;
+      bar.value = 1f - restSB; // the app measures from the top; BottomToTop from the bottom
+      // the kit's pixels in EVERY state (the ScrollView handle's manners)
+      bar.transition = Selectable.Transition.ColorTint;
+      var hbB = bar.colors;
+      hbB.normalColor = Color.white;
+      hbB.highlightedColor = Color.white;
+      hbB.selectedColor = Color.white;
+      hbB.pressedColor = new Color(0.86f, 0.86f, 0.86f, 1f);
+      hbB.disabledColor = new Color(1f, 1f, 1f, 0.45f);
+      hbB.colorMultiplier = 1f;
+      bar.colors = hbB;
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/Scrollbar.prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
+    /* round 44 (item 32): a kept project's Scrollbar.prefab from the
+       display era is a bare Image wearing scrollbar-base.png — ours
+       beyond doubt when it carries no Scrollbar component and no
+       children. Rebuild it wired; a prefab the dev reshaped is theirs
+       (Regenerate stays the explicit escape hatch). */
+    static void HealScrollbar(string root, PBManifest m) {
+      var pathSB = root + "/Prefabs/Scrollbar.prefab";
+      var assetSB = AssetDatabase.LoadAssetAtPath<GameObject>(pathSB);
+      if (assetSB == null) return;
+      if (assetSB.GetComponent<Scrollbar>() != null) return; // already wired
+      if (assetSB.transform.childCount != 0) return;         // reshaped: theirs
+      var imgSB = assetSB.GetComponent<Image>();
+      if (imgSB == null || imgSB.sprite == null) return;
+      if (!AssetDatabase.GetAssetPath(imgSB.sprite).Replace("\\\\", "/").EndsWith("/assets/scrollbar/scrollbar-base.png")) return;
+      if (S(root + "/assets/scrollbar/scrollbar-track.9.png") == null || S(root + "/assets/scrollbar/scrollbar-thumb.9.png") == null) return;
+      AssetDatabase.DeleteAsset(pathSB);
+      if (ScrollbarPrefab(root + "/Prefabs", root, m != null && m.pngScale > 0 ? m.pngScale : 2, m))
+        Debug.Log("UI Kit Maker: Scrollbar.prefab upgraded to a wired Unity Scrollbar (it was the display strip). Placed instances update with the prefab; the old sheet stays in assets/scrollbar/.");
+    }
     /* round 26: a ScrollView born with the SLIVER bar re-seats in place on
        the next import — but only when it still wears OUR generation
        constants beyond doubt (bar width 22, x -10) and its Content is
@@ -19998,6 +20138,7 @@ namespace PatternBreak {
       if (SwitchPrefab(dir, root, pngScale, m)) any = true;
       if (FireButtonPrefab(dir, root, pngScale, m)) any = true;
       if (ScrollViewPrefab(dir, root, pngScale, m)) any = true;
+      if (ScrollbarPrefab(dir, root, pngScale, m)) any = true;
       /* the BONES set: board-placeable display pieces from the skip set,
          shipped as simple prefabs (owner: "the bones to customize") —
          each carries a README note naming what a dev swaps */
@@ -20060,7 +20201,7 @@ namespace PatternBreak {
          but they don't make useful drag-in prefabs (owner) */
       /* firebutton joined the composed rigs: FireButtonPrefab builds the
          wired swipe carousel, so the generic base-sprite prefab bows out */
-      var skip = new HashSet<string> { "progress", "slider", "toggle", "segbar", "fx", "icons", "dropdown", "rarityframe", "loottag", "speedo", "speedo2", "circuit", "startlights", "laptimes", "leaderboard", "telemetry", "joystick", "globe", "seasontrack", "extras", "firebutton", "pagedots", "dialog" };
+      var skip = new HashSet<string> { "progress", "slider", "toggle", "segbar", "fx", "icons", "dropdown", "rarityframe", "loottag", "speedo", "speedo2", "circuit", "startlights", "laptimes", "leaderboard", "telemetry", "joystick", "globe", "seasontrack", "extras", "firebutton", "pagedots", "dialog", "scrollbar" };
       /* the GLYPH RACK gets its own shelf (owner call: ~40 Glyph* prefabs
          drowned Prefabs/) — Prefabs/Glyphs/, the BigGlyphs pattern.
          Glyphs STAY prefabs (drag-drop convenience; they'll gain states
