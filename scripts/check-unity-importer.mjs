@@ -3341,6 +3341,28 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("cooldown left the board value strike (round 46, R1)");
 }
 
+/* ── ROUND 46 · R2 (the definitive animation answer): attention pulse +
+   glow cycle ship as working behaviors (the app's own contract — 5%·mag
+   @1.26s; 2→14px / 25→85% @1.98s in the kit's Glow), and the QuickStart
+   carries the canonical "Driving the animations" section. ── */
+{
+  if (!/const ATTENTION_PULSE_RUNTIME = `using UnityEngine;/.test(src)
+      || !/files\.push\(\{ path: "Runtime\/PatternBreakAttentionPulse\.cs", data: ATTENTION_PULSE_RUNTIME \}\);/.test(src)
+      || !/"Runtime\/PatternBreakAttentionPulse\.cs",/.test(src))
+    errors.push("AttentionPulse's runtime or its registration (files + sharedScripts BOTH — the law) left the exporter (round 46, R2)");
+  if (!/const GLOW_CYCLE_RUNTIME = `using UnityEngine;/.test(src)
+      || !/files\.push\(\{ path: "Runtime\/PatternBreakGlowCycle\.cs", data: GLOW_CYCLE_RUNTIME \}\);/.test(src)
+      || !/"Runtime\/PatternBreakGlowCycle\.cs",/.test(src))
+    errors.push("GlowCycle's runtime or its registration (files + sharedScripts BOTH — the law) left the exporter (round 46, R2)");
+  if (!/public float period = 1\.26f;/.test(src) || !/1f \+ 0\.05f \* magnitude \* u;/.test(src))
+    errors.push("the attention pulse lost the app's contract (5%·magnitude, 1.26s) (round 46, R2)");
+  if (!/public float period = 1\.98f;/.test(src) || !/public float padMin = 2f;/.test(src) || !/public float padMax = 14f;/.test(src))
+    errors.push("the glow cycle lost the app's contract (2→14px, 1.98s) (round 46, R2)");
+  if (!/## Driving the animations/.test(src)
+      || !/PatternBreakAttentionPulse\*\* — the app's "attention pulse" Motion/.test(src))
+    errors.push("the QuickStart's 'Driving the animations' section is gone — the definitive answer stops shipping (round 46, R2)");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);

@@ -6586,6 +6586,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Runtime/PatternBreakWeaponWheel.cs", data: WEAPON_WHEEL_RUNTIME });
   files.push({ path: "Runtime/PatternBreakSpinner.cs", data: SPINNER_RUNTIME });
   files.push({ path: "Runtime/PatternBreakCooldown.cs", data: COOLDOWN_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakAttentionPulse.cs", data: ATTENTION_PULSE_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakGlowCycle.cs", data: GLOW_CYCLE_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitTrace.cs", data: KIT_TRACE_RUNTIME });
   files.push({ path: "Runtime/PatternBreakSafeArea.cs", data: SAFE_AREA_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitPiece.cs", data: KIT_PIECE_RUNTIME });
@@ -6672,6 +6674,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     "Runtime/PatternBreakWeaponWheel.cs",
     "Runtime/PatternBreakSpinner.cs",
     "Runtime/PatternBreakCooldown.cs",
+    "Runtime/PatternBreakAttentionPulse.cs",
+    "Runtime/PatternBreakGlowCycle.cs",
     "Runtime/PatternBreakKitTrace.cs",
     "Runtime/PatternBreakSafeArea.cs",
     "Runtime/PatternBreakKitPiece.cs",
@@ -7999,6 +8003,158 @@ namespace PatternBreak {
       rt.localRotation = r0 * Quaternion.Euler(0f, 0f, ang);
       if (f >= 1f) { rt.localScale = s0; rt.localRotation = r0; t = -1f; }
     }
+  }
+}
+`;
+
+/* the ATTENTION PULSE (round 46, R2 — the app's Motion card, shipped):
+   a looping uniform scale breath — 1 → 1 + 0.05·magnitude → 1 over
+   1.26 s, ease-in-out, exactly the kit page's own keyframes. Add it to
+   any piece (Add Component → UI Kit Maker → Attention Pulse); Stop()
+   rests at the base scale. Plays in Play mode. */
+const ATTENTION_PULSE_RUNTIME = `using UnityEngine;
+
+namespace PatternBreak {
+  [AddComponentMenu("UI Kit Maker/Attention Pulse")]
+  public class PatternBreakAttentionPulse : MonoBehaviour {
+    [Tooltip("Breath size — 1 breathes 5% (the app's magnitude dial; 2 breathes 10%).")]
+    public float magnitude = 1f;
+    [Tooltip("One breath in seconds — the app's card runs 1.26s.")]
+    public float period = 1.26f;
+    [Tooltip("Untick (or Stop()) to rest at the base scale.")]
+    public bool playing = true;
+    Vector3 s0; bool had;
+    public void Play() { playing = true; }
+    public void Stop() { playing = false; }
+    void OnEnable() { s0 = transform.localScale; had = true; }
+    void OnDisable() { if (had) transform.localScale = s0; }
+    void Update() {
+      if (!Application.isPlaying || !had) return;
+      if (!playing) { if (transform.localScale != s0) transform.localScale = s0; return; }
+      // raised-cosine breath == the app's ease-in-out ping-pong
+      float u = 0.5f - 0.5f * Mathf.Cos(Time.unscaledTime * Mathf.PI * 2f / Mathf.Max(0.1f, period));
+      float s = 1f + 0.05f * magnitude * u;
+      transform.localScale = new Vector3(s0.x * s, s0.y * s, s0.z);
+    }
+  }
+}
+`;
+
+/* the GLOW CYCLE (round 46, R2 — the app's Motion card, shipped): an
+   outer-glow ping-pong — the halo swells 2 → 14 px and 25 → 85 %
+   opacity over 1.98 s in the KIT'S GLOW color (the app demo's fixed
+   cyan was a demo-only shortcut; the shipped behavior themes with the
+   kit). The halo is runtime decor on the StateFx chassis: DontSave,
+   layout-exempt, behind the art — child-first when the piece wears the
+   Body structure, a mirrored sibling behind it otherwise, so it works
+   on ANY piece. Editor Reset() finds fx-glow and the kit's Glow from
+   the manifest so Add Component just works. */
+const GLOW_CYCLE_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+
+namespace PatternBreak {
+  [AddComponentMenu("UI Kit Maker/Glow Cycle")]
+  [RequireComponent(typeof(RectTransform))]
+  public class PatternBreakGlowCycle : MonoBehaviour {
+    [Tooltip("The aura sprite — fx/fx-glow.png (Reset finds it; any soft radial works).")]
+    public Sprite glowSprite;
+    [Tooltip("The glow ink — the kit's Glow role (Reset reads it from kit-manifest.json).")]
+    public Color glowColor = new Color(0.63f, 0.94f, 1f);
+    [Tooltip("Halo overhang at the SMALL end of the cycle, UI units — the app's 2px.")]
+    public float padMin = 2f;
+    [Tooltip("Halo overhang at the LARGE end — the app's 14px.")]
+    public float padMax = 14f;
+    [Tooltip("Opacity at the small end — the app's 25%.")]
+    [Range(0f, 1f)] public float alphaMin = 0.25f;
+    [Tooltip("Opacity at the large end — the app's 85%.")]
+    [Range(0f, 1f)] public float alphaMax = 0.85f;
+    [Tooltip("One full swell-and-settle in seconds — the app's card runs 1.98s.")]
+    public float period = 1.98f;
+    [Tooltip("Untick (or Stop()) to fade the halo out.")]
+    public bool playing = true;
+    RectTransform rt, halo;
+    Image haloImg;
+    bool haloIsChild;
+    public void Play() { playing = true; }
+    public void Stop() { playing = false; }
+    void OnEnable() { rt = (RectTransform)transform; }
+    void OnDisable() { if (halo != null) { if (Application.isPlaying) Destroy(halo.gameObject); else DestroyImmediate(halo.gameObject); halo = null; haloImg = null; } }
+    void BuildHalo() {
+      if (halo != null || glowSprite == null) return;
+      var go = new GameObject(name + " Glow Cycle Halo", typeof(RectTransform), typeof(CanvasRenderer), typeof(LayoutElement), typeof(Image));
+      go.hideFlags = HideFlags.DontSave;
+      go.GetComponent<LayoutElement>().ignoreLayout = true; // decor, never a layout cell
+      halo = go.GetComponent<RectTransform>();
+      haloImg = go.GetComponent<Image>();
+      haloImg.sprite = glowSprite;
+      haloImg.raycastTarget = false;
+      haloImg.color = new Color(glowColor.r, glowColor.g, glowColor.b, 0f);
+      /* behind the art: pieces with the Body structure (or a bare root)
+         take the halo as FIRST CHILD (native riding); a root that draws
+         its own sprite would paint a child halo OVER the art, so the
+         halo mirrors it as a SIBLING just behind instead. */
+      var img0 = GetComponent<Image>();
+      bool rootDraws = img0 != null && img0.sprite != null && img0.color.a >= 0.05f;
+      if (!rootDraws || transform.parent == null) {
+        halo.SetParent(rt, false);
+        halo.SetAsFirstSibling();
+        haloIsChild = true;
+      } else {
+        halo.SetParent(transform.parent, false);
+        halo.SetSiblingIndex(transform.GetSiblingIndex());
+        haloIsChild = false;
+      }
+    }
+    void MirrorHost(float pad) {
+      if (halo == null) return;
+      if (haloIsChild) {
+        if (halo.anchorMin != Vector2.zero) halo.anchorMin = Vector2.zero;
+        if (halo.anchorMax != Vector2.one) halo.anchorMax = Vector2.one;
+        var off = new Vector2(pad, pad);
+        if (halo.offsetMin != -off) halo.offsetMin = -off;
+        if (halo.offsetMax != off) halo.offsetMax = off;
+      } else {
+        if (halo.anchorMin != rt.anchorMin) halo.anchorMin = rt.anchorMin;
+        if (halo.anchorMax != rt.anchorMax) halo.anchorMax = rt.anchorMax;
+        if (halo.pivot != rt.pivot) halo.pivot = rt.pivot;
+        if (halo.anchoredPosition != rt.anchoredPosition) halo.anchoredPosition = rt.anchoredPosition;
+        if (halo.localScale != rt.localScale) halo.localScale = rt.localScale;
+        var size = rt.sizeDelta + new Vector2(pad, pad) * 2f;
+        if (halo.sizeDelta != size) halo.sizeDelta = size;
+        int want = Mathf.Max(0, transform.GetSiblingIndex() - 1) + 1;
+        if (halo.GetSiblingIndex() != want - 1) halo.SetSiblingIndex(want - 1);
+      }
+    }
+    void Update() {
+      if (!Application.isPlaying) return;
+      if (halo == null) { BuildHalo(); if (halo == null) return; }
+      float u = playing ? 0.5f - 0.5f * Mathf.Cos(Time.unscaledTime * Mathf.PI * 2f / Mathf.Max(0.1f, period)) : 0f;
+      float a = playing ? Mathf.Lerp(alphaMin, alphaMax, u) : Mathf.MoveTowards(haloImg.color.a, 0f, Time.unscaledDeltaTime * 3f);
+      var c = new Color(glowColor.r, glowColor.g, glowColor.b, a);
+      if (haloImg.color != c) haloImg.color = c;
+      MirrorHost(Mathf.Lerp(padMin, padMax, u));
+    }
+#if UNITY_EDITOR
+    /* Add Component just works: find the kit's aura sprite and Glow ink */
+    void Reset() {
+      if (glowSprite == null)
+        foreach (var g in UnityEditor.AssetDatabase.FindAssets("fx-glow t:Sprite")) {
+          var sp = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>(UnityEditor.AssetDatabase.GUIDToAssetPath(g));
+          if (sp != null) { glowSprite = sp; break; }
+        }
+      foreach (var g in UnityEditor.AssetDatabase.FindAssets("kit-manifest t:TextAsset")) {
+        var ta = UnityEditor.AssetDatabase.LoadAssetAtPath<TextAsset>(UnityEditor.AssetDatabase.GUIDToAssetPath(g));
+        if (ta == null) continue;
+        var mIdx = ta.text.IndexOf("\\"glow\\"");
+        if (mIdx < 0) continue;
+        var hIdx = ta.text.IndexOf('#', mIdx);
+        if (hIdx > 0 && hIdx + 7 <= ta.text.Length) {
+          Color c9;
+          if (ColorUtility.TryParseHtmlString(ta.text.Substring(hIdx, 7), out c9)) { glowColor = c9; break; }
+        }
+      }
+    }
+#endif
   }
 }
 `;
@@ -10488,6 +10644,61 @@ ${hasBoards ? `
 > and reopen — Unity re-extracts it clean. If the warning returns, run
 > **Tools > PatternBreak > Audit Immutable Packages** and send us the
 > Console lines it prints — they name the exact file and the writer.
+
+## Driving the animations
+
+Every motion the kit ships is a NAMED PatternBreak component with public
+fields and methods — no animation clips to hunt for, no magic strings.
+Select a piece and read its Inspector; every dial has a tooltip. There
+are three lanes:
+
+**1 · Always-on and state motion — already wired.** These arrive on the
+generated prefabs per your kit's own dials; there is nothing to call.
+
+- **StateFx** — hover glow, press lift/sink, disabled travel on every
+  pressable piece. Numbers come straight from the kit's state dials;
+  tune \`fade\`, the per-state \`*Glow\`/\`*Lift\` fields, or delete it.
+- **WipeShine / EdgeShine** — the idle shimmer and edge spark, attached
+  when your kit's Idle dials are on (per-piece forks honored). They loop
+  by themselves; both are removable components.
+
+**2 · Value-driven rigs — the motion IS the value.** Drive ONE number
+(tween it, lerp it, set it every frame) and the piece animates exactly
+like the app: fills scissor, caps ride the value line, cells snap whole,
+looks swap. All of them expose \`SetValue(float 0..1)\` (plus their own
+richer verbs) and work in the Inspector, from code, and under board
+poses.
+
+- Bars & rings: **KitRingFill**, **KitBarFill**, **KitCellMeter**,
+  **KitBuffSweep** (time remaining), **PatternBreakStopwatch**
+  (\`SetSeconds\` on the 90s dial, alarm mood under 25%),
+  **PatternBreakCooldown** (\`SetSeconds\` on the 6s dial).
+- Counts & picks: **KitStepper** (\`StepUp/StepDown\`), **KitSteps**
+  (\`SetStep\`), **PatternBreakPageDots** (\`SetPage/SetCount\`),
+  **PatternBreakStartLights** (\`SetCount\` — count 5 down to 0),
+  **PatternBreakStarRating** (\`SetStars 0..3\`),
+  **PatternBreakEmoteWheel** (\`SetSector\`),
+  **PatternBreakWeaponWheel** (\`ArmChamber(i)\` spins the cylinder),
+  **PatternBreakPathConnector** (\`SetProgress\`), **StreakIgnite**
+  (drive to 1 and the glyph ignites and pulses), **SeasonTrack**
+  (\`SetProgress(tier, toNext)\`), **GaugeDial**, **KitTimer**.
+
+**3 · On-demand celebrations and loops — one call.**
+
+- **ComboPop** — \`Pop()\` on every multiplier tick (clicking the piece
+  in Play mode fires it too). The app's exact squash-overshoot-settle.
+- **ClaimBurst** — \`Fire()\` throws the themed spark celebration
+  (claim-worded pieces arrive with it wired to the click).
+- **PatternBreakSpinner** — spins by itself in Play mode;
+  \`SetSpinning(false)\` freezes it.
+- **PatternBreakAttentionPulse** — the app's "attention pulse" Motion
+  card as a real behavior: add it to ANY piece (Add Component > UI Kit
+  Maker > Attention Pulse) and it breathes 5% x \`magnitude\` every
+  1.26s; \`Play()/Stop()\`.
+- **PatternBreakGlowCycle** — the app's "glow cycle": an outer-glow
+  swell 2-14px at 25-85% opacity every 1.98s, in YOUR kit's Glow color
+  (Add Component finds the aura sprite and the manifest ink by itself);
+  \`Play()/Stop()\`.
 
 ---
 
