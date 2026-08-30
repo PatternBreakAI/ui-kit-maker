@@ -1036,7 +1036,12 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
 .kp-node .gp-piece { margin: -6px -6px 0; }
 /* v57: the pulse centers on the MEASURED badge shell (useShellRail sets
    --node-cy per node) — no more ring floating above the icon */
-.kp-node.sel .kp-ringpulse { inset: auto; top: calc(var(--node-cy, 46px) - 46px); left: 50%; width: 92px; height: 92px; margin-left: -46px; }
+/* the current-waypoint ring CENTERS ON THE BADGE: measured shell center
+   (--node-cy) and measured radius (--node-r = shell half + 8px breathing
+   room, the recipe's pad) — round 46, owner: the circle sat above/off the
+   badge whenever the lazy measure never landed or the piece outgrew the
+   hard-coded 92px circle */
+.kp-node.sel .kp-ringpulse { inset: auto; top: calc(var(--node-cy, 46px) - var(--node-r, 46px)); left: 50%; width: calc(var(--node-r, 46px) * 2); height: calc(var(--node-r, 46px) * 2); margin-left: calc(-1 * var(--node-r, 46px)); }
 /* v63: export split-button — primary repeats the last format, the chevron
    lists everything with descriptions; no format is more than one click deep */
 .kp-export { position: relative; display: flex; gap: 2px; margin-top: 10px; max-width: 420px; }
@@ -1970,7 +1975,11 @@ button.kp-fact { cursor: pointer; }
 .kp-prnode .gp-piece { margin: 0; }
 .kp-prstop b { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--st-ink); }
 .kp-prstop span { font-size: 10.5px; color: var(--st-ink2); }
-.kp-prconn { position: absolute; top: 37px; right: 50%; width: 100%; margin-right: 34px; border-top: 3px solid rgba(120,210,255,.7); z-index: 0; }
+/* the connector runs through the MEASURED shell centers (useShellRail on
+   .kp-prstops), so the icon chips SIT ON the line at any extrusion depth or
+   piece size (owner, round 46: the chips floated above it); the fallback
+   keeps the old tuned seat until the first measure lands */
+.kp-prconn { position: absolute; top: calc(var(--rail-y, 38.5px) - 1.5px); right: 50%; width: 100%; margin-right: 34px; border-top: 3px solid rgba(120,210,255,.7); z-index: 0; }
 .kp-prconn.pending { border-top-style: dashed; border-top-color: var(--st-line); }
 .kp-prfoot { display: flex; align-items: center; justify-content: center; gap: 20px; margin-top: 2px; }
 .kp-prfoot .gp-piece { margin: -8px -4px; }
@@ -2035,12 +2044,17 @@ button.kp-fact { cursor: pointer; }
 .kp-tnodezone { position: relative; }
 .kp-tnodezone.current::after {
   content: ""; position: absolute; left: 50%; top: var(--node-cy, 50%);
-  width: 158px; height: 158px; margin: -79px 0 0 -79px;
+  /* measured ring: hugs the current node's real shell (+8px pad) instead
+     of a fixed 158px circle — same vars the waypoint ring rides */
+  width: calc(var(--node-r, 79px) * 2); height: calc(var(--node-r, 79px) * 2);
+  margin: calc(-1 * var(--node-r, 79px)) 0 0 calc(-1 * var(--node-r, 79px));
   border: 2px solid var(--kp-glowline); border-radius: 999px;
   animation: kp-pulse 1.6s ease-out infinite; pointer-events: none;
 }
 /* the weekly streak line takes the same measured axis */
-.kp-wkdays::before { top: var(--rail-y, 44%); }
+/* -1px: the 2px border-top hangs BELOW `top`, so the line's center — not its
+   upper edge — rides the measured axis */
+.kp-wkdays::before { top: calc(var(--rail-y, 44%) - 1px); }
 
 /* ── v39: WebGL exploded-material hero ─────────────────────────── */
 /* the drag listeners live on the WRAP (labels included), so the gesture

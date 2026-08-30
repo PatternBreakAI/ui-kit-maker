@@ -288,9 +288,20 @@ function Art({ svg, scale, className, hug = true }: { svg: string; scale: number
 function useShellRail(ref: React.RefObject<HTMLDivElement | null>, sel: string) {
   const { cfg, kitDesigns, kitShapes, kitSizes } = useGen();
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
+    /* round 46 (owner: "this seems to be kitwide issue for each one of
+       these lines"): most rail containers live inside Deferred chapters
+       that mount on approach WITHOUT re-rendering this component — so
+       ref.current was still null when this effect ran once at page mount,
+       nothing ever re-fired it, and every line/ring sat on its tuned
+       fallback (which only fits the default kit). Seek the element until
+       the chapter actually mounts, then attach the observers to it. */
+    let stopped = false;
+    let raf = 0, mraf = 0, seekT = 0;
+    let ro: ResizeObserver | null = null;
+    let mo: MutationObserver | null = null;
+    let el: HTMLDivElement | null = null;
     const position = () => {
+      if (!el) return;
       const host = el.getBoundingClientRect();
       if (!host.height) return;
       const centers: number[] = [];
@@ -304,6 +315,12 @@ function useShellRail(ref: React.RefObject<HTMLDivElement | null>, sel: string) 
         const cy = r.top + ((parts[1] + parts[3] / 2 - vb.y) / vb.height) * r.height;
         centers.push(cy);
         zone.style.setProperty("--node-cy", `${(cy - zone.getBoundingClientRect().top).toFixed(1)}px`);
+        /* the highlight RING's measured radius: half the shell's larger
+           client-px side + the recipe's 8px breathing room — so the pulse
+           ring hugs the actual badge at any piece size or extrusion depth
+           instead of a hard-coded 92/158px circle (owner, round 46: "the
+           circle is above/off the badge"). */
+        zone.style.setProperty("--node-r", `${(Math.max((parts[2] / vb.width) * r.width, (parts[3] / vb.height) * r.height) / 2 + 8).toFixed(1)}px`);
       }
       if (centers.length) el.style.setProperty("--rail-y", `${(centers.reduce((a, b) => a + b, 0) / centers.length - host.top).toFixed(1)}px`);
       /* progression truth: the glow fill ends at the CURRENT node — measure
@@ -320,10 +337,36 @@ function useShellRail(ref: React.RefObject<HTMLDivElement | null>, sel: string) 
         }
       }
     };
-    const raf = requestAnimationFrame(position);
-    const ro = new ResizeObserver(position);
-    ro.observe(el);
-    return () => { cancelAnimationFrame(raf); ro.disconnect(); };
+    const attach = () => {
+      if (!el) return;
+      raf = requestAnimationFrame(position);
+      ro = new ResizeObserver(position);
+      ro.observe(el);
+      /* the piece SVGs inside a mounted container still arrive LAZILY (idle-
+         warmed LiveArt), and the container never resizes when they pop in —
+         watch the subtree and re-measure when the shells land or re-render.
+         childList + data-shell only, so our own style stamps can't loop it. */
+      mo = new MutationObserver(() => {
+        if (mraf) return;
+        mraf = requestAnimationFrame(() => { mraf = 0; position(); });
+      });
+      mo.observe(el, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-shell"] });
+    };
+    const seek = () => {
+      if (stopped) return;
+      el = ref.current;
+      if (el) { attach(); return; }
+      seekT = window.setTimeout(seek, 300);
+    };
+    seek();
+    return () => {
+      stopped = true;
+      window.clearTimeout(seekT);
+      if (raf) cancelAnimationFrame(raf);
+      if (mraf) cancelAnimationFrame(mraf);
+      ro?.disconnect();
+      mo?.disconnect();
+    };
   }, [ref, sel, cfg, kitDesigns, kitShapes, kitSizes]);
 }
 
@@ -1571,9 +1614,13 @@ export function KitPage() {
   const trackRailRef = useRef<HTMLDivElement>(null);
   const weekRailRef = useRef<HTMLDivElement>(null);
   const mapRailRef = useRef<HTMLDivElement>(null);
+  // round 46: the milestone tracker joins the measured rails — its connector
+  // sat at a tuned 37px while the icon chips' true centers ride the pieces
+  const prRailRef = useRef<HTMLDivElement>(null);
   useShellRail(trackRailRef, ".kp-tnodezone");
   useShellRail(weekRailRef, ".kp-wkday");
   useShellRail(mapRailRef, ".kp-node");
+  useShellRail(prRailRef, ".kp-prstop");
 
   /* ── the generating curtain ─────────────────────────────────────────
      The kit page is a GENERATOR's output — hundreds of freshly rendered,
@@ -2546,7 +2593,7 @@ const kitTier = useGen((s) => s.tier);
                     "- Objective card: tab + medallion + text + progress + chip + small button",
                     "- Reward track: item-slot per milestone, connectors 3px, done = solid",
                     "- Bottom sheet: panel with 18px top radius + handle bar 44×5",
-                    "- Waypoint: medallion; the current waypoint adds a 2px pulse ring at +8px",
+                    "- Waypoint: medallion; the current one adds a 2px pulse ring CENTERED on the medallion, 8px outside its edge",
                   ].join("\n"),
                 });
               }
@@ -3813,7 +3860,7 @@ const kitTier = useGen((s) => s.tier);
             </div>
             <div className="kp-prtrack">
               <span className="kp-prcap">Milestone tracker</span>
-              <div className="kp-prstops">
+              <div className="kp-prstops" ref={prRailRef}>
                 {([
                   ["1 win", "50 gems", "done", <SPiece key="1" id="checkbox" scale={0.3} />],
                   ["2 wins", "100 gems", "done", <SPiece key="2" id="checkbox" scale={0.3} />],
