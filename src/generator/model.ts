@@ -763,6 +763,14 @@ export interface GenConfig extends StateDesign {
    *  (owner: "let's add margin controls to make this an easy fix for any
    *  situation"). Absent = 0 on kits saved before the control existed. */
   contentMargin?: number;
+  /** RENDER-TIME ONLY — stamped by applyKitDesign when a piece's fork pins
+   *  its own type size; never stored in documents. Lets renderers whose
+   *  numerals are system chrome at the gold-standard scale (the badge
+   *  count) honor the PIECE's own size dial while still ignoring whatever
+   *  master type scale an applied look carries (round 46: round 45 made
+   *  the count look-independent but consumed this dial — the owner
+   *  overruled that trade; a dial that does nothing is a bug). */
+  pieceTypeSize?: number;
 }
 
 /** Effective kit size for a component — Small retired (reads as Medium),
@@ -1982,6 +1990,11 @@ export function applyKitDesign(cfg: GenConfig, kd?: KitDesign | null): GenConfig
     if (ov === undefined) continue;
     o[k] = k === "effects" ? JSON.parse(JSON.stringify(ov)) : deepMergeDesign(src[k], ov);
   }
+  /* the piece's OWN type-size fork rides along for renderers that pin their
+     numerals to the system scale (the badge count): the look-master's size
+     stays ignored there, but the piece's own dial must speak (round 46). */
+  const ownTS = kd.type?.size;
+  if (typeof ownTS === "number") out.pieceTypeSize = ownTS;
   return out;
 }
 

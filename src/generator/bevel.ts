@@ -4981,11 +4981,18 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          VOICES the numeral — face, fill, outline, effects — and the
          badge's own per-piece nudge still wins. build() multiplies fs by
          T2.size/52, so fs·76/size lands the constant gold scale (76 = the
-         system default type size; kits at the default render unchanged). */
+         system default type size; kits at the default render unchanged).
+         Round 46 revision (owner overrule): B2 also consumed the PIECE's
+         own type-size dial — a dial that does nothing is a bug. The dial's
+         fork rides in as cfg.pieceTypeSize (applyKitDesign stamps it), so
+         the count scales relative to the gold standard under the piece's
+         own hand while the look-master's size stays ignored; absent fork
+         = the gold default, byte-identical. */
       const bT = (state !== "default" ? cfg.stateDesigns?.[state as Exclude<GenStateName, "default">]?.type : undefined) ?? cfg.type;
+      const bOwn = Math.max(26, cfg.pieceTypeSize ?? 76);
       return state === "pressed"
         ? build(cfg, state, { x: 33, y: 27, h: 112 * k, fs: 0, iconSize: 52 * k }, { label: "", iconDef: opts.icon ?? STOCK_ICONS.star, fixedW: 118 * k, shapeOverride: sov, textOy: opts.textOy ?? 0, textOx: opts.textOx ?? 0 })
-        : build(cfg, state, { x: 33, y: 27, h: 112 * k, fs: 40 * k * (76 / Math.max(26, bT.size || 76)), iconSize: 0 }, { label: opts.label ?? "12", iconDef: null, fixedW: 118 * k, shapeOverride: sov, textOy: opts.textOy ?? 0, textOx: opts.textOx ?? 0 });
+        : build(cfg, state, { x: 33, y: 27, h: 112 * k, fs: 40 * k * (bOwn / Math.max(26, bT.size || 76)), iconSize: 0 }, { label: opts.label ?? "12", iconDef: null, fixedW: 118 * k, shapeOverride: sov, textOy: opts.textOy ?? 0, textOx: opts.textOx ?? 0 });
     }
     case "tab":
       return build(cfg, state, { x: 39, y: 30, h: 94 * k, fs: 30 * k, iconSize: 0 }, { label: opts.label ?? "TAB", iconDef: null, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx, faceLayer: opts.faceLayer });
