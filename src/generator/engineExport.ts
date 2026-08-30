@@ -3167,7 +3167,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     ...UNIVERSAL_INTERACTIVE,
     // the 2x reward button (round 43 review blocker: it shipped as a dead
     // click-eater) — a pressable VARIANT family rides the same aura road
-    "claimbtn-double"]);
+    "claimbtn-double",
+    /* round 44 (owner: "key space… Pad A, Pad B, etc"): the input-prompt
+       variants press for real and carry their own silhouette auras */
+    "keycap-space", "padbtn", "padbtn-b", "padbtn-x", "padbtn-y"]);
   /* GROUND-TRUTH SLICING (Jimi's notes, round two: even geometry-derived
      borders kinked a stretched corner — his kit's face is not the
      design-space shape, and extrusion regrows the crop box, so ANY formula
@@ -3937,7 +3940,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     const propLabelSeat = (id: KitComponentId, word: string | undefined): Partial<Pick<AssetMeta, "labelDx" | "labelDy" | "labelFs" | "labelInk" | "labelInk2">> => {
       if (word === undefined) return {};
       try {
-        if (id === "keycap") {
+        if (id === "keycap" || id === "padbtn") {
           const mK = labelSeatOf(id, word);
           return {
             ...(mK.labelDx !== undefined ? { labelDx: mK.labelDx } : {}),
@@ -4046,6 +4049,51 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           await addPng(`firebutton/glyph-${wp}.png`, shell("firebutton", { overlay: `glyph-${wp}` }, undefined, 0),
             { component: "firebutton", part: `glyph-${wp}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
               usage: `Weapon glyph, kit-themed (${wp}) — the Firebutton rig deals these across the dome and chambers; swap in your own art freely.` });
+      }
+    }
+    /* ── INPUT-PROMPT VARIANTS (round 44, owner: "make sure key space is
+       in the unity output as well as Pad A, Pad B, etc"): the SPACE bar
+       and the four gamepad face buttons ship as their own labeled,
+       PRESSING families — the ClaimbtnDouble variant machinery on the
+       props road. LABELED-GEOMETRY bakes: rendered WITH the word at
+       content transparency 0, so the wide cap / colored ring geometry is
+       TRUE and the pixels are labeless; the word rides labelText + the
+       measured seat, so a dev retypes the letter like any button label.
+       The pad ring is MARKED TINTABLE ink (pure single-color — the
+       scorebug white-cut rule is exact here): re-voicing it is one
+       Inspector color edit, never a console's fixed trade-dress art. */
+    {
+      const PROMPTS: { fam: string; baseId: KitComponentId; word: string; usage: string }[] = [
+        { fam: "keycap-space", baseId: "keycap", word: "SPACE",
+          usage: "The SPACE bar — the key prompt at true spacebar width (the cap's own wide geometry, not a stretched square); the word is LIVE text (retype for SHIFT / CTRL — the cap is already wide) and the states press for real." },
+        { fam: "padbtn", baseId: "padbtn", word: "A",
+          usage: "Gamepad face button A — a REAL button (Sprite Swap states); the letter is LIVE text and the prompt ring a LIVE TINTABLE child (its sprite ships white; the color rides Image.color — one edit re-voices it to your kit)." },
+        { fam: "padbtn-b", baseId: "padbtn", word: "B",
+          usage: "Gamepad face button B — a REAL button; the letter is LIVE text and the prompt ring a LIVE TINTABLE child (retint in one Inspector edit)." },
+        { fam: "padbtn-x", baseId: "padbtn", word: "X",
+          usage: "Gamepad face button X — a REAL button; the letter is LIVE text and the prompt ring a LIVE TINTABLE child (retint in one Inspector edit)." },
+        { fam: "padbtn-y", baseId: "padbtn", word: "Y",
+          usage: "Gamepad face button Y — a REAL button; the letter is LIVE text and the prompt ring a LIVE TINTABLE child (retint in one Inspector edit)." },
+      ];
+      const ghostPV = (c: GenConfig) => { c.transparency.content = 0; };
+      for (const pv of PROMPTS) {
+        if (!shipProp(pv.baseId)) continue;
+        const fullPV = shell(pv.baseId, { label: pv.word }, ghostPV);
+        const iconSeatsPV = await iconSeatsOf(pv.baseId, fullPV, pv.fam);
+        const basePV = iconSeatsPV ? stripIconInk(fullPV).svg : fullPV;
+        await addPng(`${pv.fam}/base.png`, basePV, {
+          component: pv.fam, part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+          usage: pv.usage, labelText: pv.word,
+          ...propLabelSeat(pv.baseId, pv.word),
+          ...(iconSeatsPV ? { iconSeats: iconSeatsPV } : {}),
+        }, true, pv.fam);
+        for (const stName of ["hover", "pressed", "disabled"] as const) {
+          const sSvgPV = stateShell(pv.baseId, stName, { label: pv.word }, undefined, false, ghostPV);
+          await addPng(`${pv.fam}/base-${stName}.png`, iconSeatsPV ? stripIconInk(sSvgPV).svg : sSvgPV, {
+            component: pv.fam, part: `base-${stName}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+            usage: `${SWAP_USAGE[stName]} state — Sprite Swap beside base.png (the generated prefab wires it). Union-cropped with base, so the press pose stays registered.`,
+          }, true, pv.fam);
+        }
       }
     }
     /* the count badge goes DYNAMIC: bare circle + live count text on the
@@ -5583,7 +5631,11 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
                  /* the 2x reward button presses for real (round 43 review
                     blocker) — the variant family rides the base piece's
                     own state dials */
-                 ["claimbtn", "claimbtn-double"]] as const)
+                 ["claimbtn", "claimbtn-double"],
+                 /* round 44: the input-prompt variants ride their base
+                    piece's own state dials (the 2x-button rule) */
+                 ["keycap", "keycap-space"], ["padbtn", "padbtn"],
+                 ["padbtn", "padbtn-b"], ["padbtn", "padbtn-x"], ["padbtn", "padbtn-y"]] as const)
         /* STAGED families ship NOTHING — dials included (round 43 review
            paper cut: chest/giftbox/orderticket rows leaked against the
            "ships nothing" receipt). The rows appear with the release. */
@@ -5637,7 +5689,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         ...([["datarow", "list-row"], ["slot", "item-slot"], ["iconbtn", "iconbtn"], ["checkbox", "checkbox"], ["radio", "radio"],
              ["gearicon", "gearicon"], ["trophyicon", "trophyicon"], ["gifticon", "gifticon"], ["endturn", "endturn"], ["keycap", "keycap"], ["pricebtn", "pricebtn"],
              ["claimbtn", "claimbtn"], ["levelnode", "levelnode"], ["dailycell", "dailycell"], ["boostercard", "boostercard"], ["rewardcard", "rewardcard"],
-             ["skillnode", "skillnode"], ["booster", "booster"], ["claimbtn", "claimbtn-double"]] as const)
+             ["skillnode", "skillnode"], ["booster", "booster"], ["claimbtn", "claimbtn-double"],
+             ["keycap", "keycap-space"], ["padbtn", "padbtn"], ["padbtn", "padbtn-b"], ["padbtn", "padbtn-x"], ["padbtn", "padbtn-y"]] as const)
           .filter(([pid]) => stagedShips(pid)) // staged families ship no rows (round 43)
           .flatMap(([pid, fam]) =>
           (["hover", "pressed", "disabled"] as const).flatMap((sn) => {
@@ -11753,7 +11806,7 @@ namespace PatternBreak {
             else if (sf == "rarityframe") stagedNames.Add("RarityFrame");
           }
         var SECTIONS = new (string title, string[] names)[] {
-          ("BUTTONS", new[] { "ButtonPrimary", "ButtonSecondary", "ButtonSmall", "Iconbtn", "Chip", "Endturn", "Keycap", "Pricebtn", "Claimbtn", "Ghost" }),
+          ("BUTTONS", new[] { "ButtonPrimary", "ButtonSecondary", "ButtonSmall", "Iconbtn", "Chip", "Endturn", "Keycap", "KeycapSpace", "Padbtn", "PadbtnB", "PadbtnX", "PadbtnY", "Pricebtn", "Claimbtn", "Ghost" }),
           ("CHOICE CONTROLS & FIELDS", new[] { "Checkbox", "Radio", "CheckboxToggle", "RadioToggle", "Switch", "Stepper", "Input", "Dropdown", "Setrow", "Listmenu", "Joystick", "JoystickGhost", "Firebutton" }),
           ("SLIDERS & PROGRESS", new[] { "Slider", "ProgressBar", "SegmentMeter", "VsBar", "EmblemBar", "Loadbar", "HealthGlobe", "Ring", "SeasonTrack" }),
           ("NAVIGATION & CHROME", new[] { "Tab", "TabBack", "Bottomnav", "HeaderBanner", "Panel", "DataRow", "ItemSlot", "ScrollView", "Scrollbar", "Badge", "CountBadge", "Notifydot", "Avatarframe", "Pagedots", "Steps" }),
@@ -18083,7 +18136,7 @@ namespace PatternBreak {
       return DefaultLabel(fam);
     }
     // every family whose prefab wires a live label from LabelWordOf
-    static readonly string[] SeededFamilies = new string[] { "button-primary", "button-secondary", "button-small", "chip", "tab", "tab-back", "endturn", "keycap", "pricebtn", "header-banner", "badge", "dropdown" };
+    static readonly string[] SeededFamilies = new string[] { "button-primary", "button-secondary", "button-small", "chip", "tab", "tab-back", "endturn", "keycap", "pricebtn", "header-banner", "badge", "dropdown", "keycap-space", "padbtn", "padbtn-b", "padbtn-x", "padbtn-y" };
     static PBSeedEntry[] SeedTable(PBManifest m) {
       var outp = new List<PBSeedEntry>();
       foreach (var fam in SeededFamilies) {

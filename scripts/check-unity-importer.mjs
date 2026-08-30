@@ -1547,7 +1547,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     }
   };
   literalParity(/labelSizes: \(\[\[[\s\S]{0,3000}?\n      \}\),/, ["family", "size", "scene"], "PBLabelSize", "labelSizes");
-  literalParity(/stateFx: \(\[\[[\s\S]{0,3000}?\n      \}\),/, ["family", "state", "glow", "lift"], "PBStateFx", "stateFx");
+  literalParity(/stateFx: \(\[\[[\s\S]{0,4500}?\n      \}\),/, ["family", "state", "glow", "lift"], "PBStateFx", "stateFx");
   // two passes since the bespoke-pose round: labeled ink+dy rows, then
   // measured dy-only rows for the other stateFx families
   literalParity(/labelStates: \[\n[\s\S]{0,8000}?\n      \],/, ["family", "state", "fillMode", "fill", "fill2", "dy"], "PBLabelState", "labelStates");
@@ -1858,7 +1858,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   // words and glow sink by the dial) — measured dy rows for stateFx
   // families; clean translates measure 0 and stay byte-stable
   if (!/const measuredStateDy = \(pid: KitComponentId, sn: "hover" \| "pressed" \| "disabled"\): number \| null =>/.test(src)
-      || !/\["skillnode", "skillnode"\], \["booster", "booster"\], \["claimbtn", "claimbtn-double"\]\] as const\)/.test(src))
+      || !/\["skillnode", "skillnode"\], \["booster", "booster"\], \["claimbtn", "claimbtn-double"\],/.test(src))
     errors.push("the bespoke-pose measured-dy pass is missing from labelStates — riders would take the raw lift dial on squash-pose kits (slice 2)");
   // the × glyph rides the baked atlas — qtybadge's live words are ×-counts
   if (!/'&\(\)×";/.test(src.replace(/\\/g, "")) && !/&\(\)×/.test(src))
@@ -2603,8 +2603,8 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the 2x reward button lost its interactive variant flag — it ships as a dead click-eater again");
   if (!/\["claimbtn", "claimbtn-double"\]/.test(src))
     errors.push("claimbtn-double lost its stateFx/labelStates dials — no glow, no lift, no Button");
-  if (!/"claimbtn-double"\]\);/.test(src))
-    errors.push("claimbtn-double left GLOW_FAMS — its hover aura falls to the generic blob");
+  if (!/"claimbtn-double",/.test(src) || !/"keycap-space", "padbtn", "padbtn-b", "padbtn-x", "padbtn-y"\]\);/.test(src))
+    errors.push("claimbtn-double (or the round-44 input-prompt variants) left GLOW_FAMS — hover auras fall to the generic blob");
   // pose variants never eat clicks
   if (!/static bool PoseVariantName\(string c\) \{ return c == "rewardcard-legendary" \|\| c == "rewardcard-mystery" \|\| c == "dailycell-claimed" \|\| c == "dailycell-locked"; \}/.test(cs))
     errors.push("PoseVariantName is gone — display pose variants eat clicks their live base siblings would answer");
@@ -2903,6 +2903,29 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   const liveArtSrc = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../src/ui/LiveArt.tsx"), "utf8");
   if (!/track\.length < 2 \|\| !track\[1\]/.test(liveArtSrc))
     errors.push("LiveArt's track scrub must tolerate 4-number stamps (round 44) — a strict length===2 check kills pointer scrubbing on banded bars");
+}
+
+/* ── ROUND 44 · S13 (owner: "make sure key space is in the unity output
+   as well as Pad A, Pad B, etc"): the input-prompt variants — SPACE bar
+   + gamepad A/B/X/Y as pressing labeled families; the pad ring is live
+   tintable ink, never fixed trade-dress art. ── */
+{
+  if (!/data-icon="ring" data-icon-tint="\$\{ringC8\}" data-icon-nick="Prompt ring"/.test(bevelSrc))
+    errors.push("the padbtn prompt ring lost its tintable mark — the ring burns back into the cap (round 44)");
+  if (!/\{ fam: "keycap-space", baseId: "keycap", word: "SPACE",/.test(src)
+      || !/\{ fam: "padbtn", baseId: "padbtn", word: "A",/.test(src)
+      || !/\{ fam: "padbtn-y", baseId: "padbtn", word: "Y",/.test(src))
+    errors.push("the PROMPTS variant emission (keycap-space + the four pads) left the exporter (round 44, owner ask)");
+  if (!/const ghostPV = \(c: GenConfig\) => \{ c\.transparency\.content = 0; \};/.test(src))
+    errors.push("the prompt bakes lost the ghosted-geometry render — the letters would burn into the caps (round 44)");
+  if (!/if \(id === "keycap" \|\| id === "padbtn"\) \{/.test(src))
+    errors.push("padbtn left the labelSeatOf road — its letter would seat by guesswork (round 44)");
+  if (!/"Keycap", "KeycapSpace", "Padbtn", "PadbtnB", "PadbtnX", "PadbtnY", "Pricebtn"/.test(cs))
+    errors.push("the Playground BUTTONS chapter no longer shelves the input prompts (round 44, owner ask)");
+  if (!/"dropdown", "keycap-space", "padbtn", "padbtn-b", "padbtn-x", "padbtn-y" \};/.test(cs))
+    errors.push("SeededFamilies lost the prompt variants — retyped letters would be clobbered by the word seed (round 44)");
+  if (!/\["keycap", "keycap-space"\], \["padbtn", "padbtn"\],/.test(src))
+    errors.push("the prompt variants lost their stateFx dial rows — no glow, no lift, no Button (round 44)");
 }
 
 if (errors.length) {

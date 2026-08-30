@@ -5631,7 +5631,12 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const shellM8 = /data-shell0="([-\d. ]+)"/.exec(piece);
       if (!shellM8) return piece;
       const [sx8, sy8, sw8, sh8] = shellM8[1].split(" ").map(Number);
-      const ring8 = `<circle cx="${(sx8 + sw8 / 2).toFixed(1)}" cy="${(sy8 + sh8 / 2).toFixed(1)}" r="${(Math.min(sw8, sh8) / 2 + 5 * k).toFixed(1)}" fill="none" stroke="${ringC8}" stroke-width="${(4 * k).toFixed(1)}" opacity="${state === "disabled" ? 0.3 : 0.9}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(5 * k).toFixed(1)}px ${hexRgba(ringC8, 0.7)})"` : ""}/>`;
+      /* round 44 (owner: "Pad A, Pad B, etc"): the prompt ring is marked
+         TINTABLE ink — pure single-color, so the white-cut road is exact
+         (the scorebug rule) and a dev re-voices the ring in ONE Inspector
+         color edit; the letter is the live build label. Never a console's
+         fixed trade-dress art: the hue is a semantic accent, editable. */
+      const ring8 = `<g data-part="icon" data-icon="ring" data-icon-tint="${ringC8}" data-icon-nick="Prompt ring"><circle cx="${(sx8 + sw8 / 2).toFixed(1)}" cy="${(sy8 + sh8 / 2).toFixed(1)}" r="${(Math.min(sw8, sh8) / 2 + 5 * k).toFixed(1)}" fill="none" stroke="${ringC8}" stroke-width="${(4 * k).toFixed(1)}" opacity="${state === "disabled" ? 0.3 : 0.9}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(5 * k).toFixed(1)}px ${hexRgba(ringC8, 0.7)})"` : ""}/></g>`;
       return injectUnder(piece.replace("<svg ", '<svg data-padbtn="1" '), ring8);
     }
     case "listmenu": {
