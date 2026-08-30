@@ -3404,6 +3404,26 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("ComboPopWire lost the digit wiring or its rest-parity count (round 47, item 3)");
 }
 
+/* ── ROUND 47 · S35 (reviewer blocker — Glow Cycle wired the seat
+   SHADOW): GlowCycle's Reset scans the raw manifest text for its ink,
+   and the file's FIRST "glow" is a seat ink's "glow": null whose next
+   # is the seat shadow hex — the halo swelled shadow-brown instead of
+   the kit's Glow. The scan must anchor inside the "palette" object and
+   stay bounded by its braces; a whole-file first-"glow" scan can never
+   come back. Rider: the QuickStart's animation chapter carries the
+   2022.3 readout caveat. ── */
+{
+  if (!/var pIdx = ta\.text\.IndexOf\("\\\\"palette\\\\""\);/.test(src)
+      || !/var mIdx = ta\.text\.IndexOf\("\\\\"glow\\\\"", open9\);/.test(src)
+      || !/if \(mIdx < 0 \|\| mIdx > close9\) continue;/.test(src)
+      || !/if \(hIdx > 0 && hIdx < close9 && hIdx \+ 7 <= ta\.text\.Length\)/.test(src))
+    errors.push("GlowCycle's Reset lost the palette-anchored ink scan — the halo seeds the seat-shadow hex again (round 47, S35)");
+  if (/ta\.text\.IndexOf\("\\\\"glow\\\\""\);/.test(src))
+    errors.push('a whole-file first-"glow" manifest scan is back in the emitted C# — it lands on a seat ink\'s null glow and seeds the seat shadow (round 47, S35)');
+  if (!/the same rung rule as the step-4 word note\./.test(src))
+    errors.push("the QuickStart's animation chapter lost the 2022.3 readout caveat (round 47, S35)");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);

@@ -8278,10 +8278,20 @@ namespace PatternBreak {
       foreach (var g in UnityEditor.AssetDatabase.FindAssets("kit-manifest t:TextAsset")) {
         var ta = UnityEditor.AssetDatabase.LoadAssetAtPath<TextAsset>(UnityEditor.AssetDatabase.GUIDToAssetPath(g));
         if (ta == null) continue;
-        var mIdx = ta.text.IndexOf("\\"glow\\"");
-        if (mIdx < 0) continue;
+        /* anchor INSIDE the "palette" object — the manifest's FIRST
+           "glow" is a seat ink's "glow": null, and the next # after it
+           is the seat SHADOW hex (a whole-file scan seeded the halo
+           shadow-brown, not the kit's Glow role) */
+        var pIdx = ta.text.IndexOf("\\"palette\\"");
+        if (pIdx < 0) continue;
+        var open9 = ta.text.IndexOf('{', pIdx);
+        if (open9 < 0) continue;
+        var close9 = ta.text.IndexOf('}', open9);
+        if (close9 < 0) continue;
+        var mIdx = ta.text.IndexOf("\\"glow\\"", open9);
+        if (mIdx < 0 || mIdx > close9) continue;
         var hIdx = ta.text.IndexOf('#', mIdx);
-        if (hIdx > 0 && hIdx + 7 <= ta.text.Length) {
+        if (hIdx > 0 && hIdx < close9 && hIdx + 7 <= ta.text.Length) {
           Color c9;
           if (ColorUtility.TryParseHtmlString(ta.text.Substring(hIdx, 7), out c9)) { glowColor = c9; break; }
         }
@@ -10815,6 +10825,11 @@ poses.
   **PatternBreakPathConnector** (\`SetProgress\`), **StreakIgnite**
   (drive to 1 and the glyph ignites and pulses), **SeasonTrack**
   (\`SetProgress(tier, toNext)\`), **GaugeDial**, **KitTimer**.
+
+On Unity 2022.3 the numeral readouts — the Stopwatch and Cooldown
+seconds, the StartLights caption, the KitSteps digits — hold their
+seeded word while the arcs, hands, pies and lights move; live ticking
+text is 2023.2+, the same rung rule as the step-4 word note.
 
 **3 · On-demand celebrations and loops — one call.**
 
