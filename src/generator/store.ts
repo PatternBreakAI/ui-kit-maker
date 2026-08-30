@@ -1642,6 +1642,14 @@ const snapOf = (s: GenStore): HistSnap => Object.fromEntries(HIST_KEYS.map((k) =
 const past: HistSnap[] = [];
 const future: HistSnap[] = [];
 let lastPush = 0;
+/* the gates' own retry lane: an UNDECIDED profile answer (parked session not
+   yet restored, or the read flaked) keeps the previous gates — correct, but
+   it must never be the FINAL word while a session exists. loadCloudPresets
+   re-runs itself with backoff until an authoritative answer lands, so the
+   staging bay and admin chrome no longer depend on the sync engine reaching
+   "synced" to trigger the one re-read (owner: desk admin, kit page guest). */
+let gateRetryT: ReturnType<typeof setTimeout> | null = null;
+let gateRetries = 0;
 /* map setters call this before mutating — same coalescing window update()
    uses, so a drag that fans out over update()+setKitDesign in one gesture
    still lands as ONE undo step */
@@ -2784,8 +2792,22 @@ export const useGen = create<GenStore>((set, get) => ({
        hiding the owner's own clone chapter "sometimes". Spotlight rides
        the same contract: null = flaked, keep the live promos. */
     const rel = releases ?? prev.componentReleases;
+    if (releases === null) console.warn("[gates] release-ledger read failed — keeping the previous ledger (", Object.keys(prev.componentReleases).length, "entries )");
     let admin = prev.isAdmin;
     let tier: Tier = prev.tier;
+    if (prof.undecided) {
+      /* undecided must not be terminal: retry with backoff until the profile
+         answers (session restore usually lands within seconds; a stuck sync
+         engine no longer strands admin/tier at boot values). */
+      console.warn(`[gates] profile undecided — keeping admin=${admin} tier=${tier}; retry ${gateRetries + 1}/6`);
+      if (gateRetries < 6) {
+        if (gateRetryT) clearTimeout(gateRetryT);
+        gateRetryT = setTimeout(() => { gateRetryT = null; void get().loadCloudPresets(); }, Math.min(60_000, 4_000 * 2 ** gateRetries++));
+      }
+    } else {
+      gateRetries = 0;
+      if (gateRetryT) { clearTimeout(gateRetryT); gateRetryT = null; }
+    }
     if (!prof.undecided) {
       admin = prof.admin;
       // cloud-off (local/dev build) is not the funnel — it gets the free tier,

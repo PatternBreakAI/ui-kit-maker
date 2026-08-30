@@ -47,13 +47,22 @@ function useBoardBgBoot() {
 }
 
 /* Admin-curated shared presets load for everyone once cloud is reachable, and
-   reload when the signed-in identity changes (so admin controls appear). */
+   reload when the signed-in identity changes (so admin controls appear).
+   "error" and "recovery" count as identity arrivals too: reconcile() sets the
+   session BEFORE it pulls the workspace doc, so a sync engine that lands in a
+   terminal error (pull failure, storage-full apply, reload-loop guard) still
+   has a live session whose profile read works — waiting for "synced" alone
+   left isAdmin/tier stranded at boot values all session while the admin
+   desk's own mount-time read succeeded (owner: kit page had no staging bay
+   in the very session where /#/admin opened fully). Only "syncing" stays
+   excluded as transitional; the key dedupe keeps later push errors from
+   re-firing this — same email, no repeat. */
 function useCloudPresets() {
   useEffect(() => {
     let lastKey = "__init__";
     return onCloudStatus((s) => {
       const key = s.state === "off" ? "off" : (s.email ?? "signedout");
-      if (key !== lastKey && (s.state === "synced" || s.state === "signedout" || s.state === "off")) {
+      if (key !== lastKey && s.state !== "syncing") {
         lastKey = key;
         void useGen.getState().loadCloudPresets();
       }
