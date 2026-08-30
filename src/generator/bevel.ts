@@ -8856,6 +8856,10 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          silhouette can't round any further, so the cells are where the
          control must visibly live (board-launched hotbars start on pill) */
       const cellR = Math.min(cell / 2, (3 + cfg.bevel.softness * 0.42) * k);
+      /* the corner stock counts answer their color slot (KIT_SLOTS.hotbar,
+         round 46: "wasn't able to edit the color of the white numerics at
+         the bottom") — untouched they keep the factory HUD white */
+      const countC = opts.slots?.countColor ?? "rgba(255,255,255,0.85)";
       const icons = [STOCK_ICONS.sword ?? STOCK_ICONS.star, STOCK_ICONS.shield ?? STOCK_ICONS.star, STOCK_ICONS.heart, STOCK_ICONS.gem ?? STOCK_ICONS.star, STOCK_ICONS.star];
       let cells = "";
       for (let i = 0; i < n; i++) {
@@ -8877,7 +8881,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const ic = icons[i];
         // each stocked slot's glyph is marked swappable ink (the law)
         if (i < icons.length && ic) cells += `<g data-part="icon" data-icon="slot${i + 1}">${themedIcon(ic, cx0 + cell * 0.22, yh + cell * 0.22, cell * 0.56, hexMix(glow, "#FFFFFF", 0.3), 2)}</g>`;
-        if (i === 0 || i === 3) cells += `<text x="${(cx0 + cell - 8 * k).toFixed(1)}" y="${(yh + cell - 10 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(17 * k).toFixed(1)}" font-weight="800" fill="rgba(255,255,255,0.85)" text-anchor="end">64</text>`;
+        if (i === 0 || i === 3) cells += `<text x="${(cx0 + cell - 8 * k).toFixed(1)}" y="${(yh + cell - 10 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(17 * k).toFixed(1)}" font-weight="800" fill="${countC}" text-anchor="end">64</text>`;
         // slot indices sit on the dark cell wells, not the face — the adaptive
         // face ink picks the Shadow role there ("tied to the shadow", owner).
         // The text control's color is what a user expects to steer these.

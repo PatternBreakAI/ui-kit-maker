@@ -1204,6 +1204,15 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
     { id: "active", name: "Active arm", kind: "choice", choices: ["None", "Up", "Left", "Right", "Down"],
       note: "Lights one arm with the selection ring — the focus a controller draws while cycling. None rests the cross." },
   ],
+  hotbar: [
+    /* the owner, field round 46: "wasn't able to edit the color of the
+       white numerics at the bottom" — the corner stock counts were baked
+       HUD white with no control anywhere. One color well answers. The
+       keybind digits (1–9) keep following the kit's Text color, where a
+       type edit is expected to land. */
+    { id: "countColor", name: "Count color", kind: "color", def: "#FFFFFF",
+      note: "The stock counts in the cell corners (the 64s). Factory is HUD white; a pick here inks them alone. The keybind digits (1–9) follow the kit's Text color under Typography instead." },
+  ],
   bottomnav: [
     /* the casual tab bar: four destination cells. Labels and glyphs are
        per-cell slots (the multi-cell house pattern — quickslots, invgrid);
