@@ -6895,10 +6895,16 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       /* round 44 (owner ruling): the continue caret IS ITS OWN LAYER —
          marked swappable ink, so the export ships it as a live child devs
          can blink, bob or re-glyph (icons/chevron fits the seat). The
-         app keeps the bob; the export's SMIL strip already rasters t=0. */
+         app keeps the bob; the export's SMIL strip already rasters t=0.
+         round 48 (owner: "the dialogue box caret doesn't respect the
+         app's icon color control"): the caret answers the Icon color
+         well — per-state fork first, then the main well, the markInk
+         precedence — and untouched it keeps the Glow bytes it always
+         wore. */
+      const caretInk = (state !== "default" ? cfg.stateDesigns?.[state as Exclude<GenStateName, "default">]?.icon?.color : undefined) ?? cfg.icon.color ?? glow;
       const arrow = state !== "disabled"
         ? `<g data-part="icon" data-icon="caret" data-icon-nick="Continue caret"><animateTransform attributeName="transform" type="translate" values="0 0; 0 ${(5 * k).toFixed(1)}; 0 0" dur="1.3s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.6 1; 0.4 0 0.6 1"/>
-            <path d="M ${(ax - 14 * k).toFixed(1)} ${ay.toFixed(1)} L ${(ax + 14 * k).toFixed(1)} ${ay.toFixed(1)} L ${ax.toFixed(1)} ${(ay + 16 * k).toFixed(1)} Z" fill="${hotA ? lighten(glow, 0.35) : glow}" style="filter: drop-shadow(0 0 ${((hotA ? 9 : 5) * k).toFixed(1)}px ${hexRgba(glow, hotA ? 0.9 : 0.65)})"/></g>`
+            <path d="M ${(ax - 14 * k).toFixed(1)} ${ay.toFixed(1)} L ${(ax + 14 * k).toFixed(1)} ${ay.toFixed(1)} L ${ax.toFixed(1)} ${(ay + 16 * k).toFixed(1)} Z" fill="${hotA ? lighten(caretInk, 0.35) : caretInk}" style="filter: drop-shadow(0 0 ${((hotA ? 9 : 5) * k).toFixed(1)}px ${hexRgba(caretInk, hotA ? 0.9 : 0.65)})"/></g>`
         : `<g data-part="icon" data-icon="caret" data-icon-nick="Continue caret"><path d="M ${(ax - 14 * k).toFixed(1)} ${ay.toFixed(1)} L ${(ax + 14 * k).toFixed(1)} ${ay.toFixed(1)} L ${ax.toFixed(1)} ${(ay + 16 * k).toFixed(1)} Z" fill="rgba(255,255,255,0.3)"/></g>`;
       return inject(shell.replace("<svg ", '<svg data-dialoguebox="1" '), plate + line1 + line2 + arrow);
     }
