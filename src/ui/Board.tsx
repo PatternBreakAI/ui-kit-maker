@@ -1695,6 +1695,24 @@ export function BoardView({ playing }: { playing: boolean }) {
   const scrollToBoard = (id: string) => {
     frameRef.current?.querySelector(`[data-board="${id}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
+  /* the roundtrip's RETURN leg (round-48): re-entering the Boards lands on
+     the piece you left selected — the frame starts at the top on every
+     mount, so a selection parked on a lower board arrived off-screen. The
+     scroll runs behind the board curtain; a short seek covers the beat
+     where the stage frame commits before its items. */
+  useEffect(() => {
+    const sel = useGen.getState().boardSel;
+    if (!sel) return;
+    let tries = 0;
+    let t = 0;
+    const seek = () => {
+      const el = frameRef.current?.querySelector(`[data-bid="${sel}"]`);
+      if (el) { el.scrollIntoView({ block: "center", inline: "center" }); return; }
+      if (++tries <= 20) t = window.setTimeout(seek, 120);
+    };
+    seek();
+    return () => window.clearTimeout(t);
+  }, []);
 
   return (
     <div className={`board2${playing ? " playing" : ""}`} style={{ "--trayl": `${trayW.l}px`, "--trayr": `${trayW.r}px` } as React.CSSProperties}>

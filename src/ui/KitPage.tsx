@@ -1671,12 +1671,49 @@ export function KitPage() {
      chapters existed, finding nothing — because by the time it starts
      leaving, every chapter is force-mounted: the scroll lands behind the
      fade and the reader arrives already in place. A second pass once the
-     curtain is gone corrects any late reflow. */
+     curtain is gone corrects any late reflow.
+     Round-48 (owner: "the boards to kit roundtrip isn't landing me back
+     on the component exactly"): the old jump took the FIRST data-kp match
+     in the document — for slider/toggle/progress/badge that's the anatomy
+     tray's part demo, a whole chapter above the real card. Land on the
+     CATALOG card like the finder's jumpTo does, glow it so the arrival is
+     legible, and hold center briefly against late reflows — letting go the
+     moment the reader scrolls on their own. */
   const retDone = useRef(false);
   useEffect(() => {
     if (!focusRet || retDone.current || curtain === "on") return;
-    document.querySelector(`[data-kp="${focusRet}"]`)?.scrollIntoView({ block: "center" });
-    if (curtain === "gone") retDone.current = true;
+    const land = () => {
+      const els = [...document.querySelectorAll<HTMLElement>(`[data-kp="${focusRet}"]`)];
+      const compTop = document.getElementById("chap-components");
+      const el = els.find((m) => !!compTop && !!(compTop.compareDocumentPosition(m) & Node.DOCUMENT_POSITION_FOLLOWING)) ?? els[0] ?? null;
+      el?.scrollIntoView({ block: "center" });
+      return el;
+    };
+    if (curtain !== "gone") { land(); return; }
+    const el = land();
+    retDone.current = true;
+    if (!el) return;
+    el.classList.remove("kp-glowonce"); void el.offsetWidth; el.classList.add("kp-glowonce");
+    const glowT = window.setTimeout(() => el.classList.remove("kp-glowonce"), 1800);
+    const scroller = document.querySelector(".canvas");
+    const t0 = Date.now();
+    let raf = 0;
+    const hold = () => {
+      const sr = scroller?.getBoundingClientRect();
+      const mid = sr ? sr.top + sr.height / 2 : window.innerHeight / 2;
+      const r = el.getBoundingClientRect();
+      if (Math.abs(r.top + r.height / 2 - mid) > 24) el.scrollIntoView({ block: "center" });
+      if (Date.now() - t0 < 1600) raf = requestAnimationFrame(hold);
+    };
+    raf = requestAnimationFrame(hold);
+    const letGo = () => cancelAnimationFrame(raf);
+    const opts = { passive: true, once: true } as AddEventListenerOptions;
+    for (const ev of ["wheel", "pointerdown", "keydown", "touchstart"]) window.addEventListener(ev, letGo, opts);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.clearTimeout(glowT);
+      for (const ev of ["wheel", "pointerdown", "keydown", "touchstart"]) window.removeEventListener(ev, letGo);
+    };
   }, [curtain, focusRet]);
   const bootProg = (bootN + (fontsReady ? 1 : 0)) / (BOOT_DONE + 1);
   const bootStage = !fontsReady && bootN === 0 ? "Loading typefaces"
