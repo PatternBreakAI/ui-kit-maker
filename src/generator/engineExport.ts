@@ -3317,7 +3317,16 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
          the shell — viewBox origin, then the crop box — so the bar
          prefabs seat their mercury exactly on the app's zone (round 21) */
       let trackZone: AssetMeta["track"] = null;
-      {
+      /* round 47 (owner field: composite mercuries seated beside their
+         TITLES): the root stamp rides into EVERY part render of a
+         stamped family, so icon/fill/cap/pip rows carried crop-shifted
+         zone garbage — and the importer's any-row fallback drank from
+         whichever came first (buildqueue's icon-glyph, questpanel's
+         icon-pip1, unitplate's icon-portrait). The zone is only truth on
+         the rows whose crop frame IS the piece: base, a dedicated track
+         part, and the lit strip (crop-grouped with base). */
+      const zoneRowOk = q.meta.part === "base" || q.meta.part === "track" || q.meta.part === "lit";
+      if (zoneRowOk) {
         const tzm = /data-track="([-\d. ]+)"/.exec(q.svg);
         const vbm = /viewBox="(-?[\d.]+) (-?[\d.]+)/.exec(q.svg);
         if (tzm && vbm) {
@@ -18106,6 +18115,14 @@ namespace PatternBreak {
         /* round 44 (RIG-1 riders): the display bars stamp their zone on
            the BASE row — no separate track part ships (the cell-meter
            rule); the track row keeps winning where one exists */
+        /* round 47 (owner field: buildqueue's cap beside the TITLE,
+           questpanel's strip across an objective row, unitplate's fill
+           behind the name): the any-row fallback drank whichever row
+           came FIRST, and on composite families the icon rows precede
+           base carrying crop-shifted zone garbage. The BASE row is the
+           zone's only truth here — the any-row rung stays as the last
+           resort for legacy zips only. */
+        if (rowT == null) foreach (var aT in m.assets) if (aT != null && aT.component == fam && aT.part == "base" && aT.track != null && aT.track.w > 2f) { rowT = aT; break; }
         if (rowT == null) foreach (var aT in m.assets) if (aT != null && aT.component == fam && aT.track != null && aT.track.w > 2f) { rowT = aT; break; }
         if (rowT != null) {
           if (rowT.shell != null && rowT.shell.h > 2f && track.rect.height > 1f)
@@ -18337,7 +18354,13 @@ namespace PatternBreak {
       if (m == null || m.assets == null) return null;
       foreach (var aT in m.assets)
         if (aT != null && aT.component == fam && aT.part == "track" && aT.track != null && aT.track.w > 2f) return aT.track;
-      // cell meters stamp their zone on base/lit rows (no track part ships)
+      /* cell meters stamp their zone on base/lit rows (no track part
+         ships) — round 47: base first, then lit; the any-row rung is the
+         legacy-zip last resort (icon rows can carry crop-shifted zones) */
+      foreach (var aT in m.assets)
+        if (aT != null && aT.component == fam && aT.part == "base" && aT.track != null && aT.track.w > 2f) return aT.track;
+      foreach (var aT in m.assets)
+        if (aT != null && aT.component == fam && aT.part == "lit" && aT.track != null && aT.track.w > 2f) return aT.track;
       foreach (var aT in m.assets)
         if (aT != null && aT.component == fam && aT.track != null && aT.track.w > 2f) return aT.track;
       return null;

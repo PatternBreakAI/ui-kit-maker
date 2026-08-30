@@ -2786,7 +2786,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
       || !/var kcmS = inst\.GetComponent<KitCellMeter>\(\);/.test(cs)
       || !/var kcmSg = inst\.GetComponent<KitCellMeter>\(\);/.test(cs))
     errors.push("the cell-meter wiring left the importer (FamilyPrefab block / segbar snapper / board strikes)");
-  if (!/\/\/ cell meters stamp their zone on base\/lit rows \(no track part ships\)/.test(cs))
+  if (!/cell meters stamp their zone on base\/lit rows \(no track part/.test(cs))
     errors.push("BarZone lost its base-row zone fallback — cell zones never reach the runtime");
   if (!/string famCMk = spritePath\.EndsWith\("\/segbar-base\.png"\) \? "segbar"/.test(cs))
     errors.push("the kept-project cell-meter convergence is gone — field meters keep raw cuts (or empty bases) forever");
@@ -3361,6 +3361,20 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/## Driving the animations/.test(src)
       || !/PatternBreakAttentionPulse\*\* — the app's "attention pulse" Motion/.test(src))
     errors.push("the QuickStart's 'Driving the animations' section is gone — the definitive answer stops shipping (round 46, R2)");
+}
+
+/* ── ROUND 47 · S32 (owner field: composite mercuries seated beside
+   their TITLES): the zone is only truth on base/track/lit rows, and the
+   importer's zone fallbacks prefer the BASE row over whichever row
+   comes first. ── */
+{
+  if (!/const zoneRowOk = q\.meta\.part === "base" \|\| q\.meta\.part === "track" \|\| q\.meta\.part === "lit";/.test(src))
+    errors.push("the zone-row gate left the exporter — icon/fill/cap rows would ship crop-shifted zone garbage again (round 47, item 1)");
+  if (!/if \(rowT == null\) foreach \(var aT in m\.assets\) if \(aT != null && aT\.component == fam && aT\.part == "base" && aT\.track != null && aT\.track\.w > 2f\) \{ rowT = aT; break; \}/.test(cs))
+    errors.push("BuildBarFill lost the base-row-first zone pick — composite bars seat off icon rows again (round 47, item 1)");
+  if (!/aT\.component == fam && aT\.part == "base" && aT\.track != null && aT\.track\.w > 2f\) return aT\.track;/.test(cs)
+      || !/aT\.component == fam && aT\.part == "lit" && aT\.track != null && aT\.track\.w > 2f\) return aT\.track;/.test(cs))
+    errors.push("BarZone lost its base-then-lit ladder — kept-project cell grafts zone off icon rows again (round 47, item 1)");
 }
 
 if (errors.length) {
