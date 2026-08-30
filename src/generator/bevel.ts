@@ -8719,22 +8719,38 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       });
       const selE9 = clamp(Math.floor(((clamp(value ?? 0, 0, 0.999)) % 1) * nE9), 0, nE9 - 1);
       const hotE9 = state === "hover" || state === "pressed";
-      let sect = "";
+      /* round 44 (item 11, RIG-6): the wheel rests UNIFORM — every sector
+         wears the same dark wedge — and the armed dress is a MARKED
+         additive overlay (a glow wedge, full-disc canvas so the rig — or
+         a dev — parks it on ANY sector by pure rotation, the ring-cap
+         discipline). The armed hue used to be a MORE-transparent glow
+         fill no overlay could compose (the choicelist bridge math has no
+         solution), so the armed look is now rest + glow wash — the
+         un-burn's blessed bake change. Each emote rides a FIXED frame
+         (data-icon-box) so its ghost and lit looks swap 1:1. */
+      let sect = "", emoteInk = "";
+      const rr = rE - 4;
       for (let i = 0; i < nE9; i++) {
         const a0 = (i / nE9) * Math.PI * 2 - Math.PI / 2, a1 = ((i + 1) / nE9) * Math.PI * 2 - Math.PI / 2;
         const on = i === selE9;
-        const rr = rE - 4;
-        sect += `<path d="M ${cE} ${cE} L ${(cE + rr * Math.cos(a0)).toFixed(1)} ${(cE + rr * Math.sin(a0)).toFixed(1)} A ${rr.toFixed(1)} ${rr.toFixed(1)} 0 0 1 ${(cE + rr * Math.cos(a1)).toFixed(1)} ${(cE + rr * Math.sin(a1)).toFixed(1)} Z" fill="${on ? hexRgba(glow, hotE9 ? 0.4 : 0.3) : hexRgba(darken(effect(cfg.effects, "Inner Fill"), 0.72), 0.85)}" stroke="rgba(255,255,255,0.16)" stroke-width="1.2"/>`;
+        sect += `<path d="M ${cE} ${cE} L ${(cE + rr * Math.cos(a0)).toFixed(1)} ${(cE + rr * Math.sin(a0)).toFixed(1)} A ${rr.toFixed(1)} ${rr.toFixed(1)} 0 0 1 ${(cE + rr * Math.cos(a1)).toFixed(1)} ${(cE + rr * Math.sin(a1)).toFixed(1)} Z" fill="${hexRgba(darken(effect(cfg.effects, "Inner Fill"), 0.72), 0.85)}" stroke="rgba(255,255,255,0.16)" stroke-width="1.2"/>`;
         const am = (a0 + a1) / 2;
         const gx = cE + rE * 0.66 * Math.cos(am), gy = cE + rE * 0.66 * Math.sin(am);
         const ic9 = i === selE9 ? (opts.icon ?? emotes[i]) : emotes[i];
+        const boxE = 30 * k;
         // every sector's emote is marked swappable ink (the law)
-        if (ic9) sect += `<g data-part="icon" data-icon="emote${i + 1}">` + (on
+        if (ic9) emoteInk += `<g data-part="icon" data-icon="emote${i + 1}" data-icon-box="${(gx - boxE).toFixed(1)} ${(gy - boxE).toFixed(1)} ${(boxE * 2).toFixed(1)} ${(boxE * 2).toFixed(1)}">` + (on
           ? `<g${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(glow, 0.75)})"` : ""}>${themedIcon(ic9, gx - 19 * k, gy - 19 * k, 38 * k, hexMix(glow, "#FFFFFF", 0.2), 2.4)}</g>`
           : iconGroup(ic9, gx - 16 * k, gy - 16 * k, 32 * k, "#AEB6C4", { strokeWidth: 2 * iconWK })) + `</g>`;
       }
+      {
+        // the armed dress — UNDER the emotes, OVER the wedges
+        const a0 = (selE9 / nE9) * Math.PI * 2 - Math.PI / 2, a1 = ((selE9 + 1) / nE9) * Math.PI * 2 - Math.PI / 2;
+        sect += `<g data-part="icon" data-icon="armed" data-icon-box="${(cE - rE).toFixed(1)} ${(cE - rE).toFixed(1)} ${(rE * 2).toFixed(1)} ${(rE * 2).toFixed(1)}" data-icon-nick="Armed highlight"><path d="M ${cE} ${cE} L ${(cE + rr * Math.cos(a0)).toFixed(1)} ${(cE + rr * Math.sin(a0)).toFixed(1)} A ${rr.toFixed(1)} ${rr.toFixed(1)} 0 0 1 ${(cE + rr * Math.cos(a1)).toFixed(1)} ${(cE + rr * Math.sin(a1)).toFixed(1)} Z" fill="${hexRgba(glow, hotE9 ? 0.42 : 0.34)}" stroke="${hexRgba(glow, 0.5)}" stroke-width="1.6"/></g>`;
+      }
+      sect += emoteInk;
       const selIc = opts.icon ?? emotes[selE9];
-      return `<svg xmlns="http://www.w3.org/2000/svg" width="${(dE + padE9 * 2).toFixed(0)}" height="${(dE + padE9 * 2).toFixed(0)}" viewBox="0 0 ${(dE + padE9 * 2).toFixed(0)} ${(dE + padE9 * 2).toFixed(0)}" data-shell="${(cE - rE).toFixed(1)} ${(cE - rE).toFixed(1)} ${(rE * 2).toFixed(1)} ${(rE * 2).toFixed(1)}" data-emotewheel="1" data-wheel="${cE.toFixed(1)} ${cE.toFixed(1)}" role="img" aria-label="emote wheel">
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${(dE + padE9 * 2).toFixed(0)}" height="${(dE + padE9 * 2).toFixed(0)}" viewBox="0 0 ${(dE + padE9 * 2).toFixed(0)} ${(dE + padE9 * 2).toFixed(0)}" data-shell="${(cE - rE).toFixed(1)} ${(cE - rE).toFixed(1)} ${(rE * 2).toFixed(1)} ${(rE * 2).toFixed(1)}" data-emotewheel="1" data-wheel="${cE.toFixed(1)} ${cE.toFixed(1)}" data-wheelstage="${nE9} ${selE9}" role="img" aria-label="emote wheel">
 <defs><linearGradient id="${gidE9}r" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(hexMix(bevel, effect(cfg.effects, "Inner Fill"), 0.35), 0.45)}"/><stop offset="0.5" stop-color="${hexMix(bevel, effect(cfg.effects, "Inner Fill"), 0.25)}"/><stop offset="1" stop-color="${darken(bevel, 0.32)}"/></linearGradient>${auraOp9 > 0.01 ? `<filter id="${gidE9}ga" ${auraF9(14)}><feGaussianBlur stdDeviation="14"/></filter><filter id="${gidE9}gb" ${auraF9(30)}><feGaussianBlur stdDeviation="30"/></filter>` : ""}</defs>
 <g opacity="${((adjE9.opacity / 100) * (state === "disabled" ? 0.45 : 1)).toFixed(2)}">
   ${aura9}${sect}

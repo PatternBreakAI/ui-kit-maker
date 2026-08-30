@@ -3180,6 +3180,29 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the streak meter left the board value strike (round 44, item 40)");
 }
 
+/* ── ROUND 44 · S25 (item 11 — emotewheel): the wheel rests UNIFORM, the
+   armed dress is a MARKED full-disc wedge (parked by rotation), every
+   emote ships ghost+lit looks on one fixed frame, and the pick is a dial
+   (PatternBreakEmoteWheel). ── */
+{
+  if (!/data-icon="armed" data-icon-box="\$\{\(cE - rE\)\.toFixed\(1\)\}/.test(bevelSrc)
+      || !/data-icon="emote\$\{i \+ 1\}" data-icon-box=/.test(bevelSrc)
+      || !/data-wheelstage="\$\{nE9\} \$\{selE9\}"/.test(bevelSrc))
+    errors.push("the emotewheel marks (armed dress / fixed emote frames / stage stamp) left bevel (round 44, item 11)");
+  if (!/`\$\{uid\}\/emote\$\{i \+ 1\}-lit\.png`/.test(src) || !/`\$\{uid\}\/emote\$\{i \+ 1\}-ghost\.png`/.test(src))
+    errors.push("the emote look atoms left the exporter (round 44, item 11)");
+  if (!/const EMOTE_WHEEL_RUNTIME = `using UnityEngine;/.test(src)
+      || !/files\.push\(\{ path: "Runtime\/PatternBreakEmoteWheel\.cs", data: EMOTE_WHEEL_RUNTIME \}\);/.test(src)
+      || !/"Runtime\/PatternBreakEmoteWheel\.cs",/.test(src))
+    errors.push("EmoteWheel's runtime or its registration (files + sharedScripts BOTH — the law) left the exporter (round 44, item 11)");
+  if (!/if \(baseAsset\.component == "emotewheel"\) \{/.test(cs)
+      || !/rigEW\.baseSector = baseSecEW;/.test(cs)
+      || !/if \(rigEW\.hub != null\) rigEW\.hubRest = rigEW\.hub\.sprite;/.test(cs))
+    errors.push("the EmoteWheel prefab wiring (or its rest-parity hub/baseSector) left the importer (round 44, item 11)");
+  if (!/var ewS = inst\.GetComponent<PatternBreakEmoteWheel>\(\);/.test(cs))
+    errors.push("emotewheel left the board value strike (round 44, item 11)");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);

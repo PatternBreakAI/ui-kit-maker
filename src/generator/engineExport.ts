@@ -4288,7 +4288,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         friendrow: "Friend row — drop YOUR sprite on the Portrait child (the well clips it round); name, status and time are LIVE seats, the JOIN capsule is a REAL small-button child with its word riding it, and the presence dot a LIVE Image child (move it, delete it, or tint a copy for offline). Display piece.",
         clancrest: "Clan crest — the emblem is a LIVE Image child and the tag ribbon a live plate whose tag RIDES it. Display piece.",
         chatbubble: "Chat bubble — sender, timestamp and every message line are LIVE seats on the speech silhouette. Display piece.",
-        emotewheel: "Emote wheel — every sector's emote AND the hub's pick are LIVE Image children (the app's emote slots land verbatim); the wheel pose bakes at the staged selection. Display piece.",
+        emotewheel: "Emote wheel — DRIVABLE (round 44): the pick is a dial (PatternBreakEmoteWheel — SetSector, or SetValue 0..1, the app's own mapping). The Armed highlight is a LIVE full-disc wedge the rig parks by rotation, every sector's emote swaps ghost/armed on one fixed frame, and the hub mirrors the pick. All emotes stay swappable Inspector children. Display piece.",
         buildqueue: "Build queue — LIVE: the unit glyph is a LIVE Image child (editable down to the icon, as asked), name and queue line are seats, and the progress bar is a Filled fill with the rounded head (drive Fill's fillAmount or KitBarFill.SetValue). Display piece.",
         unitplate: "Unit plate — drop YOUR sprite on the Portrait child; the name and stat numbers are LIVE seats and the attack/defense glyphs LIVE Image children. The HP mercury is a Filled fill with the rounded head (drive Fill's fillAmount or KitBarFill.SetValue). Display piece.",
         techcard: "Tech card (researchable) — the tech glyph is a LIVE Image child (editable down to the icon); the name and cost are LIVE seats and the cost gem its own LIVE Image child beside the number. Researched/locked poses ride per-copy posed skins. Display piece.",
@@ -4803,6 +4803,47 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
                 usage: useS,
                 ...(partS === "star-unearned" ? { ringV: Math.max(0.005, Math.min(1, uVal ?? 1)) } : {}),
               }, false);
+            }
+          } catch { /* the rest-pose seats above still ship */ }
+        }
+        /* ── the EMOTE LOOKS (round 44, item 11): every sector's emote
+           ships BOTH looks on its fixed frame — lit cut from the render
+           where THAT sector is armed, ghost from a neighbor's render —
+           so the EmoteWheel rig (or a dev) swaps any sector's state 1:1.
+           The lit rows carry the staged pose (ringV) and the sector
+           count (railW) for the wiring. ── */
+        if (uid === "emotewheel") {
+          try {
+            const wsE = /data-wheelstage="(\d+) (\d+)"/.exec(fullU);
+            const nEW = wsE ? parseInt(wsE[1], 10) : 0;
+            if (nEW >= 4 && nEW <= 8) {
+              const rendersEW: string[] = [];
+              for (let i = 0; i < nEW; i++) rendersEW.push(stripLoopsU(shell(uid, uOpts, undefined, (i + 0.5) / nEW)));
+              const cutEW = (sv: string, nm: string): string | null => {
+                const c9 = markedIconOnlySvgs(sv).find((c8) => c8.name === nm);
+                if (!c9 || !c9.box || c9.box.length !== 4 || !(c9.box[2] > 1)) return null;
+                const shD9 = /data-shell="([-\d. ]+)"/.exec(sv)?.[1].split(" ").map(Number);
+                const sh09 = /data-shell0="([-\d. ]+)"/.exec(sv)?.[1].split(" ").map(Number);
+                const rise9 = shD9 && sh09 && shD9.length === 4 && sh09.length === 4 ? shD9[1] - sh09[1] : 0;
+                return c9.svg
+                  .replace(/viewBox="[^"]+"/, `viewBox="${c9.box[0].toFixed(1)} ${(c9.box[1] + rise9).toFixed(1)} ${c9.box[2].toFixed(1)} ${c9.box[3].toFixed(1)}"`)
+                  .replace(/ width="[\d.]+"/, ` width="${Math.ceil(c9.box[2])}"`)
+                  .replace(/ height="[\d.]+"/, ` height="${Math.ceil(c9.box[3])}"`);
+              };
+              for (let i = 0; i < nEW; i++) {
+                const litEW = cutEW(rendersEW[i], `emote${i + 1}`);
+                const ghostEW = cutEW(rendersEW[(i + 1) % nEW], `emote${i + 1}`);
+                if (!litEW || !ghostEW) continue;
+                await addPng(`${uid}/emote${i + 1}-lit.png`, litEW, {
+                  component: uid, part: `emote${i + 1}-lit`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+                  usage: `Sector ${i + 1}'s emote, ARMED (themed + halo) — the EmoteWheel rig swaps it in when this sector is picked (or swap any emote child by hand).`,
+                  ringV: Math.max(0.005, Math.min(1, uVal ?? 0.005)), railW: nEW,
+                }, false);
+                await addPng(`${uid}/emote${i + 1}-ghost.png`, ghostEW, {
+                  component: uid, part: `emote${i + 1}-ghost`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+                  usage: `Sector ${i + 1}'s emote at rest — the resting look on the same fixed frame (1:1 with the armed cut).`,
+                }, false);
+              }
             }
           } catch { /* the rest-pose seats above still ship */ }
         }
@@ -6320,6 +6361,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Runtime/PatternBreakPageDots.cs", data: PAGE_DOTS_RUNTIME });
   files.push({ path: "Runtime/PatternBreakStartLights.cs", data: START_LIGHTS_RUNTIME });
   files.push({ path: "Runtime/PatternBreakStarRating.cs", data: STAR_RATING_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakEmoteWheel.cs", data: EMOTE_WHEEL_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitTrace.cs", data: KIT_TRACE_RUNTIME });
   files.push({ path: "Runtime/PatternBreakSafeArea.cs", data: SAFE_AREA_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitPiece.cs", data: KIT_PIECE_RUNTIME });
@@ -6399,6 +6441,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     "Runtime/PatternBreakKitStepper.cs",
     "Runtime/PatternBreakPageDots.cs", "Runtime/PatternBreakStartLights.cs",
     "Runtime/PatternBreakStarRating.cs",
+    "Runtime/PatternBreakEmoteWheel.cs",
     "Runtime/PatternBreakKitTrace.cs",
     "Runtime/PatternBreakSafeArea.cs",
     "Runtime/PatternBreakKitPiece.cs",
@@ -7056,6 +7099,60 @@ namespace PatternBreak {
       bool fullS = stars >= 3;
       if (celebration != null && celebration.activeSelf != fullS) celebration.SetActive(fullS);
       if (replay != null && replay.activeSelf != fullS) replay.SetActive(fullS);
+    }
+    void OnEnable() { Apply(); }
+#if UNITY_EDITOR
+    void OnValidate() { UnityEditor.EditorApplication.delayCall += () => { if (this != null) Apply(); }; }
+#endif
+  }
+}
+`;
+
+/* the EMOTE WHEEL rig (round 44, item 11 — RIG-5/6): the pick is a DIAL.
+   The wheel rests uniform; the Armed highlight is a full-disc wedge child
+   the rig parks by pure rotation (the ring-cap discipline), each emote
+   swaps ghost/lit on its fixed frame, and the hub mirrors the pick —
+   the app's own selection story, drivable. */
+const EMOTE_WHEEL_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+
+namespace PatternBreak {
+  [AddComponentMenu("UI Kit Maker/Emote Wheel")]
+  [ExecuteAlways]
+  public class PatternBreakEmoteWheel : MonoBehaviour {
+    [Tooltip("The picked sector (0-based, clockwise from the top-right) — rotates the Armed highlight there, arms that emote and shows it in the hub.")]
+    public int sector = 0;
+    [Tooltip("How many sectors this wheel was exported with.")]
+    public int sectors = 6;
+    [Tooltip("The sector the shipped sprites rest on (generated) — highlight rotation is measured from here.")]
+    public int baseSector = 0;
+    [Tooltip("The emote children, sector order (generated wiring).")]
+    public Image[] emoteSlots = new Image[0];
+    [Tooltip("Each sector's resting look (generated).")]
+    public Sprite[] ghost = new Sprite[0];
+    [Tooltip("Each sector's armed look — themed + halo (generated).")]
+    public Sprite[] lit = new Sprite[0];
+    [Tooltip("The Armed highlight child — a full-disc wedge; the rig parks it by rotation, so it lands on any sector distortion-free.")]
+    public RectTransform highlight;
+    [Tooltip("The hub's Selected emote child (generated) — mirrors the pick.")]
+    public Image hub;
+    [Tooltip("The hub's own resting cut (generated) — worn while the pick rests on its shipped sector, so nothing drifts.")]
+    public Sprite hubRest;
+    public void SetSector(int i) { int n = Mathf.Max(1, sectors); sector = ((i % n) + n) % n; Apply(); }
+    public void SetValue(float v) { SetSector(Mathf.FloorToInt(Mathf.Clamp(v, 0f, 0.999f) * Mathf.Max(1, sectors))); }
+    public void Apply() {
+      int n = Mathf.Max(1, sectors);
+      for (int i = 0; i < emoteSlots.Length; i++) {
+        var im = emoteSlots[i]; if (im == null) continue;
+        var want = i == sector ? (i < lit.Length ? lit[i] : null) : (i < ghost.Length ? ghost[i] : null);
+        if (want != null && im.sprite != want) im.sprite = want;
+      }
+      // sectors advance clockwise; UI z-rotation is counterclockwise
+      if (highlight != null) highlight.localRotation = Quaternion.Euler(0f, 0f, -((sector - baseSector) * 360f / n));
+      if (hub != null) {
+        var wantHub = sector == baseSector && hubRest != null ? hubRest : (sector < lit.Length ? lit[sector] : null);
+        if (wantHub != null && hub.sprite != wantHub) hub.sprite = wantHub;
+      }
     }
     void OnEnable() { Apply(); }
 #if UNITY_EDITOR
@@ -14242,6 +14339,8 @@ namespace PatternBreak {
             if (slgS != null && it.value > 0f) slgS.SetValue(Mathf.Clamp01(it.value));
             var srrS = inst.GetComponent<PatternBreakStarRating>();
             if (srrS != null && it.value > 0f) srrS.SetValue(Mathf.Clamp01(it.value));
+            var ewS = inst.GetComponent<PatternBreakEmoteWheel>();
+            if (ewS != null && it.value > 0f) ewS.SetValue(Mathf.Clamp01(it.value));
             var gdS = inst.GetComponent<GaugeDial>();
             if (gdS != null && it.value > 0f) { gdS.value = Mathf.Clamp01(it.value); gdS.Apply(); }
             var ktS = inst.GetComponent<KitTimer>();
@@ -16449,6 +16548,43 @@ namespace PatternBreak {
           foreach (var aSR in m.assets) if (aSR != null && aSR.component == "starrating" && aSR.part == "star-unearned") { unRowSR = aSR; break; }
           rigSR.stars = unRowSR != null && unRowSR.ringV > 0f ? Mathf.RoundToInt(Mathf.Clamp01(unRowSR.ringV) * 3f) : 3;
           rigSR.Apply();
+        }
+      }
+      /* ── the EMOTE WHEEL goes LIVE (round 44, item 11): the wheel rests
+         uniform, the Armed highlight child parks on any sector by pure
+         rotation, each emote swaps ghost/lit on its fixed frame and the
+         hub mirrors the pick — PatternBreakEmoteWheel makes the sector a
+         dial. Old zips (no look atoms) keep the static children. ── */
+      if (baseAsset.component == "emotewheel") {
+        var slotsEW = new List<Image>(); var ghostEW = new List<Sprite>(); var litEW = new List<Sprite>();
+        for (int iEW = 1; iEW <= 8; iEW++) {
+          var tEW = go.transform.Find("Icon emote" + iEW);
+          var gSp = S(root + "/assets/emotewheel/emote" + iEW + "-ghost.png");
+          var lSp = S(root + "/assets/emotewheel/emote" + iEW + "-lit.png");
+          if (tEW == null || gSp == null || lSp == null) break;
+          var imEW = tEW.GetComponent<Image>(); if (imEW == null) break;
+          slotsEW.Add(imEW); ghostEW.Add(gSp); litEW.Add(lSp);
+        }
+        var hiEW = go.transform.Find("Armed highlight");
+        if (slotsEW.Count >= 4 && hiEW != null && go.GetComponent<PatternBreakEmoteWheel>() == null) {
+          var rigEW = go.AddComponent<PatternBreakEmoteWheel>();
+          rigEW.emoteSlots = slotsEW.ToArray();
+          rigEW.ghost = ghostEW.ToArray();
+          rigEW.lit = litEW.ToArray();
+          rigEW.sectors = slotsEW.Count;
+          rigEW.highlight = (RectTransform)hiEW;
+          var hubEW = go.transform.Find("Selected emote");
+          rigEW.hub = hubEW != null ? hubEW.GetComponent<Image>() : null;
+          if (rigEW.hub != null) rigEW.hubRest = rigEW.hub.sprite;
+          /* rest = the app's staged pick (any lit row's ringV over railW)
+             — pixel parity with the staged pose; the shipped sprites rest
+             on that same sector, so rotation measures from it */
+          float stEW = 0f;
+          foreach (var aEW in m.assets) if (aEW != null && aEW.component == "emotewheel" && aEW.part != null && aEW.part.EndsWith("-lit") && aEW.ringV > 0f) { stEW = Mathf.Clamp01(aEW.ringV); break; }
+          int baseSecEW = Mathf.FloorToInt(Mathf.Clamp(stEW, 0f, 0.999f) * slotsEW.Count);
+          rigEW.baseSector = baseSecEW;
+          rigEW.sector = baseSecEW;
+          rigEW.Apply();
         }
       }
       /* ── the CELL METERS go LIVE (round 44, dossier RIG-2 — owner items
