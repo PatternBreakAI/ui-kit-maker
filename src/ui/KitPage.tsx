@@ -1547,7 +1547,7 @@ function KitDebugStrip() {
 }
 
 export function KitPage() {
-  const { cfg, kitClones, setPhase, kitName, setKitName, saveUserPreset, updateMaster, viewer, isAdmin, componentReleases: releases, setComponentRelease, setComponentReleasesBatch } = useGen();
+  const { cfg, kitClones, kitName, setKitName, saveUserPreset, updateMaster, viewer, isAdmin, componentReleases: releases, setComponentRelease, setComponentReleasesBatch } = useGen();
   // the staging bay opens by hand only — it must never pop up mid-demo
   // (owner: "when I'm showing off the site, I don't want that stuff to
   // immediately pop up"), so collapsed is the default every load. Within
@@ -2416,7 +2416,13 @@ const kitTier = useGen((s) => s.tier);
             </button>
           </div>
           <div className="kp-actrow">
-            <button className="kp-editkit" onClick={() => setPhase("master")} title="Open the master in the editor — every control reshapes the whole kit live"
+            {/* the CTA says BUTTON, so it lands on the button — a parked
+                focus (or a persisted parent piece) used to reopen whatever
+                was edited last (owner, round-48: "it should take me to the
+                button"). setParent + setFocus(null) clear both roads;
+                setFocus carries phase:"master" itself. The tab-strip's
+                "Back to the component editor" keeps its back-semantics. */}
+            <button className="kp-editkit" onClick={() => { const st = useGen.getState(); st.setParent("button"); st.setFocus(null); }} title="Open the master button in the editor — every control reshapes the whole kit live"
               style={{ background: cfg.effects.Bevel ?? "#0E9CC9", color: isDarkBg(cfg.effects.Bevel ?? "#0E9CC9") ? "#ffffff" : "#0d0f16" }}>
               <PenTool size={16} strokeWidth={2.3} /> Edit master component
             </button>
