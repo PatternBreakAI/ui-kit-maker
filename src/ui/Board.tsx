@@ -167,14 +167,30 @@ type Tpl = {
 };
 /* The Match-3 board: 7×9 big-glyph tiles at 12% (~52px — the scale-floor
    round's whole point) on the 390×844 stage. The tiles are the set's six
-   true fruits (owner: "layout the fruit in a grid"). Seeded MATCHLESS the
-   way a real round starts: tile kind = (col + 2·row) mod 6, so horizontal
-   neighbours differ by 1 and vertical by 2 — never a 3-run — with one
-   bomb dropped in as the power piece (a single bomb can't form a run). */
-const M3_TILES = ["apple", "blueberry", "bananas", "lime", "grapes", "orange"];
+   true fruits (owner: "layout the fruit in a grid"). The deal is HAND-SET
+   (round 46): the old matchless formula ((col + 2·row) mod 6) was TOO
+   matchless — zero one-swap matches anywhere, so the board read as
+   wallpaper, not a puzzle (owner: too hard to read). This deal keeps the
+   real-round contract — no dealt 3-run — but plants ELEVEN one-swap
+   matches, several of them obvious pair-plus-one shapes near the top,
+   with the single bomb kept as the power piece. Checked by script:
+   0 dealt runs · 11 legal moves. */
+const M3_DEAL = [
+  // A apple · B blueberry · N bananas · L lime · G grapes · O orange · X bomb
+  "ABBNLOG",
+  "NAOBGLO",
+  "AAGBBNL",
+  "OGNLLBO",
+  "GONXAGN",
+  "BGGOANA",
+  "LBNGOLB",
+  "GLLBNOO",
+  "ANGGLBN",
+];
+const M3_KIND: Record<string, string> = { A: "apple", B: "blueberry", N: "bananas", L: "lime", G: "grapes", O: "orange", X: "bomb" };
 const M3_GRID: { big: BigGlyphFx; x: number; y: number; scale: number }[] = [];
 for (let r = 0; r < 9; r++) for (let c = 0; c < 7; c++) {
-  const gid = r === 4 && c === 3 ? "bomb" : M3_TILES[(c + 2 * r) % 6];
+  const gid = M3_KIND[M3_DEAL[r][c]];
   const gl = bigGlyphById(gid)!;
   M3_GRID.push({
     big: { gid },

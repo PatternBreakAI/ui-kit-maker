@@ -968,7 +968,10 @@ const M3CATS = [
   { icon: "heart", c: "#FF5C8A" }, // hearts · rose candy
   { icon: "gem", c: "#59C2FF" },   // gems · glacier blue
   { icon: "star", c: "#FFC94D" },  // stars · arcade gold
-  { icon: "bag", c: "#69D96B" },   // bags · slime green
+  /* round 46 (owner: "a file isn't very game-y") — the shopping-bag glyph
+     read as a FILE/document at tile size; the leaf is unmistakably a
+     match-3 lane and owns the green */
+  { icon: "leaf", c: "#69D96B" },  // leaves · slime green
   { icon: "zap", c: "#B98CFF" },   // bolts · hex violet
 ] as const;
 /* a hand-set opening board: all five lanes on stage, one juicy heart trio
