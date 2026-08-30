@@ -3811,10 +3811,17 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      layers and place as wired prefabs, like the slider and the progress
      bar before them. */
   await addPng("vsbar/track.9.png", shell("vsbar", { overlay: "track" }, slim), { component: "vsbar", part: "track", nineSlice: sliceOf("vsbar", 96), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "VS health bar track — the real component's shell + well, no fills, no medallion. The wired VsBar prefab stretches it." }, true);
-  await addPng("vsbar/fill-l.png", shell("vsbar", { overlay: "fill" }, slim, 1), { component: "vsbar", part: "fill-l", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Left fighter's mercury at 100% (drain edge rounded like the app draws it) — Filled/Horizontal, Origin Left; fillAmount IS the left health, draining toward center; KitBarFill rides the drain cap." }, true);
-  await addPng("vsbar/fill-r.png", shell("vsbar", { overlay: "fill-right" }, slim, 1), { component: "vsbar", part: "fill-r", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Right fighter's mercury at 100% (drain edge rounded like the app draws it) — Filled/Horizontal, Origin Right; fillAmount IS the right health; KitBarFill rides the drain cap." }, true);
-  await addPng("vsbar/cap-l.png", shell("vsbar", { overlay: "cap-l" }, slim, 1), { component: "vsbar", part: "cap-l", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Left fighter's drain bead — KitBarFill parks it at the health line (round 44: rounded at any value)." }, true);
-  await addPng("vsbar/cap-r.png", shell("vsbar", { overlay: "cap-r" }, slim, 1), { component: "vsbar", part: "cap-r", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Right fighter's drain bead, mirrored — KitBarFill parks it at the health line." }, true);
+  await addPng("vsbar/fill-l.png", shell("vsbar", { overlay: "fill" }, slim, 1), { component: "vsbar", part: "fill-l", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Left fighter's mercury at 100% — KitBarFill COMPRESSES it into the live run (the app squeezes its ramp the same way; a windowed crop would wear the wrong ink at every value but full). Drive SetValue or write fillAmount; the drain cap follows." }, true);
+  await addPng("vsbar/fill-r.png", shell("vsbar", { overlay: "fill-right" }, slim, 1), { component: "vsbar", part: "fill-r", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Right fighter's mercury at 100%, mirrored — KitBarFill compresses it into the live run toward center. Drive SetValue or write fillAmount; the drain cap follows." }, true);
+  await addPng("vsbar/cap-l.png", shell("vsbar", { overlay: "cap-l" }, slim, 1), { component: "vsbar", part: "cap-l", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Left fighter's drain bead — KitBarFill parks it at the health line (round 44: rounded at any value; round 47: faded lead-in blends into the compressed ramp)." }, true);
+  await addPng("vsbar/cap-r.png", shell("vsbar", { overlay: "cap-r" }, slim, 1), { component: "vsbar", part: "cap-r", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Right fighter's drain bead, PRE-MIRRORED — KitBarFill seats it pivot-first into the run at the health line (never x-flip it: the art already faces center)." }, true);
+  /* round 47 (owner field: the VS caps clashed with the ramp): the NUB
+     atoms — the live draw at run = one bar height, the whole ramp
+     squeezed into a stadium. Below one head-width KitBarFill squashes
+     the nub over the run (the app's short-tail shape and ink exactly)
+     and cross-fades it out as the bar grows. */
+  await addPng("vsbar/nub-l.png", shell("vsbar", { overlay: "nub-l" }, slim, 1), { component: "vsbar", part: "nub-l", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Left fighter's short-run pill — KitBarFill squashes it to the run below one head-width (the full ramp compressed, like the app's own tail) and fades it out as the bar grows." }, true);
+  await addPng("vsbar/nub-r.png", shell("vsbar", { overlay: "nub-r" }, slim, 1), { component: "vsbar", part: "nub-r", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Right fighter's short-run pill, mirrored — the same short-tail rig from the other end." }, true);
   /* round 44 (dossier R1 — words-are-live law): the medal's "VS" leaves
      the pixels. The word parses as a text seat off the medal's OWN canvas
      (the raster queue normalizes fx/fy/ffs to the cropped sprite; the ink
@@ -7246,6 +7253,10 @@ namespace PatternBreak {
     public bool fromRight;
     [Tooltip("Snap the value to N whole steps — the quest tracker fills by whole objectives (round 44). 0 = continuous; old prefabs keep today's behavior.")]
     public int snapSteps = 0;
+    [Tooltip("Ramped mercuries (the VS bar): COMPRESS the sprite into the run — the app squeezes its whole gradient into the mercury at every value, so a windowed crop wears the wrong ink everywhere but full. Off = the classic windowed crop (flat-colored bars; older prefabs).")]
+    public bool stretchRun;
+    [Tooltip("The whole-mercury pill for the short-run tail (generated on ramped bars): below one head-width the app draws a stadium with the full ramp squeezed in — no static head can fake that — so this atom squashes to the run and cross-fades out as the bar grows.")]
+    public RectTransform nub;
     float value = -1f; float wroteFill = float.NaN;
     float Snap(float v) { v = Mathf.Clamp01(v); return snapSteps > 0 ? Mathf.Round(v * snapSteps) / snapSteps : v; }
     public void SetValue(float v) { value = Snap(v); Apply(); }
@@ -7268,7 +7279,10 @@ namespace PatternBreak {
       float r = areaH * 0.5f;
       bool full = v >= 0.995f;
       float runW = areaW * v;
-      float shrink = Mathf.Clamp01(runW / Mathf.Max(1f, 2f * r)); // the app: r = min(h/2, run/2)
+      /* stretch mode normalizes the shrink by the head itself — the head
+         may never outgrow the run (the windowed rung keeps its round-44
+         2r rule so old prefabs render exactly as shipped) */
+      float shrink = stretchRun ? Mathf.Clamp01(runW / Mathf.Max(1f, capW)) : Mathf.Clamp01(runW / Mathf.Max(1f, 2f * r)); // the app: r = min(h/2, run/2)
       bool showCap = showFill && !full;
       if (capHead.gameObject.activeSelf != showCap) capHead.gameObject.SetActive(showCap);
       if (showCap) {
@@ -7278,13 +7292,64 @@ namespace PatternBreak {
         capHead.pivot = new Vector2(fromRight ? 0f : 1f, 0.5f);
         capHead.sizeDelta = new Vector2(capW, 0f);
         capHead.anchoredPosition = Vector2.zero;
-        var sc = capHead.localScale; sc.x = (fromRight ? -1f : 1f) * Mathf.Max(0.01f, shrink); sc.y = Mathf.Max(0.01f, shrink); capHead.localScale = sc;
+        /* a MIRRORED bar's head atom ships PRE-MIRRORED (vsbar cap-r), so
+           it seats pivot-first INTO the run. The old extra x-flip threw
+           it onto naked track left of the value line (round 47, owner
+           field: the right cap sat detached from its fill). */
+        var sc = capHead.localScale; sc.x = Mathf.Max(0.01f, shrink); sc.y = Mathf.Max(0.01f, shrink); capHead.localScale = sc;
+      }
+      if (stretchRun) { ApplyStretched(v, runW, areaW, areaH, capW, showFill, showCap); return; }
+      var wrt = fill.rectTransform;
+      // heal the anchors if stretch mode was toggled off in the Inspector
+      if (wrt.anchorMin.x != 0f || wrt.anchorMax.x != 1f) { var w0 = wrt.anchorMin; w0.x = 0f; wrt.anchorMin = w0; var w1 = wrt.anchorMax; w1.x = 1f; wrt.anchorMax = w1; wrt.offsetMin = Vector2.zero; wrt.offsetMax = Vector2.zero; }
+      if (nub != null && nub.gameObject.activeSelf) nub.gameObject.SetActive(false);
+      if (showCap) {
         // the crop's straight cut retreats under the bead's solid body —
         // its full-height corners can never poke past the curve
         float capFrac = areaW > 1f ? (capW * shrink) / areaW : 0f;
         fill.fillAmount = Mathf.Max(0f, v - capFrac * 0.5f);
       } else fill.fillAmount = v;
       wroteFill = fill.fillAmount;
+    }
+    /* the RAMP road (round 47, owner field: the VS bar's cap wore ink from
+       the ramp's far end): the app compresses its whole gradient into the
+       live mercury, so the body STRETCHES to the run (anchors carry the
+       value), the faded-lead bead parks on the drain edge, and the nub
+       pill owns the short tail where the app squeezes the full ramp into
+       one stadium. SetValue and raw fillAmount writes both still drive it. */
+    void ApplyStretched(float v, float runW, float areaW, float areaH, float capW, bool showFill, bool showCap) {
+      if (v >= 0.995f) v = 1f; // full = the sprite's own authored end, unsqueezed
+      var frt = fill.rectTransform;
+      var a0 = frt.anchorMin; var a1 = frt.anchorMax;
+      a0.x = fromRight ? 1f - v : 0f; a1.x = fromRight ? 1f : v;
+      if (frt.anchorMin != a0) frt.anchorMin = a0;
+      if (frt.anchorMax != a1) frt.anchorMax = a1;
+      if (frt.offsetMin != Vector2.zero) frt.offsetMin = Vector2.zero;
+      if (frt.offsetMax != Vector2.zero) frt.offsetMax = Vector2.zero;
+      float shrink = Mathf.Clamp01(runW / Mathf.Max(1f, capW));
+      if (showCap) {
+        // the straight cut retreats to the bead's midline — within the
+        // stretched rect the cut is a fraction of the RUN, not the area
+        float capFrac = runW > 1f ? (capW * shrink) / runW : 0f;
+        fill.fillAmount = Mathf.Max(0f, 1f - capFrac * 0.5f);
+      } else fill.fillAmount = showFill ? 1f : 0f;
+      wroteFill = fill.fillAmount;
+      var nubImg = nub != null ? nub.GetComponent<Image>() : null;
+      float nubW = nubImg != null && nubImg.sprite != null ? areaH * (nubImg.sprite.rect.width / Mathf.Max(1f, nubImg.sprite.rect.height)) : 0f;
+      // squash-solid below its own width, cross-fading out over the next
+      // ~two-thirds of a head so regime handoff never pops mid-drain
+      float nubFade = nubW > 1f && showCap ? Mathf.Clamp01(1f - (runW - nubW) / Mathf.Max(1f, nubW * 0.7f)) : 0f;
+      bool showNub = nubImg != null && nubImg.sprite != null && nubFade > 0.001f;
+      if (nub != null && nub.gameObject.activeSelf != showNub) nub.gameObject.SetActive(showNub);
+      if (showNub) {
+        nub.anchorMin = new Vector2(fromRight ? 1f : 0f, 0f);
+        nub.anchorMax = new Vector2(fromRight ? 1f : 0f, 1f);
+        nub.pivot = new Vector2(fromRight ? 1f : 0f, 0.5f);
+        nub.sizeDelta = new Vector2(runW, 0f);
+        nub.anchoredPosition = Vector2.zero;
+        var nc = nubImg.color; nc.a = nubFade;
+        if (nubImg.color != nc) nubImg.color = nc;
+      }
     }
     void OnEnable() { Apply(); }
     // the shipped contract stands: write fillAmount and the head follows
@@ -18329,6 +18394,20 @@ namespace PatternBreak {
         cImg.sprite = capSp; cImg.raycastTarget = false; cImg.type = Image.Type.Simple; cImg.preserveAspect = false;
         kbf.capHead = (RectTransform)capGo.transform;
       }
+      /* round 47 (owner field: the VS caps clashed with the ramp): a bar
+         that ships a NUB atom is a ramped mercury — the rig compresses
+         the fill into the run like the app compresses its gradient, and
+         the nub pill owns the short tail. Zips without the atom (older
+         exports, flat bars) keep the windowed crop exactly as shipped. */
+      var nubSp = S(root + "/assets/" + fam + "/" + fam + "-nub-" + (fromRight ? "r" : "l") + ".png");
+      if (nubSp != null && capSp != null) {
+        kbf.stretchRun = true;
+        var nubGo = new GameObject("Nub", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        nubGo.transform.SetParent(area.transform, false);
+        var nImg = nubGo.GetComponent<Image>();
+        nImg.sprite = nubSp; nImg.raycastTarget = false; nImg.type = Image.Type.Simple; nImg.preserveAspect = false;
+        kbf.nub = (RectTransform)nubGo.transform;
+      }
       kbf.SetValue(staged);
     }
     /* ── the TWIN RAILS (round 44, item 21): mana and stamina each ride
@@ -22663,7 +22742,30 @@ namespace PatternBreak {
               if (S(root + "/assets/" + famBarK + "/" + famBarK + "-" + ln[2] + ".png") == null) continue; // old zip
               wantCapK = true;
             }
-            if (wantCapK) {
+            /* the RAMP upgrade (round 47): a kept vsbar already on the
+               round-44 cap rig converges onto the stretch road ON THE
+               NUB'S ARRIVAL IMPORT only (the segbar Lit era rule) — the
+               rig still OURS (KitBarFill present, fill wearing our
+               sprite), the nub atom newly shipping, no Nub child yet.
+               After that the dev's rig is theirs and never fought. */
+            bool wantRampK = false;
+            if (famBarK == "vsbar" && !wantCapK) {
+              bool nubEraK = true;
+              if (prevLock != null && prevLock.files != null)
+                foreach (var fPrevN in prevLock.files) if (fPrevN != null && fPrevN.file == "assets/vsbar/vsbar-nub-l.png") { nubEraK = false; break; }
+              if (nubEraK)
+                foreach (var ln in laneK) {
+                  var arT = asset.transform.Find(ln[0]);
+                  var kbT = arT != null ? arT.GetComponent<KitBarFill>() : null;
+                  var fiI = kbT != null ? kbT.fill : null;
+                  if (kbT == null || kbT.stretchRun || kbT.nub != null || fiI == null || fiI.sprite == null) continue;
+                  var pSprN = AssetDatabase.GetAssetPath(fiI.sprite).Replace("\\\\", "/");
+                  if (!pSprN.StartsWith(root + "/assets/")) continue; // dev art — theirs
+                  if (S(root + "/assets/vsbar/vsbar-nub-" + (ln[2] == "cap-r" ? "r" : "l") + ".png") == null) continue; // old zip
+                  wantRampK = true;
+                }
+            }
+            if (wantCapK || wantRampK) {
               var contentsBC = PrefabUtility.LoadPrefabContents(path);
               try {
                 foreach (var ln in laneK) {
@@ -22673,7 +22775,21 @@ namespace PatternBreak {
                   if (arT == null || fiI == null || fiI.type != Image.Type.Filled || fiI.sprite == null) continue;
                   var pSprK2 = AssetDatabase.GetAssetPath(fiI.sprite).Replace("\\\\", "/");
                   if (!pSprK2.StartsWith(root + "/assets/")) continue;
-                  if (arT.GetComponent<KitBarFill>() != null) continue;
+                  var kbK2 = arT.GetComponent<KitBarFill>();
+                  if (kbK2 != null) {
+                    // the ramp upgrade lane: stretch + nub onto the kept rig
+                    if (!wantRampK || kbK2.stretchRun || kbK2.nub != null) continue;
+                    var nubSpK = S(root + "/assets/vsbar/vsbar-nub-" + (ln[2] == "cap-r" ? "r" : "l") + ".png");
+                    if (nubSpK == null) continue;
+                    kbK2.stretchRun = true;
+                    var nubGoK = new GameObject("Nub", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+                    nubGoK.transform.SetParent(arT, false);
+                    var nImgK = nubGoK.GetComponent<Image>();
+                    nImgK.sprite = nubSpK; nImgK.raycastTarget = false; nImgK.type = Image.Type.Simple; nImgK.preserveAspect = false;
+                    kbK2.nub = (RectTransform)nubGoK.transform;
+                    kbK2.SetValue(Mathf.Clamp01(kbK2.fill.fillAmount)); // the dev's staged health survives
+                    continue;
+                  }
                   WireBarCap(arT.gameObject, fiI, root, famBarK, ln[2] == "cap-r", Mathf.Clamp01(fiI.fillAmount));
                 }
                 PrefabUtility.SaveAsPrefabAsset(contentsBC, path);

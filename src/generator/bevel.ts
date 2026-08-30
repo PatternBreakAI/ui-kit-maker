@@ -5459,40 +5459,58 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
           candyKnob(cpad, cpad, R, knobC, undefined, false) +
           `<text x="${(cpad + typeOxK * k).toFixed(1)}" y="${(cpad + 1 + typeOyK * k).toFixed(1)}" font-family="'${font}', 'Inter Variable', Inter, sans-serif" font-size="${(30 * k * typeK).toFixed(1)}" font-weight="800" font-style="italic" fill="${darken(bevel, 0.6)}" text-anchor="middle" dominant-baseline="central">VS</text></svg>`;
       }
-      if (opts.overlay === "fill" || opts.overlay === "fill-right" || opts.overlay === "cap-l" || opts.overlay === "cap-r") {
+      if (opts.overlay === "fill" || opts.overlay === "fill-right" || opts.overlay === "cap-l" || opts.overlay === "cap-r" || opts.overlay === "nub-l" || opts.overlay === "nub-r") {
         /* one fighter's mercury at 100% — the silhouette-shaped half-run.
            Round 44 (owner item 43, app side): the DRAIN edge rounds like
            the live drawing's bead — the old deliberately-square cut is
            exactly the flat end the owner vetoed kit-wide; the Filled
            scissor now hides under the live cap atom instead. The OUTER
-           cap still takes the component's contour from the silhouette. */
-        const rightF = opts.overlay === "fill-right" || opts.overlay === "cap-r";
+           cap still takes the component's contour from the silhouette.
+           Round 47 (owner field): the ramp COMPRESSES into the live run
+           (objectBoundingBox), so Unity stretches the fill instead of
+           windowing it; the cap atom's lead-in edge FADES so its bead
+           blends into whatever ramp column it lands on; and the NUB atom
+           bakes the live draw at run = one bar height — the stadium with
+           the whole ramp squeezed in that no static bead can fake — for
+           KitBarFill to squash over the short-run tail. */
+        const rightF = opts.overlay === "fill-right" || opts.overlay === "cap-r" || opts.overlay === "nub-r";
         const capF = opts.overlay === "cap-l" || opts.overlay === "cap-r";
+        const nubF = opts.overlay === "nub-l" || opts.overlay === "nub-r";
         const gid = "vs" + UID++;
         const clipF = shapePath(shapeOv ?? KIT_SHAPE[id] ?? cfg.shape, bx, by, trackW, bh, Math.max(0, cfg.bevel.softness - 12));
         const gradF = rightF
           ? `<linearGradient id="${gid}" x1="1" y1="0" x2="0" y2="0"><stop offset="0" stop-color="${darken(rC, 0.25)}"/><stop offset="1" stop-color="${rC}"/></linearGradient>`
           : `<linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient>`;
         const cw9 = Math.ceil(w + 78), ch9 = Math.ceil(h + 60);
-        const rF9 = bh / 2;
-        // the full half-run with the drain bead (the live draw at v = 1)
-        const fxL9 = bx + halfW, x0R9 = bx + trackW - halfW;
+        const runF = nubF ? bh : halfW; // the nub IS the live draw at run = one bar height
+        const rF9 = Math.min(bh / 2, runF / 2);
+        // the full run with the drain bead (the live draw at v = 1, or at
+        // the nub's own short run)
+        const fxL9 = bx + runF, x0R9 = bx + trackW - runF;
         const bodyF = rightF
           ? `M ${(bx + trackW + 2).toFixed(1)} ${by.toFixed(1)} H ${(x0R9 + rF9).toFixed(1)} Q ${x0R9.toFixed(1)} ${by.toFixed(1)} ${x0R9.toFixed(1)} ${(by + rF9).toFixed(1)} V ${(by + bh - rF9).toFixed(1)} Q ${x0R9.toFixed(1)} ${(by + bh).toFixed(1)} ${(x0R9 + rF9).toFixed(1)} ${(by + bh).toFixed(1)} H ${(bx + trackW + 2).toFixed(1)} Z`
           : `M ${(bx - 2).toFixed(1)} ${by.toFixed(1)} H ${(fxL9 - rF9).toFixed(1)} Q ${fxL9.toFixed(1)} ${by.toFixed(1)} ${fxL9.toFixed(1)} ${(by + rF9).toFixed(1)} V ${(by + bh - rF9).toFixed(1)} Q ${fxL9.toFixed(1)} ${(by + bh).toFixed(1)} ${(fxL9 - rF9).toFixed(1)} ${(by + bh).toFixed(1)} H ${(bx - 2).toFixed(1)} Z`;
         const glossF = rightF
-          ? `<rect x="${(x0R9 + bh * 0.16).toFixed(1)}" y="${(by + bh * 0.08).toFixed(1)}" width="${Math.max(0, halfW + 2 - bh * 0.16).toFixed(1)}" height="${(bh * 0.3).toFixed(1)}" rx="${(bh * 0.15).toFixed(1)}" fill="#FFFFFF" opacity="0.28"/>`
-          : `<rect x="${(bx - 2).toFixed(1)}" y="${(by + bh * 0.08).toFixed(1)}" width="${Math.max(0, halfW + 2 - bh * 0.16).toFixed(1)}" height="${(bh * 0.3).toFixed(1)}" rx="${(bh * 0.15).toFixed(1)}" fill="#FFFFFF" opacity="0.28"/>`;
+          ? `<rect x="${(x0R9 + bh * 0.16).toFixed(1)}" y="${(by + bh * 0.08).toFixed(1)}" width="${Math.max(0, runF + 2 - bh * 0.16).toFixed(1)}" height="${(bh * 0.3).toFixed(1)}" rx="${(bh * 0.15).toFixed(1)}" fill="#FFFFFF" opacity="0.28"/>`
+          : `<rect x="${(bx - 2).toFixed(1)}" y="${(by + bh * 0.08).toFixed(1)}" width="${Math.max(0, runF + 2 - bh * 0.16).toFixed(1)}" height="${(bh * 0.3).toFixed(1)}" rx="${(bh * 0.15).toFixed(1)}" fill="#FFFFFF" opacity="0.28"/>`;
         /* the cap atoms: the drain bead windowed out of this drawing
-           (the progress cap's window trick, mirrored per side) */
-        const wx0F = capF ? (rightF ? x0R9 - 8 : fxL9 - bh - 8) : 0;
-        const wwF = Math.ceil(bh + 16);
-        const openF = capF
+           (the progress cap's window trick, mirrored per side); the nub
+           atoms window the whole short pill */
+        const wx0F = capF ? (rightF ? x0R9 - 8 : fxL9 - bh - 8) : nubF ? (rightF ? x0R9 - 10 : bx - 10) : 0;
+        const wwF = capF ? Math.ceil(bh + 16) : Math.ceil(bh + 20);
+        const openF = capF || nubF
           ? `width="${wwF}" height="${ch9}" viewBox="${wx0F.toFixed(1)} 0 ${wwF} ${ch9}"`
           : `width="${cw9}" height="${ch9}" viewBox="0 0 ${cw9} ${ch9}"`;
+        /* the lead-in fade (round 47): the bead's straight lead carries the
+           ramp's END columns; parked mid-run those columns clash with the
+           compressed body under it — a 14px alpha ramp on the window's
+           inner edge blends the two instead of cutting a seam */
+        const fadeF = capF
+          ? `<linearGradient id="${gid}fg" gradientUnits="userSpaceOnUse" x1="${(rightF ? wx0F + wwF : wx0F).toFixed(1)}" y1="0" x2="${(rightF ? wx0F + wwF - 14 : wx0F + 14).toFixed(1)}" y2="0"><stop offset="0" stop-color="#000000"/><stop offset="1" stop-color="#FFFFFF"/></linearGradient><mask id="${gid}fade" maskUnits="userSpaceOnUse" x="${wx0F.toFixed(1)}" y="0" width="${wwF}" height="${ch9}"><rect x="${wx0F.toFixed(1)}" y="0" width="${wwF}" height="${ch9}" fill="url(#${gid}fg)"/></mask>`
+          : "";
         return `<svg xmlns="http://www.w3.org/2000/svg" ${openF}>
-          <defs>${gradF}<clipPath id="${gid}w"><path d="${clipF}"/></clipPath><clipPath id="${gid}f"><path d="${bodyF}"/></clipPath></defs>
-          <g clip-path="url(#${gid}w)">
+          <defs>${gradF}${fadeF}<clipPath id="${gid}w"><path d="${clipF}"/></clipPath><clipPath id="${gid}f"><path d="${bodyF}"/></clipPath></defs>
+          <g clip-path="url(#${gid}w)"${capF ? ` mask="url(#${gid}fade)"` : ""}>
             <path d="${bodyF}" fill="url(#${gid})" opacity="0.95"/>
             <g clip-path="url(#${gid}f)">${glossF}</g>
           </g></svg>`;

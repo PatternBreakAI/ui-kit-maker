@@ -3424,6 +3424,34 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the QuickStart's animation chapter lost the 2022.3 readout caveat (round 47, S35)");
 }
 
+/* ── ROUND 47 · S36 (owner field screenshot — the VS bar's caps): the
+   app compresses its whole gradient into the live mercury, so a windowed
+   crop wears the wrong ink at every value but full, and the mirrored
+   (right) cap's extra x-flip threw the pre-mirrored atom onto naked
+   track left of the value line. The rig now STRETCHES ramped fills into
+   the run (nub pill owning the short tail, faded-lead caps blending into
+   the ramp), and a mirrored cap seats pivot-first with NO flip. ── */
+{
+  if (!/float shrink = stretchRun \? Mathf\.Clamp01\(runW \/ Mathf\.Max\(1f, capW\)\) : Mathf\.Clamp01\(runW \/ Mathf\.Max\(1f, 2f \* r\)\);/.test(src)
+      || !/void ApplyStretched\(float v, float runW, float areaW, float areaH, float capW, bool showFill, bool showCap\) \{/.test(src)
+      || !/public bool stretchRun;/.test(src)
+      || !/public RectTransform nub;/.test(src))
+    errors.push("KitBarFill lost the stretch-run road — ramped mercuries (the VS bar) window the wrong ink again (round 47, S36)");
+  if (!/var sc = capHead\.localScale; sc\.x = Mathf\.Max\(0\.01f, shrink\); sc\.y = Mathf\.Max\(0\.01f, shrink\); capHead\.localScale = sc;/.test(src)
+      || /\(fromRight \? -1f : 1f\) \* Mathf\.Max\(0\.01f, shrink\)/.test(src))
+    errors.push("the mirrored cap's x-flip is back — the pre-mirrored right bead lands on naked track again (round 47, S36)");
+  if (!/var nubSp = S\(root \+ "\/assets\/" \+ fam \+ "\/" \+ fam \+ "-nub-" \+ \(fromRight \? "r" : "l"\) \+ "\.png"\);/.test(cs)
+      || !/kbf\.stretchRun = true;/.test(cs)
+      || !/fPrevN\.file == "assets\/vsbar\/vsbar-nub-l\.png"/.test(cs))
+    errors.push("the nub wiring or its kept-project era rule left the importer (round 47, S36)");
+  if (!/opts\.overlay === "nub-l" \|\| opts\.overlay === "nub-r"/.test(bevelSrc)
+      || !/mask="url\(#\$\{gid\}fade\)"/.test(bevelSrc))
+    errors.push("the vsbar nub overlays or the cap lead-in fade left the app's drawing (round 47, S36)");
+  for (const nubRow of ['"vsbar\\/nub-l.png"', '"vsbar\\/nub-r.png"'])
+    if (!new RegExp("await addPng\\(" + nubRow).test(src))
+      errors.push(`the ${nubRow} nub atom stopped shipping (round 47, S36)`);
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);
