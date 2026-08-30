@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { Component, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import "@/styles/pricing.css"; // the staging bay wears the community desk's cg-curate buttons
 import { ChevronDown, Download, Lock, PenTool, Pin, ShieldCheck, SquarePen, Trash2 } from "lucide-react";
 import { useGen } from "@/generator/store";
@@ -1238,9 +1238,46 @@ function Sec({ n, title, anchor, note, wide, children }: { n: string; title: str
         <span className="kp-rule" />
       </header>
       {note && <p className="kp-note">{note}</p>}
-      {children}
+      <SecGuard name={title}>{children}</SecGuard>
     </section>
   );
+}
+
+/* ── round-46 field hunt: name the dying section ──────────────────────
+   The owner's production kit page lost everything below a point inside
+   the Components chapter — no glitch card, no repro in any pose we can
+   build here (prod-mode build, admin, the real release ledger, the
+   owner's own doc, the workspace pull 500ing terminally). Two changes so
+   the page can't die silently again: (1) every section body and every
+   deferred chapter renders behind this guard, so whatever throws paints
+   a small named card and the REST of the book lives on (before this, one
+   bad specimen took the whole page to the route-level glitch card);
+   (2) the guard and the chapter mounts log "[chapters] …" lines, so the
+   owner's next console capture names the dying section outright. */
+class SecGuard extends Component<{ name: string; children: ReactNode }, { err: string | null }> {
+  state = { err: null as string | null };
+  static getDerivedStateFromError(e: unknown) { return { err: String((e as Error)?.message ?? e) }; }
+  componentDidCatch(e: unknown) { console.error(`[chapters] "${this.props.name}" crashed while rendering:`, e); }
+  render() {
+    if (this.state.err) return (
+      <p className="kp-note" role="alert">
+        This part of the page hit a rendering error on this device — everything else is unaffected.
+        <span style={{ display: "block", marginTop: 4, fontSize: 11, opacity: 0.6, fontFamily: "ui-monospace, monospace" }}>
+          [{this.props.name}] {this.state.err.slice(0, 160)}
+        </span>
+      </p>
+    );
+    return this.props.children;
+  }
+}
+/** Runs a render thunk INSIDE the guard above — the deferred chapters and
+ *  the page's inline (() => …)() blocks build their elements in a parent's
+ *  render, where a throw would sail past any boundary wrapped around the
+ *  finished elements. Handing the guard the thunk itself puts the whole
+ *  evaluation under it. */
+function Thunk({ children }: { children: () => ReactNode }) { return <>{children()}</>; }
+function Guarded({ name, body }: { name: string; body: () => ReactNode }) {
+  return <SecGuard name={name}><Thunk>{body}</Thunk></SecGuard>;
 }
 
 /** Chapter divider — a level of the system, visually senior to any section. */
@@ -1263,23 +1300,33 @@ function Chapter({ n, id, label, blurb }: { n: string; id: string; label: string
  *  as a THUNK so React never evaluates a dormant chapter's render work.
  *  The Chapter divider above each Deferred stays mounted, so tab anchors
  *  and deep links keep working; the ghost reserves honest scroll room. */
-function Deferred({ estH, eager, onLive, children }: { estH: number; eager?: boolean; onLive?: () => void; children: () => React.ReactNode }) {
+function Deferred({ tag, estH, eager, onLive, children }: { tag: string; estH: number; eager?: boolean; onLive?: () => void; children: () => React.ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   const [live, setLive] = useState(false);
   useEffect(() => { if (eager && !live) setLive(true); }, [eager, live]);
   // fires AFTER the chapter's content commits — the boot curtain sequences
   // the next chapter on it, so the bar ticks on real completions
   const announced = useRef(false);
-  useEffect(() => { if (live && !announced.current) { announced.current = true; onLive?.(); } }, [live, onLive]);
+  useEffect(() => {
+    if (live && !announced.current) {
+      announced.current = true;
+      // field-capture breadcrumb (round-46 hunt): a committed line per
+      // chapter — a capture where these stop names where the book died
+      console.info(`[chapters] ${tag} committed`);
+      onLive?.();
+    }
+  }, [live, onLive, tag]);
   useEffect(() => {
     if (live) return;
     const el = ref.current;
-    if (!el || typeof IntersectionObserver === "undefined") { setLive(true); return; }
+    if (!el || typeof IntersectionObserver === "undefined") { console.warn(`[chapters] ${tag}: no IntersectionObserver — mounting immediately`); setLive(true); return; }
     const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) setLive(true); }, { rootMargin: "1600px 0px" });
     io.observe(el);
     return () => io.disconnect();
-  }, [live]);
-  return live ? <>{children()}</> : <div ref={ref} className="kp-ghost" style={{ minHeight: estH }} aria-hidden="true" />;
+  }, [live, tag]);
+  // the guard takes the THUNK: chapter content is built inside it, so a
+  // throw mid-chapter paints a named card instead of felling the page
+  return live ? <Guarded name={tag} body={children} /> : <div ref={ref} className="kp-ghost" style={{ minHeight: estH }} aria-hidden="true" />;
 }
 
 /** Small annotation line under a Build Part — plain editorial text, not pills. */
@@ -1695,6 +1742,24 @@ export function KitPage() {
   // hides the work, the double-rAF keeps the bar honest and the page alive
   const bootAdvance = () => requestAnimationFrame(() => requestAnimationFrame(() => setBootN((n) => Math.min(BOOT_DONE, n + 1))));
   useEffect(() => { const t = window.setTimeout(bootAdvance, 250); return () => window.clearTimeout(t); }, []);
+  /* round-46 stall-proofing: the boot chain is SERIAL — each chapter's
+     commit advances the next — so one missed link (a throttled rAF, an
+     observer that never fires, an effect lost to a race) used to strand
+     every chapter downstream as an empty ghost forever, which is exactly
+     the shape of the owner's field report (Components stopping dead after
+     its first pieces, everything below empty). The watchdog re-arms on
+     every advance and force-marches a stage that sits silent, straight
+     through setBootN — no rAF in the path, so the thing being watched
+     can't also be the thing that's stuck. Healthy boots advance in well
+     under a second and never hear from it. */
+  useEffect(() => {
+    if (bootN >= BOOT_DONE) return;
+    const t = window.setTimeout(() => {
+      console.warn(`[chapters] boot stalled at stage ${bootN}/${BOOT_DONE} — watchdog advancing`);
+      setBootN((n) => (n === bootN ? Math.min(BOOT_DONE, n + 1) : n));
+    }, 3500);
+    return () => window.clearTimeout(t);
+  }, [bootN]);
   useEffect(() => {
     if (curtain !== "on") return;
     if (bootN >= BOOT_DONE && fontsReady) {
@@ -1705,7 +1770,7 @@ export function KitPage() {
       return () => window.clearTimeout(t);
     }
     // failsafe: a stalled stage never traps the reader behind the curtain
-    const f = window.setTimeout(() => setCurtain("leaving"), 12000);
+    const f = window.setTimeout(() => { console.warn(`[chapters] curtain failsafe lift — boot sat at stage ${bootN}/${BOOT_DONE}`); setCurtain("leaving"); }, 12000);
     return () => window.clearTimeout(f);
   }, [bootN, fontsReady, curtain]);
   useEffect(() => {
@@ -2492,7 +2557,7 @@ const kitTier = useGen((s) => s.tier);
           seat, restored on the owner's order ("why would you move the
           staging area") — and for everyone else these pieces don't exist
           anywhere on the site. ── */}
-      {isAdmin && STAGED_KIT.size > 0 && (() => {
+      {isAdmin && STAGED_KIT.size > 0 && <Guarded name="The staging bay" body={() => {
         // released pieces LEAVE the queue (owner call) — they live in the
         // kit proper now; a quiet footer keeps the pull-back reversible.
         // Rejects leave too (owner: "somewhere else not here in staging
@@ -2586,7 +2651,7 @@ const kitTier = useGen((s) => s.tier);
             )}
           </Sec>
         );
-      })()}
+      }} />}
 
       <Chapter n={chapN("foundations")} id="foundations" label="Foundations" blurb="The design story every piece inherits: color roles, typography, and the material's anatomy — parts, layers and the nine-slice bones." />
 
@@ -2745,7 +2810,7 @@ const kitTier = useGen((s) => s.tier);
       {/* ── anatomy — Build Parts and the nine-slice contract finish the
           Foundations story before any finished control shows (owner IA
           round: color, type, anatomy, THEN components) ── */}
-      <Deferred estH={2800} eager={bootN >= 1} onLive={bootAdvance}>{() => <>
+      <Deferred tag="Anatomy" estH={2800} eager={bootN >= 1} onLive={bootAdvance}>{() => <>
 
       {/* ── 03 · build parts — the kit's anatomy, in Foundations ── */}
       <Sec n="03" title="Build Parts" note="Everything in the kit is built from these. Each part opens the layer that produces it in the editor. Downloads are layered SVGs with named groups and nine-slice metadata.">
@@ -2900,7 +2965,7 @@ const kitTier = useGen((s) => s.tier);
           entries. A clone of a staged base renders for the admin alone
           (bay rules); the chapter — and its tab — exists only while
           visible clones do. ── */}
-      {(() => {
+      <Guarded name="Your components" body={() => {
         const vis = Object.entries(kitClones).filter(([, c]) => kitVisible(c.base, releases, isAdmin));
         if (!vis.length) return null;
         // an unknown classification (a hand-edited save) files under Other
@@ -2920,10 +2985,10 @@ const kitTier = useGen((s) => s.tier);
             ))}
           </>
         );
-      })()}
+      }} />
 
       <Chapter n={chapN("components")} id="components" label="Components" blurb="Finished controls, shown in true relative scale." />
-      <Deferred estH={3600} eager={bootN >= 2} onLive={bootAdvance}>{() => <>
+      <Deferred tag="Components" estH={3600} eager={bootN >= 2} onLive={bootAdvance}>{() => <>
 
       {/* ── 01 · buttons ── */}
       <Sec n="01" title="Buttons" note="Primary carries the master label. The strip below shows every state; hover, press and keyboard-focus are all real.">
@@ -3163,7 +3228,7 @@ const kitTier = useGen((s) => s.tier);
 
       </>}</Deferred>
       <Chapter n={chapN("genres")} id="genres" label="Game Systems" blurb="The genre vocabularies — HUD, RPG, shooter, casual, strategy and the reward economy — every piece the same material." />
-      <Deferred estH={3800} eager={bootN >= 3} onLive={bootAdvance}>{() => <>
+      <Deferred tag="Game Systems" estH={3800} eager={bootN >= 3} onLive={bootAdvance}>{() => <>
 
       {/* ── 01 · game HUD & data ── */}
       <Sec n="01" title="Game HUD & Data" note="Counters, rows, slots and rings. Every icon, portrait and value is a replaceable slot.">
@@ -3619,7 +3684,7 @@ const kitTier = useGen((s) => s.tier);
 
       </>}</Deferred>
       <Chapter n={chapN("patterns")} id="patterns" label="Screen Patterns" blurb="Complete screens and starters composed from the system — with onboarding, motion and the proof." />
-      <Deferred estH={4800} eager={bootN >= 4} onLive={bootAdvance}>{() => <>
+      <Deferred tag="Screen Patterns" estH={4800} eager={bootN >= 4} onLive={bootAdvance}>{() => <>
 
       {/* ── 01 · patterns — editorial case study, three meaningful groups ── */}
       <Sec n="01" title="Screen Patterns" wide note="Complete interface compositions built entirely from registered kit components. Every pattern remains live, editable, and connected to the same underlying design system.">
@@ -4036,7 +4101,7 @@ const kitTier = useGen((s) => s.tier);
 
       </>}</Deferred>
       <Chapter n={chapN("resources")} id="resources" label="Resources" blurb="Files, formats and integration notes." />
-      <Deferred estH={1600} eager={bootN >= 5} onLive={bootAdvance}>{() => <>
+      <Deferred tag="Resources" estH={1600} eager={bootN >= 5} onLive={bootAdvance}>{() => <>
 
       <Sec n="01" title="Export & Integration" note="Layered SVG first — Figma reads the named groups directly. Category downloads sit with Build Parts above; engine sprite kits export from the toolbar.">
         <SpecList rows={[
