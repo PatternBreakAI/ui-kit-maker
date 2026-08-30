@@ -8,7 +8,7 @@
 import { SILHOUETTES } from "./silhouettes";
 // leaf module (no imports) — the semantic glyph registry drives the glyph
 // pieces' roster and shape map so a new glyph needs only its registry entry
-import { GLYPH_LIBRARY, LIVE_GLYPHS } from "./glyphLibrary";
+import { GLYPH_LIBRARY, LIVE_GLYPHS, glyphById } from "./glyphLibrary";
 
 export type GenStateName = "default" | "hover" | "pressed" | "disabled";
 export const STATE_NAMES: GenStateName[] = ["default", "hover", "pressed", "disabled"];
@@ -2316,3 +2316,43 @@ export const STOCK_ICONS: Record<string, IconDef> = {
   magnet: { lib: "lucide", name: "Magnet", viewBox: "0 0 24 24", inner: '<path d="m6 15-4-4 6.75-6.77a7.79 7.79 0 0 1 11 11L13 22l-4-4 6.39-6.36a2.14 2.14 0 0 0-3-3L6 15"/><path d="m5 8 4 4"/><path d="m12 15 4 4"/>', mode: "stroke" },
   rocket: { lib: "lucide", name: "Rocket", viewBox: "0 0 24 24", inner: '<path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>', mode: "stroke" },
 };
+
+/* ── the seat grammar's semantic reach ──────────────────────────────────
+   The owner's field screenshots put COIN and BOMB in icon seats — but
+   both live only in the treated glyph rack, unreachable by the
+   `icon:<pick>` instance grammar (STOCK_ICONS only). `icon:glyph:<id>`
+   closes that gap: it seats a rack glyph's SILHOUETTE — the registry's
+   base outline, the glyph's pre-dressing flat art — in the standard
+   icon seat, painted in the seat's own ink like any stock icon. The
+   dressing-time furnishings (the shadow/highlight `detail` inks, the
+   glint seats) deliberately stay behind: they speak the kit's role
+   colors, and a flat seat has no roles to voice them in — three rack
+   glyphs whose forms NEED those inks to read sit out of SEAT_GLYPHS
+   below. Resolution reads the FULL registry (the glyphShape rule), so
+   a legacy-placed pick keeps rendering even if its glyph later
+   retires; what a picker OFFERS is SEAT_GLYPHS ∩ the release ledger. */
+const seatGlyphDefs = new Map<string, IconDef>();
+export function glyphSeatIcon(id: string): IconDef | undefined {
+  const hit = seatGlyphDefs.get(id);
+  if (hit) return hit;
+  const g = glyphById(id);
+  if (!g) return undefined;
+  const def: IconDef = { lib: "glyph", name: g.id, viewBox: g.vb.join(" "), inner: `<path d="${g.d}"/>`, mode: "fill" };
+  seatGlyphDefs.set(id, def);
+  return def;
+}
+/** The `icon:<pick>` seat grammar's one resolver — a stock name hits
+ *  STOCK_ICONS; `glyph:<id>` reaches the semantic rack's flat art. An
+ *  unknown pick returns undefined and each seat keeps its own fallback. */
+export function seatIconDef(pick: string): IconDef | undefined {
+  return pick.startsWith("glyph:") ? glyphSeatIcon(pick.slice(6)) : STOCK_ICONS[pick];
+}
+/** The CURATED seat rack — every live glyph whose bare silhouette still
+ *  reads at seat scale (60px wells down to the 17px picker tile),
+ *  verified against a rendered probe sheet. Sitting out: `coinsingle`
+ *  (a bare ellipse without its rim detail inks), `coinpile` (an
+ *  unreadable swoosh mass flat) and `starformation` (the cluster muddies
+ *  below 40px — `star` carries the idea). Order mirrors the registry. */
+export const SEAT_GLYPHS: string[] = LIVE_GLYPHS
+  .filter((g) => !["coinsingle", "coinpile", "starformation"].includes(g.id))
+  .map((g) => g.id);

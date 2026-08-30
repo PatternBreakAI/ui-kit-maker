@@ -1,5 +1,5 @@
 import type { GenConfig, GenStateName, EffectRole, Shape, KitComponentId, KitSize, IconDef, StateDesign } from "./model";
-import { lighten, darken, hexMix, desaturate, saturate, hexRgba, fontByName, DEFAULT_ICON, ICONS_ENABLED, STOCK_ICONS, KIT_SHAPE , isGlyphPiece, isDarkBg, userShapes } from "./model";
+import { lighten, darken, hexMix, desaturate, saturate, hexRgba, fontByName, DEFAULT_ICON, ICONS_ENABLED, STOCK_ICONS, KIT_SHAPE , isGlyphPiece, isDarkBg, userShapes, seatIconDef } from "./model";
 import { iconGroup } from "./icons";
 import { silhouetteMeta, MIRROR_SILHOUETTES } from "./silhouettes";
 import { importedShape, flattenPath, pointInPoly, selfIntersections, type Pt } from "./importedShapes";
@@ -5102,9 +5102,10 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          framed-icon grammar, slot kin). Round 49: the instance pick WINS
          over the kit-wide Icons pick — the Inspector's glyph rack writes
          it per copy, and per-copy beats kit-wide (the instance-text rule);
-         untouched copies still follow the kit. */
-      const ovIcB = /^icon:(\w+)$/.exec(opts.overlay ?? "");
-      const ovDefB = ovIcB ? STOCK_ICONS[ovIcB[1]] : undefined;
+         untouched copies still follow the kit. "icon:glyph:<id>" reaches
+         the semantic rack's flat art (seatIconDef). */
+      const ovIcB = /^icon:([\w:]+)$/.exec(opts.overlay ?? "");
+      const ovDefB = ovIcB ? seatIconDef(ovIcB[1]) : undefined;
       return build(cfg, state, { x: 33, y: 27, h: 132 * k, fs: 0, iconSize: 56 * k }, { iconDef: ovDefB !== undefined ? ovDefB : opts.icon === undefined ? cfg.icon.def ?? DEFAULT_ICON : opts.icon, label: "", fixedW: 132 * k, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx });
     }
     case "slotbtn": {
@@ -5134,13 +5135,15 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       // the well mirrors the button's own silhouette — the slot family's law
       const wellPathB = shapePath(sov ?? cfg.shape, 33 + insetB, 27 + insetB, innerB, innerB, Math.max(0, cfg.bevel.softness - 10));
       const partsB: string[] = [`<path d="${wellPathB}" fill="${wellFill}" opacity="0.9"/>`];
-      const ovIcSB = /^icon:(\w+)$/.exec(opts.overlay ?? "");
-      const icSB = ovIcSB ? STOCK_ICONS[ovIcSB[1]] : opts.icon !== undefined ? opts.icon : STOCK_ICONS.gem;
+      const ovIcSB = /^icon:([\w:]+)$/.exec(opts.overlay ?? "");
+      const icSB = ovIcSB ? seatIconDef(ovIcSB[1]) : opts.icon !== undefined ? opts.icon : STOCK_ICONS.gem;
       // wellGlyph honors the WHOLE Icons panel — size, rotation, fx, colors —
       // and the glyph is marked swappable ink (maximum-editability law): the
       // engine export strips it and ships it as a live Image child. An
-      // explicit "no icon" leaves an honest empty well.
-      if (icSB) partsB.push(`<g data-part="icon" data-icon="glyph">${wellGlyph(icSB, cxB, cyB, innerB * 0.58, hexMix(glow, "#FFFFFF", 0.3))}</g>`);
+      // explicit "no icon" leaves an honest empty well. A semantic-rack pick
+      // ("icon:glyph:<id>") stamps its identity on the mark so the road can
+      // name — and credit — the CC-BY art it carries.
+      if (icSB) partsB.push(`<g data-part="icon" data-icon="glyph"${icSB.lib === "glyph" ? ` data-icon-glyph="${icSB.name}"` : ""}>${wellGlyph(icSB, cxB, cyB, innerB * 0.58, hexMix(glow, "#FFFFFF", 0.3))}</g>`);
       // the corner qty chip — the quantity badge in miniature, seated on the
       // slot family's count corner. The PLATE is swappable ink too
       // (data-icon-btn: a real small-button child in the engine) and the
@@ -9966,9 +9969,10 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
          INSTANCE pick wins over the kit-wide Icons pick — the Inspector's
          glyph rack writes this ov per copy, and per-copy beats kit-wide
          everywhere else (instance text); untouched copies still follow the
-         kit. The status ovs are untouched. */
-      const ovIc = /^icon:(\w+)$/.exec(opts.overlay ?? "");
-      const icSeat = ovIc ? STOCK_ICONS[ovIc[1]] : opts.icon;
+         kit. The status ovs are untouched. "icon:glyph:<id>" reaches the
+         semantic rack's flat art (seatIconDef). */
+      const ovIc = /^icon:([\w:]+)$/.exec(opts.overlay ?? "");
+      const icSeat = ovIc ? seatIconDef(ovIc[1]) : opts.icon;
       const ov = (ovIc ? undefined : opts.overlay) ?? (icSeat === null ? "empty" : "");
       const dimmed = ov === "locked" || ov.startsWith("cooldown");
       const parts: string[] = [];
@@ -9984,7 +9988,11 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
         // may ghost behind it). iconScale > 1 makes the icon the star of
         // the tile — match-3 boards, gem grids.
         const isc = clamp(opts.iconScale ?? 1, 0.5, 1.45);
-        parts.push(themedIcon(icSeat, cx2 - inner * 0.3 * isc, cy2 - inner * 0.3 * isc, inner * 0.6 * isc, hexMix(glow, "#FFFFFF", 0.3), 2));
+        const seatArt = themedIcon(icSeat, cx2 - inner * 0.3 * isc, cy2 - inner * 0.3 * isc, inner * 0.6 * isc, hexMix(glow, "#FFFFFF", 0.3), 2);
+        // a semantic-rack pick rides the marked-ink road with its identity
+        // stamped (data-icon-glyph), so the export can name and credit the
+        // CC-BY art; stock picks keep their exact bytes.
+        parts.push(icSeat.lib === "glyph" ? `<g data-part="icon" data-icon="glyph" data-icon-glyph="${icSeat.name}">${seatArt}</g>` : seatArt);
       }
       if (dimmed) parts.push(`<path d="${wellPath}" fill="rgba(6,8,16,0.62)"/>`);
       if (ov === "locked") parts.push(iconGroup(STOCK_ICONS.lock, cx2 - 13, cy2 - 13, 26, "rgba(255,255,255,0.85)", { strokeWidth: 2.2 * iconWK }));

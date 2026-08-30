@@ -7,9 +7,9 @@ import { importBgAsset, bgAssetStatusLine, onAssetActivity, bgAssetDisplayUrl } 
 import { BACKDROP_LIBRARY, BACKDROP_CATEGORIES, backdropThumb, backdropUrl } from "@/generator/backdropLibrary";
 import type { BoardDef, BoardItem } from "@/generator/store";
 import { renderBevel, renderKit, VALUE_DRIVEN } from "@/generator/bevel";
-import { KIT_COMPONENTS, STOCK_ICONS, applyKitDesign, applyKitTextFill, baseOf, fontByName, isGlyphFamily, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
+import { KIT_COMPONENTS, STOCK_ICONS, SEAT_GLYPHS, applyKitDesign, applyKitTextFill, baseOf, fontByName, glyphSeatIcon, isGlyphFamily, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
 import { previewSvg } from "@/generator/icons";
-import { LIVE_GLYPHS } from "@/generator/glyphLibrary";
+import { LIVE_GLYPHS, glyphById } from "@/generator/glyphLibrary";
 import { BIG_GLYPHS, BIG_GLYPH_BASE, bigGlyphById, bigGlyphThumb, bigGlyphMid, bigGlyphUrl, bigGlyphFilter, type BigGlyphDef, type BigGlyphFx } from "@/generator/bigGlyphs";
 import type { GenConfig, KitComponentId } from "@/generator/model";
 import { download, downloadSvg, fontDataUri } from "@/generator/exportUtils";
@@ -2509,13 +2509,20 @@ export function BoardView({ playing }: { playing: boolean }) {
                  to edit these in the app"). THIS copy only; a slot copy
                  wearing a STATUS skin (locked, claimable…) keeps it — the
                  rack only shows where an icon seat is what the ov holds. */
-              const curG = /^icon:(\w+)$/.exec(sel.ov ?? "")?.[1] ?? "";
+              const curM = /^icon:(?:glyph:(\w+)|(\w+))$/.exec(sel.ov ?? "");
+              const curG = curM?.[2] ?? "";        // stock pick
+              const curSem = curM?.[1] ?? "";      // semantic-rack pick
+              /* the semantic shelf — the curated treated-rack glyphs, FLAT
+                 in this seat (the base silhouette, no dressing inks), and
+                 only the ones the release ledger admits (kitVisible — the
+                 same gate as every other surface; admin sees staged). */
+              const semGs = SEAT_GLYPHS.filter((gid) => kitVisible(`glyph${gid}` as KitComponentId, componentReleases, isAdmin));
               return (
                 <div className="bd-slider" role="group" aria-label="Instance glyph"
                   title="The glyph in this copy's well — this copy only. The ↺ tile follows the kit again: the family's stock glyph, or your kit-wide pick under Icons.">
-                  Glyph — this copy{curG ? ` · ${curG}` : ""}
+                  Glyph — this copy{curSem ? ` · ${glyphById(curSem)?.name ?? curSem}` : curG ? ` · ${curG}` : ""}
                   <div className="icongrid bd-glyphgrid">
-                    <button className={curG ? "" : "on"} title="Factory — follow the kit" aria-label="Factory glyph"
+                    <button className={curG || curSem ? "" : "on"} title="Factory — follow the kit" aria-label="Factory glyph"
                       onClick={() => useGen.getState().setBoardItemOv(sel.id, null)}>
                       <RotateCcw size={14} strokeWidth={2} />
                     </button>
@@ -2525,6 +2532,16 @@ export function BoardView({ playing }: { playing: boolean }) {
                         dangerouslySetInnerHTML={{ __html: previewSvg(STOCK_ICONS[gk]) }} />
                     ) : null)}
                   </div>
+                  {semGs.length > 0 && (<>
+                    <div className="bd-glyphsub">Semantic rack — its art, flat in this seat</div>
+                    <div className="icongrid bd-glyphgrid">
+                      {semGs.map((gid) => { const d = glyphSeatIcon(gid); const nm = glyphById(gid)?.name ?? gid; return d ? (
+                        <button key={gid} className={curSem === gid ? "on" : ""} title={nm} aria-label={`Glyph ${nm}`}
+                          onClick={() => useGen.getState().setBoardItemOv(sel.id, `icon:glyph:${gid}`)}
+                          dangerouslySetInnerHTML={{ __html: previewSvg(d) }} />
+                      ) : null; })}
+                    </div>
+                  </>)}
                 </div>
               );
             })()}
