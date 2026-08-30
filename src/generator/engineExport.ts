@@ -3284,7 +3284,14 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       onProgress?.(qi, total, q.path);
       if (q.group && !grouped.has(qi)) {
         const idxs = byGroup.get(q.group)!;
-        const outs = await svgsToPngBytesTightUnion(idxs.map((i) => pngQueue[i].svg), PNG_SCALE);
+        /* round 47 (owner field: the lit hearts' glow cut to a hard
+           rectangle): a group member may ask for a wider crop margin (a
+           numeric crop = margin px, same as the ungrouped road) so a
+           glow tail fades to ZERO inside the sprite instead of stepping
+           off at the alpha-threshold contour. The union takes the widest
+           ask; every member keeps ONE shared frame. */
+        const gMargin = Math.max(4, ...idxs.map((i) => typeof pngQueue[i].crop === "number" ? pngQueue[i].crop as number : 4));
+        const outs = await svgsToPngBytesTightUnion(idxs.map((i) => pngQueue[i].svg), PNG_SCALE, gMargin);
         idxs.forEach((i, j) => grouped.set(i, outs[j]));
       }
       const raster: { bytes: Uint8Array; w: number; h: number; box?: CropBox } =
@@ -4704,13 +4711,16 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         /* the worn-ground rigs (buff plate, stopwatch face, step plate)
            must share the base's crop frame — the union IS the base's own
            box (their ink is a subset), so base bytes stand still */
-        }, true, interactive || buffRig || cellRig || stepperOut || livesOut || uid === "stopwatch" || uid === "steps" ? uid : undefined);
+        /* round 47 (item 2): the hearts' lit glow needs the wider crop
+           margin (numeric crop = margin px) so its tail fades to zero
+           inside the sprite — no hard rectangle on dark scenes */
+        }, livesOut ? 40 : true, interactive || buffRig || cellRig || stepperOut || livesOut || uid === "stopwatch" || uid === "steps" ? uid : undefined);
         if (livesOut) {
           await addPng(`${uid}/lit.png`, livesOut.lit, {
             component: uid, part: "lit", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
             usage: `All ${livesOut.n} hearts LIT — the prefab's Lit layer scissors per whole heart (KitCellMeter: drive Value or SetValue; hearts go dark right to left as lives are spent).`,
             ringV: Math.max(0.005, livesOut.staged), railW: livesOut.n,
-          }, true, uid);
+          }, 40, uid);
         }
         if (railsOut) {
           for (const rl of railsOut) {

@@ -3375,6 +3375,9 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/aT\.component == fam && aT\.part == "base" && aT\.track != null && aT\.track\.w > 2f\) return aT\.track;/.test(cs)
       || !/aT\.component == fam && aT\.part == "lit" && aT\.track != null && aT\.track\.w > 2f\) return aT\.track;/.test(cs))
     errors.push("BarZone lost its base-then-lit ladder — kept-project cell grafts zone off icon rows again (round 47, item 1)");
+  if (!/const gMargin = Math\.max\(4, \.\.\.idxs\.map\(\(i\) => typeof pngQueue\[i\]\.crop === "number" \? pngQueue\[i\]\.crop as number : 4\)\);/.test(src)
+      || !/\}, livesOut \? 40 : true, interactive \|\| buffRig \|\| cellRig \|\| stepperOut \|\| livesOut/.test(src))
+    errors.push("the lives glow-pad crop margin left the exporter — the lit hearts clip to a hard rectangle again (round 47, item 2)");
 }
 
 if (errors.length) {
