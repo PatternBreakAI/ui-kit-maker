@@ -3311,6 +3311,36 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the staged families left the importer's bar wiring or board strike (round 44, items 23 + vitalbar)");
 }
 
+/* ── ROUND 46 · R1 (the radial mandate): spinner + cooldown ship as
+   WORKING rigs beside the capture ring — track/comet, face/sector/
+   ticks-lit/hand/sheen, PatternBreakSpinner + PatternBreakCooldown. ── */
+{
+  if (!/opts\.part === "track" \|\| opts\.part === "comet"/.test(bevelSrc))
+    errors.push("the spinner part renders left bevel (round 46, R1)");
+  if (!/opts\.part === "face" \|\| opts\.part === "sector" \|\| opts\.part === "ticks-lit" \|\| opts\.part === "hand"/.test(bevelSrc)
+      || !/const faceOnly9 = opts\.part === "face";/.test(bevelSrc))
+    errors.push("the cooldown part renders left bevel (round 46, R1)");
+  if (!/await addPng\("spinner\/comet\.png"/.test(src) || !/await addPng\("cooldown\/sector\.png"/.test(src) || !/await addPng\("cooldown\/ticks-lit\.png"/.test(src))
+    errors.push("the radial atoms left the exporter (round 46, R1)");
+  if (!/const SPINNER_RUNTIME = `using UnityEngine;/.test(src)
+      || !/files\.push\(\{ path: "Runtime\/PatternBreakSpinner\.cs", data: SPINNER_RUNTIME \}\);/.test(src)
+      || !/"Runtime\/PatternBreakSpinner\.cs",/.test(src))
+    errors.push("Spinner's runtime or its registration (files + sharedScripts BOTH — the law) left the exporter (round 46, R1)");
+  if (!/const COOLDOWN_RUNTIME = `using UnityEngine;/.test(src)
+      || !/files\.push\(\{ path: "Runtime\/PatternBreakCooldown\.cs", data: COOLDOWN_RUNTIME \}\);/.test(src)
+      || !/"Runtime\/PatternBreakCooldown\.cs",/.test(src))
+    errors.push("Cooldown's runtime or its registration (files + sharedScripts BOTH — the law) left the exporter (round 46, R1)");
+  if (!/static bool SpinnerPrefab\(string dir, string root, int pngScale, PBManifest m\) \{/.test(cs)
+      || !/static bool CooldownPrefab\(string dir, string root, int pngScale, PBManifest m, Font kitFont\) \{/.test(cs)
+      || !/if \(SpinnerPrefab\(dir, root, pngScale, m\)\) any = true;/.test(cs)
+      || !/if \(CooldownPrefab\(dir, root, pngScale, m, kitFont\)\) any = true;/.test(cs))
+    errors.push("the radial prefab builders (or their calls) left the importer (round 46, R1)");
+  if (!/tickImg\.fillClockwise = false;/.test(cs) || !/secImg\.fillClockwise = true;/.test(cs))
+    errors.push("the cooldown's two radial cuts lost their directions — the crown/sector semantics break (round 46, R1)");
+  if (!/var cdS = inst\.GetComponent<PatternBreakCooldown>\(\);/.test(cs))
+    errors.push("cooldown left the board value strike (round 46, R1)");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);

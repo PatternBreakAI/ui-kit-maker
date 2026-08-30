@@ -5882,6 +5882,16 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         ? `<animate attributeName="stroke-dasharray" values="${(circSp * 0.1).toFixed(1)} ${circSp.toFixed(1)}; ${(circSp * 0.44).toFixed(1)} ${circSp.toFixed(1)}; ${(circSp * 0.1).toFixed(1)} ${circSp.toFixed(1)}" keyTimes="0;0.5;1" dur="1.2s" repeatCount="indefinite" calcMode="spline" keySplines="0.42 0 0.58 1; 0.42 0 0.58 1"/>`
         : "";
       const total = dSp + padSp * 2;
+      /* ── ENGINE ATOMS (round 46, R1 — the radial mandate): track + a
+         parked comet on one square canvas; PatternBreakSpinner spins the
+         comet child at the app's own period (the dash breathe is the
+         app's SVG flourish — disclosed on the row). ── */
+      if (opts.part === "track" || opts.part === "comet") {
+        const innerSp = opts.part === "track"
+          ? `<circle cx="${cSp}" cy="${cSp}" r="${rSp}" fill="none" stroke="${wellFill}" stroke-width="${strokeSp}"/>`
+          : `<defs><linearGradient id="${gidS}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient></defs><circle cx="${cSp}" cy="${cSp}" r="${rSp}" fill="none" stroke="url(#${gidS})" stroke-width="${strokeSp}" stroke-linecap="round" stroke-dasharray="${(circSp * 0.28).toFixed(1)} ${circSp.toFixed(1)}" transform="rotate(-90 ${cSp} ${cSp})" style="filter: drop-shadow(0 0 ${(strokeSp * 0.5).toFixed(1)}px ${hexRgba(glow, 0.6)})"/>`;
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${total}" height="${total}" viewBox="0 0 ${total} ${total}" role="img" aria-label="spinner ${opts.part}">${innerSp}</svg>`;
+      }
       return `<svg xmlns="http://www.w3.org/2000/svg" width="${total}" height="${total}" viewBox="0 0 ${total} ${total}" role="img" aria-label="loading">
 <defs><linearGradient id="${gidS}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient></defs>
 <circle cx="${cSp}" cy="${cSp}" r="${rSp}" fill="none" stroke="${wellFill}" stroke-width="${strokeSp}"/>
@@ -6194,7 +6204,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       let ticks = "";
       for (let i = 0; i < 12; i++) {
         const ta = -Math.PI / 2 + (i / 12) * Math.PI * 2;
-        const lit = i / 12 >= spent;
+        const lit = opts.part !== "face" && i / 12 >= spent;
         const r1 = coreR - dC * 0.02, r2 = coreR - dC * 0.09;
         ticks += `<line x1="${(cC + r1 * Math.cos(ta)).toFixed(1)}" y1="${(cC + r1 * Math.sin(ta)).toFixed(1)}" x2="${(cC + r2 * Math.cos(ta)).toFixed(1)}" y2="${(cC + r2 * Math.sin(ta)).toFixed(1)}" stroke="${lit ? glow : "rgba(255,255,255,0.16)"}" stroke-width="${(dC * 0.018).toFixed(1)}" stroke-linecap="round"${lit && state !== "disabled" ? ` style="filter: drop-shadow(0 0 2.5px ${hexRgba(glow, 0.7)})"` : ""}/>`;
       }
@@ -6203,6 +6213,39 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
            <line x1="${cC}" y1="${cC}" x2="${(cC + coreR * Math.cos(a2)).toFixed(1)}" y2="${(cC + coreR * Math.sin(a2)).toFixed(1)}" stroke="url(#${gidD}sw)" stroke-width="${(dC * 0.028).toFixed(1)}" stroke-linecap="round"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 3px ${hexRgba(glow, 0.6)})"` : ""}/>`
         : "";
       const total = dC + padC * 2;
+      /* ── ENGINE ATOMS (round 46, R1 — the radial mandate): four part
+         renders on the SAME square canvas, ring dead-center:
+         face      — ring + gloss + strokes + core + rise + ALL-DIM tick
+                     crown + specular; NO sector, NO sweep line (the
+                     readout renders and strips to a live seat).
+         sector    — the spent pie as a FULL dark disc (rotationally
+                     uniform): Image Filled / Radial360 origin Top CW at
+                     fillAmount = spent cuts the app's pie exactly.
+         ticks-lit — the recovered crown, ALL TWELVE lit: origin Top
+                     COUNTER-clockwise at fillAmount = value lights the
+                     tail span, the app's own i/12 >= spent rule.
+         hand      — the sweep edge with its hot tip, parked at 12
+                     o'clock; the rig rotates it to the spent edge. ── */
+      if (opts.part === "face" || opts.part === "sector" || opts.part === "ticks-lit" || opts.part === "hand") {
+        if (opts.part === "sector")
+          return `<svg xmlns="http://www.w3.org/2000/svg" width="${total}" height="${total}" viewBox="0 0 ${total} ${total}" role="img" aria-label="cooldown sector"><circle cx="${cC}" cy="${cC}" r="${coreR.toFixed(1)}" fill="rgba(4,7,14,0.68)"/></svg>`;
+        if (opts.part === "ticks-lit") {
+          let litTk = "";
+          for (let i = 0; i < 12; i++) {
+            const ta = -Math.PI / 2 + (i / 12) * Math.PI * 2;
+            const r1 = coreR - dC * 0.02, r2 = coreR - dC * 0.09;
+            litTk += `<line x1="${(cC + r1 * Math.cos(ta)).toFixed(1)}" y1="${(cC + r1 * Math.sin(ta)).toFixed(1)}" x2="${(cC + r2 * Math.cos(ta)).toFixed(1)}" y2="${(cC + r2 * Math.sin(ta)).toFixed(1)}" stroke="${glow}" stroke-width="${(dC * 0.018).toFixed(1)}" stroke-linecap="round" style="filter: drop-shadow(0 0 2.5px ${hexRgba(glow, 0.7)})"/>`;
+          }
+          return `<svg xmlns="http://www.w3.org/2000/svg" width="${total}" height="${total}" viewBox="0 0 ${total} ${total}" role="img" aria-label="cooldown ticks-lit">${litTk}</svg>`;
+        }
+        if (opts.part === "hand")
+          return `<svg xmlns="http://www.w3.org/2000/svg" width="${total}" height="${total}" viewBox="0 0 ${total} ${total}" role="img" aria-label="cooldown hand"><defs><linearGradient id="${gidD}sw" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="${hexRgba(glow, 0)}"/><stop offset="1" stop-color="${lighten(glow, 0.4)}"/></linearGradient></defs><line x1="${cC}" y1="${cC}" x2="${cC}" y2="${(cC - coreR).toFixed(1)}" stroke="url(#${gidD}sw)" stroke-width="${(dC * 0.028).toFixed(1)}" stroke-linecap="round" style="filter: drop-shadow(0 0 3px ${hexRgba(glow, 0.6)})"/></svg>`;
+      }
+      // the specular sheen rides ABOVE the spent sector in the app's own
+      // stack — it ships as the TOP layer, not face ink
+      if (opts.part === "sheen")
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${total}" height="${total}" viewBox="0 0 ${total} ${total}" role="img" aria-label="cooldown sheen"><ellipse cx="${cC}" cy="${(cC - coreR * 0.55).toFixed(1)}" rx="${(coreR * 0.62).toFixed(1)}" ry="${(coreR * 0.22).toFixed(1)}" fill="#FFFFFF" opacity="0.1"/></svg>`;
+      const faceOnly9 = opts.part === "face"; // dim crown, no sector, no sweep, no sheen
       return `<svg xmlns="http://www.w3.org/2000/svg" width="${total}" height="${total}" viewBox="0 0 ${total} ${total}" role="img" aria-label="cooldown ${secs}s">
 <defs>
   <linearGradient id="${gidD}r" x1="0" y1="0" x2="0" y2="1">
@@ -6232,8 +6275,8 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
   <circle cx="${cC}" cy="${cC}" r="${coreR.toFixed(1)}" fill="url(#${gidD}core)"/>
   <circle cx="${cC}" cy="${cC}" r="${coreR.toFixed(1)}" fill="url(#${gidD}rise)"/>
   ${ticks}
-  ${sector}
-  <ellipse cx="${cC}" cy="${(cC - coreR * 0.55).toFixed(1)}" rx="${(coreR * 0.62).toFixed(1)}" ry="${(coreR * 0.22).toFixed(1)}" fill="#FFFFFF" opacity="0.1"/>
+  ${faceOnly9 ? "" : sector}
+  ${faceOnly9 ? "" : `<ellipse cx="${cC}" cy="${(cC - coreR * 0.55).toFixed(1)}" rx="${(coreR * 0.62).toFixed(1)}" ry="${(coreR * 0.22).toFixed(1)}" fill="#FFFFFF" opacity="0.1"/>`}
   ${opts.themedText
     ? contentText(`${secs}s`, cC, cC + 1, dC * 0.22, { anchor: "middle", keepCase: true, autoInk: "#FFFFFF" })
     : /* readout contract: AUTO ink, no shadow — an instrument dial, not a

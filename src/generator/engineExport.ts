@@ -5535,6 +5535,45 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     await addPng("pagedots/dot.png", shell("pagedots", { part: "dot" }), { component: "pagedots", part: "dot", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "One resting dot — PageDots deals pageCount of these at the kit's own pitch." });
     await addPng("pagedots/knob.png", shell("pagedots", { part: "knob" }), { component: "pagedots", part: "knob", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The active dot — the kit's candy knob with its glow halo; PageDots parks it on currentPage." });
   }
+  {
+    /* ── ROUND 46, R1 — the radial mandate ("make sure the buff frame,
+       spinner, and cooldown radial" ship wired/live like the capture
+       ring): both chrome radials join the export as WORKING rigs. All
+       parts bake on ONE full square canvas apiece (crop=false — children
+       stretch full over the worn ground, registration by construction). */
+    await addPng("spinner/track.png", shell("spinner", { part: "track" }), {
+      component: "spinner", part: "track", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+      usage: "Loading spinner track — the well ring; the generated Spinner prefab wears it and PatternBreakSpinner spins the Comet child (Play mode, the app's own 1.2s period).",
+    }, false);
+    await addPng("spinner/comet.png", shell("spinner", { part: "comet" }), {
+      component: "spinner", part: "comet", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+      usage: "The comet arc, parked at 12 o'clock — PatternBreakSpinner rotates it (period field; SetSpinning to pause). The app's dash-breathe flourish is SVG-side only; the spin is the piece.",
+    }, false);
+    const cdVal = st.kitVals?.cooldown;
+    const cdFace0 = shell("cooldown", { part: "face" }, undefined, cdVal);
+    await addPng("cooldown/face.png", stripWordInk(cdFace0).svg, {
+      component: "cooldown", part: "face", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+      usage: "Cooldown radial, still — ring, core and the ALL-DIM tick crown; the generated prefab wears it and PatternBreakCooldown drives the rest. The seconds readout is a LIVE seat riding this row.",
+      ...textSeatsOf("cooldown", cdFace0, { part: "face" }, undefined, cdVal),
+    }, false);
+    await addPng("cooldown/sector.png", shell("cooldown", { part: "sector" }, undefined, cdVal), {
+      component: "cooldown", part: "sector", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+      usage: "The spent pie as a full dark disc — Image Filled / Radial360 (origin Top, clockwise) at fillAmount = 1 − value cuts the app's sector exactly (PatternBreakCooldown drives it).",
+      ringV: Math.max(0.005, Math.min(1, cdVal ?? 0.4)),
+    }, false);
+    await addPng("cooldown/ticks-lit.png", shell("cooldown", { part: "ticks-lit" }, undefined, cdVal), {
+      component: "cooldown", part: "ticks-lit", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+      usage: "The recovered tick crown, ALL TWELVE lit — Radial360 origin Top COUNTER-clockwise at fillAmount = value lights the tail span, the app's own rule.",
+    }, false);
+    await addPng("cooldown/hand.png", shell("cooldown", { part: "hand" }, undefined, cdVal), {
+      component: "cooldown", part: "hand", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+      usage: "The sweep edge with its hot tip, parked at 12 o'clock — PatternBreakCooldown rotates it to the spent edge.",
+    }, false);
+    await addPng("cooldown/sheen.png", shell("cooldown", { part: "sheen" }, undefined, cdVal), {
+      component: "cooldown", part: "sheen", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+      usage: "The core's specular sheen — the TOP layer, above the spent sector, exactly the app's stack.",
+    }, false);
+  }
 
   /* ── the RIGS (owner round, 2026-08-04): joystick, health globe and
      season track ship as WORKING prefab ingredients, plus bare extras
@@ -6545,6 +6584,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Runtime/PatternBreakKitSteps.cs", data: KIT_STEPS_RUNTIME });
   files.push({ path: "Runtime/PatternBreakPathConnector.cs", data: PATH_CONNECTOR_RUNTIME });
   files.push({ path: "Runtime/PatternBreakWeaponWheel.cs", data: WEAPON_WHEEL_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakSpinner.cs", data: SPINNER_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakCooldown.cs", data: COOLDOWN_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitTrace.cs", data: KIT_TRACE_RUNTIME });
   files.push({ path: "Runtime/PatternBreakSafeArea.cs", data: SAFE_AREA_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitPiece.cs", data: KIT_PIECE_RUNTIME });
@@ -6629,6 +6670,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     "Runtime/PatternBreakKitSteps.cs",
     "Runtime/PatternBreakPathConnector.cs",
     "Runtime/PatternBreakWeaponWheel.cs",
+    "Runtime/PatternBreakSpinner.cs",
+    "Runtime/PatternBreakCooldown.cs",
     "Runtime/PatternBreakKitTrace.cs",
     "Runtime/PatternBreakSafeArea.cs",
     "Runtime/PatternBreakKitPiece.cs",
@@ -7286,6 +7329,90 @@ namespace PatternBreak {
       bool fullS = stars >= 3;
       if (celebration != null && celebration.activeSelf != fullS) celebration.SetActive(fullS);
       if (replay != null && replay.activeSelf != fullS) replay.SetActive(fullS);
+    }
+    void OnEnable() { Apply(); }
+#if UNITY_EDITOR
+    void OnValidate() { UnityEditor.EditorApplication.delayCall += () => { if (this != null) Apply(); }; }
+#endif
+  }
+}
+`;
+
+/* the SPINNER rig (round 46, R1 — the radial mandate): the chrome
+   spinner ships WORKING — the comet child spins one turn per period in
+   Play mode, the app's own 1.2s. Pause it with SetSpinning; delete the
+   component and the piece is exactly what it was. */
+const SPINNER_RUNTIME = `using UnityEngine;
+
+namespace PatternBreak {
+  [AddComponentMenu("UI Kit Maker/Spinner")]
+  public class PatternBreakSpinner : MonoBehaviour {
+    [Tooltip("The Comet child (generated wiring) — spun one turn per period in Play mode.")]
+    public RectTransform comet;
+    [Tooltip("One revolution in seconds — the app's spinner runs 1.2s.")]
+    public float period = 1.2f;
+    [Tooltip("Untick to freeze (the app's disabled state stands still).")]
+    public bool spinning = true;
+    float ang;
+    public void SetSpinning(bool on) { spinning = on; }
+    void Update() {
+      if (!Application.isPlaying || !spinning || comet == null || period < 0.05f) return;
+      ang = (ang - 360f * Time.unscaledDeltaTime / period) % 360f;
+      comet.localRotation = Quaternion.Euler(0f, 0f, ang);
+    }
+  }
+}
+`;
+
+/* the COOLDOWN rig (round 46, R1): value = time REMAINING, the app's
+   own dial. The spent pie cuts Radial360 clockwise, the recovered tick
+   crown lights counter-clockwise from the tail, the sweep edge rotates
+   to the spent line, and the seconds readout follows while it still
+   wears a seconds word. */
+const COOLDOWN_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+#if UNITY_2023_2_OR_NEWER
+using TMPro;
+#endif
+
+namespace PatternBreak {
+  [AddComponentMenu("UI Kit Maker/Cooldown")]
+  [ExecuteAlways]
+  public class PatternBreakCooldown : MonoBehaviour {
+    [Tooltip("Time remaining 0..1 (the app's own dial) — drive this, SetValue, or SetSeconds.")]
+    [Range(0f, 1f)] public float value = 0.4f;
+    [Tooltip("The dial's full run in seconds — the app's cooldown reads 6.")]
+    public float dialSeconds = 6f;
+    [Header("Wired on import — the app's own parts")]
+    public Image sector;
+    public Image ticksLit;
+    public RectTransform hand;
+#if UNITY_2023_2_OR_NEWER
+    [Tooltip("The seconds seat (generated wiring) — rewritten while it still wears a seconds word; retype it and it is yours.")]
+    public TMP_Text readout;
+#endif
+    static bool LooksLikeSeconds(string s) {
+      if (string.IsNullOrEmpty(s) || s.Length > 7 || s[s.Length - 1] != 's') return false;
+      bool dot = false;
+      for (int i = 0; i < s.Length - 1; i++) { var ch = s[i]; if (ch == '.') { if (dot) return false; dot = true; } else if (ch < '0' || ch > '9') return false; }
+      return s.Length > 1;
+    }
+    public void SetSeconds(float s) { value = dialSeconds > 0.01f ? Mathf.Clamp01(s / dialSeconds) : 0f; Apply(); }
+    public void SetValue(float v) { value = Mathf.Clamp01(v); Apply(); }
+    public void Apply() {
+      float spent = 1f - Mathf.Clamp01(value);
+      bool show = spent > 0.01f;
+      if (sector != null) { sector.fillAmount = spent; if (sector.enabled != show) sector.enabled = show; }
+      if (ticksLit != null) ticksLit.fillAmount = Mathf.Clamp01(value);
+      if (hand != null) {
+        hand.localRotation = Quaternion.Euler(0f, 0f, -spent * 360f);
+        var hi = hand.GetComponent<Image>();
+        if (hi != null && hi.enabled != show) hi.enabled = show;
+      }
+#if UNITY_2023_2_OR_NEWER
+      if (readout != null && LooksLikeSeconds(readout.text))
+        readout.text = (dialSeconds * Mathf.Clamp01(value)).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + "s";
+#endif
     }
     void OnEnable() { Apply(); }
 #if UNITY_EDITOR
@@ -12889,8 +13016,8 @@ namespace PatternBreak {
         var SECTIONS = new (string title, string[] names)[] {
           ("BUTTONS", new[] { "ButtonPrimary", "ButtonSecondary", "ButtonSmall", "Iconbtn", "Chip", "Endturn", "Keycap", "KeycapSpace", "Padbtn", "PadbtnB", "PadbtnX", "PadbtnY", "Pricebtn", "Claimbtn", "Ghost" }),
           ("CHOICE CONTROLS & FIELDS", new[] { "Checkbox", "Radio", "CheckboxToggle", "RadioToggle", "Switch", "Stepper", "Input", "Dropdown", "Setrow", "Listmenu", "Joystick", "JoystickGhost", "Firebutton" }),
-          ("SLIDERS & PROGRESS", new[] { "Slider", "ProgressBar", "SegmentMeter", "VsBar", "EmblemBar", "Loadbar", "HealthGlobe", "Ring", "SeasonTrack" }),
-          ("NAVIGATION & CHROME", new[] { "Tab", "TabBack", "Bottomnav", "HeaderBanner", "Panel", "Dialog", "DataRow", "ItemSlot", "ScrollView", "Scrollbar", "Badge", "CountBadge", "Notifydot", "Avatarframe", "Pagedots", "Steps" }),
+          ("SLIDERS & PROGRESS", new[] { "Slider", "ProgressBar", "SegmentMeter", "VsBar", "EmblemBar", "Loadbar", "HealthGlobe", "Ring", "SeasonTrack", "Cooldown", "Vitalbar" }),
+          ("NAVIGATION & CHROME", new[] { "Tab", "TabBack", "Bottomnav", "HeaderBanner", "Panel", "Dialog", "DataRow", "ItemSlot", "ScrollView", "Scrollbar", "Badge", "CountBadge", "Notifydot", "Avatarframe", "Pagedots", "Steps", "Spinner" }),
           ("HUD & DATA", new[] { "Timer", "Resource", "Currency", "Nameplate", "Movecounter", "Qtybadge", "Orb", "Achievement", "Leaderboard", "LapTimes", "Telemetry", "Minimap", "Compass" }),
           ("GAUGES", new[] { "Speedo", "SpeedoArc", "RevMeter" }),
           ("GAME SYSTEMS", new[] { "Levelnode", "Dailycell", "Boostercard", "Rewardcard", "Gifticon", "Trophyicon", "Gearicon", "LootTag", "RarityFrame", "Circuit", "Startlights" }),
@@ -14779,6 +14906,8 @@ namespace PatternBreak {
             if (pcS != null && it.value > 0f) pcS.SetValue(Mathf.Clamp01(it.value));
             var wwS = inst.GetComponent<PatternBreakWeaponWheel>();
             if (wwS != null && it.value > 0f) wwS.SetValue(Mathf.Clamp01(it.value));
+            var cdS = inst.GetComponent<PatternBreakCooldown>();
+            if (cdS != null && it.value > 0f) cdS.SetValue(Mathf.Clamp01(it.value));
             var gdS = inst.GetComponent<GaugeDial>();
             if (gdS != null && it.value > 0f) { gdS.value = Mathf.Clamp01(it.value); gdS.Apply(); }
             var ktS = inst.GetComponent<KitTimer>();
@@ -18436,6 +18565,74 @@ namespace PatternBreak {
       UnityEngine.Object.DestroyImmediate(go);
       return true;
     }
+    /* ── ROUND 46, R1: the chrome radials arrive as WORKING rigs — all
+       parts share one full square canvas, so the children stretch full
+       over the worn ground and register by construction. ── */
+    static bool SpinnerPrefab(string dir, string root, int pngScale, PBManifest m) {
+      var trSP = S(root + "/assets/spinner/spinner-track.png");
+      var cmSP = S(root + "/assets/spinner/spinner-comet.png");
+      if (trSP == null || cmSP == null) return false;
+      var go = ImageObject("Spinner", trSP, pngScale);
+      var cGo = new GameObject("Comet", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+      cGo.transform.SetParent(go.transform, false);
+      StretchFull((RectTransform)cGo.transform);
+      var cIm = cGo.GetComponent<Image>();
+      cIm.sprite = cmSP; cIm.raycastTarget = false;
+      var rig = go.AddComponent<PatternBreakSpinner>();
+      rig.comet = (RectTransform)cGo.transform;
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/Spinner.prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
+    static bool CooldownPrefab(string dir, string root, int pngScale, PBManifest m, Font kitFont) {
+      var faceCD = S(root + "/assets/cooldown/cooldown-face.png");
+      var secCD = S(root + "/assets/cooldown/cooldown-sector.png");
+      var tksCD = S(root + "/assets/cooldown/cooldown-ticks-lit.png");
+      var handCD = S(root + "/assets/cooldown/cooldown-hand.png");
+      if (faceCD == null || secCD == null || tksCD == null) return false;
+      var go = ImageObject("Cooldown", faceCD, pngScale);
+      System.Func<string, Sprite, Image> layerCD = (nm, sp9) => {
+        var cGo = new GameObject(nm, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        cGo.transform.SetParent(go.transform, false);
+        StretchFull((RectTransform)cGo.transform);
+        var cIm = cGo.GetComponent<Image>();
+        cIm.sprite = sp9; cIm.raycastTarget = false;
+        return cIm;
+      };
+      // the app's own stack: lit crown, spent sector, sweep edge, sheen
+      var tickImg = layerCD("Ticks Lit", tksCD);
+      tickImg.type = Image.Type.Filled;
+      tickImg.fillMethod = Image.FillMethod.Radial360;
+      tickImg.fillOrigin = (int)Image.Origin360.Top;
+      tickImg.fillClockwise = false;
+      var secImg = layerCD("Spent Sector", secCD);
+      secImg.type = Image.Type.Filled;
+      secImg.fillMethod = Image.FillMethod.Radial360;
+      secImg.fillOrigin = (int)Image.Origin360.Top;
+      secImg.fillClockwise = true;
+      Image handImg = handCD != null ? layerCD("Sweep Edge", handCD) : null;
+      var shCD = S(root + "/assets/cooldown/cooldown-sheen.png");
+      if (shCD != null) layerCD("Sheen", shCD);
+      var rig = go.AddComponent<PatternBreakCooldown>();
+      rig.sector = secImg;
+      rig.ticksLit = tickImg;
+      rig.hand = handImg != null ? (RectTransform)handImg.transform : null;
+      PBAsset secRowCD = null;
+      foreach (var aCD in m.assets) if (aCD != null && aCD.component == "cooldown" && aCD.part == "sector") { secRowCD = aCD; break; }
+      rig.value = secRowCD != null && secRowCD.ringV > 0f ? Mathf.Clamp01(secRowCD.ringV) : 0.4f;
+      // the seconds seat seeds live like every bones word, then joins the rig
+      WireTextSeats(go, root, m, pngScale);
+#if UNITY_2023_2_OR_NEWER
+      foreach (var tCD in go.GetComponentsInChildren<TMPro.TMP_Text>(true)) {
+        var s9 = tCD != null ? tCD.text : null;
+        if (!string.IsNullOrEmpty(s9) && s9.Length > 1 && s9.Length <= 7 && s9[s9.Length - 1] == 's') { rig.readout = tCD; break; }
+      }
+#endif
+      rig.Apply();
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/Cooldown.prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
     static bool PathConnectorPrefab(string dir, string root, int pngScale, PBManifest m) {
       var geo = m != null ? m.pathConnector : null;
       var beadSp = S(root + "/assets/pathconnector/pathconnector-bead.png");
@@ -21302,6 +21499,9 @@ namespace PatternBreak {
       // round 44 (item 26): the saga trail deals its beads and lights
       // them by value — old zips fall back to the picture road inside
       if (PathConnectorPrefab(dir, root, pngScale, m)) any = true;
+      // round 46 (R1): the chrome radials arrive as working rigs
+      if (SpinnerPrefab(dir, root, pngScale, m)) any = true;
+      if (CooldownPrefab(dir, root, pngScale, m, kitFont)) any = true;
       // round 44 (owner: "quest complete fully wired"): the modal arrives
       // as a real usable piece — two genuine pressing CTAs included
       if (DialogPrefab(dir, root, pngScale, m)) any = true;
