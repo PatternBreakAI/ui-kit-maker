@@ -3572,6 +3572,49 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the Playground lost the slot button's representative row or its staged hiding (round 49, S40)");
 }
 
+/* ── ROUND 50 · S41 (the owner's glow class rule: "increase the space
+   around the asset so that the glow eventually falls off naturally...
+   without increasing the hit area"): (a) tight crops measure the glow's
+   REACH (alpha ≤1 at the shipped edge — dual-box scan + the widened
+   raster canvas, all-or-none per union group); (b) uncropped layered
+   rigs take the measured border probe; (c) icon-seat atoms measure
+   their tails on a widened window so the seat box grows 1:1 with the
+   sprite; (d) hit areas pin to the DRAWN piece — data-shell where
+   authored, the measured ink row where not, consumed by the importer's
+   InkBoxOf road. ── */
+{
+  const exSrc41 = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../src/generator/exportUtils.ts"), "utf8");
+  if (!/x0 = Math\.max\(0, Math\.min\(x0 - margin, rx0 - 2\)\); y0 = Math\.max\(0, Math\.min\(y0 - margin, ry0 - 2\)\);/.test(exSrc41)
+      || !/x1 = Math\.min\(cv\.width - 1, Math\.max\(x1 \+ margin, rx1 \+ 2\)\); y1 = Math\.min\(cv\.height - 1, Math\.max\(y1 \+ margin, ry1 \+ 2\)\);/.test(exSrc41)
+      || !/const X1 = Math\.min\(cv\.width - 1, Math\.max\(x1 \+ margin, rx1 \+ 2\)\), Y1 = Math\.min\(cv\.height - 1, Math\.max\(y1 \+ margin, ry1 \+ 2\)\);/.test(exSrc41))
+    errors.push("the measured-reach (dual-box) crop left the tight rasters — glow tails cut at the ink margin again (round 50, S41)");
+  if (!/export function padGlowCanvas\(svg: string, pad = 72\): string \{/.test(exSrc41)
+      || !/export async function svgEdgeAlphaMax\(svg: string, scale = 2\): Promise<number> \{/.test(exSrc41))
+    errors.push("padGlowCanvas / svgEdgeAlphaMax left exportUtils — overrunning auras can't be widened or probed (round 50, S41)");
+  if (!/ink: \{ x0: inkBox\.x0 - x0, y0: inkBox\.y0 - y0, x1: inkBox\.x1 - x0, y1: inkBox\.y1 - y0 \} \};/.test(exSrc41))
+    errors.push("svgToPngBytesTight stopped returning the measured ink box — shell-less rows lose their raycast pin (round 50, S41)");
+  if (!/const wants = q\.group \? !groupSliced\.get\(q\.group\) : \(!!q\.crop && !q\.meta\.nineSlice\);/.test(src)
+      || !/if \(wants\) q\.svg = padGlowCanvas\(q\.svg, 72\);/.test(src))
+    errors.push("the widened-canvas pre-pass lost its all-or-none group rule — union members tear their shared frame (round 50, S41)");
+  if (!/const loose = pngQueue\.filter\(\(q\) => !q\.crop && !q\.group && !q\.meta\.nineSlice && !q\.meta\.part\.startsWith\("icon-"\)\);/.test(src)
+      || !/if \(worst <= 1 \|\| worst >= 64\) continue;/.test(src))
+    errors.push("the uncropped-rig border probe lost its scope rails (icon seats / drawn-window exclusion) — cooldown truncates or windows widen (round 50, S41)");
+  if (!/const rb = await svgAlphaBox\(wide, PNG_SCALE, 1\)\.catch\(\(\) => null\);/.test(src)
+      || !/bw9 = \(Math\.max\(abW\.x1, rb\.x1\) - Math\.min\(abW\.x0, rb\.x0\) \+ 1\) \/ \(PNG_SCALE \* dscX\) \+ pad \* 2;/.test(src))
+    errors.push("iconSeatsOf lost the widened-window reach measurement — ringed marks cut their halos at ink+2 again (round 50, S41)");
+  if (!/ink\?: \{ x: number; y: number; w: number; h: number \} \| null;/.test(src)
+      || !/\.\.\.\(inkBox \? \{ ink: inkBox \} : \{\}\),/.test(src)
+      || !/if \(slack >= 6\)/.test(src))
+    errors.push("the manifest lost the measured ink row (shell-less glow-slack sprites) — hit areas span the glow again (round 50, S41)");
+  if (!/public PBShellBox ink;/.test(cs)
+      || !/static PBShellBox InkBoxOf\(Sprite sp, string fam, PBManifest m\) \{/.test(cs)
+      || !/var box = row != null \? row\.shell : InkBoxOf\(img\.sprite, fam, m\);/.test(cs)
+      || !/\|\| InkBoxOf\(rootImg\.sprite, famName, m\) != null\);/.test(cs)
+      || !/ShellRaycastPad\(go, "cooldown", m\);/.test(cs)
+      || !/ShellRaycastPad\(go, famP, m\);/.test(cs))
+    errors.push("the importer's ink-box raycast road left — clicks land on glow padding again (round 50, S41)");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);

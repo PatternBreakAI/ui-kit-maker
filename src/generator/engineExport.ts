@@ -17,7 +17,7 @@ import { renderKit, renderBevel, rarityTiers, textPatternCell, renderTypeSpecime
 import type { KitOpts } from "./bevel";
 import { flattenPath } from "./importedShapes";
 import { silhouetteMeta } from "./silhouettes";
-import { download, makeZip, svgToPngBytes, svgToPngBytesTight, svgsToPngBytesTightUnion, svgAlphaBox, glowFromPng, setEmbedFont, inlineKitFace, measureSliceRGBA, canvasToPngBytesDilated, probeSfntWeight, FONT_STATIC_TTF, GSTATIC_ORIGIN } from "./exportUtils";
+import { download, makeZip, svgToPngBytes, svgToPngBytesTight, svgsToPngBytesTightUnion, svgAlphaBox, glowFromPng, setEmbedFont, inlineKitFace, measureSliceRGBA, canvasToPngBytesDilated, probeSfntWeight, padGlowCanvas, svgEdgeAlphaMax, FONT_STATIC_TTF, GSTATIC_ORIGIN } from "./exportUtils";
 import type { CropBox } from "./exportUtils";
 import { kitSpecMarkdown, fontNotesMarkdown, kitFontFamilies } from "./kitDocs";
 import { glyphAttribution } from "./glyphLibrary";
@@ -109,6 +109,15 @@ interface AssetMeta {
    *  KitBarFill maps its value space through these; absent = the whole
    *  sprite, so old zips keep today's behavior byte for byte. */
   body?: { x: number; w: number } | null;
+  /** The MEASURED ink box inside the shipped sprite (file px at pngScale):
+   *  where the drawn piece itself ends, glow tails excluded — the crop's
+   *  own alpha>8 box (round 50, the owner's class rule: canvases widened
+   *  so a glow falls off naturally must NOT widen the hit area). Rows
+   *  that carry a data-shell stamp don't ship it (the shell is the
+   *  authored answer to the same question); on the shell-less rows the
+   *  importer pins raycastPadding to this box instead. Absent = old
+   *  behavior, byte for byte. */
+  ink?: { x: number; y: number; w: number; h: number } | null;
   /** The bake's silhouette is MIRRORED (~flip) — flip provenance so board
    *  scenes can honor a mirrored board copy against an unmirrored sprite
    *  (and so field reports can name which side lost the flip). */
@@ -3190,11 +3199,44 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       } else {
         const ab = await svgAlphaBox(only, PNG_SCALE, 8).catch(() => null);
         if (!ab) continue;
+        /* round 50 (the owner's class rule): the seat box reaches 2px past
+           the GLOW's true tail (alpha ≤ 1), not just the ink — a ringed or
+           haloed mark used to cut its falloff at the ink box + 2, and no
+           downstream pad could fix it (the seat IS the sprite's box, 1:1;
+           widening only the sprite would squeeze the ink). The tail is
+           measured on a WIDENED window: a shadow that runs off the host
+           doc's own canvas (the combo numeral's) is invisible to a scan
+           of that canvas, and the seat viewBox can reach past it freely.
+           Marks without tails keep their exact old box. */
+        /* SCALED host docs (width ≠ viewBox width — the size dial's fit)
+           measure on their own grid: px→design must divide by the doc's
+           scale too, or a reach reads short by exactly the fit factor. */
+        const wAt = +(/ width="([\d.]+)"/.exec(only)?.[1] ?? vbm[3]);
+        const hAt = +(/ height="([\d.]+)"/.exec(only)?.[1] ?? vbm[4]);
+        const dscX = +vbm[3] > 0 ? wAt / +vbm[3] : 1;
+        const dscY = +vbm[4] > 0 ? hAt / +vbm[4] : 1;
+        /* full-precision numbers — a rounded origin shifts the raster's
+           sub-pixel phase and pixels sitting ON the ink threshold flip,
+           jittering the measured box vs the unwidened render */
+        const p9 = 72;
+        const wide = only
+          .replace(/viewBox="[^"]+"/, `viewBox="${vx - p9} ${vy - p9} ${+vbm[3] + p9 * 2} ${+vbm[4] + p9 * 2}"`)
+          .replace(/ width="[\d.]+"/, ` width="${(+vbm[3] + p9 * 2) * dscX}"`)
+          .replace(/ height="[\d.]+"/, ` height="${(+vbm[4] + p9 * 2) * dscY}"`);
+        const rb = await svgAlphaBox(wide, PNG_SCALE, 1).catch(() => null);
         const pad = 2;
-        bx = vx + ab.x0 / PNG_SCALE - pad;
-        by = vy + ab.y0 / PNG_SCALE - pad;
-        bw9 = (ab.x1 - ab.x0 + 1) / PNG_SCALE + pad * 2;
-        bh9 = (ab.y1 - ab.y0 + 1) / PNG_SCALE + pad * 2;
+        if (rb) {
+          const abW = await svgAlphaBox(wide, PNG_SCALE, 8).catch(() => null) ?? rb;
+          bx = (vx - p9) + Math.min(abW.x0, rb.x0) / (PNG_SCALE * dscX) - pad;
+          by = (vy - p9) + Math.min(abW.y0, rb.y0) / (PNG_SCALE * dscY) - pad;
+          bw9 = (Math.max(abW.x1, rb.x1) - Math.min(abW.x0, rb.x0) + 1) / (PNG_SCALE * dscX) + pad * 2;
+          bh9 = (Math.max(abW.y1, rb.y1) - Math.min(abW.y0, rb.y0) + 1) / (PNG_SCALE * dscY) + pad * 2;
+        } else {
+          bx = vx + ab.x0 / (PNG_SCALE * dscX) - pad;
+          by = vy + ab.y0 / (PNG_SCALE * dscY) - pad;
+          bw9 = (ab.x1 - ab.x0 + 1) / (PNG_SCALE * dscX) + pad * 2;
+          bh9 = (ab.y1 - ab.y0 + 1) / (PNG_SCALE * dscY) + pad * 2;
+        }
       }
       if (!(bw9 > 1) || !(bh9 > 1)) continue;
       const spr = only
@@ -3301,6 +3343,70 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
        stretched back over the rect, and nothing jumps on swap. Groups
        resolve lazily when their first member is reached, keeping the
        progress bar honest. */
+    /* round 50 (owner class rule: FULL glow, natural falloff): every
+       non-sliced tight-cropped bake rasterizes on a WIDENED canvas — a
+       strong aura used to run off the drawn canvas edge before the crop
+       could measure it (the skill node's halo, the cooldown face), and
+       no crop can restore pixels the raster never had. The measured-
+       reach crop then trims back to the true tail, so sprites without
+       overrun keep their exact old bytes. Sliced bakes keep their
+       canvases (their borders are measured against them), and the pad
+       happens BEFORE grouping so every union member shares the frame —
+       ALL of a group's members pad, or none (a lone unpadded member
+       would tear the union's shared coordinate space; a group with a
+       sliced member keeps every canvas it has). */
+    {
+      const groupSliced = new Map<string, boolean>();
+      for (const q of pngQueue) if (q.group) groupSliced.set(q.group, (groupSliced.get(q.group) ?? false) || !!q.meta.nineSlice);
+      for (const q of pngQueue) {
+        const wants = q.group ? !groupSliced.get(q.group) : (!!q.crop && !q.meta.nineSlice);
+        if (wants) q.svg = padGlowCanvas(q.svg, 72);
+      }
+    }
+    /* UNCROPPED bakes (the cooldown stack: fixed canvases their rigs
+       stretch over) have no crop to trim a widened frame back, so they
+       take the measured treatment directly: probe the drawn border, and
+       when a tail is truncated, widen every same-frame member of the
+       family TOGETHER by the smallest pad that lets the falloff complete
+       (edge alpha ≤ 1). Layered rigs stretch children over the root —
+       the frames must stay one, so a family whose uncropped members
+       disagree on frames is left alone and said out loud. Icon-seat
+       atoms measure their own reach where they are cut (iconSeatsOf —
+       the seat box must grow in step with the sprite, 1:1) and window-
+       cut atoms whose border is DRAWN edge (alpha ≥ 64: portraits,
+       masks, the digit roads' cell windows) are deliberate frames, not
+       truncated tails — both stay out of this road. */
+    const loosePadded = new Set<(typeof pngQueue)[number]>();
+    {
+      const loose = pngQueue.filter((q) => !q.crop && !q.group && !q.meta.nineSlice && !q.meta.part.startsWith("icon-"));
+      const byFam = new Map<string, typeof loose>();
+      for (const q of loose) byFam.set(q.meta.component, [...(byFam.get(q.meta.component) ?? []), q]);
+      for (const [fam, qs] of byFam) {
+        let worst = 0;
+        for (const q of qs) worst = Math.max(worst, await svgEdgeAlphaMax(q.svg, PNG_SCALE).catch(() => 0));
+        /* ≤1: every tail already completes. ≥64: some layer DRAWS its
+           edge — a portrait, a mask, a sliding sheet, a digit cell — so
+           these canvases are design windows, and "more space" would show
+           art the app deliberately clips. Only the soft in-between is a
+           truncated falloff. */
+        if (worst <= 1 || worst >= 64) continue;
+        const frameOf = (s: string) => /viewBox="[^"]+"/.exec(s)?.[0] ?? "";
+        // window atoms of mixed frames can't widen together — their cut,
+        // if any, is the rig's own window; the fence catalogs them
+        if (!qs.every((q) => frameOf(q.svg) === frameOf(qs[0].svg))) continue;
+        let pad = 0;
+        for (const step of [8, 16, 32, 64]) {
+          let m = 255;
+          try { m = Math.max(...await Promise.all(qs.map((q) => svgEdgeAlphaMax(padGlowCanvas(q.svg, step), PNG_SCALE)))); } catch { /* keep looking */ }
+          if (m <= 1) { pad = step; break; }
+        }
+        if (!pad) {
+          onWarn?.(`${fam}: a glow's falloff would not complete within +64 canvas units (edge alpha ${worst}) — shipped at the drawn canvas.`);
+          continue;
+        }
+        for (const q of qs) { q.svg = padGlowCanvas(q.svg, pad); loosePadded.add(q); }
+      }
+    }
     const byGroup = new Map<string, number[]>();
     pngQueue.forEach((q, i) => { if (q.group) byGroup.set(q.group, [...(byGroup.get(q.group) ?? []), i]); });
     const grouped = new Map<number, { bytes: Uint8Array; w: number; h: number; box?: CropBox }>();
@@ -3319,7 +3425,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         const outs = await svgsToPngBytesTightUnion(idxs.map((i) => pngQueue[i].svg), PNG_SCALE, gMargin);
         idxs.forEach((i, j) => grouped.set(i, outs[j]));
       }
-      const raster: { bytes: Uint8Array; w: number; h: number; box?: CropBox } =
+      const raster: { bytes: Uint8Array; w: number; h: number; box?: CropBox; ink?: CropBox } =
         grouped.get(qi) ?? (q.crop
           ? await svgToPngBytesTight(q.svg, PNG_SCALE, typeof q.crop === "number" ? q.crop : undefined)
           : await svgToPngBytes(q.svg, PNG_SCALE));
@@ -3398,6 +3504,24 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
               x: Math.round(((fbx - +vbm2[1]) * PNG_SCALE - (raster.box?.x0 ?? 0)) * 10) / 10,
               w: Math.round(fbw * PNG_SCALE * 10) / 10,
             };
+        }
+      }
+      /* the measured INK box (round 50 — the owner's class rule: widened
+         glow canvases must not widen hit areas): rows with no authored
+         data-shell ship the crop's own alpha>8 box whenever the sprite
+         carries real glow slack (any side ≥6px past the ink — more than
+         the standard 4px crop margin ever leaves), so the importer can
+         pin raycastPadding to the piece. Calm sprites ship no row and
+         stay byte-identical. */
+      let inkBox: AssetMeta["ink"] = null;
+      {
+        // widened UNCROPPED layers (the loose-family heal) measure their
+        // ink here — the plain raster road never scanned them
+        const inkR = raster.ink ?? (!shellBox && loosePadded.has(q) ? await svgAlphaBox(q.svg, PNG_SCALE, 8).catch(() => null) : null);
+        if (!shellBox && inkR) {
+          const slack = Math.max(inkR.x0, inkR.y0, (w - 1) - inkR.x1, (h - 1) - inkR.y1);
+          if (slack >= 6)
+            inkBox = { x: inkR.x0, y: inkR.y0, w: inkR.x1 - inkR.x0 + 1, h: inkR.y1 - inkR.y0 + 1 };
         }
       }
       /* TEXT SEATS normalize here: measured in the bake's viewBox units,
@@ -3524,7 +3648,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       // per-piece forks can arm the edge shine even when the kit default is
       // off, so any armed fork keeps the outlines flowing into the manifest
       const idleOutline = (st.cfg.idle?.edge || Object.values(st.kitDesigns ?? {}).some((kd) => kd?.idle?.edge)) && q.meta.part === "base" ? sampleOutline(q.svg) : null;
-      manifest.push({ file: `assets/${q.path}`, nativeW: w, nativeH: h, sha256: await sha256Hex(bytes), shell: shellBox, ...(trackZone ? { track: trackZone } : {}), ...(fillBody ? { body: fillBody } : {}), ...(idleOutline ? { outline: idleOutline } : {}), ...q.meta });
+      manifest.push({ file: `assets/${q.path}`, nativeW: w, nativeH: h, sha256: await sha256Hex(bytes), shell: shellBox, ...(trackZone ? { track: trackZone } : {}), ...(fillBody ? { body: fillBody } : {}), ...(inkBox ? { ink: inkBox } : {}), ...(idleOutline ? { outline: idleOutline } : {}), ...q.meta });
       /* the piece's own aura, derived from the sprite we just made — the
          silhouette blurred exactly the way the app blurs it. Only for the
          families that swap: a panel has no hover to announce. */
@@ -12089,7 +12213,7 @@ namespace PatternBreak {
        posed pixels with its plate — rebuilt as live TMP ON the live child
        (wordDx/wordDy = word center from the CHILD center, board px). */
     public string word; public float wordFs; public float wordDx; public float wordDy; public string wordInk; public int wordW; }
-  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public PBTrack track; public PBTrack body; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelInk; public string labelInk2; public float leading; public string labelText; public PBIconSeat icon; public PBGauge gauge; public PBChart chart; public PBLoot loot; public PBSeat[] textSeats; public PBStyle seatInk; public float ringV; public PBIconChild[] iconSeats; public float fireDx; public float fireDy; public float fireW; public float railDx; public float railDy; public float railW; public float railH; public string labelAnchor; }
+  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public PBTrack track; public PBTrack body; public PBShellBox ink; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelInk; public string labelInk2; public float leading; public string labelText; public PBIconSeat icon; public PBGauge gauge; public PBChart chart; public PBLoot loot; public PBSeat[] textSeats; public PBStyle seatInk; public float ringV; public PBIconChild[] iconSeats; public float fireDx; public float fireDy; public float fireW; public float railDx; public float railDy; public float railW; public float railH; public string labelAnchor; }
   [Serializable] class PBStyleOutline { public string color; public string color2; public float width; }
   [Serializable] class PBStyleGlow { public string color; public float size; public float opacity; }
   [Serializable] class PBStyleShadow { public string color; public float x; public float y; public float blur; public float opacity; }
@@ -18256,6 +18380,19 @@ namespace PatternBreak {
       }
       return byBase;
     }
+    /* the worn sprite's MEASURED ink box (round 50): rows without an
+       authored shell carry where the piece itself ends inside its
+       glow-slack crop — the raycast pin for the shell-less display
+       families. Exact file match only; a sibling's ink is not this
+       sprite's truth. */
+    static PBShellBox InkBoxOf(Sprite sp, string fam, PBManifest m) {
+      if (m == null || m.assets == null || sp == null) return null;
+      foreach (var a in m.assets) {
+        if (a == null || a.component != fam || a.ink == null || a.ink.w < 2f) continue;
+        if (a.file != null && a.file.EndsWith("/" + sp.name + ".png")) return a.ink;
+      }
+      return null;
+    }
     /* stretch a child over the shell box (labels, placeholders) */
     /* the family's BASE row — the one carrying the label metrics (labelFs
        et al live only there; variant rows a piece might wear do not) */
@@ -18420,11 +18557,17 @@ namespace PatternBreak {
       var img = BodyImage(host);
       var rootImg = host.GetComponent<Image>();
       var rt = host.GetComponent<RectTransform>();
-      if (row == null || img == null || img.sprite == null || rootImg == null || rt == null) return;
+      if (img == null || img.sprite == null || rootImg == null || rt == null) return;
+      /* no authored shell? the manifest's MEASURED ink box answers the same
+         question for the glow-carrying display rows (round 50 — a canvas
+         widened so the aura falls off naturally must not widen the click):
+         only the worn sprite's own row speaks, never a family sibling's. */
+      var box = row != null ? row.shell : InkBoxOf(img.sprite, fam, m);
+      if (box == null) return;
       float rw = img.sprite.rect.width, rh = img.sprite.rect.height;
-      if (rw < 4f || rh < 4f || row.shell.w < 4f || row.shell.h < 4f) return;
-      float padL = row.shell.x, padT = row.shell.y;
-      float padR = rw - row.shell.x - row.shell.w, padB = rh - row.shell.y - row.shell.h;
+      if (rw < 4f || rh < 4f || box.w < 4f || box.h < 4f) return;
+      float padL = box.x, padT = box.y;
+      float padR = rw - box.x - box.w, padB = rh - box.y - box.h;
       if (padL < 0f || padT < 0f || padR < 0f || padB < 0f) return; // a shell outside its crop is a lie — leave the raycast alone
       if (img.type == Image.Type.Sliced) {
         float ps = m != null && m.pngScale > 0 ? m.pngScale : 2f;
@@ -19305,6 +19448,9 @@ namespace PatternBreak {
       if (rowPic != null && rowPic.iconSeats != null && rowPic.iconSeats.Length > 0) WireIconChildrenRow(go, root, m, rowPic);
       // the piece's words, live (manifest textSeats) — bones stop shipping bare
       WireTextSeats(go, root, m, pngScale);
+      // display or not, the piece's raycast stops at its drawn ink
+      // (round 50: shell row where authored, measured ink box where not)
+      ShellRaycastPad(go, famP, m);
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/" + goName + ".prefab");
       UnityEngine.Object.DestroyImmediate(go);
       return true;
@@ -19397,6 +19543,10 @@ namespace PatternBreak {
       }
 #endif
       rig.Apply();
+      /* the widened face canvas (round 50: the crown glow completes its
+         falloff on-sprite now) must not widen the click — the measured
+         ink row pins the raycast back to the drawn dial */
+      ShellRaycastPad(go, "cooldown", m);
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/Cooldown.prefab");
       UnityEngine.Object.DestroyImmediate(go);
       return true;
@@ -23618,7 +23768,8 @@ namespace PatternBreak {
            lives on the ROOT image (the raycast carrier on both
            structures), so the probe reads the root, not the body. */
         var rayImg = asset.GetComponent<Image>();
-        bool wantPad = rayImg != null && rayImg.raycastPadding == Vector4.zero && ShellRowOf(asset, famName, m) != null;
+        bool wantPad = rayImg != null && rayImg.raycastPadding == Vector4.zero
+          && (ShellRowOf(asset, famName, m) != null || InkBoxOf(rootImg.sprite, famName, m) != null);
         /* round 13 — the Body-child glow structure: a glow family whose
            ROOT still draws predates the attached halo; its sprite moves
            into a "Body" first child so the halo can draw behind the art.
