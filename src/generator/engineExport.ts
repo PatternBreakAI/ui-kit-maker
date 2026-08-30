@@ -12,7 +12,7 @@ import { stampFilter, stampFilterPad, boardBgFilter, drawBoardNoise, drawBoardOv
 /* bigGlyphById only names the excluded piece in the export-skip warn —
    the Uploads/Art drawer never ships in the Unity download (round 44) */
 import { bigGlyphById } from "./bigGlyphs";
-import { applyKitDesign, applyKitTextFill, baseOf, darken, hexMix, lighten, fontByName, isCloneId, isFlipShape, isGlyphPiece, KIT_COMPONENTS, KIT_SHAPE, KIT_SLICEABLE, STOCK_ICONS, effKitSize, kitVisible, resolveKitIcon, sanitizeUnitySlug } from "./model";
+import { applyKitDesign, applyKitTextFill, baseOf, darken, hexMix, lighten, fontByName, isCloneId, isFlipShape, isGlyphPiece, KIT_COMPONENTS, KIT_SHAPE, KIT_SLICEABLE, SEAT_GLYPHS, STOCK_ICONS, effKitSize, glyphSeatIcon, kitVisible, resolveKitIcon, sanitizeUnitySlug } from "./model";
 import { renderKit, renderBevel, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps, padSvg, resolveMenuStyle, kernCollides } from "./bevel";
 import type { KitOpts } from "./bevel";
 import { flattenPath } from "./importedShapes";
@@ -21,6 +21,8 @@ import { download, makeZip, svgToPngBytes, svgToPngBytesTight, svgsToPngBytesTig
 import type { CropBox } from "./exportUtils";
 import { kitSpecMarkdown, fontNotesMarkdown, kitFontFamilies } from "./kitDocs";
 import { glyphAttribution } from "./glyphLibrary";
+// the semantic fleet's roster names ride the registry too (round 51)
+import { LIVE_GLYPHS } from "./glyphLibrary";
 
 const clone = (c: GenConfig) => (typeof structuredClone === "function" ? structuredClone(c) : JSON.parse(JSON.stringify(c))) as GenConfig;
 const PNG_SCALE = 2;
@@ -3748,6 +3750,13 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   // comparing the id silently broke the placed-piece fallback (field: the
   // owner's placed Back tab shipped nothing while still staged)
   const stagedShips = (id: KitComponentId) => kitVisible(id, st.releases ?? {}, false) || usedOnBoards0.has(PREFAB_FAMILY[id] ?? id);
+  /* the SEMANTIC GLYPH FLEET's ledger (round 51 — wave 2 of the round-49
+     slot-button commission): the emission below fills it, the manifest
+     ships it as `glyphFleet`, and the notices credit the CC-BY ids it
+     carried. Empty whenever the slot button is staged, or out of full
+     scope — no entry ever names a sprite this zip does not hold. */
+  const glyphFleetOut: { name: string; file: string; dx: number; dy: number; w: number; h: number }[] = [];
+  const glyphFleetIds: string[] = [];
   for (const n of NINE) {
     if (!full && !FREE_NINE.has(n.id)) continue;
     if (n.id === "tabback" && !stagedShips("tabback")) continue;
@@ -5518,6 +5527,49 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         }
       }
     }
+
+    /* ── the SEMANTIC GLYPH FLEET (round 51 — the owner: "we need a NEW
+       CLASS of button that is the SEMANTIC GLYPHS + FRAME. we already
+       had this ICON+FRAME before"): the slot button's SECOND ready-to-
+       wear class, landing exactly as the round-49 design promised —
+       ADDITIVE: its own manifest list (glyphFleet), its own shipped
+       sprites, the stock class untouched to the byte. Each CURATED
+       semantic-rack glyph (SEAT_GLYPHS — the same 47 the app's
+       Inspector shelf offers; the three whose forms need their dressing
+       inks to read sit out here too) renders through the app's OWN seat
+       road — shell("slotbtn") wearing glyphSeatIcon(id), the exact
+       pixels a board copy picking icon:glyph:<id> wears, Icons-panel
+       dials included — and the marked-ink cut ships as its own sprite
+       beside a seat box measured like every icon child (iconSeatsOf:
+       reach-measured canvas, shell-center design px). The importer
+       builds "Glyph Button – <Name>" thin variants off Slotbtn.prefab,
+       reseating the live glyph child per entry (a semantic cut has its
+       own box — the stock class's near-square icons/* never needed
+       that). Gated stagedShips("slotbtn") like every slotbtn byte (the
+       one-component law: same frame, different dress); the CC-BY
+       silhouettes credit themselves in the notices below. ── */
+    if (stagedShips("slotbtn")) {
+      const stripLoopsG = (sv: string) => sv
+        .replace(/<animate(?:Transform|Motion)?\b[^>]*\/>/g, "")
+        .replace(/<animate(?:Transform|Motion)?\b[^>]*>[\s\S]*?<\/animate(?:Transform|Motion)?>/g, "");
+      for (const gid of SEAT_GLYPHS) {
+        const gReg = LIVE_GLYPHS.find((g9) => g9.id === gid);
+        const defG = glyphSeatIcon(gid);
+        if (!gReg || !defG) continue;
+        let fullG: string;
+        /* no slots on purpose: the qty chip is per-copy content — the
+           render carries exactly ONE mark (the glyph), so the cut can
+           never collide with the family's own icon-glyph/icon-qtybtn
+           sprites */
+        try { fullG = stripLoopsG(shell("slotbtn", { icon: defG }, undefined, st.kitVals?.slotbtn)); } catch { continue; }
+        if ((fullG.match(/data-part="icon"/g) ?? []).length !== 1) continue;
+        const seatsG = await iconSeatsOf("slotbtn", fullG, undefined, `glyph-${gid}`);
+        const seatG = seatsG && seatsG.length === 1 && seatsG[0].name === `glyph-${gid}` ? seatsG[0] : null;
+        if (!seatG) continue; // this glyph waits for a later wave; the class ships without it
+        glyphFleetOut.push({ name: gReg.name, file: seatG.file, dx: seatG.dx, dy: seatG.dy, w: seatG.w, h: seatG.h });
+        glyphFleetIds.push(gid);
+      }
+    }
   }
 
   /* ── rarity system: one pre-tinted frame per tier + the bare loot plate.
@@ -6367,6 +6419,15 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           "magnet", "rocket", "crosshair", "lock", "map", "clock", "bag", "helmet", "boots", "gear", "play", "pause", "check", "warning"] as const)
           .filter((g) => !!STOCK_ICONS[g])
           .map((g) => ({ name: g.charAt(0).toUpperCase() + g.slice(1), file: `assets/icons/${g}.png` })),
+        /* WAVE 2 — the SEMANTIC GLYPH class (round 51: "the SEMANTIC
+           GLYPHS + FRAME"): its own list, exactly the additive landing
+           the stock class's design reserved for it. One entry per
+           curated rack glyph whose cut actually shipped, each carrying
+           its app-measured seat (shell-center design px, the icon-child
+           contract) so the importer can reseat the live glyph child to
+           the semantic cut's own box. Same gate, same frame — a second
+           dress, never a second family. */
+        ...(glyphFleetOut.length ? { glyphFleet: glyphFleetOut } : {}),
       } : {}),
       /* the text-seat unit contract version — the importer soft-gates on
          it so a future contract change can never be misread as this one */
@@ -6946,6 +7007,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     for (const [pid, shp] of Object.entries(st.kitShapes ?? {}))
       if (typeof shp === "string" && shp.startsWith("glyph:") && shipsHere(pid)) tpnGlyphIds.add(`glyph${shp.slice(6)}`);
     if (full) for (const bd of st.boards ?? []) for (const it of bd.items) if (it.component.startsWith("glyph")) tpnGlyphIds.add(it.component);
+    /* the semantic glyph FLEET (round 51) bakes the curated rack's CC-BY
+       silhouettes into this zip whenever the slot button ships — the
+       credit rides with the art, exactly like a board placement */
+    for (const gidF of glyphFleetIds) tpnGlyphIds.add(`glyph${gidF}`);
     /* picker icons baked into pieces: the master icon rig + per-piece
        forks + per-piece overrides (when the caller passes them) */
     if (full && st.cfg.icon?.show) tpnIcon(st.cfg.icon.def);
@@ -12297,7 +12362,7 @@ namespace PatternBreak {
   [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float artW; public float artH; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string stampMask; public bool bakedFallback; public int stampLive; public float stampFs; public string stampInk; public string stampSplashInk; public string stampCase; public float stampDx; public float stampDy; public float stampW; public float stampH; public string posed; public float posedW; public float posedH; public float posedDx; public float posedDy; public string posedHover; public string posedPressed; public string posedDisabled; public float posedLabelDx; public float posedLabelDy; public string shadow; public float shadowW; public float shadowH; public float shadowDx; public float shadowDy; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; public PBBig big; public PBIconChild[] posedIcons; }
   [Serializable] class PBBoardBg { public string file; public float opacity; public float blur; public float saturation; public float hue; public float brightness; public float contrast; public float noise; public string overlay; public float overlayStrength; public string overlayBlend; public bool original; }
   [Serializable] class PBBoard { public string name; public int w; public int h; public PBBoardBg bg; public PBBoardItem[] items; }
-  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public string seatSpace; public string[] stagedFamilies; public PBFleetEntry[] slotFleet; public PBWell globeWell; public PBSeasonGeo seasonTrack; public PBDotsGeo pageDots; public PBDotsGeo startLights; public PBDotsGeo steps; public PBPathGeo pathConnector; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBTimerBlock timer; public PBMenu menu; public PBRarity rarity; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; }
+  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public string seatSpace; public string[] stagedFamilies; public PBFleetEntry[] slotFleet; public PBGlyphFleetEntry[] glyphFleet; public PBWell globeWell; public PBSeasonGeo seasonTrack; public PBDotsGeo pageDots; public PBDotsGeo startLights; public PBDotsGeo steps; public PBPathGeo pathConnector; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBTimerBlock timer; public PBMenu menu; public PBRarity rarity; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; }
   [Serializable] class PBLockEntry { public string file; public string sha256; }
   /* the word each labeled family's prefab was last SEEDED with — the
      ownership ledger: a re-import re-seeds only a label still equal to
@@ -12307,6 +12372,10 @@ namespace PatternBreak {
   /* the slot button's glyph fleet (round 49) — name + the shipped sprite
      the variant's live glyph child wears; wave 2 entries just append */
   [Serializable] class PBFleetEntry { public string name; public string file; }
+  /* wave 2 — the SEMANTIC GLYPH class (round 51): a semantic cut brings
+     its own app-measured box, so each entry carries the seat too
+     (shell-center design px, the icon-child contract) */
+  [Serializable] class PBGlyphFleetEntry { public string name; public string file; public float dx; public float dy; public float w; public float h; }
   /* pendingMissing rides PARALLEL to pendingScenes (same index = same
      scene): the missing count the last build ended on. Two builds in a
      row ending on the SAME count is the un-armable-forever tripwire —
@@ -22561,6 +22630,7 @@ namespace PatternBreak {
       if (ComboPopWire(dir, root, m, staging)) any = true;
       if (DmgNumberWire(dir, root, m, staging)) any = true;
       if (SlotFleetPrefabs(dir, root, m, staging)) any = true;
+      if (GlyphFleetPrefabs(dir, root, m, staging)) any = true;
 #if UNITY_2023_2_OR_NEWER
       if (HeroLabelPrefab(dir, root)) any = true;
 #endif
@@ -22737,6 +22807,70 @@ namespace PatternBreak {
       } finally { UnityEditor.SceneManagement.EditorSceneManager.ClosePreviewScene(pscene); }
       if (!quiet && (made > 0 || missing > 0))
         Debug.Log("UI Kit Maker: the Slot Button fleet — " + made + " glyph variant(s) built in Prefabs/Variants" + (kept > 0 ? ", " + kept + " kept (yours after creation)" : "") + (missing > 0 ? ", " + missing + " entry(ies) waiting on their sprites (a future wave ships them)" : "") + ". Each is a thin Prefab Variant of Slotbtn — restyle the kit and the whole fleet follows; only the glyph is its own.");
+      return made > 0;
+    }
+    /* the SEMANTIC GLYPH FLEET (round 51 — the owner: "we need a NEW
+       CLASS of button that is the SEMANTIC GLYPHS + FRAME"): the slot
+       button's SECOND ready-to-wear class — one THIN Prefab Variant per
+       manifest glyphFleet entry, named "Glyph Button – <Name>" so the
+       two classes read apart at a glance in the Project window. The
+       same road as the stock fleet (Slotbtn.prefab carries the state
+       skins, the Button, the chip and every rig), with one addition: a
+       semantic cut brings its OWN app-measured box, so each variant
+       also reseats the live glyph child to the entry's seat (the
+       WireIconChildren math — the stock class's near-square icons/*
+       never needed it; an entry without geometry keeps the base seat).
+       Missing sprites wait quietly (a wave ahead of its art), an
+       existing prefab is the dev's after creation, and everything else
+       stays the base's — a kit restyle flows into the whole class. */
+    static bool GlyphFleetPrefabs(string dir, string root, PBManifest m, bool quiet) {
+      if (m == null || m.glyphFleet == null || m.glyphFleet.Length == 0) return false;
+      var basePf = AssetDatabase.LoadAssetAtPath<GameObject>(dir + "/Slotbtn.prefab");
+      if (basePf == null) return false; // staged (or pruned) — nothing to wear the glyphs
+      PBAsset rowGB = null;
+      if (m.assets != null) foreach (var aGB in m.assets) if (aGB != null && aGB.component == "slotbtn" && aGB.part == "base") { rowGB = aGB; break; }
+      float psGB = m.pngScale > 0 ? m.pngScale : 2f;
+      var vdir = dir + "/Variants";
+      if (!AssetDatabase.IsValidFolder(vdir)) AssetDatabase.CreateFolder(dir, "Variants");
+      int made = 0, kept = 0, missing = 0;
+      var pscene = UnityEditor.SceneManagement.EditorSceneManager.NewPreviewScene();
+      try {
+        foreach (var fe in m.glyphFleet) {
+          if (fe == null || string.IsNullOrEmpty(fe.name) || string.IsNullOrEmpty(fe.file)) continue;
+          var glyphSp = S(root + "/" + fe.file);
+          if (glyphSp == null) { missing++; continue; } // a wave ahead of its sprites — quietly ready
+          var path = vdir + "/Glyph Button – " + FileSafeWord(fe.name) + ".prefab";
+          if (AssetDatabase.LoadAssetAtPath<GameObject>(path) != null) { kept++; continue; } // theirs after creation
+          var inst = (GameObject)PrefabUtility.InstantiatePrefab(basePf, pscene);
+          if (inst == null) continue;
+          try {
+            var gT = inst.transform.Find("Icon glyph");
+            var gImg = gT != null ? gT.GetComponent<Image>() : null;
+            if (gImg == null) continue; // no glyph child (the maker shipped an empty well) — the fleet sits out
+            gImg.sprite = glyphSp;
+            PrefabUtility.RecordPrefabInstancePropertyModifications(gImg);
+            var grt = gT as RectTransform;
+            var bsGB = inst.GetComponent<Image>() != null ? inst.GetComponent<Image>().sprite : null;
+            if (grt != null && fe.w > 1f && fe.h > 1f && rowGB != null && rowGB.shell != null && rowGB.shell.w > 4f && bsGB != null && bsGB.rect.width > 2f && bsGB.rect.height > 2f) {
+              float fxGB = (rowGB.shell.x + rowGB.shell.w / 2f + fe.dx * psGB) / bsGB.rect.width;
+              float fyGB = 1f - (rowGB.shell.y + rowGB.shell.h / 2f + fe.dy * psGB) / bsGB.rect.height;
+              grt.anchorMin = grt.anchorMax = new Vector2(fxGB, fyGB);
+              grt.anchoredPosition = Vector2.zero;
+              grt.sizeDelta = new Vector2(fe.w, fe.h);
+              PrefabUtility.RecordPrefabInstancePropertyModifications(grt);
+            }
+            var saved = PrefabUtility.SaveAsPrefabAsset(inst, path);
+            if (saved == null) continue;
+            made++;
+            bool linked = PrefabUtility.GetPrefabAssetType(saved) == PrefabAssetType.Variant
+              && (GameObject)PrefabUtility.GetCorrespondingObjectFromSource(saved) == basePf;
+            if (!linked)
+              Debug.LogWarning("UI Kit Maker: '" + Path.GetFileName(path) + "' saved as a plain prefab, NOT a Prefab Variant of Slotbtn — future kit restyles will not flow into it (it still works as a frozen copy). Deleting the file and re-importing retries.");
+          } finally { UnityEngine.Object.DestroyImmediate(inst); }
+        }
+      } finally { UnityEditor.SceneManagement.EditorSceneManager.ClosePreviewScene(pscene); }
+      if (!quiet && (made > 0 || missing > 0))
+        Debug.Log("UI Kit Maker: the Glyph Button fleet — " + made + " semantic variant(s) built in Prefabs/Variants" + (kept > 0 ? ", " + kept + " kept (yours after creation)" : "") + (missing > 0 ? ", " + missing + " entry(ies) waiting on their sprites (a future wave ships them)" : "") + ". Each is a thin Prefab Variant of Slotbtn wearing one semantic glyph in the kit's own dress — restyle the kit and the whole class follows; only the glyph and its seat are its own.");
       return made > 0;
     }
     /* the STREAK METER IGNITES (owner roster, round 41: "should ignite") —

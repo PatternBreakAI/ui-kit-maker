@@ -3618,6 +3618,47 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the importer's ink-box raycast road left — clicks land on glow padding again (round 50, S41)");
 }
 
+/* ── ROUND 51 · S42 (the semantic glyph fleet — the owner: "we need a
+   NEW CLASS of button that is the SEMANTIC GLYPHS + FRAME"): the slot
+   button's second ready-to-wear class. The exporter renders each
+   CURATED rack glyph (SEAT_GLYPHS) through the app's own seat road and
+   ships the cut + its measured seat as a glyphFleet entry — under the
+   SAME stagedShips("slotbtn") gate as the stock class, never a new
+   family; the CC-BY silhouettes credit themselves in the notices. The
+   importer builds one "Glyph Button – <Name>" thin Prefab Variant per
+   entry off Slotbtn.prefab, reseats the live glyph child to the entry's
+   app-measured box, waits quietly on missing sprites, and keeps a
+   prefab the dev already holds. ── */
+{
+  if (!/for \(const gid of SEAT_GLYPHS\) \{/.test(src)
+      || !/const seatsG = await iconSeatsOf\("slotbtn", fullG, undefined, `glyph-\$\{gid\}`\);/.test(src)
+      || !/if \(\(fullG\.match\(\/data-part="icon"\/g\) \?\? \[\]\)\.length !== 1\) continue;/.test(src))
+    errors.push("the semantic fleet emission left the exporter (SEAT_GLYPHS roster / per-glyph seat cut / one-mark collision guard) — the glyph class ships nothing (round 51, S42)");
+  if (!/if \(stagedShips\("slotbtn"\)\) \{\s*\n\s*const stripLoopsG/.test(src))
+    errors.push("the semantic fleet emission lost its staged gate — an unreleased slot button would bake 47 glyph cuts into the zip (round 51, S42)");
+  if (!/stagedShips\("slotbtn"\) \? \{[\s\S]{0,1600}\.\.\.\(glyphFleetOut\.length \? \{ glyphFleet: glyphFleetOut \} : \{\}\),/.test(src))
+    errors.push("the manifest lost the glyphFleet list (or it slipped out of the slotbtn staged gate) — entries and sprites can disagree (round 51, S42)");
+  if (!/for \(const gidF of glyphFleetIds\) tpnGlyphIds\.add\(`glyph\$\{gidF\}`\);/.test(src))
+    errors.push("the shipped semantic cuts lost their CC-BY credit road (glyphAttribution via tpnGlyphIds) — game-icons art would ship uncredited (round 51, S42)");
+  if (!/class PBGlyphFleetEntry \{ public string name; public string file; public float dx; public float dy; public float w; public float h; \}/.test(cs)
+      || !/public PBGlyphFleetEntry\[\] glyphFleet;/.test(cs))
+    errors.push("PBManifest lost the glyph-fleet entries (name + file + measured seat) (round 51, S42)");
+  if (!/static bool GlyphFleetPrefabs\(string dir, string root, PBManifest m, bool quiet\) \{/.test(cs)
+      || !/GlyphFleetPrefabs\(dir, root, m, staging\)/.test(cs)
+      || !/"\/Glyph Button – " \+ FileSafeWord\(fe\.name\) \+ "\.prefab"/.test(cs))
+    errors.push("the glyph fleet builder (one 'Glyph Button – <Name>' prefab per entry) left the importer (round 51, S42)");
+  const gfp42 = /static bool GlyphFleetPrefabs\(string dir, string root, PBManifest m, bool quiet\) \{[\s\S]*?\n    \}/.exec(cs)?.[0] ?? "";
+  if (!/if \(glyphSp == null\) \{ missing\+\+; continue; \}/.test(gfp42)
+      || !/\{ kept\+\+; continue; \}/.test(gfp42))
+    errors.push("the glyph fleet lost its missing-sprite tolerance or its keep-theirs-after-creation rule (round 51, S42)");
+  if (!/grt\.sizeDelta = new Vector2\(fe\.w, fe\.h\);/.test(gfp42)
+      || !/float fxGB = \(rowGB\.shell\.x \+ rowGB\.shell\.w \/ 2f \+ fe\.dx \* psGB\) \/ bsGB\.rect\.width;/.test(gfp42)
+      || !/var gT = inst\.transform\.Find\("Icon glyph"\);/.test(gfp42))
+    errors.push("the glyph fleet variant no longer reseats the LIVE glyph child to the entry's app-measured box (round 51, S42)");
+  if (!/PrefabUtility\.GetPrefabAssetType\(saved\) == PrefabAssetType\.Variant/.test(gfp42))
+    errors.push("the glyph fleet lost the variant-link assert — a disconnected save would freeze silently (round 51, S42)");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);
