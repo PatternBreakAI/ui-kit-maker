@@ -139,6 +139,10 @@ interface AssetMeta {
    *  padding, Size dial included). Absent (JsonUtility 0) on old zips —
    *  the importer keeps its heuristic there. */
   fireDx?: number; fireDy?: number; fireW?: number;
+  /** manarails (round 44, RIG-1 x2): each fill row's rail band, SHELL-
+   *  CENTER relative in design px (the labelDx discipline — crop-proof);
+   *  absent on every other row (JsonUtility zero-gates on railW). */
+  railDx?: number; railDy?: number; railW?: number; railH?: number;
   /** The Leading dial, resolved per row (base = the resting design;
    *  base-<state> rows = that state's fork-first per-key read — bevel's
    *  endturn rule verbatim), as the app's raw percentage. Emitted on
@@ -576,6 +580,31 @@ function barFillOnlySvg(svgIn: string): { svg: string; box: [number, number, num
       if (!el.closest("defs") && !keep.contains(el)) el.remove();
     return { svg: new XMLSerializer().serializeToString(dom.documentElement), box: box as [number, number, number, number] };
   } catch { return null; }
+}
+/* multi-rail form (manarails, round 44): every marked group, each as its
+   own only-this-group document — data-barfill-name keys the pair */
+function barFillGroups(svgIn: string): { name: string; box: [number, number, number, number]; svg: string }[] {
+  try {
+    const dom0 = new DOMParser().parseFromString(svgIn, "image/svg+xml");
+    const gs0 = Array.from(dom0.querySelectorAll("[data-barfill]"));
+    const out: { name: string; box: [number, number, number, number]; svg: string }[] = [];
+    for (let gi = 0; gi < gs0.length; gi++) {
+      const dom = new DOMParser().parseFromString(svgIn, "image/svg+xml");
+      const gs = Array.from(dom.querySelectorAll("[data-barfill]"));
+      const keep = gs[gi];
+      if (!keep) continue;
+      const box = (keep.getAttribute("data-barfill") ?? "").split(" ").map(Number);
+      if (box.length !== 4 || box.some((v) => !Number.isFinite(v))) continue;
+      for (const el of Array.from(dom.querySelectorAll(ICON_DRAWABLE_SEL)))
+        if (!el.closest("defs") && !keep.contains(el)) el.remove();
+      out.push({
+        name: gs0[gi].getAttribute("data-barfill-name") ?? `fill${gi + 1}`,
+        box: box as [number, number, number, number],
+        svg: new XMLSerializer().serializeToString(dom.documentElement),
+      });
+    }
+    return out;
+  } catch { return []; }
 }
 function stripBarFill(svgIn: string): { svg: string; stripped: boolean } {
   try {
@@ -4210,8 +4239,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         questpanel: "Quest tracker — eyebrow, title, objectives and counts are LIVE seats (title is the live Label). Pips and footer bar are anatomy; per-copy progress rides posed skins. Display piece.",
         dialoguebox: "Dialogue box — both lines are LIVE seats, the speaker plate a live child whose NAME rides it (move or delete plate + name as one), and the continue caret its OWN live child (owner ruling, round 44 — blink it, bob it or swap it; icons/* fit the seat). Display piece.",
         choicelist: "Dialogue choices — all three responses and their hotkey digits are LIVE seats; the active-choice marker is a LIVE Image child. Wire per-choice buttons over the capsules. Display piece.",
-        manarails: "Mana & stamina rails — each rail glyph is a LIVE Image child (swap the sprite in the Inspector). Rails bake at the staged values; per-copy values ride posed skins. Display piece.",
-        xpbar: "XP bar — the level number, NEXT line and XP readout are LIVE seats; the mercury bakes at the staged value (per-copy values ride posed skins). Display piece.",
+        manarails: "Mana & stamina rails — LIVE: each rail is its own Filled fill with the rounded head (drive Mana/Stamina fillAmount or KitBarFill.SetValue) and each rail glyph a LIVE Image child. Display piece.",
+        xpbar: "XP bar — LIVE: the NEXT line and XP readout are seats, the mercury is a Filled fill with the rounded head (drive Fill's fillAmount or KitBarFill.SetValue; the milestone notch cuts ride the fill), and the level knob is a live child whose number RIDES it. Display piece.",
         invgrid: "Inventory grid — every cell glyph is a LIVE Image child (the app's cell pickers steer them) and the count chips are live plates with their numbers riding them. The selection ring is NOT baked: compose invgrid/cell-ring.png over any cell (the board scenes wire InvGridSelect for you). Display piece.",
         partyframe: "Party frame — drop YOUR sprite on the Portrait child (the well clips it round); the name is a LIVE seat and the class glyph a LIVE Image child. HP/MP rails bake at the staged values. Display piece.",
         compass: "Compass ribbon — the cardinal letters are LIVE seats and the tick ribbon bakes at the staged heading (per-copy headings ride posed skins). Display piece.",
@@ -4422,7 +4451,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
            row's extended data-track stamp (no separate track part ships,
            the cell meters' rule). The strip only happens once both atoms
            render, so a failed atom leaves today's baked bar intact. */
-        const barRigU = uid === "loadbar" || uid === "popmeter" || uid === "respawn" || uid === "buildqueue";
+        const barRigU = uid === "loadbar" || uid === "popmeter" || uid === "respawn" || uid === "buildqueue" || uid === "xpbar";
         let barFillSvgU: string | null = null, barCapSvgU: string | null = null;
         if (barRigU) {
           try {
@@ -4442,6 +4471,43 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
             }
           } catch { barFillSvgU = null; barCapSvgU = null; }
         }
+        /* ── the TWIN RAILS (round 44, item 21 — RIG-1 ×2): mana and
+           stamina each un-burn as their OWN Filled atom + bead, per-rail
+           bands riding the fill rows SHELL-CENTER relative (the fireDx
+           discipline — crop-proof). The coupled scrub can't reach a full
+           stamina, so the atoms render both rails forced to 1. ── */
+        let railsOut: { name: string; fill: string; cap: string; dx: number; dy: number; w9: number; h9: number; staged: number }[] | null = null;
+        if (uid === "manarails") {
+          try {
+            const fullMR = stripLoopsU(shell(uid, { ...uOpts, part: "fill" }, undefined, uVal));
+            const groupsMR = barFillGroups(fullMR);
+            const shDm = (/data-shell="([-\d. ]+)"/.exec(fullMR) ?? /data-shell0="([-\d. ]+)"/.exec(fullMR))?.[1].split(" ").map(Number);
+            const sh0m = /data-shell0="([-\d. ]+)"/.exec(fullMR)?.[1].split(" ").map(Number);
+            const riseMR = shDm && sh0m && shDm.length === 4 && sh0m.length === 4 ? shDm[1] - sh0m[1] : 0;
+            const capHMR = +(/viewBox="[-\d.]+ [-\d.]+ [\d.]+ ([\d.]+)"/.exec(fullMR)?.[1] ?? "0");
+            const vMana = Math.max(0, Math.min(1, uVal ?? 0.66));
+            const vStam = Math.max(0, Math.min(1, 0.15 + (1 - vMana) * 0.7)); // bevel's own coupling
+            if (groupsMR.length === 2 && shDm && shDm.length === 4 && capHMR > 2) {
+              const r1m = (n: number) => Math.round(n * 10) / 10;
+              railsOut = groupsMR.map((g9) => {
+                const [gx, gy, gw, gh] = g9.box;
+                const wx0 = gx + gw - gh - 8, ww = Math.ceil(gh + 16);
+                return {
+                  name: g9.name, fill: g9.svg,
+                  cap: g9.svg
+                    .replace(/viewBox="[^"]+"/, `viewBox="${wx0.toFixed(1)} 0 ${ww} ${Math.ceil(capHMR)}"`)
+                    .replace(/ width="[\d.]+"/, ` width="${ww}"`)
+                    .replace(/ height="[\d.]+"/, ` height="${Math.ceil(capHMR)}"`),
+                  dx: r1m(gx + gw / 2 - (shDm[0] + shDm[2] / 2)),
+                  dy: r1m(gy + riseMR + gh / 2 - (shDm[1] + shDm[3] / 2)),
+                  w9: r1m(gw), h9: r1m(gh),
+                  staged: g9.name === "mana" ? vMana : vStam,
+                };
+              });
+              baseSvgU = stripBarFill(baseSvgU).svg;
+            }
+          } catch { railsOut = null; }
+        }
         await addPng(`${uid}/base.png`, baseSvgU, {
           component: uid, part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
           usage: UNIVERSAL_USAGE[uid] ?? (GLYPH_BUTTONS.has(uid)
@@ -4453,8 +4519,21 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           ...(ringRig || buffRig ? {} : seatsU),
           ...(iconSeatsU ? { iconSeats: iconSeatsU } : {}),
         }, true, interactive || buffRig || cellRig ? uid : undefined);
+        if (railsOut) {
+          for (const rl of railsOut) {
+            await addPng(`${uid}/fill-${rl.name}.png`, rl.fill, {
+              component: uid, part: `fill-${rl.name}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+              usage: `The ${rl.name} rail's mercury at 100% — the app's own dressing; the prefab's Filled image scissors it to the live value and KitBarFill parks the rounded head (drive fillAmount or SetValue).`,
+              ringV: rl.staged, railDx: rl.dx, railDy: rl.dy, railW: rl.w9, railH: rl.h9,
+            }, true);
+            await addPng(`${uid}/cap-${rl.name}.png`, rl.cap, {
+              component: uid, part: `cap-${rl.name}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+              usage: `The ${rl.name} rail's rounded head — KitBarFill parks it on the value line.`,
+            }, true);
+          }
+        }
         if (barRigU && barFillSvgU && barCapSvgU) {
-          const stagedBar = Math.max(0, Math.min(1, uVal ?? ({ loadbar: 0.62, popmeter: 0.84, respawn: 0.6, buildqueue: 0.55 } as Record<string, number>)[uid] ?? 0.62));
+          const stagedBar = Math.max(0, Math.min(1, uVal ?? ({ loadbar: 0.62, popmeter: 0.84, respawn: 0.6, buildqueue: 0.55, xpbar: 0.45 } as Record<string, number>)[uid] ?? 0.62));
           await addPng(`${uid}/fill.png`, barFillSvgU, {
             component: uid, part: "fill", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
             usage: "The mercury at 100% — the app's own dressing (gradient, gloss, glow) alone on the canvas; the prefab's Filled image scissors it to the live value and KitBarFill parks the rounded head (drive fillAmount or SetValue).",
@@ -10259,7 +10338,7 @@ namespace PatternBreak {
        posed pixels with its plate — rebuilt as live TMP ON the live child
        (wordDx/wordDy = word center from the CHILD center, board px). */
     public string word; public float wordFs; public float wordDx; public float wordDy; public string wordInk; public int wordW; }
-  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public PBTrack track; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelInk; public string labelInk2; public float leading; public string labelText; public PBIconSeat icon; public PBGauge gauge; public PBChart chart; public PBLoot loot; public PBSeat[] textSeats; public PBStyle seatInk; public float ringV; public PBIconChild[] iconSeats; public float fireDx; public float fireDy; public float fireW; }
+  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public PBTrack track; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelInk; public string labelInk2; public float leading; public string labelText; public PBIconSeat icon; public PBGauge gauge; public PBChart chart; public PBLoot loot; public PBSeat[] textSeats; public PBStyle seatInk; public float ringV; public PBIconChild[] iconSeats; public float fireDx; public float fireDy; public float fireW; public float railDx; public float railDy; public float railW; public float railH; }
   [Serializable] class PBStyleOutline { public string color; public string color2; public float width; }
   [Serializable] class PBStyleGlow { public string color; public float size; public float opacity; }
   [Serializable] class PBStyleShadow { public string color; public float x; public float y; public float blur; public float opacity; }
@@ -13778,13 +13857,24 @@ namespace PatternBreak {
             /* the RIG-1 display bars strike the board's pose too (round 44
                — future-proof: their board copies bake as stamps today,
                but a live copy must land on its own value) */
-            if ((it.component == "loadbar" || it.component == "popmeter" || it.component == "respawn" || it.component == "buildqueue") && it.value > 0f) {
+            if ((it.component == "loadbar" || it.component == "popmeter" || it.component == "respawn" || it.component == "buildqueue" || it.component == "xpbar") && it.value > 0f) {
               var dbT = inst.transform.Find("Fill Area/Fill");
               var dbI = dbT != null ? dbT.GetComponent<Image>() : null;
               if (dbI != null && dbI.type == Image.Type.Filled) {
                 var kbD = dbT.GetComponentInParent<KitBarFill>();
                 if (kbD != null) kbD.SetValue(Mathf.Clamp01(it.value)); else dbI.fillAmount = Mathf.Clamp01(it.value);
               }
+            }
+            if (it.component == "manarails" && it.value > 0f) {
+              // the board's value drives MANA (the app's rule); stamina
+              // counter-moves by the app's own coupling
+              float vMn9 = Mathf.Clamp01(it.value);
+              var mnT9 = inst.transform.Find("Mana Area");
+              var mnK9 = mnT9 != null ? mnT9.GetComponent<KitBarFill>() : null;
+              if (mnK9 != null) mnK9.SetValue(vMn9);
+              var stT9 = inst.transform.Find("Stamina Area");
+              var stK9 = stT9 != null ? stT9.GetComponent<KitBarFill>() : null;
+              if (stK9 != null) stK9.SetValue(Mathf.Clamp01(0.15f + (1f - vMn9) * 0.7f));
             }
             if (it.component == "segbar" && it.value > 0f) {
               var sgT = inst.transform.Find("Lit");
@@ -15907,7 +15997,7 @@ namespace PatternBreak {
          row); the zone (horizontal + vertical band) rides the base row's
          data-track stamp. Old zips ship no fill atom and keep today's
          baked look untouched. ── */
-      if (baseAsset.component == "loadbar" || baseAsset.component == "popmeter" || baseAsset.component == "respawn" || baseAsset.component == "buildqueue") {
+      if (baseAsset.component == "loadbar" || baseAsset.component == "popmeter" || baseAsset.component == "respawn" || baseAsset.component == "buildqueue" || baseAsset.component == "xpbar") {
         var famB4 = baseAsset.component;
         var fillB4 = S(root + "/assets/" + famB4 + "/" + famB4 + "-fill.png");
         if (fillB4 != null) {
@@ -15916,6 +16006,10 @@ namespace PatternBreak {
           BuildBarFill(go, "Fill", fillB4, baseSp, pngScale, m, root, famB4, stagedB4, false);
         }
       }
+      /* the TWIN RAILS (round 44, item 21) — see WireManaRails: mana and
+         stamina each ride their own Filled atom + bead; old zips ship no
+         fill-mana atom and keep the baked look untouched */
+      if (baseAsset.component == "manarails") WireManaRails(go, baseSp, baseAsset, root, pngScale, m);
       /* ── the BUFF FRAME's countdown FUNCTIONS (round 44, owner: "the
          countdown clock cannot be burned into the button shape"): with
          the sweep atoms aboard, the root wears the sweep-less PLATE
@@ -16433,10 +16527,13 @@ namespace PatternBreak {
       return frt;
     }
     static void WireBarCap(GameObject area, Image fImg, string root, string fam, bool fromRight, float staged) {
+      WireBarCap(area, fImg, root, fam, fromRight, staged, null);
+    }
+    static void WireBarCap(GameObject area, Image fImg, string root, string fam, bool fromRight, float staged, string capNameOverride) {
       var kbf = area.AddComponent<KitBarFill>();
       kbf.fill = fImg;
       kbf.fromRight = fromRight;
-      string capName = fam == "vsbar" ? (fromRight ? "cap-r" : "cap-l") : "cap";
+      string capName = capNameOverride != null ? capNameOverride : (fam == "vsbar" ? (fromRight ? "cap-r" : "cap-l") : "cap");
       var capSp = S(root + "/assets/" + fam + "/" + fam + "-" + capName + ".png");
       if (capSp != null) {
         var capGo = new GameObject("Cap", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
@@ -16446,6 +16543,41 @@ namespace PatternBreak {
         kbf.capHead = (RectTransform)capGo.transform;
       }
       kbf.SetValue(staged);
+    }
+    /* ── the TWIN RAILS (round 44, item 21): mana and stamina each ride
+       their own Filled atom + rounded bead, seated SHELL-CENTER relative
+       from the fill rows' rail bands (the FireButton exact-seat
+       discipline — crop-proof). Shared by the fresh build and the
+       kept-project graft. ── */
+    static void WireManaRails(GameObject go, Sprite baseSp, PBAsset baseRow, string root, int pngScale, PBManifest m) {
+      if (baseSp == null || baseRow == null || baseRow.shell == null || baseRow.shell.w < 4f || baseSp.rect.width < 2f) return;
+      foreach (var railN in new string[] { "mana", "stamina" }) {
+        var fillR = S(root + "/assets/manarails/manarails-fill-" + railN + ".png");
+        PBAsset rowR = null;
+        foreach (var aR in m.assets) if (aR != null && aR.component == "manarails" && aR.part == "fill-" + railN) { rowR = aR; break; }
+        if (fillR == null || rowR == null || rowR.railW < 1f) continue;
+        string railNice = railN == "mana" ? "Mana" : "Stamina";
+        if (go.transform.Find(railNice + " Area") != null) continue; // theirs already
+        var areaR = new GameObject(railNice + " Area", typeof(RectTransform));
+        areaR.transform.SetParent(go.transform, false);
+        var artR = areaR.GetComponent<RectTransform>();
+        artR.anchorMin = artR.anchorMax = new Vector2(
+          (baseRow.shell.x + baseRow.shell.w / 2f + rowR.railDx * pngScale) / baseSp.rect.width,
+          1f - (baseRow.shell.y + baseRow.shell.h / 2f + rowR.railDy * pngScale) / baseSp.rect.height);
+        artR.pivot = new Vector2(0.5f, 0.5f);
+        artR.anchoredPosition = Vector2.zero;
+        // width = the rail band; height = the atom's own cropped height
+        // (glow bleed intact), centered on the band — the S12 rule
+        artR.sizeDelta = new Vector2(rowR.railW, fillR.rect.height / Mathf.Max(1, pngScale));
+        var fgoR = ImageObject(railNice, fillR, pngScale);
+        fgoR.transform.SetParent(areaR.transform, false);
+        var fiR = fgoR.GetComponent<Image>();
+        fiR.raycastTarget = false; fiR.type = Image.Type.Filled; fiR.preserveAspect = false;
+        fiR.fillMethod = Image.FillMethod.Horizontal; fiR.fillOrigin = (int)Image.OriginHorizontal.Left;
+        var frtR = fgoR.GetComponent<RectTransform>();
+        frtR.anchorMin = Vector2.zero; frtR.anchorMax = Vector2.one; frtR.offsetMin = Vector2.zero; frtR.offsetMax = Vector2.zero;
+        WireBarCap(areaR, fiR, root, "manarails", false, rowR.ringV > 0f ? Mathf.Clamp01(rowR.ringV) : 0.6f, "cap-" + railN);
+      }
     }
     static bool ProgressPrefab(string dir, string root, int pngScale, PBManifest m) {
       var track = S(root + "/assets/progress/progress-track.9.png");
@@ -20436,7 +20568,8 @@ namespace PatternBreak {
           string famDB = spritePath.EndsWith("/loadbar-base.png") ? "loadbar"
             : spritePath.EndsWith("/popmeter-base.png") ? "popmeter"
             : spritePath.EndsWith("/respawn-base.png") ? "respawn"
-            : spritePath.EndsWith("/buildqueue-base.png") ? "buildqueue" : null;
+            : spritePath.EndsWith("/buildqueue-base.png") ? "buildqueue"
+            : spritePath.EndsWith("/xpbar-base.png") ? "xpbar" : null;
           if (famDB != null && asset.transform.Find("Fill Area") == null && asset.GetComponentInChildren<KitBarFill>(true) == null) {
             bool dbEra = true;
             if (prevLock != null && prevLock.files != null)
@@ -20455,6 +20588,27 @@ namespace PatternBreak {
               } finally { PrefabUtility.UnloadPrefabContents(contentsDB); }
               continue;
             }
+          }
+        }
+        /* the twin-rail graft (round 44, item 21) — same arrival-import
+           era rule, keyed on the mana atom */
+        if (spritePath.EndsWith("/manarails-base.png") && asset.transform.Find("Mana Area") == null && asset.GetComponentInChildren<KitBarFill>(true) == null) {
+          bool mrEra = true;
+          if (prevLock != null && prevLock.files != null)
+            foreach (var fPrev in prevLock.files) if (fPrev != null && fPrev.file == "assets/manarails/manarails-fill-mana.png") { mrEra = false; break; }
+          var rootImgMR = BodyImage(asset);
+          var rowMR = LabelRow(m, "manarails");
+          if (mrEra && rootImgMR != null && rootImgMR.sprite != null && rowMR != null
+              && AssetDatabase.GetAssetPath(rootImgMR.sprite).Replace("\\\\", "/") == root + "/assets/manarails/manarails-base.png"
+              && S(root + "/assets/manarails/manarails-fill-mana.png") != null) {
+            var contentsMR = PrefabUtility.LoadPrefabContents(path);
+            try {
+              var imgMR2 = BodyImage(contentsMR);
+              WireManaRails(contentsMR, imgMR2 != null ? imgMR2.sprite : null, rowMR, root, m != null && m.pngScale > 0 ? m.pngScale : 2, m);
+              PrefabUtility.SaveAsPrefabAsset(contentsMR, path);
+              barRigged++;
+            } finally { PrefabUtility.UnloadPrefabContents(contentsMR); }
+            continue;
           }
         }
         /* the segmented meter's LIT layer (round 21): a SegmentMeter from

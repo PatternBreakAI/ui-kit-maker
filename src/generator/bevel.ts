@@ -6487,23 +6487,38 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const barH = 28 * k;
       const barX = knobX + knobR + 16 * k, barW = 39 + w - inset - 12 * k - barX;
       const barY = 30 + h - inset - barH - 8 * k;
+      const gX = 3.5 * k, mHX = barH - gX * 2;
+      const notches = () => [0.2, 0.4, 0.6, 0.8].map((f) =>
+        `<rect x="${(barX + barW * f - 1.1).toFixed(1)}" y="${(barY + 2).toFixed(1)}" width="2.2" height="${(barH - 4).toFixed(1)}" fill="rgba(0,0,0,0.38)"/>`).join("");
       let parts = infoText(`${Math.round(vX * 2000).toLocaleString("en-US")} / 2,000 XP`, barX + barW, labY, 19 * k, "end") +
         contentText("NEXT: LV " + (parseInt(lvl, 10) + 1 || "?"), barX + 2, labY, 19 * k * typeK) +
         `<rect x="${barX.toFixed(1)}" y="${barY.toFixed(1)}" width="${barW.toFixed(1)}" height="${barH.toFixed(1)}" rx="${(barH / 2).toFixed(1)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.8)}" stroke="rgba(0,0,0,0.35)" stroke-width="1"/>` +
+        // the notch UNDER-PASS keeps the track's milestone marks when the
+        // mercury lifts out (round 44, item 45): where the fill covers
+        // them the group's own copies take over, so the app pixels hold
+        notches() +
         `<defs><linearGradient id="${gidX}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(glow, 0.55)}"/><stop offset="0.45" stop-color="${glow}"/><stop offset="1" stop-color="${darken(glow, 0.28)}"/></linearGradient></defs>`;
       if (vX > 0.02) {
-        // negative-space canon: mercury floats in the track, no tip ball
-        const gX = 3.5 * k, mHX = barH - gX * 2, mWX = Math.max(0, (barW - gX * 2) * vX);
-        parts += `<rect x="${(barX + gX).toFixed(1)}" y="${(barY + gX).toFixed(1)}" width="${mWX.toFixed(1)}" height="${mHX.toFixed(1)}" rx="${(mHX / 2).toFixed(1)}" fill="url(#${gidX})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(5 * k).toFixed(1)}px ${hexRgba(glow, 0.65)})"` : ""}/>
-          <rect x="${(barX + gX + 4 * k).toFixed(1)}" y="${(barY + gX + 2.5 * k).toFixed(1)}" width="${Math.max(0, mWX - 8 * k).toFixed(1)}" height="${(mHX * 0.32).toFixed(1)}" rx="${(mHX * 0.16).toFixed(1)}" fill="#FFFFFF" opacity="0.5"/>`;
+        /* negative-space canon: mercury floats in the track, no tip ball.
+           Round 44 (item 45, RIG-1): the WHOLE fill — body, gloss and the
+           notch cuts that ride it — is MARKED ink (data-barfill), so the
+           export ships it as a Filled atom KitBarFill drives with the
+           rounded head; the level knob strips to a live child below. */
+        const mWX = Math.max(0, (barW - gX * 2) * vX);
+        parts += `<g data-barfill="${(barX + gX).toFixed(1)} ${(barY + gX).toFixed(1)} ${mWX.toFixed(1)} ${mHX.toFixed(1)}"><rect x="${(barX + gX).toFixed(1)}" y="${(barY + gX).toFixed(1)}" width="${mWX.toFixed(1)}" height="${mHX.toFixed(1)}" rx="${(mHX / 2).toFixed(1)}" fill="url(#${gidX})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(5 * k).toFixed(1)}px ${hexRgba(glow, 0.65)})"` : ""}/>
+          <rect x="${(barX + gX + 4 * k).toFixed(1)}" y="${(barY + gX + 2.5 * k).toFixed(1)}" width="${Math.max(0, mWX - 8 * k).toFixed(1)}" height="${(mHX * 0.32).toFixed(1)}" rx="${(mHX * 0.16).toFixed(1)}" fill="#FFFFFF" opacity="0.5"/>` +
+          [0.2, 0.4, 0.6, 0.8].filter((f) => barX + barW * f < barX + gX + mWX).map((f) =>
+            `<rect x="${(barX + barW * f - 1.1).toFixed(1)}" y="${(barY + 2).toFixed(1)}" width="2.2" height="${(barH - 4).toFixed(1)}" fill="rgba(0,0,0,0.38)"/>`).join("") +
+          `</g>`;
       }
-      // level notches — milestone marks cut through track and fill alike
-      for (const f of [0.2, 0.4, 0.6, 0.8]) {
-        parts += `<rect x="${(barX + barW * f - 1.1).toFixed(1)}" y="${(barY + 2).toFixed(1)}" width="2.2" height="${(barH - 4).toFixed(1)}" fill="rgba(0,0,0,0.38)"/>`;
-      }
-      parts += candyKnob(knobX, cy, knobR, knobC) +
-        `<text x="${knobX.toFixed(1)}" y="${(cy + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(28 * k).toFixed(1)}" font-weight="900" fill="${darken(bevel, 0.55)}" text-anchor="middle" dominant-baseline="central">${esc(lvl)}</text>`;
-      return stampTrack(inject(shell.replace("<svg ", '<svg data-xpbar="1" '), parts), barX, barW);
+      /* the LEVEL KNOB is marked swappable ink (round 44, item 45 — the
+         owner's green bubble) and the live level number RIDES it: move,
+         restyle or delete knob + number as one on the prefab */
+      parts += `<g data-part="icon" data-icon="knob" data-icon-nick="Level knob">${candyKnob(knobX, cy, knobR, knobC)}</g>` +
+        `<text x="${knobX.toFixed(1)}" y="${(cy + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(28 * k).toFixed(1)}" font-weight="900" fill="${darken(bevel, 0.55)}" text-anchor="middle" dominant-baseline="central" data-seat-rider="knob">${esc(lvl)}</text>`;
+      // the stamp speaks the MERCURY RUN + its band now (round 44) — the
+      // rig seats exactly here; the app's pointer scrub keeps x/w
+      return stampTrack(inject(shell.replace("<svg ", '<svg data-xpbar="1" '), parts), barX + gX, barW - gX * 2, barY + gX, mHX);
     }
     case "manarails": {
       /* RPG · twin mana/stamina rails — genre-semantic hues (like the pad
@@ -6514,8 +6529,12 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const inset = bw + 8 * k;
       const railH = 22 * k;
       const y1 = 30 + h / 2 - railH - 7 * k, y2 = 30 + h / 2 + 7 * k;
-      const vM = clamp(value ?? 0.66, 0, 1);
-      const vS = clamp(0.15 + (1 - vM) * 0.7, 0, 1);
+      /* round 44 (item 21, RIG-1 ×2): the fill ATOMS render BOTH rails at
+         full run (the coupled stamina scrub never reaches 1 on its own —
+         max 0.85 — and a Filled atom must span the whole zone) */
+      const atomsMR = opts.part === "fill";
+      const vM = atomsMR ? 1 : clamp(value ?? 0.66, 0, 1);
+      const vS = atomsMR ? 1 : clamp(0.15 + (1 - vM) * 0.7, 0, 1);
       const railX = 39 + inset + 58 * k, railW = 39 + w - inset - 16 * k - railX;
       const rail = (ry: number, vR: number, cR: string, ic: IconDef | undefined, icName?: string) => {
         const gidM = "mr" + UID++;
@@ -6529,8 +6548,11 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
           iconGroup(ic, 39 + inset + 17 * k, ry + railH / 2 - 15 * k, 30 * k, lighten(cR, 0.15), { strokeWidth: 2.2 * iconWK }) + `</g>` : "") +
           `<rect x="${railX.toFixed(1)}" y="${ry.toFixed(1)}" width="${railW.toFixed(1)}" height="${railH.toFixed(1)}" rx="${(railH / 2).toFixed(1)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.8)}" stroke="rgba(0,0,0,0.35)" stroke-width="1"/>` +
           `<defs><linearGradient id="${gidM}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(cR, 0.5)}"/><stop offset="0.45" stop-color="${cR}"/><stop offset="1" stop-color="${darken(cR, 0.3)}"/></linearGradient></defs>` +
-          (vR > 0.03 ? `<rect x="${(railX + gM).toFixed(1)}" y="${(ry + gM).toFixed(1)}" width="${mW.toFixed(1)}" height="${mH.toFixed(1)}" rx="${(mH / 2).toFixed(1)}" fill="url(#${gidM})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(cR, 0.6)})"` : ""}/>
-            <rect x="${(railX + gM + 3 * k).toFixed(1)}" y="${(ry + gM + 2 * k).toFixed(1)}" width="${Math.max(0, mW - 6 * k).toFixed(1)}" height="${(mH * 0.34).toFixed(1)}" rx="${(mH * 0.17).toFixed(1)}" fill="#FFFFFF" opacity="0.5"/>` : "");
+          /* the rail MERCURY is marked ink (round 44, item 21): the export
+             strips it and re-renders each rail as its own Filled atom —
+             KitBarFill parks the bead per rail; the name keys the pair */
+          (vR > 0.03 ? `<g data-barfill="${(railX + gM).toFixed(1)} ${(ry + gM).toFixed(1)} ${mW.toFixed(1)} ${mH.toFixed(1)}" data-barfill-name="${icName ?? "rail"}"><rect x="${(railX + gM).toFixed(1)}" y="${(ry + gM).toFixed(1)}" width="${mW.toFixed(1)}" height="${mH.toFixed(1)}" rx="${(mH / 2).toFixed(1)}" fill="url(#${gidM})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(cR, 0.6)})"` : ""}/>
+            <rect x="${(railX + gM + 3 * k).toFixed(1)}" y="${(ry + gM + 2 * k).toFixed(1)}" width="${Math.max(0, mW - 6 * k).toFixed(1)}" height="${(mH * 0.34).toFixed(1)}" rx="${(mH * 0.17).toFixed(1)}" fill="#FFFFFF" opacity="0.5"/></g>` : "");
       };
       return inject(shell.replace("<svg ", '<svg data-manarails="1" '),
         rail(y1, vM, "#38bdf8", STOCK_ICONS.flask, "mana") + rail(y2, vS, "#4ade80", STOCK_ICONS.zap, "stamina"));

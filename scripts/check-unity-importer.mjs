@@ -2658,8 +2658,8 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the bare dome render no longer stamps data-fireseat (center + padded glyph-sprite box) — the exact armed seat can't reach the manifest (round 44, item 15)");
   if (!/fireDx: r1\(fsM\[0\] - \(shM\[0\] \+ shM\[2\] \/ 2\)\), fireDy: r1\(fsM\[1\] - \(shM\[1\] \+ shM\[3\] \/ 2\)\), fireW: r1\(fsM\[2\]\)/.test(src))
     errors.push("the emission no longer re-speaks data-fireseat shell-center relative onto the dome row (fireDx/fireDy/fireW)");
-  if (!/public PBIconChild\[\] iconSeats; public float fireDx; public float fireDy; public float fireW; \}/.test(cs))
-    errors.push("PBAsset lost the fireDx/fireDy/fireW fields — JsonUtility drops the armed seat silently");
+  if (!/public PBIconChild\[\] iconSeats; public float fireDx; public float fireDy; public float fireW; public float railDx; public float railDy; public float railW; public float railH; \}/.test(cs))
+    errors.push("PBAsset lost the fireDx/fireDy/fireW (or S15 railDx/railDy/railW/railH) fields — JsonUtility drops the armed seat / rail geometry silently");
   if (!/if \(themed && rowFS != null && rowFS\.fireW > 1f\) \{/.test(cs)
       || !/wRt\.sizeDelta = new Vector2\(rowFS\.fireW, rowFS\.fireW\);/.test(cs)
       || !/wRt\.anchoredPosition \+= new Vector2\(rowFS\.fireDx, -rowFS\.fireDy\);/.test(cs))
@@ -2889,15 +2889,15 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("respawn's conditional zone stamp left bevel — Barheight Hidden must ship no zone (round 44, item 30)");
   if (!/function barFillOnlySvg\(/.test(src) || !/function stripBarFill\(/.test(src))
     errors.push("the RIG-1 bar un-burn hands (barFillOnlySvg/stripBarFill) left the exporter");
-  if (!/const barRigU = uid === "loadbar" \|\| uid === "popmeter" \|\| uid === "respawn" \|\| uid === "buildqueue";/.test(src))
-    errors.push("the display-bar rig gate left the universal loop");
+  if (!/const barRigU = uid === "loadbar" \|\| uid === "popmeter" \|\| uid === "respawn" \|\| uid === "buildqueue" \|\| uid === "xpbar";/.test(src))
+    errors.push("the display-bar rig gate left the universal loop (five families incl. xpbar)");
   if (!/tzy \+ riseDyT/.test(src))
     errors.push("the track band lost its riseDy correction — the zone would seat a full extrusion headroom too high (round 44 field lesson)");
   if (!/track\?: \{ x: number; w: number; y\?: number; h\?: number \} \| null;/.test(src))
     errors.push("AssetMeta.track lost the optional vertical band");
   if (!/float bandCy = -1f;/.test(cs) || !/float topGap = bandCy - fillH \* 0\.5f, botGap = trackH - bandCy - fillH \* 0\.5f;/.test(cs))
     errors.push("BuildBarFill lost the vertical-band seat (round 44) — off-centerline bars would center mid-shell");
-  if (!/if \(baseAsset\.component == "loadbar" \|\| baseAsset\.component == "popmeter" \|\| baseAsset\.component == "respawn" \|\| baseAsset\.component == "buildqueue"\)/.test(cs)
+  if (!/if \(baseAsset\.component == "loadbar" \|\| baseAsset\.component == "popmeter" \|\| baseAsset\.component == "respawn" \|\| baseAsset\.component == "buildqueue" \|\| baseAsset\.component == "xpbar"\)/.test(cs)
       || !/string famDB = spritePath\.EndsWith\("\/loadbar-base\.png"\) \? "loadbar"/.test(cs))
     errors.push("the display bars' FamilyPrefab wiring or kept-project Fill graft left the importer (round 44)");
   const liveArtSrc = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../src/ui/LiveArt.tsx"), "utf8");
@@ -2947,6 +2947,30 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("DialogPrefab (or its Sprite Swap upgrade / build call) left the importer (round 44)");
   if (!/"Panel", "Dialog", "DataRow"/.test(cs))
     errors.push("the Dialog left the Playground NAVIGATION & CHROME chapter (round 44)");
+}
+
+/* ── ROUND 44 · S15 (RIG-1 riders batch 2 — xpbar 45 / manarails 21):
+   xpbar joins the five-family universal bar rig (notch-aware mercury +
+   Level-knob child with its rider number); manarails rides as TWIN
+   coupled KitBarFills seated by railDx geometry, stamina counter-moving
+   mana by the app's own law. ── */
+{
+  if (!/data-icon="knob" data-icon-nick="Level knob"/.test(bevelSrc) || !/data-seat-rider="knob"/.test(bevelSrc))
+    errors.push("xpbar's Level knob lost its marked wrap or rider number — the level burns back into the bar (round 44, item 45)");
+  if (!/const atomsMR = opts\.part === "fill";/.test(bevelSrc) || !/data-barfill-name="\$\{icName \?\? "rail"\}"/.test(bevelSrc))
+    errors.push("manarails lost its atom force-full gate or named mercury marks — the twin rails can't be cut (round 44, item 21)");
+  if (!/let railsOut:/.test(src) || !/function barFillGroups\(/.test(src))
+    errors.push("the named-rail compute road (barFillGroups/railsOut) left the exporter (round 44, item 21)");
+  if (!/ringV: rl\.staged, railDx: rl\.dx, railDy: rl\.dy, railW: rl\.w9, railH: rl\.h9,/.test(src))
+    errors.push("the per-rail fill rows lost their staged value or shell-center rail geometry (round 44, item 21)");
+  if (!/static void WireManaRails\(GameObject go, Sprite baseSp, PBAsset baseRow, string root, int pngScale, PBManifest m\)/.test(cs)
+      || !/if \(baseAsset\.component == "manarails"\) WireManaRails\(go, baseSp, baseAsset, root, pngScale, m\);/.test(cs))
+    errors.push("WireManaRails (or its FamilyPrefab call) left the importer — the twin rails ship baked (round 44, item 21)");
+  if (!/stK9\.SetValue\(Mathf\.Clamp01\(0\.15f \+ \(1f - vMn9\) \* 0\.7f\)\);/.test(cs))
+    errors.push("the manarails board strike lost the stamina coupling — boards would pose only one rail (round 44, item 21)");
+  if (!/spritePath\.EndsWith\("\/xpbar-base\.png"\) \? "xpbar" : null;/.test(cs)
+      || !/fPrev\.file == "assets\/manarails\/manarails-fill-mana\.png"/.test(cs))
+    errors.push("the kept-project grafts (xpbar Fill / manarails twin-rail era gate) left the importer (round 44)");
 }
 
 if (errors.length) {
