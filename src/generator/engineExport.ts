@@ -4278,7 +4278,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         lives: "Lives — DRIVABLE: the hearts rest dark and the Lit layer lights whole hearts (KitCellMeter: drive Value or SetValue; hearts go out right to left as lives are spent). Display piece.",
         heartmeter: "Heart meter — every pip is a LIVE Image child answering the app's icon picker (swap any sprite in the Inspector); the timer is a LIVE seat and the add cap ITSELF a REAL small-button child with its + mark riding it (move, restyle or delete cap + mark as one). Display piece with one pressable corner.",
         energymeter: "Energy meter — LIVE: the ten cells snap whole (KitCellMeter — drive Value or SetValue), the Energy badge is a LIVE Image child (the app's icon picker steers it) and the count is a LIVE seat. Display piece.",
-        starrating: "Star rating — the three-star result; stars bake at the staged score (per-copy scores ride posed skins). Display piece.",
+        starrating: "Star rating — DRIVABLE (round 44): the three Stars, the Celebration flare and the Replay button are LIVE children, and PatternBreakStarRating makes the score a dial (SetStars 0..3, or drive Value — earned/unearned looks swap on one shared frame; celebration + replay appear only at full marks, the app's own rule). The Replay button is a REAL Button. Display piece.",
         pathconnector: "Saga path connector — the dotted trail between level nodes; progress bakes at the staged value. Display piece.",
         combo: "Combo burst — CLICK IT IN PLAY: the ComboPop rig replays the app's exact celebration (squash, overshoot, settle) and ClaimBurst throws the sparks; call ComboPop.Pop() on every multiplier tick. The tilted numeral is art by the warped-stamp contract (per-copy words ride posed skins).",
         booster: "Booster button — a REAL button (Sprite Swap states); the booster glyph is a LIVE Image child and the count badge a live plate child with its count RIDING it (the ×0 FREE ribbon ships the same way).",
@@ -4770,6 +4770,38 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
               }, false);
             }
           } catch { /* the seats above still ship */ }
+        }
+        /* ── the STAR LOOKS (round 44, item 35): the seats cut the rest
+           pose above; the two LOOKS ship beside them on the SAME shared
+           frame (data-icon-box — the quest-pip lesson), so the StarRating
+           rig (or a dev) swaps any star's state with zero distortion —
+           earned from the full render, unearned from the zero one. The
+           unearned row's ringV carries the staged score, so the rig
+           rests exactly on the app's pose at ANY staging. ── */
+        if (uid === "starrating") {
+          try {
+            const lookSR: [string, number, string][] = [
+              ["star-earned", 1, "A star EARNED (the app's candy gold) — swap any Star child to this sprite, or let StarRating drive it."],
+              ["star-unearned", 0, "A star in its UNEARNED state (sunken silhouette) — swap any Star child to this sprite, or let StarRating drive it."],
+            ];
+            for (const [partS, vS, useS] of lookSR) {
+              const sv0S = stripLoopsU(shell(uid, uOpts, undefined, vS));
+              const cut0S = markedIconOnlySvgs(sv0S).find((c9) => c9.name === "star1");
+              if (!cut0S || !cut0S.box || cut0S.box.length !== 4 || !(cut0S.box[2] > 2)) continue;
+              const shDS = /data-shell="([-\d. ]+)"/.exec(sv0S)?.[1].split(" ").map(Number);
+              const sh0S = /data-shell0="([-\d. ]+)"/.exec(sv0S)?.[1].split(" ").map(Number);
+              const riseS9 = shDS && sh0S && shDS.length === 4 && sh0S.length === 4 ? shDS[1] - sh0S[1] : 0;
+              const spr0 = cut0S.svg
+                .replace(/viewBox="[^"]+"/, `viewBox="${cut0S.box[0].toFixed(1)} ${(cut0S.box[1] + riseS9).toFixed(1)} ${cut0S.box[2].toFixed(1)} ${cut0S.box[3].toFixed(1)}"`)
+                .replace(/ width="[\d.]+"/, ` width="${Math.ceil(cut0S.box[2])}"`)
+                .replace(/ height="[\d.]+"/, ` height="${Math.ceil(cut0S.box[3])}"`);
+              await addPng(`${uid}/${partS}.png`, spr0, {
+                component: uid, part: partS, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+                usage: useS,
+                ...(partS === "star-unearned" ? { ringV: Math.max(0.005, Math.min(1, uVal ?? 1)) } : {}),
+              }, false);
+            }
+          } catch { /* the rest-pose seats above still ship */ }
         }
         /* ── the SCROLLBAR goes to Unity WIRED (round 44, item 32 —
            RIG-7): scrollbar-track.9 (thumb-suppressed, vertical slice,
@@ -6282,6 +6314,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Runtime/PatternBreakKitStepper.cs", data: KIT_STEPPER_RUNTIME });
   files.push({ path: "Runtime/PatternBreakPageDots.cs", data: PAGE_DOTS_RUNTIME });
   files.push({ path: "Runtime/PatternBreakStartLights.cs", data: START_LIGHTS_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakStarRating.cs", data: STAR_RATING_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitTrace.cs", data: KIT_TRACE_RUNTIME });
   files.push({ path: "Runtime/PatternBreakSafeArea.cs", data: SAFE_AREA_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitPiece.cs", data: KIT_PIECE_RUNTIME });
@@ -6360,6 +6393,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     "Runtime/PatternBreakCellMeter.cs",
     "Runtime/PatternBreakKitStepper.cs",
     "Runtime/PatternBreakPageDots.cs", "Runtime/PatternBreakStartLights.cs",
+    "Runtime/PatternBreakStarRating.cs",
     "Runtime/PatternBreakKitTrace.cs",
     "Runtime/PatternBreakSafeArea.cs",
     "Runtime/PatternBreakKitPiece.cs",
@@ -6979,6 +7013,49 @@ namespace PatternBreak {
     public void SetValue(float v) { Set(v); }
     void Set(float v) { value = Mathf.Clamp01(v); if (cellMeter != null) cellMeter.SetValue(value); }
     void OnEnable() { if (cellMeter != null) cellMeter.SetValue(value); }
+  }
+}
+`;
+
+/* the STAR RATING rig (round 44, item 35 — RIG-5): stars 0..3 as a DIAL.
+   Swaps each Star child between the earned and unearned looks (cut on
+   one shared frame) and shows the celebration flare + Replay button
+   only at full marks — the app's own rule. RIG-5 chassis conventions:
+   [ExecuteAlways], plain SetValue for board strikes, deferred
+   OnValidate. */
+const STAR_RATING_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+
+namespace PatternBreak {
+  [AddComponentMenu("UI Kit Maker/Star Rating")]
+  [ExecuteAlways]
+  public class PatternBreakStarRating : MonoBehaviour {
+    [Tooltip("Stars earned 0..3 — swaps each star's look and shows the celebration + replay only at full marks (the app's own rule).")]
+    [Range(0, 3)] public int stars = 3;
+    [Tooltip("The three Star children, left to right (generated wiring).")]
+    public Image[] starSlots = new Image[0];
+    [Tooltip("The earned star look (the app's gold).")]
+    public Sprite earned;
+    [Tooltip("The unearned look (the app's sunken silhouette).")]
+    public Sprite unearned;
+    public GameObject celebration;
+    public GameObject replay;
+    public void SetStars(int n) { stars = Mathf.Clamp(n, 0, 3); Apply(); }
+    public void SetValue(float v) { SetStars(Mathf.RoundToInt(Mathf.Clamp01(v) * 3f)); }
+    public void Apply() {
+      for (int i = 0; i < starSlots.Length; i++) {
+        var im = starSlots[i]; if (im == null) continue;
+        var want = i < stars ? earned : unearned;
+        if (want != null && im.sprite != want) im.sprite = want;
+      }
+      bool fullS = stars >= 3;
+      if (celebration != null && celebration.activeSelf != fullS) celebration.SetActive(fullS);
+      if (replay != null && replay.activeSelf != fullS) replay.SetActive(fullS);
+    }
+    void OnEnable() { Apply(); }
+#if UNITY_EDITOR
+    void OnValidate() { UnityEditor.EditorApplication.delayCall += () => { if (this != null) Apply(); }; }
+#endif
   }
 }
 `;
@@ -14146,6 +14223,8 @@ namespace PatternBreak {
             if (pdS != null && it.value > 0f) pdS.SetValue(Mathf.Clamp01(it.value));
             var slgS = inst.GetComponent<PatternBreakStartLights>();
             if (slgS != null && it.value > 0f) slgS.SetValue(Mathf.Clamp01(it.value));
+            var srrS = inst.GetComponent<PatternBreakStarRating>();
+            if (srrS != null && it.value > 0f) srrS.SetValue(Mathf.Clamp01(it.value));
             var gdS = inst.GetComponent<GaugeDial>();
             if (gdS != null && it.value > 0f) { gdS.value = Mathf.Clamp01(it.value); gdS.Apply(); }
             var ktS = inst.GetComponent<KitTimer>();
@@ -16320,6 +16399,41 @@ namespace PatternBreak {
       /* the UN-BURN's live picture children (iconSeats rows) — every icon
          and image the app drew, rebuilt swappable at the exact app seat */
       WireIconChildren(go, root, m, baseAsset.component);
+      /* ── the STAR RATING goes LIVE (round 44, item 35 — RIG-5): the
+         three Stars, the Celebration flare and the Replay button are the
+         live seats above; PatternBreakStarRating makes the score a DIAL —
+         stars 0..3 swap the earned/unearned looks (both cut on ONE shared
+         frame, so the swap is 1:1) and the celebration + replay show only
+         at full marks, the app's own rule. Old zips (no unearned atom)
+         keep the static children. ── */
+      if (baseAsset.component == "starrating") {
+        var unearnedSR = S(root + "/assets/starrating/star-unearned.png");
+        var earnedSR = S(root + "/assets/starrating/star-earned.png");
+        var star1SR = go.transform.Find("Star 1");
+        if (unearnedSR != null && star1SR != null && go.GetComponent<PatternBreakStarRating>() == null) {
+          var rigSR = go.AddComponent<PatternBreakStarRating>();
+          var slotsSR = new List<Image>();
+          for (int iSR = 1; iSR <= 3; iSR++) {
+            var tSR = go.transform.Find("Star " + iSR);
+            var imSR = tSR != null ? tSR.GetComponent<Image>() : null;
+            if (imSR != null) slotsSR.Add(imSR);
+          }
+          rigSR.starSlots = slotsSR.ToArray();
+          rigSR.earned = earnedSR != null ? earnedSR : (slotsSR.Count > 0 ? slotsSR[0].sprite : null);
+          rigSR.unearned = unearnedSR;
+          var celSR = go.transform.Find("Celebration flare");
+          rigSR.celebration = celSR != null ? celSR.gameObject : null;
+          var repSR = go.transform.Find("Replay button");
+          rigSR.replay = repSR != null ? repSR.gameObject : null;
+          /* rest = the app's OWN staged score (the unearned row's ringV) —
+             pixel parity with the staged pose at any staging, full marks
+             when an old manifest says nothing */
+          PBAsset unRowSR = null;
+          foreach (var aSR in m.assets) if (aSR != null && aSR.component == "starrating" && aSR.part == "star-unearned") { unRowSR = aSR; break; }
+          rigSR.stars = unRowSR != null && unRowSR.ringV > 0f ? Mathf.RoundToInt(Mathf.Clamp01(unRowSR.ringV) * 3f) : 3;
+          rigSR.Apply();
+        }
+      }
       /* ── the CELL METERS go LIVE (round 44, dossier RIG-2 — owner items
          1 and 13 under the kit-wide mercury ruling): base bakes EMPTY,
          the lit strip overlays full-stretch (one crop group — pixel-

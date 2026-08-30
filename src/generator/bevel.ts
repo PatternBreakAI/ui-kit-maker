@@ -7487,29 +7487,40 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const gidS0 = "sr" + UID++;
       const starS = Math.min(104 * k, wellH * 0.9), gapS = starS + 12 * k;
       inner += `<defs><radialGradient id="${gidS0}" cx="0.38" cy="0.3" r="0.95"><stop offset="0" stop-color="#FFF3B0"/><stop offset="0.55" stop-color="${GOLD}"/><stop offset="1" stop-color="#B45309"/></radialGradient><radialGradient id="${gidS0}h"><stop offset="0" stop-color="${hexRgba(GOLD, 0.55)}"/><stop offset="1" stop-color="${hexRgba(GOLD, 0)}"/></radialGradient><clipPath id="${gidS0}c"><path d="${starPath(starS)}"/></clipPath></defs>`;
+      /* round 44 (item 35, RIG-4 + RIG-5): each star is MARKED ink on a
+         SHARED fixed frame (the quest-pip lesson — earned/unearned looks
+         swap 1:1 with zero distortion); the celebration flare + specks
+         travel as one live child, the replay chip as a REAL Button. The
+         StarRating rig swaps looks and shows the celebration only at
+         full marks — the app's own rule, drivable. */
+      const starBoxH = starS / 2 + 9 * k;
       for (let i = 0; i < 3; i++) {
         const on = i < earned;
         const g0x = ccx + (i - 1) * gapS - starS / 2, g0y = ccy - starS / 2;
-        inner += `<g transform="translate(${g0x.toFixed(1)} ${g0y.toFixed(1)})"${on && state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(6 * k).toFixed(1)}px ${hexRgba(GOLD, 0.65)})"` : ""}>
+        const sBox = `data-icon-box="${(ccx + (i - 1) * gapS - starBoxH).toFixed(1)} ${(ccy - starBoxH).toFixed(1)} ${(starBoxH * 2).toFixed(1)} ${(starBoxH * 2).toFixed(1)}"`;
+        inner += `<g data-part="icon" data-icon="star${i + 1}" ${sBox} data-icon-nick="Star ${i + 1}"><g transform="translate(${g0x.toFixed(1)} ${g0y.toFixed(1)})"${on && state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(6 * k).toFixed(1)}px ${hexRgba(GOLD, 0.65)})"` : ""}>
           <path d="${starPath(starS)}" fill="${on ? `url(#${gidS0})` : "rgba(6,10,18,0.5)"}" stroke="${on ? "#92400E" : "rgba(255,255,255,0.16)"}" stroke-width="${(2.2 * k).toFixed(1)}" stroke-linejoin="round"/>
           ${on ? `<g clip-path="url(#${gidS0}c)"><ellipse cx="${(starS * 0.42).toFixed(1)}" cy="${(starS * 0.38).toFixed(1)}" rx="${(starS * 0.13).toFixed(1)}" ry="${(starS * 0.07).toFixed(1)}" fill="#FFFFFF" opacity="0.55"/></g>` : ""}
-        </g>`;
+        </g></g>`;
       }
       if (full) {
-        // the celebration — flare over the top rim + specks, breathing gently
-        inner += `<ellipse cx="${(sx + sw * 0.38).toFixed(1)}" cy="${(sy + 2 * k).toFixed(1)}" rx="${(sw * 0.26).toFixed(1)}" ry="${(30 * k).toFixed(1)}" fill="url(#${gidS0}h)"${state !== "disabled" ? `><animate attributeName="opacity" values="0.75;1;0.75" dur="2.8s" repeatCount="indefinite"/></ellipse>` : "/>"}`;
+        // the celebration — flare over the top rim + specks, breathing
+        // gently; one MARKED child so the rig (or a dev) toggles it whole
+        inner += `<g data-part="icon" data-icon="flare" data-icon-nick="Celebration flare"><ellipse cx="${(sx + sw * 0.38).toFixed(1)}" cy="${(sy + 2 * k).toFixed(1)}" rx="${(sw * 0.26).toFixed(1)}" ry="${(30 * k).toFixed(1)}" fill="url(#${gidS0}h)"${state !== "disabled" ? `><animate attributeName="opacity" values="0.75;1;0.75" dur="2.8s" repeatCount="indefinite"/></ellipse>` : "/>"}`;
         for (let i = 0; i < 4; i++) {
           const spx = sx + sw * (0.22 + i * 0.13), spy = sy + (i % 2 ? -6 : 4) * k;
           inner += `<circle cx="${spx.toFixed(1)}" cy="${spy.toFixed(1)}" r="${((i % 2 ? 2 : 2.8) * k).toFixed(1)}" fill="${GOLD}" opacity="0.85"/>`;
         }
-        // the replay chip — straddles the bottom rim, dressed in Bevel
+        inner += `</g>`;
+        // the replay chip — straddles the bottom rim, dressed in Bevel;
+        // a REAL Button child (the rig shows it only at full marks)
         const chR = 26 * k, chY = sy + sh - 2 * k;
         const gidS1 = "sr" + UID++;
-        inner += `<g${state !== "disabled" ? ` style="filter: drop-shadow(0 2px 3px rgba(6,10,18,0.5))"` : ""}>
+        inner += `<g data-part="icon" data-icon="replay" data-icon-btn="1" data-icon-nick="Replay button"><g${state !== "disabled" ? ` style="filter: drop-shadow(0 2px 3px rgba(6,10,18,0.5))"` : ""}>
           <defs><linearGradient id="${gidS1}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(bevel, 0.3)}"/><stop offset="1" stop-color="${darken(bevel, 0.2)}"/></linearGradient></defs>
           <circle cx="${ccx.toFixed(1)}" cy="${chY.toFixed(1)}" r="${chR.toFixed(1)}" fill="url(#${gidS1})" stroke="${lighten(bevel, 0.5)}" stroke-width="${(2.2 * k).toFixed(1)}"/>
           ${iconGroup(STOCK_ICONS.refresh, ccx - 13 * k, chY - 13 * k, 26 * k, "#FFFFFF", { strokeWidth: 2.6 * iconWK })}
-        </g>`;
+        </g></g>`;
       }
       return inject(shell.replace("<svg ", `<svg data-starrating="1" `), inner);
     }
