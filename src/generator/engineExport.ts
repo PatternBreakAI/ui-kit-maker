@@ -4257,7 +4257,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         xpbar: "XP bar — LIVE: the NEXT line and XP readout are seats, the mercury is a Filled fill with the rounded head (drive Fill's fillAmount or KitBarFill.SetValue; the milestone notch cuts ride the fill), and the level knob is a live child whose number RIDES it. Display piece.",
         invgrid: "Inventory grid — every cell glyph is a LIVE Image child (the app's cell pickers steer them) and the count chips are live plates with their numbers riding them. The selection ring is NOT baked: compose invgrid/cell-ring.png over any cell (the board scenes wire InvGridSelect for you). Display piece.",
         partyframe: "Party frame — drop YOUR sprite on the Portrait child (the well clips it round); the name is a LIVE seat and the class glyph a LIVE Image child. HP and MP are each their own Filled fill with the rounded head (drive HP/MP fillAmount or KitBarFill.SetValue), and the level bubble is a LIVE Level knob child with the number riding it. Display piece.",
-        compass: "Compass ribbon — the cardinal letters are LIVE seats and the tick ribbon bakes at the staged heading (per-copy headings ride posed skins). Display piece.",
+        compass: "Compass ribbon — the cardinal letters are LIVE seats and the Heading caret a LIVE child (restyle or delete it). The tick ribbon bakes at the staged heading (per-copy headings ride posed skins). Display piece.",
         dmgnumber: "Damage number — the tilted digits stay in the art by the warped-stamp contract (rotation IS the art; per-copy magnitudes ride posed skins). Scale freely. Display piece.",
         equipslot: "Equipment slot — the ghost silhouette showing what belongs is a LIVE Image child; the app's icon picker steers it and the Inspector swaps it. Display piece.",
         skillnode: "Skill-tree node — a REAL button (Sprite Swap states); the skill glyph is a LIVE Image child. Learned/locked poses ride per-copy posed skins.",
@@ -4275,7 +4275,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         dmgarc: "Damage direction arc — shell-free spatial art; rotate the piece to the threat bearing. Display piece.",
         buffframe: "Buff frame — the effect glyph is a LIVE Image child and the countdown FUNCTIONS: KitBuffSweep drives the spent-share sweep and its glowing hand from time remaining (Value 0..1, the app's own dial); the timer readout is a LIVE seat. Display piece.",
         hotbar: "Hotbar — every stocked slot glyph is a LIVE Image child and the indices/counts are LIVE seats. The Selected ring child IS the selection: move it a cell over (one cell pitch) or disable it. Display piece.",
-        lives: "Lives — candy-heart value pips; the count bakes at the staged value and per-copy counts ride posed skins. Display piece.",
+        lives: "Lives — DRIVABLE: the hearts rest dark and the Lit layer lights whole hearts (KitCellMeter: drive Value or SetValue; hearts go out right to left as lives are spent). Display piece.",
         heartmeter: "Heart meter — every pip is a LIVE Image child answering the app's icon picker (swap any sprite in the Inspector); the timer is a LIVE seat and the add cap ITSELF a REAL small-button child with its + mark riding it (move, restyle or delete cap + mark as one). Display piece with one pressable corner.",
         energymeter: "Energy meter — LIVE: the ten cells snap whole (KitCellMeter — drive Value or SetValue), the Energy badge is a LIVE Image child (the app's icon picker steers it) and the count is a LIVE seat. Display piece.",
         starrating: "Star rating — the three-star result; stars bake at the staged score (per-copy scores ride posed skins). Display piece.",
@@ -4641,6 +4641,32 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
             }
           } catch { stepperOut = null; stepperSeats = null; }
         }
+        /* ── LIVES goes drivable (round 44, R6 — RIG-2 on the stepper's
+           lit-overlay road): base re-bakes ALL HEARTS DIM, the lit strip
+           overlays all hearts bright, and KitCellMeter lights whole
+           hearts from the value. The canvas is fixed per size (the glow
+           reserve), the hearts run IS the drawn shell box — injected as
+           the zone stamp export-side only (the app's pointer behavior is
+           untouched). All or nothing: a failed render keeps the bake. ── */
+        let livesOut: { lit: string; staged: number; n: number } | null = null;
+        if (uid === "lives") {
+          try {
+            const svRestL = stripLoopsU(shell(uid, uOpts, undefined, uVal));
+            const sv0L = stripLoopsU(shell(uid, uOpts, undefined, 0));
+            const sv1L = stripLoopsU(shell(uid, uOpts, undefined, 1));
+            const arL = /aria-label="lives: (\d+) of (\d+)"/.exec(svRestL);
+            const shL = /data-shell="([-\d. ]+)"/.exec(sv0L)?.[1].split(" ").map(Number);
+            if (arL && shL && shL.length === 4 && +arL[2] > 0) {
+              const trackAttr = `data-track="${shL[0].toFixed(1)} ${shL[2].toFixed(1)} ${shL[1].toFixed(1)} ${shL[3].toFixed(1)}" `;
+              baseSvgU = sv0L.replace("<svg ", `<svg ${trackAttr}`);
+              livesOut = {
+                lit: sv1L.replace("<svg ", `<svg ${trackAttr}`),
+                staged: Math.max(0, Math.min(1, +arL[1] / +arL[2])),
+                n: +arL[2],
+              };
+            }
+          } catch { livesOut = null; }
+        }
         await addPng(`${uid}/base.png`, baseSvgU, {
           component: uid, part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
           usage: UNIVERSAL_USAGE[uid] ?? (GLYPH_BUTTONS.has(uid)
@@ -4651,7 +4677,14 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           ...(uWord !== undefined ? { labelText: uWord } : {}),
           ...(ringRig || buffRig ? {} : seatsU),
           ...(iconSeatsU ? { iconSeats: iconSeatsU } : stepperSeats ? { iconSeats: stepperSeats } : {}),
-        }, true, interactive || buffRig || cellRig || stepperOut ? uid : undefined);
+        }, true, interactive || buffRig || cellRig || stepperOut || livesOut ? uid : undefined);
+        if (livesOut) {
+          await addPng(`${uid}/lit.png`, livesOut.lit, {
+            component: uid, part: "lit", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+            usage: `All ${livesOut.n} hearts LIT — the prefab's Lit layer scissors per whole heart (KitCellMeter: drive Value or SetValue; hearts go dark right to left as lives are spent).`,
+            ringV: Math.max(0.005, livesOut.staged), railW: livesOut.n,
+          }, true, uid);
+        }
         if (railsOut) {
           for (const rl of railsOut) {
             await addPng(`${uid}/fill-${rl.name}.png`, rl.fill, {
@@ -16295,7 +16328,7 @@ namespace PatternBreak {
          mirrors: bars go dark left→right as ammo depletes (the lit
          cells keep the right). Old zips without the lit atom keep the
          static bake. */
-      if (baseAsset.component == "energymeter" || baseAsset.component == "ammo") {
+      if (baseAsset.component == "energymeter" || baseAsset.component == "ammo" || baseAsset.component == "lives") {
         var famCM = baseAsset.component;
         var litCM = S(root + "/assets/" + famCM + "/" + famCM + "-lit.png");
         if (litCM != null) {
@@ -16310,15 +16343,17 @@ namespace PatternBreak {
           liCM.fillOrigin = mirCM ? (int)Image.OriginHorizontal.Right : (int)Image.OriginHorizontal.Left;
           var kcm = go.AddComponent<KitCellMeter>();
           kcm.lit = liCM;
-          kcm.cells = famCM == "ammo" ? 3 : 10;
+          // the lives row speaks its own heart count (railW — round 44, R6)
+          kcm.cells = famCM == "ammo" ? 3 : famCM == "lives" ? 5 : 10;
           kcm.fromRight = mirCM;
           PBAsset litRowCM = null;
           foreach (var aCM in m.assets) if (aCM != null && aCM.component == famCM && aCM.part == "lit") { litRowCM = aCM; break; }
+          if (famCM == "lives" && litRowCM != null && litRowCM.railW > 0.5f) kcm.cells = Mathf.RoundToInt(litRowCM.railW);
           if (litRowCM != null && litRowCM.track != null && litRowCM.track.w > 2f && litCM.rect.width > 2f) {
             kcm.zone0 = Mathf.Clamp01(litRowCM.track.x / litCM.rect.width);
             kcm.zone1 = Mathf.Clamp01((litRowCM.track.x + litRowCM.track.w) / litCM.rect.width);
           }
-          kcm.SetValue(litRowCM != null && litRowCM.ringV > 0f ? Mathf.Clamp01(litRowCM.ringV) : (famCM == "ammo" ? 1f : 0.8f));
+          kcm.SetValue(litRowCM != null && litRowCM.ringV > 0f ? Mathf.Clamp01(litRowCM.ringV) : (famCM == "ammo" ? 1f : famCM == "lives" ? 0.6f : 0.8f));
         }
       }
       /* ── the RIG-1 DISPLAY BARS (round 44, items 19/27/30 + buildqueue):
@@ -21236,7 +21271,8 @@ namespace PatternBreak {
         {
           string famCMk = spritePath.EndsWith("/segbar-base.png") ? "segbar"
             : spritePath.EndsWith("/energymeter-base.png") ? "energymeter"
-            : spritePath.EndsWith("/ammo-base.png") ? "ammo" : null;
+            : spritePath.EndsWith("/ammo-base.png") ? "ammo"
+            : spritePath.EndsWith("/lives-base.png") ? "lives" : null;
           if (famCMk != null) {
             int cellsCMk = famCMk == "ammo" ? 3 : famCMk == "energymeter" ? 10 : 5;
             bool mirCMk = famCMk == "ammo";
@@ -21281,6 +21317,7 @@ namespace PatternBreak {
                   PBAsset litRowK = null;
                   foreach (var aK2 in m.assets) if (aK2 != null && aK2.component == famCMk && aK2.part == "lit" && aK2.ringV > 0f) { litRowK = aK2; break; }
                   if (litRowK != null) vK = Mathf.Clamp01(litRowK.ringV);
+                  if (famCMk == "lives" && litRowK != null && litRowK.railW > 0.5f) kcmK.cells = Mathf.RoundToInt(litRowK.railW);
                   if (!wantGraft && litI2.fillAmount > 0f) vK = Mathf.Clamp01(litI2.fillAmount);
                   kcmK.SetValue(vK);
                   PrefabUtility.SaveAsPrefabAsset(contentsCM, path);

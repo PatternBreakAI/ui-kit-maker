@@ -2781,7 +2781,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/files\.push\(\{ path: "Runtime\/PatternBreakCellMeter\.cs", data: CELL_METER_RUNTIME \}\);/.test(src)
       || !/"Runtime\/PatternBreakCellMeter\.cs",/.test(src))
     errors.push("PatternBreakCellMeter.cs must ride BOTH files.push and sharedScripts (the IdleShine CS0246 lesson)");
-  if (!/if \(baseAsset\.component == "energymeter" \|\| baseAsset\.component == "ammo"\) \{/.test(cs)
+  if (!/if \(baseAsset\.component == "energymeter" \|\| baseAsset\.component == "ammo" \|\| baseAsset\.component == "lives"\) \{/.test(cs)
       || !/var kcmSeg = go\.AddComponent<KitCellMeter>\(\);/.test(cs)
       || !/var kcmS = inst\.GetComponent<KitCellMeter>\(\);/.test(cs)
       || !/var kcmSg = inst\.GetComponent<KitCellMeter>\(\);/.test(cs))
@@ -3120,6 +3120,21 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the equipselector's chevron Buttons or armed ring lost their marks (round 44, R5)");
   if (!/const lbSeats = await iconSeatsOf\("leaderboard", lbSvg\);/.test(src) || !/const lbOut = lbSeats \? stripMarkedIcons\(lbSvg\)\.svg : lbSvg;/.test(src))
     errors.push("the leaderboard emission no longer strips its marked children — the band stays inside the stretch zone (round 44, R4)");
+}
+
+/* ── ROUND 44 · S22 (R6 lives + R7 compass): the hearts become a
+   drivable cell meter on the lit-overlay road (count from the row's own
+   railW), and the compass heading caret un-burns to a live child. ── */
+{
+  if (!/data-icon="caret" data-icon-nick="Heading caret"/.test(bevelSrc))
+    errors.push("the compass caret lost its mark (round 44, R7)");
+  if (!/let livesOut: \{ lit: string; staged: number; n: number \} \| null = null;/.test(src) || !/aria-label="lives: \(\\d\+\) of \(\\d\+\)"/.test(src))
+    errors.push("the lives lit-overlay road left the exporter (round 44, R6)");
+  if (!/baseAsset\.component == "energymeter" \|\| baseAsset\.component == "ammo" \|\| baseAsset\.component == "lives"/.test(cs)
+      || !/if \(famCM == "lives" && litRowCM != null && litRowCM\.railW > 0\.5f\) kcm\.cells = Mathf\.RoundToInt\(litRowCM\.railW\);/.test(cs))
+    errors.push("lives left the cell-meter wiring (or its railW heart count) (round 44, R6)");
+  if (!/spritePath\.EndsWith\("\/lives-base\.png"\) \? "lives" : null;/.test(cs))
+    errors.push("lives left the kept-project cell graft chain (round 44, R6)");
 }
 
 if (errors.length) {

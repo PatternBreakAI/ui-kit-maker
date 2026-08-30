@@ -6865,8 +6865,10 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       }
       inner += "</g>";
       const needleTop = 30 + inset + 5 * k;
-      inner += `<path d="M ${(cxC - 8 * k).toFixed(1)} ${needleTop.toFixed(1)} L ${(cxC + 8 * k).toFixed(1)} ${needleTop.toFixed(1)} L ${cxC.toFixed(1)} ${(needleTop + 10 * k).toFixed(1)} Z" fill="${glow}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(glow, 0.7)})"` : ""}/>
-        <line x1="${cxC.toFixed(1)}" y1="${(needleTop + 12 * k).toFixed(1)}" x2="${cxC.toFixed(1)}" y2="${(30 + h - inset - 8 * k).toFixed(1)}" stroke="${hexRgba(glow, 0.55)}" stroke-width="${(2 * k).toFixed(1)}"/>`;
+      // round 44 (R7, RIG-4): the heading caret + stem are MARKED ink —
+      // one live child to restyle, re-glyph or delete in the Inspector
+      inner += `<g data-part="icon" data-icon="caret" data-icon-nick="Heading caret"><path d="M ${(cxC - 8 * k).toFixed(1)} ${needleTop.toFixed(1)} L ${(cxC + 8 * k).toFixed(1)} ${needleTop.toFixed(1)} L ${cxC.toFixed(1)} ${(needleTop + 10 * k).toFixed(1)} Z" fill="${glow}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(glow, 0.7)})"` : ""}/>
+        <line x1="${cxC.toFixed(1)}" y1="${(needleTop + 12 * k).toFixed(1)}" x2="${cxC.toFixed(1)}" y2="${(30 + h - inset - 8 * k).toFixed(1)}" stroke="${hexRgba(glow, 0.55)}" stroke-width="${(2 * k).toFixed(1)}"/></g>`;
       return inject(shell.replace("<svg ", '<svg data-compass="1" '), inner);
     }
     case "partyframe": {
