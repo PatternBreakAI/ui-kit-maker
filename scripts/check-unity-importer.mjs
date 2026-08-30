@@ -3265,6 +3265,31 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("steps/pathconnector left the board value strike (round 44, items 38 + 26)");
 }
 
+/* ── ROUND 44 · S28 (item 44 — weaponwheel, RIG-7): the Cylinder is a
+   marked rotatable layer, glyphs orbit upright on fixed frames with
+   armed/quiet looks, the armed ring and name tag are nick'd children
+   (the tag word rides its plate), and PatternBreakWeaponWheel makes the
+   rotation a dial. ── */
+{
+  if (!/data-icon="cylinder" data-icon-box="\$\{\(cW - innerR\)\.toFixed\(1\)\}/.test(bevelSrc)
+      || !/data-icon="armed" data-icon-nick="Armed chamber ring"/.test(bevelSrc)
+      || !/data-icon="tag" data-icon-nick="Name tag"/.test(bevelSrc)
+      || !/data-seat-rider="tag"/.test(bevelSrc)
+      || !/data-wheelgeo="\$\{orbitR\.toFixed\(1\)\} \$\{nW\} \$\{vW\.toFixed\(4\)\}"/.test(bevelSrc))
+    errors.push("the weaponwheel marks (cylinder / armed ring / riding tag / orbit stamp) left bevel (round 44, item 44)");
+  if (!/`\$\{uid\}\/w\$\{c9i \+ 1\}-lit\.png`/.test(src) || !/`\$\{uid\}\/w\$\{c9i \+ 1\}-ghost\.png`/.test(src))
+    errors.push("the chamber look atoms left the exporter (round 44, item 44)");
+  if (!/const WEAPON_WHEEL_RUNTIME = `using UnityEngine;/.test(src)
+      || !/files\.push\(\{ path: "Runtime\/PatternBreakWeaponWheel\.cs", data: WEAPON_WHEEL_RUNTIME \}\);/.test(src)
+      || !/"Runtime\/PatternBreakWeaponWheel\.cs",/.test(src))
+    errors.push("WeaponWheel's runtime or its registration (files + sharedScripts BOTH — the law) left the exporter (round 44, item 44)");
+  if (!/if \(baseAsset\.component == "weaponwheel"\) \{/.test(cs)
+      || !/rigWW\.centerAnchor = \(\(RectTransform\)cylWW\)\.anchorMin;/.test(cs))
+    errors.push("the WeaponWheel prefab wiring left the importer (round 44, item 44)");
+  if (!/var wwS = inst\.GetComponent<PatternBreakWeaponWheel>\(\);/.test(cs))
+    errors.push("weaponwheel left the board value strike (round 44, item 44)");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);

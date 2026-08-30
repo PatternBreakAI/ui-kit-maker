@@ -4275,7 +4275,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         waypoint: "Waypoint — the objective letter and distance are LIVE seats on the diamond. Spatial piece: it reads over live footage. Display piece.",
         capturemeter: "Capture point — LIVE: the point letter is a LIVE seat and the capture ring a Radial360 rig (drive the Fill child's fillAmount or KitRingFill.SetValue — the end caps ride the head, clean at any value). Display piece.",
         respawn: "Respawn timer — LIVE: heading and seconds are seats and the drain bar is a Filled fill with the rounded head (drive Fill's fillAmount or KitBarFill.SetValue from the same countdown that writes the seconds). Display piece.",
-        weaponwheel: "Weapon wheel — all six chamber glyphs are LIVE Image children and the hub/tag words LIVE seats; the cylinder pose bakes at the staged rotation. Display piece.",
+        weaponwheel: "Weapon wheel — DRIVABLE (round 44): PatternBreakWeaponWheel makes the rotation a dial (SetValue 0..1 spins the cylinder; ArmChamber(i) parks a chamber at the hammer; ArmedChamber() reads the pick). The Cylinder is a LIVE rotating child, all six glyphs orbit upright as swappable Image children with armed/quiet looks, the Armed chamber ring and Name tag are nick'd children, and the hub/tag words are LIVE seats — drive them from ArmedChamber(). Display piece.",
         crosshair: "Crosshair — shell-free spatial art with the dark understroke; scale freely (Preserve Aspect). Display piece.",
         hitmarker: "Hit marker — shell-free spatial art; flash it from your own hit events. Display piece.",
         dmgarc: "Damage direction arc — shell-free spatial art; rotate the piece to the threat bearing. Display piece.",
@@ -5008,6 +5008,47 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
               }, false);
             }
           } catch { /* base.png still ships — the static road stands */ }
+        }
+        /* ── the CHAMBER LOOKS (round 44, item 44 — RIG-7): every
+           chamber's glyph ships BOTH looks on its fixed frame — armed
+           cut from the rotation that parks it at the hammer, ghost from
+           a neighbor's — and the lit rows carry the staged rotation
+           (ringV) + the orbit radius in PNG px (railW) for the rig. ── */
+        if (uid === "weaponwheel") {
+          try {
+            const wgW = /data-wheelgeo="([-\d. ]+)"/.exec(fullU);
+            const nWW = wgW ? parseInt(wgW[1].split(" ")[1], 10) : 0;
+            const orbitWW = wgW ? +wgW[1].split(" ")[0] : 0;
+            if (nWW >= 4 && nWW <= 8 && orbitWW > 4) {
+              const rendersWW: string[] = [];
+              for (let i = 0; i < nWW; i++) rendersWW.push(stripLoopsU(shell(uid, uOpts, undefined, i / nWW)));
+              const armedOf = (i: number) => ((1 - i) % nWW + nWW) % nWW;
+              const cutWW = (sv: string, nm: string): string | null => {
+                const c9 = markedIconOnlySvgs(sv).find((c8) => c8.name === nm);
+                if (!c9 || !c9.box || c9.box.length !== 4 || !(c9.box[2] > 1)) return null;
+                return c9.svg
+                  .replace(/viewBox="[^"]+"/, `viewBox="${c9.box[0].toFixed(1)} ${c9.box[1].toFixed(1)} ${c9.box[2].toFixed(1)} ${c9.box[3].toFixed(1)}"`)
+                  .replace(/ width="[\d.]+"/, ` width="${Math.ceil(c9.box[2])}"`)
+                  .replace(/ height="[\d.]+"/, ` height="${Math.ceil(c9.box[3])}"`);
+              };
+              for (let c9i = 0; c9i < nWW; c9i++) {
+                let litI = -1, ghostI = -1;
+                for (let i = 0; i < nWW; i++) { if (armedOf(i) === c9i) litI = i; else if (ghostI < 0) ghostI = i; }
+                const litWW = litI >= 0 ? cutWW(rendersWW[litI], `w${c9i + 1}`) : null;
+                const ghostWW = ghostI >= 0 ? cutWW(rendersWW[ghostI], `w${c9i + 1}`) : null;
+                if (!litWW || !ghostWW) continue;
+                await addPng(`${uid}/w${c9i + 1}-lit.png`, litWW, {
+                  component: uid, part: `w${c9i + 1}-lit`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+                  usage: `Chamber ${c9i + 1}'s glyph, ARMED (themed + halo) — the WeaponWheel rig swaps it in when this chamber lands at the hammer.`,
+                  ringV: Math.max(0.005, Math.min(1, uVal ?? 0.005)), railW: Math.round(orbitWW * PNG_SCALE * 10) / 10,
+                }, false);
+                await addPng(`${uid}/w${c9i + 1}-ghost.png`, ghostWW, {
+                  component: uid, part: `w${c9i + 1}-ghost`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+                  usage: `Chamber ${c9i + 1}'s glyph at rest — the quiet look on the same fixed frame (1:1 with the armed cut).`,
+                }, false);
+              }
+            }
+          } catch { /* the rest-pose seats above still ship */ }
         }
         /* ── the STEP LANE ATOMS (round 44, item 38 — RIG-5): the PLATE
            is the rig's ground — dim rails as anatomy, no pips, EVERY
@@ -6493,6 +6534,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Runtime/PatternBreakStopwatch.cs", data: STOPWATCH_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitSteps.cs", data: KIT_STEPS_RUNTIME });
   files.push({ path: "Runtime/PatternBreakPathConnector.cs", data: PATH_CONNECTOR_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakWeaponWheel.cs", data: WEAPON_WHEEL_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitTrace.cs", data: KIT_TRACE_RUNTIME });
   files.push({ path: "Runtime/PatternBreakSafeArea.cs", data: SAFE_AREA_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitPiece.cs", data: KIT_PIECE_RUNTIME });
@@ -6576,6 +6618,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     "Runtime/PatternBreakStopwatch.cs",
     "Runtime/PatternBreakKitSteps.cs",
     "Runtime/PatternBreakPathConnector.cs",
+    "Runtime/PatternBreakWeaponWheel.cs",
     "Runtime/PatternBreakKitTrace.cs",
     "Runtime/PatternBreakSafeArea.cs",
     "Runtime/PatternBreakKitPiece.cs",
@@ -7233,6 +7276,63 @@ namespace PatternBreak {
       bool fullS = stars >= 3;
       if (celebration != null && celebration.activeSelf != fullS) celebration.SetActive(fullS);
       if (replay != null && replay.activeSelf != fullS) replay.SetActive(fullS);
+    }
+    void OnEnable() { Apply(); }
+#if UNITY_EDITOR
+    void OnValidate() { UnityEditor.EditorApplication.delayCall += () => { if (this != null) Apply(); }; }
+#endif
+  }
+}
+`;
+
+/* the WEAPON WHEEL rig (round 44, item 44 — RIG-7): the rotation is a
+   DIAL, the app's own semantics — value spins the cylinder, and the
+   chamber that lands at the hammer (2 o'clock) is armed. The Cylinder
+   child spins by pure rotation, the glyph children ORBIT upright (no
+   tilt — the app never tilts them), and the armed chamber's glyph swaps
+   to its themed look. The hub/tag words stay LIVE seats — yours to
+   drive. */
+const WEAPON_WHEEL_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+
+namespace PatternBreak {
+  [AddComponentMenu("UI Kit Maker/Weapon Wheel")]
+  [ExecuteAlways]
+  public class PatternBreakWeaponWheel : MonoBehaviour {
+    [Tooltip("Cylinder rotation, 0..1 turn clockwise (the app's own dial) — the chamber landing at the hammer is armed. Drive this, SetValue, or ArmChamber.")]
+    [Range(0f, 1f)] public float value = 0f;
+    [Tooltip("How many chambers this wheel was exported with.")]
+    public int chambers = 6;
+    [Tooltip("The Cylinder child — flutes + quiet sockets on a full-disc frame; the rig spins it by pure rotation.")]
+    public RectTransform cylinder;
+    [Tooltip("The chamber glyph children, chamber order (generated wiring) — they orbit upright with the spin.")]
+    public Image[] glyphSlots = new Image[0];
+    [Tooltip("Each chamber's quiet look (generated).")]
+    public Sprite[] ghost = new Sprite[0];
+    [Tooltip("Each chamber's ARMED look — themed + halo (generated).")]
+    public Sprite[] lit = new Sprite[0];
+    [Tooltip("The wheel center as an anchor fraction of the root rect (generated).")]
+    public Vector2 centerAnchor = new Vector2(0.5f, 0.5f);
+    [Tooltip("The chamber orbit radius as fractions of the root rect (generated).")]
+    public float orbitFx = 0.3f;
+    public float orbitFy = 0.3f;
+    public int ArmedChamber() { int n = Mathf.Max(1, chambers); return ((1 - Mathf.RoundToInt(Mathf.Clamp01(value) * n)) % n + n) % n; }
+    public void SetValue(float v) { value = Mathf.Clamp01(v); Apply(); }
+    [Tooltip("Spin so chamber i (0-based) lands at the hammer.")]
+    public void ArmChamber(int i) { int n = Mathf.Max(1, chambers); value = (((1 - i) % n + n) % n) / (float)n; Apply(); }
+    public void Apply() {
+      int n = Mathf.Max(1, chambers);
+      if (cylinder != null) cylinder.localRotation = Quaternion.Euler(0f, 0f, -Mathf.Clamp01(value) * 360f);
+      int armed = ArmedChamber();
+      for (int i = 0; i < glyphSlots.Length; i++) {
+        var im = glyphSlots[i]; if (im == null) continue;
+        float ang = ((i / (float)n) + Mathf.Clamp01(value)) * Mathf.PI * 2f - Mathf.PI / 2f;
+        var rt9 = im.rectTransform;
+        var a9 = new Vector2(centerAnchor.x + orbitFx * Mathf.Cos(ang), centerAnchor.y - orbitFy * Mathf.Sin(ang));
+        if (rt9.anchorMin != a9) { rt9.anchorMin = a9; rt9.anchorMax = a9; rt9.anchoredPosition = Vector2.zero; }
+        var want = i == armed ? (i < lit.Length ? lit[i] : null) : (i < ghost.Length ? ghost[i] : null);
+        if (want != null && im.sprite != want) im.sprite = want;
+      }
     }
     void OnEnable() { Apply(); }
 #if UNITY_EDITOR
@@ -14667,6 +14767,8 @@ namespace PatternBreak {
             if (kstS != null && it.value > 0f) kstS.SetValue(Mathf.Clamp01(it.value));
             var pcS = inst.GetComponent<PatternBreakPathConnector>();
             if (pcS != null && it.value > 0f) pcS.SetValue(Mathf.Clamp01(it.value));
+            var wwS = inst.GetComponent<PatternBreakWeaponWheel>();
+            if (wwS != null && it.value > 0f) wwS.SetValue(Mathf.Clamp01(it.value));
             var gdS = inst.GetComponent<GaugeDial>();
             if (gdS != null && it.value > 0f) { gdS.value = Mathf.Clamp01(it.value); gdS.Apply(); }
             var ktS = inst.GetComponent<KitTimer>();
@@ -17113,6 +17215,45 @@ namespace PatternBreak {
           else rigSW.alarmInk = alarmBaseSW;
           rigSW.value = arcRowSW != null && arcRowSW.ringV > 0f ? Mathf.Clamp01(arcRowSW.ringV) : 0.62f;
           rigSW.Apply();
+        }
+      }
+      /* ── the WEAPON WHEEL goes LIVE (round 44, item 44 — RIG-7): the
+         Cylinder child spins by rotation, the glyph children orbit
+         upright, the armed look follows the chamber at the hammer, and
+         PatternBreakWeaponWheel makes the rotation a dial. Old zips (no
+         look atoms) keep the static children. ── */
+      if (baseAsset.component == "weaponwheel") {
+        var cylWW = go.transform.Find("Cylinder");
+        var slotsWW = new List<Image>(); var ghostWW = new List<Sprite>(); var litWW = new List<Sprite>();
+        for (int iWW = 1; iWW <= 8; iWW++) {
+          var tWW = go.transform.Find("Icon w" + iWW);
+          var gSp = S(root + "/assets/weaponwheel/w" + iWW + "-ghost.png");
+          var lSp = S(root + "/assets/weaponwheel/w" + iWW + "-lit.png");
+          if (tWW == null || gSp == null || lSp == null) break;
+          var imWW = tWW.GetComponent<Image>(); if (imWW == null) break;
+          slotsWW.Add(imWW); ghostWW.Add(gSp); litWW.Add(lSp);
+        }
+        if (cylWW != null && slotsWW.Count >= 4 && go.GetComponent<PatternBreakWeaponWheel>() == null) {
+          var rigWW = go.AddComponent<PatternBreakWeaponWheel>();
+          rigWW.cylinder = (RectTransform)cylWW;
+          rigWW.glyphSlots = slotsWW.ToArray();
+          rigWW.ghost = ghostWW.ToArray();
+          rigWW.lit = litWW.ToArray();
+          rigWW.chambers = slotsWW.Count;
+          // the Cylinder child's frame is centered on the hub by
+          // construction — its anchor IS the wheel center fraction
+          rigWW.centerAnchor = ((RectTransform)cylWW).anchorMin;
+          float orbitWW = 0f;
+          foreach (var aWW in m.assets) if (aWW != null && aWW.component == "weaponwheel" && aWW.part != null && aWW.part.EndsWith("-lit") && aWW.railW > 1f) { orbitWW = aWW.railW; break; }
+          var bodyWW = BodyImage(go);
+          if (orbitWW > 1f && bodyWW != null && bodyWW.sprite != null && bodyWW.sprite.rect.width > 2f) {
+            rigWW.orbitFx = orbitWW / bodyWW.sprite.rect.width;
+            rigWW.orbitFy = orbitWW / bodyWW.sprite.rect.height;
+          }
+          float stWW = 0f;
+          foreach (var aWW in m.assets) if (aWW != null && aWW.component == "weaponwheel" && aWW.part != null && aWW.part.EndsWith("-lit") && aWW.ringV > 0f) { stWW = Mathf.Clamp01(aWW.ringV); break; }
+          rigWW.value = stWW; // rest = the app's staged rotation
+          rigWW.Apply();
         }
       }
       /* ── the STEP LANE goes LIVE (round 44, item 38 — RIG-5): the root

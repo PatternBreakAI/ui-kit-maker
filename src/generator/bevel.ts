@@ -7415,28 +7415,39 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       let inner = "";
       // fixed hammer wedge at 2 o'clock — the arming position
       inner += `<path d="M ${cW} ${cW} L ${(cW + innerR * Math.cos(hamA - wSpan)).toFixed(1)} ${(cW + innerR * Math.sin(hamA - wSpan)).toFixed(1)} A ${innerR.toFixed(1)} ${innerR.toFixed(1)} 0 0 1 ${(cW + innerR * Math.cos(hamA + wSpan)).toFixed(1)} ${(cW + innerR * Math.sin(hamA + wSpan)).toFixed(1)} Z" fill="url(#${gidW9}w)"/>`;
-      // the cylinder: flute lines + QUIET chamber sockets rotate with the
-      // value (the armed chamber renders later, above everything)
+      /* round 44 (item 44, RIG-7): the CYLINDER — flutes + every quiet
+         socket (the armed one's quiet socket included, drawn UNDER the
+         armed dressing) — is ONE MARKED layer on a full-inner-disc frame
+         centered on the hub, so the rig (or a dev) spins it by pure
+         rotation. Each glyph rides a FIXED frame (ghost/armed looks swap
+         1:1); the armed dressing and the name tag become nick'd children
+         (the tag's word RIDES its plate). */
+      let cyl = "";
       chambers.forEach((_, i) => {
         const aD = ((i + 0.5) / nW + vW) * Math.PI * 2 - Math.PI / 2;
-        inner += `<line x1="${(cW + hubR * 1.18 * Math.cos(aD)).toFixed(1)}" y1="${(cW + hubR * 1.18 * Math.sin(aD)).toFixed(1)}" x2="${(cW + (innerR - 4) * Math.cos(aD)).toFixed(1)}" y2="${(cW + (innerR - 4) * Math.sin(aD)).toFixed(1)}" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>`;
+        cyl += `<line x1="${(cW + hubR * 1.18 * Math.cos(aD)).toFixed(1)}" y1="${(cW + hubR * 1.18 * Math.sin(aD)).toFixed(1)}" x2="${(cW + (innerR - 4) * Math.cos(aD)).toFixed(1)}" y2="${(cW + (innerR - 4) * Math.sin(aD)).toFixed(1)}" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>`;
       });
-      let armedSvg = "";
+      let armedSvg = "", glyphSvg = "";
+      const glyphBoxH = chamberR * 0.67 + 11 * k; // holds the ARMED look (magnified + halo)
       chambers.forEach((ch, i) => {
         const aC = (i / nW + vW) * Math.PI * 2 - Math.PI / 2;
         const ccx9 = cW + orbitR * Math.cos(aC), ccy9 = cW + orbitR * Math.sin(aC);
         const on = i === armedW;
         const rr = chamberR * (on ? 1.34 : 1);
+        const gBox = `data-icon-box="${(ccx9 - glyphBoxH).toFixed(1)} ${(ccy9 - glyphBoxH).toFixed(1)} ${(glyphBoxH * 2).toFixed(1)} ${(glyphBoxH * 2).toFixed(1)}"`;
+        // the quiet socket draws for EVERY chamber (the armed dressing
+        // covers its own — recomposition stays whole when the ring moves)
+        cyl += `<circle cx="${ccx9.toFixed(1)}" cy="${ccy9.toFixed(1)}" r="${chamberR.toFixed(1)}" fill="${hexRgba(darken(effect(cfg.effects, "Inner Fill"), 0.72), 0.8)}" stroke="rgba(255,255,255,0.24)" stroke-width="1.5"/>`;
         if (on) {
-          armedSvg = `<circle cx="${ccx9.toFixed(1)}" cy="${ccy9.toFixed(1)}" r="${(rr + 5 * k).toFixed(1)}" fill="none" stroke="${hexRgba(glow, 0.4)}" stroke-width="${(2 * k).toFixed(1)}">${live9 ? `<animate attributeName="stroke-opacity" values="0.55;0.15;0.55" dur="2.2s" repeatCount="indefinite" calcMode="spline" keySplines="0.42 0 0.58 1; 0.42 0 0.58 1"/>` : ""}</circle>
-            <circle cx="${ccx9.toFixed(1)}" cy="${ccy9.toFixed(1)}" r="${rr.toFixed(1)}" fill="${hexRgba(darken(effect(cfg.effects, "Inner Fill"), 0.5), 0.97)}" stroke="${hexRgba(glow, hotW9 ? 1 : 0.9)}" stroke-width="${hotW9 ? 3.6 : 2.8}"${live9 ? ` style="filter: drop-shadow(0 0 ${((hotW9 ? 12 : 8) * k).toFixed(1)}px ${hexRgba(glow, 0.7)})"` : ""}/>` +
-            ((opts.icon ?? ch.ic) ? `<g data-part="icon" data-icon="w${i + 1}"><g${live9 ? ` style="filter: drop-shadow(0 0 ${(5 * k).toFixed(1)}px ${hexRgba(glow, 0.8)})"` : ""}>${themedIcon((opts.icon ?? ch.ic)!, ccx9 - rr * 0.5, ccy9 - rr * 0.5, rr, hexMix(glow, "#FFFFFF", 0.15), 2.4)}</g></g>` : "");
+          armedSvg = `<g data-part="icon" data-icon="armed" data-icon-nick="Armed chamber ring"><circle cx="${ccx9.toFixed(1)}" cy="${ccy9.toFixed(1)}" r="${(rr + 5 * k).toFixed(1)}" fill="none" stroke="${hexRgba(glow, 0.4)}" stroke-width="${(2 * k).toFixed(1)}">${live9 ? `<animate attributeName="stroke-opacity" values="0.55;0.15;0.55" dur="2.2s" repeatCount="indefinite" calcMode="spline" keySplines="0.42 0 0.58 1; 0.42 0 0.58 1"/>` : ""}</circle>
+            <circle cx="${ccx9.toFixed(1)}" cy="${ccy9.toFixed(1)}" r="${rr.toFixed(1)}" fill="${hexRgba(darken(effect(cfg.effects, "Inner Fill"), 0.5), 0.97)}" stroke="${hexRgba(glow, hotW9 ? 1 : 0.9)}" stroke-width="${hotW9 ? 3.6 : 2.8}"${live9 ? ` style="filter: drop-shadow(0 0 ${((hotW9 ? 12 : 8) * k).toFixed(1)}px ${hexRgba(glow, 0.7)})"` : ""}/></g>`;
+          glyphSvg += (opts.icon ?? ch.ic) ? `<g data-part="icon" data-icon="w${i + 1}" ${gBox}><g${live9 ? ` style="filter: drop-shadow(0 0 ${(5 * k).toFixed(1)}px ${hexRgba(glow, 0.8)})"` : ""}>${themedIcon((opts.icon ?? ch.ic)!, ccx9 - rr * 0.5, ccy9 - rr * 0.5, rr, hexMix(glow, "#FFFFFF", 0.15), 2.4)}</g></g>` : "";
         } else {
-          inner += `<circle cx="${ccx9.toFixed(1)}" cy="${ccy9.toFixed(1)}" r="${rr.toFixed(1)}" fill="${hexRgba(darken(effect(cfg.effects, "Inner Fill"), 0.72), 0.8)}" stroke="rgba(255,255,255,0.24)" stroke-width="1.5"/>` +
-            // every chamber glyph is marked swappable ink (the law)
-            (ch.ic ? `<g data-part="icon" data-icon="w${i + 1}">${iconGroup(ch.ic, ccx9 - rr * 0.46, ccy9 - rr * 0.46, rr * 0.92, "#AEB6C4", { strokeWidth: 2 * iconWK })}</g>` : "");
+          // every chamber glyph is marked swappable ink (the law)
+          glyphSvg += ch.ic ? `<g data-part="icon" data-icon="w${i + 1}" ${gBox}>${iconGroup(ch.ic, ccx9 - rr * 0.46, ccy9 - rr * 0.46, rr * 0.92, "#AEB6C4", { strokeWidth: 2 * iconWK })}</g>` : "";
         }
       });
+      inner += `<g data-part="icon" data-icon="cylinder" data-icon-box="${(cW - innerR).toFixed(1)} ${(cW - innerR).toFixed(1)} ${(innerR * 2).toFixed(1)} ${(innerR * 2).toFixed(1)}" data-icon-nick="Cylinder">${cyl}</g>`;
       // name tag fixed beside the hammer position, over the rim
       let tagSvg = "";
       {
@@ -7444,10 +7455,9 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const ccx9 = cW + orbitR * Math.cos(hamA), ccy9 = cW + orbitR * Math.sin(hamA);
         const tagW = 92 * k, tagH = 34 * k;
         const tx0 = ccx9 + rr + 6 * k, ty9 = ccy9;
-        tagSvg = `<g${live9 ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(glow, 0.5)})"` : ""}>
+        tagSvg = `<g data-part="icon" data-icon="tag" data-icon-nick="Name tag"><g${live9 ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(glow, 0.5)})"` : ""}>
           <path d="M ${tx0.toFixed(1)} ${ty9.toFixed(1)} l ${9 * k} ${-tagH / 2} h ${tagW - 9 * k} v ${tagH} h ${-(tagW - 9 * k)} Z" fill="${hexRgba(darken(effect(cfg.effects, "Inner Fill"), 0.55), 0.96)}" stroke="${hexRgba(glow, 0.85)}" stroke-width="1.8"/>
-          ${hudText(chambers[armedW].nm, tx0 + tagW / 2 + 4 * k, ty9 + 1, 16 * k, "middle", 900)}
-        </g>`;
+        </g></g>${hudText(chambers[armedW].nm, tx0 + tagW / 2 + 4 * k, ty9 + 1, 16 * k, "middle", 900).replace("<text ", '<text data-seat-rider="tag" ')}`;
       }
       const hubNm = opts.label ?? chambers[armedW].nm;
       const totalW = dW + padW * 2;
@@ -7464,7 +7474,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const pc = PT.color ? PT.color : lighten(bevel, 0.25);
         return `<pattern id="${gidW9}p" width="${ps.toFixed(1)}" height="${ps.toFixed(1)}" patternUnits="userSpaceOnUse" patternTransform="rotate(${PT.angle ?? 0})">${textPatternCell(PT.type, ps, pc)}</pattern>`;
       })() : "";
-      return `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW.toFixed(0)}" height="${totalW.toFixed(0)}" viewBox="0 0 ${totalW.toFixed(0)} ${totalW.toFixed(0)}" data-shell="${padW} ${padW} ${dW.toFixed(1)} ${dW.toFixed(1)}" data-weaponwheel="1" data-wheel="${cW.toFixed(1)} ${cW.toFixed(1)}" role="img" aria-label="weapon wheel — ${hubNm}">
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW.toFixed(0)}" height="${totalW.toFixed(0)}" viewBox="0 0 ${totalW.toFixed(0)} ${totalW.toFixed(0)}" data-shell="${padW} ${padW} ${dW.toFixed(1)} ${dW.toFixed(1)}" data-weaponwheel="1" data-wheel="${cW.toFixed(1)} ${cW.toFixed(1)}" data-wheelgeo="${orbitR.toFixed(1)} ${nW} ${vW.toFixed(4)}" role="img" aria-label="weapon wheel — ${hubNm}">
 <defs>
   <linearGradient id="${gidW9}r" x1="0" y1="0" x2="0" y2="1">
     <stop offset="0" stop-color="${lighten(hexMix(bevel, effect(cfg.effects, "Inner Fill"), 0.35), 0.45)}"/>
@@ -7493,6 +7503,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
   ${sweepArc}
   <circle cx="${cW}" cy="${cW}" r="${(rimR - rimW9 - 0.6).toFixed(1)}" fill="none" stroke="${darken(bevel, 0.5)}" stroke-width="1" opacity="0.7"/>
   ${armedSvg}
+  ${glyphSvg}
   ${tagSvg}
   <circle cx="${cW}" cy="${cW}" r="${hubR.toFixed(1)}" fill="url(#${gidW9}h)" stroke="${hexRgba(glow, 0.45)}" stroke-width="1.8"/>
   <ellipse cx="${cW}" cy="${(cW - hubR * 0.5).toFixed(1)}" rx="${(hubR * 0.66).toFixed(1)}" ry="${(hubR * 0.26).toFixed(1)}" fill="#FFFFFF" opacity="0.08"/>
