@@ -3074,6 +3074,35 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("scrollbar left the board value strike (round 44, item 32)");
 }
 
+/* ── ROUND 44 · S20 (stepper, item 37 — RIG-2 + RIG-4 + RIG-7): base
+   re-bakes with empty cells, the lit strip + snapper go live, both caps
+   become REAL Buttons on stamped fixed frames with their +/− glyphs
+   riding as words, and KitStepper steps the meter from their clicks. ── */
+{
+  if (!/data-stepcap="minus \$\{minusX\.toFixed\(1\)\}/.test(bevelSrc) || !/data-stepcap="plus \$\{plusX\.toFixed\(1\)\}/.test(bevelSrc))
+    errors.push("the stepper caps lost their stamped marks — the Buttons can't cut (round 44, item 37)");
+  if (!/data-seat-rider="minus">−<\/text>/.test(bevelSrc) || !/data-seat-rider="plus">\+<\/text>/.test(bevelSrc))
+    errors.push("the stepper's +/− glyphs no longer ride their caps as live words (round 44, item 37)");
+  if (!/stampTrack\(inject\(shell\.replace\("<svg ", '<svg data-stepper="1" '\), inner\), cellsX, cellsW, cy - 13 \* k, 26 \* k\)/.test(bevelSrc))
+    errors.push("the stepper's cell-run stamp left bevel — the snapper can't seat (round 44, item 37)");
+  if (!/let stepperOut:/.test(src) || !/querySelectorAll\("\[data-stepcap\]"\)/.test(src))
+    errors.push("the stepper cut/strip road left the exporter (round 44, item 37)");
+  if (!/const KIT_STEPPER_RUNTIME = `using UnityEngine;/.test(src)
+      || !/files\.push\(\{ path: "Runtime\/PatternBreakKitStepper\.cs", data: KIT_STEPPER_RUNTIME \}\);/.test(src)
+      || !/"Runtime\/PatternBreakKitStepper\.cs",/.test(src))
+    errors.push("KitStepper's runtime or its registration (files + sharedScripts BOTH — the law) left the exporter (round 44, item 37)");
+  if (!/static void WireStepper\(GameObject go, Sprite baseSp, PBAsset baseRow, string root, int pngScale, PBManifest m\)/.test(cs)
+      || !/if \(baseAsset\.component == "stepper"\) WireStepper\(go, baseSp, baseAsset, root, pngScale, m\);/.test(cs))
+    errors.push("WireStepper (or its FamilyPrefab call) left the importer — the stepper ships display-only again (round 44, item 37)");
+  if (!/UnityEditor\.Events\.UnityEventTools\.AddPersistentListener\(btnP\.onClick, ksST\.StepUp\);/.test(cs)
+      || !/UnityEditor\.Events\.UnityEventTools\.AddPersistentListener\(btnM\.onClick, ksST\.StepDown\);/.test(cs))
+    errors.push("the cap Buttons lost their click wiring — pressing would do nothing (round 44, item 37)");
+  if (!/if \(it\.component == "stepper" && it\.value > 0f\)/.test(cs))
+    errors.push("stepper left the board value strike (round 44, item 37)");
+  if (!/fPrev\.file == "assets\/stepper\/stepper-lit\.png"/.test(cs))
+    errors.push("the kept-project stepper graft era gate left the importer (round 44, item 37)");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);

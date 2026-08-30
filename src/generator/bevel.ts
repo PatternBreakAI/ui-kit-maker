@@ -6224,11 +6224,18 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const minusX = 39 + inset + capR + 4 * k, plusX = 39 + w - inset - capR - 4 * k;
       const glyphY = cy - 2.5 * k; // optical center: +/− ride high in their circles
       const hotP = state === "hover" && true;
-      let inner = candyKnob(minusX, cy, capR, knobC) +
-        `<text x="${minusX.toFixed(1)}" y="${glyphY.toFixed(1)}" font-family="Inter, sans-serif" font-size="${(32 * k).toFixed(1)}" font-weight="900" fill="${darken(bevel, 0.55)}" text-anchor="middle" dominant-baseline="central">−</text>` +
+      /* round 44 (item 37, RIG-4 + RIG-7): both caps are MARKED ink on
+         stamped fixed frames (every state cut shares one canvas — the
+         dialog's Sprite Swap lesson) and the +/− glyphs RIDE their caps
+         as live words. The hover ring is the plus cap's own armed
+         dressing, so it lives INSIDE the plus group and cuts with it. */
+      const capFrame = capR * 1.25 + 10 * k;
+      let inner = `<g data-stepcap="minus ${minusX.toFixed(1)} ${cy.toFixed(1)} ${capFrame.toFixed(1)}">${candyKnob(minusX, cy, capR, knobC)}</g>` +
+        `<text x="${minusX.toFixed(1)}" y="${glyphY.toFixed(1)}" font-family="Inter, sans-serif" font-size="${(32 * k).toFixed(1)}" font-weight="900" fill="${darken(bevel, 0.55)}" text-anchor="middle" dominant-baseline="central" data-seat-rider="minus">−</text>` +
+        `<g data-stepcap="plus ${plusX.toFixed(1)} ${cy.toFixed(1)} ${capFrame.toFixed(1)}">` +
         (hotP ? `<circle cx="${plusX.toFixed(1)}" cy="${cy.toFixed(1)}" r="${(capR * 1.22).toFixed(1)}" fill="none" stroke="${hexRgba(glow, 0.85)}" stroke-width="2.6" style="filter: drop-shadow(0 0 6px ${hexRgba(glow, 0.6)})"/>` : "") +
-        candyKnob(plusX, cy, capR, knobC) +
-        `<text x="${plusX.toFixed(1)}" y="${glyphY.toFixed(1)}" font-family="Inter, sans-serif" font-size="${(32 * k).toFixed(1)}" font-weight="900" fill="${darken(bevel, 0.55)}" text-anchor="middle" dominant-baseline="central">+</text>`;
+        `${candyKnob(plusX, cy, capR, knobC)}</g>` +
+        `<text x="${plusX.toFixed(1)}" y="${glyphY.toFixed(1)}" font-family="Inter, sans-serif" font-size="${(32 * k).toFixed(1)}" font-weight="900" fill="${darken(bevel, 0.55)}" text-anchor="middle" dominant-baseline="central" data-seat-rider="plus">+</text>`;
       const gidT = "st" + UID++;
       /* negative-space canon: the cell strip sits in ONE sunken container
          well; every cell (filled and empty alike) floats inset within it */
@@ -6239,7 +6246,9 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const on = i < filled;
         inner += `<rect x="${cx0.toFixed(1)}" y="${(cy - 13 * k).toFixed(1)}" width="${cellW.toFixed(1)}" height="${(26 * k).toFixed(1)}" rx="${(5 * k).toFixed(1)}" fill="${on ? `url(#${gidT})` : "rgba(255,255,255,0.1)"}"${on && state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(3 * k).toFixed(1)}px ${hexRgba(glow, 0.5)})"` : ""} stroke="${on ? darken(bevel, 0.3) : "rgba(255,255,255,0.12)"}" stroke-width="1"/>`;
       }
-      return inject(shell.replace("<svg ", '<svg data-stepper="1" '), inner);
+      // the stamp speaks the cell run + band (round 44, item 37) — the
+      // cell meter's snapper seats exactly here
+      return stampTrack(inject(shell.replace("<svg ", '<svg data-stepper="1" '), inner), cellsX, cellsW, cy - 13 * k, 26 * k);
     }
     case "healthglobe": {
       /* RPG · health globe — the Diablo lineage: a glass sphere with the

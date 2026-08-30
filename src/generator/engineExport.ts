@@ -4242,7 +4242,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         avatarframe: "Avatar frame — the level chip's number is a LIVE seat and the portrait a LIVE masked Image child: drop YOUR sprite on the Portrait child and the frame clips it round. Display piece.",
         claimbtn: "Claim button — a REAL button (the Shop's Claim All presses and fires onClick); the word is a LIVE seat, the gift glyph a LIVE Image child, and CLAIM copies celebrate (ClaimBurst).",
         nameplate: "Nameplate — the name is a LIVE seat, the rank star a LIVE Image child, and the title ribbon a live plate child whose word RIDES it (move, restyle or delete plate + word as one). Display piece.",
-        stepper: "Stepper — minus cap, snapped cells, plus cap in one strip; the +/− cap marks are LIVE seats. Display piece: wire your own buttons over the caps (two hits, never one).",
+        stepper: "Stepper — a WORKING control: both caps are REAL Buttons (the + cap arms with the app's own hover ring) that step the cell strip by whole cells (KitStepper.StepUp/StepDown/SetValue; KitCellMeter snaps the cut into the gaps). The +/− glyphs ride their caps as live words. Two hits, never one.",
         notifydot: "Notification badge — the bell/scroll glyph is a LIVE Image child and the red counter a live plate child whose count RIDES it (delete the pair as one, or drive the count). Display piece.",
         loadbar: "Loading bar — LIVE: caption and percent are seats and the mercury is a Filled fill with the rounded head riding the value line (drive Fill's fillAmount or KitBarFill.SetValue). Display piece.",
         setrow: "Settings row — a WORKING control: the mini-slider is a real Unity Slider (drag the candy knob or set Slider.value; the Filled mercury and rounded head follow). The row label and value readout are LIVE seats — the readout is not wired to the slider, hook it to Slider.onValueChanged or retype it.",
@@ -4575,6 +4575,72 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
             }
           } catch { knobSvgSR = null; }
         }
+        /* ── the STEPPER becomes a WORKING control (round 44, item 37 —
+           RIG-2 + RIG-4 + RIG-7): base re-bakes with EMPTY cells and the
+           caps stripped; the lit strip overlays at value 1 for the cell
+           meter's snapper; both caps cut on stamped fixed frames as REAL
+           Buttons (the +/− glyphs ride them as live words); the plus
+           cap's hover ring cuts from the app's own hover render. All or
+           nothing: a failed cut leaves today's baked strip whole. ── */
+        let stepperSeats: NonNullable<AssetMeta["iconSeats"]> | null = null;
+        let stepperOut: { lit: string; caps: { part: string; svg: string }[] } | null = null;
+        if (uid === "stepper") {
+          try {
+            const sv0 = stripLoopsU(shell(uid, uOpts, undefined, 0));
+            const sv1 = stripLoopsU(shell(uid, uOpts, undefined, 1));
+            const svH = stripLoopsU(stateShell(uid, "hover", uOpts, uVal));
+            const svD = stripLoopsU(stateShell(uid, "disabled", uOpts, uVal));
+            const markRe = /data-stepcap="(minus|plus) ([-\d.]+) ([-\d.]+) ([-\d.]+)"/g;
+            const marks0 = [...sv0.matchAll(markRe)].map((m9) => ({ name: m9[1], cx: +m9[2], cy: +m9[3], half: +m9[4] }));
+            const shD0 = /data-shell="([-\d. ]+)"/.exec(sv0)?.[1].split(" ").map(Number);
+            const sh00 = /data-shell0="([-\d. ]+)"/.exec(sv0)?.[1].split(" ").map(Number);
+            const rise0 = shD0 && sh00 && shD0.length === 4 && sh00.length === 4 ? shD0[1] - sh00[1] : 0;
+            const stripCapsS = (sv: string): string => {
+              const dom = new DOMParser().parseFromString(sv, "image/svg+xml");
+              for (const g9 of Array.from(dom.querySelectorAll("[data-stepcap]"))) g9.remove();
+              return new XMLSerializer().serializeToString(dom.documentElement);
+            };
+            const capCut = (sv: string, name: string): string | null => {
+              const dom = new DOMParser().parseFromString(sv, "image/svg+xml");
+              let keep: Element | null = null;
+              for (const g9 of Array.from(dom.querySelectorAll("[data-stepcap]")))
+                if ((g9.getAttribute("data-stepcap") ?? "").startsWith(name + " ")) keep = g9;
+              if (!keep) return null;
+              for (const el of Array.from(dom.querySelectorAll(ICON_DRAWABLE_SEL)))
+                if (!el.closest("defs") && !keep.contains(el)) el.remove();
+              const mk9 = (keep.getAttribute("data-stepcap") ?? "").split(" ");
+              const cx9 = +mk9[1], cy9 = +mk9[2], hf9 = +mk9[3];
+              const shDs = /data-shell="([-\d. ]+)"/.exec(sv)?.[1].split(" ").map(Number);
+              const sh0s = /data-shell0="([-\d. ]+)"/.exec(sv)?.[1].split(" ").map(Number);
+              const riseS = shDs && sh0s && shDs.length === 4 && sh0s.length === 4 ? shDs[1] - sh0s[1] : 0;
+              if (!(hf9 > 2)) return null;
+              return new XMLSerializer().serializeToString(dom.documentElement)
+                .replace(/viewBox="[^"]+"/, `viewBox="${(cx9 - hf9).toFixed(1)} ${(cy9 - hf9 + riseS).toFixed(1)} ${(hf9 * 2).toFixed(1)} ${(hf9 * 2).toFixed(1)}"`)
+                .replace(/ width="[\d.]+"/, ` width="${Math.ceil(hf9 * 2)}"`)
+                .replace(/ height="[\d.]+"/, ` height="${Math.ceil(hf9 * 2)}"`);
+            };
+            const cMinus = capCut(sv0, "minus"), cPlus = capCut(sv0, "plus");
+            const cPlusH = capCut(svH, "plus"), cPlusD = capCut(svD, "plus");
+            if (marks0.length === 2 && shD0 && shD0.length === 4 && cMinus && cPlus && cPlusH && cPlusD) {
+              const r1s = (n: number) => Math.round(n * 10) / 10;
+              const shCx0 = shD0[0] + shD0[2] / 2, shCy0 = shD0[1] + shD0[3] / 2;
+              stepperSeats = marks0.map((mk9) => ({
+                name: mk9.name, file: `assets/stepper/stepper-cap-${mk9.name}.png`,
+                dx: r1s(mk9.cx - shCx0), dy: r1s(mk9.cy + rise0 - shCy0),
+                w: r1s(mk9.half * 2), h: r1s(mk9.half * 2),
+                btn: true, nick: mk9.name === "minus" ? "Minus button" : "Plus button",
+              }));
+              stepperOut = {
+                lit: stripWordInk(stripCapsS(sv1)).svg,
+                caps: [
+                  { part: "cap-minus", svg: cMinus }, { part: "cap-plus", svg: cPlus },
+                  { part: "cap-plus-hover", svg: cPlusH }, { part: "cap-plus-disabled", svg: cPlusD },
+                ],
+              };
+              baseSvgU = stripWordInk(stripCapsS(sv0)).svg;
+            }
+          } catch { stepperOut = null; stepperSeats = null; }
+        }
         await addPng(`${uid}/base.png`, baseSvgU, {
           component: uid, part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
           usage: UNIVERSAL_USAGE[uid] ?? (GLYPH_BUTTONS.has(uid)
@@ -4584,8 +4650,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           ...(uLabelMeta ?? {}),
           ...(uWord !== undefined ? { labelText: uWord } : {}),
           ...(ringRig || buffRig ? {} : seatsU),
-          ...(iconSeatsU ? { iconSeats: iconSeatsU } : {}),
-        }, true, interactive || buffRig || cellRig ? uid : undefined);
+          ...(iconSeatsU ? { iconSeats: iconSeatsU } : stepperSeats ? { iconSeats: stepperSeats } : {}),
+        }, true, interactive || buffRig || cellRig || stepperOut ? uid : undefined);
         if (railsOut) {
           for (const rl of railsOut) {
             await addPng(`${uid}/fill-${rl.name}.png`, rl.fill, {
@@ -4618,6 +4684,25 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
             component: uid, part: "knob", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
             usage: "The candy knob — the mini Slider's Handle wears it (generated wiring). Swap the sprite to restyle the grip.",
           }, false);
+        }
+        if (stepperOut) {
+          await addPng(`${uid}/lit.png`, stepperOut.lit, {
+            component: uid, part: "lit", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+            usage: "The cell strip, ALL EIGHT lit — the prefab's Lit layer scissors per whole cell (KitCellMeter snaps into the gaps; the +/− Buttons step it).",
+            ringV: Math.max(0, Math.min(1, uVal ?? 0.62)),
+          }, true, uid);
+          for (const c9 of stepperOut.caps) {
+            await addPng(`${uid}/${c9.part}.png`, c9.svg, {
+              component: uid, part: c9.part, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+              usage: c9.part === "cap-minus"
+                ? "The minus cap — a REAL Button child (press dim manners); its − glyph rides as a live word."
+                : c9.part === "cap-plus"
+                  ? "The plus cap — a REAL Button child (Sprite Swap: the app's own hover ring arms it); its + glyph rides as a live word."
+                  : c9.part === "cap-plus-hover"
+                    ? "The plus cap, ARMED — the app's own hover ring (Sprite Swap highlighted/pressed skin)."
+                    : "The plus cap, disabled — the app's own dimmed face.",
+            }, false);
+          }
         }
         /* ── the OBJECTIVE PIP LOOKS (round 44, item 29b): the base seats
            each drawn pip as a live child above; the three LOOKS ship
@@ -6155,6 +6240,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Runtime/PatternBreakBuffSweep.cs", data: BUFF_SWEEP_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitBarFill.cs", data: KIT_BAR_FILL_RUNTIME });
   files.push({ path: "Runtime/PatternBreakCellMeter.cs", data: CELL_METER_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakKitStepper.cs", data: KIT_STEPPER_RUNTIME });
   files.push({ path: "Runtime/PatternBreakPageDots.cs", data: PAGE_DOTS_RUNTIME });
   files.push({ path: "Runtime/PatternBreakStartLights.cs", data: START_LIGHTS_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitTrace.cs", data: KIT_TRACE_RUNTIME });
@@ -6233,6 +6319,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     "Runtime/PatternBreakBuffSweep.cs",
     "Runtime/PatternBreakKitBarFill.cs",
     "Runtime/PatternBreakCellMeter.cs",
+    "Runtime/PatternBreakKitStepper.cs",
     "Runtime/PatternBreakPageDots.cs", "Runtime/PatternBreakStartLights.cs",
     "Runtime/PatternBreakKitTrace.cs",
     "Runtime/PatternBreakSafeArea.cs",
@@ -6828,6 +6915,31 @@ namespace PatternBreak {
     void OnEnable() { Apply(); }
     // a raw fillAmount write reads as the VALUE and re-snaps to whole cells
     void LateUpdate() { if (lit != null && !Mathf.Approximately(lit.fillAmount, wrote)) { value = Mathf.Clamp01(lit.fillAmount); Apply(); } }
+  }
+}
+`;
+
+/* the STEPPER'S BRAIN (round 44, item 37): the two cap Buttons step the
+   value by whole cells and the cell meter snaps the strip — the app's
+   own editing contract ("pressed fills one more cell"), working in play
+   mode out of the box. The generated prefab wires the Buttons' onClick
+   to StepUp/StepDown as persistent listeners. */
+const KIT_STEPPER_RUNTIME = `using UnityEngine;
+
+namespace PatternBreak {
+  [AddComponentMenu("UI Kit Maker/Kit Stepper")]
+  public class KitStepper : MonoBehaviour {
+    [Tooltip("The stepped value 0..1 — snapped to whole cells by the meter. Drive this, call SetValue, or let the +/- Buttons step it.")]
+    [Range(0f, 1f)] public float value = 0.62f;
+    [Tooltip("The cell meter this stepper drives (generated wiring).")]
+    public KitCellMeter cellMeter;
+    [Tooltip("How many cells one press moves through (the app's strip has 8).")]
+    public int cells = 8;
+    public void StepUp() { Set(value + 1f / Mathf.Max(1, cells)); }
+    public void StepDown() { Set(value - 1f / Mathf.Max(1, cells)); }
+    public void SetValue(float v) { Set(v); }
+    void Set(float v) { value = Mathf.Clamp01(v); if (cellMeter != null) cellMeter.SetValue(value); }
+    void OnEnable() { if (cellMeter != null) cellMeter.SetValue(value); }
   }
 }
 `;
@@ -14050,6 +14162,10 @@ namespace PatternBreak {
               var sbB9 = inst.GetComponentInChildren<Scrollbar>(true);
               if (sbB9 != null) sbB9.value = 1f - Mathf.Clamp01(it.value);
             }
+            if (it.component == "stepper" && it.value > 0f) {
+              var ksB9 = inst.GetComponent<KitStepper>();
+              if (ksB9 != null) ksB9.SetValue(Mathf.Clamp01(it.value));
+            }
             if (it.component == "partyframe" && it.value > 0f) {
               // the board's value drives HP (the app's rule); MP
               // counter-moves by the app's own coupling
@@ -16225,6 +16341,9 @@ namespace PatternBreak {
           if (famB4 == "setrow") WireSetrowSlider(go, root, m, pngScale);
         }
       }
+      /* the stepper becomes a WORKING control (round 44, item 37):
+         cell meter + KitStepper + the two cap Buttons' click wiring */
+      if (baseAsset.component == "stepper") WireStepper(go, baseSp, baseAsset, root, pngScale, m);
       /* the TWIN RAILS (round 44, item 21) — see WireManaRails: mana and
          stamina each ride their own Filled atom + bead; old zips ship no
          fill-mana atom and keep the baked look untouched */
@@ -16780,6 +16899,64 @@ namespace PatternBreak {
        kept-project graft. ── */
     static void WireManaRails(GameObject go, Sprite baseSp, PBAsset baseRow, string root, int pngScale, PBManifest m) {
       WireNamedRails(go, baseSp, baseRow, root, pngScale, m, "manarails", new string[] { "mana", "stamina" }, new string[] { "Mana", "Stamina" });
+    }
+    /* the STEPPER goes live (round 44, item 37 — RIG-2 + RIG-7): the Lit
+       overlay + cell snapper land on the empty-celled base; the two caps
+       are already REAL Buttons (the icon-children road mounted them from
+       their seats); here the plus cap arms with the app's own hover ring
+       (Sprite Swap), the minus keeps press-dim manners, and KitStepper
+       steps the meter from their clicks — persistent listeners, visible
+       in the Inspector. */
+    static void WireStepper(GameObject go, Sprite baseSp, PBAsset baseRow, string root, int pngScale, PBManifest m) {
+      var litST = S(root + "/assets/stepper/stepper-lit.png");
+      if (litST == null || go.GetComponent<KitStepper>() != null) return;
+      var lgoST = new GameObject("Lit", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+      lgoST.transform.SetParent(go.transform, false);
+      lgoST.transform.SetSiblingIndex(0); // over the base plate, under the caps and words
+      StretchFull((RectTransform)lgoST.transform);
+      var liST = lgoST.GetComponent<Image>();
+      liST.sprite = litST; liST.raycastTarget = false; liST.preserveAspect = false;
+      liST.type = Image.Type.Filled;
+      liST.fillMethod = Image.FillMethod.Horizontal;
+      liST.fillOrigin = (int)Image.OriginHorizontal.Left;
+      var kcmST = go.AddComponent<KitCellMeter>();
+      kcmST.lit = liST; kcmST.cells = 8;
+      PBAsset litRowST = null;
+      foreach (var aST in m.assets) if (aST != null && aST.component == "stepper" && aST.part == "lit") { litRowST = aST; break; }
+      if (litRowST != null && litRowST.track != null && litRowST.track.w > 2f && litST.rect.width > 2f) {
+        kcmST.zone0 = Mathf.Clamp01(litRowST.track.x / litST.rect.width);
+        kcmST.zone1 = Mathf.Clamp01((litRowST.track.x + litRowST.track.w) / litST.rect.width);
+      }
+      float v0ST = litRowST != null && litRowST.ringV > 0f ? Mathf.Clamp01(litRowST.ringV) : 0.62f;
+      var ksST = go.AddComponent<KitStepper>();
+      ksST.cellMeter = kcmST; ksST.cells = 8;
+      ksST.SetValue(v0ST);
+      var plusT = go.transform.Find("Plus button");
+      var minusT = go.transform.Find("Minus button");
+      var btnP = plusT != null ? plusT.GetComponent<Button>() : null;
+      var btnM = minusT != null ? minusT.GetComponent<Button>() : null;
+      var hovSp = S(root + "/assets/stepper/stepper-cap-plus-hover.png");
+      var disSp = S(root + "/assets/stepper/stepper-cap-plus-disabled.png");
+      if (btnP != null && hovSp != null) {
+        btnP.transition = Selectable.Transition.SpriteSwap;
+        var ssP = btnP.spriteState;
+        ssP.highlightedSprite = hovSp;
+        ssP.pressedSprite = hovSp;
+        ssP.disabledSprite = disSp;
+        ssP.selectedSprite = null; // released = the resting face (the Button lesson)
+        btnP.spriteState = ssP;
+      }
+      if (btnM != null) {
+        btnM.transition = Selectable.Transition.ColorTint;
+        var cbM = btnM.colors;
+        cbM.normalColor = Color.white; cbM.highlightedColor = Color.white; cbM.selectedColor = Color.white;
+        cbM.pressedColor = new Color(0.86f, 0.86f, 0.86f, 1f);
+        cbM.disabledColor = new Color(1f, 1f, 1f, 0.45f);
+        cbM.colorMultiplier = 1f;
+        btnM.colors = cbM;
+      }
+      if (btnP != null) UnityEditor.Events.UnityEventTools.AddPersistentListener(btnP.onClick, ksST.StepUp);
+      if (btnM != null) UnityEditor.Events.UnityEventTools.AddPersistentListener(btnM.onClick, ksST.StepDown);
     }
     /* the SETTINGS ROW's mini slider (round 44, item 34 — RIG-7): the
        rig's Fill Area is already seated on the stamped well; a REAL
@@ -20985,6 +21162,28 @@ namespace PatternBreak {
               PrefabUtility.SaveAsPrefabAsset(contentsPF, path);
               barRigged++;
             } finally { PrefabUtility.UnloadPrefabContents(contentsPF); }
+            continue;
+          }
+        }
+        /* the stepper's live graft (round 44, item 37) — same
+           arrival-import era rule, keyed on the lit atom; the meter +
+           brain graft even before the cap Buttons converge (null-guarded) */
+        if (spritePath.EndsWith("/stepper-base.png") && asset.transform.Find("Lit") == null && asset.GetComponent<KitStepper>() == null) {
+          bool stEra = true;
+          if (prevLock != null && prevLock.files != null)
+            foreach (var fPrev in prevLock.files) if (fPrev != null && fPrev.file == "assets/stepper/stepper-lit.png") { stEra = false; break; }
+          var rootImgST = BodyImage(asset);
+          var rowST = LabelRow(m, "stepper");
+          if (stEra && rootImgST != null && rootImgST.sprite != null && rowST != null
+              && AssetDatabase.GetAssetPath(rootImgST.sprite).Replace("\\\\", "/") == root + "/assets/stepper/stepper-base.png"
+              && S(root + "/assets/stepper/stepper-lit.png") != null) {
+            var contentsST = PrefabUtility.LoadPrefabContents(path);
+            try {
+              var imgST2 = BodyImage(contentsST);
+              WireStepper(contentsST, imgST2 != null ? imgST2.sprite : null, rowST, root, m != null && m.pngScale > 0 ? m.pngScale : 2, m);
+              PrefabUtility.SaveAsPrefabAsset(contentsST, path);
+              barRigged++;
+            } finally { PrefabUtility.UnloadPrefabContents(contentsST); }
             continue;
           }
         }
