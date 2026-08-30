@@ -9,9 +9,11 @@
 import type { GenConfig, IconDef, KitComponentId, KitDesign, Shape } from "./model";
 import type { BoardDef, LibItem } from "./store";
 import { stampFilter, stampFilterPad, boardBgFilter, drawBoardNoise, drawBoardOverlays, stampSvg, warpStampRaster, kitShadowFilter, kitShadowPad, suppressCastShadow } from "./store";
-import { bigGlyphById, bigGlyphUrl, bigGlyphFilter, bigGlyphFilterPad, BIG_GLYPH_BASE } from "./bigGlyphs";
+/* bigGlyphById only names the excluded piece in the export-skip warn —
+   the Uploads/Art drawer never ships in the Unity download (round 44) */
+import { bigGlyphById } from "./bigGlyphs";
 import { applyKitDesign, applyKitTextFill, baseOf, darken, hexMix, lighten, fontByName, isCloneId, isFlipShape, isGlyphPiece, KIT_COMPONENTS, KIT_SHAPE, KIT_SLICEABLE, STOCK_ICONS, effKitSize, kitVisible, resolveKitIcon, sanitizeUnitySlug } from "./model";
-import { renderKit, renderBevel, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps, padSvg, resolveMenuStyle } from "./bevel";
+import { renderKit, renderBevel, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps, padSvg, resolveMenuStyle, kernCollides } from "./bevel";
 import type { KitOpts } from "./bevel";
 import { flattenPath } from "./importedShapes";
 import { silhouetteMeta } from "./silhouettes";
@@ -94,8 +96,19 @@ interface AssetMeta {
   /** The bar family's WELL ZONE inside the shipped sprite (x, w in file
    *  px at pngScale), parsed from the render's own data-track stamp —
    *  the bar prefabs seat their mercury exactly on the app's zone
-   *  instead of guessing symmetric insets (round 21). */
-  track?: { x: number; w: number } | null;
+   *  instead of guessing symmetric insets (round 21). Round 44: bars off
+   *  the shell centerline (loadbar, popmeter, respawn, buildqueue) also
+   *  stamp the VERTICAL band (y, h — same file-px frame); absent = the
+   *  old symmetric centering, so every existing consumer is byte-still. */
+  track?: { x: number; w: number; y?: number; h?: number } | null;
+  /** The mercury/bead BODY box inside this sprite (x, w in file px at
+   *  pngScale — fill and cap rows of the linear bar rigs). The atoms
+   *  crop to their glow bleed, and mapping the whole sprite onto the
+   *  zone seated the ink 10-24px right of the well (round 48, owner
+   *  field: "the fill needs to line up with the start of the well").
+   *  KitBarFill maps its value space through these; absent = the whole
+   *  sprite, so old zips keep today's behavior byte for byte. */
+  body?: { x: number; w: number } | null;
   /** The bake's silhouette is MIRRORED (~flip) — flip provenance so board
    *  scenes can honor a mirrored board copy against an unmirrored sprite
    *  (and so field reports can name which side lost the flip). */
@@ -112,6 +125,11 @@ interface AssetMeta {
    *  included). The app centers words in the CONTENT zone, not the shell
    *  (owner: "we are always cheating right a bit" on the flame). */
   labelDx?: number; labelDy?: number; labelFs?: number;
+  /** "start" when the drawn label is start-anchored (round 44, item 29a —
+   *  the quest tracker's title): labelDx then speaks the word's LEFT EDGE
+   *  from the shell center and the importer pins the word left. Absent =
+   *  middle (every other labeled family, byte-still). */
+  labelAnchor?: string;
   /** The family's RESOLVED resting label ink (P0 follow-up: header words
    *  arrived WHITE): the app flips white type to the kit ink on pale
    *  shells and per-family design forks pin their own — this is the
@@ -125,16 +143,31 @@ interface AssetMeta {
    *  staged value; the importer sets the Radial360 fillAmount from it so
    *  the prefab lands wearing exactly the pose the maker staged. */
   ringV?: number;
+  /** The fire button's ARMED-GLYPH seat (round 44 field: "the main icon
+   *  sits low" — the importer's hand heuristic drifted): parsed from the
+   *  bare dome render's own data-fireseat stamp, on the dome row only.
+   *  fireDx/fireDy = the glyph BOX center from the shell center (design
+   *  px, y down — the labelDx discipline); fireW = the glyph SPRITE's box
+   *  side (the app's icF grown by the glyph bake's 32%-a-side canvas
+   *  padding, Size dial included). Absent (JsonUtility 0) on old zips —
+   *  the importer keeps its heuristic there. */
+  fireDx?: number; fireDy?: number; fireW?: number;
+  /** manarails (round 44, RIG-1 x2): each fill row's rail band, SHELL-
+   *  CENTER relative in design px (the labelDx discipline — crop-proof);
+   *  absent on every other row (JsonUtility zero-gates on railW). */
+  railDx?: number; railDy?: number; railW?: number; railH?: number;
   /** The Leading dial, resolved per row (base = the resting design;
    *  base-<state> rows = that state's fork-first per-key read — bevel's
-   *  endturn rule verbatim), as the app's raw percentage. Emitted ONLY on
-   *  stacked multi-line label rows (STACKED_LABEL_PROPS — endturn today)
-   *  and ONLY when non-factory (≠ 100), so a factory kit's manifest stays
-   *  byte-identical. The importer maps it onto the live label as
-   *  TMP lineSpacing = 0.73 * (leading − 100): the app's gap is
-   *  fs·0.73em·leading/100, so the DELTA from factory is 0.73em per 100%
-   *  — riding TMP's em*100 spacing units on top of the face's natural
-   *  line height, which IS today's look at factory (absent/100 ⇒ 0). */
+   *  endturn rule verbatim), as the app's raw percentage. Emitted on
+   *  stacked multi-line label rows (STACKED_LABEL_PROPS — endturn today),
+   *  ALWAYS — factory 100 included (round 44 field: "leading between
+   *  lines is off in Unity" — the old delta mapping left factory stacks
+   *  at TMP's natural line height, looser than the app's 0.73em). The
+   *  importer maps it ABSOLUTELY onto the live label:
+   *  lineSpacing = (0.73·leading/100 − face lineHeight/pointSize) · 100
+   *  — the app's center-to-center gap is fs·0.73em·leading/100, and the
+   *  spacing rebases TMP's own line advance onto exactly that. Absent
+   *  rows (old zips — JsonUtility 0) still map to 0: natural height. */
   leading?: number;
   /** The gauge READOUT seat, parsed from the face render's geo stamp
    *  (data-gauge) in file px at pngScale: number center x/y + font size,
@@ -215,6 +248,11 @@ interface AssetMeta {
      *  disable or delete as ONE group (the bottomnav badge's plate +
      *  count). Absent = the word sits on the Words tree as ever. */
     rider?: string;
+    /** round 48 (the smashed-pair guard, cross-lane): this seat's word
+     *  trips kernCollides in its own face — the app renders it with
+     *  kerning off, and the live TMP seat must too (per-label, never
+     *  global). Parsed from the render's own font-kerning:none. */
+    unkern?: boolean;
   }[];
   /** The piece's content-text recipe for its DRESSED seats (same shape the
    *  gauges ship as gauge.ink) — effects only; each seat carries its fill. */
@@ -264,7 +302,12 @@ interface AssetMeta {
     /** friendly child name (data-icon-nick) — a seat that IS a named
      *  thing in the dev's world ("Selected ring", "Badge plate") wears
      *  that name in the Hierarchy instead of the generic "Icon <name>". */
-    nick?: string }[];
+    nick?: string;
+    /** TINTABLE ink (data-icon-tint — the score bug's team bars): the
+     *  sprite is cut WHITE and the importer sets the child's Image.color
+     *  to this hex, so a dev retint is one clean color edit and the
+     *  app's color slots land exactly. */
+    tint?: string }[];
 }
 
 export interface EngineExportState {
@@ -417,6 +460,11 @@ export interface ExportBoardItemData {
       swappable Image child on the placed root, so posed copies obey the
       law exactly like the family prefabs. */
   posedIcons?: { name: string; file: string; dx: number; dy: number; w: number; h: number; btn?: boolean; wellR?: number; nick?: string;
+    /** TINTABLE ink on the posed road too (round 43 review paper cut —
+     *  the family road tinted, the posed rebuild didn't: the first board
+     *  scorebug would have shipped WHITE team bars): white-cut sprite,
+     *  the slot color rides Image.color in the scene rebuild. */
+    tint?: string;
     /** a RIDER WORD stripped from the posed pixels with its plate (round
      *  40 — the owner's Booster Select cards lost their ×3/×1/×2: the
      *  un-burn rebuilt the pill as a live child ON TOP of the bake, so
@@ -493,12 +541,12 @@ export interface ExportBoardData {
    ancestors, filters and clips kept, so the sprite is the app's exact
    pixels) and strip the groups from the shipping bake. ── */
 const ICON_DRAWABLE_SEL = "path,rect,circle,ellipse,line,polyline,polygon,text,image,use";
-function markedIconOnlySvgs(svgIn: string): { name: string; btn: boolean; well: number[] | null; nick: string | null; svg: string }[] {
+function markedIconOnlySvgs(svgIn: string): { name: string; btn: boolean; well: number[] | null; box: number[] | null; nick: string | null; tint: string | null; svg: string }[] {
   try {
     const dom0 = new DOMParser().parseFromString(svgIn, "image/svg+xml");
     const gs0 = Array.from(dom0.querySelectorAll('[data-part="icon"]'));
     if (!gs0.length) return [];
-    const out: { name: string; btn: boolean; well: number[] | null; nick: string | null; svg: string }[] = [];
+    const out: { name: string; btn: boolean; well: number[] | null; box: number[] | null; nick: string | null; tint: string | null; svg: string }[] = [];
     for (let gi = 0; gi < gs0.length; gi++) {
       const dom = new DOMParser().parseFromString(svgIn, "image/svg+xml");
       const gs = Array.from(dom.querySelectorAll('[data-part="icon"]'));
@@ -507,16 +555,89 @@ function markedIconOnlySvgs(svgIn: string): { name: string; btn: boolean; well: 
       for (const g of gs) if (g !== keep && !g.contains(keep) && !keep.contains(g)) g.remove();
       for (const el of Array.from(dom.querySelectorAll(ICON_DRAWABLE_SEL)))
         if (!el.closest("defs") && !keep.contains(el)) el.remove();
+      /* TINTABLE ink (round 41 — the score bug's team bars): a marked
+         group carrying data-icon-tint cuts its sprite WHITE and records
+         the color; the importer sets the child's Image.color to it, so
+         white × tint reproduces the app exactly and a dev retint is one
+         clean color edit. Only ink drawn IN the tint color whitens —
+         outlines and shading in other colors stay the art's. */
+      const tint = gs0[gi].getAttribute("data-icon-tint") || null;
+      if (tint) {
+        const norm = (c: string | null) => (c ?? "").trim().toUpperCase();
+        for (const el of Array.from(keep.querySelectorAll(ICON_DRAWABLE_SEL))) {
+          if (norm(el.getAttribute("fill")) === norm(tint)) el.setAttribute("fill", "#FFFFFF");
+          if (norm(el.getAttribute("stroke")) === norm(tint)) el.setAttribute("stroke", "#FFFFFF");
+        }
+      }
       out.push({
         name: gs0[gi].getAttribute("data-icon") ?? (gs0.length > 1 ? `icon${gi + 1}` : "glyph"),
         btn: gs0[gi].getAttribute("data-icon-btn") === "1",
         well: gs0[gi].getAttribute("data-icon-well")?.split(" ").map(Number) ?? null,
+        /* a FIXED crop frame "x y w h" in raw design px (round 44, item
+           29b — the quest pips): marks whose looks must SWAP cleanly all
+           declare the same box, so every cut shares one canvas and a
+           sprite swap registers with zero distortion (the dialog's
+           fixed-canvas lesson, brought to icon children) */
+        box: gs0[gi].getAttribute("data-icon-box")?.split(" ").map(Number) ?? null,
         nick: gs0[gi].getAttribute("data-icon-nick") || null,
+        tint,
         svg: new XMLSerializer().serializeToString(dom.documentElement),
       });
     }
     return out;
   } catch { return []; }
+}
+/* ── RIG-1 display bars (round 44, items 19/27/30 + buildqueue): the
+   mercury is MARKED ink now — data-barfill wraps each bar case's fill
+   drawing and stamps its drawn rect (x y w h, viewBox units). These two
+   hands un-burn it: the base bakes trackified; the fill/cap atoms
+   re-render ONLY the mercury (defs, gradients and filters kept, so the
+   sprite is the app's exact dressing). ── */
+function barFillOnlySvg(svgIn: string): { svg: string; box: [number, number, number, number] } | null {
+  try {
+    const dom = new DOMParser().parseFromString(svgIn, "image/svg+xml");
+    const keep = dom.querySelector("[data-barfill]");
+    if (!keep) return null;
+    const box = (keep.getAttribute("data-barfill") ?? "").split(" ").map(Number);
+    if (box.length !== 4 || box.some((v) => !Number.isFinite(v))) return null;
+    for (const el of Array.from(dom.querySelectorAll(ICON_DRAWABLE_SEL)))
+      if (!el.closest("defs") && !keep.contains(el)) el.remove();
+    return { svg: new XMLSerializer().serializeToString(dom.documentElement), box: box as [number, number, number, number] };
+  } catch { return null; }
+}
+/* multi-rail form (manarails, round 44): every marked group, each as its
+   own only-this-group document — data-barfill-name keys the pair */
+function barFillGroups(svgIn: string): { name: string; box: [number, number, number, number]; svg: string }[] {
+  try {
+    const dom0 = new DOMParser().parseFromString(svgIn, "image/svg+xml");
+    const gs0 = Array.from(dom0.querySelectorAll("[data-barfill]"));
+    const out: { name: string; box: [number, number, number, number]; svg: string }[] = [];
+    for (let gi = 0; gi < gs0.length; gi++) {
+      const dom = new DOMParser().parseFromString(svgIn, "image/svg+xml");
+      const gs = Array.from(dom.querySelectorAll("[data-barfill]"));
+      const keep = gs[gi];
+      if (!keep) continue;
+      const box = (keep.getAttribute("data-barfill") ?? "").split(" ").map(Number);
+      if (box.length !== 4 || box.some((v) => !Number.isFinite(v))) continue;
+      for (const el of Array.from(dom.querySelectorAll(ICON_DRAWABLE_SEL)))
+        if (!el.closest("defs") && !keep.contains(el)) el.remove();
+      out.push({
+        name: gs0[gi].getAttribute("data-barfill-name") ?? `fill${gi + 1}`,
+        box: box as [number, number, number, number],
+        svg: new XMLSerializer().serializeToString(dom.documentElement),
+      });
+    }
+    return out;
+  } catch { return []; }
+}
+function stripBarFill(svgIn: string): { svg: string; stripped: boolean } {
+  try {
+    const dom = new DOMParser().parseFromString(svgIn, "image/svg+xml");
+    const gs = Array.from(dom.querySelectorAll("[data-barfill]"));
+    if (!gs.length) return { svg: svgIn, stripped: false };
+    for (const g of gs) g.remove();
+    return { svg: new XMLSerializer().serializeToString(dom.documentElement), stripped: true };
+  } catch { return { svg: svgIn, stripped: false }; }
 }
 function stripMarkedIcons(svgIn: string): { svg: string; iconsStripped: number } {
   try {
@@ -596,6 +717,29 @@ const PREFAB_FAMILY: Partial<Record<KitComponentId, string>> = {
   nameplate: "nameplate", stepper: "stepper", notifydot: "notifydot",
   loadbar: "loadbar", setrow: "setrow", listmenu: "listmenu",
   scrollbar: "scrollbar", steps: "steps", pagedots: "pagedots",
+  // the RPG & MMO slice (S2)
+  questpanel: "questpanel", dialoguebox: "dialoguebox", choicelist: "choicelist",
+  // round 44: the staged vital bar's road stands ready (ships on release)
+  manarails: "manarails", xpbar: "xpbar", vitalbar: "vitalbar", invgrid: "invgrid",
+  partyframe: "partyframe", compass: "compass", dmgnumber: "dmgnumber",
+  equipslot: "equipslot", skillnode: "skillnode",
+  // the Shooter & Action slice (S3)
+  ammo: "ammo", killfeed: "killfeed", magazine: "magazine",
+  equipselector: "equipselector", streakmeter: "streakmeter", waypoint: "waypoint",
+  capturemeter: "capturemeter", respawn: "respawn", weaponwheel: "weaponwheel",
+  crosshair: "crosshair", hitmarker: "hitmarker", dmgarc: "dmgarc",
+  buffframe: "buffframe", hotbar: "hotbar", lives: "lives",
+  // the Casual & saga slice (S4)
+  heartmeter: "heartmeter", energymeter: "energymeter", starrating: "starrating",
+  pathconnector: "pathconnector", combo: "combo", booster: "booster",
+  flipclock: "flipclock", stopwatch: "stopwatch",
+  // the Strategy & social slice (S5)
+  scorebug: "scorebug", friendrow: "friendrow", clancrest: "clancrest",
+  chatbubble: "chatbubble", emotewheel: "emotewheel", buildqueue: "buildqueue",
+  unitplate: "unitplate", techcard: "techcard", popmeter: "popmeter",
+  // the Rewards slice (S6)
+  pack: "pack", cardback: "cardback", orderticket: "orderticket",
+  chest: "chest", giftbox: "giftbox", rewardtray: "rewardtray", chestpanel: "chestpanel",
 };
 // the glyph rack: pure-art silhouettes, one Image prefab each — placeable,
 // tintable, never fake buttons (the mandate's non-interactive lane)
@@ -606,14 +750,50 @@ for (const cGl of KIT_COMPONENTS) if (isGlyphPiece(cGl.id)) PREFAB_FAMILY[cGl.id
    press, which merely display). Interactive = the app's own anatomy:
    buttons-group members and selectable cards/nodes; the display set is
    pinned chrome and HUD readouts (PINNED_CHROME's movecounter included). */
-const UNIVERSAL_INTERACTIVE = new Set<KitComponentId>(["ghost", "claimbtn", "levelnode", "dailycell", "boostercard", "rewardcard"]);
+const UNIVERSAL_INTERACTIVE = new Set<KitComponentId>(["ghost", "claimbtn", "levelnode", "dailycell", "boostercard", "rewardcard",
+  // RPG slice: the skill node is a real button in the app ("build drives
+  // its hover/pressed states natively") — it presses in Unity too
+  "skillnode",
+  // Casual & saga slice: the booster is a real circular button
+  "booster",
+  /* Rewards slice: the staged bay's pressable rewards — real buttons by
+     the kit page's own meta ("chests, gifts, cards and claims are real
+     buttons"). stagedShips gates their EMISSION: the road stands ready
+     and ships the moment the owner releases them. */
+  "orderticket", "chest", "giftbox"]);
 const UNIVERSAL_DISPLAY = new Set<KitComponentId>(["qtybadge", "resource", "currency", "movecounter", "ring", "avatarframe", "bottomnav",
   /* the FULL-CATALOG round (owner roster, 2026-08-28: "Include the following
      exports in the Playground scene") — chrome & foundations first: every
      one ships the whole-shell bake with live word seats and marked icon
      children, placeable display pieces (composed controls stay composed —
      a stepper's two caps or a menu's four rows are not ONE button). */
-  "nameplate", "stepper", "notifydot", "loadbar", "setrow", "listmenu", "scrollbar", "steps", "pagedots"]);
+  "nameplate", "stepper", "notifydot", "loadbar", "setrow", "listmenu", "scrollbar", "steps", "pagedots",
+  /* RPG & MMO slice: quests, dialogue, vitals, inventory and party — the
+     role-playing vocabulary, whole-shell bakes with live words and marked
+     icon children (portrait wells included). The damage number keeps its
+     tilted digits in the art by the warped-stamp contract (rotation is
+     the art); per-copy magnitudes ride posed skins. */
+  "questpanel", "dialoguebox", "choicelist", "manarails", "xpbar", "vitalbar", "invgrid", "partyframe", "compass", "dmgnumber", "equipslot",
+  /* Shooter & Action slice: the section, complete (owner roster) — the
+     spatial pieces (crosshair, marker, arc, waypoint) are shell-free art
+     with the dark understroke; the loadout pieces carry live glyph
+     children; the streak meter ships both ignition poses and the
+     StreakIgnite rig. Plus the owner's "5 lives" hearts. */
+  "ammo", "killfeed", "magazine", "equipselector", "streakmeter", "waypoint", "capturemeter", "respawn", "weaponwheel", "crosshair", "hitmarker", "dmgarc", "buffframe", "hotbar", "lives",
+  /* Casual & saga slice: the meters honor the app's icon slots as live
+     pip/badge children (c98eade's Unity half), the saga path and stars
+     join the shelf, both timer voices ship, and the combo celebrates
+     with its own runtime (ComboPop + ClaimBurst — the app's exact pop). */
+  "heartmeter", "energymeter", "starrating", "pathconnector", "combo", "flipclock", "stopwatch",
+  /* Strategy & social slice: the command layer and the people layer —
+     the Match Score ships its ba34520 app half whole (Home/Away names
+     as live seats, team color bars as live TINTABLE children, value
+     slider untouched), and every social piece carries live portraits,
+     plates and glyphs. */
+  "scorebug", "friendrow", "clancrest", "chatbubble", "emotewheel", "buildqueue", "unitplate", "techcard", "popmeter",
+  /* Rewards slice: the released card twins join the shelf; the staged
+     tray and ceremony ride gated (stagedShips) until the owner's bless. */
+  "pack", "cardback", "rewardtray", "chestpanel"]);
 const UNIVERSAL_ROAD = new Set<KitComponentId>([...UNIVERSAL_INTERACTIVE, ...UNIVERSAL_DISPLAY]);
 /* the ACTION GLYPHS (round 40 — the owner's Gameplay pause button sat
    dead in Play): pause/play/replay/home are buttons by their own meaning
@@ -693,32 +873,22 @@ export async function collectExportBoards(st: {
   const STAGE_DIMS: Record<"169" | "mobile", [number, number]> = { "169": [1920, 1080], mobile: [390, 844] };
   const out: ExportBoardData[] = [];
   const seen = new Set<string>();
-  /* user-logo prefab names must stay UNIQUE per export: the importer
-     converges Prefabs/BigGlyphs/<FileSafeWord(name)>.prefab by NAME, so
-     a logo called "Star" would overwrite the owner's Star glyph prefab.
-     Compare on the importer's own truncation (24 chars, case-folded). */
-  const prefabKey = (n: string) => n.trim().slice(0, 24).trim().toLowerCase();
-  const logoNames = new Map<string, string>(); // aid → shipped unique name
-  const takenNames = new Set<string>();
-  for (const bd0 of st.boards) for (const b0 of bd0.items) {
-    if (b0.big) { const g0 = bigGlyphById(b0.big.gid); if (g0) takenNames.add(prefabKey(g0.name)); }
-  }
-  const logoShipName = (aid: string, name: string): string => {
-    const hit = logoNames.get(aid);
-    if (hit) return hit;
-    let want = name.trim() || "My logo";
-    if (takenNames.has(prefabKey(want))) {
-      for (let n = 2; ; n++) {
-        const cand = `${want.slice(0, 24 - String(n).length - 1).trim()} ${n}`;
-        if (!takenNames.has(prefabKey(cand))) { want = cand; break; }
-      }
-    }
-    takenNames.add(prefabKey(want));
-    logoNames.set(aid, want);
-    return want;
-  };
   for (const bd of st.boards) {
-    const items = bd.items.filter((b) => b.kitId || b.stamp || b.libId || b.big || b.logo);
+    /* ── ROUND 44 (owner mandate via the coordinator): the Uploads/Art
+       drawer — the painted big-glyph drop and account logo uploads —
+       does NOT travel in the Unity download. AI-generated art never
+       ships in the product's engine export: no sprites, no board rows,
+       no prefabs, no manifest presence. The board copy simply stays out
+       of the scene, LOUDLY (the warn below names the board and asset).
+       The shipped importer KEEPS its Art/BigGlyphs machinery untouched,
+       so old zips that already carry the art keep converging in kept
+       projects; the app's own stage keeps drawing these — only the
+       export road closes. ── */
+    for (const b of bd.items) {
+      if (b.big) console.warn(`engine export: board "${bd.name}" places the Art-drawer piece "${bigGlyphById(b.big.gid)?.name ?? b.big.gid}" — Uploads/Art never ships in the Unity download (owner mandate), so this copy stays out of the exported scene.`);
+      else if (b.logo) console.warn(`engine export: board "${bd.name}" places an uploaded logo — Uploads/Art never ships in the Unity download (owner mandate), so this copy stays out of the exported scene.`);
+    }
+    const items = bd.items.filter((b) => b.kitId || b.stamp || b.libId);
     if (!items.length) continue;
     const [W, H] = STAGE_DIMS[bd.aspect];
     let slug = bd.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "board";
@@ -857,8 +1027,6 @@ export async function collectExportBoards(st: {
        current. (The importer re-points scenes still holding old-scheme
        names once, position-keyed.) ── */
     const usedSid = new Set<string>();
-    /** clean big-glyph sprites ship ONCE per asset per board */
-    const bigClean = new Set<string>();
     const sidOf = (b: { id?: string }) => {
       let s = (b.id ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "").slice(-10);
       if (!s) s = `n${stampFiles.length + 1}`;
@@ -1022,140 +1190,6 @@ export async function collectExportBoards(st: {
                 };
               })()
             : {}),
-        });
-        continue;
-      }
-      if (b.big) {
-        /* a BIG GLYPH (the owner's board-art drop): each USED asset ships
-           as its own prefab (owner mandate) — the importer converges every
-           instance of one asset onto Prefabs/BigGlyphs/<Name>.prefab. A
-           CLEAN instance wears the asset's original bytes, shipped once
-           per asset; an instance with shadow/glow dials bakes them into
-           its own sprite (the posed-pipeline precedent — live-effect
-           travel is a future option). */
-        const gl = bigGlyphById(b.big.gid);
-        if (!gl) continue;
-        const hasFx = !!(b.big.shadow || b.big.glow);
-        const kB = (b.scale ?? 1) * BIG_GLYPH_BASE;
-        /* fx sprites are PADDED (symmetric, so the center holds): w/h must
-           describe the shipped raster's footprint or the importer would
-           squeeze the halo into the art rect — the stamp rows' contract */
-        const padB = hasFx ? bigGlyphFilterPad(b.big) : 0;
-        const wB = (gl.w + padB * 2) * kB, hB = (gl.h + padB * 2) * kB;
-        const cxB = b.x + (gl.w * kB) / 2, cyB = b.y + (gl.h * kB) / 2;
-        // a glyph parked off the stage never drew in the app — the
-        // stage-clip contract, gated before any bytes ship
-        if (!onStage(cxB, cyB, wB, hB, b.rot)) continue;
-        let file: string;
-        try {
-          if (!hasFx) {
-            file = `bigglyphs/${gl.id}.png`;
-            if (!bigClean.has(gl.id)) {
-              const resp = await fetch(bigGlyphUrl(gl.id));
-              stampFiles.push({ file, bytes: new Uint8Array(await resp.arrayBuffer()) });
-              bigClean.add(gl.id);
-            }
-          } else {
-            const img = await new Promise<HTMLImageElement>((res, rej) => {
-              const im = new Image();
-              im.onload = () => res(im); im.onerror = rej;
-              im.src = bigGlyphUrl(gl.id);
-            });
-            const padPx = bigGlyphFilterPad(b.big);
-            const cv = document.createElement("canvas");
-            cv.width = img.width + padPx * 2; cv.height = img.height + padPx * 2;
-            const cx2 = cv.getContext("2d")!;
-            const bf = bigGlyphFilter(st.cfg, b.big);
-            if (bf) cx2.filter = bf;
-            cx2.drawImage(img, padPx, padPx);
-            file = `bigglyphs/${gl.id}-${sidOf(b)}.png`;
-            stampFiles.push({ file, bytes: await canvasToPngBytesDilated(cv) });
-          }
-        } catch { continue; }
-        const axB = cxB < W / 3 ? 0 : cxB > (2 * W) / 3 ? 1 : 0.5;
-        const ayB = cyB < H / 3 ? 1 : cyB > (2 * H) / 3 ? 0 : 0.5;
-        exItems.push({
-          component: "bigglyph", cx: Math.round(cxB * 10) / 10, cy: Math.round(cyB * 10) / 10,
-          w: Math.round(wB * 10) / 10, h: Math.round(hB * 10) / 10,
-          // the glyph's own raster is the art box; an fx copy's symmetric
-          // filter pad is (w - artW)/2 per side — raycasts stop at the art
-          artW: Math.round(gl.w * kB * 10) / 10, artH: Math.round(gl.h * kB * 10) / 10,
-          rot: b.rot ?? 0, label: null, value: null, ax: axB, ay: ayB,
-          anchor: `${ayB === 1 ? "top" : ayB === 0 ? "bottom" : "middle"}-${axB === 0 ? "left" : axB === 1 ? "right" : "center"}`,
-          stamp: file,
-          big: { id: gl.id, name: gl.name, sprite: file, fx: hasFx },
-        });
-        continue;
-      }
-      if (b.logo) {
-        /* a USER LOGO travels the EXACT big-glyph road (owner: "these
-           assets should live in my assets drawer and follow my account"):
-           `component: "bigglyph"` rows with big.id "user-<aid>" and the
-           sprite at bigglyphs/<big.id>.png — the shipped importer's
-           BigGlyphPrefabs walk converges every copy onto
-           Prefabs/BigGlyphs/<Name>.prefab with ZERO C# changes. Pixels
-           resolve vault-first, then the account's cloud copy (the
-           backdrop contract), and always re-encode to PNG so the .png
-           path speaks the truth whatever the upload container was. A
-           dialed copy bakes its shadow/glow into an instance-suffixed
-           sprite, the big-glyph fx precedent verbatim. */
-        const ua = st.userAssets?.find((a) => a.id === b.logo!.aid);
-        const aidSafe = ua ? ua.id.replace(/[^a-z0-9]/gi, "").slice(0, 24).toLowerCase() : "";
-        if (!ua || !aidSafe) continue;
-        const uid2 = `user-${aidSafe}`;
-        const hasFx = !!(b.logo.shadow || b.logo.glow);
-        let file: string;
-        let wNat = ua.w, hNat = ua.h;
-        try {
-          const rec = await resolveBgAsset(ua.ref);
-          if (!rec) continue; // bytes unreachable on this machine — the copy stays out, loudly absent
-          const bmp = await createImageBitmap(rec.blob);
-          wNat = bmp.width; hNat = bmp.height;
-          /* a logo parked off the stage never drew in the app — the
-             stage-clip contract, gated before any bytes ship (kBg/padBg
-             mirror the kB/padB math below the try) */
-          const kBg = (b.scale ?? 1) * BIG_GLYPH_BASE;
-          const padBg = hasFx ? bigGlyphFilterPad({ gid: "", ...b.logo }) : 0;
-          if (!onStage(b.x + (wNat * kBg) / 2, b.y + (hNat * kBg) / 2, (wNat + padBg * 2) * kBg, (hNat + padBg * 2) * kBg, b.rot)) { bmp.close(); continue; }
-          const draw = (pad: number, filter?: string): Promise<Uint8Array> => {
-            const cv = document.createElement("canvas");
-            cv.width = bmp.width + pad * 2; cv.height = bmp.height + pad * 2;
-            const cx2 = cv.getContext("2d")!;
-            if (filter) cx2.filter = filter;
-            cx2.drawImage(bmp, pad, pad);
-            return canvasToPngBytesDilated(cv);
-          };
-          if (!hasFx) {
-            file = `bigglyphs/${uid2}.png`;
-            if (!bigClean.has(uid2)) {
-              stampFiles.push({ file, bytes: await draw(0) });
-              bigClean.add(uid2);
-            }
-          } else {
-            const fxB = { gid: "", ...b.logo };
-            const bytesL = await draw(bigGlyphFilterPad(fxB), bigGlyphFilter(st.cfg, fxB));
-            file = `bigglyphs/${uid2}-${sidOf(b)}.png`;
-            stampFiles.push({ file, bytes: bytesL });
-          }
-          bmp.close();
-        } catch { continue; }
-        const kB = (b.scale ?? 1) * BIG_GLYPH_BASE;
-        // fx sprites pad symmetrically — same footprint contract as glyphs
-        const padB = hasFx ? bigGlyphFilterPad({ gid: "", ...b.logo }) : 0;
-        const wB = (wNat + padB * 2) * kB, hB = (hNat + padB * 2) * kB;
-        const cxB = b.x + (wNat * kB) / 2, cyB = b.y + (hNat * kB) / 2;
-        const axB = cxB < W / 3 ? 0 : cxB > (2 * W) / 3 ? 1 : 0.5;
-        const ayB = cyB < H / 3 ? 1 : cyB > (2 * H) / 3 ? 0 : 0.5;
-        exItems.push({
-          component: "bigglyph", cx: Math.round(cxB * 10) / 10, cy: Math.round(cyB * 10) / 10,
-          w: Math.round(wB * 10) / 10, h: Math.round(hB * 10) / 10,
-          artW: Math.round(wNat * kB * 10) / 10, artH: Math.round(hNat * kB * 10) / 10,
-          rot: b.rot ?? 0, label: null, value: null, ax: axB, ay: ayB,
-          anchor: `${ayB === 1 ? "top" : ayB === 0 ? "bottom" : "middle"}-${axB === 0 ? "left" : axB === 1 ? "right" : "center"}`,
-          stamp: file,
-          // the user's own name keys the prefab — uniquified against the
-          // glyph set so it can never overwrite a stock prefab
-          big: { id: uid2, name: logoShipName(ua.id, ua.name), sprite: file, fx: hasFx },
         });
         continue;
       }
@@ -1609,7 +1643,7 @@ export async function collectExportBoards(st: {
              posedLabel. This retires round 27's "the posed pixels carry
              the styled icon" stand-down: the icon rides LIVE on posed
              copies now, per the law. */
-          const posedCuts: { name: string; btn: boolean; well: number[] | null; nick: string | null; box: [number, number, number, number]; svg: string }[] = [];
+          const posedCuts: { name: string; btn: boolean; well: number[] | null; nick: string | null; tint: string | null; box: [number, number, number, number]; svg: string }[] = [];
           {
             const shD9 = /data-shell="([-\d. ]+)"/.exec(ps2)?.[1].split(" ").map(Number);
             const sh09 = /data-shell0="([-\d. ]+)"/.exec(ps2)?.[1].split(" ").map(Number);
@@ -1742,6 +1776,7 @@ export async function collectExportBoards(st: {
                   ...(cut.btn ? { btn: true } : {}),
                   ...(cut.well ? { wellR: r1p(cut.well[2] * Math.min(kx2, ky2)) } : {}),
                   ...(cut.nick ? { nick: cut.nick } : {}),
+                  ...(cut.tint ? { tint: cut.tint } : {}),
                   ...(rw ? {
                     word: rw.text,
                     wordFs: r1p(rw.fs * ky2),
@@ -2794,6 +2829,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       let warped = !!t.querySelector("textPath");
       let ghosted = false;
       let dressed = false;
+      /* round 48 (the smashed-pair guard): the app renders a kern-guarded
+         word with font-kerning:none — the seat carries the flag so the
+         live TMP applies the same guard, per-label */
+      let unkern = false;
       let tdx = 0, tdy = 0;
       for (let p: Element | null = t; p && p.tagName.toLowerCase() !== "svg"; p = p.parentElement) {
         const tf = p.getAttribute("transform") ?? "";
@@ -2804,6 +2843,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         }
         if (p.getAttribute("opacity") === "0") ghosted = true;
         if (p !== t && p.getAttribute("filter")) dressed = true;
+        if (/font-kerning:\s*none/.test(p.getAttribute("style") ?? "") || p.getAttribute("font-kerning") === "none") unkern = true;
       }
       if (warped || ghosted) continue;
       /* multi-ink tspans (the telemetry THR/BRK/SPD legend) become ONE
@@ -2885,6 +2925,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         // a word marked to RIDE an icon seat travels with that live child
         // (the bottomnav badge count on its plate) — see AssetMeta.rider
         ...(t.getAttribute("data-seat-rider") ? { rider: t.getAttribute("data-seat-rider")! } : {}),
+        ...(unkern ? { unkern: true } : {}),
       });
       if (seats.length >= 40) break; // sanity cap
     }
@@ -3134,7 +3175,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
          (the masked child stretches the sprite over the well rect 1:1);
          everything else crops to its drawn alpha box + 2px of AA air */
       let bx: number, by: number, bw9: number, bh9: number;
-      if (mk.well && mk.well.length === 3 && mk.well.every(Number.isFinite)) {
+      if (mk.box && mk.box.length === 4 && mk.box.every(Number.isFinite) && mk.box[2] > 1 && mk.box[3] > 1) {
+        // fixed frame (round 44): every look of this mark shares one canvas
+        bx = mk.box[0]; by = mk.box[1] + riseDy; bw9 = mk.box[2]; bh9 = mk.box[3];
+      } else if (mk.well && mk.well.length === 3 && mk.well.every(Number.isFinite)) {
         const [wcx, wcy, wr] = mk.well;
         bx = wcx - wr; by = wcy - wr + riseDy; bw9 = wr * 2; bh9 = wr * 2;
       } else {
@@ -3167,6 +3211,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         ...(mk.btn ? { btn: true } : {}),
         ...(mk.well ? { wellR: r1(mk.well[2]) } : {}),
         ...(mk.nick ? { nick: mk.nick } : {}),
+        ...(mk.tint ? { tint: mk.tint } : {}),
       });
     }
     return seats.length ? seats : null;
@@ -3182,7 +3227,13 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     "gearicon", "trophyicon", "gifticon", "firebutton", "endturn", "keycap", "pricebtn", "countbadge",
     // the universal road's pressable families hover/press like buttons —
     // their aura is their own silhouette, never the generic blob
-    ...UNIVERSAL_INTERACTIVE]);
+    ...UNIVERSAL_INTERACTIVE,
+    // the 2x reward button (round 43 review blocker: it shipped as a dead
+    // click-eater) — a pressable VARIANT family rides the same aura road
+    "claimbtn-double",
+    /* round 44 (owner: "key space… Pad A, Pad B, etc"): the input-prompt
+       variants press for real and carry their own silhouette auras */
+    "keycap-space", "padbtn", "padbtn-b", "padbtn-x", "padbtn-y"]);
   /* GROUND-TRUTH SLICING (Jimi's notes, round two: even geometry-derived
      borders kinked a stretched corner — his kit's face is not the
      design-space shape, and extrusion regrows the crop box, so ANY formula
@@ -3252,7 +3303,14 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       onProgress?.(qi, total, q.path);
       if (q.group && !grouped.has(qi)) {
         const idxs = byGroup.get(q.group)!;
-        const outs = await svgsToPngBytesTightUnion(idxs.map((i) => pngQueue[i].svg), PNG_SCALE);
+        /* round 47 (owner field: the lit hearts' glow cut to a hard
+           rectangle): a group member may ask for a wider crop margin (a
+           numeric crop = margin px, same as the ungrouped road) so a
+           glow tail fades to ZERO inside the sprite instead of stepping
+           off at the alpha-threshold contour. The union takes the widest
+           ask; every member keeps ONE shared frame. */
+        const gMargin = Math.max(4, ...idxs.map((i) => typeof pngQueue[i].crop === "number" ? pngQueue[i].crop as number : 4));
+        const outs = await svgsToPngBytesTightUnion(idxs.map((i) => pngQueue[i].svg), PNG_SCALE, gMargin);
         idxs.forEach((i, j) => grouped.set(i, outs[j]));
       }
       const raster: { bytes: Uint8Array; w: number; h: number; box?: CropBox } =
@@ -3285,15 +3343,55 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
          the shell — viewBox origin, then the crop box — so the bar
          prefabs seat their mercury exactly on the app's zone (round 21) */
       let trackZone: AssetMeta["track"] = null;
-      {
+      /* round 47 (owner field: composite mercuries seated beside their
+         TITLES): the root stamp rides into EVERY part render of a
+         stamped family, so icon/fill/cap/pip rows carried crop-shifted
+         zone garbage — and the importer's any-row fallback drank from
+         whichever came first (buildqueue's icon-glyph, questpanel's
+         icon-pip1, unitplate's icon-portrait). The zone is only truth on
+         the rows whose crop frame IS the piece: base, a dedicated track
+         part, and the lit strip (crop-grouped with base). */
+      const zoneRowOk = q.meta.part === "base" || q.meta.part === "track" || q.meta.part === "lit";
+      if (zoneRowOk) {
         const tzm = /data-track="([-\d. ]+)"/.exec(q.svg);
         const vbm = /viewBox="(-?[\d.]+) (-?[\d.]+)/.exec(q.svg);
         if (tzm && vbm) {
-          const [tzx, tzw] = tzm[1].split(" ").map(Number);
+          const [tzx, tzw, tzy, tzh] = tzm[1].split(" ").map(Number);
+          /* the stamp speaks the PRE-SHIFT frame (its numbers ride inside
+             the extrusion-headroom translate) — the vertical band shifts
+             by the drawn-vs-raw shell delta, the iconSeatsOf riseDy rule;
+             x needs no correction (the rise is vertical only) */
+          const shDt = /data-shell="([-\d. ]+)"/.exec(q.svg)?.[1].split(" ").map(Number);
+          const sh0t = /data-shell0="([-\d. ]+)"/.exec(q.svg)?.[1].split(" ").map(Number);
+          const riseDyT = shDt && sh0t && shDt.length === 4 && sh0t.length === 4 ? shDt[1] - sh0t[1] : 0;
           trackZone = {
             x: Math.round(((tzx - +vbm[1]) * PNG_SCALE - (raster.box?.x0 ?? 0)) * 10) / 10,
             w: Math.round(tzw * PNG_SCALE * 10) / 10,
+            /* round 44: the optional vertical band travels the same crop
+               road; two-number stamps ship exactly what they always did */
+            ...(Number.isFinite(tzy) && Number.isFinite(tzh) ? {
+              y: Math.round(((tzy + riseDyT - +vbm[2]) * PNG_SCALE - (raster.box?.y0 ?? 0)) * 10) / 10,
+              h: Math.round(tzh * PNG_SCALE * 10) / 10,
+            } : {}),
           };
+        }
+      }
+      /* the mercury/bead BODY box (round 48 — the owner's seat field
+         note): stamped deliberately on fill/cap atom docs only
+         (data-fillbody never rides a root render), crop-corrected the
+         same way as the zone, so the rig knows where the ink truly ends
+         inside the glow-padded crop */
+      let fillBody: AssetMeta["body"] = null;
+      {
+        const fbm = /data-fillbody="([-\d. ]+)"/.exec(q.svg);
+        const vbm2 = /viewBox="(-?[\d.]+) (-?[\d.]+)/.exec(q.svg);
+        if (fbm && vbm2) {
+          const [fbx, fbw] = fbm[1].split(" ").map(Number);
+          if (Number.isFinite(fbx) && Number.isFinite(fbw) && fbw > 1)
+            fillBody = {
+              x: Math.round(((fbx - +vbm2[1]) * PNG_SCALE - (raster.box?.x0 ?? 0)) * 10) / 10,
+              w: Math.round(fbw * PNG_SCALE * 10) / 10,
+            };
         }
       }
       /* TEXT SEATS normalize here: measured in the bake's viewBox units,
@@ -3420,7 +3518,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       // per-piece forks can arm the edge shine even when the kit default is
       // off, so any armed fork keeps the outlines flowing into the manifest
       const idleOutline = (st.cfg.idle?.edge || Object.values(st.kitDesigns ?? {}).some((kd) => kd?.idle?.edge)) && q.meta.part === "base" ? sampleOutline(q.svg) : null;
-      manifest.push({ file: `assets/${q.path}`, nativeW: w, nativeH: h, sha256: await sha256Hex(bytes), shell: shellBox, ...(trackZone ? { track: trackZone } : {}), ...(idleOutline ? { outline: idleOutline } : {}), ...q.meta });
+      manifest.push({ file: `assets/${q.path}`, nativeW: w, nativeH: h, sha256: await sha256Hex(bytes), shell: shellBox, ...(trackZone ? { track: trackZone } : {}), ...(fillBody ? { body: fillBody } : {}), ...(idleOutline ? { outline: idleOutline } : {}), ...q.meta });
       /* the piece's own aura, derived from the sprite we just made — the
          silhouette blurred exactly the way the app blurs it. Only for the
          families that swap: a panel has no hover to announce. */
@@ -3456,6 +3554,18 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      lane centers, lane-label x. The importer maps them through the board
      asset's shell row so the live cells land exactly on the art. */
   let seasonGeo: { x0: number; x1: number; spineY: number; laneFreeY: number; lanePremY: number; labelX: number } | null = null;
+  /* RIG-5 geometry blocks (round 44, the SeasonTrack pattern): design px
+     in the part-less canvas frame (both bases ship crop-false, so canvas
+     px ARE sprite px); old zips simply lack the keys (JsonUtility zero-
+     gates on pitch). staged = the index the maker's value picked. */
+  let pageDotsGeo: { x0: number; cy: number; pitch: number; r: number; n: number; staged: number; w: number; h: number } | null = null;
+  let startLightsGeo: { x0: number; cy: number; pitch: number; r: number; n: number; staged: number; w: number; h: number } | null = null;
+  /* round 44 tail (items 38 + 26): the step lane's geometry (pitch/r in
+     PNG px — crop-proof; the anchor rides the plate row's gauge stamp)
+     and the saga trail's nine sampled bezier centers (design px — the
+     dealt rig wears no sprite, so design units ARE its UI units) */
+  let stepsGeo: { x0: number; cy: number; pitch: number; r: number; n: number; staged: number; w: number; h: number } | null = null;
+  let pathGeo: { w: number; h: number; n: number; staged: number; pts: number[] } | null = null;
   // rarity ladder — rendered as frames only in the full kit, but declared
   // here because the manifest's rarity block (full-gated) also reads it
   const tiersR = rarityTiers(st.cfg);
@@ -3471,7 +3581,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     { id: "input", family: "input", h: 124, usage: "Input field surface (well included). Nothing is baked into it — the placeholder ships as a live text layer on the prefab, and the value and caret are engine widgets." },
     { id: "panel", family: "panel", h: 380, usage: "Container / window. Content is engine layout." },
     { id: "header", family: "header-banner", h: 158, usage: "Header banner. Title is live engine text." },
-    { id: "datarow", family: "list-row", h: 128, usage: "Data row — the app's own catalog name (the prefab is DataRow). Portrait, mini-progress mercury and the trailing action are LIVE Image children; title and subtitle are live seats; the well plate and bar track stay anatomy." },
+    { id: "datarow", family: "list-row", h: 128, usage: "Data row — the app's own catalog name (the prefab is DataRow). Portrait and mini-progress mercury are LIVE Image children; title and subtitle are live seats; the well plate and bar track stay anatomy. No trailing arrow ships (owner ruling) — posed copies (locked/check/alert) still carry their live badges." },
     { id: "slot", family: "item-slot", h: 128, usage: "Item slot frame + well. Item icon and count are engine content." },
   ];
   /* the prefab's DEFAULT rect wears the kit's WORDS — see PREF_LABEL at
@@ -3719,7 +3829,13 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      capsule and gradient pill are gone; SAME FILENAMES, so existing
      projects upgrade in place and the maintenance pass reseats the rig. */
   await addPng("progress/track.9.png", shell("progress", { overlay: "track" }, slim), { component: "progress", part: "track", nineSlice: sliceOf("progress", 64), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Progress track — the real component's shell + well, no fill. The wired ProgressBar prefab stretches it." }, true);
-  await addPng("progress/fill.9.png", shell("progress", { overlay: "fill" }, slim, 1), { component: "progress", part: "fill", nineSlice: sliceOf("progress", 44), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Progress mercury at 100% — the wired prefab's Filled image scissors it to the live value, exactly like the app's clip." }, true);
+  await addPng("progress/fill.9.png", shell("progress", { overlay: "fill" }, slim, 1), { component: "progress", part: "fill", nineSlice: sliceOf("progress", 44), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Progress mercury at 100% — the wired prefab's Filled image scissors it to the live value, and KitBarFill parks the rounded head (progress-cap.png) on the growing end." }, true);
+  /* the ROUNDED HEAD atoms (round 44, owner kit-wide ruling: "the right
+     side of the mercury here is rounded, that's what I'm talking about
+     kit-wide") — the mercury's bead windowed from the app's own partial
+     drawing; KitBarFill parks it at the value line while the Filled crop
+     hides under its body, so the growing end rounds at ANY value. */
+  await addPng("progress/cap.png", shell("progress", { overlay: "cap" }, slim, 1), { component: "progress", part: "cap", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The mercury's rounded head — KitBarFill rides it on the fill's growing end (drive fillAmount or SetValue; the head follows, hides at 0, yields to the baked cap at 100%)." }, true);
   if (full) {
   // segmented meter — empty well plus one lit cell; the engine tiles cells
   // into the well at its own count/gap. The docked emblem socket ships as
@@ -3732,11 +3848,31 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      layers and place as wired prefabs, like the slider and the progress
      bar before them. */
   await addPng("vsbar/track.9.png", shell("vsbar", { overlay: "track" }, slim), { component: "vsbar", part: "track", nineSlice: sliceOf("vsbar", 96), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "VS health bar track — the real component's shell + well, no fills, no medallion. The wired VsBar prefab stretches it." }, true);
-  await addPng("vsbar/fill-l.png", shell("vsbar", { overlay: "fill" }, slim, 1), { component: "vsbar", part: "fill-l", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Left fighter's mercury at 100% — Filled/Horizontal, Origin Left; fillAmount IS the left health, draining toward center." }, true);
-  await addPng("vsbar/fill-r.png", shell("vsbar", { overlay: "fill-right" }, slim, 1), { component: "vsbar", part: "fill-r", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Right fighter's mercury at 100% — Filled/Horizontal, Origin Right; fillAmount IS the right health." }, true);
-  await addPng("vsbar/medal.png", shell("vsbar", { overlay: "medal" }, slim), { component: "vsbar", part: "medal", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The candy VS medallion, kit-typed — rides the axis over both fills and holds its size when the bar stretches." }, true);
+  await addPng("vsbar/fill-l.png", shell("vsbar", { overlay: "fill" }, slim, 1), { component: "vsbar", part: "fill-l", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Left fighter's mercury at 100% — KitBarFill COMPRESSES it into the live run (the app squeezes its ramp the same way; a windowed crop would wear the wrong ink at every value but full). Drive SetValue or write fillAmount; the drain cap follows." }, true);
+  await addPng("vsbar/fill-r.png", shell("vsbar", { overlay: "fill-right" }, slim, 1), { component: "vsbar", part: "fill-r", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Right fighter's mercury at 100%, mirrored — KitBarFill compresses it into the live run toward center. Drive SetValue or write fillAmount; the drain cap follows." }, true);
+  await addPng("vsbar/cap-l.png", shell("vsbar", { overlay: "cap-l" }, slim, 1), { component: "vsbar", part: "cap-l", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Left fighter's drain bead — KitBarFill parks it at the health line (round 44: rounded at any value; round 47: faded lead-in blends into the compressed ramp)." }, true);
+  await addPng("vsbar/cap-r.png", shell("vsbar", { overlay: "cap-r" }, slim, 1), { component: "vsbar", part: "cap-r", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Right fighter's drain bead, PRE-MIRRORED — KitBarFill seats it pivot-first into the run at the health line (never x-flip it: the art already faces center)." }, true);
+  /* round 47 (owner field: the VS caps clashed with the ramp): the NUB
+     atoms — the live draw at run = one bar height, the whole ramp
+     squeezed into a stadium. Below one head-width KitBarFill squashes
+     the nub over the run (the app's short-tail shape and ink exactly)
+     and cross-fades it out as the bar grows. */
+  await addPng("vsbar/nub-l.png", shell("vsbar", { overlay: "nub-l" }, slim, 1), { component: "vsbar", part: "nub-l", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Left fighter's short-run pill — KitBarFill squashes it to the run below one head-width (the full ramp compressed, like the app's own tail) and fades it out as the bar grows." }, true);
+  await addPng("vsbar/nub-r.png", shell("vsbar", { overlay: "nub-r" }, slim, 1), { component: "vsbar", part: "nub-r", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Right fighter's short-run pill, mirrored — the same short-tail rig from the other end." }, true);
+  /* round 44 (dossier R1 — words-are-live law): the medal's "VS" leaves
+     the pixels. The word parses as a text seat off the medal's OWN canvas
+     (the raster queue normalizes fx/fy/ffs to the cropped sprite; the ink
+     sits well inside the knob, so the crop box holds still) and the
+     VsBarPrefab seats it live on the Medal child (WireTextSeats — the
+     claimbtn ribbon-word precedent, plate + live word). */
+  {
+    const vsMedalFull = shell("vsbar", { overlay: "medal" }, slim);
+    const vsMedalSeats = parseTextSeats(vsMedalFull, pieceCfg("vsbar").type.font);
+    await addPng("vsbar/medal.png", stripWordInk(vsMedalFull).svg, { component: "vsbar", part: "medal", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The candy VS medallion — rides the axis over both fills and holds its size when the bar stretches; the VS word is a LIVE seat on the Medal child (retype it in the Inspector).", ...(vsMedalSeats ? { textSeats: vsMedalSeats } : {}) }, true);
+  }
   await addPng("emblembar/track.9.png", shell("emblembar", { overlay: "track" }, slim), { component: "emblembar", part: "track", nineSlice: sliceOf("emblembar", 64), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Emblem bar track — the real component's shell + well, no fill, no socket. The wired EmblemBar prefab stretches it." }, true);
-  await addPng("emblembar/fill.9.png", shell("emblembar", { overlay: "fill" }, slim, 1), { component: "emblembar", part: "fill", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Emblem bar mercury at 100% — the wired prefab's Filled image scissors it to the live value." }, true);
+  await addPng("emblembar/fill.9.png", shell("emblembar", { overlay: "fill" }, slim, 1), { component: "emblembar", part: "fill", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Emblem bar mercury at 100% — the wired prefab's Filled image scissors it to the live value; KitBarFill parks the rounded head (emblembar-cap.png) on the growing end." }, true);
+  await addPng("emblembar/cap.png", shell("emblembar", { overlay: "cap" }, slim, 1), { component: "emblembar", part: "cap", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The emblem bar mercury's rounded head — KitBarFill rides it on the growing end." }, true);
   // icon undefined = the app's own default for a stock board copy (the
   // clock emblem); a dev drops their art in the socket's well in-engine
   /* the socket's canvas must hold the ICON-FX HALO (round 27 — owner,
@@ -3771,7 +3907,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      capsule approximation. Same filenames as the old synthesized strips —
      existing projects upgrade in place. */
   await addPng("slider/track.9.png", shell("slider", { overlay: "track" }, slim), { component: "slider", part: "track", nineSlice: sliceOf("slider", 64), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Slider track — the real component's shell + well, no fill, no knob. The wired Slider prefab stretches it." }, true);
-  await addPng("slider/fill.9.png", shell("slider", { overlay: "fill" }, slim, 1), { component: "slider", part: "fill", nineSlice: sliceOf("slider", 44), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Slider mercury at 100% — the wired prefab's Fill Rect scissors it to the live value." }, true);
+  await addPng("slider/fill.9.png", shell("slider", { overlay: "fill" }, slim, 1), { component: "slider", part: "fill", nineSlice: sliceOf("slider", 44), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Slider mercury at 100% — the wired prefab's Fill Rect scissors it to the live value; KitBarFill keeps the head rounded where thumb and fill separate." }, true);
+  await addPng("slider/cap.png", shell("slider", { overlay: "cap" }, slim, 1), { component: "slider", part: "cap", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The slider mercury's rounded head — usually under the thumb; KitBarFill keeps it honest at the extremes." }, true);
   await addPng("slider/thumb.png", shell("slider", { overlay: "knob" }, slim), { component: "slider", part: "thumb", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Slider knob — the kit's candy ball; the wired prefab drags it." }, true);
   await addPng("toggle/track.9.png", shell("toggle", { overlay: "track" }, slim, 1), { component: "toggle", part: "track", nineSlice: sliceOf("toggle", 102), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Switch track — the real component's shell + well. The wired Switch prefab slides the knob across it." }, true);
   await addPng("toggle/thumb.png", shell("toggle", { overlay: "knob" }, slim, 1), { component: "toggle", part: "thumb", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Switch knob, ON dot — the wired prefab slides it and swaps the OFF twin in." }, true);
@@ -3881,10 +4018,12 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
        export must carry the resolved value or Unity's LIVE label
        re-typesets at TMP's default line height forever). Emission is the
        raw dial percentage, per row, fork-first per key — bevel's endturn
-       read verbatim — and only when ≠ 100 so factory kits stay
-       byte-identical. Future stacked labels join this set and inherit
-       the whole plumb (manifest row → PBAsset.leading → the importer's
-       LeadingLineSpacing seam). */
+       read verbatim — ALWAYS, factory 100 included (round 44 field:
+       "leading between lines is off in Unity" — the importer's mapping is
+       ABSOLUTE now, and rebasing TMP's natural line height onto the app's
+       0.73em stack needs the factory value too). Future stacked labels
+       join this set and inherit the whole plumb (manifest row →
+       PBAsset.leading → the importer's LeadingLineSpacing seam). */
     const STACKED_LABEL_PROPS = new Set<KitComponentId>(["endturn"]);
     const leadingOf = (id: KitComponentId, stName?: "hover" | "pressed" | "disabled") => {
       const c = pieceCfg(id);
@@ -3894,7 +4033,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       return (stName ? c.stateDesigns?.[stName]?.type?.leading : undefined) ?? c.type.leading ?? 100;
     };
     const leadingRow = (id: KitComponentId, stName?: "hover" | "pressed" | "disabled") =>
-      STACKED_LABEL_PROPS.has(id) && leadingOf(id, stName) !== 100 ? { leading: leadingOf(id, stName) } : {};
+      STACKED_LABEL_PROPS.has(id) ? { leading: leadingOf(id, stName) } : {};
     /* the labeled PROPS' live words finally dress and seat like the app
        (slice-2 field, owner: "Keycap not respecting app text styling" —
        the prop rows shipped labelText alone, so Unity guessed size, ink
@@ -3911,7 +4050,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     const propLabelSeat = (id: KitComponentId, word: string | undefined): Partial<Pick<AssetMeta, "labelDx" | "labelDy" | "labelFs" | "labelInk" | "labelInk2">> => {
       if (word === undefined) return {};
       try {
-        if (id === "keycap") {
+        if (id === "keycap" || id === "padbtn") {
           const mK = labelSeatOf(id, word);
           return {
             ...(mK.labelDx !== undefined ? { labelDx: mK.labelDx } : {}),
@@ -3990,9 +4129,22 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
            each waiting-weapon chamber as its own bare sprite. The glyphs
            ride icons/ (sword, zap, flask, shield — tintable) and the
            FireButton runtime deals and re-deals them as the swipe cycles. */
-        await addPng("firebutton/dome.png", shell("firebutton", { overlay: "plain" }, undefined, 0),
+        /* the ARMED GLYPH's exact seat (round 44 field: "the main icon
+           sits low"): the bare render stamps data-fireseat in raw render
+           px; re-speak it shell-CENTER relative (the labelDx discipline —
+           raw-frame shell0 pairs with the raw-frame seat, and the rise
+           shifts both equally, so drawn-frame offsets fall out exact). */
+        const domeSvg44 = shell("firebutton", { overlay: "plain" }, undefined, 0);
+        const fireSeat44 = (() => {
+          const fsM = /data-fireseat="([-\d. ]+)"/.exec(domeSvg44)?.[1].split(" ").map(Number);
+          const shM = (/data-shell0="([-\d. ]+)"/.exec(domeSvg44) ?? /data-shell="([-\d. ]+)"/.exec(domeSvg44))?.[1].split(" ").map(Number);
+          if (!fsM || fsM.length !== 3 || !fsM.every(Number.isFinite) || !shM || shM.length !== 4 || !(fsM[2] > 1)) return {};
+          const r1 = (n: number) => Math.round(n * 10) / 10;
+          return { fireDx: r1(fsM[0] - (shM[0] + shM[2] / 2)), fireDy: r1(fsM[1] - (shM[1] + shM[3] / 2)), fireW: r1(fsM[2]) };
+        })();
+        await addPng("firebutton/dome.png", domeSvg44,
           { component: "firebutton", part: "dome", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
-            usage: "Fire dome, bare — the armed glyph is a live icons/ layer on the FireButton prefab; swipe left/right cycles it." }, true, "firebutton-dome");
+            usage: "Fire dome, bare — the armed glyph is a live icons/ layer on the FireButton prefab; swipe left/right cycles it.", ...fireSeat44 }, true, "firebutton-dome");
         for (const stName of ["pressed", "disabled"] as const)
           await addPng(`firebutton/dome-${stName}.png`, stateShell("firebutton", stName, { overlay: "plain" }, 0),
             { component: "firebutton", part: `dome-${stName}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
@@ -4007,6 +4159,113 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           await addPng(`firebutton/glyph-${wp}.png`, shell("firebutton", { overlay: `glyph-${wp}` }, undefined, 0),
             { component: "firebutton", part: `glyph-${wp}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
               usage: `Weapon glyph, kit-themed (${wp}) — the Firebutton rig deals these across the dome and chambers; swap in your own art freely.` });
+      }
+    }
+    /* ── INPUT-PROMPT VARIANTS (round 44, owner: "make sure key space is
+       in the unity output as well as Pad A, Pad B, etc"): the SPACE bar
+       and the four gamepad face buttons ship as their own labeled,
+       PRESSING families — the ClaimbtnDouble variant machinery on the
+       props road. LABELED-GEOMETRY bakes: rendered WITH the word at
+       content transparency 0, so the wide cap / colored ring geometry is
+       TRUE and the pixels are labeless; the word rides labelText + the
+       measured seat, so a dev retypes the letter like any button label.
+       The pad ring is MARKED TINTABLE ink (pure single-color — the
+       scorebug white-cut rule is exact here): re-voicing it is one
+       Inspector color edit, never a console's fixed trade-dress art. */
+    {
+      const PROMPTS: { fam: string; baseId: KitComponentId; word: string; usage: string }[] = [
+        { fam: "keycap-space", baseId: "keycap", word: "SPACE",
+          usage: "The SPACE bar — the key prompt at true spacebar width (the cap's own wide geometry, not a stretched square); the word is LIVE text (retype for SHIFT / CTRL — the cap is already wide) and the states press for real." },
+        { fam: "padbtn", baseId: "padbtn", word: "A",
+          usage: "Gamepad face button A — a REAL button (Sprite Swap states); the letter is LIVE text and the prompt ring a LIVE TINTABLE child (its sprite ships white; the color rides Image.color — one edit re-voices it to your kit)." },
+        { fam: "padbtn-b", baseId: "padbtn", word: "B",
+          usage: "Gamepad face button B — a REAL button; the letter is LIVE text and the prompt ring a LIVE TINTABLE child (retint in one Inspector edit)." },
+        { fam: "padbtn-x", baseId: "padbtn", word: "X",
+          usage: "Gamepad face button X — a REAL button; the letter is LIVE text and the prompt ring a LIVE TINTABLE child (retint in one Inspector edit)." },
+        { fam: "padbtn-y", baseId: "padbtn", word: "Y",
+          usage: "Gamepad face button Y — a REAL button; the letter is LIVE text and the prompt ring a LIVE TINTABLE child (retint in one Inspector edit)." },
+      ];
+      const ghostPV = (c: GenConfig) => { c.transparency.content = 0; };
+      for (const pv of PROMPTS) {
+        if (!shipProp(pv.baseId)) continue;
+        const fullPV = shell(pv.baseId, { label: pv.word }, ghostPV);
+        const iconSeatsPV = await iconSeatsOf(pv.baseId, fullPV, pv.fam);
+        const basePV = iconSeatsPV ? stripIconInk(fullPV).svg : fullPV;
+        await addPng(`${pv.fam}/base.png`, basePV, {
+          component: pv.fam, part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+          usage: pv.usage, labelText: pv.word,
+          ...propLabelSeat(pv.baseId, pv.word),
+          ...(iconSeatsPV ? { iconSeats: iconSeatsPV } : {}),
+        }, true, pv.fam);
+        for (const stName of ["hover", "pressed", "disabled"] as const) {
+          const sSvgPV = stateShell(pv.baseId, stName, { label: pv.word }, undefined, false, ghostPV);
+          await addPng(`${pv.fam}/base-${stName}.png`, iconSeatsPV ? stripIconInk(sSvgPV).svg : sSvgPV, {
+            component: pv.fam, part: `base-${stName}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+            usage: `${SWAP_USAGE[stName]} state — Sprite Swap beside base.png (the generated prefab wires it). Union-cropped with base, so the press pose stays registered.`,
+          }, true, pv.fam);
+        }
+      }
+    }
+    /* ── THE DIALOG GOES TO UNITY, FULLY WIRED (round 44, owner verbatim:
+       "also quest complete fully wired"): the #1 modal never shipped at
+       all. Now it lands as a REAL usable piece — frame + live title, the
+       body placeholder a live deletable child, and BOTH CTA capsules as
+       genuine pressing Buttons: fixed-canvas Sprite Swap skins (every
+       state renders into the same frame, press ride included, so the
+       swap registers with zero crop math) with their words RIDING them
+       (rider seats — the booster badge grammar). ── */
+    if (shipProp("dialog")) {
+      const dOpts: Record<string, unknown> = {
+        label: st.kitNoText?.dialog ? "" : st.kitLabels?.dialog,
+        slots: st.kitSlotVals?.dialog,
+        themedText: !!st.kitDesigns?.dialog?.type || !!st.kitTextFill.dialog,
+      };
+      const fullD = shell("dialog", dOpts);
+      const stripCtaArt = (sv: string): string => {
+        try {
+          const dom = new DOMParser().parseFromString(sv, "image/svg+xml");
+          for (const g9 of Array.from(dom.querySelectorAll("[data-dialogcta]"))) g9.remove();
+          return new XMLSerializer().serializeToString(dom.documentElement);
+        } catch { return sv; }
+      };
+      const phSeats = await iconSeatsOf("dialog", fullD);
+      const wordlessD = stripWordInk(fullD).svg;
+      const baseD = stripCtaArt(phSeats ? stripIconInk(wordlessD).svg : wordlessD);
+      const r1d = (n: number) => Math.round(n * 10) / 10;
+      const ctasD = /data-dialogctas="([-\d. ]+)"/.exec(fullD)?.[1].split(" ").map(Number);
+      const shDD = (/data-shell="([-\d. ]+)"/.exec(fullD) ?? /data-shell0="([-\d. ]+)"/.exec(fullD))?.[1].split(" ").map(Number);
+      const sh0DD = /data-shell0="([-\d. ]+)"/.exec(fullD)?.[1].split(" ").map(Number);
+      const riseDD = shDD && sh0DD && shDD.length === 4 && sh0DD.length === 4 ? shDD[1] - sh0DD[1] : 0;
+      const ctaSeatRows: NonNullable<AssetMeta["iconSeats"]> = [];
+      if (ctasD && ctasD.length === 5 && shDD && shDD.length === 4) {
+        const [cbx, cby, cbw, cbh, cgap] = ctasD;
+        for (let i = 0; i < 2; i++) ctaSeatRows.push({
+          name: i === 0 ? "cta1" : "cta2",
+          file: `assets/dialog/dialog-cta${i + 1}.png`,
+          dx: r1d(cbx + i * (cbw + cgap) + cbw / 2 - (shDD[0] + shDD[2] / 2)),
+          dy: r1d(cby + riseDD + cbh / 2 - (shDD[1] + shDD[3] / 2)),
+          w: r1d(cbw + 80), h: r1d(cbh + 80),
+          btn: true, nick: i === 0 ? "Claim button" : "Later button",
+        });
+      }
+      const allSeatsD = [...(phSeats ?? []), ...ctaSeatRows];
+      await addPng("dialog/base.png", baseD, {
+        component: "dialog", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+        usage: "The modal, fully wired (owner ask, round 44): the title is a LIVE seat, the body placeholder a LIVE deletable child, and CLAIM/LATER are GENUINE pressing Buttons (Sprite Swap skins) with their words riding them — nothing on this piece looks pressable without pressing.",
+        ...textSeatsOf("dialog", baseD, dOpts),
+        ...(allSeatsD.length ? { iconSeats: allSeatsD } : {}),
+      }, true);
+      for (const ov of ["cta1", "cta2"] as const) {
+        const ctaWord = ov === "cta1" ? "CLAIM" : "LATER";
+        await addPng(`dialog/${ov}.png`, shell("dialog", { ...dOpts, overlay: ov }), {
+          component: "dialog", part: ov, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+          usage: `The ${ctaWord} capsule at rest — a real Button on the Dialog prefab; its word is a live rider seat. Fixed canvas: every state pose registers exactly.`,
+        }, false);
+        for (const stName of ["hover", "pressed", "disabled"] as const)
+          await addPng(`dialog/${ov}-${stName}.png`, stateShell("dialog", stName, { ...dOpts, overlay: ov }), {
+            component: "dialog", part: `${ov}-${stName}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+            usage: `${SWAP_USAGE[stName]} capsule — Sprite Swap on the ${ctaWord} Button (same fixed canvas as the rest pose).`,
+          }, false);
       }
     }
     /* the count badge goes DYNAMIC: bare circle + live count text on the
@@ -4045,19 +4304,70 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         currency: "Currency chip — the count is a LIVE seat and the coin a LIVE Image child (swap the sprite in the Inspector). Display piece.",
         ghost: "Ghost button — the labeled button family, live word + Sprite Swap states, exactly like the primary.",
         movecounter: "Move counter — caption and count are LIVE seats. Display piece (pinned chrome in the app: it never presses).",
-        rewardcard: "Reward card — a REAL button; name and quantity are LIVE seats and the reward glyph a LIVE Image child (per-copy content rides posed skins).",
+        rewardcard: "Reward card — a REAL button; name and quantity are LIVE seats, the reward glyph a LIVE Image child, and the qty chip a live plate child whose count RIDES it (move, restyle or delete plate + count as one; per-copy content rides posed skins).",
         ring: "Progress ring — the percent readout is a LIVE seat. Display piece.",
         avatarframe: "Avatar frame — the level chip's number is a LIVE seat and the portrait a LIVE masked Image child: drop YOUR sprite on the Portrait child and the frame clips it round. Display piece.",
         claimbtn: "Claim button — a REAL button (the Shop's Claim All presses and fires onClick); the word is a LIVE seat, the gift glyph a LIVE Image child, and CLAIM copies celebrate (ClaimBurst).",
         nameplate: "Nameplate — the name is a LIVE seat, the rank star a LIVE Image child, and the title ribbon a live plate child whose word RIDES it (move, restyle or delete plate + word as one). Display piece.",
-        stepper: "Stepper — minus cap, snapped cells, plus cap in one strip; the +/− cap marks are LIVE seats. Display piece: wire your own buttons over the caps (two hits, never one).",
+        stepper: "Stepper — a WORKING control: both caps are REAL Buttons (the + cap arms with the app's own hover ring) that step the cell strip by whole cells (KitStepper.StepUp/StepDown/SetValue; KitCellMeter snaps the cut into the gaps). The +/− glyphs ride their caps as live words. Two hits, never one.",
         notifydot: "Notification badge — the bell/scroll glyph is a LIVE Image child and the red counter a live plate child whose count RIDES it (delete the pair as one, or drive the count). Display piece.",
-        loadbar: "Loading bar — caption and percent are LIVE seats; the mercury bakes at the staged value (per-copy values ride posed skins). Display piece.",
-        setrow: "Settings row — the row label and value readout are LIVE seats; the mini-slider is anatomy. Display piece: compose the wired Slider prefab over it for a working control.",
-        listmenu: "List menu — four rows: every row glyph is a LIVE Image child and every word a LIVE seat; the highlight bar bakes on the staged row. Display piece: wire per-row buttons over it.",
-        scrollbar: "Scrollbar — vertical strip, sunken track, candy thumb baked at the staged position. Display piece; pair with your own ScrollRect (the ScrollView prefab shows the wiring).",
-        steps: "Step indicator — wizard pips; the step numbers are LIVE seats. Display piece.",
-        pagedots: "Page dots — carousel position pips, the active dot in the kit's candy. Display piece; per-page states ride posed skins.",
+        loadbar: "Loading bar — LIVE: caption and percent are seats and the mercury is a Filled fill with the rounded head riding the value line (drive Fill's fillAmount or KitBarFill.SetValue). Display piece.",
+        setrow: "Settings row — a WORKING control: the mini-slider is a real Unity Slider (drag the candy knob or set Slider.value; the Filled mercury and rounded head follow). The row label and value readout are LIVE seats — the readout is not wired to the slider, hook it to Slider.onValueChanged or retype it.",
+        listmenu: "List menu — four rows: every row glyph is a LIVE Image child, every word a LIVE seat, and the Row highlight is a LIVE child too (slide it one row pitch to move the selection, or delete it). Wire per-row buttons over it.",
+        scrollbar: "LEGACY SHEET (kept projects) — the flat strip with the thumb baked. The REAL road is the wired Scrollbar prefab: scrollbar-track.9 + scrollbar-thumb.9 with a genuine UnityEngine.UI.Scrollbar (drive Scrollbar.value; pair with your ScrollRect).",
+        steps: "Step indicator — DRIVABLE (round 44): the generated prefab wears the still plate and KitSteps makes the position a dial (SetStep 1..4, or SetValue 0..1) — pip looks swap (done/current/upcoming), rails light behind the current step, and ALL FOUR digits are LIVE seats repainted per state. This baked sheet stays for older scenes.",
+        pagedots: "Page dots — DRIVABLE (round 44): the PageDots prefab deals the strip live from pagedots-dot/knob at the kit's own pitch (PatternBreakPageDots — SetPage/SetCount, or SetValue 0..1). This baked sheet stays for older scenes and board stamps.",
+        questpanel: "Quest tracker — eyebrow, title, objectives and counts are LIVE seats (title is the live Label, pinned left like the app draws it). Every objective pip is a LIVE Image child — swap it between the shipped pip-done / pip-active / pip-empty looks to toggle a row. The footer mercury is a Filled fill that snaps to WHOLE objectives (drive Fill's fillAmount or KitBarFill.SetValue; snapSteps 3). The 1/3 and 2/3 count words are seats, not wired to the bar — retype them to match your value. Display piece.",
+        dialoguebox: "Dialogue box — both lines are LIVE seats, the speaker plate a live child whose NAME rides it (move or delete plate + name as one), and the continue caret its OWN live child (owner ruling, round 44 — blink it, bob it or swap it; icons/* fit the seat). Display piece.",
+        choicelist: "Dialogue choices — all three responses and their hotkey digits are LIVE seats; the active-choice marker AND the Choice highlight are LIVE children (slide highlight + marker a row pitch to move the selection). All capsules rest uniform underneath. Wire per-choice buttons over the capsules.",
+        manarails: "Mana & stamina rails — LIVE: each rail is its own Filled fill with the rounded head (drive Mana/Stamina fillAmount or KitBarFill.SetValue) and each rail glyph a LIVE Image child. Display piece.",
+        xpbar: "XP bar — LIVE: the NEXT line and XP readout are seats, the mercury is a Filled fill with the rounded head (drive Fill's fillAmount or KitBarFill.SetValue; the milestone notch cuts ride the fill), and the level knob is a live child whose number RIDES it. Display piece.",
+        invgrid: "Inventory grid — every cell glyph is a LIVE Image child (the app's cell pickers steer them) and the count chips are live plates with their numbers riding them. The selection ring is NOT baked: compose invgrid/cell-ring.png over any cell (the board scenes wire InvGridSelect for you). Display piece.",
+        partyframe: "Party frame — drop YOUR sprite on the Portrait child (the well clips it round); the name is a LIVE seat and the class glyph a LIVE Image child. HP and MP are each their own Filled fill with the rounded head (drive HP/MP fillAmount or KitBarFill.SetValue), and the level bubble is a LIVE Level knob child with the number riding it. Display piece.",
+        compass: "Compass ribbon — the cardinal letters are LIVE seats and the Heading caret a LIVE child (restyle or delete it). The tick ribbon bakes at the staged heading (per-copy headings ride posed skins). Display piece.",
+        dmgnumber: "Damage number — a DEV INSTRUMENT (round 47): PatternBreakDmgNumber.Show(n) composes the amount from the kit's own damage digits at the authored seat and plays the app's float-up-and-fade; Value 0 keeps the authored number byte-for-byte as a live, swappable child.",
+        equipslot: "Equipment slot — the ghost silhouette showing what belongs is a LIVE Image child; the app's icon picker steers it and the Inspector swaps it. Display piece.",
+        skillnode: "Skill-tree node — a REAL button (Sprite Swap states); the skill glyph is a LIVE Image child. Learned/locked poses ride per-copy posed skins.",
+        ammo: "Ammo counter — LIVE: the three bars are ONE thirds meter (KitCellMeter — drive Value or SetValue; bars go dark left→right as ammo depletes) and both counts are LIVE seats. Display piece.",
+        killfeed: "Kill-feed row — killer and victim are LIVE seats and the weapon glyph a LIVE Image child (swap the sprite in the Inspector). Stack rows in a vertical layout. Display piece.",
+        magazine: "Magazine — LIVE (round 44): the twelve round pips rest dark and the Lit layer lights whole rounds (KitCellMeter: drive Value or SetValue); the readout is a LIVE seat — drive both from your ammo count. Display piece.",
+        equipselector: "Equipment selector — every carousel item's glyph is a LIVE Image child, the armed name a LIVE seat, the Armed ring a LIVE child, and BOTH chevrons are REAL Button children (wire them to your carousel; icons/back + icons/forward fit the seats). The slot plates bake at the staged pose.",
+        streakmeter: "Streak meter — LIVE, one dial (round 44): drive StreakIgnite's value and the five cells light whole (the Lit layer's snap scissor) while the Ignition glyph — a LIVE Image child — swaps to its lit pose and pulses at full streak (both poses ship). The label is a LIVE seat. Display piece.",
+        waypoint: "Waypoint — the objective letter and distance are LIVE seats on the diamond. Spatial piece: it reads over live footage. Display piece.",
+        capturemeter: "Capture point — LIVE: the point letter is a LIVE seat and the capture ring a Radial360 rig (drive the Fill child's fillAmount or KitRingFill.SetValue — the end caps ride the head, clean at any value). Display piece.",
+        respawn: "Respawn timer — LIVE: heading and seconds are seats and the drain bar is a Filled fill with the rounded head (drive Fill's fillAmount or KitBarFill.SetValue from the same countdown that writes the seconds). Display piece.",
+        weaponwheel: "Weapon wheel — DRIVABLE (round 44): PatternBreakWeaponWheel makes the rotation a dial (SetValue 0..1 spins the cylinder; ArmChamber(i) parks a chamber at the hammer; ArmedChamber() reads the pick). The Cylinder is a LIVE rotating child, all six glyphs orbit upright as swappable Image children with armed/quiet looks, the Armed chamber ring and Name tag are nick'd children, and the hub/tag words are LIVE seats — drive them from ArmedChamber(). Display piece.",
+        crosshair: "Crosshair — shell-free spatial art with the dark understroke; scale freely (Preserve Aspect). Display piece.",
+        hitmarker: "Hit marker — shell-free spatial art; flash it from your own hit events. Display piece.",
+        dmgarc: "Damage direction arc — shell-free spatial art; rotate the piece to the threat bearing. Display piece.",
+        buffframe: "Buff frame — the effect glyph is a LIVE Image child and the countdown FUNCTIONS: KitBuffSweep drives the spent-share sweep and its glowing hand from time remaining (Value 0..1, the app's own dial); the timer readout is a LIVE seat. Display piece.",
+        hotbar: "Hotbar — every stocked slot glyph is a LIVE Image child and the indices/counts are LIVE seats. The Selected ring child IS the selection: move it a cell over (one cell pitch) or disable it. Display piece.",
+        lives: "Lives — DRIVABLE: the hearts rest dark and the Lit layer lights whole hearts (KitCellMeter: drive Value or SetValue; hearts go out right to left as lives are spent). Display piece.",
+        heartmeter: "Heart meter — every pip is a LIVE Image child answering the app's icon picker (swap any sprite in the Inspector); the timer is a LIVE seat and the add cap ITSELF a REAL small-button child with its + mark riding it (move, restyle or delete cap + mark as one). Display piece with one pressable corner.",
+        energymeter: "Energy meter — LIVE: the ten cells snap whole (KitCellMeter — drive Value or SetValue), the Energy badge is a LIVE Image child (the app's icon picker steers it) and the count is a LIVE seat. Display piece.",
+        starrating: "Star rating — DRIVABLE (round 44): the three Stars, the Celebration flare and the Replay button are LIVE children, and PatternBreakStarRating makes the score a dial (SetStars 0..3, or drive Value — earned/unearned looks swap on one shared frame; celebration + replay appear only at full marks, the app's own rule). The Replay button is a REAL Button. Display piece.",
+        vitalbar: "Vital bar — LIVE: the mercury is a Filled atom with a rounded head (drive fillAmount or KitBarFill.SetValue); the readout is a LIVE seat — drive both from your resource. Display piece.",
+        pathconnector: "Saga path connector — DRIVABLE (round 44): the Pathconnector prefab deals nine live beads along the kit's own S-curve and PatternBreakPathConnector lights them by value (SetProgress / SetValue 0..1). This baked sheet stays for older scenes and board stamps.",
+        combo: "Combo burst — DYNAMIC (round 47): ComboPop.SetCount(n) deals the ×N numeral from the kit's own celebration digits at the authored seat (the Multiplier child holds the app-staged pose at rest; the Combo plaque is its own live child); Pop() replays the app's exact squash-overshoot-settle on whatever count is set, and ClaimBurst throws the sparks. CLICK IT IN PLAY.",
+        booster: "Booster button — a REAL button (Sprite Swap states); the booster glyph is a LIVE Image child and the count badge a live plate child with its count RIDING it (the ×0 FREE ribbon ships the same way).",
+        flipclock: "Flip countdown — the tile digits and caption are LIVE seats; drive them from your own clock. Display piece.",
+        stopwatch: "Stopwatch — the dial FUNCTIONS (round 44): PatternBreakStopwatch drives the remaining-time arc (Radial360 + rotating round head), the sweep hand, the alarm mood below 25% and the m:ss readout from ONE value (SetValue 0..1, or SetSeconds on the 90s dial). The readout stays a LIVE seat — retype it and it is yours. Display piece.",
+        scorebug: "Match score bug — Home and Away names, both scores and the clock are LIVE seats (the app's Home/Away word slots land verbatim); each team's color bar is a LIVE TINTABLE child (its sprite ships white, the slot color rides Image.color — retint a side in one edit). Display piece; the value slider stays the match clock, exactly as in the app.",
+        friendrow: "Friend row — drop YOUR sprite on the Portrait child (the well clips it round); name, status and time are LIVE seats, the JOIN capsule is a REAL small-button child with its word riding it, and the presence dot a LIVE Image child (move it, delete it, or tint a copy for offline). Display piece.",
+        clancrest: "Clan crest — the emblem is a LIVE Image child and the tag ribbon a live plate whose tag RIDES it. Display piece.",
+        chatbubble: "Chat bubble — sender, timestamp and every message line are LIVE seats on the speech silhouette. Display piece.",
+        emotewheel: "Emote wheel — DRIVABLE (round 44): the pick is a dial (PatternBreakEmoteWheel — SetSector, or SetValue 0..1, the app's own mapping). The Armed highlight is a LIVE full-disc wedge the rig parks by rotation, every sector's emote swaps ghost/armed on one fixed frame, and the hub mirrors the pick. All emotes stay swappable Inspector children. Display piece.",
+        buildqueue: "Build queue — LIVE: the unit glyph is a LIVE Image child (editable down to the icon, as asked), name and queue line are seats, and the progress bar is a Filled fill with the rounded head (drive Fill's fillAmount or KitBarFill.SetValue). Display piece.",
+        unitplate: "Unit plate — drop YOUR sprite on the Portrait child; the name and stat numbers are LIVE seats and the attack/defense glyphs LIVE Image children. The HP mercury is a Filled fill with the rounded head (drive Fill's fillAmount or KitBarFill.SetValue). Display piece.",
+        techcard: "Tech card (researchable) — the tech glyph is a LIVE Image child (editable down to the icon); the name and cost are LIVE seats and the cost gem its own LIVE Image child beside the number. Researched/locked poses ride per-copy posed skins. Display piece.",
+        popmeter: "Population meter — LIVE: the population glyph is a LIVE Image child, the count a seat, and the supply bar a Filled fill with the rounded head (drive Fill's fillAmount or KitBarFill.SetValue; the app's near-cap alarm red stays an app-side draw for now). Display piece.",
+        pack: "Card pack — the pack art with its live word; open ceremonies are your game's (ClaimBurst fires on CLAIM-labeled copies). Display piece.",
+        cardback: "Card back — the deck's face-down art with its live emblem child. Display piece.",
+        orderticket: "Kitchen order ticket — a REAL button; dish name and recipe lines are LIVE seats, the dish glyph a LIVE Image child, and the countdown bar is LIVE (Filled mercury + rounded head — drive fillAmount or KitBarFill.SetValue; the ≤25% alarm recolor + pulse are the game's runtime to add). Served poses ride per-copy posed skins.",
+        chest: "Treasure chest — a REAL button; tier and gate poses ride per-copy posed skins.",
+        giftbox: "Gift box — a REAL button; tag and readiness poses ride per-copy posed skins.",
+        rewardtray: "Reward tray — the multi-reward strip; title and quantities are LIVE seats and every revealed slot glyph is a LIVE Image child (swap any sprite in the Inspector; icons/* fit the seats). Reveal states ride posed skins. Display piece.",
+        chestpanel: "Chest-opening ceremony panel — words are LIVE seats; stage poses ride posed skins. Display piece.",
         bottomnav: "Bottom nav bar — one placeable piece; the item words are LIVE seats and every tab glyph a LIVE Image child (swap any sprite in the Inspector). The Selected ring child IS the selection: move it a cell over (one cell pitch) or disable it. The Badge plate child carries its live count with it — move, restyle or delete the pair as one. Wire your own per-item buttons over it (the bar itself is not one button).",
       };
       const universalIds: KitComponentId[] = [
@@ -4074,26 +4384,60 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           icon: resolveKitIcon(st.kitIcons?.[uid], undefined),
           themedText: !!st.kitDesigns?.[uid]?.type || !!st.kitTextFill[uid],
         };
+        /* SMIL loops strip before anything downstream parses or rasters —
+           the posed road's own discipline (rasterizing at t=0 caught the
+           damage number's spawn fade at opacity 0: an EMPTY bake) */
+        const stripLoopsU = (sv: string) => sv
+          .replace(/<animate(?:Transform|Motion)?\b[^>]*\/>/g, "")
+          .replace(/<animate(?:Transform|Motion)?\b[^>]*>[\s\S]*?<\/animate(?:Transform|Motion)?>/g, "");
         let fullU: string;
-        try { fullU = shell(uid, uOpts, undefined, uVal); } catch { continue; }
+        try { fullU = stripLoopsU(shell(uid, uOpts, undefined, uVal)); } catch { continue; }
+        /* round 47 (item 3): the combo is a shell-free celebration — the
+           marked-icon road needs a reference frame, so the EXPORT injects
+           the canvas as the shell (the lives trackAttr precedent: an
+           export-side attribute, the app render untouched). Seats then
+           speak canvas-center offsets; the importer's child math follows
+           the row's shell like any family. */
+        if ((uid === "combo" || uid === "dmgnumber") && !/data-shell=/.test(fullU)) {
+          const vbC9 = /viewBox="0 0 ([\d.]+) ([\d.]+)"/.exec(fullU);
+          if (vbC9) fullU = fullU.replace("<svg ", `<svg data-shell="0 0 ${vbC9[1]} ${vbC9[2]}" `);
+        }
         /* label metrics off the PRE-strip render — the NINE road's own
            discipline (offsets from the shell0 center, frame-invariant);
            the RENDERED word ships as labelText (levelnode's number ignores
            the label chip — the render is the truth, never the dial) */
-        let uLabelMeta: { labelDx: number; labelDy: number; labelFs: number; labelInk?: string; labelInk2?: string } | null = null;
+        let uLabelMeta: { labelDx: number; labelDy: number; labelFs: number; labelAnchor?: string; labelInk?: string; labelInk2?: string } | null = null;
         let uWord: string | undefined;
         {
           const li = fullU.indexOf('data-part="label"');
           if (li >= 0) {
             const lg = fullU.slice(li);
-            const tm = /<text x="(-?[\d.]+)" y="(-?[\d.]+)" font-size="([\d.]+)"/.exec(lg);
+            /* attribute-order-tolerant label parse (round 41 — the quest
+               tracker's title rides a data-part="label" group drawn by
+               contentText, whose <text> leads with font-family; the rigid
+               x/y/font-size regex missed it and the TITLE VANISHED from
+               the prefab: stripped from the bake, skipped by the seat
+               road, no label shipped) — read the first text tag's attrs
+               wherever they sit. Both label voices seat at
+               dominant-baseline central, so the metrics agree. */
+            const tTagU = /<text\b[^>]*>/.exec(lg)?.[0] ?? "";
+            const gxU = /\bx="(-?[\d.]+)"/.exec(tTagU), gyU = /\by="(-?[\d.]+)"/.exec(tTagU), gfU = /\bfont-size="([\d.]+)"/.exec(tTagU);
+            const tm = gxU && gyU && gfU ? { 1: gxU[1], 2: gyU[1], 3: gfU[1] } as Record<1 | 2 | 3, string> : null;
             const s0m = /data-shell0="([-\d. ]+)"/.exec(fullU) ?? /data-shell="([-\d. ]+)"/.exec(fullU);
             const s0 = s0m?.[1].split(" ").map(Number);
             if (tm && s0 && s0.length === 4 && +tm[3] > 1) {
+              /* the REAL anchor (round 44, item 29a): contentText omits
+                 text-anchor for start (the SVG default) — a start-anchored
+                 title's x is its LEFT EDGE, not its center, so the seat
+                 must say so or the word parks half its width left (the
+                 quest tracker's bug). Middle stays the silent default —
+                 every other labeled family's row is byte-still. */
+              const taU = /\btext-anchor="([a-z]+)"/.exec(tTagU)?.[1] ?? "start";
               uLabelMeta = {
                 labelDx: Math.round((+tm[1] - (s0[0] + s0[2] / 2)) * 10) / 10,
                 labelDy: Math.round((+tm[2] - (s0[1] + s0[3] / 2)) * 10) / 10,
                 labelFs: Math.round(+tm[3] * 10) / 10,
+                ...(taU === "start" ? { labelAnchor: "start" } : {}),
                 ...(labelInkOf(lg, fullU) ?? {}),
               };
               try {
@@ -4124,23 +4468,27 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
            SeatRowOf resolves seats by the sprite actually worn; the base
            bake stays for compatibility but carries no seats here, or the
            words would double. */
-        const ringRig = uid === "ring";
+        /* round 44 (owner item 4: "mercury bleed at the edge — same class
+           as the earlier circular progress fix"): the capture meter joins
+           the ring rig — same atoms, same importer road. */
+        const ringRig = uid === "ring" || uid === "capturemeter";
         if (ringRig) {
+          const rigNoun = uid === "ring" ? "Progress ring" : "Capture ring";
           const trackSvg = shell(uid, { ...uOpts, part: "track" }, undefined, uVal);
           const seatsTrack = textSeatsOf(uid, trackSvg, { icon: resolveKitIcon(st.kitIcons?.[uid], undefined) }, undefined, uVal);
           await addPng(`${uid}/track.png`, trackSvg, {
             component: uid, part: "track", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
-            usage: "Progress ring track — the rig's ground circle; the generated Ring prefab is LIVE (drive the Fill child's fillAmount or KitRingFill.SetValue).",
+            usage: `${rigNoun} track — the rig's ground circle; the generated prefab is LIVE (drive the Fill child's fillAmount or KitRingFill.SetValue).`,
             ...seatsTrack,
           }, false);
           await addPng(`${uid}/fill.png`, shell(uid, { ...uOpts, part: "fill" }, undefined, uVal), {
             component: uid, part: "fill", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
-            usage: "Progress ring fill — full circle, rotationally uniform shading: Image Filled / Radial360 (origin Top, clockwise) cuts it clean at ANY value.",
-            ringV: Math.max(0, Math.min(1, uVal ?? 0.62)),
+            usage: `${rigNoun} fill — full circle, rotationally uniform shading: Image Filled / Radial360 (origin Top, clockwise) cuts it clean at ANY value.`,
+            ringV: Math.max(0, Math.min(1, uVal ?? (uid === "ring" ? 0.62 : 0.55))),
           }, false);
           await addPng(`${uid}/cap.png`, shell(uid, { ...uOpts, part: "cap" }, undefined, uVal), {
             component: uid, part: "cap", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
-            usage: "Progress ring end cap — full-canvas, parked at 12 o'clock; KitRingFill rotates a copy to the fill's head angle (radial shading stays true under rotation).",
+            usage: `${rigNoun} end cap — full-canvas, parked at 12 o'clock; KitRingFill rotates a copy to the fill's head angle (radial shading stays true under rotation).`,
           }, false);
         }
         /* THE UN-BURN (maximum-editability law): marked icon ink leaves
@@ -4149,7 +4497,11 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
            identically so the live child rides the press with no baked
            twin beneath. */
         const iconSeatsU = isArt ? null : await iconSeatsOf(uid, fullU);
-        const baseSvgU = iconSeatsU ? stripIconInk(strippedU.svg).svg : strippedU.svg;
+        let baseSvgU = iconSeatsU ? stripIconInk(strippedU.svg).svg : strippedU.svg;
+        /* the inventory grid's family base ships RINGLESS (the posed
+           road's own data-invring cut): the selection is a live layer —
+           invgrid/cell-ring.png — never pixels a dev can't move */
+        if (uid === "invgrid") baseSvgU = baseSvgU.replace(/<rect data-invring="1"[^>]*\/?>/g, "");
         // the avatar's circular mask — the masked Portrait child clips ANY
         // sprite a dev drops in to the frame's own aperture
         if (iconSeatsU?.some((s9) => (s9.wellR ?? 0) > 0.5))
@@ -4157,6 +4509,278 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
             component: uid, part: "mask", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true,
             usage: "The portrait well's circular mask — the prefab's Portrait Well child wears it (Mask, graphic hidden) so any sprite on the Portrait child clips to the frame's aperture.",
           }, false);
+        /* ── the BUFF SWEEP ATOMS (round 44, owner item 2: "the countdown
+           clock cannot be burned into the button shape — it has to
+           FUNCTION"): the rig root wears a sweep-less PLATE while
+           base.png keeps the baked pose BYTE-IDENTICAL (old importers
+           and kept prefabs keep today's look; the ring's compatibility
+           rule). The plate shares base's crop group so both frames — and
+           the base row's icon seats — line up by construction; the timer
+           seat rides the PLATE row (SeatRowOf reads the worn sprite).
+           The sweep trio bakes on its own face-centered square canvas
+           (crop=false — the Radial360 wedge and the hand rotation pivot
+           on the canvas center). */
+        const buffRig = uid === "buffframe";
+        /* ── the CELL-METER ATOMS (round 44, dossier RIG-2 — owner items
+           1 + 13 under the kit-wide mercury ruling): base bakes EMPTY
+           (v = 0), the lit strip bakes FULL (v = 1), both stripped like
+           the base always was and sharing ONE crop group so the
+           full-stretch overlay is pixel-true (the segbar's one-canvas
+           rule). KitCellMeter snaps the Filled cut into the gap after
+           the last lit cell (zone = the data-track stamp riding both
+           rows); the seats keep the STAGED words (textSeatsOf renders
+           its own truth at the staged value). */
+        /* round 44 tail: the magazine (item 20) and the streak meter's
+           cells (item 40) join the same road — base rests all-dark, the
+           Lit strip lights whole cells, the zone stamp snaps the cut */
+        const cellRig = uid === "energymeter" || uid === "ammo" || uid === "magazine" || uid === "streakmeter";
+        let litSvgU: string | null = null;
+        if (cellRig) {
+          try {
+            const zeroSvg = stripLoopsU(shell(uid, uOpts, undefined, 0));
+            const oneSvg = stripLoopsU(shell(uid, uOpts, undefined, 1));
+            baseSvgU = iconSeatsU ? stripIconInk(stripWordInk(zeroSvg).svg).svg : stripWordInk(zeroSvg).svg;
+            litSvgU = iconSeatsU ? stripIconInk(stripWordInk(oneSvg).svg).svg : stripWordInk(oneSvg).svg;
+          } catch { litSvgU = null; }
+        }
+        /* ── the RIG-1 DISPLAY-BAR ATOMS (round 44, items 19/27/30 +
+           buildqueue — the kit-wide mercury mandate): the mercury is
+           MARKED ink (data-barfill, stamped with its drawn rect), so the
+           base bakes TRACKIFIED while the fill re-renders at 100% as its
+           own Filled atom and the bead windows out of the v=0.8 drawing
+           (the progress cap's window trick, generalized). KitBarFill
+           rides the fill at the staged value (ringV on the fill row);
+           the run's zone — horizontal AND vertical band — rides the base
+           row's extended data-track stamp (no separate track part ships,
+           the cell meters' rule). The strip only happens once both atoms
+           render, so a failed atom leaves today's baked bar intact. */
+        /* round 44 tail: the STAGED roads stand ready (items 23 +
+           vitalbar) — orderticket and vitalbar ride the same rig, but
+           stagedShips gates their whole emission until the owner
+           releases the families */
+        const barRigU = uid === "loadbar" || uid === "popmeter" || uid === "respawn" || uid === "buildqueue" || uid === "xpbar" || uid === "unitplate" || uid === "questpanel" || uid === "setrow" || uid === "orderticket" || uid === "vitalbar";
+        let barFillSvgU: string | null = null, barCapSvgU: string | null = null;
+        if (barRigU) {
+          try {
+            const fo = barFillOnlySvg(stripLoopsU(shell(uid, { ...uOpts, part: "fill" }, undefined, 1)));
+            const capFull = stripLoopsU(shell(uid, { ...uOpts, part: "fill" }, undefined, 0.8));
+            const co = barFillOnlySvg(capFull);
+            const capH9 = +(/viewBox="[-\d.]+ [-\d.]+ [\d.]+ ([\d.]+)"/.exec(capFull)?.[1] ?? "0");
+            if (fo && co && co.box[3] > 2 && capH9 > 2) {
+              const [cgx, , cgw, cgh] = co.box;
+              const wx0 = cgx + cgw - cgh - 8, ww = Math.ceil(cgh + 16);
+              /* round 48 (owner: fill+cap seated right of the well): the
+                 BODY boxes ride the atoms — the mercury's drawn run on
+                 the fill, the bead's span (window to drawn end) on the
+                 cap — so the rig maps its value space through the true
+                 ink, not the glow-padded crop */
+              barCapSvgU = co.svg
+                .replace(/viewBox="[^"]+"/, `viewBox="${wx0.toFixed(1)} 0 ${ww} ${Math.ceil(capH9)}"`)
+                .replace(/ width="[\d.]+"/, ` width="${ww}"`)
+                .replace(/ height="[\d.]+"/, ` height="${Math.ceil(capH9)}"`)
+                .replace("<svg ", `<svg data-fillbody="${wx0.toFixed(1)} ${(cgh + 8).toFixed(1)}" `);
+              barFillSvgU = fo.svg.replace("<svg ", `<svg data-fillbody="${fo.box[0].toFixed(1)} ${fo.box[2].toFixed(1)}" `);
+              baseSvgU = stripBarFill(baseSvgU).svg;
+            }
+          } catch { barFillSvgU = null; barCapSvgU = null; }
+        }
+        /* ── the TWIN RAILS (round 44, items 21 + 25 — RIG-1 ×2): each
+           named rail un-burns as its OWN Filled atom + bead, per-rail
+           bands riding the fill rows SHELL-CENTER relative (the fireDx
+           discipline — crop-proof). The coupled scrub can't reach a full
+           secondary, so the atoms render both rails forced to 1. Each
+           family stages the app's OWN coupling law. ── */
+        const RAIL_FAMS: Record<string, { primary: string; rest: number; couple: (v: number) => number }> = {
+          manarails: { primary: "mana", rest: 0.66, couple: (v) => 0.15 + (1 - v) * 0.7 },
+          partyframe: { primary: "hp", rest: 0.78, couple: (v) => 0.25 + (1 - v) * 0.5 },
+        };
+        let railsOut: { name: string; fill: string; cap: string; dx: number; dy: number; w9: number; h9: number; staged: number }[] | null = null;
+        if (RAIL_FAMS[uid]) {
+          try {
+            const fullMR = stripLoopsU(shell(uid, { ...uOpts, part: "fill" }, undefined, uVal));
+            const groupsMR = barFillGroups(fullMR);
+            const shDm = (/data-shell="([-\d. ]+)"/.exec(fullMR) ?? /data-shell0="([-\d. ]+)"/.exec(fullMR))?.[1].split(" ").map(Number);
+            const sh0m = /data-shell0="([-\d. ]+)"/.exec(fullMR)?.[1].split(" ").map(Number);
+            const riseMR = shDm && sh0m && shDm.length === 4 && sh0m.length === 4 ? shDm[1] - sh0m[1] : 0;
+            const capHMR = +(/viewBox="[-\d.]+ [-\d.]+ [\d.]+ ([\d.]+)"/.exec(fullMR)?.[1] ?? "0");
+            const vPrim = Math.max(0, Math.min(1, uVal ?? RAIL_FAMS[uid].rest));
+            const vSec = Math.max(0, Math.min(1, RAIL_FAMS[uid].couple(vPrim))); // bevel's own coupling
+            if (groupsMR.length === 2 && shDm && shDm.length === 4 && capHMR > 2) {
+              const r1m = (n: number) => Math.round(n * 10) / 10;
+              railsOut = groupsMR.map((g9) => {
+                const [gx, gy, gw, gh] = g9.box;
+                const wx0 = gx + gw - gh - 8, ww = Math.ceil(gh + 16);
+                return {
+                  // round 48: the rails carry their body boxes too
+                  name: g9.name, fill: g9.svg.replace("<svg ", `<svg data-fillbody="${gx.toFixed(1)} ${gw.toFixed(1)}" `),
+                  cap: g9.svg
+                    .replace(/viewBox="[^"]+"/, `viewBox="${wx0.toFixed(1)} 0 ${ww} ${Math.ceil(capHMR)}"`)
+                    .replace(/ width="[\d.]+"/, ` width="${ww}"`)
+                    .replace(/ height="[\d.]+"/, ` height="${Math.ceil(capHMR)}"`)
+                    .replace("<svg ", `<svg data-fillbody="${wx0.toFixed(1)} ${(gh + 8).toFixed(1)}" `),
+                  dx: r1m(gx + gw / 2 - (shDm[0] + shDm[2] / 2)),
+                  dy: r1m(gy + riseMR + gh / 2 - (shDm[1] + shDm[3] / 2)),
+                  w9: r1m(gw), h9: r1m(gh),
+                  staged: g9.name === RAIL_FAMS[uid].primary ? vPrim : vSec,
+                };
+              });
+              baseSvgU = stripBarFill(baseSvgU).svg;
+            }
+          } catch { railsOut = null; }
+        }
+        /* ── the SETROW KNOB (round 44, item 34 — RIG-7): the candy knob
+           un-burns as the mini Slider's HANDLE sprite. Strip-only mark
+           (data-setrow-knob, the dialog-CTA grammar) — never an icon
+           seat, because the knob must belong to the Slider, not sit as a
+           second mounted child. Gated on the fill atoms so a failed rig
+           leaves today's baked row whole. ── */
+        let knobSvgSR: string | null = null;
+        if (uid === "setrow" && barFillSvgU && barCapSvgU) {
+          try {
+            const svK = stripLoopsU(shell(uid, uOpts, undefined, uVal));
+            const domK = new DOMParser().parseFromString(svK, "image/svg+xml");
+            const keepK = domK.querySelector("[data-setrow-knob]");
+            if (keepK) {
+              for (const el of Array.from(domK.querySelectorAll(ICON_DRAWABLE_SEL)))
+                if (!el.closest("defs") && !keepK.contains(el)) el.remove();
+              const onlyK = new XMLSerializer().serializeToString(domK.documentElement);
+              /* the mark stamps disc center + half-frame — a symmetric
+                 crop about the GRIP, so the handle sprite centers on the
+                 slider anchor (an alpha box leaned low: the drop shadow
+                 dragged the crop center off the disc) */
+              const kb9 = (keepK.getAttribute("data-setrow-knob") ?? "").split(" ").map(Number);
+              const shDK = /data-shell="([-\d. ]+)"/.exec(svK)?.[1].split(" ").map(Number);
+              const sh0K = /data-shell0="([-\d. ]+)"/.exec(svK)?.[1].split(" ").map(Number);
+              const riseK = shDK && sh0K && shDK.length === 4 && sh0K.length === 4 ? shDK[1] - sh0K[1] : 0;
+              if (kb9.length === 3 && kb9.every(Number.isFinite) && kb9[2] > 2) {
+                const bxK = kb9[0] - kb9[2], byK = kb9[1] - kb9[2] + riseK;
+                const bwK = kb9[2] * 2, bhK = kb9[2] * 2;
+                if (bwK > 1 && bhK > 1) {
+                  knobSvgSR = onlyK
+                    .replace(/viewBox="[^"]+"/, `viewBox="${bxK.toFixed(1)} ${byK.toFixed(1)} ${bwK.toFixed(1)} ${bhK.toFixed(1)}"`)
+                    .replace(/ width="[\d.]+"/, ` width="${Math.ceil(bwK)}"`)
+                    .replace(/ height="[\d.]+"/, ` height="${Math.ceil(bhK)}"`);
+                  const domB = new DOMParser().parseFromString(baseSvgU, "image/svg+xml");
+                  for (const g9 of Array.from(domB.querySelectorAll("[data-setrow-knob]"))) g9.remove();
+                  baseSvgU = new XMLSerializer().serializeToString(domB.documentElement);
+                }
+              }
+            }
+          } catch { knobSvgSR = null; }
+        }
+        /* ── the STEPPER becomes a WORKING control (round 44, item 37 —
+           RIG-2 + RIG-4 + RIG-7): base re-bakes with EMPTY cells and the
+           caps stripped; the lit strip overlays at value 1 for the cell
+           meter's snapper; both caps cut on stamped fixed frames as REAL
+           Buttons (the +/− glyphs ride them as live words); the plus
+           cap's hover ring cuts from the app's own hover render. All or
+           nothing: a failed cut leaves today's baked strip whole. ── */
+        let stepperSeats: NonNullable<AssetMeta["iconSeats"]> | null = null;
+        let stepperOut: { lit: string; caps: { part: string; svg: string }[] } | null = null;
+        if (uid === "stepper") {
+          try {
+            const sv0 = stripLoopsU(shell(uid, uOpts, undefined, 0));
+            const sv1 = stripLoopsU(shell(uid, uOpts, undefined, 1));
+            const svH = stripLoopsU(stateShell(uid, "hover", uOpts, uVal));
+            const svD = stripLoopsU(stateShell(uid, "disabled", uOpts, uVal));
+            const markRe = /data-stepcap="(minus|plus) ([-\d.]+) ([-\d.]+) ([-\d.]+)"/g;
+            const marks0 = [...sv0.matchAll(markRe)].map((m9) => ({ name: m9[1], cx: +m9[2], cy: +m9[3], half: +m9[4] }));
+            const shD0 = /data-shell="([-\d. ]+)"/.exec(sv0)?.[1].split(" ").map(Number);
+            const sh00 = /data-shell0="([-\d. ]+)"/.exec(sv0)?.[1].split(" ").map(Number);
+            const rise0 = shD0 && sh00 && shD0.length === 4 && sh00.length === 4 ? shD0[1] - sh00[1] : 0;
+            const stripCapsS = (sv: string): string => {
+              const dom = new DOMParser().parseFromString(sv, "image/svg+xml");
+              for (const g9 of Array.from(dom.querySelectorAll("[data-stepcap]"))) g9.remove();
+              return new XMLSerializer().serializeToString(dom.documentElement);
+            };
+            const capCut = (sv: string, name: string): string | null => {
+              const dom = new DOMParser().parseFromString(sv, "image/svg+xml");
+              let keep: Element | null = null;
+              for (const g9 of Array.from(dom.querySelectorAll("[data-stepcap]")))
+                if ((g9.getAttribute("data-stepcap") ?? "").startsWith(name + " ")) keep = g9;
+              if (!keep) return null;
+              for (const el of Array.from(dom.querySelectorAll(ICON_DRAWABLE_SEL)))
+                if (!el.closest("defs") && !keep.contains(el)) el.remove();
+              const mk9 = (keep.getAttribute("data-stepcap") ?? "").split(" ");
+              const cx9 = +mk9[1], cy9 = +mk9[2], hf9 = +mk9[3];
+              const shDs = /data-shell="([-\d. ]+)"/.exec(sv)?.[1].split(" ").map(Number);
+              const sh0s = /data-shell0="([-\d. ]+)"/.exec(sv)?.[1].split(" ").map(Number);
+              const riseS = shDs && sh0s && shDs.length === 4 && sh0s.length === 4 ? shDs[1] - sh0s[1] : 0;
+              if (!(hf9 > 2)) return null;
+              return new XMLSerializer().serializeToString(dom.documentElement)
+                .replace(/viewBox="[^"]+"/, `viewBox="${(cx9 - hf9).toFixed(1)} ${(cy9 - hf9 + riseS).toFixed(1)} ${(hf9 * 2).toFixed(1)} ${(hf9 * 2).toFixed(1)}"`)
+                .replace(/ width="[\d.]+"/, ` width="${Math.ceil(hf9 * 2)}"`)
+                .replace(/ height="[\d.]+"/, ` height="${Math.ceil(hf9 * 2)}"`);
+            };
+            const cMinus = capCut(sv0, "minus"), cPlus = capCut(sv0, "plus");
+            const cPlusH = capCut(svH, "plus"), cPlusD = capCut(svD, "plus");
+            if (marks0.length === 2 && shD0 && shD0.length === 4 && cMinus && cPlus && cPlusH && cPlusD) {
+              const r1s = (n: number) => Math.round(n * 10) / 10;
+              const shCx0 = shD0[0] + shD0[2] / 2, shCy0 = shD0[1] + shD0[3] / 2;
+              stepperSeats = marks0.map((mk9) => ({
+                name: mk9.name, file: `assets/stepper/stepper-cap-${mk9.name}.png`,
+                dx: r1s(mk9.cx - shCx0), dy: r1s(mk9.cy + rise0 - shCy0),
+                w: r1s(mk9.half * 2), h: r1s(mk9.half * 2),
+                btn: true, nick: mk9.name === "minus" ? "Minus button" : "Plus button",
+              }));
+              stepperOut = {
+                lit: stripWordInk(stripCapsS(sv1)).svg,
+                caps: [
+                  { part: "cap-minus", svg: cMinus }, { part: "cap-plus", svg: cPlus },
+                  { part: "cap-plus-hover", svg: cPlusH }, { part: "cap-plus-disabled", svg: cPlusD },
+                ],
+              };
+              baseSvgU = stripWordInk(stripCapsS(sv0)).svg;
+            }
+          } catch { stepperOut = null; stepperSeats = null; }
+        }
+        /* ── LIVES goes drivable (round 44, R6 — RIG-2 on the stepper's
+           lit-overlay road): base re-bakes ALL HEARTS DIM, the lit strip
+           overlays all hearts bright, and KitCellMeter lights whole
+           hearts from the value. The canvas is fixed per size (the glow
+           reserve), the hearts run IS the drawn shell box — injected as
+           the zone stamp export-side only (the app's pointer behavior is
+           untouched). All or nothing: a failed render keeps the bake. ── */
+        let livesOut: { lit: string; staged: number; n: number } | null = null;
+        if (uid === "lives") {
+          try {
+            const svRestL = stripLoopsU(shell(uid, uOpts, undefined, uVal));
+            const sv0L = stripLoopsU(shell(uid, uOpts, undefined, 0));
+            const sv1L = stripLoopsU(shell(uid, uOpts, undefined, 1));
+            const arL = /aria-label="lives: (\d+) of (\d+)"/.exec(svRestL);
+            const shL = /data-shell="([-\d. ]+)"/.exec(sv0L)?.[1].split(" ").map(Number);
+            if (arL && shL && shL.length === 4 && +arL[2] > 0) {
+              const trackAttr = `data-track="${shL[0].toFixed(1)} ${shL[2].toFixed(1)} ${shL[1].toFixed(1)} ${shL[3].toFixed(1)}" `;
+              baseSvgU = sv0L.replace("<svg ", `<svg ${trackAttr}`);
+              livesOut = {
+                lit: sv1L.replace("<svg ", `<svg ${trackAttr}`),
+                staged: Math.max(0, Math.min(1, +arL[1] / +arL[2])),
+                n: +arL[2],
+              };
+            }
+          } catch { livesOut = null; }
+        }
+        /* round 47 (item 3): the combo base row carries the authored
+           numeral anchor on the crop-corrected gauge road (dialX/dialY —
+           the stopwatch/steps precedent), so ComboPop composes the
+           digits at the exact seat */
+        let comboSeatG: { gauge: NonNullable<AssetMeta["gauge"]> } | null = null;
+        if (uid === "combo") {
+          const seatC9 = /data-comboseat="([-\d. ]+)"/.exec(fullU);
+          if (seatC9) {
+            const [scx9, scy9] = seatC9[1].split(" ").map(Number);
+            comboSeatG = { gauge: { x: 0, y: 0, fs: 0, unitY: 0, unitFs: 0, dialX: scx9 * PNG_SCALE, dialY: scy9 * PNG_SCALE } };
+          }
+        }
+        /* the damage number's authored anchor rides the same crop-corrected
+           gauge road (the combo precedent) — DmgNumber composes there */
+        if (uid === "dmgnumber") {
+          const seatD9 = /data-dmgseat="([-\d. ]+)"/.exec(fullU);
+          if (seatD9) {
+            const [sdx9, sdy9] = seatD9[1].split(" ").map(Number);
+            comboSeatG = { gauge: { x: 0, y: 0, fs: 0, unitY: 0, unitFs: 0, dialX: sdx9 * PNG_SCALE, dialY: sdy9 * PNG_SCALE } };
+          }
+        }
         await addPng(`${uid}/base.png`, baseSvgU, {
           component: uid, part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
           usage: UNIVERSAL_USAGE[uid] ?? (GLYPH_BUTTONS.has(uid)
@@ -4165,17 +4789,578 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           ...(famFlipU ? { flip: true } : {}),
           ...(uLabelMeta ?? {}),
           ...(uWord !== undefined ? { labelText: uWord } : {}),
-          ...(ringRig ? {} : seatsU),
-          ...(iconSeatsU ? { iconSeats: iconSeatsU } : {}),
-        }, true, interactive ? uid : undefined);
+          ...(ringRig || buffRig ? {} : seatsU),
+          ...(iconSeatsU ? { iconSeats: iconSeatsU } : stepperSeats ? { iconSeats: stepperSeats } : {}),
+          ...(comboSeatG ?? {}),
+        /* the worn-ground rigs (buff plate, stopwatch face, step plate)
+           must share the base's crop frame — the union IS the base's own
+           box (their ink is a subset), so base bytes stand still */
+        /* round 47 (item 2): the hearts' lit glow needs the wider crop
+           margin (numeric crop = margin px) so its tail fades to zero
+           inside the sprite — no hard rectangle on dark scenes */
+        }, livesOut ? 40 : true, interactive || buffRig || cellRig || stepperOut || livesOut || uid === "stopwatch" || uid === "steps" ? uid : undefined);
+        if (livesOut) {
+          await addPng(`${uid}/lit.png`, livesOut.lit, {
+            component: uid, part: "lit", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+            usage: `All ${livesOut.n} hearts LIT — the prefab's Lit layer scissors per whole heart (KitCellMeter: drive Value or SetValue; hearts go dark right to left as lives are spent).`,
+            ringV: Math.max(0.005, livesOut.staged), railW: livesOut.n,
+          }, 40, uid);
+        }
+        if (railsOut) {
+          for (const rl of railsOut) {
+            await addPng(`${uid}/fill-${rl.name}.png`, rl.fill, {
+              component: uid, part: `fill-${rl.name}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+              usage: `The ${rl.name} rail's mercury at 100% — the app's own dressing; the prefab's Filled image scissors it to the live value and KitBarFill parks the rounded head (drive fillAmount or SetValue).`,
+              ringV: rl.staged, railDx: rl.dx, railDy: rl.dy, railW: rl.w9, railH: rl.h9,
+            }, true);
+            await addPng(`${uid}/cap-${rl.name}.png`, rl.cap, {
+              component: uid, part: `cap-${rl.name}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+              usage: `The ${rl.name} rail's rounded head — KitBarFill parks it on the value line.`,
+            }, true);
+          }
+        }
+        if (barRigU && barFillSvgU && barCapSvgU) {
+          const stagedBar = Math.max(0, Math.min(1, uVal ?? ({ loadbar: 0.62, popmeter: 0.84, respawn: 0.6, buildqueue: 0.55, xpbar: 0.45, unitplate: 0.82, questpanel: 2 / 3, setrow: 0.7, orderticket: 0.62, vitalbar: 0.72 } as Record<string, number>)[uid] ?? 0.62));
+          await addPng(`${uid}/fill.png`, barFillSvgU, {
+            component: uid, part: "fill", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+            usage: "The mercury at 100% — the app's own dressing (gradient, gloss, glow) alone on the canvas; the prefab's Filled image scissors it to the live value and KitBarFill parks the rounded head (drive fillAmount or SetValue).",
+            ringV: stagedBar,
+          }, true);
+          await addPng(`${uid}/cap.png`, barCapSvgU, {
+            component: uid, part: "cap", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+            usage: "The mercury's rounded head — KitBarFill parks it on the value line (hides at 0, yields to the full-run bead at 100%).",
+          }, true);
+        }
+        if (knobSvgSR) {
+          // crop=false: the svg IS the fixed frame already (the windowed-
+          // atom rule — a re-crop pass rescales and blurs the crisp rim)
+          await addPng(`${uid}/knob.png`, knobSvgSR, {
+            component: uid, part: "knob", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+            usage: "The candy knob — the mini Slider's Handle wears it (generated wiring). Swap the sprite to restyle the grip.",
+          }, false);
+        }
+        if (stepperOut) {
+          await addPng(`${uid}/lit.png`, stepperOut.lit, {
+            component: uid, part: "lit", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+            usage: "The cell strip, ALL EIGHT lit — the prefab's Lit layer scissors per whole cell (KitCellMeter snaps into the gaps; the +/− Buttons step it).",
+            ringV: Math.max(0, Math.min(1, uVal ?? 0.62)),
+          }, true, uid);
+          for (const c9 of stepperOut.caps) {
+            await addPng(`${uid}/${c9.part}.png`, c9.svg, {
+              component: uid, part: c9.part, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+              usage: c9.part === "cap-minus"
+                ? "The minus cap — a REAL Button child (press dim manners); its − glyph rides as a live word."
+                : c9.part === "cap-plus"
+                  ? "The plus cap — a REAL Button child (Sprite Swap: the app's own hover ring arms it); its + glyph rides as a live word."
+                  : c9.part === "cap-plus-hover"
+                    ? "The plus cap, ARMED — the app's own hover ring (Sprite Swap highlighted/pressed skin)."
+                    : "The plus cap, disabled — the app's own dimmed face.",
+            }, false);
+          }
+        }
+        /* ── the OBJECTIVE PIP LOOKS (round 44, item 29b): the base seats
+           each drawn pip as a live child above; the three LOOKS ship
+           beside them so a dev toggles any row in the Inspector — done
+           cut from the all-done render, active and empty from the
+           none-done one. Additive: a failed look leaves the seats. ── */
+        if (uid === "questpanel") {
+          try {
+            const lookQP: [string, string, number, string][] = [
+              ["pip-done", "pip1", 1, "An objective pip, DONE (disc + check) — swap any Objective pip child to this sprite to mark its row complete."],
+              ["pip-active", "pip1", 0, "An objective pip, ACTIVE (the glowing ring) — the current objective's look."],
+              ["pip-empty", "pip2", 0, "An objective pip, EMPTY — a not-yet-reached objective's look."],
+            ];
+            for (const [part9, cutName, v9, use9] of lookQP) {
+              const sv9 = stripLoopsU(shell(uid, uOpts, undefined, v9));
+              const cut9 = markedIconOnlySvgs(sv9).find((c9) => c9.name === cutName);
+              if (!cut9 || !cut9.box || cut9.box.length !== 4) continue;
+              // the SHARED frame (data-icon-box + the drawn rise), so every
+              // look registers 1:1 with every seat — swap without math
+              const shD9 = /data-shell="([-\d. ]+)"/.exec(sv9)?.[1].split(" ").map(Number);
+              const sh09 = /data-shell0="([-\d. ]+)"/.exec(sv9)?.[1].split(" ").map(Number);
+              const rise9 = shD9 && sh09 && shD9.length === 4 && sh09.length === 4 ? shD9[1] - sh09[1] : 0;
+              const bx9 = cut9.box[0], by9 = cut9.box[1] + rise9;
+              const bw9b = cut9.box[2], bh9b = cut9.box[3];
+              if (!(bw9b > 1) || !(bh9b > 1)) continue;
+              const spr9 = cut9.svg
+                .replace(/viewBox="[^"]+"/, `viewBox="${bx9.toFixed(1)} ${by9.toFixed(1)} ${bw9b.toFixed(1)} ${bh9b.toFixed(1)}"`)
+                .replace(/ width="[\d.]+"/, ` width="${Math.ceil(bw9b)}"`)
+                .replace(/ height="[\d.]+"/, ` height="${Math.ceil(bh9b)}"`);
+              await addPng(`${uid}/${part9}.png`, spr9, {
+                component: uid, part: part9, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: use9,
+              }, false);
+            }
+          } catch { /* the seats above still ship */ }
+        }
+        /* ── the STAR LOOKS (round 44, item 35): the seats cut the rest
+           pose above; the two LOOKS ship beside them on the SAME shared
+           frame (data-icon-box — the quest-pip lesson), so the StarRating
+           rig (or a dev) swaps any star's state with zero distortion —
+           earned from the full render, unearned from the zero one. The
+           unearned row's ringV carries the staged score, so the rig
+           rests exactly on the app's pose at ANY staging. ── */
+        if (uid === "starrating") {
+          try {
+            const lookSR: [string, number, string][] = [
+              ["star-earned", 1, "A star EARNED (the app's candy gold) — swap any Star child to this sprite, or let StarRating drive it."],
+              ["star-unearned", 0, "A star in its UNEARNED state (sunken silhouette) — swap any Star child to this sprite, or let StarRating drive it."],
+            ];
+            for (const [partS, vS, useS] of lookSR) {
+              const sv0S = stripLoopsU(shell(uid, uOpts, undefined, vS));
+              const cut0S = markedIconOnlySvgs(sv0S).find((c9) => c9.name === "star1");
+              if (!cut0S || !cut0S.box || cut0S.box.length !== 4 || !(cut0S.box[2] > 2)) continue;
+              const shDS = /data-shell="([-\d. ]+)"/.exec(sv0S)?.[1].split(" ").map(Number);
+              const sh0S = /data-shell0="([-\d. ]+)"/.exec(sv0S)?.[1].split(" ").map(Number);
+              const riseS9 = shDS && sh0S && shDS.length === 4 && sh0S.length === 4 ? shDS[1] - sh0S[1] : 0;
+              const spr0 = cut0S.svg
+                .replace(/viewBox="[^"]+"/, `viewBox="${cut0S.box[0].toFixed(1)} ${(cut0S.box[1] + riseS9).toFixed(1)} ${cut0S.box[2].toFixed(1)} ${cut0S.box[3].toFixed(1)}"`)
+                .replace(/ width="[\d.]+"/, ` width="${Math.ceil(cut0S.box[2])}"`)
+                .replace(/ height="[\d.]+"/, ` height="${Math.ceil(cut0S.box[3])}"`);
+              await addPng(`${uid}/${partS}.png`, spr0, {
+                component: uid, part: partS, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+                usage: useS,
+                ...(partS === "star-unearned" ? { ringV: Math.max(0.005, Math.min(1, uVal ?? 1)) } : {}),
+              }, false);
+            }
+          } catch { /* the rest-pose seats above still ship */ }
+        }
+        /* ── the EMOTE LOOKS (round 44, item 11): every sector's emote
+           ships BOTH looks on its fixed frame — lit cut from the render
+           where THAT sector is armed, ghost from a neighbor's render —
+           so the EmoteWheel rig (or a dev) swaps any sector's state 1:1.
+           The lit rows carry the staged pose (ringV) and the sector
+           count (railW) for the wiring. ── */
+        if (uid === "emotewheel") {
+          try {
+            const wsE = /data-wheelstage="(\d+) (\d+)"/.exec(fullU);
+            const nEW = wsE ? parseInt(wsE[1], 10) : 0;
+            if (nEW >= 4 && nEW <= 8) {
+              const rendersEW: string[] = [];
+              for (let i = 0; i < nEW; i++) rendersEW.push(stripLoopsU(shell(uid, uOpts, undefined, (i + 0.5) / nEW)));
+              const cutEW = (sv: string, nm: string): string | null => {
+                const c9 = markedIconOnlySvgs(sv).find((c8) => c8.name === nm);
+                if (!c9 || !c9.box || c9.box.length !== 4 || !(c9.box[2] > 1)) return null;
+                const shD9 = /data-shell="([-\d. ]+)"/.exec(sv)?.[1].split(" ").map(Number);
+                const sh09 = /data-shell0="([-\d. ]+)"/.exec(sv)?.[1].split(" ").map(Number);
+                const rise9 = shD9 && sh09 && shD9.length === 4 && sh09.length === 4 ? shD9[1] - sh09[1] : 0;
+                return c9.svg
+                  .replace(/viewBox="[^"]+"/, `viewBox="${c9.box[0].toFixed(1)} ${(c9.box[1] + rise9).toFixed(1)} ${c9.box[2].toFixed(1)} ${c9.box[3].toFixed(1)}"`)
+                  .replace(/ width="[\d.]+"/, ` width="${Math.ceil(c9.box[2])}"`)
+                  .replace(/ height="[\d.]+"/, ` height="${Math.ceil(c9.box[3])}"`);
+              };
+              for (let i = 0; i < nEW; i++) {
+                const litEW = cutEW(rendersEW[i], `emote${i + 1}`);
+                const ghostEW = cutEW(rendersEW[(i + 1) % nEW], `emote${i + 1}`);
+                if (!litEW || !ghostEW) continue;
+                await addPng(`${uid}/emote${i + 1}-lit.png`, litEW, {
+                  component: uid, part: `emote${i + 1}-lit`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+                  usage: `Sector ${i + 1}'s emote, ARMED (themed + halo) — the EmoteWheel rig swaps it in when this sector is picked (or swap any emote child by hand).`,
+                  ringV: Math.max(0.005, Math.min(1, uVal ?? 0.005)), railW: nEW,
+                }, false);
+                await addPng(`${uid}/emote${i + 1}-ghost.png`, ghostEW, {
+                  component: uid, part: `emote${i + 1}-ghost`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+                  usage: `Sector ${i + 1}'s emote at rest — the resting look on the same fixed frame (1:1 with the armed cut).`,
+                }, false);
+              }
+            }
+          } catch { /* the rest-pose seats above still ship */ }
+        }
+        /* ── the SCROLLBAR goes to Unity WIRED (round 44, item 32 —
+           RIG-7): scrollbar-track.9 (thumb-suppressed, vertical slice,
+           arrows in the caps) + scrollbar-thumb.9 for a real
+           UnityEngine.UI.Scrollbar. The base row keeps shipping
+           BYTE-IDENTICAL as the kept-projects' legacy sheet (the
+           stale-joystick lesson: never orphan a kept prefab's sprite). ── */
+        if (uid === "scrollbar") {
+          try {
+            const svB = stripLoopsU(shell(uid, uOpts, undefined, uVal));
+            const geoB = /data-sbgeo="([-\d. ]+)"/.exec(svB)?.[1].split(" ").map(Number);
+            const shDB = (/data-shell="([-\d. ]+)"/.exec(svB) ?? /data-shell0="([-\d. ]+)"/.exec(svB))?.[1].split(" ").map(Number);
+            const sh0B = /data-shell0="([-\d. ]+)"/.exec(svB)?.[1].split(" ").map(Number);
+            const riseB = shDB && sh0B && shDB.length === 4 && sh0B.length === 4 ? shDB[1] - sh0B[1] : 0;
+            if (geoB && geoB.length === 5 && geoB.every(Number.isFinite) && shDB && shDB.length === 4) {
+              const [zxB, zyB, zwB, zhB, thHB] = geoB;
+              // TRACK: strip the marked thumb; the lane rides a data-track
+              // stamp so the crop-normalizing parse seats it exactly
+              const domT = new DOMParser().parseFromString(svB, "image/svg+xml");
+              for (const g9 of Array.from(domT.querySelectorAll("[data-sbthumb]"))) g9.remove();
+              let trackSvgB = new XMLSerializer().serializeToString(domT.documentElement);
+              trackSvgB = trackSvgB.replace("<svg ", `<svg data-track="${zxB.toFixed(1)} ${zwB.toFixed(1)} ${zyB.toFixed(1)} ${zhB.toFixed(1)}" `);
+              const capT = Math.round((zyB + zwB / 2 + 6 - 30 + 10) * PNG_SCALE);
+              const capLR = Math.round((shDB[2] * 0.45 + 10) * PNG_SCALE);
+              /* the queue MEASURES slice caps and would stop them mid-
+                 arrow — the sliceMin floor (the dropdown-caret precedent)
+                 keeps the whole arrow zone + lane end inside the caps */
+              await addPng(`${uid}/track.9.png`, trackSvgB, {
+                component: uid, part: "track", nineSlice: { left: capLR, right: capLR, top: capT, bottom: capT }, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+                usage: "Vertical scrollbar track in the kit's own chrome — arrows live in the caps. Stretch vertically; the wired Scrollbar prefab rides it.",
+              }, true, undefined, { sliceMin: { top: capT, bottom: capT } });
+              // THUMB: the marked cut on its stamped frame (+pad), sliced
+              // so the handle stretches with Scrollbar.size honestly
+              const domH = new DOMParser().parseFromString(svB, "image/svg+xml");
+              const keepH = domH.querySelector("[data-sbthumb]");
+              if (keepH) {
+                for (const el of Array.from(domH.querySelectorAll(ICON_DRAWABLE_SEL)))
+                  if (!el.closest("defs") && !keepH.contains(el)) el.remove();
+                const padH = 5;
+                const bxH = zxB + 1.5 - padH, byH = zyB + (zhB - thHB) * Math.max(0, Math.min(1, uVal ?? 0.3)) + riseB - padH;
+                const bwH = zwB - 3 + padH * 2, bhH = thHB + padH * 2;
+                const thumbSvgB = new XMLSerializer().serializeToString(domH.documentElement)
+                  .replace(/viewBox="[^"]+"/, `viewBox="${bxH.toFixed(1)} ${byH.toFixed(1)} ${bwH.toFixed(1)} ${bhH.toFixed(1)}"`)
+                  .replace(/ width="[\d.]+"/, ` width="${Math.ceil(bwH)}"`)
+                  .replace(/ height="[\d.]+"/, ` height="${Math.ceil(bhH)}"`);
+                const capTh = Math.round(((zwB - 3) / 2 + padH + 2) * PNG_SCALE);
+                const capThLR = Math.round(((zwB - 3) * 0.45 + padH) * PNG_SCALE);
+                await addPng(`${uid}/thumb.9.png`, thumbSvgB, {
+                  component: uid, part: "thumb", nineSlice: { left: capThLR, right: capThLR, top: capTh, bottom: capTh }, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+                  usage: "The candy thumb — the Scrollbar's Handle (generated wiring; Scrollbar.size stretches it along the lane).",
+                  // rest value + travel geometry for the wiring: ringV =
+                  // the app's rest (measured from the TOP), railW = the
+                  // lane's run, railH = the thumb's own height (design px)
+                  ringV: Math.max(0.005, Math.min(1, uVal ?? 0.3)), railW: Math.round(zhB * 10) / 10, railH: Math.round(thHB * 10) / 10,
+                  // the floor keeps the gloss stripe's rounded ends inside
+                  // the caps — the stretch zone stays truly uniform
+                }, false, undefined, { sliceMin: { top: capTh, bottom: capTh } });
+              }
+            }
+          } catch { /* the legacy sheet still ships */ }
+        }
+        if (cellRig && litSvgU) {
+          await addPng(`${uid}/lit.png`, litSvgU, {
+            component: uid, part: "lit", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+            usage: ({
+              ammo: "The thirds meter, ALL THREE lit — the prefab's Lit layer scissors from the RIGHT per remaining third (KitCellMeter: drive Value or SetValue; bars go dark left→right as ammo depletes).",
+              magazine: "The round pips, ALL TWELVE lit — the prefab's Lit layer scissors per whole round (KitCellMeter: drive Value or SetValue; the cut snaps into the gaps). The readout seat is yours to drive beside it.",
+              streakmeter: "The streak cells, ALL FIVE lit — the prefab's Lit layer scissors per whole cell; ONE dial drives everything (StreakIgnite: value lights the cells and IGNITES the glyph at full).",
+            } as Record<string, string>)[uid] ?? "The energy cells, ALL TEN lit — the prefab's Lit layer scissors per whole cell (KitCellMeter: drive Value or SetValue; the cut snaps into the gaps).",
+            ringV: Math.max(0, Math.min(1, uVal ?? (uid === "ammo" ? 1 : uid === "magazine" ? 0.66 : uid === "streakmeter" ? 0.64 : 0.8))),
+          }, true, uid);
+        }
+        if (buffRig) {
+          const stripBuffSweep = (sv: string): string => {
+            try {
+              const dom = new DOMParser().parseFromString(sv, "image/svg+xml");
+              for (const n9 of Array.from(dom.querySelectorAll("[data-buffsweep]"))) n9.remove();
+              return new XMLSerializer().serializeToString(dom.documentElement);
+            } catch { return sv; }
+          };
+          await addPng(`${uid}/plate.png`, stripBuffSweep(baseSvgU), {
+            component: uid, part: "plate", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+            usage: "Buff frame, sweep-less — the LIVE rig's face (the generated prefab wears it; base.png keeps the baked pose for older importers).",
+            ...seatsU,
+          }, true, uid);
+          await addPng(`${uid}/sweep.png`, shell(uid, { ...uOpts, part: "sweep" }, undefined, uVal), {
+            component: uid, part: "sweep", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+            usage: "Cooldown sweep at 100% spent — pre-clipped to the silhouette; Image Filled / Radial360 (origin Top, clockwise) cuts the app's pie at ANY value (KitBuffSweep drives it from time remaining).",
+            ringV: Math.max(0, Math.min(1, uVal ?? 0.65)),
+          }, false);
+          await addPng(`${uid}/sweephand.png`, shell(uid, { ...uOpts, part: "sweephand" }, undefined, uVal), {
+            component: uid, part: "sweephand", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+            usage: "The sweep's glowing head line, parked at 12 o'clock — KitBuffSweep rotates it to the sweep edge (the window Mask clips it to the face).",
+          }, false);
+          await addPng(`${uid}/sweepmask.png`, shell(uid, { ...uOpts, part: "sweepmask" }, undefined, uVal), {
+            component: uid, part: "sweepmask", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+            usage: "The face silhouette, opaque — the Sweep Window's Mask graphic (hidden), so the rotating hand clips exactly like the app's face clip.",
+          }, false);
+        }
+        /* ── the STOPWATCH ATOMS (round 44, item 39 — RIG-3): the arc,
+           hand and hub leave the face and return as rotation-true atoms
+           on ONE dial-centered square canvas (the buff-sweep
+           discipline); the FACE is the rig's ground — base.png keeps the
+           baked pose byte-identical for old importers and kept prefabs
+           (the ring's compatibility rule). The dial center rides the
+           face row's gauge stamp (dialX/dialY — the crop-corrected
+           road the speedo needle already trusts); the arc row's ringV
+           stages the value. ── */
+        if (uid === "stopwatch") {
+          try {
+            const faceSvg0 = stripLoopsU(shell(uid, { ...uOpts, part: "face" }, undefined, uVal));
+            const dialSW = /viewBox="0 0 ([\d.]+) ([\d.]+)"/.exec(faceSvg0);
+            const faceSvg = iconSeatsU ? stripIconInk(stripWordInk(faceSvg0).svg).svg : stripWordInk(faceSvg0).svg;
+            // the dial center: the crown-and-caption canvas is fixed, so
+            // the center is the render's own cx3/cy3 — recover them from
+            // the hand atom's square window (its canvas centers the dial)
+            const handSvgSW = shell(uid, { ...uOpts, part: "hand" }, undefined, uVal);
+            const vbH = /viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/.exec(handSvgSW);
+            if (dialSW && vbH) {
+              const dcx = +vbH[1] + +vbH[3] / 2, dcy = +vbH[2] + +vbH[4] / 2;
+              await addPng(`${uid}/face.png`, faceSvg, {
+                component: uid, part: "face", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+                usage: "Stopwatch face, still — the LIVE rig's ground (the generated prefab wears it; base.png keeps the baked pose for older importers). The readout is a LIVE seat riding this row.",
+                ...seatsU,
+                gauge: { x: 0, y: 0, fs: 0, unitY: 0, unitFs: 0, dialX: dcx * PNG_SCALE, dialY: dcy * PNG_SCALE },
+              }, true, uid);
+              await addPng(`${uid}/arc.png`, shell(uid, { ...uOpts, part: "arc" }, undefined, uVal), {
+                component: uid, part: "arc", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true,
+                usage: "The remaining-time ring, full circle, WHITE at the app's own alpha — Image Filled / Radial360 (origin Top, clockwise) cuts it clean at ANY value; the kit's Glow (and the alarm swap) ride Image.color (PatternBreakStopwatch drives it).",
+                ringV: Math.max(0.005, Math.min(1, uVal ?? 0.62)),
+              }, false);
+              await addPng(`${uid}/cap-start.png`, shell(uid, { ...uOpts, part: "cap-start" }, undefined, uVal), {
+                component: uid, part: "cap-start", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true,
+                usage: "The arc's round START cap (the protruding half only, so the translucent arc never doubles) — parked at 12 o'clock.",
+              }, false);
+              await addPng(`${uid}/cap-head.png`, shell(uid, { ...uOpts, part: "cap-head" }, undefined, uVal), {
+                component: uid, part: "cap-head", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true,
+                usage: "The arc's round HEAD cap — PatternBreakStopwatch rotates it to the value line.",
+              }, false);
+              await addPng(`${uid}/hand.png`, shell(uid, { ...uOpts, part: "hand" }, undefined, uVal), {
+                component: uid, part: "hand", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true,
+                usage: "The sweep hand + counterweight, parked at 12 o'clock WHITE — the rig rotates it to the value and tints it the app's own mix (alarm included).",
+              }, false);
+              await addPng(`${uid}/hub.png`, shell(uid, { ...uOpts, part: "hub" }, undefined, uVal), {
+                component: uid, part: "hub", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+                usage: "The candy pivot knob — rides OVER the hand, exactly the app's stack.",
+              }, false);
+              await addPng(`${uid}/hub-alarm.png`, shell(uid, { ...uOpts, part: "hub-alarm" }, undefined, uVal), {
+                component: uid, part: "hub-alarm", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+                usage: "The pivot knob in the ALARM mood — the rig swaps it in below 25% (a candy gradient can't tint).",
+              }, false);
+            }
+          } catch { /* base.png still ships — the static road stands */ }
+        }
+        /* ── the COMBO DIGIT SET (round 47, item 3 — the digit road):
+           0-9 + × in the FULL celebration dress (extrusion layers, armor
+           stroke, gradient face, halo), unrotated, one glyph per canvas;
+           each row's railW carries the glyph's advance in PNG px.
+           ComboPop.SetCount composes ×N from these at the authored seat
+           — full candy fidelity AND runtime-dynamic. ── */
+        if (uid === "combo") {
+          try {
+            for (const g9 of ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "×"]) {
+              const dSvg = shell(uid, { ...uOpts, part: "digit", label: g9 }, undefined, uVal);
+              const advD = +(/data-adv="([\d.]+)"/.exec(dSvg)?.[1] ?? "0");
+              if (!(advD > 1)) continue;
+              const dName = g9 === "×" ? "x" : g9;
+              await addPng(`${uid}/digit-${dName}.png`, dSvg, {
+                component: uid, part: `digit-${dName}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+                usage: g9 === "×"
+                  ? "The multiplier's × glyph in the kit's own celebration dress — ComboPop.SetCount composes the numeral from these (or swap any composed glyph by hand)."
+                  : `The celebration digit ${g9} — ComboPop.SetCount composes ×N from the digit set at the authored seat.`,
+                railW: Math.round(advD * PNG_SCALE * 10) / 10,
+              }, false);
+            }
+          } catch { /* the resting Multiplier child still ships */ }
+        }
+        /* ── the DAMAGE DIGIT SET (round 47 — the owner: a dev
+           instrument, not a picture): 0-9 + the thousands comma in the
+           number's full type dress, unrotated, one glyph per canvas;
+           each row's railW carries the glyph's advance in PNG px.
+           PatternBreakDmgNumber.Show(n) composes the amount from these
+           at the authored seat and plays the app's own float. ── */
+        if (uid === "dmgnumber") {
+          try {
+            for (const g9 of ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", ","]) {
+              const dSvg = shell(uid, { ...uOpts, part: "digit", label: g9 }, undefined, uVal);
+              const advD = +(/data-adv="([\d.]+)"/.exec(dSvg)?.[1] ?? "0");
+              if (!(advD > 1)) continue;
+              const dName = g9 === "," ? "comma" : g9;
+              await addPng(`${uid}/digit-${dName}.png`, dSvg, {
+                component: uid, part: `digit-${dName}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+                usage: g9 === ","
+                  ? "The thousands mark in the damage number's own dress — DmgNumber.Show groups big hits with it, the app's own formatting."
+                  : `The damage digit ${g9} — PatternBreakDmgNumber.Show(n) composes the amount from the digit set at the authored seat.`,
+                railW: Math.round(advD * PNG_SCALE * 10) / 10,
+              }, false);
+            }
+          } catch { /* the resting Damage number child still ships */ }
+        }
+        /* ── the CHAMBER LOOKS (round 44, item 44 — RIG-7): every
+           chamber's glyph ships BOTH looks on its fixed frame — armed
+           cut from the rotation that parks it at the hammer, ghost from
+           a neighbor's — and the lit rows carry the staged rotation
+           (ringV) + the orbit radius in PNG px (railW) for the rig. ── */
+        if (uid === "weaponwheel") {
+          try {
+            const wgW = /data-wheelgeo="([-\d. ]+)"/.exec(fullU);
+            const nWW = wgW ? parseInt(wgW[1].split(" ")[1], 10) : 0;
+            const orbitWW = wgW ? +wgW[1].split(" ")[0] : 0;
+            if (nWW >= 4 && nWW <= 8 && orbitWW > 4) {
+              const rendersWW: string[] = [];
+              for (let i = 0; i < nWW; i++) rendersWW.push(stripLoopsU(shell(uid, uOpts, undefined, i / nWW)));
+              const armedOf = (i: number) => ((1 - i) % nWW + nWW) % nWW;
+              const cutWW = (sv: string, nm: string): string | null => {
+                const c9 = markedIconOnlySvgs(sv).find((c8) => c8.name === nm);
+                if (!c9 || !c9.box || c9.box.length !== 4 || !(c9.box[2] > 1)) return null;
+                return c9.svg
+                  .replace(/viewBox="[^"]+"/, `viewBox="${c9.box[0].toFixed(1)} ${c9.box[1].toFixed(1)} ${c9.box[2].toFixed(1)} ${c9.box[3].toFixed(1)}"`)
+                  .replace(/ width="[\d.]+"/, ` width="${Math.ceil(c9.box[2])}"`)
+                  .replace(/ height="[\d.]+"/, ` height="${Math.ceil(c9.box[3])}"`);
+              };
+              for (let c9i = 0; c9i < nWW; c9i++) {
+                let litI = -1, ghostI = -1;
+                for (let i = 0; i < nWW; i++) { if (armedOf(i) === c9i) litI = i; else if (ghostI < 0) ghostI = i; }
+                const litWW = litI >= 0 ? cutWW(rendersWW[litI], `w${c9i + 1}`) : null;
+                const ghostWW = ghostI >= 0 ? cutWW(rendersWW[ghostI], `w${c9i + 1}`) : null;
+                if (!litWW || !ghostWW) continue;
+                await addPng(`${uid}/w${c9i + 1}-lit.png`, litWW, {
+                  component: uid, part: `w${c9i + 1}-lit`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+                  usage: `Chamber ${c9i + 1}'s glyph, ARMED (themed + halo) — the WeaponWheel rig swaps it in when this chamber lands at the hammer.`,
+                  ringV: Math.max(0.005, Math.min(1, uVal ?? 0.005)), railW: Math.round(orbitWW * PNG_SCALE * 10) / 10,
+                }, false);
+                await addPng(`${uid}/w${c9i + 1}-ghost.png`, ghostWW, {
+                  component: uid, part: `w${c9i + 1}-ghost`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+                  usage: `Chamber ${c9i + 1}'s glyph at rest — the quiet look on the same fixed frame (1:1 with the armed cut).`,
+                }, false);
+              }
+            }
+          } catch { /* the rest-pose seats above still ship */ }
+        }
+        /* ── the STEP LANE ATOMS (round 44, item 38 — RIG-5): the PLATE
+           is the rig's ground — dim rails as anatomy, no pips, EVERY
+           digit a live seat (the missing "1" included); the three pip
+           LOOKS + the lit rail ship on shared canvases and KitSteps
+           swaps them. base.png keeps the baked pose byte-identical
+           (legacy sheet). The lane anchor rides the plate row's gauge
+           stamp (crop-corrected); pitch/r travel in PNG px. ── */
+        if (uid === "steps") {
+          try {
+            const plateRaw = stripLoopsU(shell(uid, { ...uOpts, part: "plate" }, undefined, uVal));
+            const gmST = /data-steppips="([-\d. ]+)"/.exec(plateRaw);
+            const vbST = /viewBox="0 0 ([\d.]+) ([\d.]+)"/.exec(plateRaw);
+            if (gmST && vbST) {
+              const [sx0, scy, spitch, sr9, sn, scur] = gmST[1].split(" ").map(Number);
+              const rd9 = (v: number) => Math.round(v * 10) / 10;
+              stepsGeo = { x0: 0, cy: 0, pitch: rd9(spitch * PNG_SCALE), r: rd9(sr9 * PNG_SCALE), n: sn, staged: scur, w: rd9(+vbST[1]), h: rd9(+vbST[2]) };
+              const plateStripped = stripWordInk(plateRaw);
+              await addPng(`${uid}/plate.png`, plateStripped.svg, {
+                component: uid, part: "plate", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+                usage: "Step lane, still — the LIVE rig's ground (dim rails only; the generated prefab wears it and KitSteps deals the pips). Every digit is a LIVE seat riding this row — the '1' included.",
+                ...textSeatsOf(uid, plateStripped.svg, { part: "plate", icon: resolveKitIcon(st.kitIcons?.[uid], undefined) }, undefined, uVal),
+                gauge: { x: 0, y: 0, fs: 0, unitY: 0, unitFs: 0, dialX: sx0 * PNG_SCALE, dialY: scy * PNG_SCALE },
+              }, true, uid);
+              const lookST: [string, string][] = [
+                ["pip-done", "A step DONE — filled disc + check (the app's own ink); KitSteps swaps it in behind the current one."],
+                ["pip-current", "The CURRENT step — candy knob + glow ring; KitSteps parks it on the live step."],
+                ["pip-upcoming", "An UPCOMING step — the resting well; its digit stays a live seat above."],
+                ["rail-lit", "A lit connector segment — KitSteps lights the rails behind the current step (the dim rail is the plate's own anatomy)."],
+              ];
+              for (const [partST, useST] of lookST)
+                await addPng(`${uid}/${partST}.png`, shell(uid, { ...uOpts, part: partST }, undefined, uVal), {
+                  component: uid, part: partST, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: useST,
+                }, false);
+            }
+          } catch { /* base.png still ships — the static road stands */ }
+        }
+        /* ── the SAGA TRAIL ATOMS (round 44, item 26 — RIG-5): one bead
+           in each look; the PathConnector rig deals nine at the stamped
+           bezier centers and lights them by value. The base sheet stays
+           BYTE-IDENTICAL (the dossier's own gate) — the geometry rides
+           an attribute. ── */
+        if (uid === "pathconnector") {
+          try {
+            const gmPC = /data-pathgeo="([-\d. ]+)"/.exec(fullU);
+            const vbPC = /viewBox="0 0 ([\d.]+) ([\d.]+)"/.exec(fullU);
+            if (gmPC && vbPC) {
+              const ptsPC = gmPC[1].split(" ").map(Number);
+              if (ptsPC.length >= 6 && ptsPC.every(Number.isFinite)) {
+                const rd8 = (v: number) => Math.round(v * 10) / 10;
+                pathGeo = { w: rd8(+vbPC[1]), h: rd8(+vbPC[2]), n: ptsPC.length / 2, staged: Math.max(0.005, Math.min(1, uVal ?? 0.6)), pts: ptsPC.map(rd8) };
+                await addPng(`${uid}/bead.png`, shell(uid, { ...uOpts, part: "bead" }, undefined, uVal), {
+                  component: uid, part: "bead", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+                  usage: "One resting bead — PathConnector deals nine of these along the kit's own S-curve.",
+                }, false);
+                await addPng(`${uid}/bead-lit.png`, shell(uid, { ...uOpts, part: "bead-lit" }, undefined, uVal), {
+                  component: uid, part: "bead-lit", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+                  usage: "One LIT bead — glow + specular, the app's exact ink; PathConnector lights beads up to the live value.",
+                }, false);
+              }
+            }
+          } catch { /* base.png still ships — the static road stands */ }
+        }
+        /* the streak meter's LIT ignition pose (owner: "should ignite") —
+           the same marked group cut from a FULL-streak render, shipped
+           beside the ghost cut; the importer's StreakIgniteWire hands both
+           to the StreakIgnite rig on the generated prefab. A maker who set
+           the ignition slot to None ships neither, and the rig sits out. */
+        if (uid === "streakmeter") {
+          try {
+            const litSvg = stripLoopsU(shell(uid, uOpts, undefined, 1));
+            await iconSeatsOf(uid, litSvg, undefined, "endicon-lit");
+          } catch { /* unlit-only — the meter still ships */ }
+        }
         if (interactive) {
           for (const stName of ["hover", "pressed", "disabled"] as const) {
             let sSvg: string;
-            try { sSvg = stateShell(uid, stName, uOpts, uVal); } catch { continue; }
-            await addPng(`${uid}/base-${stName}.png`, stripIconInk(stripWordInk(sSvg).svg).svg, {
+            try { sSvg = stripLoopsU(stateShell(uid, stName, uOpts, uVal)); } catch { continue; }
+            /* a bar-rig family's state skins strip the mercury too (round
+               44, item 23): the live Fill child rides the press — a baked
+               twin beneath would double-draw the bar on hover */
+            const sOut = stripIconInk(stripWordInk(sSvg).svg).svg;
+            await addPng(`${uid}/base-${stName}.png`, barRigU ? stripBarFill(sOut).svg : sOut, {
               component: uid, part: `base-${stName}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
               usage: `${SWAP_USAGE[stName]} state — Sprite Swap beside base.png (the generated prefab wires it). Union-cropped with base, so the press pose stays registered.`,
             }, true, uid);
+          }
+        }
+      }
+    }
+
+    /* ── REWARDS STATE VARIANTS (owner roster, round 41: "ALL rewards
+       states shelve" + the 2x reward button) — each shelved state is its
+       own family row rendered through the SAME universal hands (word
+       strip, live seats, marked-icon children), under a suffixed
+       component name the generic FamilyPrefab road builds and the
+       Playground's REWARDS chapter claims. Display pieces: the pressing
+       lives on the base family's prefab. Staged families ship nothing
+       here (stagedShips), exactly like their base road. ── */
+    {
+      const VARIANTS: { uid: KitComponentId; suffix: string; opts: Record<string, unknown>; value?: number; interactive?: boolean; usage: string }[] = [
+        /* the 2x button is a REAL BUTTON (round 43 review blocker: it
+           shipped base-only beside its fully live Claimbtn sibling — a
+           gold CTA that ate the click and answered nothing): its own
+           union-cropped state skins bake below, stateFx dials ship under
+           its family name, and FamilyPrefab wires the Button from them. */
+        { uid: "claimbtn", suffix: "double", interactive: true, opts: { slots: { ...(st.kitSlotVals?.claimbtn ?? {}), mode: "2x by ad" } },
+          usage: "The 2x reward button — the claim button's Double-by-ad state, a REAL button (Sprite Swap states, glow + lift): the word is a LIVE seat, the play badge a LIVE Image child, and the ANGLED gold ribbon its OWN delete-and-replace child (the rotated word stays in its pixels by the warped-stamp contract — never burned into the button face)." },
+        { uid: "rewardcard", suffix: "legendary", opts: {}, value: 1,
+          usage: "Reward reveal at LEGENDARY — the aura at the ladder's top; words are LIVE seats, the glyph a LIVE Image child, and the amber qty chip a live plate whose count RIDES it. The pressing lives on the Rewardcard prefab." },
+        { uid: "rewardcard", suffix: "mystery", opts: { slots: { ...(st.kitSlotVals?.rewardcard ?? {}), kind: "Mystery" } },
+          usage: "Reward card, MYSTERY pre-reveal — the unopened pose; words are LIVE seats. The pressing lives on the Rewardcard prefab." },
+        { uid: "dailycell", suffix: "claimed", opts: { overlay: "check", label: st.kitLabels?.dailycell ?? "DAY 3" },
+          usage: "Daily reward, CLAIMED — the checked pose; the day word is a LIVE seat and the green Claimed badge its OWN Image child (owner ruling, round 44: never burned in — move, restyle or delete it). The pressing lives on the Dailycell prefab." },
+        { uid: "dailycell", suffix: "locked", opts: { overlay: "locked", label: st.kitLabels?.dailycell ?? "DAY 5" },
+          usage: "Daily reward, LOCKED — tomorrow's pose; the day word is a LIVE seat and the Lock badge its OWN Image child. The pressing lives on the Dailycell prefab." },
+      ];
+      const stripLoopsV = (sv: string) => sv
+        .replace(/<animate(?:Transform|Motion)?\b[^>]*\/>/g, "")
+        .replace(/<animate(?:Transform|Motion)?\b[^>]*>[\s\S]*?<\/animate(?:Transform|Motion)?>/g, "");
+      for (const v of VARIANTS) {
+        if (!stagedShips(v.uid)) continue;
+        const famV = `${v.uid}-${v.suffix}`;
+        const vOpts: Record<string, unknown> = {
+          label: st.kitNoText?.[v.uid] ? "" : st.kitLabels?.[v.uid],
+          sub: st.kitSubs?.[v.uid], slots: st.kitSlotVals?.[v.uid],
+          icon: resolveKitIcon(st.kitIcons?.[v.uid], undefined),
+          themedText: !!st.kitDesigns?.[v.uid]?.type || !!st.kitTextFill[v.uid],
+          ...v.opts,
+        };
+        const vVal = v.value ?? st.kitVals?.[v.uid];
+        let fullV: string;
+        try { fullV = stripLoopsV(shell(v.uid, vOpts, undefined, vVal)); } catch { continue; }
+        const strippedV = stripWordInk(fullV);
+        const seatsV = strippedV.seatsStripped > 0
+          ? textSeatsOf(v.uid, strippedV.svg, vOpts, undefined, vVal, "bake")
+          : {};
+        const iconSeatsV = await iconSeatsOf(v.uid, fullV, famV);
+        const baseSvgV = iconSeatsV ? stripIconInk(strippedV.svg).svg : strippedV.svg;
+        await addPng(`${famV}/base.png`, baseSvgV, {
+          component: famV, part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+          usage: v.usage,
+          ...(isFlipShape(st.kitShapes[v.uid] ?? KIT_SHAPE[v.uid] ?? st.cfg.shape) ? { flip: true } : {}),
+          ...seatsV,
+          ...(iconSeatsV ? { iconSeats: iconSeatsV } : {}),
+        }, true, v.interactive ? famV : undefined);
+        /* an interactive variant bakes its OWN state skins on the base
+           family's own recipe, union-cropped with its base (one crop
+           group per famV) so the Sprite Swap stays registered */
+        if (v.interactive) {
+          for (const stName of ["hover", "pressed", "disabled"] as const) {
+            let sSvgV: string;
+            try { sSvgV = stripLoopsV(stateShell(v.uid, stName, vOpts, vVal)); } catch { continue; }
+            await addPng(`${famV}/base-${stName}.png`, stripIconInk(stripWordInk(sSvgV).svg).svg, {
+              component: famV, part: `base-${stName}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+              usage: `${SWAP_USAGE[stName]} state — Sprite Swap beside base.png (the generated prefab wires it). Union-cropped with base, so the press pose stays registered.`,
+            }, true, famV);
           }
         }
       }
@@ -4449,8 +5634,14 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     await addPng("circuit/track.png", ccSvg, { component: "circuit", part: "track", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Circuit ribbon with start/finish tick. Position markers are live engine sprites; the venue label arrives as live text on the Circuit prefab.", ...textSeatsOf("circuit", ccSvg) });
   }
   {
+    /* round 44 (R4, RIG-6): the YOUR-ROW gold band + legend dash pills
+       un-burn to live children — stripping the band also frees the
+       nine-slice stretch region (it used to distort on resize). The
+       fail-safe rule: no seats, no strip. */
     const lbSvg = shell("leaderboard", { part: "base" }, slim);
-    await addPng("leaderboard/base.9.png", lbSvg, { component: "leaderboard", part: "base", nineSlice: sliceOf("leaderboard", 250), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Position-list panel. Heading and rows arrive as live text on the Leaderboard prefab — duplicate a Row to extend the standings.", ...textSeatsOf("leaderboard", lbSvg, {}, slim) }, true);
+    const lbSeats = await iconSeatsOf("leaderboard", lbSvg);
+    const lbOut = lbSeats ? stripMarkedIcons(lbSvg).svg : lbSvg;
+    await addPng("leaderboard/base.9.png", lbOut, { component: "leaderboard", part: "base", nineSlice: sliceOf("leaderboard", 250), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Position-list panel — heading and rows arrive as live text (duplicate a Row to extend the standings); the your-row highlight and the legend dashes are LIVE children (slide the highlight to any row, or delete it). Stretches clean: the band no longer sits in the slice's stretch zone.", ...textSeatsOf("leaderboard", lbSvg, {}, slim), ...(lbSeats ? { iconSeats: lbSeats } : {}) }, true);
   }
   {
     const lpSvg = shell("laptimes", { part: "base" }, slim);
@@ -4459,8 +5650,78 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     await addPng("telemetry/base.9.png", tmSvg, { component: "telemetry", part: "base", nineSlice: sliceOf("telemetry", 240), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Telemetry panel — instrument well + grid + axis rails baked; THR/BRK/SPD are LIVE KitTrace children seeded with the app's demo data (manifest > chart; edit Values in the Inspector or SetValues at runtime); title, legend and axis labels arrive as live text.", chart: chartOf(tmSvg, "telemetry"), ...textSeatsOf("telemetry", tmSvg, {}, slim) }, true);
   }
   {
-    const slSvg = shell("startlights", { part: "base" });
-    await addPng("startlights/base.png", slSvg, { component: "startlights", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Start-light gantry, all pods dark. Light the pods with tinted circles (alarm red) from the engine's countdown; the caption arrives as live text on the Startlights prefab.", ...textSeatsOf("startlights", slSvg) });
+    /* ── RIG-5, startlights (round 44, item 36): the base bakes ALL-DARK
+       and holds byte-still (the geometry rides an attribute, which never
+       rasterizes); the lamp atom + the pods geo block make LitCount a
+       real dial on the StartLights prefab. ── */
+    const slVal = st.kitVals?.startlights;
+    const slSvg = shell("startlights", { part: "base" }, undefined, slVal);
+    const gmSL = /data-pods="([-\d. ]+)"/.exec(slSvg);
+    const vbSL = /viewBox="0 0 ([\d.]+) ([\d.]+)"/.exec(slSvg);
+    if (gmSL && vbSL) {
+      const [sx0, scy, spitch, sr] = gmSL[1].split(" ").map(Number);
+      const rd = (v: number) => Math.round(v * 10) / 10;
+      startLightsGeo = { x0: rd(sx0), cy: rd(scy), pitch: rd(spitch), r: rd(sr), n: 5, staged: 0, w: rd(+vbSL[1]), h: rd(+vbSL[2]) };
+    }
+    await addPng("startlights/base.png", slSvg, { component: "startlights", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Start-light gantry, all pods dark — the StartLights prefab parks a live lamp over every lens and LitCount 0-5 lights them (SetCount, or SetValue 0..1; the caption flips to LIGHTS OUT at zero). The caption is live text.", ...textSeatsOf("startlights", slSvg) });
+    await addPng("startlights/lamp.png", shell("startlights", { part: "lamp" }), { component: "startlights", part: "lamp", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "One lit pod — alarm lens, glow and specular, the app's exact ink. The StartLights prefab holds five over the dark lenses; LitCount enables them left to right." });
+  }
+  {
+    /* ── RIG-5 pilot, pagedots (round 44, item 24): the carousel position
+       becomes a DIAL. The base keeps baking (legacy sheet for old scenes
+       and boardstamps — its bytes hold still, the stamp is an attribute);
+       the PageDots prefab builds the strip LIVE from the two atoms at the
+       stamped pitch. ── */
+    const pdVal = st.kitVals?.pagedots;
+    const pdSvg = shell("pagedots", {}, undefined, pdVal);
+    const gmPD = /data-pagedots="([-\d. ]+)"/.exec(pdSvg);
+    const vbPD = /viewBox="0 0 ([\d.]+) ([\d.]+)"/.exec(pdSvg);
+    if (gmPD && vbPD) {
+      const [px0, pcy, ppitch, pr9, pn, psel] = gmPD[1].split(" ").map(Number);
+      const rd = (v: number) => Math.round(v * 10) / 10;
+      pageDotsGeo = { x0: rd(px0), cy: rd(pcy), pitch: rd(ppitch), r: rd(pr9), n: pn, staged: psel, w: rd(+vbPD[1]), h: rd(+vbPD[2]) };
+    }
+    await addPng("pagedots/dot.png", shell("pagedots", { part: "dot" }), { component: "pagedots", part: "dot", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "One resting dot — PageDots deals pageCount of these at the kit's own pitch." });
+    await addPng("pagedots/knob.png", shell("pagedots", { part: "knob" }), { component: "pagedots", part: "knob", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The active dot — the kit's candy knob with its glow halo; PageDots parks it on currentPage." });
+  }
+  {
+    /* ── ROUND 46, R1 — the radial mandate ("make sure the buff frame,
+       spinner, and cooldown radial" ship wired/live like the capture
+       ring): both chrome radials join the export as WORKING rigs. All
+       parts bake on ONE full square canvas apiece (crop=false — children
+       stretch full over the worn ground, registration by construction). */
+    await addPng("spinner/track.png", shell("spinner", { part: "track" }), {
+      component: "spinner", part: "track", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+      usage: "Loading spinner track — the well ring; the generated Spinner prefab wears it and PatternBreakSpinner spins the Comet child (Play mode, the app's own 1.2s period).",
+    }, false);
+    await addPng("spinner/comet.png", shell("spinner", { part: "comet" }), {
+      component: "spinner", part: "comet", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+      usage: "The comet arc, parked at 12 o'clock — PatternBreakSpinner rotates it (period field; SetSpinning to pause). The app's dash-breathe flourish is SVG-side only; the spin is the piece.",
+    }, false);
+    const cdVal = st.kitVals?.cooldown;
+    const cdFace0 = shell("cooldown", { part: "face" }, undefined, cdVal);
+    await addPng("cooldown/face.png", stripWordInk(cdFace0).svg, {
+      component: "cooldown", part: "face", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+      usage: "Cooldown radial, still — ring, core and the ALL-DIM tick crown; the generated prefab wears it and PatternBreakCooldown drives the rest. The seconds readout is a LIVE seat riding this row.",
+      ...textSeatsOf("cooldown", cdFace0, { part: "face" }, undefined, cdVal),
+    }, false);
+    await addPng("cooldown/sector.png", shell("cooldown", { part: "sector" }, undefined, cdVal), {
+      component: "cooldown", part: "sector", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+      usage: "The spent pie as a full dark disc — Image Filled / Radial360 (origin Top, clockwise) at fillAmount = 1 − value cuts the app's sector exactly (PatternBreakCooldown drives it).",
+      ringV: Math.max(0.005, Math.min(1, cdVal ?? 0.4)),
+    }, false);
+    await addPng("cooldown/ticks-lit.png", shell("cooldown", { part: "ticks-lit" }, undefined, cdVal), {
+      component: "cooldown", part: "ticks-lit", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+      usage: "The recovered tick crown, ALL TWELVE lit — Radial360 origin Top COUNTER-clockwise at fillAmount = value lights the tail span, the app's own rule.",
+    }, false);
+    await addPng("cooldown/hand.png", shell("cooldown", { part: "hand" }, undefined, cdVal), {
+      component: "cooldown", part: "hand", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+      usage: "The sweep edge with its hot tip, parked at 12 o'clock — PatternBreakCooldown rotates it to the spent edge.",
+    }, false);
+    await addPng("cooldown/sheen.png", shell("cooldown", { part: "sheen" }, undefined, cdVal), {
+      component: "cooldown", part: "sheen", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+      usage: "The core's specular sheen — the TOP layer, above the spent sector, exactly the app's stack.",
+    }, false);
   }
 
   /* ── the RIGS (owner round, 2026-08-04): joystick, health globe and
@@ -4533,7 +5794,12 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     await addPng("seasontrack/well-premium.png", shell("seasontrack", { part: "well-premium" }), { component: "seasontrack", part: "well-premium", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "One reward well, premium lane — the gold-trimmed slot, exactly as the app draws it. Instanced per tier below the spine." }, true);
     await addPng("seasontrack/node.png", shell("seasontrack", { part: "node" }), { component: "seasontrack", part: "node", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Spine node, not yet reached — the level number is live engine text on top." }, true);
     await addPng("seasontrack/node-lit.png", shell("seasontrack", { part: "node-lit" }), { component: "seasontrack", part: "node-lit", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Spine node, reached — SeasonTrack swaps it in up to the current tier." }, true);
-    await addPng("seasontrack/spine.9.png", shell("seasontrack", { part: "spine" }), { component: "seasontrack", part: "spine", nineSlice: { left: 16, right: 16, top: 4, bottom: 4 }, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The level rail — sliced; SeasonTrack stretches it node 1 to node N, with the kit's progress fill (assets/progress) riding above." }, true);
+    await addPng("seasontrack/spine.9.png", shell("seasontrack", { part: "spine" }), { component: "seasontrack", part: "spine", nineSlice: { left: 16, right: 16, top: 4, bottom: 4 }, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The level rail — sliced; SeasonTrack stretches it node 1 to node N, with the run (seasontrack-run.9.png) riding above." }, true);
+    /* the RUN atom (round 44, item 14): the app's own progress strip —
+       the rig used to squash the 44px-bordered progress mercury into the
+       rail's thin band and Unity's border crush mangled the caps right
+       on the line. This atom slices true at rail height. */
+    await addPng("seasontrack/run.9.png", shell("seasontrack", { part: "run" }), { component: "seasontrack", part: "run", nineSlice: { left: 12, right: 12, top: 4, bottom: 4 }, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The progress RUN — the app's own glow strip on the rail, sliced; SeasonTrack stretches it to the current tier (drive SetProgress)." }, false);
   }
   /* its own component id so the wired Minimap prefab (RadarDemo sweep +
      blips) can find its shell box in the manifest; the file stays in
@@ -4559,7 +5825,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     const atIcon = resolveKitIcon(st.kitIcons?.achievetoast, undefined);
     const atSvg = shell("achievetoast", { part: "shell", icon: atIcon });
     const atSeats = await iconSeatsOf("achievetoast", atSvg, "extras");
-    await addPng("extras/achievement.png", atSeats ? stripIconInk(atSvg).svg : atSvg, { component: "extras", part: "achievement", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Achievement toast plate with the gold medallion — the announcement and title arrive as live text and the medallion's glyph is a LIVE Image child on the Achievement prefab (swap the sprite in the Inspector; icons/* fit the same seat; pick it on uikitmaker.com like any other icon).", ...textSeatsOf("achievetoast", atSvg, { icon: atIcon }), ...(atSeats ? { iconSeats: atSeats } : {}) });
+    await addPng("extras/achievement.png", atSeats ? stripIconInk(atSvg).svg : atSvg, { component: "extras", part: "achievement", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Achievement toast plate — the announcement and title arrive as live text, and the gold medallion AND its glyph are both LIVE Image children on the Achievement prefab (round 44: recolor, move or remove orb and glyph independently; swap sprites in the Inspector; icons/* fit the glyph seat).", ...textSeatsOf("achievetoast", atSvg, { icon: atIcon }), ...(atSeats ? { iconSeats: atSeats } : {}) });
   }
 
   /* ── STRETCH-SAFE FACES (owner: a diagonal pattern shears when the
@@ -4661,7 +5927,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      recipe as its own sprite — the boards bake the panel ringless and a
      rig moves this over whichever tile is clicked. Ships only when a
      board actually places an inventory grid. */
-  if (st.boards?.some((bd) => bd.items.some((it) => it.component === "invgrid" && it.cells))) {
+  /* the ring ships with EVERY full kit now (round 41 — the Invgrid family
+     prefab shelves ringless, so the live layer must always be in reach),
+     not only when a board placed a grid */
+  if (full || st.boards?.some((bd) => bd.items.some((it) => it.component === "invgrid" && it.cells))) {
     const rGlow = pieceCfg("invgrid").effects.Glow ?? "#8FF0FF";
     const rr9 = parseInt(rGlow.slice(1, 3), 16), rg9 = parseInt(rGlow.slice(3, 5), 16), rb9 = parseInt(rGlow.slice(5, 7), 16);
     const ringSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="264" height="264" viewBox="-12 -12 132 132">` +
@@ -5073,6 +6342,11 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
          origin) — the SeasonTrack prefab seats its live tier cells with
          these, so wells and nodes land exactly where the app drew them */
       seasonTrack: seasonGeo,
+      // RIG-5 geometry (round 44): absent in old zips by design
+      pageDots: pageDotsGeo,
+      startLights: startLightsGeo,
+      steps: stepsGeo,
+      pathConnector: pathGeo,
       rules: [
         "Nothing replaceable is baked: labels, numbers, values, avatars and swappable icons are live engine content.",
         "Nine-slice assets stretch only their center region; margins below are in PNG pixels at pngScale.",
@@ -5230,7 +6504,22 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
                     lift recipe, and the slice-1 content ride carries their
                     live words/seats with the face */
                  ["ghost", "ghost"], ["claimbtn", "claimbtn"], ["levelnode", "levelnode"],
-                 ["dailycell", "dailycell"], ["boostercard", "boostercard"], ["rewardcard", "rewardcard"]] as const).flatMap(([pid, fam]) => {
+                 ["dailycell", "dailycell"], ["boostercard", "boostercard"], ["rewardcard", "rewardcard"],
+                 ["orderticket", "orderticket"], ["chest", "chest"], ["giftbox", "giftbox"],
+                 ["skillnode", "skillnode"], ["booster", "booster"],
+                 /* the 2x reward button presses for real (round 43 review
+                    blocker) — the variant family rides the base piece's
+                    own state dials */
+                 ["claimbtn", "claimbtn-double"],
+                 /* round 44: the input-prompt variants ride their base
+                    piece's own state dials (the 2x-button rule) */
+                 ["keycap", "keycap-space"], ["padbtn", "padbtn"],
+                 ["padbtn", "padbtn-b"], ["padbtn", "padbtn-x"], ["padbtn", "padbtn-y"]] as const)
+        /* STAGED families ship NOTHING — dials included (round 43 review
+           paper cut: chest/giftbox/orderticket rows leaked against the
+           "ships nothing" receipt). The rows appear with the release. */
+        .filter(([pid]) => stagedShips(pid))
+        .flatMap(([pid, fam]) => {
         const ps = pieceCfg(pid).states;
         return (["default", "hover", "pressed", "disabled"] as const).map((sn) => ({
           family: fam,
@@ -5251,7 +6540,9 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       labelStates: [
         ...([["primary", "button-primary"], ["secondary", "button-secondary"], ["small", "button-small"], ["chip", "chip"], ["tab", "tab"], ["tabback", "tab-back"],
              // the ghost button is a labeled button family too (universal road)
-             ["ghost", "ghost"]] as const).flatMap(([pid, fam]) => {
+             ["ghost", "ghost"]] as const)
+          .filter(([pid]) => stagedShips(pid)) // staged families ship no rows (round 43)
+          .flatMap(([pid, fam]) => {
           const pc = pieceCfg(pid);
           return (["hover", "pressed", "disabled"] as const).flatMap((sn) => {
             const f = pc.stateDesigns[sn];
@@ -5276,7 +6567,11 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
            housing contract (the pad pins to rest by design). */
         ...([["datarow", "list-row"], ["slot", "item-slot"], ["iconbtn", "iconbtn"], ["checkbox", "checkbox"], ["radio", "radio"],
              ["gearicon", "gearicon"], ["trophyicon", "trophyicon"], ["gifticon", "gifticon"], ["endturn", "endturn"], ["keycap", "keycap"], ["pricebtn", "pricebtn"],
-             ["claimbtn", "claimbtn"], ["levelnode", "levelnode"], ["dailycell", "dailycell"], ["boostercard", "boostercard"], ["rewardcard", "rewardcard"]] as const).flatMap(([pid, fam]) =>
+             ["claimbtn", "claimbtn"], ["levelnode", "levelnode"], ["dailycell", "dailycell"], ["boostercard", "boostercard"], ["rewardcard", "rewardcard"],
+             ["skillnode", "skillnode"], ["booster", "booster"], ["claimbtn", "claimbtn-double"],
+             ["keycap", "keycap-space"], ["padbtn", "padbtn"], ["padbtn", "padbtn-b"], ["padbtn", "padbtn-x"], ["padbtn", "padbtn-y"]] as const)
+          .filter(([pid]) => stagedShips(pid)) // staged families ship no rows (round 43)
+          .flatMap(([pid, fam]) =>
           (["hover", "pressed", "disabled"] as const).flatMap((sn) => {
             const dy = measuredStateDy(pid, sn);
             if (dy == null || Math.abs(dy) < 0.05) return [];
@@ -5417,6 +6712,9 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Runtime/PatternBreakBoardRigs.cs", data: BOARD_RIGS_RUNTIME });
   files.push({ path: "Runtime/PatternBreakClaimBurst.cs", data: CLAIMBURST_RUNTIME });
   files.push({ path: "Runtime/PatternBreakInvGrid.cs", data: INVGRID_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakStreakIgnite.cs", data: STREAK_IGNITE_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakComboPop.cs", data: COMBO_POP_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakDmgNumber.cs", data: DMG_NUMBER_RUNTIME });
   files.push({ path: "Runtime/PatternBreakCountdownLabel.cs", data: COUNTDOWN_RUNTIME });
   files.push({ path: "Runtime/PatternBreakIdleShine.cs", data: IDLE_SHINE_RUNTIME });
   files.push({ path: "Runtime/PatternBreakPopNumber.cs", data: POP_NUMBER_RUNTIME });
@@ -5424,6 +6722,22 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Runtime/PatternBreakSeasonTrack.cs", data: SEASON_TRACK_RUNTIME });
   files.push({ path: "Runtime/PatternBreakStateFx.cs", data: STATE_FX_RUNTIME });
   files.push({ path: "Runtime/PatternBreakRingFill.cs", data: RING_FILL_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakBuffSweep.cs", data: BUFF_SWEEP_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakKitBarFill.cs", data: KIT_BAR_FILL_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakCellMeter.cs", data: CELL_METER_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakKitStepper.cs", data: KIT_STEPPER_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakPageDots.cs", data: PAGE_DOTS_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakStartLights.cs", data: START_LIGHTS_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakStarRating.cs", data: STAR_RATING_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakEmoteWheel.cs", data: EMOTE_WHEEL_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakStopwatch.cs", data: STOPWATCH_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakKitSteps.cs", data: KIT_STEPS_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakPathConnector.cs", data: PATH_CONNECTOR_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakWeaponWheel.cs", data: WEAPON_WHEEL_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakSpinner.cs", data: SPINNER_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakCooldown.cs", data: COOLDOWN_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakAttentionPulse.cs", data: ATTENTION_PULSE_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakGlowCycle.cs", data: GLOW_CYCLE_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitTrace.cs", data: KIT_TRACE_RUNTIME });
   files.push({ path: "Runtime/PatternBreakSafeArea.cs", data: SAFE_AREA_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitPiece.cs", data: KIT_PIECE_RUNTIME });
@@ -5494,8 +6808,25 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     "Runtime/PatternBreakBoardRigs.cs", "Runtime/PatternBreakCountdownLabel.cs",
     "Runtime/PatternBreakPopNumber.cs", "Runtime/PatternBreakRadarDemo.cs",
     "Runtime/PatternBreakClaimBurst.cs", "Runtime/PatternBreakInvGrid.cs",
+    "Runtime/PatternBreakStreakIgnite.cs", "Runtime/PatternBreakComboPop.cs",
+    "Runtime/PatternBreakDmgNumber.cs",
     "Runtime/PatternBreakStateFx.cs", "Runtime/UIKitGlintInk.shader",
     "Runtime/PatternBreakRingFill.cs",
+    "Runtime/PatternBreakBuffSweep.cs",
+    "Runtime/PatternBreakKitBarFill.cs",
+    "Runtime/PatternBreakCellMeter.cs",
+    "Runtime/PatternBreakKitStepper.cs",
+    "Runtime/PatternBreakPageDots.cs", "Runtime/PatternBreakStartLights.cs",
+    "Runtime/PatternBreakStarRating.cs",
+    "Runtime/PatternBreakEmoteWheel.cs",
+    "Runtime/PatternBreakStopwatch.cs",
+    "Runtime/PatternBreakKitSteps.cs",
+    "Runtime/PatternBreakPathConnector.cs",
+    "Runtime/PatternBreakWeaponWheel.cs",
+    "Runtime/PatternBreakSpinner.cs",
+    "Runtime/PatternBreakCooldown.cs",
+    "Runtime/PatternBreakAttentionPulse.cs",
+    "Runtime/PatternBreakGlowCycle.cs",
     "Runtime/PatternBreakKitTrace.cs",
     "Runtime/PatternBreakSafeArea.cs",
     "Runtime/PatternBreakKitPiece.cs",
@@ -5688,7 +7019,15 @@ export async function bakeAlphabetFace(base: GenConfig): Promise<{ png: Uint8Arr
     for (const ch of BAKE_GLYPHS) solo.set(ch, mx.measureText(ch).width);
     for (const a of BAKE_GLYPHS) for (const b of BAKE_GLYPHS) {
       const kp = mx.measureText(a + b).width - solo.get(a)! - solo.get(b)!;
-      if (Math.abs(kp) > 0.1) kerning.push({ l: a.codePointAt(0)!, r: b.codePointAt(0)!, k: Math.round(kp * BAKE_S * 10) / 10 });
+      if (Math.abs(kp) > 0.1) {
+        /* round 48 (cross-lane, the smashed-pair guard): a pair whose own
+           kern fuses the strokes (kernCollides — Fredoka's I·V at
+           −0.15em) never enters the shipped table; TMP then lays the
+           pair at its unkerned advances, exactly the app's guarded
+           rendering. The app's guard IS the arbiter — one philosophy. */
+        if (kp < 0 && kernCollides(a + b, family, weight, !!base.type.italic, (base.type.spacing ?? 0) / 100)) continue;
+        kerning.push({ l: a.codePointAt(0)!, r: b.codePointAt(0)!, k: Math.round(kp * BAKE_S * 10) / 10 });
+      }
     }
   }
   for (const ch of BAKE_GLYPHS + " ") {
@@ -5972,6 +7311,1290 @@ namespace PatternBreak {
     void OnEnable() { Apply(); }
     // change-guarded follow: a quiet frame compares one float and writes nothing
     void LateUpdate() { if (fill != null && !Mathf.Approximately(fill.fillAmount, wrote)) Apply(); }
+  }
+}
+`;
+
+/* THE LINEAR CAP RIG (round 44, owner kit-wide ruling — "I like how the
+   right side of the mercury here is rounded, that's what I'm talking
+   about kit-wide"): the app REDRAWS the mercury with a rounded head at
+   every value, while Unity's Filled crop can only cut a straight line —
+   the baked bead appears at ~100% alone. KitRingFill made linear: the
+   fill keeps the SHIPPED contract (drive fillAmount, or SetValue), and
+   the app's own bead — a windowed cut of its drawing — parks with its
+   curve exactly on the value line while the crop pulls back under the
+   bead's solid body. Hidden near 0; yields to the baked full-run cap at
+   ~100%; shrinks like the app when the run is narrower than the head. */
+const KIT_BAR_FILL_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+
+namespace PatternBreak {
+  [AddComponentMenu("UI Kit Maker/Kit Bar Fill")]
+  [ExecuteAlways]
+  public class KitBarFill : MonoBehaviour {
+    [Tooltip("The Filled/Horizontal mercury. Drive its fillAmount (or call SetValue) and the rounded head follows — the shipped contract is unchanged.")]
+    public Image fill;
+    [Tooltip("The mercury's rounded head, cut from the app's own drawing; parked so its curve ends exactly at the value line (generated).")]
+    public RectTransform capHead;
+    [Tooltip("Mirrored bar (fillOrigin Right): the head rides the fill's left edge.")]
+    public bool fromRight;
+    [Tooltip("Snap the value to N whole steps — the quest tracker fills by whole objectives (round 44). 0 = continuous; old prefabs keep today's behavior.")]
+    public int snapSteps = 0;
+    [Tooltip("Ramped mercuries (the VS bar): COMPRESS the sprite into the run — the app squeezes its whole gradient into the mercury at every value, so a windowed crop wears the wrong ink everywhere but full. Off = the classic windowed crop (flat-colored bars; older prefabs).")]
+    public bool stretchRun;
+    [Tooltip("The whole-mercury pill for the short-run tail (generated on ramped bars): below one head-width the app draws a stadium with the full ramp squeezed in — no static head can fake that — so this atom squashes to the run and cross-fades out as the bar grows.")]
+    public RectTransform nub;
+    [Tooltip("The mercury BODY inside the fill sprite, as fractions of its width (generated from the manifest's body box). The atom's crop carries glow bleed — mapping the whole sprite onto the zone seated the ink 10-24px right of the well (round 48, owner field). 0/1 = the whole sprite (old zips keep today's look).")]
+    public float bodyU0 = 0f;
+    public float bodyU1 = 1f;
+    [Tooltip("The bead BODY inside the cap sprite (width fractions, generated) — the bead's true edge parks on the value line, not the glow bleed's.")]
+    public float capU0 = 0f;
+    public float capU1 = 1f;
+    float value = -1f; float wroteFill = float.NaN;
+    float Snap(float v) { v = Mathf.Clamp01(v); return snapSteps > 0 ? Mathf.Round(v * snapSteps) / snapSteps : v; }
+    public void SetValue(float v) { value = Snap(v); Apply(); }
+    public void Apply() {
+      if (fill == null) return;
+      // a cold load reads the serialized cut back through the body map,
+      // so re-imports never ratchet the value by the margin (round 48)
+      if (value < 0f) value = Snap(bodyU0 > 0.0005f || bodyU1 < 0.9995f ? Mathf.Clamp01((fill.fillAmount - (fromRight ? 1f - bodyU1 : bodyU0)) / Mathf.Max(0.05f, bodyU1 - bodyU0)) : fill.fillAmount);
+      float v = value;
+      var capImg = capHead != null ? capHead.GetComponent<Image>() : null;
+      var area = transform as RectTransform;
+      bool showFill = v > 0.005f;
+      if (fill.enabled != showFill) fill.enabled = showFill;
+      if (capHead == null || capImg == null || capImg.sprite == null || area == null) {
+        fill.fillAmount = v; wroteFill = fill.fillAmount; return;
+      }
+      float areaW = area.rect.width, areaH = area.rect.height;
+      /* the head scales with the SAME vertical factor as the fill (both
+         sprites crop to the mercury band), so the bead stays circular at
+         any bar height — pngScale cancels in the ratio */
+      float capW = areaH * (capImg.sprite.rect.width / Mathf.Max(1f, capImg.sprite.rect.height));
+      /* the BODY spans (round 48, owner field: "the fill needs to line up
+         with the start of the well"): the atoms crop to their glow bleed,
+         so the true ink is a sub-span of each sprite — every seat and cut
+         below speaks body space, and 0/1 defaults keep old zips exact */
+      float span = bodyU1 - bodyU0 > 0.05f ? bodyU1 - bodyU0 : 1f;
+      float capSpan = capU1 - capU0 > 0.05f ? capU1 - capU0 : 1f;
+      float capBodyW = capW * capSpan;
+      float r = areaH * 0.5f;
+      bool full = v >= 0.995f;
+      float runW = areaW * v;
+      /* stretch mode normalizes the shrink by the head's BODY — the bead
+         may never outgrow the run (the windowed rung keeps its round-44
+         2r rule so old prefabs render exactly as shipped) */
+      float shrink = stretchRun ? Mathf.Clamp01(runW / Mathf.Max(1f, capBodyW)) : Mathf.Clamp01(runW / Mathf.Max(1f, 2f * r)); // the app: r = min(h/2, run/2)
+      bool showCap = showFill && !full;
+      if (capHead.gameObject.activeSelf != showCap) capHead.gameObject.SetActive(showCap);
+      if (showCap) {
+        float ax = fromRight ? 1f - v : v;
+        capHead.anchorMin = new Vector2(ax, 0f);
+        capHead.anchorMax = new Vector2(ax, 1f);
+        capHead.pivot = new Vector2(fromRight ? 0f : 1f, 0.5f);
+        capHead.sizeDelta = new Vector2(capW, 0f);
+        /* the bead's TRUE edge parks on the value line — the glow bleed
+           past the bead overhangs it, exactly like the app's halo */
+        capHead.anchoredPosition = new Vector2(fromRight ? -capU0 * capW * shrink : (1f - capU1) * capW * shrink, 0f);
+        /* a MIRRORED bar's head atom ships PRE-MIRRORED (vsbar cap-r), so
+           it seats pivot-first INTO the run. The old extra x-flip threw
+           it onto naked track left of the value line (round 47, owner
+           field: the right cap sat detached from its fill). */
+        var sc = capHead.localScale; sc.x = Mathf.Max(0.01f, shrink); sc.y = Mathf.Max(0.01f, shrink); capHead.localScale = sc;
+      }
+      if (stretchRun) { ApplyStretched(v, runW, areaW, areaH, capBodyW, showFill, showCap); return; }
+      var wrt = fill.rectTransform;
+      /* the fill child OVERHANGS the zone by its margin fractions, so the
+         BODY lands zone-true (round 48) — 0/1 margins = the old 0..1 */
+      float exMin = -bodyU0 / span, exMax = 1f + (1f - bodyU1) / span;
+      if (wrt.anchorMin.x != exMin || wrt.anchorMax.x != exMax) { var w0 = wrt.anchorMin; w0.x = exMin; wrt.anchorMin = w0; var w1 = wrt.anchorMax; w1.x = exMax; wrt.anchorMax = w1; wrt.offsetMin = Vector2.zero; wrt.offsetMax = Vector2.zero; }
+      if (nub != null && nub.gameObject.activeSelf) nub.gameObject.SetActive(false);
+      if (showCap) {
+        // the crop's straight cut retreats under the bead's solid body —
+        // its full-height corners can never poke past the curve
+        float capFrac = areaW > 1f ? (capBodyW * shrink) / areaW : 0f;
+        fill.fillAmount = Mathf.Max(0f, v - capFrac * 0.5f);
+      } else fill.fillAmount = v;
+      // the cut maps through the body too — the scissor line stays true
+      // (a mirrored bar's Filled origin counts from the OTHER margin)
+      if (bodyU0 > 0.0005f || bodyU1 < 0.9995f) fill.fillAmount = (fromRight ? 1f - bodyU1 : bodyU0) + fill.fillAmount * span;
+      wroteFill = fill.fillAmount;
+    }
+    /* the RAMP road (round 47, owner field: the VS bar's cap wore ink from
+       the ramp's far end): the app compresses its whole gradient into the
+       live mercury, so the body STRETCHES to the run (anchors carry the
+       value), the faded-lead bead parks on the drain edge, and the nub
+       pill owns the short tail where the app squeezes the full ramp into
+       one stadium. SetValue and raw fillAmount writes both still drive it. */
+    void ApplyStretched(float v, float runW, float areaW, float areaH, float capBodyW, bool showFill, bool showCap) {
+      if (v >= 0.995f) v = 1f; // full = the sprite's own authored end, unsqueezed
+      float span = bodyU1 - bodyU0 > 0.05f ? bodyU1 - bodyU0 : 1f;
+      var frt = fill.rectTransform;
+      var a0 = frt.anchorMin; var a1 = frt.anchorMax;
+      /* the sprite's BODY compresses into the run; the crop margins ride
+         outside it (round 48) — 0/1 margins reduce to the plain [0..v] */
+      a0.x = fromRight ? 1f - bodyU1 * v / span : -bodyU0 * v / span;
+      a1.x = fromRight ? 1f + (1f - bodyU1) * v / span : (1f - bodyU0) * v / span;
+      if (frt.anchorMin != a0) frt.anchorMin = a0;
+      if (frt.anchorMax != a1) frt.anchorMax = a1;
+      if (frt.offsetMin != Vector2.zero) frt.offsetMin = Vector2.zero;
+      if (frt.offsetMax != Vector2.zero) frt.offsetMax = Vector2.zero;
+      float shrink = Mathf.Clamp01(runW / Mathf.Max(1f, capBodyW));
+      if (showCap) {
+        // the straight cut retreats to the bead's midline — within the
+        // stretched rect the cut is a fraction of the RUN, not the area
+        float capFrac = runW > 1f ? (capBodyW * shrink) / runW : 0f;
+        fill.fillAmount = Mathf.Max(0f, 1f - capFrac * 0.5f);
+      } else fill.fillAmount = showFill ? 1f : 0f;
+      if (bodyU0 > 0.0005f || bodyU1 < 0.9995f) fill.fillAmount = (fromRight ? 1f - bodyU1 : bodyU0) + fill.fillAmount * span;
+      wroteFill = fill.fillAmount;
+      var nubImg = nub != null ? nub.GetComponent<Image>() : null;
+      float nubW = nubImg != null && nubImg.sprite != null ? areaH * (nubImg.sprite.rect.width / Mathf.Max(1f, nubImg.sprite.rect.height)) : 0f;
+      // squash-solid below its own width, cross-fading out over the next
+      // ~two-thirds of a head so regime handoff never pops mid-drain
+      float nubFade = nubW > 1f && showCap ? Mathf.Clamp01(1f - (runW - nubW) / Mathf.Max(1f, nubW * 0.7f)) : 0f;
+      bool showNub = nubImg != null && nubImg.sprite != null && nubFade > 0.001f;
+      if (nub != null && nub.gameObject.activeSelf != showNub) nub.gameObject.SetActive(showNub);
+      if (showNub) {
+        nub.anchorMin = new Vector2(fromRight ? 1f : 0f, 0f);
+        nub.anchorMax = new Vector2(fromRight ? 1f : 0f, 1f);
+        nub.pivot = new Vector2(fromRight ? 1f : 0f, 0.5f);
+        nub.sizeDelta = new Vector2(runW, 0f);
+        nub.anchoredPosition = Vector2.zero;
+        var nc = nubImg.color; nc.a = nubFade;
+        if (nubImg.color != nc) nubImg.color = nc;
+      }
+    }
+    void OnEnable() { Apply(); }
+    // the shipped contract stands: write fillAmount and the head follows
+    // (a raw write re-snaps too, the KitCellMeter rule)
+    void LateUpdate() {
+      if (fill == null) return;
+      if (!Mathf.Approximately(fill.fillAmount, wroteFill)) { value = Snap(fill.fillAmount); Apply(); }
+    }
+  }
+}
+`;
+
+/* THE CELL-METER SNAPPER (round 44, dossier RIG-2): the app lights WHOLE
+   cells; a raw fillAmount write chops mid-pill. The rig snaps every cut
+   into the gap after the last lit cell (the segbar scissor made a
+   runtime), mirrored for meters that go dark left→right (ammo). */
+const CELL_METER_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+
+namespace PatternBreak {
+  [AddComponentMenu("UI Kit Maker/Kit Cell Meter")]
+  [ExecuteAlways]
+  public class KitCellMeter : MonoBehaviour {
+    [Tooltip("Charge 0..1 — snapped to whole cells (the app's own rule). Drive this or call SetValue; a raw fillAmount write on the Lit image re-snaps too.")]
+    [Range(0f, 1f)] public float value = 0.62f;
+    [Tooltip("The lit strip (Filled/Horizontal, generated). The cut lands in the gap after the last lit cell.")]
+    public Image lit;
+    public int cells = 5;
+    [Tooltip("The cell run inside the lit sprite, as fractions of its width (wired on import from the manifest zone).")]
+    public float zone0 = 0f;
+    public float zone1 = 1f;
+    [Tooltip("Mirrored meter (ammo): cells go dark left to right as the value drops — the lit cells keep the right.")]
+    public bool fromRight;
+    float wrote = float.NaN;
+    public void SetValue(float v) { value = Mathf.Clamp01(v); Apply(); }
+    public void Apply() {
+      if (lit == null) return;
+      int n = Mathf.Max(1, cells);
+      int L = Mathf.RoundToInt(Mathf.Clamp01(value) * n);
+      float f;
+      if (L <= 0) f = 0f;
+      else if (L >= n) f = 1f;
+      else if (!fromRight) f = Mathf.Clamp01(zone0 + (zone1 - zone0) * (L / (float)n));
+      else f = Mathf.Clamp01(1f - (zone0 + (zone1 - zone0) * ((n - L) / (float)n)));
+      lit.fillAmount = f;
+      wrote = f;
+    }
+    void OnEnable() { Apply(); }
+    // a raw fillAmount write reads as the VALUE and re-snaps to whole cells
+    void LateUpdate() { if (lit != null && !Mathf.Approximately(lit.fillAmount, wrote)) { value = Mathf.Clamp01(lit.fillAmount); Apply(); } }
+  }
+}
+`;
+
+/* the STEPPER'S BRAIN (round 44, item 37): the two cap Buttons step the
+   value by whole cells and the cell meter snaps the strip — the app's
+   own editing contract ("pressed fills one more cell"), working in play
+   mode out of the box. The generated prefab wires the Buttons' onClick
+   to StepUp/StepDown as persistent listeners. */
+const KIT_STEPPER_RUNTIME = `using UnityEngine;
+
+namespace PatternBreak {
+  [AddComponentMenu("UI Kit Maker/Kit Stepper")]
+  public class KitStepper : MonoBehaviour {
+    [Tooltip("The stepped value 0..1 — snapped to whole cells by the meter. Drive this, call SetValue, or let the +/- Buttons step it.")]
+    [Range(0f, 1f)] public float value = 0.62f;
+    [Tooltip("The cell meter this stepper drives (generated wiring).")]
+    public KitCellMeter cellMeter;
+    [Tooltip("How many cells one press moves through (the app's strip has 8).")]
+    public int cells = 8;
+    public void StepUp() { Set(value + 1f / Mathf.Max(1, cells)); }
+    public void StepDown() { Set(value - 1f / Mathf.Max(1, cells)); }
+    public void SetValue(float v) { Set(v); }
+    void Set(float v) { value = Mathf.Clamp01(v); if (cellMeter != null) cellMeter.SetValue(value); }
+    void OnEnable() { if (cellMeter != null) cellMeter.SetValue(value); }
+  }
+}
+`;
+
+/* the STAR RATING rig (round 44, item 35 — RIG-5): stars 0..3 as a DIAL.
+   Swaps each Star child between the earned and unearned looks (cut on
+   one shared frame) and shows the celebration flare + Replay button
+   only at full marks — the app's own rule. RIG-5 chassis conventions:
+   [ExecuteAlways], plain SetValue for board strikes, deferred
+   OnValidate. */
+const STAR_RATING_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+
+namespace PatternBreak {
+  [AddComponentMenu("UI Kit Maker/Star Rating")]
+  [ExecuteAlways]
+  public class PatternBreakStarRating : MonoBehaviour {
+    [Tooltip("Stars earned 0..3 — swaps each star's look and shows the celebration + replay only at full marks (the app's own rule).")]
+    [Range(0, 3)] public int stars = 3;
+    [Tooltip("The three Star children, left to right (generated wiring).")]
+    public Image[] starSlots = new Image[0];
+    [Tooltip("The earned star look (the app's gold).")]
+    public Sprite earned;
+    [Tooltip("The unearned look (the app's sunken silhouette).")]
+    public Sprite unearned;
+    public GameObject celebration;
+    public GameObject replay;
+    public void SetStars(int n) { stars = Mathf.Clamp(n, 0, 3); Apply(); }
+    public void SetValue(float v) { SetStars(Mathf.RoundToInt(Mathf.Clamp01(v) * 3f)); }
+    public void Apply() {
+      for (int i = 0; i < starSlots.Length; i++) {
+        var im = starSlots[i]; if (im == null) continue;
+        var want = i < stars ? earned : unearned;
+        if (want != null && im.sprite != want) im.sprite = want;
+      }
+      bool fullS = stars >= 3;
+      if (celebration != null && celebration.activeSelf != fullS) celebration.SetActive(fullS);
+      if (replay != null && replay.activeSelf != fullS) replay.SetActive(fullS);
+    }
+    void OnEnable() { Apply(); }
+#if UNITY_EDITOR
+    void OnValidate() { UnityEditor.EditorApplication.delayCall += () => { if (this != null) Apply(); }; }
+#endif
+  }
+}
+`;
+
+/* the SPINNER rig (round 46, R1 — the radial mandate): the chrome
+   spinner ships WORKING — the comet child spins one turn per period in
+   Play mode, the app's own 1.2s. Pause it with SetSpinning; delete the
+   component and the piece is exactly what it was. */
+const SPINNER_RUNTIME = `using UnityEngine;
+
+namespace PatternBreak {
+  [AddComponentMenu("UI Kit Maker/Spinner")]
+  public class PatternBreakSpinner : MonoBehaviour {
+    [Tooltip("The Comet child (generated wiring) — spun one turn per period in Play mode.")]
+    public RectTransform comet;
+    [Tooltip("One revolution in seconds — the app's spinner runs 1.2s.")]
+    public float period = 1.2f;
+    [Tooltip("Untick to freeze (the app's disabled state stands still).")]
+    public bool spinning = true;
+    float ang;
+    public void SetSpinning(bool on) { spinning = on; }
+    void Update() {
+      if (!Application.isPlaying || !spinning || comet == null || period < 0.05f) return;
+      ang = (ang - 360f * Time.unscaledDeltaTime / period) % 360f;
+      comet.localRotation = Quaternion.Euler(0f, 0f, ang);
+    }
+  }
+}
+`;
+
+/* the COOLDOWN rig (round 46, R1): value = time REMAINING, the app's
+   own dial. The spent pie cuts Radial360 clockwise, the recovered tick
+   crown lights counter-clockwise from the tail, the sweep edge rotates
+   to the spent line, and the seconds readout follows while it still
+   wears a seconds word. */
+const COOLDOWN_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+#if UNITY_2023_2_OR_NEWER
+using TMPro;
+#endif
+
+namespace PatternBreak {
+  [AddComponentMenu("UI Kit Maker/Cooldown")]
+  [ExecuteAlways]
+  public class PatternBreakCooldown : MonoBehaviour {
+    [Tooltip("Time remaining 0..1 (the app's own dial) — drive this, SetValue, or SetSeconds.")]
+    [Range(0f, 1f)] public float value = 0.4f;
+    [Tooltip("The dial's full run in seconds — the app's cooldown reads 6.")]
+    public float dialSeconds = 6f;
+    [Header("Wired on import — the app's own parts")]
+    public Image sector;
+    public Image ticksLit;
+    public RectTransform hand;
+#if UNITY_2023_2_OR_NEWER
+    [Tooltip("The seconds seat (generated wiring) — rewritten while it still wears a seconds word; retype it and it is yours.")]
+    public TMP_Text readout;
+#endif
+    static bool LooksLikeSeconds(string s) {
+      if (string.IsNullOrEmpty(s) || s.Length > 7 || s[s.Length - 1] != 's') return false;
+      bool dot = false;
+      for (int i = 0; i < s.Length - 1; i++) { var ch = s[i]; if (ch == '.') { if (dot) return false; dot = true; } else if (ch < '0' || ch > '9') return false; }
+      return s.Length > 1;
+    }
+    public void SetSeconds(float s) { value = dialSeconds > 0.01f ? Mathf.Clamp01(s / dialSeconds) : 0f; Apply(); }
+    public void SetValue(float v) { value = Mathf.Clamp01(v); Apply(); }
+    public void Apply() {
+      float spent = 1f - Mathf.Clamp01(value);
+      bool show = spent > 0.01f;
+      if (sector != null) { sector.fillAmount = spent; if (sector.enabled != show) sector.enabled = show; }
+      if (ticksLit != null) ticksLit.fillAmount = Mathf.Clamp01(value);
+      if (hand != null) {
+        hand.localRotation = Quaternion.Euler(0f, 0f, -spent * 360f);
+        var hi = hand.GetComponent<Image>();
+        if (hi != null && hi.enabled != show) hi.enabled = show;
+      }
+#if UNITY_2023_2_OR_NEWER
+      if (readout != null && LooksLikeSeconds(readout.text))
+        readout.text = (dialSeconds * Mathf.Clamp01(value)).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + "s";
+#endif
+    }
+    void OnEnable() { Apply(); }
+#if UNITY_EDITOR
+    void OnValidate() { UnityEditor.EditorApplication.delayCall += () => { if (this != null) Apply(); }; }
+#endif
+  }
+}
+`;
+
+/* the WEAPON WHEEL rig (round 44, item 44 — RIG-7): the rotation is a
+   DIAL, the app's own semantics — value spins the cylinder, and the
+   chamber that lands at the hammer (2 o'clock) is armed. The Cylinder
+   child spins by pure rotation, the glyph children ORBIT upright (no
+   tilt — the app never tilts them), and the armed chamber's glyph swaps
+   to its themed look. The hub/tag words stay LIVE seats — yours to
+   drive. */
+const WEAPON_WHEEL_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+
+namespace PatternBreak {
+  [AddComponentMenu("UI Kit Maker/Weapon Wheel")]
+  [ExecuteAlways]
+  public class PatternBreakWeaponWheel : MonoBehaviour {
+    [Tooltip("Cylinder rotation, 0..1 turn clockwise (the app's own dial) — the chamber landing at the hammer is armed. Drive this, SetValue, or ArmChamber.")]
+    [Range(0f, 1f)] public float value = 0f;
+    [Tooltip("How many chambers this wheel was exported with.")]
+    public int chambers = 6;
+    [Tooltip("The Cylinder child — flutes + quiet sockets on a full-disc frame; the rig spins it by pure rotation.")]
+    public RectTransform cylinder;
+    [Tooltip("The chamber glyph children, chamber order (generated wiring) — they orbit upright with the spin.")]
+    public Image[] glyphSlots = new Image[0];
+    [Tooltip("Each chamber's quiet look (generated).")]
+    public Sprite[] ghost = new Sprite[0];
+    [Tooltip("Each chamber's ARMED look — themed + halo (generated).")]
+    public Sprite[] lit = new Sprite[0];
+    [Tooltip("The wheel center as an anchor fraction of the root rect (generated).")]
+    public Vector2 centerAnchor = new Vector2(0.5f, 0.5f);
+    [Tooltip("The chamber orbit radius as fractions of the root rect (generated).")]
+    public float orbitFx = 0.3f;
+    public float orbitFy = 0.3f;
+    public int ArmedChamber() { int n = Mathf.Max(1, chambers); return ((1 - Mathf.RoundToInt(Mathf.Clamp01(value) * n)) % n + n) % n; }
+    public void SetValue(float v) { value = Mathf.Clamp01(v); Apply(); }
+    [Tooltip("Spin so chamber i (0-based) lands at the hammer.")]
+    public void ArmChamber(int i) { int n = Mathf.Max(1, chambers); value = (((1 - i) % n + n) % n) / (float)n; Apply(); }
+    public void Apply() {
+      int n = Mathf.Max(1, chambers);
+      if (cylinder != null) cylinder.localRotation = Quaternion.Euler(0f, 0f, -Mathf.Clamp01(value) * 360f);
+      int armed = ArmedChamber();
+      for (int i = 0; i < glyphSlots.Length; i++) {
+        var im = glyphSlots[i]; if (im == null) continue;
+        float ang = ((i / (float)n) + Mathf.Clamp01(value)) * Mathf.PI * 2f - Mathf.PI / 2f;
+        var rt9 = im.rectTransform;
+        var a9 = new Vector2(centerAnchor.x + orbitFx * Mathf.Cos(ang), centerAnchor.y - orbitFy * Mathf.Sin(ang));
+        if (rt9.anchorMin != a9) { rt9.anchorMin = a9; rt9.anchorMax = a9; rt9.anchoredPosition = Vector2.zero; }
+        var want = i == armed ? (i < lit.Length ? lit[i] : null) : (i < ghost.Length ? ghost[i] : null);
+        if (want != null && im.sprite != want) im.sprite = want;
+      }
+    }
+    void OnEnable() { Apply(); }
+#if UNITY_EDITOR
+    void OnValidate() { UnityEditor.EditorApplication.delayCall += () => { if (this != null) Apply(); }; }
+#endif
+  }
+}
+`;
+
+/* the STEP LANE rig (round 44, item 38 — RIG-5): the wizard's position
+   is a DIAL. The plate carries dim rails + live digits; the rig swaps
+   each pip's look (done / current / upcoming), lights the rails behind
+   the current step, and repaints/hides the digits the way the app does
+   (done pips wear the check, not a number). */
+const KIT_STEPS_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+#if UNITY_2023_2_OR_NEWER
+using TMPro;
+#endif
+
+namespace PatternBreak {
+  [AddComponentMenu("UI Kit Maker/Kit Steps")]
+  [ExecuteAlways]
+  public class KitSteps : MonoBehaviour {
+    [Tooltip("The current step, 1-based — swaps pip looks, lights the rails behind it and repaints the digits (done pips hide theirs under the check, the app's own rule).")]
+    public int step = 1;
+    [Tooltip("The pip children, left to right (generated wiring).")]
+    public Image[] pips = new Image[0];
+    [Tooltip("The lit rail overlays between pips (generated) — enabled behind the current step; the dim rail is the plate's own anatomy.")]
+    public Image[] rails = new Image[0];
+    public Sprite done;
+    public Sprite current;
+    public Sprite upcoming;
+#if UNITY_2023_2_OR_NEWER
+    [Tooltip("The digit seats, step order (generated wiring) — repainted per state; retype one and it stays yours (only color/visibility are driven).")]
+    public TMP_Text[] digits = new TMP_Text[0];
+#endif
+    [Tooltip("The current digit's ink (captured from the kit's own seat).")]
+    public Color currentInk = Color.black;
+    [Tooltip("The upcoming digits' ghost ink (captured from the kit's own seat).")]
+    public Color ghostInk = new Color(1f, 1f, 1f, 0.45f);
+    public void SetStep(int i) { step = Mathf.Clamp(i, 1, Mathf.Max(1, pips.Length)); Apply(); }
+    public void SetValue(float v) { int n = Mathf.Max(1, pips.Length); SetStep(Mathf.Clamp(Mathf.FloorToInt(Mathf.Clamp01(v) * n), 0, n - 1) + 1); }
+    public void Apply() {
+      int cur = Mathf.Clamp(step - 1, 0, Mathf.Max(0, pips.Length - 1));
+      for (int i = 0; i < pips.Length; i++) {
+        var im = pips[i]; if (im == null) continue;
+        var want = i < cur ? done : i == cur ? current : upcoming;
+        if (want != null && im.sprite != want) im.sprite = want;
+      }
+      for (int i = 0; i < rails.Length; i++)
+        if (rails[i] != null && rails[i].enabled != (i < cur)) rails[i].enabled = i < cur;
+#if UNITY_2023_2_OR_NEWER
+      for (int i = 0; i < digits.Length; i++) {
+        var t9 = digits[i]; if (t9 == null) continue;
+        bool show = i >= cur;
+        if (t9.enabled != show) t9.enabled = show;
+        var ink = i == cur ? currentInk : ghostInk;
+        if (show && t9.color != ink) t9.color = ink;
+      }
+#endif
+    }
+    void OnEnable() { Apply(); }
+#if UNITY_EDITOR
+    void OnValidate() { UnityEditor.EditorApplication.delayCall += () => { if (this != null) Apply(); }; }
+#endif
+  }
+}
+`;
+
+/* the SAGA TRAIL rig (round 44, item 26 — RIG-5): progress is a DIAL.
+   The rig deals nine beads at the app's own sampled bezier centers and
+   lights them up to the value — the base sheet stays aboard untouched as
+   the legacy picture. */
+const PATH_CONNECTOR_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+
+namespace PatternBreak {
+  [AddComponentMenu("UI Kit Maker/Path Connector")]
+  [ExecuteAlways]
+  public class PatternBreakPathConnector : MonoBehaviour {
+    [Tooltip("Progress along the trail 0..1 — beads light left to right (SetProgress / SetValue).")]
+    [Range(0f, 1f)] public float value = 0.6f;
+    [Tooltip("The bead children, trail order (generated wiring).")]
+    public Image[] beads = new Image[0];
+    [Tooltip("The resting look (generated).")]
+    public Sprite bead;
+    [Tooltip("The lit look — glow + specular, the app's exact ink (generated).")]
+    public Sprite lit;
+    public void SetProgress(float v) { value = Mathf.Clamp01(v); Apply(); }
+    public void SetValue(float v) { SetProgress(v); }
+    public void Apply() {
+      int n = Mathf.Max(2, beads.Length);
+      for (int i = 0; i < beads.Length; i++) {
+        var im = beads[i]; if (im == null) continue;
+        var want = i / (float)(n - 1) <= value ? lit : bead;
+        if (want != null && im.sprite != want) im.sprite = want;
+      }
+    }
+    void OnEnable() { Apply(); }
+#if UNITY_EDITOR
+    void OnValidate() { UnityEditor.EditorApplication.delayCall += () => { if (this != null) Apply(); }; }
+#endif
+  }
+}
+`;
+
+/* the STOPWATCH rig (round 44, item 39 — RIG-3): the dial FUNCTIONS.
+   value = share of the 90-second dial remaining (the app's own scale);
+   the arc scissors Radial360 with a rotating round head cap, the hand
+   sweeps, the alarm mood arrives below 25% (arc/hand retint, hub look
+   swaps), and the readout seat follows when it still wears a clock word.
+   Everything stays ordinary Inspector children. */
+const STOPWATCH_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+#if UNITY_2023_2_OR_NEWER
+using TMPro;
+#endif
+
+namespace PatternBreak {
+  [AddComponentMenu("UI Kit Maker/Stopwatch")]
+  [ExecuteAlways]
+  public class PatternBreakStopwatch : MonoBehaviour {
+    [Tooltip("Time remaining as a share of the dial (0..1) — drive this, SetValue, or SetSeconds. Below the alarm line the arc, hand and hub take the app's alarm mood.")]
+    [Range(0f, 1f)] public float value = 0.62f;
+    [Tooltip("The dial's full run in seconds — the app's stopwatch reads 90.")]
+    public float dialSeconds = 90f;
+    [Tooltip("Alarm below this share (the app's own 25% rule).")]
+    public float alarmBelow = 0.25f;
+    [Header("Wired on import — the app's own parts")]
+    public Image arc;
+    public Image capStart;
+    public RectTransform capHead;
+    public RectTransform hand;
+    public Image hub;
+    public Sprite hubRest;
+    public Sprite hubAlarm;
+    [Tooltip("The arc's resting ink (the kit's Glow).")]
+    public Color ink = Color.white;
+    [Tooltip("The hand's resting ink (the app's glow/white mix).")]
+    public Color handInk = Color.white;
+    [Tooltip("The alarm ink (the app's red, mixed toward the kit).")]
+    public Color alarmInk = new Color(1f, 0.35f, 0.4f);
+#if UNITY_2023_2_OR_NEWER
+    [Tooltip("The readout seat (generated wiring) — rewritten m:ss only while it still wears a clock word; retype it and it is yours.")]
+    public TMP_Text readout;
+#endif
+    public void SetSeconds(float s) { value = dialSeconds > 0.01f ? Mathf.Clamp01(s / dialSeconds) : 0f; Apply(); }
+    public void SetValue(float v) { value = Mathf.Clamp01(v); Apply(); }
+    static bool LooksLikeClock(string s) {
+      if (string.IsNullOrEmpty(s) || s.Length > 6) return false;
+      bool colon = false;
+      foreach (var ch in s) { if (ch == ':') { if (colon) return false; colon = true; } else if (ch < '0' || ch > '9') return false; }
+      return colon;
+    }
+    public void Apply() {
+      bool urgent = value <= alarmBelow;
+      var aC = urgent ? alarmInk : ink;
+      var hC = urgent ? alarmInk : handInk;
+      bool showArc = value > 0.01f;
+      if (arc != null) { arc.fillAmount = Mathf.Clamp01(value); if (arc.color != aC) arc.color = aC; if (arc.enabled != showArc) arc.enabled = showArc; }
+      float ang = -Mathf.Clamp01(value) * 360f;
+      if (capHead != null) {
+        capHead.localRotation = Quaternion.Euler(0f, 0f, ang);
+        var ci = capHead.GetComponent<Image>();
+        if (ci != null) { if (ci.color != aC) ci.color = aC; if (ci.enabled != showArc) ci.enabled = showArc; }
+      }
+      if (capStart != null) { if (capStart.color != aC) capStart.color = aC; if (capStart.enabled != showArc) capStart.enabled = showArc; }
+      if (hand != null) {
+        hand.localRotation = Quaternion.Euler(0f, 0f, ang);
+        var hi = hand.GetComponent<Image>();
+        if (hi != null && hi.color != hC) hi.color = hC;
+      }
+      if (hub != null) {
+        var want = urgent && hubAlarm != null ? hubAlarm : hubRest;
+        if (want != null && hub.sprite != want) hub.sprite = want;
+      }
+#if UNITY_2023_2_OR_NEWER
+      if (readout != null && LooksLikeClock(readout.text)) {
+        int s = Mathf.Max(0, Mathf.RoundToInt(Mathf.Clamp01(value) * dialSeconds));
+        readout.text = (s / 60) + ":" + (s % 60).ToString("00");
+      }
+#endif
+    }
+    void OnEnable() { Apply(); }
+#if UNITY_EDITOR
+    void OnValidate() { UnityEditor.EditorApplication.delayCall += () => { if (this != null) Apply(); }; }
+#endif
+  }
+}
+`;
+
+/* the EMOTE WHEEL rig (round 44, item 11 — RIG-5/6): the pick is a DIAL.
+   The wheel rests uniform; the Armed highlight is a full-disc wedge child
+   the rig parks by pure rotation (the ring-cap discipline), each emote
+   swaps ghost/lit on its fixed frame, and the hub mirrors the pick —
+   the app's own selection story, drivable. */
+const EMOTE_WHEEL_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+
+namespace PatternBreak {
+  [AddComponentMenu("UI Kit Maker/Emote Wheel")]
+  [ExecuteAlways]
+  public class PatternBreakEmoteWheel : MonoBehaviour {
+    [Tooltip("The picked sector (0-based, clockwise from the top-right) — rotates the Armed highlight there, arms that emote and shows it in the hub.")]
+    public int sector = 0;
+    [Tooltip("How many sectors this wheel was exported with.")]
+    public int sectors = 6;
+    [Tooltip("The sector the shipped sprites rest on (generated) — highlight rotation is measured from here.")]
+    public int baseSector = 0;
+    [Tooltip("The emote children, sector order (generated wiring).")]
+    public Image[] emoteSlots = new Image[0];
+    [Tooltip("Each sector's resting look (generated).")]
+    public Sprite[] ghost = new Sprite[0];
+    [Tooltip("Each sector's armed look — themed + halo (generated).")]
+    public Sprite[] lit = new Sprite[0];
+    [Tooltip("The Armed highlight child — a full-disc wedge; the rig parks it by rotation, so it lands on any sector distortion-free.")]
+    public RectTransform highlight;
+    [Tooltip("The hub's Selected emote child (generated) — mirrors the pick.")]
+    public Image hub;
+    [Tooltip("The hub's own resting cut (generated) — worn while the pick rests on its shipped sector, so nothing drifts.")]
+    public Sprite hubRest;
+    public void SetSector(int i) { int n = Mathf.Max(1, sectors); sector = ((i % n) + n) % n; Apply(); }
+    public void SetValue(float v) { SetSector(Mathf.FloorToInt(Mathf.Clamp(v, 0f, 0.999f) * Mathf.Max(1, sectors))); }
+    public void Apply() {
+      int n = Mathf.Max(1, sectors);
+      for (int i = 0; i < emoteSlots.Length; i++) {
+        var im = emoteSlots[i]; if (im == null) continue;
+        var want = i == sector ? (i < lit.Length ? lit[i] : null) : (i < ghost.Length ? ghost[i] : null);
+        if (want != null && im.sprite != want) im.sprite = want;
+      }
+      // sectors advance clockwise; UI z-rotation is counterclockwise
+      if (highlight != null) highlight.localRotation = Quaternion.Euler(0f, 0f, -((sector - baseSector) * 360f / n));
+      if (hub != null) {
+        var wantHub = sector == baseSector && hubRest != null ? hubRest : (sector < lit.Length ? lit[sector] : null);
+        if (wantHub != null && hub.sprite != wantHub) hub.sprite = wantHub;
+      }
+    }
+    void OnEnable() { Apply(); }
+#if UNITY_EDITOR
+    void OnValidate() { UnityEditor.EditorApplication.delayCall += () => { if (this != null) Apply(); }; }
+#endif
+  }
+}
+`;
+
+/* the BUFF FRAME'S LIVE COUNTDOWN (round 44, owner: "the countdown clock
+   cannot be burned into the button shape — it has to FUNCTION, wired for
+   developer use"): value = time REMAINING, the app's own dial. The rig
+   drives the Radial360 spent-share disc (pre-clipped to the silhouette in
+   its pixels) and rotates the glowing hand to the sweep edge; a fresh
+   buff (spent ≤ 0.01) shows no sweep, exactly like the app. */
+/* RIG-5 (round 44): the discrete-count rigs — the SeasonTrack chassis in
+   miniature: [ExecuteAlways], an owned "(auto)" mount that rebuilds
+   freely, deferred OnValidate, and a plain SetValue for board strikes. */
+const PAGE_DOTS_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+
+namespace PatternBreak {
+  /* Pagination dots, DRIVABLE (round 44) — the carousel position is a
+     dial, not a bake. THE LOOK IS EDITED ON UIKITMAKER.COM (the dot and
+     knob sprites are the app's own ink); this component owns the COUNT
+     and the POSITION: it deals pageCount resting dots at the kit's pitch
+     and parks the active knob on currentPage. Everything it creates
+     lives under the "Dots (auto)" child and rebuilds freely — objects
+     YOU add anywhere else are never touched.
+       From code: SetPage(i), SetCount(n), or SetValue(0..1) — the app's
+       own dial; board poses strike it. */
+  [ExecuteAlways]
+  [AddComponentMenu("UI Kit Maker/Page Dots")]
+  public class PatternBreakPageDots : MonoBehaviour {
+    [Range(1, 12)] public int pageCount = 5;
+    [Range(0, 11)] public int currentPage = 1;
+    [Header("Art (wired on import — re-export the kit to restyle)")]
+    public Sprite dotSprite;
+    public Sprite knobSprite;
+    [Tooltip("Center-to-center dot spacing in UI units — measured from the kit's art on import.")]
+    public float pitch = 35f;
+    [Tooltip("UI units per sprite pixel — 1 / the export's pngScale. Set on import.")]
+    public float spriteScale = 0.5f;
+    const string OWNED = "Dots (auto)";
+    int lastN = -1, lastP = -1;
+
+    public void SetCount(int n) { pageCount = Mathf.Clamp(n, 1, 12); Rebuild(); }
+    public void SetPage(int i) { currentPage = Mathf.Clamp(i, 0, Mathf.Max(0, pageCount - 1)); Rebuild(); }
+    public void SetValue(float v) { SetPage(Mathf.RoundToInt(Mathf.Clamp01(v) * (pageCount - 1))); }
+
+    void OnEnable() { Rebuild(); }
+    void LateUpdate() { if (pageCount != lastN || Mathf.Clamp(currentPage, 0, pageCount - 1) != lastP) Rebuild(); }
+#if UNITY_EDITOR
+    /* deferred rebuild — OnValidate must not move RectTransforms (the
+       SeasonTrack rule) */
+    bool rebuildQueued;
+    void OnValidate() {
+      if (rebuildQueued) return;
+      rebuildQueued = true;
+      UnityEditor.EditorApplication.delayCall += () => {
+        rebuildQueued = false;
+        if (this == null) return;
+        if (UnityEditor.PrefabUtility.IsPartOfPrefabAsset(gameObject)) return;
+        Rebuild();
+      };
+    }
+#endif
+    RectTransform Owned() {
+      var t = transform.Find(OWNED) as RectTransform;
+      if (t == null) {
+        var g = new GameObject(OWNED, typeof(RectTransform));
+        g.transform.SetParent(transform, false);
+        t = (RectTransform)g.transform;
+      }
+      t.SetSiblingIndex(0); // under anything the dev parents to the root
+      t.anchorMin = Vector2.zero; t.anchorMax = Vector2.one;
+      t.offsetMin = Vector2.zero; t.offsetMax = Vector2.zero;
+      return t;
+    }
+    public void Rebuild() {
+      lastN = pageCount; lastP = Mathf.Clamp(currentPage, 0, pageCount - 1);
+      var mount = Owned();
+      for (int i = mount.childCount - 1; i >= 0; i--) {
+        var ch = mount.GetChild(i).gameObject;
+        if (Application.isPlaying) Destroy(ch); else DestroyImmediate(ch);
+      }
+      float x0 = -(pageCount - 1) * 0.5f * pitch;
+      for (int i = 0; i < pageCount; i++) Deal(mount, dotSprite, x0 + i * pitch, "Dot " + (i + 1));
+      Deal(mount, knobSprite, x0 + lastP * pitch, "Knob");
+    }
+    void Deal(RectTransform mount, Sprite s, float x, string childName) {
+      if (s == null) return;
+      var go = new GameObject(childName, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+      go.transform.SetParent(mount, false);
+      var im = go.GetComponent<Image>(); im.sprite = s; im.raycastTarget = false;
+      var rt = go.GetComponent<RectTransform>();
+      rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+      rt.pivot = new Vector2(0.5f, 0.5f);
+      rt.anchoredPosition = new Vector2(x, 0f);
+      rt.sizeDelta = new Vector2(s.rect.width * spriteScale, s.rect.height * spriteScale);
+    }
+  }
+}
+`;
+
+const START_LIGHTS_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+#if UNITY_2023_2_OR_NEWER
+using TMPro;
+#endif
+
+namespace PatternBreak {
+  /* Start-light gantry, DRIVABLE (round 44) — LitCount 0..5 lights the
+     pods left to right by enabling the lamp children the importer parks
+     over the base's dark lenses; at ZERO the caption flips to the go
+     word, exactly the app's own countdown. From code: SetCount(n) or
+     SetValue(0..1); wire your race clock to count 5 down to 0. A caption
+     you retype in Unity is yours — only the two stock words are ever
+     rewritten. */
+  [ExecuteAlways]
+  [AddComponentMenu("UI Kit Maker/Start Lights")]
+  public class PatternBreakStartLights : MonoBehaviour {
+    [Range(0, 5)] public int litCount = 0;
+    [Header("Lamps (wired on import — the app's own lit lens)")]
+    public Image[] lamps = new Image[0];
+    [Header("Caption — the live seat word (clear the ref to own it fully)")]
+#if UNITY_2023_2_OR_NEWER
+    public TMP_Text caption;
+#endif
+    public string readyWord = "GET READY";
+    public string goWord = "LIGHTS OUT";
+    public Color readyInk = Color.white;
+    public Color goInk = new Color(0.29f, 0.87f, 0.5f); // the app's #4ADE80 go green
+    int last = -1;
+
+    public void SetCount(int n) { litCount = Mathf.Clamp(n, 0, 5); Apply(); }
+    public void SetValue(float v) { SetCount(Mathf.RoundToInt(Mathf.Clamp01(v) * 5f)); }
+
+    void OnEnable() { Apply(); }
+    void LateUpdate() { if (litCount != last) Apply(); }
+    public void Apply() {
+      last = litCount;
+      if (lamps != null) for (int i = 0; i < lamps.Length; i++)
+        if (lamps[i] != null) lamps[i].gameObject.SetActive(i < litCount);
+#if UNITY_2023_2_OR_NEWER
+      if (caption != null && (caption.text == readyWord || caption.text == goWord)) {
+        caption.text = litCount == 0 ? goWord : readyWord;
+        caption.color = litCount == 0 ? goInk : readyInk;
+      }
+#endif
+    }
+  }
+}
+`;
+
+const BUFF_SWEEP_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+
+namespace PatternBreak {
+  [AddComponentMenu("UI Kit Maker/Buff Sweep")]
+  [ExecuteAlways]
+  public class KitBuffSweep : MonoBehaviour {
+    [Tooltip("Time REMAINING 0..1 — the app's dial: 1 = fresh buff (no sweep), 0 = expired (fully dark). Drive it from your own effect timer.")]
+    [Range(0f, 1f)] public float value = 0.65f;
+    [Tooltip("The Radial360 sweep image — the SPENT share, eating clockwise from 12 o'clock (generated).")]
+    public Image sweep;
+    [Tooltip("The glowing sweep edge, parked at 12 o'clock; rotates to the sweep head (generated).")]
+    public RectTransform hand;
+    float wrote = float.NaN;
+    public void SetValue(float v) { value = Mathf.Clamp01(v); Apply(); }
+    public void Apply() {
+      float spent = 1f - Mathf.Clamp01(value);
+      bool show = spent > 0.01f; // the app hides the sweep on a fresh buff
+      if (sweep != null) {
+        sweep.fillAmount = spent;
+        if (sweep.enabled != show) sweep.enabled = show;
+      }
+      if (hand != null) {
+        if (hand.gameObject.activeSelf != show) hand.gameObject.SetActive(show);
+        hand.localRotation = Quaternion.Euler(0f, 0f, -spent * 360f); // clockwise from the top
+      }
+      wrote = value;
+    }
+    void OnEnable() { Apply(); }
+    // change-guarded follow: a quiet frame compares one float and writes nothing
+    void LateUpdate() { if (!Mathf.Approximately(value, wrote)) Apply(); }
+  }
+}
+`;
+
+/* the STREAK METER'S IGNITE (owner roster, round 41: "should ignite") —
+   the app lights the ignition glyph and halos it at full streak; this rig
+   carries that exact moment into Unity: drive value to 1 and the live
+   Ignition glyph child swaps to its lit pose (the app's own full-streak
+   pixels) and pulses. Both poses ship as sprites; everything stays a
+   swappable Inspector child. */
+const STREAK_IGNITE_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+
+namespace PatternBreak {
+  [AddComponentMenu("UI Kit Maker/Streak Ignite")]
+  [ExecuteAlways]
+  public class StreakIgnite : MonoBehaviour {
+    [Tooltip("Streak progress 0..1 — at 1 the meter IGNITES: the glyph swaps to its lit pose and pulses.")]
+    [Range(0f, 1f)] public float value = 0.64f;
+    [Tooltip("The Ignition glyph child (generated).")]
+    public Image glyph;
+    [Tooltip("The ghost (unlit) pose — the shipped icon sprite.")]
+    public Sprite ghost;
+    [Tooltip("The lit pose — the app's own full-streak render of the same glyph, halo included.")]
+    public Sprite lit;
+    [Tooltip("The cell meter (generated wiring, round 44) — the SAME value lights whole cells: drive StreakIgnite's value and cells + ignition follow together.")]
+    public KitCellMeter cells;
+    [Tooltip("Pulse amplitude at full streak (fraction of scale).")]
+    public float pulse = 0.12f;
+    [Tooltip("Pulse period in seconds.")]
+    public float period = 0.9f;
+    Vector2 baseSize; Vector3 baseScale; bool sized; bool wasLit;
+    float fwd = float.NaN;
+    public void SetValue(float v) { value = Mathf.Clamp01(v); }
+    [ContextMenu("Ignite (value = 1)")] void IgniteNow() { value = 1f; }
+    [ContextMenu("Stand down (value = 0.6)")] void StandDown() { value = 0.6f; }
+    void OnEnable() {
+      if (glyph != null) { baseSize = glyph.rectTransform.sizeDelta; baseScale = glyph.rectTransform.localScale; sized = true; }
+      wasLit = false;
+      Apply(true);
+    }
+    void Update() { Apply(false); }
+    void Apply(bool force) {
+      // one dial, two hands (round 44, item 40): the cells light whole
+      // through the meter's own snap — change-guarded so a raw write on
+      // the meter isn't fought every frame
+      if (cells != null && (force || !Mathf.Approximately(fwd, value))) { fwd = value; cells.SetValue(value); }
+      if (glyph == null) return;
+      bool isLit = value >= 0.999f && lit != null;
+      if (isLit != wasLit || force) {
+        wasLit = isLit;
+        var want = isLit ? lit : ghost;
+        if (want != null && glyph.sprite != want) {
+          glyph.sprite = want;
+          /* the lit cut carries its halo, so its canvas is larger — the
+             child rect follows the sprite's own proportions so the glyph
+             INSIDE stays the same size on both poses */
+          if (sized && ghost != null && want.rect.width > 1f && ghost.rect.width > 1f)
+            glyph.rectTransform.sizeDelta = new Vector2(baseSize.x * want.rect.width / ghost.rect.width, baseSize.y * want.rect.height / ghost.rect.height);
+        }
+      }
+      Vector3 target = baseScale;
+      if (isLit && Application.isPlaying) {
+        float s = 1f + Mathf.Sin(Time.unscaledTime * Mathf.PI * 2f / Mathf.Max(0.1f, period)) * pulse * 0.5f;
+        target = new Vector3(baseScale.x * s, baseScale.y * s, baseScale.z);
+      }
+      if (sized && glyph.rectTransform.localScale != target) glyph.rectTransform.localScale = target;
+    }
+  }
+}
+`;
+
+/* the COMBO'S CELEBRATION (owner roster, round 41: "the same animation
+   ships working in Unity") — the app's fxComboPop keyframes, verbatim:
+   squash to 0.82 tilting -3°, overshoot to 1.32 tilting +2°, settle,
+   0.55s. Click fires it (the kit page's combo explodes on click), or
+   call Pop() on every multiplier tick; ClaimBurst rides beside it for
+   the spark throw. */
+const COMBO_POP_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+using UnityEngine.EventSystems;
+
+namespace PatternBreak {
+  [AddComponentMenu("UI Kit Maker/Combo Pop")]
+  public class ComboPop : MonoBehaviour, IPointerClickHandler {
+    [Tooltip("One pop's length in seconds — the app's fxComboPop runs 0.55s.")]
+    public float seconds = 0.55f;
+    [Tooltip("Fire the pop on pointer click, the kit page's own behavior.")]
+    public bool popOnClick = true;
+    [Header("The multiplier — the digit road (round 47)")]
+    [Tooltip("The multiplier count: 0 keeps the kit's authored numeral sprite; 2+ composes ×N from the kit's own celebration digits at the authored seat. Pop() plays on whatever is set.")]
+    public int count = 0;
+    [Tooltip("The resting Multiplier child (generated wiring) — hidden while a composed count shows.")]
+    public Image numeralSeat;
+    [Tooltip("The celebration digits 0-9, the kit's own dress (generated).")]
+    public Sprite[] digitSprites = new Sprite[0];
+    [Tooltip("The × glyph (generated).")]
+    public Sprite timesSprite;
+    [Tooltip("Per-digit advance in UI units, matched to digitSprites (generated).")]
+    public float[] digitAdvance = new float[0];
+    public float timesAdvance;
+    [Tooltip("UI units per sprite px — 1 / the export's pngScale (generated).")]
+    public float glyphScale = 0.5f;
+    [Tooltip("The numeral's authored tilt — the app's own −4° (Unity CCW).")]
+    public float numeralTilt = 4f;
+    [Tooltip("The authored anchor minus the resting child's center, UI units (generated).")]
+    public Vector2 seatOffset = Vector2.zero;
+    const string MOUNT = "Numeral (auto)";
+    public void SetCount(int n) { count = Mathf.Max(0, n); Apply(); }
+    public void Apply() {
+      if (numeralSeat == null) return;
+      var seatRt = numeralSeat.rectTransform;
+      var mountT = seatRt.Find(MOUNT);
+      bool compose = count >= 2 && timesSprite != null && digitSprites.Length >= 10 && digitAdvance.Length >= 10;
+      if (!compose) {
+        // 0 (or missing atoms) = the authored numeral, exactly as shipped
+        if (!numeralSeat.enabled) numeralSeat.enabled = true;
+        if (mountT != null) mountT.gameObject.SetActive(false);
+        return;
+      }
+      var mount = mountT as RectTransform;
+      if (mount == null) {
+        var g = new GameObject(MOUNT, typeof(RectTransform));
+        g.transform.SetParent(seatRt, false);
+        mount = (RectTransform)g.transform;
+        mount.anchorMin = mount.anchorMax = new Vector2(0.5f, 0.5f);
+        mount.pivot = new Vector2(0.5f, 0.5f);
+        mount.sizeDelta = Vector2.zero;
+      }
+      mount.gameObject.SetActive(true);
+      mount.anchoredPosition = seatOffset;
+      mount.localRotation = Quaternion.Euler(0f, 0f, numeralTilt);
+      numeralSeat.enabled = false;
+      for (int i = mount.childCount - 1; i >= 0; i--) { var ch = mount.GetChild(i).gameObject; if (Application.isPlaying) Destroy(ch); else DestroyImmediate(ch); }
+      string s9 = Mathf.Min(count, 999).ToString();
+      float total = timesAdvance;
+      foreach (var c9 in s9) total += digitAdvance[c9 - '0'];
+      float x9 = -total / 2f;
+      System.Action<Sprite, float> deal = (sp9, adv9) => {
+        var g9 = new GameObject("Glyph", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        g9.transform.SetParent(mount, false);
+        var im9 = g9.GetComponent<Image>(); im9.sprite = sp9; im9.raycastTarget = false;
+        var rt9 = (RectTransform)g9.transform;
+        rt9.anchorMin = rt9.anchorMax = new Vector2(0.5f, 0.5f);
+        rt9.pivot = new Vector2(0.5f, 0.5f);
+        rt9.anchoredPosition = new Vector2(x9 + adv9 / 2f, 0f);
+        rt9.sizeDelta = new Vector2(sp9.rect.width * glyphScale, sp9.rect.height * glyphScale);
+        x9 += adv9;
+      };
+      deal(timesSprite, timesAdvance);
+      foreach (var c9 in s9) deal(digitSprites[c9 - '0'], digitAdvance[c9 - '0']);
+    }
+    void OnEnable() { Apply(); }
+#if UNITY_EDITOR
+    void OnValidate() { UnityEditor.EditorApplication.delayCall += () => { if (this != null) Apply(); }; }
+#endif
+    RectTransform rt; Vector3 s0; Quaternion r0; float t = -1f;
+    void Awake() { rt = (RectTransform)transform; s0 = rt.localScale; r0 = rt.localRotation; }
+    public void OnPointerClick(PointerEventData e) { if (popOnClick) Pop(); }
+    public void Pop() { if (rt == null) rt = (RectTransform)transform; t = 0f; }
+    void OnDisable() { if (t >= 0f && rt != null) { rt.localScale = s0; rt.localRotation = r0; t = -1f; } }
+    void Update() {
+      if (t < 0f || rt == null) return;
+      t += Time.deltaTime;
+      float f = Mathf.Clamp01(t / Mathf.Max(0.05f, seconds));
+      // the app's keyframes: 0% (1, 0deg) -> 18% (0.82, -3deg) -> 55% (1.32, +2deg) -> 100% (1, 0deg)
+      float sc, ang;
+      if (f < 0.18f) { float u = Mathf.SmoothStep(0f, 1f, f / 0.18f); sc = Mathf.Lerp(1f, 0.82f, u); ang = Mathf.Lerp(0f, -3f, u); }
+      else if (f < 0.55f) { float u = Mathf.SmoothStep(0f, 1f, (f - 0.18f) / 0.37f); sc = Mathf.Lerp(0.82f, 1.32f, u); ang = Mathf.Lerp(-3f, 2f, u); }
+      else { float u = Mathf.SmoothStep(0f, 1f, (f - 0.55f) / 0.45f); sc = Mathf.Lerp(1.32f, 1f, u); ang = Mathf.Lerp(2f, 0f, u); }
+      rt.localScale = new Vector3(s0.x * sc, s0.y * sc, s0.z);
+      rt.localRotation = r0 * Quaternion.Euler(0f, 0f, ang);
+      if (f >= 1f) { rt.localScale = s0; rt.localRotation = r0; t = -1f; }
+    }
+  }
+}
+`;
+
+/* the DAMAGE NUMBER as a DEV INSTRUMENT (round 47, owner: "it must be a
+   dev instrument, not a picture") — the combo digit road applied to the
+   floating combat number: Show(n) composes the amount from the kit's
+   own damage digits at the authored seat (thousands grouped like the
+   app) and plays the app's SMIL flight, keyframe for keyframe on LINEAR
+   segments (SMIL's own calcMode): pop 0.7→1.09→0.98→1 @ 0/.06/.10/.14
+   (crit 0.55→1.16→0.97→1), float +8→−6→−26 of the 210 design height
+   @ 0/.4/1, fade 0→1→1→0 @ 0/.05/.72/1, over 2.6s (crit 3s). Value 0
+   keeps the kit's authored number byte-for-byte as the live child. */
+const DMG_NUMBER_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+
+namespace PatternBreak {
+  [AddComponentMenu("UI Kit Maker/Damage Number")]
+  public class PatternBreakDmgNumber : MonoBehaviour {
+    [Tooltip("Inspector preview / the resting amount: 0 keeps the kit's authored number sprite byte-for-byte; 1+ composes the kit-dressed digits at the authored seat, thousands grouped like the app. Show(n) sets it AND plays the flight.")]
+    public int value = 0;
+    [Tooltip("One flight in seconds — the app's loop runs 2.6s (crit rides 3s via the app's own ratio).")]
+    public float seconds = 2.6f;
+    [Tooltip("The app's crit beat — harder spawn pop and the longer flight (the app goes crit past 70% magnitude).")]
+    public bool crit;
+    [Tooltip("The resting Damage number child (generated wiring) — hidden while a composed amount shows.")]
+    public Image numberSeat;
+    [Tooltip("The damage digits 0-9, the kit's own dress (generated).")]
+    public Sprite[] digitSprites = new Sprite[0];
+    [Tooltip("The thousands mark (generated).")]
+    public Sprite commaSprite;
+    [Tooltip("Per-digit advance in UI units, matched to digitSprites (generated).")]
+    public float[] digitAdvance = new float[0];
+    public float commaAdvance;
+    [Tooltip("UI units per sprite px — 1 / the export's pngScale (generated).")]
+    public float glyphScale = 0.5f;
+    [Tooltip("The number's authored tilt — the app's own −6° (Unity CCW).")]
+    public float numberTilt = 6f;
+    [Tooltip("The authored anchor minus the resting child's center, UI units (generated).")]
+    public Vector2 seatOffset = Vector2.zero;
+    const string MOUNT = "Number (auto)";
+    public void SetValue(int n) { value = Mathf.Max(0, n); Apply(); }
+    public void Show(int n) { SetValue(n); Play(); }
+    public void Play() { if (rt == null) rt = (RectTransform)transform; t = 0f; }
+    public void Apply() {
+      if (numberSeat == null) return;
+      var seatRt = numberSeat.rectTransform;
+      var mountT = seatRt.Find(MOUNT);
+      bool compose = value >= 1 && digitSprites.Length >= 10 && digitAdvance.Length >= 10;
+      if (!compose) {
+        // 0 (or missing atoms) = the authored number, exactly as shipped
+        if (!numberSeat.enabled) numberSeat.enabled = true;
+        if (mountT != null) mountT.gameObject.SetActive(false);
+        return;
+      }
+      var mount = mountT as RectTransform;
+      if (mount == null) {
+        var g = new GameObject(MOUNT, typeof(RectTransform));
+        g.transform.SetParent(seatRt, false);
+        mount = (RectTransform)g.transform;
+        mount.anchorMin = mount.anchorMax = new Vector2(0.5f, 0.5f);
+        mount.pivot = new Vector2(0.5f, 0.5f);
+        mount.sizeDelta = Vector2.zero;
+      }
+      mount.gameObject.SetActive(true);
+      mount.anchoredPosition = seatOffset;
+      mount.localRotation = Quaternion.Euler(0f, 0f, numberTilt);
+      numberSeat.enabled = false;
+      for (int i = mount.childCount - 1; i >= 0; i--) { var ch = mount.GetChild(i).gameObject; if (Application.isPlaying) Destroy(ch); else DestroyImmediate(ch); }
+      // the app's own formatting: thousands grouped with the comma glyph
+      string s9 = Mathf.Min(value, 9999999).ToString();
+      string grouped = "";
+      for (int i = 0; i < s9.Length; i++) { if (i > 0 && (s9.Length - i) % 3 == 0 && commaSprite != null) grouped += ","; grouped += s9[i]; }
+      float total = 0f;
+      foreach (var c9 in grouped) total += c9 == ',' ? commaAdvance : digitAdvance[c9 - '0'];
+      float x9 = -total / 2f;
+      foreach (var c9 in grouped) {
+        var sp9 = c9 == ',' ? commaSprite : digitSprites[c9 - '0'];
+        float adv9 = c9 == ',' ? commaAdvance : digitAdvance[c9 - '0'];
+        if (sp9 == null) { x9 += adv9; continue; }
+        var g9 = new GameObject("Glyph", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        g9.transform.SetParent(mount, false);
+        var im9 = g9.GetComponent<Image>(); im9.sprite = sp9; im9.raycastTarget = false;
+        var rt9 = (RectTransform)g9.transform;
+        rt9.anchorMin = rt9.anchorMax = new Vector2(0.5f, 0.5f);
+        rt9.pivot = new Vector2(0.5f, 0.5f);
+        rt9.anchoredPosition = new Vector2(x9 + adv9 / 2f, 0f);
+        rt9.sizeDelta = new Vector2(sp9.rect.width * glyphScale, sp9.rect.height * glyphScale);
+        x9 += adv9;
+      }
+    }
+    void OnEnable() { Apply(); }
+#if UNITY_EDITOR
+    void OnValidate() { UnityEditor.EditorApplication.delayCall += () => { if (this != null) Apply(); }; }
+#endif
+    RectTransform rt; Vector3 s0; Vector2 p0; CanvasGroup grp; float t = -1f;
+    void Awake() { rt = (RectTransform)transform; s0 = rt.localScale; p0 = rt.anchoredPosition; }
+    // piecewise-LINEAR segment — SMIL's default calcMode, the app's own easing
+    static float Seg(float f, float k0, float k1, float v0, float v1) { return Mathf.Lerp(v0, v1, (f - k0) / Mathf.Max(0.0001f, k1 - k0)); }
+    void OnDisable() { if (t >= 0f && rt != null) { rt.localScale = s0; rt.anchoredPosition = p0; if (grp != null) grp.alpha = 1f; t = -1f; } }
+    void Update() {
+      if (t < 0f || rt == null || !Application.isPlaying) return;
+      t += Time.deltaTime;
+      // the app's SMIL, keyframe for keyframe (crit stretches by the app's own 3s/2.6s)
+      float f = Mathf.Clamp01(t / Mathf.Max(0.05f, crit ? seconds * (3f / 2.6f) : seconds));
+      float sc = crit
+        ? (f < 0.06f ? Seg(f, 0f, 0.06f, 0.55f, 1.16f) : f < 0.1f ? Seg(f, 0.06f, 0.1f, 1.16f, 0.97f) : f < 0.14f ? Seg(f, 0.1f, 0.14f, 0.97f, 1f) : 1f)
+        : (f < 0.06f ? Seg(f, 0f, 0.06f, 0.7f, 1.09f) : f < 0.1f ? Seg(f, 0.06f, 0.1f, 1.09f, 0.98f) : f < 0.14f ? Seg(f, 0.1f, 0.14f, 0.98f, 1f) : 1f);
+      // float +8 -> -6 -> -26 of the app's 210 design height (svg y runs down)
+      float dySvg = f < 0.4f ? Seg(f, 0f, 0.4f, 8f, -6f) : Seg(f, 0.4f, 1f, -6f, -26f);
+      float a9 = f < 0.05f ? Seg(f, 0f, 0.05f, 0f, 1f) : f < 0.72f ? 1f : Seg(f, 0.72f, 1f, 1f, 0f);
+      if (grp == null) { grp = GetComponent<CanvasGroup>(); if (grp == null) grp = gameObject.AddComponent<CanvasGroup>(); }
+      rt.localScale = new Vector3(s0.x * sc, s0.y * sc, s0.z);
+      rt.anchoredPosition = p0 + new Vector2(0f, -dySvg / 210f * rt.rect.height);
+      grp.alpha = a9;
+      // the flight ENDS faded out — damage numbers die; Show respawns one
+      if (f >= 1f) { rt.localScale = s0; rt.anchoredPosition = p0; t = -1f; }
+    }
+  }
+}
+`;
+
+/* the ATTENTION PULSE (round 46, R2 — the app's Motion card, shipped):
+   a looping uniform scale breath — 1 → 1 + 0.05·magnitude → 1 over
+   1.26 s, ease-in-out, exactly the kit page's own keyframes. Add it to
+   any piece (Add Component → UI Kit Maker → Attention Pulse); Stop()
+   rests at the base scale. Plays in Play mode. */
+const ATTENTION_PULSE_RUNTIME = `using UnityEngine;
+
+namespace PatternBreak {
+  [AddComponentMenu("UI Kit Maker/Attention Pulse")]
+  public class PatternBreakAttentionPulse : MonoBehaviour {
+    [Tooltip("Breath size — 1 breathes 5% (the app's magnitude dial; 2 breathes 10%).")]
+    public float magnitude = 1f;
+    [Tooltip("One breath in seconds — the app's card runs 1.26s.")]
+    public float period = 1.26f;
+    [Tooltip("Untick (or Stop()) to rest at the base scale.")]
+    public bool playing = true;
+    Vector3 s0; bool had;
+    public void Play() { playing = true; }
+    public void Stop() { playing = false; }
+    void OnEnable() { s0 = transform.localScale; had = true; }
+    void OnDisable() { if (had) transform.localScale = s0; }
+    void Update() {
+      if (!Application.isPlaying || !had) return;
+      if (!playing) { if (transform.localScale != s0) transform.localScale = s0; return; }
+      // raised-cosine breath == the app's ease-in-out ping-pong
+      float u = 0.5f - 0.5f * Mathf.Cos(Time.unscaledTime * Mathf.PI * 2f / Mathf.Max(0.1f, period));
+      float s = 1f + 0.05f * magnitude * u;
+      transform.localScale = new Vector3(s0.x * s, s0.y * s, s0.z);
+    }
+  }
+}
+`;
+
+/* the GLOW CYCLE (round 46, R2 — the app's Motion card, shipped): an
+   outer-glow ping-pong — the halo swells 2 → 14 px and 25 → 85 %
+   opacity over 1.98 s in the KIT'S GLOW color (the app demo's fixed
+   cyan was a demo-only shortcut; the shipped behavior themes with the
+   kit). The halo is runtime decor on the StateFx chassis: DontSave,
+   layout-exempt, behind the art — child-first when the piece wears the
+   Body structure, a mirrored sibling behind it otherwise, so it works
+   on ANY piece. Editor Reset() finds fx-glow and the kit's Glow from
+   the manifest so Add Component just works. */
+const GLOW_CYCLE_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+
+namespace PatternBreak {
+  [AddComponentMenu("UI Kit Maker/Glow Cycle")]
+  [RequireComponent(typeof(RectTransform))]
+  public class PatternBreakGlowCycle : MonoBehaviour {
+    [Tooltip("The aura sprite — fx/fx-glow.png (Reset finds it; any soft radial works).")]
+    public Sprite glowSprite;
+    [Tooltip("The glow ink — the kit's Glow role (Reset reads it from kit-manifest.json).")]
+    public Color glowColor = new Color(0.63f, 0.94f, 1f);
+    [Tooltip("Halo overhang at the SMALL end of the cycle, UI units — the app's 2px.")]
+    public float padMin = 2f;
+    [Tooltip("Halo overhang at the LARGE end — the app's 14px.")]
+    public float padMax = 14f;
+    [Tooltip("Opacity at the small end — the app's 25%.")]
+    [Range(0f, 1f)] public float alphaMin = 0.25f;
+    [Tooltip("Opacity at the large end — the app's 85%.")]
+    [Range(0f, 1f)] public float alphaMax = 0.85f;
+    [Tooltip("One full swell-and-settle in seconds — the app's card runs 1.98s.")]
+    public float period = 1.98f;
+    [Tooltip("Untick (or Stop()) to fade the halo out.")]
+    public bool playing = true;
+    RectTransform rt, halo;
+    Image haloImg;
+    bool haloIsChild;
+    public void Play() { playing = true; }
+    public void Stop() { playing = false; }
+    void OnEnable() { rt = (RectTransform)transform; }
+    void OnDisable() { if (halo != null) { if (Application.isPlaying) Destroy(halo.gameObject); else DestroyImmediate(halo.gameObject); halo = null; haloImg = null; } }
+    void BuildHalo() {
+      if (halo != null || glowSprite == null) return;
+      var go = new GameObject(name + " Glow Cycle Halo", typeof(RectTransform), typeof(CanvasRenderer), typeof(LayoutElement), typeof(Image));
+      go.hideFlags = HideFlags.DontSave;
+      go.GetComponent<LayoutElement>().ignoreLayout = true; // decor, never a layout cell
+      halo = go.GetComponent<RectTransform>();
+      haloImg = go.GetComponent<Image>();
+      haloImg.sprite = glowSprite;
+      haloImg.raycastTarget = false;
+      haloImg.color = new Color(glowColor.r, glowColor.g, glowColor.b, 0f);
+      /* behind the art: pieces with the Body structure (or a bare root)
+         take the halo as FIRST CHILD (native riding); a root that draws
+         its own sprite would paint a child halo OVER the art, so the
+         halo mirrors it as a SIBLING just behind instead. */
+      var img0 = GetComponent<Image>();
+      bool rootDraws = img0 != null && img0.sprite != null && img0.color.a >= 0.05f;
+      if (!rootDraws || transform.parent == null) {
+        halo.SetParent(rt, false);
+        halo.SetAsFirstSibling();
+        haloIsChild = true;
+      } else {
+        halo.SetParent(transform.parent, false);
+        halo.SetSiblingIndex(transform.GetSiblingIndex());
+        haloIsChild = false;
+      }
+    }
+    void MirrorHost(float pad) {
+      if (halo == null) return;
+      if (haloIsChild) {
+        if (halo.anchorMin != Vector2.zero) halo.anchorMin = Vector2.zero;
+        if (halo.anchorMax != Vector2.one) halo.anchorMax = Vector2.one;
+        var off = new Vector2(pad, pad);
+        if (halo.offsetMin != -off) halo.offsetMin = -off;
+        if (halo.offsetMax != off) halo.offsetMax = off;
+      } else {
+        if (halo.anchorMin != rt.anchorMin) halo.anchorMin = rt.anchorMin;
+        if (halo.anchorMax != rt.anchorMax) halo.anchorMax = rt.anchorMax;
+        if (halo.pivot != rt.pivot) halo.pivot = rt.pivot;
+        if (halo.anchoredPosition != rt.anchoredPosition) halo.anchoredPosition = rt.anchoredPosition;
+        if (halo.localScale != rt.localScale) halo.localScale = rt.localScale;
+        var size = rt.sizeDelta + new Vector2(pad, pad) * 2f;
+        if (halo.sizeDelta != size) halo.sizeDelta = size;
+        int want = Mathf.Max(0, transform.GetSiblingIndex() - 1) + 1;
+        if (halo.GetSiblingIndex() != want - 1) halo.SetSiblingIndex(want - 1);
+      }
+    }
+    void Update() {
+      if (!Application.isPlaying) return;
+      if (halo == null) { BuildHalo(); if (halo == null) return; }
+      float u = playing ? 0.5f - 0.5f * Mathf.Cos(Time.unscaledTime * Mathf.PI * 2f / Mathf.Max(0.1f, period)) : 0f;
+      float a = playing ? Mathf.Lerp(alphaMin, alphaMax, u) : Mathf.MoveTowards(haloImg.color.a, 0f, Time.unscaledDeltaTime * 3f);
+      var c = new Color(glowColor.r, glowColor.g, glowColor.b, a);
+      if (haloImg.color != c) haloImg.color = c;
+      MirrorHost(Mathf.Lerp(padMin, padMax, u));
+    }
+#if UNITY_EDITOR
+    /* Add Component just works: find the kit's aura sprite and Glow ink */
+    void Reset() {
+      if (glowSprite == null)
+        foreach (var g in UnityEditor.AssetDatabase.FindAssets("fx-glow t:Sprite")) {
+          var sp = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>(UnityEditor.AssetDatabase.GUIDToAssetPath(g));
+          if (sp != null) { glowSprite = sp; break; }
+        }
+      foreach (var g in UnityEditor.AssetDatabase.FindAssets("kit-manifest t:TextAsset")) {
+        var ta = UnityEditor.AssetDatabase.LoadAssetAtPath<TextAsset>(UnityEditor.AssetDatabase.GUIDToAssetPath(g));
+        if (ta == null) continue;
+        /* anchor INSIDE the "palette" object — the manifest's FIRST
+           "glow" is a seat ink's "glow": null, and the next # after it
+           is the seat SHADOW hex (a whole-file scan seeded the halo
+           shadow-brown, not the kit's Glow role) */
+        var pIdx = ta.text.IndexOf("\\"palette\\"");
+        if (pIdx < 0) continue;
+        var open9 = ta.text.IndexOf('{', pIdx);
+        if (open9 < 0) continue;
+        var close9 = ta.text.IndexOf('}', open9);
+        if (close9 < 0) continue;
+        var mIdx = ta.text.IndexOf("\\"glow\\"", open9);
+        if (mIdx < 0 || mIdx > close9) continue;
+        var hIdx = ta.text.IndexOf('#', mIdx);
+        if (hIdx > 0 && hIdx < close9 && hIdx + 7 <= ta.text.Length) {
+          Color c9;
+          if (ColorUtility.TryParseHtmlString(ta.text.Substring(hIdx, 7), out c9)) { glowColor = c9; break; }
+        }
+      }
+    }
+#endif
   }
 }
 `;
@@ -8018,6 +10641,8 @@ namespace PatternBreak {
     public Sprite nodeLitSprite;
     public Sprite spineSprite;
     public Sprite fillSprite;
+    [Tooltip("The app's own progress strip, sliced to rail height (round 44) — preferred over fillSprite, whose big mercury borders crushed on the thin rail.")]
+    public Sprite runSprite;
     public Sprite claimedCheck;
     [Header("Layout — fractions of this rect, measured from the kit's art on import")]
     [Range(0f, 1f)] public float trackX0 = 0.22f;
@@ -8174,12 +10799,17 @@ namespace PatternBreak {
       srt.offsetMin = new Vector2(-spineH, -spineH * 0.5f); // the drawn rail overhangs the end nodes by its own height
       srt.offsetMax = new Vector2(spineH, spineH * 0.5f);
       srt.SetSiblingIndex(0);
-      /* the run: the kit's own progress fill, seated ON the rail */
+      /* the run ON the rail: the dedicated run atom when the kit ships it
+         (round 44, item 14 — its borders slice true at rail height); the
+         old progress-mercury stand-in only for atom-less zips */
       var fill = Img(own, "Fill");
-      fill.sprite = fillSprite; fill.type = Image.Type.Sliced;
-      fill.enabled = fillSprite != null;
+      var runSp = runSprite != null ? runSprite : fillSprite;
+      fill.sprite = runSp; fill.type = Image.Type.Sliced;
+      fill.enabled = runSp != null;
       float run = n > 1 ? Mathf.Clamp01((cur - 1 + Mathf.Clamp01(tierProgress)) / (n - 1f)) : 1f;
-      float fillH = spineH * 0.62f; // the app draws the run just inside the rail
+      // the app draws the run just inside the rail; the run atom carries
+      // its own drawn height (glow halo included)
+      float fillH = runSprite != null ? runSprite.rect.size.y * spriteScale : spineH * 0.62f;
       var frt = fill.rectTransform;
       frt.anchorMin = new Vector2(TierX(0, n), spineY);
       frt.anchorMax = new Vector2(Mathf.Lerp(TierX(0, n), TierX(n - 1, n), run), spineY);
@@ -8410,11 +11040,13 @@ The kit's components explain themselves in the Inspector (headers and
 per-field tooltips), and sprites, colors and spacing are ordinary Unity
 properties — nothing you'd want to edit is baked into pixels.
 
-> **On Unity 2022.3:** labels are still live, editable text — plain
-> uGUI Text in the kit's shipped font, wearing each family's own ink —
-> but the styled SDF stack is 2023.2+, and so are the panel **Words**
-> groups and live board-scene stamps: on 2022.3 those ship as the baked
-> board art instead — except counts that ride a live plate (booster
+> **On Unity 2022.3:** every word is still live, editable text —
+> label-road words as uGUI Text in the kit's shipped font, and the
+> **Words** seats (most of the catalog) as plain TMP in faces minted
+> from the shipped TTFs, each at its exact seat with its own ink.
+> The styled SDF dress and the re-import word heal are 2023.2+ — on
+> 2022.3 seat words seed once and are yours. Board-scene stamps stay
+> baked art there — except counts that ride a live plate (booster
 > qty pills, badge counts), which arrive as editable TMP text on both
 > rungs. The dropdown still WORKS there (live caption in the
 > family ink, plain-Text rows, opening menu — just undressed), and the
@@ -8452,6 +11084,74 @@ ${hasBoards ? `
 > and reopen — Unity re-extracts it clean. If the warning returns, run
 > **Tools > PatternBreak > Audit Immutable Packages** and send us the
 > Console lines it prints — they name the exact file and the writer.
+
+## Driving the animations
+
+Every motion the kit ships is a NAMED PatternBreak component with public
+fields and methods — no animation clips to hunt for, no magic strings.
+Select a piece and read its Inspector; every dial has a tooltip. There
+are three lanes:
+
+**1 · Always-on and state motion — already wired.** These arrive on the
+generated prefabs per your kit's own dials; there is nothing to call.
+
+- **StateFx** — hover glow, press lift/sink, disabled travel on every
+  pressable piece. Numbers come straight from the kit's state dials;
+  tune \`fade\`, the per-state \`*Glow\`/\`*Lift\` fields, or delete it.
+- **WipeShine / EdgeShine** — the idle shimmer and edge spark, attached
+  when your kit's Idle dials are on (per-piece forks honored). They loop
+  by themselves; both are removable components.
+
+**2 · Value-driven rigs — the motion IS the value.** Drive ONE number
+(tween it, lerp it, set it every frame) and the piece animates exactly
+like the app: fills scissor, caps ride the value line, cells snap whole,
+looks swap. All of them expose \`SetValue(float 0..1)\` (plus their own
+richer verbs) and work in the Inspector, from code, and under board
+poses.
+
+- Bars & rings: **KitRingFill**, **KitBarFill**, **KitCellMeter**,
+  **KitBuffSweep** (time remaining), **PatternBreakStopwatch**
+  (\`SetSeconds\` on the 90s dial, alarm mood under 25%),
+  **PatternBreakCooldown** (\`SetSeconds\` on the 6s dial).
+- Counts & picks: **KitStepper** (\`StepUp/StepDown\`), **KitSteps**
+  (\`SetStep\`), **PatternBreakPageDots** (\`SetPage/SetCount\`),
+  **PatternBreakStartLights** (\`SetCount\` — count 5 down to 0),
+  **PatternBreakStarRating** (\`SetStars 0..3\`),
+  **PatternBreakEmoteWheel** (\`SetSector\`),
+  **PatternBreakWeaponWheel** (\`ArmChamber(i)\` spins the cylinder),
+  **PatternBreakPathConnector** (\`SetProgress\`), **StreakIgnite**
+  (drive to 1 and the glyph ignites and pulses), **SeasonTrack**
+  (\`SetProgress(tier, toNext)\`), **GaugeDial**, **KitTimer**.
+
+On Unity 2022.3 the numeral readouts — the Stopwatch and Cooldown
+seconds, the StartLights caption, the KitSteps digits — hold their
+seeded word while the arcs, hands, pies and lights move; live ticking
+text is 2023.2+, the same rung rule as the step-4 word note.
+
+**3 · On-demand celebrations and loops — one call.**
+
+- **ComboPop** — \`SetCount(n)\` deals the ×N numeral from the kit's own
+  celebration digits at the authored seat, then \`Pop()\` on every
+  multiplier tick (clicking the piece in Play mode fires it too). The
+  app's exact squash-overshoot-settle.
+- **PatternBreakDmgNumber** — the damage number as a dev instrument:
+  \`Show(n)\` composes the amount from the kit's own damage digits at
+  the authored seat (thousands grouped, the app's formatting) and plays
+  the app's float-up-and-fade, SMIL keyframes mirrored; the Inspector
+  \`Value\` field previews with no code, and 0 keeps the kit's authored
+  number byte-for-byte.
+- **ClaimBurst** — \`Fire()\` throws the themed spark celebration
+  (claim-worded pieces arrive with it wired to the click).
+- **PatternBreakSpinner** — spins by itself in Play mode;
+  \`SetSpinning(false)\` freezes it.
+- **PatternBreakAttentionPulse** — the app's "attention pulse" Motion
+  card as a real behavior: add it to ANY piece (Add Component > UI Kit
+  Maker > Attention Pulse) and it breathes 5% x \`magnitude\` every
+  1.26s; \`Play()/Stop()\`.
+- **PatternBreakGlowCycle** — the app's "glow cycle": an outer-glow
+  swell 2-14px at 25-85% opacity every 1.98s, in YOUR kit's Glow color
+  (Add Component finds the aura sprite and the manifest ink by itself);
+  \`Play()/Stop()\`.
 
 ---
 
@@ -8557,7 +11257,8 @@ the portrait with the level number riding the ring; the **Resource**
 chip's **Medallion plate** and **Icon glyph** swap independently; the
 **Bottomnav**'s **Selected ring** IS the selection (slide it one cell
 pitch, or disable it) and its **Badge plate** carries its live count
-with it. Counts that ride a plate — the **BoosterCard**'s qty pill, the
+with it; the **Hotbar** carries the same **Selected ring** — slide it a
+cell over or disable it, the strip underneath rests uniform. Counts that ride a plate — the **BoosterCard**'s qty pill, the
 badge's number — move, restyle and delete WITH their plate: one group,
 on the family prefabs and on every posed board copy. Any sprite from
 **icons/** fits the same seats.
@@ -8725,15 +11426,19 @@ shipped TTF, and the recipe in kit-manifest.json > typography > style is
 ready to become a TMP material preset by hand.
 
 > **The full 2022.3 picture, feature by feature** (no silent
-> divergence): prefab labels are live uGUI Text in the kit's font and
-> each family's own resolved ink — editable, never truncating, just
-> without the SDF outline/glow/emboss dress. The panel **Words**
-> groups and live board-scene stamps are 2023.2+ — on 2022.3 those
-> pieces keep their baked words (pixel-faithful, not editable as
-> text) — with ONE deliberate exception: counts that ride a live
-> plate child (the booster card's qty pill ×numbers, the nav badge's
-> count) are stripped from the posed pixels and rebuilt as editable
-> TMP text on BOTH rungs, so no rung ever shows an empty pill.
+> divergence): label-road prefab words are live uGUI Text in the
+> kit's font and each family's own resolved ink, and the **Words**
+> groups — the seat-worded majority of the catalog — seed as LIVE,
+> editable TMP on 2022.3 too: each seat at its exact place and size,
+> in faces minted straight from the shipped TTFs (the kit's own cut
+> for kit voices, the heavy instrument for readouts), wearing its
+> resolved ink. What stays 2023.2+ is the styled SDF DRESS
+> (outline/glow/emboss materials) and the re-import word HEAL — on
+> 2022.3 seat words seed once and are yours from then on. Board-scene
+> stamps keep their baked words on 2022.3 (pixel-faithful, not
+> editable as text) — except counts that ride a live plate child
+> (booster qty pills, badge counts), which rebuild as editable TMP on
+> BOTH rungs, so no rung ever shows an empty pill.
 > The dropdown is live on BOTH rungs (2022.3 gets a working uGUI
 > Dropdown: family-ink caption, plain-Text rows, opening menu — undressed,
 > not baked), and the input keeps a live placeholder on a flat surface.
@@ -9307,7 +12012,10 @@ namespace PatternBreak {
   [Serializable] class PBShellBox { public float x; public float y; public float w; public float h; }
   /* the bar family's WELL ZONE inside the sprite (round 21) — x/w in file
      px at pngScale; JsonUtility default-instances it, so gate on w > 2 */
-  [Serializable] class PBTrack { public float x; public float w; }
+  /* round 44: y/h = the optional VERTICAL band for bars off the shell
+     centerline; old rows leave them 0 (JsonUtility) and the symmetric
+     centering road runs exactly as before (gate on h > 2) */
+  [Serializable] class PBTrack { public float x; public float w; public float y; public float h; }
   /* the pass dials (owner round, field notes #3): wipeDur/edgeDur =
      seconds one PASS takes (freq only sets the rest between passes),
      wipeWidth = the band as % of the face, trigger "hover" arms the
@@ -9339,7 +12047,7 @@ namespace PatternBreak {
      gauge contract; the importer multiplies by the prefab's live rect.
      Readers gate on text non-empty AND ffs > 0 (px-era rows and
      JsonUtility's default-constructed nested objects both read 0). */
-  [Serializable] class PBSeat { public string text; public float fx; public float fy; public float ffs; public float midEm; public string anchor; public int row; public bool kit; public bool dressed; public int weight; public bool italic; public float spacingEmPct; public string fillMode; public string fill; public string fill2; public float fillOpacity; public string stroke; public float strokeA; public float strokeEmPct; public string rider; }
+  [Serializable] class PBSeat { public string text; public float fx; public float fy; public float ffs; public float midEm; public string anchor; public int row; public bool kit; public bool dressed; public int weight; public bool italic; public float spacingEmPct; public string fillMode; public string fill; public string fill2; public float fillOpacity; public string stroke; public float strokeA; public float strokeEmPct; public string rider; public bool unkern; }
   /* the piece's kit icon beside its words (round 26 — the chip's star):
      center offset from the shell center in design px, rendered size, the
      shipped white glyph, and the app's ink. s 0 / file "" on older
@@ -9353,12 +12061,12 @@ namespace PatternBreak {
      per swappable icon/image the app drew — its own full-color sprite,
      box center vs the shell center (design px, y down), box size. btn =
      a REAL small-button plate; wellR > 0 = circular-masked image well. */
-  [Serializable] class PBIconChild { public string name; public string file; public float dx; public float dy; public float w; public float h; public bool btn; public float wellR; public bool pinRight; public float rightGap; public string nick;
+  [Serializable] class PBIconChild { public string name; public string file; public float dx; public float dy; public float w; public float h; public bool btn; public float wellR; public bool pinRight; public float rightGap; public string nick; public string tint;
     /* posed board copies only (round 40): a rider word stripped from the
        posed pixels with its plate — rebuilt as live TMP ON the live child
        (wordDx/wordDy = word center from the CHILD center, board px). */
     public string word; public float wordFs; public float wordDx; public float wordDy; public string wordInk; public int wordW; }
-  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public PBTrack track; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelInk; public string labelInk2; public float leading; public string labelText; public PBIconSeat icon; public PBGauge gauge; public PBChart chart; public PBLoot loot; public PBSeat[] textSeats; public PBStyle seatInk; public float ringV; public PBIconChild[] iconSeats; }
+  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public PBTrack track; public PBTrack body; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelInk; public string labelInk2; public float leading; public string labelText; public PBIconSeat icon; public PBGauge gauge; public PBChart chart; public PBLoot loot; public PBSeat[] textSeats; public PBStyle seatInk; public float ringV; public PBIconChild[] iconSeats; public float fireDx; public float fireDy; public float fireW; public float railDx; public float railDy; public float railW; public float railH; public string labelAnchor; }
   [Serializable] class PBStyleOutline { public string color; public string color2; public float width; }
   [Serializable] class PBStyleGlow { public string color; public float size; public float opacity; }
   [Serializable] class PBStyleShadow { public string color; public float x; public float y; public float blur; public float opacity; }
@@ -9402,6 +12110,13 @@ namespace PatternBreak {
      lane-label x. Mapped through the board asset's shell row so the live
      tier cells land exactly on the art. */
   [Serializable] class PBSeasonGeo { public float x0; public float x1; public float spineY; public float laneFreeY; public float lanePremY; public float labelX; }
+  /* RIG-5 geometry (round 44) — design px in the base sprite's canvas
+     frame (both bases ship uncropped). Old zips lack the block entirely:
+     JsonUtility leaves every field 0 and pitch gates the rig road off. */
+  [Serializable] class PBDotsGeo { public float x0; public float cy; public float pitch; public float r; public int n; public int staged; public float w; public float h; }
+  // round 44 (item 26): the saga trail's sampled centers — x1 y1 x2 y2 …
+  // in design px; absent in old zips by design (JsonUtility zero-gates)
+  [Serializable] class PBPathGeo { public float w; public float h; public int n; public float staged; public float[] pts; }
   // ── Boards→Scenes: the maker's artboards, one ready scene each ──
   /* a BIG GLYPH row (the owner's board-art drop): id/name key prefab
      convergence — every instance of one asset resolves to
@@ -9413,7 +12128,7 @@ namespace PatternBreak {
   [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float artW; public float artH; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string stampMask; public bool bakedFallback; public int stampLive; public float stampFs; public string stampInk; public string stampSplashInk; public string stampCase; public float stampDx; public float stampDy; public float stampW; public float stampH; public string posed; public float posedW; public float posedH; public float posedDx; public float posedDy; public string posedHover; public string posedPressed; public string posedDisabled; public float posedLabelDx; public float posedLabelDy; public string shadow; public float shadowW; public float shadowH; public float shadowDx; public float shadowDy; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; public PBBig big; public PBIconChild[] posedIcons; }
   [Serializable] class PBBoardBg { public string file; public float opacity; public float blur; public float saturation; public float hue; public float brightness; public float contrast; public float noise; public string overlay; public float overlayStrength; public string overlayBlend; public bool original; }
   [Serializable] class PBBoard { public string name; public int w; public int h; public PBBoardBg bg; public PBBoardItem[] items; }
-  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public string seatSpace; public string[] stagedFamilies; public PBWell globeWell; public PBSeasonGeo seasonTrack; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBTimerBlock timer; public PBMenu menu; public PBRarity rarity; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; }
+  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public string seatSpace; public string[] stagedFamilies; public PBWell globeWell; public PBSeasonGeo seasonTrack; public PBDotsGeo pageDots; public PBDotsGeo startLights; public PBDotsGeo steps; public PBPathGeo pathConnector; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBTimerBlock timer; public PBMenu menu; public PBRarity rarity; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; }
   [Serializable] class PBLockEntry { public string file; public string sha256; }
   /* the word each labeled family's prefab was last SEEDED with — the
      ownership ledger: a re-import re-seeds only a label still equal to
@@ -9428,7 +12143,7 @@ namespace PatternBreak {
      scene FILES (the seededLabels precedent, applied to .unity bytes):
      only a scene byte-identical to our own last save may auto-rebuild. */
   [Serializable] class PBSceneShaEntry { public string scene; public string sha; }
-  [Serializable] class PBLock { public string slug; public int kitVersion; public string generatorVersion; public string imported; public bool prefabsGenerated; public PBLockEntry[] files; public string[] orphans; public PBSeedEntry[] seededLabels; public bool variantsPending; public PBVariantEntry[] seededVariants; public bool chartsSeeded; public string[] pendingScenes; public int[] pendingMissing; public PBSceneShaEntry[] sceneShas; public PBRectEntry[] authoredRects; public string[] seededChildren; }
+  [Serializable] class PBLock { public string slug; public int kitVersion; public string generatorVersion; public string imported; public bool prefabsGenerated; public PBLockEntry[] files; public string[] orphans; public PBSeedEntry[] seededLabels; public bool variantsPending; public PBVariantEntry[] seededVariants; public bool chartsSeeded; public string[] pendingScenes; public int[] pendingMissing; public PBSceneShaEntry[] sceneShas; public PBRectEntry[] authoredRects; public string[] seededChildren; public string[] seededPrefabs; }
   /* the example-prefab root rects WE last authored (family prefab name →
      size) — MaintainExamplePrefabs' resize pass converges only rects
      still matching this ledger; anything else is the dev's. */
@@ -10270,7 +12985,7 @@ namespace PatternBreak {
       // missing state wiring is added, stale label dress is re-applied —
       // in place, surgical, no menu hunt (fresh generations are current
       // by construction and skip this)
-      if (prefabsReady && !prefabsNew) { MaintainExamplePrefabs(root, manifest, prev); GenerateMissingPrefabs(root, manifest); HealScrollView(root, manifest); }
+      if (prefabsReady && !prefabsNew) { MaintainExamplePrefabs(root, manifest, prev); GenerateMissingPrefabs(root, manifest, prev); HealScrollView(root, manifest); HealScrollbar(root, manifest); }
       /* the renamed files' short-named twins go LAST — the maintenance
          pass above has re-pointed every prefab reference off them */
       foreach (var twin in renameTwins) AssetDatabase.DeleteAsset(root + "/" + twin);
@@ -10448,6 +13163,9 @@ namespace PatternBreak {
       receipt.sceneShas = prev != null ? prev.sceneShas : null;
       receipt.authoredRects = passAuthoredRects != null ? passAuthoredRects : (prev != null ? prev.authoredRects : null);
       receipt.seededChildren = passSeededChildren != null ? passSeededChildren : (prev != null ? prev.seededChildren : null);
+      // the prefab-seeding ledger rides the receipt exactly like the
+      // children ledger — one import without the pass must never amnesia it
+      receipt.seededPrefabs = passSeededPrefabs != null ? passSeededPrefabs : (prev != null ? prev.seededPrefabs : null);
       File.WriteAllText(lockPath, JsonUtility.ToJson(receipt, true));
 
       var kitName = string.IsNullOrEmpty(manifest.kit) ? (string.IsNullOrEmpty(manifest.slug) ? "kit" : manifest.slug) : manifest.kit;
@@ -10960,13 +13678,22 @@ namespace PatternBreak {
             else if (sf == "rarityframe") stagedNames.Add("RarityFrame");
           }
         var SECTIONS = new (string title, string[] names)[] {
-          ("BUTTONS", new[] { "ButtonPrimary", "ButtonSecondary", "ButtonSmall", "Iconbtn", "Chip", "Endturn", "Keycap", "Pricebtn", "Claimbtn", "Ghost" }),
+          ("BUTTONS", new[] { "ButtonPrimary", "ButtonSecondary", "ButtonSmall", "Iconbtn", "Chip", "Endturn", "Keycap", "KeycapSpace", "Padbtn", "PadbtnB", "PadbtnX", "PadbtnY", "Pricebtn", "Claimbtn", "Ghost" }),
           ("CHOICE CONTROLS & FIELDS", new[] { "Checkbox", "Radio", "CheckboxToggle", "RadioToggle", "Switch", "Stepper", "Input", "Dropdown", "Setrow", "Listmenu", "Joystick", "JoystickGhost", "Firebutton" }),
-          ("SLIDERS & PROGRESS", new[] { "Slider", "ProgressBar", "SegmentMeter", "VsBar", "EmblemBar", "Loadbar", "HealthGlobe", "Ring", "SeasonTrack" }),
-          ("NAVIGATION & CHROME", new[] { "Tab", "TabBack", "Bottomnav", "HeaderBanner", "Panel", "DataRow", "ItemSlot", "ScrollView", "Scrollbar", "Badge", "CountBadge", "Notifydot", "Avatarframe", "Pagedots", "Steps" }),
-          ("HUD & DATA", new[] { "Timer", "Resource", "Currency", "Nameplate", "Movecounter", "Qtybadge", "Orb", "Achievement", "Leaderboard", "LapTimes", "Telemetry", "Minimap" }),
+          ("SLIDERS & PROGRESS", new[] { "Slider", "ProgressBar", "SegmentMeter", "VsBar", "EmblemBar", "Loadbar", "HealthGlobe", "Ring", "SeasonTrack", "Cooldown", "Vitalbar" }),
+          ("NAVIGATION & CHROME", new[] { "Tab", "TabBack", "Bottomnav", "HeaderBanner", "Panel", "Dialog", "DataRow", "ItemSlot", "ScrollView", "Scrollbar", "Badge", "CountBadge", "Notifydot", "Avatarframe", "Pagedots", "Steps", "Spinner" }),
+          ("HUD & DATA", new[] { "Timer", "Resource", "Currency", "Nameplate", "Movecounter", "Qtybadge", "Orb", "Achievement", "Leaderboard", "LapTimes", "Telemetry", "Minimap", "Compass" }),
           ("GAUGES", new[] { "Speedo", "SpeedoArc", "RevMeter" }),
           ("GAME SYSTEMS", new[] { "Levelnode", "Dailycell", "Boostercard", "Rewardcard", "Gifticon", "Trophyicon", "Gearicon", "LootTag", "RarityFrame", "Circuit", "Startlights" }),
+          ("RPG & MMO", new[] { "Questpanel", "Dialoguebox", "Choicelist", "Manarails", "Xpbar", "Invgrid", "Partyframe", "Skillnode", "Dmgnumber", "Equipslot" }),
+          ("SHOOTER & ACTION", new[] { "Crosshair", "Hitmarker", "Dmgarc", "Weaponwheel", "Equipselector", "Magazine", "Ammo", "Streakmeter", "Killfeed", "Waypoint", "Capturemeter", "Respawn", "Buffframe", "Hotbar", "Lives" }),
+          ("CASUAL & SAGA", new[] { "Heartmeter", "Energymeter", "Starrating", "Pathconnector", "Combo", "Booster", "Flipclock", "Stopwatch" }),
+          ("STRATEGY & SOCIAL", new[] { "Scorebug", "Friendrow", "Chatbubble", "Emotewheel", "Clancrest", "Unitplate", "Buildqueue", "Techcard", "Popmeter" }),
+          /* the rewards chapter: the released card twins, every shelved
+             reward STATE (the 2x button, reveals, daily poses) and the
+             staged bay's rewards — which stay off the shelf until the
+             owner releases them (stagedFamilies filters them here). */
+          ("REWARDS", new[] { "Pack", "Cardback", "ClaimbtnDouble", "RewardcardLegendary", "RewardcardMystery", "DailycellClaimed", "DailycellLocked", "Chest", "Giftbox", "Rewardtray", "Chestpanel", "Orderticket" }),
         };
         var byName = new Dictionary<string, GameObject>();
         foreach (var p in prefabs) if (!byName.ContainsKey(p.name)) byName[p.name] = p;
@@ -12449,6 +15176,13 @@ namespace PatternBreak {
                     pIi.raycastTarget = pIc.btn;
                     pIi.preserveAspect = false;
                     if (pIc.btn) { var pBb = pIcGo.AddComponent<Button>(); pBb.targetGraphic = pIi; }
+                    /* TINTABLE ink on the posed road too (round 43 review
+                       paper cut: the family road tinted, this rebuild
+                       didn't — the first board score bug would have shipped
+                       WHITE team bars): the white-cut sprite wears the
+                       slot color via Image.color, same as the family road */
+                    Color pTintC;
+                    if (!string.IsNullOrEmpty(pIc.tint) && ColorUtility.TryParseHtmlString(pIc.tint, out pTintC)) pIi.color = pTintC;
                   }
                   pIcGo.transform.SetParent(inst.transform, false);
                   var pIcRt = pIcGo.GetComponent<RectTransform>();
@@ -12807,6 +15541,37 @@ namespace PatternBreak {
                copy's staged value drives the Radial360 cut and the caps */
             var krS = inst.GetComponent<KitRingFill>();
             if (krS != null && it.value > 0f) krS.SetValue(Mathf.Clamp01(it.value));
+            // the buff frame's live sweep strikes the board pose too —
+            // its value is time REMAINING, the app's own dial semantics
+            var bswS = inst.GetComponent<KitBuffSweep>();
+            if (bswS != null && it.value > 0f) bswS.SetValue(Mathf.Clamp01(it.value));
+            // cell meters snap the board's staged charge to whole cells
+            var kcmS = inst.GetComponent<KitCellMeter>();
+            if (kcmS != null && it.value > 0f) kcmS.SetValue(Mathf.Clamp01(it.value));
+            /* the streak meter strikes through its ONE dial (round 44,
+               item 40) — the rig re-forwards to the cells, so the strike
+               must land on the rig or its rest value wins at runtime */
+            var sigS = inst.GetComponent<StreakIgnite>();
+            if (sigS != null && it.value > 0f) sigS.SetValue(Mathf.Clamp01(it.value));
+            // the RIG-5 discrete rigs strike the board's pose too (round 44)
+            var pdS = inst.GetComponent<PatternBreakPageDots>();
+            if (pdS != null && it.value > 0f) pdS.SetValue(Mathf.Clamp01(it.value));
+            var slgS = inst.GetComponent<PatternBreakStartLights>();
+            if (slgS != null && it.value > 0f) slgS.SetValue(Mathf.Clamp01(it.value));
+            var srrS = inst.GetComponent<PatternBreakStarRating>();
+            if (srrS != null && it.value > 0f) srrS.SetValue(Mathf.Clamp01(it.value));
+            var ewS = inst.GetComponent<PatternBreakEmoteWheel>();
+            if (ewS != null && it.value > 0f) ewS.SetValue(Mathf.Clamp01(it.value));
+            var pswS = inst.GetComponent<PatternBreakStopwatch>();
+            if (pswS != null && it.value > 0f) pswS.SetValue(Mathf.Clamp01(it.value));
+            var kstS = inst.GetComponent<KitSteps>();
+            if (kstS != null && it.value > 0f) kstS.SetValue(Mathf.Clamp01(it.value));
+            var pcS = inst.GetComponent<PatternBreakPathConnector>();
+            if (pcS != null && it.value > 0f) pcS.SetValue(Mathf.Clamp01(it.value));
+            var wwS = inst.GetComponent<PatternBreakWeaponWheel>();
+            if (wwS != null && it.value > 0f) wwS.SetValue(Mathf.Clamp01(it.value));
+            var cdS = inst.GetComponent<PatternBreakCooldown>();
+            if (cdS != null && it.value > 0f) cdS.SetValue(Mathf.Clamp01(it.value));
             var gdS = inst.GetComponent<GaugeDial>();
             if (gdS != null && it.value > 0f) { gdS.value = Mathf.Clamp01(it.value); gdS.Apply(); }
             var ktS = inst.GetComponent<KitTimer>();
@@ -12821,19 +15586,83 @@ namespace PatternBreak {
             if ((it.component == "progress" || it.component == "emblembar") && it.value > 0f) {
               var pfT = inst.transform.Find("Fill Area/Fill");
               var pfI = pfT != null ? pfT.GetComponent<Image>() : null;
-              if (pfI != null && pfI.type == Image.Type.Filled) pfI.fillAmount = Mathf.Clamp01(it.value);
+              if (pfI != null && pfI.type == Image.Type.Filled) {
+                pfI.fillAmount = Mathf.Clamp01(it.value);
+                // round 44: the head rig re-parks the bead on the posed value
+                var kbP = pfT.GetComponentInParent<KitBarFill>();
+                if (kbP != null) kbP.SetValue(Mathf.Clamp01(it.value));
+              }
             }
             if (it.component == "vsbar" && it.value > 0f) {
               // the board's value drives the LEFT fighter (the app's rule);
               // the right keeps its staged pose
               var vlT = inst.transform.Find("FillL Area/FillL");
               var vlI = vlT != null ? vlT.GetComponent<Image>() : null;
-              if (vlI != null && vlI.type == Image.Type.Filled) vlI.fillAmount = Mathf.Clamp01(it.value);
+              if (vlI != null && vlI.type == Image.Type.Filled) {
+                vlI.fillAmount = Mathf.Clamp01(it.value);
+                var kbV = vlT.GetComponentInParent<KitBarFill>();
+                if (kbV != null) kbV.SetValue(Mathf.Clamp01(it.value));
+              }
+            }
+            /* the RIG-1 display bars strike the board's pose too (round 44
+               — future-proof: their board copies bake as stamps today,
+               but a live copy must land on its own value) */
+            if ((it.component == "loadbar" || it.component == "popmeter" || it.component == "respawn" || it.component == "buildqueue" || it.component == "xpbar" || it.component == "unitplate" || it.component == "questpanel" || it.component == "orderticket" || it.component == "vitalbar") && it.value > 0f) {
+              var dbT = inst.transform.Find("Fill Area/Fill");
+              var dbI = dbT != null ? dbT.GetComponent<Image>() : null;
+              if (dbI != null && dbI.type == Image.Type.Filled) {
+                var kbD = dbT.GetComponentInParent<KitBarFill>();
+                if (kbD != null) kbD.SetValue(Mathf.Clamp01(it.value)); else dbI.fillAmount = Mathf.Clamp01(it.value);
+              }
+            }
+            if (it.component == "setrow" && it.value > 0f) {
+              // the board's value poses the REAL control — the Slider
+              // writes fillAmount and the rig's follow re-parks the bead
+              var slS9 = inst.GetComponentInChildren<Slider>(true);
+              if (slS9 != null) slS9.value = Mathf.Clamp01(it.value);
+            }
+            if (it.component == "scrollbar" && it.value > 0f) {
+              // the app measures the thumb from the top; BottomToTop
+              // measures from the bottom — mirror the pose
+              var sbB9 = inst.GetComponentInChildren<Scrollbar>(true);
+              if (sbB9 != null) sbB9.value = 1f - Mathf.Clamp01(it.value);
+            }
+            if (it.component == "stepper" && it.value > 0f) {
+              var ksB9 = inst.GetComponent<KitStepper>();
+              if (ksB9 != null) ksB9.SetValue(Mathf.Clamp01(it.value));
+            }
+            if (it.component == "partyframe" && it.value > 0f) {
+              // the board's value drives HP (the app's rule); MP
+              // counter-moves by the app's own coupling
+              float vHp9 = Mathf.Clamp01(it.value);
+              var hpT9 = inst.transform.Find("HP Area");
+              var hpK9 = hpT9 != null ? hpT9.GetComponent<KitBarFill>() : null;
+              if (hpK9 != null) hpK9.SetValue(vHp9);
+              var mpT9 = inst.transform.Find("MP Area");
+              var mpK9 = mpT9 != null ? mpT9.GetComponent<KitBarFill>() : null;
+              if (mpK9 != null) mpK9.SetValue(Mathf.Clamp01(0.25f + (1f - vHp9) * 0.5f));
+            }
+            if (it.component == "manarails" && it.value > 0f) {
+              // the board's value drives MANA (the app's rule); stamina
+              // counter-moves by the app's own coupling
+              float vMn9 = Mathf.Clamp01(it.value);
+              var mnT9 = inst.transform.Find("Mana Area");
+              var mnK9 = mnT9 != null ? mnT9.GetComponent<KitBarFill>() : null;
+              if (mnK9 != null) mnK9.SetValue(vMn9);
+              var stT9 = inst.transform.Find("Stamina Area");
+              var stK9 = stT9 != null ? stT9.GetComponent<KitBarFill>() : null;
+              if (stK9 != null) stK9.SetValue(Mathf.Clamp01(0.15f + (1f - vMn9) * 0.7f));
             }
             if (it.component == "segbar" && it.value > 0f) {
               var sgT = inst.transform.Find("Lit");
               var sgI = sgT != null ? sgT.GetComponent<Image>() : null;
-              if (sgI != null && sgI.type == Image.Type.Filled) sgI.fillAmount = SegbarScissor(m, sgI.sprite, it.value);
+              if (sgI != null && sgI.type == Image.Type.Filled) {
+                // rig-first (round 44): the snapper strikes the pose; the
+                // raw scissor remains for pre-rig kept prefabs
+                var kcmSg = inst.GetComponent<KitCellMeter>();
+                if (kcmSg != null) kcmSg.SetValue(Mathf.Clamp01(it.value));
+                else sgI.fillAmount = SegbarScissor(m, sgI.sprite, it.value);
+              }
             }
             /* the settings rigs strike the board's pose (the exporter
                always sends these two an explicit value) */
@@ -14069,6 +16898,14 @@ namespace PatternBreak {
         t.color = top9;
       }
     }
+    /* pin a START-anchored family's word left (round 44, item 29a): the
+       seat rect's left edge already sits at the drawn x (LabelSeatShift),
+       so every TMP layer in the label — solo or HeroLabel stack — aligns
+       Left (midline-left, the SeatRect precedent). No-op without the row. */
+    static void AlignLabelStart(GameObject labelRoot, PBAsset row) {
+      if (labelRoot == null || row == null || row.labelAnchor != "start") return;
+      foreach (var tA in labelRoot.GetComponentsInChildren<TextMeshProUGUI>(true)) tA.alignment = TextAlignmentOptions.Left;
+    }
     static void AddBakedLabel(GameObject parent, string text, string root, TMP_FontAsset solo, PBManifest m, string family) {
       float ls = LabelSize(m, family);
       /* the APP-TRUE size beats the calibrated shrink when the manifest
@@ -14087,17 +16924,19 @@ namespace PatternBreak {
       ShellSeatLabel(go, parent, family, m);
       var layersFa = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace Baked Layers.asset");
       var strokeInk = InkMaterial(root, "Stroke");
-      // the Leading dial (stacked multi-line labels — endturn): 0 = factory
-      float lsp = LeadingLineSpacing(lrow);
       if (layersFa != null && strokeInk != null) {
         var prt = parent.GetComponent<RectTransform>();
         BuildHeroStack(go, text, root, ls, prt != null ? prt.rect.height : 0f, layersFa, strokeInk);
+        // the Leading dial (stacked multi-line labels — endturn), rebased
+        // absolutely on THIS rung's face; 0 = the row ships no leading
+        float lsp = LeadingLineSpacing(lrow, layersFa);
         if (lsp != 0f) {
           // set AFTER the stack settles, then re-Apply through SetText —
           // BuildHeroStack's own construction order rule
           var hlLead = go.GetComponent<HeroLabel>();
           if (hlLead != null) { hlLead.lineSpacing = lsp; hlLead.SetText(text); }
         }
+        AlignLabelStart(go, lrow);
         return;
       }
       // solo fallback (kit shipped no layer faces): every glyph carries
@@ -14113,7 +16952,9 @@ namespace PatternBreak {
       // …except master-voiced words on a tintable (near-white) atlas:
       // the family's resolved ink rides as a vertex tint (the WHITE-header fix)
       ApplyFamilyInk(t, m, family, true);
-      if (lsp != 0f) t.lineSpacing = lsp;
+      float lspSolo = LeadingLineSpacing(lrow, solo);
+      if (lspSolo != 0f) t.lineSpacing = lspSolo;
+      AlignLabelStart(go, lrow);
     }
 #endif
     /* the label WE generated is the child GameObject named "Label" — a
@@ -14430,13 +17271,15 @@ namespace PatternBreak {
         // seat on the CONTENT zone, not the sprite rect (see AddBakedLabel)
         var lr0 = FindOurLabelRoot(parent);
         if (lr0 != null) ShellSeatLabel(lr0, parent, family, m);
-        // the Leading dial rides this rung too (one seam, one number)
-        float lspT = LeadingLineSpacing(lrowA);
+        // the Leading dial rides this rung too (one seam, one number,
+        // rebased on this rung's own face)
+        float lspT = LeadingLineSpacing(lrowA, face);
         var tLead = lr0 != null ? lr0.GetComponent<TextMeshProUGUI>() : null;
         if (tLead != null && lspT != 0f) tLead.lineSpacing = lspT;
         // the family's RESOLVED ink beats the master style on SDF glyphs
         // (monochrome by construction — always tintable)
         ApplyFamilyInk(tLead, m, family, false);
+        AlignLabelStart(lr0, lrowA);
         return;
       }
 #endif
@@ -14448,7 +17291,8 @@ namespace PatternBreak {
       ShellSeatLabel(go, parent, family, m);
       var t = go.GetComponent<Text>();
       t.text = text;
-      t.alignment = TextAnchor.MiddleCenter;
+      // the start-anchored title pins left on this rung too (round 44, 29a)
+      t.alignment = lrowA != null && lrowA.labelAnchor == "start" ? TextAnchor.MiddleLeft : TextAnchor.MiddleCenter;
       t.fontSize = Mathf.RoundToInt(lsA);
       // the family's resolved ink on THIS rung too — the hardcoded white
       // here is how 2022.3 lost every dark-ink word (F2)
@@ -14480,6 +17324,11 @@ namespace PatternBreak {
        owner does not recognize "List Row"; the app calls the family
        "Data row"). One seam for builder, placement and the rename valet. */
     static string PrefabNameOf(string family) { return family == "list-row" ? "DataRow" : NiceName(family); }
+    /* the shelved DISPLAY POSES of live families (rewards states, round
+       43): raycast-transparent so a click falls through to the game — the
+       pressing lives on their base family's prefab. The 2x button is NOT
+       here: it is a real button with its own skins and dials. */
+    static bool PoseVariantName(string c) { return c == "rewardcard-legendary" || c == "rewardcard-mystery" || c == "dailycell-claimed" || c == "dailycell-locked"; }
     static string NiceName(string family) {
       var sb = new System.Text.StringBuilder();
       bool up = true;
@@ -14628,7 +17477,8 @@ namespace PatternBreak {
       var bsIC = bodyIC != null ? bodyIC.sprite : null;
       if (bsIC == null || row.shell == null || row.shell.w < 4f || bsIC.rect.width < 2f || bsIC.rect.height < 2f) return addedIC;
       float psIC = m != null && m.pngScale > 0 ? m.pngScale : 2f;
-      foreach (var ic in row.iconSeats) {
+      for (int icI = 0; icI < row.iconSeats.Length; icI++) {
+        var ic = row.iconSeats[icI];
         if (ic == null || string.IsNullOrEmpty(ic.file) || ic.w < 1f || ic.h < 1f) continue;
         string cn = IconChildName(ic);
         if (theirs != null && theirs.Contains(cn)) continue; // seeded once already — the dev's seat now, gone or renamed by their hand
@@ -14656,14 +17506,24 @@ namespace PatternBreak {
           ii.raycastTarget = ic.btn;
           ii.preserveAspect = false; // the seat IS the sprite's own box — 1:1 by construction
           if (ic.btn) { var bb = cgo.AddComponent<Button>(); bb.targetGraphic = ii; }
+          /* TINTABLE ink (the score bug's team bars): the sprite was cut
+             WHITE and the app's color rides Image.color — retinting a
+             side is one Inspector color edit, exactly the app's slot */
+          Color tintC;
+          if (!string.IsNullOrEmpty(ic.tint) && ColorUtility.TryParseHtmlString(ic.tint, out tintC)) ii.color = tintC;
         }
         cgo.transform.SetParent(go.transform, false);
-        /* converged children join a tree that may already carry Words —
-           picture ink draws UNDER the words (the app's own stack), so
-           slot in before that sibling; fresh builds have no Words yet
-           and keep their order untouched */
-        var wSibIC = go.transform.Find("Words");
-        if (wSibIC != null) cgo.transform.SetSiblingIndex(wSibIC.GetSiblingIndex());
+        /* converged children join a tree that may already carry siblings —
+           SEAT ORDER IS PAINT ORDER (round 44: the Achievement's converged
+           medallion must land UNDER its already-live glyph, not over it):
+           slot in before the NEXT seat's existing child; failing that,
+           before Words (picture ink draws UNDER the words, the app's own
+           stack); fresh builds have neither yet and keep their order */
+        Transform beforeIC = null;
+        for (int nxI = icI + 1; nxI < row.iconSeats.Length && beforeIC == null; nxI++)
+          if (row.iconSeats[nxI] != null) beforeIC = go.transform.Find(IconChildName(row.iconSeats[nxI]));
+        if (beforeIC == null) beforeIC = go.transform.Find("Words");
+        if (beforeIC != null) cgo.transform.SetSiblingIndex(beforeIC.GetSiblingIndex());
         var crt = cgo.GetComponent<RectTransform>();
         float fxC = (row.shell.x + row.shell.w / 2f + ic.dx * psIC) / bsIC.rect.width;
         float fyC = 1f - (row.shell.y + row.shell.h / 2f + ic.dy * psIC) / bsIC.rect.height;
@@ -14697,8 +17557,10 @@ namespace PatternBreak {
       img.preserveAspect = !sliced;
       /* the glyph rack is ART, not a control (the mandate's non-interactive
          lane): placeable and tintable, but it must never eat a click meant
-         for the piece behind it */
-      if (baseAsset.component != null && baseAsset.component.StartsWith("glyph")) img.raycastTarget = false;
+         for the piece behind it. POSE VARIANTS of live families join that
+         lane (round 43 review): a display pose shelved beside its pressing
+         base sibling must never eat the click the sibling would answer. */
+      if (baseAsset.component != null && (baseAsset.component.StartsWith("glyph") || PoseVariantName(baseAsset.component))) img.raycastTarget = false;
       if (sliced && baseAsset.prefW > 4f && baseAsset.shell != null && baseAsset.shell.w > 4f && baseAsset.shell.h > 4f) {
         /* DEFAULT rect with the WORDS on: the sprite bakes labeless, so its
            natural rect squishes a fluid silhouette under overflowing text.
@@ -14721,17 +17583,21 @@ namespace PatternBreak {
          the ring animates clean at ANY value. The "62%" seat rides the
          track row (SeatRowOf resolves by the sprite the root wears).
          Older zips without the atoms keep the static-bake road. */
-      if (baseAsset.component == "ring") {
-        var ringTrackSp = S(root + "/assets/ring/ring-track.png");
-        var ringFillSp = S(root + "/assets/ring/ring-fill.png");
-        var ringCapSp = S(root + "/assets/ring/ring-cap.png");
+      /* round 44 (owner item 4): the CAPTURE METER joins the ring rig —
+         same atoms, same wiring, same live value (the arc's baked glow
+         bleed at the edge was the field flag; the atoms carry none). */
+      if (baseAsset.component == "ring" || baseAsset.component == "capturemeter") {
+        var famRg = baseAsset.component;
+        var ringTrackSp = S(root + "/assets/" + famRg + "/" + famRg + "-track.png");
+        var ringFillSp = S(root + "/assets/" + famRg + "/" + famRg + "-fill.png");
+        var ringCapSp = S(root + "/assets/" + famRg + "/" + famRg + "-cap.png");
         if (ringTrackSp != null && ringFillSp != null) {
           img.sprite = ringTrackSp;
           img.type = Image.Type.Simple;
           img.preserveAspect = false; // the rig children stretch with the rect — resize warps them together, never apart
           if (pngScale > 0) go.GetComponent<RectTransform>().sizeDelta = new Vector2(ringTrackSp.rect.width / pngScale, ringTrackSp.rect.height / pngScale);
           PBAsset ringFillRow = null;
-          foreach (var aRg in m.assets) if (aRg != null && aRg.component == "ring" && aRg.part == "fill") { ringFillRow = aRg; break; }
+          foreach (var aRg in m.assets) if (aRg != null && aRg.component == famRg && aRg.part == "fill") { ringFillRow = aRg; break; }
           var ringFillGo = new GameObject("Fill", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
           ringFillGo.transform.SetParent(go.transform, false);
           StretchFull(ringFillGo.GetComponent<RectTransform>());
@@ -14880,6 +17746,368 @@ namespace PatternBreak {
       /* the UN-BURN's live picture children (iconSeats rows) — every icon
          and image the app drew, rebuilt swappable at the exact app seat */
       WireIconChildren(go, root, m, baseAsset.component);
+      /* ── the STAR RATING goes LIVE (round 44, item 35 — RIG-5): the
+         three Stars, the Celebration flare and the Replay button are the
+         live seats above; PatternBreakStarRating makes the score a DIAL —
+         stars 0..3 swap the earned/unearned looks (both cut on ONE shared
+         frame, so the swap is 1:1) and the celebration + replay show only
+         at full marks, the app's own rule. Old zips (no unearned atom)
+         keep the static children. ── */
+      if (baseAsset.component == "starrating") {
+        var unearnedSR = S(root + "/assets/starrating/star-unearned.png");
+        var earnedSR = S(root + "/assets/starrating/star-earned.png");
+        var star1SR = go.transform.Find("Star 1");
+        if (unearnedSR != null && star1SR != null && go.GetComponent<PatternBreakStarRating>() == null) {
+          var rigSR = go.AddComponent<PatternBreakStarRating>();
+          var slotsSR = new List<Image>();
+          for (int iSR = 1; iSR <= 3; iSR++) {
+            var tSR = go.transform.Find("Star " + iSR);
+            var imSR = tSR != null ? tSR.GetComponent<Image>() : null;
+            if (imSR != null) slotsSR.Add(imSR);
+          }
+          rigSR.starSlots = slotsSR.ToArray();
+          rigSR.earned = earnedSR != null ? earnedSR : (slotsSR.Count > 0 ? slotsSR[0].sprite : null);
+          rigSR.unearned = unearnedSR;
+          var celSR = go.transform.Find("Celebration flare");
+          rigSR.celebration = celSR != null ? celSR.gameObject : null;
+          var repSR = go.transform.Find("Replay button");
+          rigSR.replay = repSR != null ? repSR.gameObject : null;
+          /* rest = the app's OWN staged score (the unearned row's ringV) —
+             pixel parity with the staged pose at any staging, full marks
+             when an old manifest says nothing */
+          PBAsset unRowSR = null;
+          foreach (var aSR in m.assets) if (aSR != null && aSR.component == "starrating" && aSR.part == "star-unearned") { unRowSR = aSR; break; }
+          rigSR.stars = unRowSR != null && unRowSR.ringV > 0f ? Mathf.RoundToInt(Mathf.Clamp01(unRowSR.ringV) * 3f) : 3;
+          rigSR.Apply();
+        }
+      }
+      /* ── the EMOTE WHEEL goes LIVE (round 44, item 11): the wheel rests
+         uniform, the Armed highlight child parks on any sector by pure
+         rotation, each emote swaps ghost/lit on its fixed frame and the
+         hub mirrors the pick — PatternBreakEmoteWheel makes the sector a
+         dial. Old zips (no look atoms) keep the static children. ── */
+      if (baseAsset.component == "emotewheel") {
+        var slotsEW = new List<Image>(); var ghostEW = new List<Sprite>(); var litEW = new List<Sprite>();
+        for (int iEW = 1; iEW <= 8; iEW++) {
+          var tEW = go.transform.Find("Icon emote" + iEW);
+          var gSp = S(root + "/assets/emotewheel/emote" + iEW + "-ghost.png");
+          var lSp = S(root + "/assets/emotewheel/emote" + iEW + "-lit.png");
+          if (tEW == null || gSp == null || lSp == null) break;
+          var imEW = tEW.GetComponent<Image>(); if (imEW == null) break;
+          slotsEW.Add(imEW); ghostEW.Add(gSp); litEW.Add(lSp);
+        }
+        var hiEW = go.transform.Find("Armed highlight");
+        if (slotsEW.Count >= 4 && hiEW != null && go.GetComponent<PatternBreakEmoteWheel>() == null) {
+          var rigEW = go.AddComponent<PatternBreakEmoteWheel>();
+          rigEW.emoteSlots = slotsEW.ToArray();
+          rigEW.ghost = ghostEW.ToArray();
+          rigEW.lit = litEW.ToArray();
+          rigEW.sectors = slotsEW.Count;
+          rigEW.highlight = (RectTransform)hiEW;
+          var hubEW = go.transform.Find("Selected emote");
+          rigEW.hub = hubEW != null ? hubEW.GetComponent<Image>() : null;
+          if (rigEW.hub != null) rigEW.hubRest = rigEW.hub.sprite;
+          /* rest = the app's staged pick (any lit row's ringV over railW)
+             — pixel parity with the staged pose; the shipped sprites rest
+             on that same sector, so rotation measures from it */
+          float stEW = 0f;
+          foreach (var aEW in m.assets) if (aEW != null && aEW.component == "emotewheel" && aEW.part != null && aEW.part.EndsWith("-lit") && aEW.ringV > 0f) { stEW = Mathf.Clamp01(aEW.ringV); break; }
+          int baseSecEW = Mathf.FloorToInt(Mathf.Clamp(stEW, 0f, 0.999f) * slotsEW.Count);
+          rigEW.baseSector = baseSecEW;
+          rigEW.sector = baseSecEW;
+          rigEW.Apply();
+        }
+      }
+      /* ── the CELL METERS go LIVE (round 44, dossier RIG-2 — owner items
+         1 and 13 under the kit-wide mercury ruling): base bakes EMPTY,
+         the lit strip overlays full-stretch (one crop group — pixel-
+         true), and KitCellMeter snaps the Filled cut into the gap after
+         the last lit cell from the manifest zone. The ammo meter
+         mirrors: bars go dark left→right as ammo depletes (the lit
+         cells keep the right). Old zips without the lit atom keep the
+         static bake. */
+      if (baseAsset.component == "energymeter" || baseAsset.component == "ammo" || baseAsset.component == "lives" || baseAsset.component == "magazine" || baseAsset.component == "streakmeter") {
+        var famCM = baseAsset.component;
+        var litCM = S(root + "/assets/" + famCM + "/" + famCM + "-lit.png");
+        if (litCM != null) {
+          var lgoCM = new GameObject("Lit", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+          lgoCM.transform.SetParent(go.transform, false);
+          StretchFull((RectTransform)lgoCM.transform);
+          var liCM = lgoCM.GetComponent<Image>();
+          liCM.sprite = litCM; liCM.raycastTarget = false; liCM.preserveAspect = false;
+          liCM.type = Image.Type.Filled;
+          liCM.fillMethod = Image.FillMethod.Horizontal;
+          bool mirCM = famCM == "ammo";
+          liCM.fillOrigin = mirCM ? (int)Image.OriginHorizontal.Right : (int)Image.OriginHorizontal.Left;
+          var kcm = go.AddComponent<KitCellMeter>();
+          kcm.lit = liCM;
+          // the lives row speaks its own heart count (railW — round 44, R6)
+          kcm.cells = famCM == "ammo" ? 3 : famCM == "lives" || famCM == "streakmeter" ? 5 : famCM == "magazine" ? 12 : 10;
+          kcm.fromRight = mirCM;
+          PBAsset litRowCM = null;
+          foreach (var aCM in m.assets) if (aCM != null && aCM.component == famCM && aCM.part == "lit") { litRowCM = aCM; break; }
+          if (famCM == "lives" && litRowCM != null && litRowCM.railW > 0.5f) kcm.cells = Mathf.RoundToInt(litRowCM.railW);
+          if (litRowCM != null && litRowCM.track != null && litRowCM.track.w > 2f && litCM.rect.width > 2f) {
+            kcm.zone0 = Mathf.Clamp01(litRowCM.track.x / litCM.rect.width);
+            kcm.zone1 = Mathf.Clamp01((litRowCM.track.x + litRowCM.track.w) / litCM.rect.width);
+          }
+          kcm.SetValue(litRowCM != null && litRowCM.ringV > 0f ? Mathf.Clamp01(litRowCM.ringV) : (famCM == "ammo" ? 1f : famCM == "lives" ? 0.6f : famCM == "magazine" ? 0.66f : famCM == "streakmeter" ? 0.64f : 0.8f));
+          /* the Lit strip lands directly over the base — but UNDER the
+             live children (words, glyphs): first in the paint order */
+          lgoCM.transform.SetSiblingIndex(0);
+        }
+      }
+      /* ── the RIG-1 DISPLAY BARS (round 44, items 19/27/30 + buildqueue):
+         the mercury left the base — the fill atom + rounded cap ride
+         KitBarFill at the manifest's staged value (ringV on the fill
+         row); the zone (horizontal + vertical band) rides the base row's
+         data-track stamp. Old zips ship no fill atom and keep today's
+         baked look untouched. ── */
+      if (baseAsset.component == "loadbar" || baseAsset.component == "popmeter" || baseAsset.component == "respawn" || baseAsset.component == "buildqueue" || baseAsset.component == "xpbar" || baseAsset.component == "unitplate" || baseAsset.component == "questpanel" || baseAsset.component == "setrow" || baseAsset.component == "orderticket" || baseAsset.component == "vitalbar") {
+        var famB4 = baseAsset.component;
+        var fillB4 = S(root + "/assets/" + famB4 + "/" + famB4 + "-fill.png");
+        if (fillB4 != null) {
+          float stagedB4 = 0.62f;
+          foreach (var aF4 in m.assets) if (aF4 != null && aF4.component == famB4 && aF4.part == "fill" && aF4.ringV > 0f) { stagedB4 = Mathf.Clamp01(aF4.ringV); break; }
+          BuildBarFill(go, "Fill", fillB4, baseSp, pngScale, m, root, famB4, stagedB4, false);
+          /* the quest tracker fills by WHOLE objectives (round 44, item
+             29c): the ONE rig learns the family's own law — zero-gated,
+             every other bar stays continuous */
+          if (famB4 == "questpanel") {
+            var kbQ3 = go.GetComponentInChildren<KitBarFill>(true);
+            if (kbQ3 != null) { kbQ3.snapSteps = 3; kbQ3.SetValue(stagedB4); }
+          }
+          /* the settings row becomes a WORKING control (round 44, item
+             34): a real Slider over the rig's zone, the candy knob as
+             its handle */
+          if (famB4 == "setrow") WireSetrowSlider(go, root, m, pngScale);
+        }
+      }
+      /* the stepper becomes a WORKING control (round 44, item 37):
+         cell meter + KitStepper + the two cap Buttons' click wiring */
+      if (baseAsset.component == "stepper") WireStepper(go, baseSp, baseAsset, root, pngScale, m);
+      /* the TWIN RAILS (round 44, item 21) — see WireManaRails: mana and
+         stamina each ride their own Filled atom + bead; old zips ship no
+         fill-mana atom and keep the baked look untouched */
+      if (baseAsset.component == "manarails") WireManaRails(go, baseSp, baseAsset, root, pngScale, m);
+      /* the party frame's twin HP/MP rails (round 44, item 25) ride the
+         same named-rail road; the Level knob + its riding number arrive
+         through the icon-children + seat-rider hands like every family */
+      if (baseAsset.component == "partyframe") WireNamedRails(go, baseSp, baseAsset, root, pngScale, m, "partyframe", new string[] { "hp", "mp" }, new string[] { "HP", "MP" });
+      /* ── the BUFF FRAME's countdown FUNCTIONS (round 44, owner: "the
+         countdown clock cannot be burned into the button shape"): with
+         the sweep atoms aboard, the root wears the sweep-less PLATE
+         (base.png stays the baked-pose face for old zips and kept
+         prefabs — the ring's compatibility rule), and the sweep rebuilds
+         LIVE above the glyph child: a face-centered square window whose
+         Mask wears the face stencil, holding the Radial360 spent-share
+         disc (pixels pre-clipped to the silhouette) and the glowing hand
+         parked at 12 o'clock. KitBuffSweep drives both from time
+         remaining — the app's own dial — and the board road strikes each
+         copy's pose. Sits AFTER the icon children so the sweep dims the
+         glyph exactly like the app's draw order. */
+      if (baseAsset.component == "buffframe") {
+        var bfPlate = S(root + "/assets/buffframe/buffframe-plate.png");
+        var bfSweep = S(root + "/assets/buffframe/buffframe-sweep.png");
+        var bfMask = S(root + "/assets/buffframe/buffframe-sweepmask.png");
+        var bfHand = S(root + "/assets/buffframe/buffframe-sweephand.png");
+        if (bfPlate != null && bfSweep != null) {
+          var bodyBf = BodyImage(go);
+          if (bodyBf != null) bodyBf.sprite = bfPlate;
+          PBAsset bfRow = null;
+          foreach (var aBf in m.assets) if (aBf != null && aBf.component == "buffframe" && aBf.part == "sweep") { bfRow = aBf; break; }
+          var winGo = new GameObject("Sweep Window", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+          winGo.transform.SetParent(go.transform, false);
+          Vector2 shlBf;
+          ShellCenterAnchor(winGo, go, "buffframe", m, out shlBf);
+          var winRt = winGo.GetComponent<RectTransform>();
+          float sideBf = pngScale > 0 ? bfSweep.rect.width / pngScale : bfSweep.rect.width;
+          winRt.sizeDelta = new Vector2(sideBf, sideBf);
+          var winImg = winGo.GetComponent<Image>();
+          winImg.raycastTarget = false;
+          Mask winMask = null;
+          if (bfMask != null) {
+            winImg.sprite = bfMask;
+            winMask = winGo.AddComponent<Mask>();
+            winMask.showMaskGraphic = false;
+          } else winImg.enabled = false;
+          var swGo = new GameObject("Sweep", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+          swGo.transform.SetParent(winGo.transform, false);
+          StretchFull(swGo.GetComponent<RectTransform>());
+          var swImg = swGo.GetComponent<Image>();
+          swImg.sprite = bfSweep; swImg.raycastTarget = false;
+          swImg.type = Image.Type.Filled;
+          swImg.fillMethod = Image.FillMethod.Radial360;
+          swImg.fillOrigin = (int)Image.Origin360.Top;
+          swImg.fillClockwise = true;
+          RectTransform handRt = null;
+          if (bfHand != null && winMask != null) {
+            var hGo = new GameObject("Sweep Hand", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            hGo.transform.SetParent(winGo.transform, false);
+            StretchFull(hGo.GetComponent<RectTransform>());
+            var hImg = hGo.GetComponent<Image>();
+            hImg.sprite = bfHand; hImg.raycastTarget = false;
+            handRt = (RectTransform)hGo.transform;
+          }
+          var bsw = go.AddComponent<KitBuffSweep>();
+          bsw.sweep = swImg;
+          bsw.hand = handRt;
+          bsw.value = bfRow != null && bfRow.ringV > 0f ? Mathf.Clamp01(bfRow.ringV) : 0.65f;
+          bsw.Apply();
+        }
+      }
+      /* ── the STOPWATCH FUNCTIONS (round 44, item 39 — the ring rig's
+         arc road): with the atoms aboard, the root wears the still FACE
+         (base.png keeps the baked pose — the ring's compatibility rule)
+         and the dial rebuilds LIVE at the face row's stamped center:
+         Radial360 arc + rotating round head cap + sweeping hand + candy
+         hub, PatternBreakStopwatch driving them all from one value —
+         alarm mood below 25% exactly like the app. Old zips keep the
+         static bake. ── */
+      if (baseAsset.component == "stopwatch") {
+        var faceSW = S(root + "/assets/stopwatch/stopwatch-face.png");
+        var arcSW = S(root + "/assets/stopwatch/stopwatch-arc.png");
+        var handSW = S(root + "/assets/stopwatch/stopwatch-hand.png");
+        PBAsset faceRowSW = null, arcRowSW = null;
+        foreach (var aSW in m.assets) if (aSW != null && aSW.component == "stopwatch") { if (aSW.part == "face") faceRowSW = aSW; else if (aSW.part == "arc") arcRowSW = aSW; }
+        if (faceSW != null && arcSW != null && handSW != null && faceRowSW != null && faceRowSW.gauge != null && faceSW.rect.width > 2f) {
+          var bodySW = BodyImage(go);
+          if (bodySW != null) bodySW.sprite = faceSW;
+          var anchSW = new Vector2(Mathf.Clamp01(faceRowSW.gauge.dialX / faceSW.rect.width), 1f - Mathf.Clamp01(faceRowSW.gauge.dialY / faceSW.rect.height));
+          System.Func<string, Sprite, Image> dialChild = (nm, sp9) => {
+            var cGo = new GameObject(nm, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            cGo.transform.SetParent(go.transform, false);
+            var cRt = cGo.GetComponent<RectTransform>();
+            cRt.anchorMin = cRt.anchorMax = anchSW;
+            cRt.pivot = new Vector2(0.5f, 0.5f);
+            cRt.anchoredPosition = Vector2.zero;
+            cRt.sizeDelta = new Vector2(sp9.rect.width / (pngScale > 0 ? pngScale : 2), sp9.rect.height / (pngScale > 0 ? pngScale : 2));
+            var cIm = cGo.GetComponent<Image>();
+            cIm.sprite = sp9; cIm.raycastTarget = false; cIm.preserveAspect = false;
+            return cIm;
+          };
+          var arcImgSW = dialChild("Arc", arcSW);
+          arcImgSW.type = Image.Type.Filled;
+          arcImgSW.fillMethod = Image.FillMethod.Radial360;
+          arcImgSW.fillOrigin = (int)Image.Origin360.Top;
+          arcImgSW.fillClockwise = true;
+          var capStartSW = S(root + "/assets/stopwatch/stopwatch-cap-start.png");
+          var capHeadSW = S(root + "/assets/stopwatch/stopwatch-cap-head.png");
+          Image capStartImgSW = capStartSW != null ? dialChild("Arc Cap Start", capStartSW) : null;
+          Image capHeadImgSW = capHeadSW != null ? dialChild("Arc Cap Head", capHeadSW) : null;
+          var handImgSW = dialChild("Hand", handSW);
+          var hubSW = S(root + "/assets/stopwatch/stopwatch-hub.png");
+          var hubAlarmSW = S(root + "/assets/stopwatch/stopwatch-hub-alarm.png");
+          Image hubImgSW = hubSW != null ? dialChild("Hub", hubSW) : null;
+          var rigSW = go.AddComponent<PatternBreakStopwatch>();
+          rigSW.arc = arcImgSW;
+          rigSW.capStart = capStartImgSW;
+          rigSW.capHead = capHeadImgSW != null ? (RectTransform)capHeadImgSW.transform : null;
+          rigSW.hand = (RectTransform)handImgSW.transform;
+          rigSW.hub = hubImgSW;
+          rigSW.hubRest = hubSW;
+          rigSW.hubAlarm = hubAlarmSW;
+          Color glowSW, bevelSW;
+          if (m.palette != null && ColorUtility.TryParseHtmlString(m.palette.glow ?? "", out glowSW)) {
+            rigSW.ink = glowSW;
+            rigSW.handInk = Color.Lerp(glowSW, Color.white, 0.35f);
+          }
+          Color alarmBaseSW = new Color(1f, 0.302f, 0.353f); // the app's #FF4D5A
+          if (m.palette != null && ColorUtility.TryParseHtmlString(m.palette.bevel ?? "", out bevelSW))
+            rigSW.alarmInk = Color.Lerp(alarmBaseSW, bevelSW, 0.18f);
+          else rigSW.alarmInk = alarmBaseSW;
+          rigSW.value = arcRowSW != null && arcRowSW.ringV > 0f ? Mathf.Clamp01(arcRowSW.ringV) : 0.62f;
+          rigSW.Apply();
+        }
+      }
+      /* ── the WEAPON WHEEL goes LIVE (round 44, item 44 — RIG-7): the
+         Cylinder child spins by rotation, the glyph children orbit
+         upright, the armed look follows the chamber at the hammer, and
+         PatternBreakWeaponWheel makes the rotation a dial. Old zips (no
+         look atoms) keep the static children. ── */
+      if (baseAsset.component == "weaponwheel") {
+        var cylWW = go.transform.Find("Cylinder");
+        var slotsWW = new List<Image>(); var ghostWW = new List<Sprite>(); var litWW = new List<Sprite>();
+        for (int iWW = 1; iWW <= 8; iWW++) {
+          var tWW = go.transform.Find("Icon w" + iWW);
+          var gSp = S(root + "/assets/weaponwheel/w" + iWW + "-ghost.png");
+          var lSp = S(root + "/assets/weaponwheel/w" + iWW + "-lit.png");
+          if (tWW == null || gSp == null || lSp == null) break;
+          var imWW = tWW.GetComponent<Image>(); if (imWW == null) break;
+          slotsWW.Add(imWW); ghostWW.Add(gSp); litWW.Add(lSp);
+        }
+        if (cylWW != null && slotsWW.Count >= 4 && go.GetComponent<PatternBreakWeaponWheel>() == null) {
+          var rigWW = go.AddComponent<PatternBreakWeaponWheel>();
+          rigWW.cylinder = (RectTransform)cylWW;
+          rigWW.glyphSlots = slotsWW.ToArray();
+          rigWW.ghost = ghostWW.ToArray();
+          rigWW.lit = litWW.ToArray();
+          rigWW.chambers = slotsWW.Count;
+          // the Cylinder child's frame is centered on the hub by
+          // construction — its anchor IS the wheel center fraction
+          rigWW.centerAnchor = ((RectTransform)cylWW).anchorMin;
+          float orbitWW = 0f;
+          foreach (var aWW in m.assets) if (aWW != null && aWW.component == "weaponwheel" && aWW.part != null && aWW.part.EndsWith("-lit") && aWW.railW > 1f) { orbitWW = aWW.railW; break; }
+          var bodyWW = BodyImage(go);
+          if (orbitWW > 1f && bodyWW != null && bodyWW.sprite != null && bodyWW.sprite.rect.width > 2f) {
+            rigWW.orbitFx = orbitWW / bodyWW.sprite.rect.width;
+            rigWW.orbitFy = orbitWW / bodyWW.sprite.rect.height;
+          }
+          float stWW = 0f;
+          foreach (var aWW in m.assets) if (aWW != null && aWW.component == "weaponwheel" && aWW.part != null && aWW.part.EndsWith("-lit") && aWW.ringV > 0f) { stWW = Mathf.Clamp01(aWW.ringV); break; }
+          rigWW.value = stWW; // rest = the app's staged rotation
+          rigWW.Apply();
+        }
+      }
+      /* ── the STEP LANE goes LIVE (round 44, item 38 — RIG-5): the root
+         wears the still PLATE (dim rails + live digits; base.png keeps
+         the baked pose for old zips), KitSteps deals the pips and the
+         lit rails at the stamped lane geometry, and the digits repaint
+         per state after the words seed. ── */
+      if (baseAsset.component == "steps") {
+        var plateST = S(root + "/assets/steps/steps-plate.png");
+        var doneST = S(root + "/assets/steps/steps-pip-done.png");
+        var curST = S(root + "/assets/steps/steps-pip-current.png");
+        var upST = S(root + "/assets/steps/steps-pip-upcoming.png");
+        var railST = S(root + "/assets/steps/steps-rail-lit.png");
+        var geoST = m != null ? m.steps : null;
+        PBAsset plateRowST = null;
+        foreach (var aST in m.assets) if (aST != null && aST.component == "steps" && aST.part == "plate") { plateRowST = aST; break; }
+        if (plateST != null && doneST != null && curST != null && upST != null && geoST != null && geoST.n >= 2 && geoST.pitch > 1f
+            && plateRowST != null && plateRowST.gauge != null && plateST.rect.width > 2f) {
+          var bodyST = BodyImage(go);
+          if (bodyST != null) bodyST.sprite = plateST;
+          float psST = pngScale > 0 ? pngScale : 2f;
+          System.Func<float, float, Sprite, Image> laneChild = (pxST, pyST, spST) => {
+            var cGo = new GameObject("x", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            cGo.transform.SetParent(go.transform, false);
+            var cRt = cGo.GetComponent<RectTransform>();
+            cRt.anchorMin = cRt.anchorMax = new Vector2(Mathf.Clamp01(pxST / plateST.rect.width), 1f - Mathf.Clamp01(pyST / plateST.rect.height));
+            cRt.pivot = new Vector2(0.5f, 0.5f);
+            cRt.anchoredPosition = Vector2.zero;
+            cRt.sizeDelta = new Vector2(spST.rect.width / psST, spST.rect.height / psST);
+            var cIm = cGo.GetComponent<Image>();
+            cIm.sprite = spST; cIm.raycastTarget = false; cIm.preserveAspect = false;
+            return cIm;
+          };
+          var rigST = go.AddComponent<KitSteps>();
+          var pipsST = new List<Image>(); var railsST = new List<Image>();
+          for (int iST = 0; iST < geoST.n; iST++) {
+            if (iST < geoST.n - 1 && railST != null) {
+              var rIm = laneChild(plateRowST.gauge.dialX + geoST.pitch * iST + geoST.pitch / 2f, plateRowST.gauge.dialY, railST);
+              rIm.gameObject.name = "Rail " + (iST + 1) + " (auto)";
+              railsST.Add(rIm);
+            }
+            var pIm = laneChild(plateRowST.gauge.dialX + geoST.pitch * iST, plateRowST.gauge.dialY, iST < geoST.staged ? doneST : iST == geoST.staged ? curST : upST);
+            pIm.gameObject.name = "Pip " + (iST + 1) + " (auto)";
+            pipsST.Add(pIm);
+          }
+          rigST.pips = pipsST.ToArray();
+          rigST.rails = railsST.ToArray();
+          rigST.done = doneST; rigST.current = curST; rigST.upcoming = upST;
+          rigST.step = Mathf.Clamp(geoST.staged + 1, 1, geoST.n); // rest = the app's staged pose
+        }
+      }
       if (baseAsset.component == "badge" && label == null) {
         var glyph = S(root + "/assets/icons/star.png");
         if (glyph == null) glyph = S(root + "/assets/icons/gem.png");
@@ -14915,6 +18143,46 @@ namespace PatternBreak {
       // live TEXT SEATS (the list row's title + subtitle): the maker's own
       // words from the manifest — no-op for families without seat rows
       WireTextSeats(go, root, m, pngScale);
+      /* the stopwatch readout follows the dial (round 44, item 39): the
+         clock-worded seat joins the rig AFTER the words seed — a seat the
+         dev retypes to a non-clock word is theirs and never rewritten */
+      if (baseAsset.component == "stopwatch") {
+        var rigSW2 = go.GetComponent<PatternBreakStopwatch>();
+        if (rigSW2 != null) {
+#if UNITY_2023_2_OR_NEWER
+          foreach (var tSW in go.GetComponentsInChildren<TMPro.TMP_Text>(true)) {
+            var s9 = tSW != null ? tSW.text : null;
+            bool clockSW = !string.IsNullOrEmpty(s9) && s9.Length <= 6 && s9.IndexOf(':') > 0;
+            if (clockSW) { foreach (var ch9 in s9) if (ch9 != ':' && (ch9 < '0' || ch9 > '9')) { clockSW = false; break; } }
+            if (clockSW) { rigSW2.readout = tSW; break; }
+          }
+#endif
+          rigSW2.Apply();
+        }
+      }
+      /* the step digits join their rig AFTER the words seed (round 44,
+         item 38): matched by their own text — a digit the dev retypes to
+         something else simply drops out of the drive */
+      if (baseAsset.component == "steps") {
+        var rigST2 = go.GetComponent<KitSteps>();
+        if (rigST2 != null) {
+#if UNITY_2023_2_OR_NEWER
+          int nST2 = rigST2.pips != null ? rigST2.pips.Length : 0;
+          var digST = new TMPro.TMP_Text[nST2];
+          foreach (var tST in go.GetComponentsInChildren<TMPro.TMP_Text>(true)) {
+            int dST;
+            if (tST != null && int.TryParse(tST.text, out dST) && dST >= 1 && dST <= nST2 && digST[dST - 1] == null) digST[dST - 1] = tST;
+          }
+          rigST2.digits = digST;
+          // the kit's own inks, captured from the seeded seats: the staged
+          // current digit carries the dark ink, any other the ghost
+          int curST2 = Mathf.Clamp(rigST2.step - 1, 0, Mathf.Max(0, nST2 - 1));
+          if (curST2 < nST2 && digST[curST2] != null) rigST2.currentInk = digST[curST2].color;
+          for (int iST2 = 0; iST2 < nST2; iST2++) if (iST2 != curST2 && digST[iST2] != null) { rigST2.ghostInk = digST[iST2].color; break; }
+#endif
+          rigST2.Apply();
+        }
+      }
 #if UNITY_2023_2_OR_NEWER
       // the kit's designed state ink/shift follows the face swap (only
       // wired when the kit forks its states)
@@ -14982,16 +18250,22 @@ namespace PatternBreak {
     }
     /* the LEADING dial's TMP form — ONE seam for every label birth and the
        maintenance convergence, so they can never disagree. The app stacks
-       a multi-line label (endturn) at fs · 0.73em · leading/100; the
-       manifest ships the resolved percentage on the base row only when it
-       isn't factory. TMP lineSpacing is em*100 relative to the font size,
-       so the app's DELTA from factory maps exactly:
-         lineSpacing = 0.73 * (leading − 100)
-       (220% ⇒ +87.6 = +0.876em — the app's own 0.73em · 1.2). Factory and
-       absent rows (JsonUtility zero — the old-zip 0-gate) map to 0: TMP's
-       natural line height, today's look, untouched. */
-    static float LeadingLineSpacing(PBAsset row) {
-      return row != null && row.leading > 0f ? 0.73f * (row.leading - 100f) : 0f;
+       a multi-line label (endturn) at fs · 0.73em · leading/100 CENTER TO
+       CENTER; the manifest ships the resolved percentage on stacked label
+       rows, factory 100 included. The old delta mapping (0.73·(leading−100))
+       rode ON TOP of the face's natural line height — which is NOT the
+       app's stack (round 44 field: "leading between lines is off in
+       Unity; correct in the app"). The mapping is ABSOLUTE now: TMP's
+       line advance is lineHeight/pointSize em + lineSpacing/100 em, so
+         lineSpacing = (0.73 · leading/100 − lineHeight/pointSize) · 100
+       lands the app's gap exactly, on any face. Absent rows (old zips —
+       JsonUtility zero) map to 0: natural height, untouched; a faceless
+       call keeps the old delta so behavior never regresses past today. */
+    static float LeadingLineSpacing(PBAsset row, TMPro.TMP_FontAsset face) {
+      if (row == null || row.leading <= 0f) return 0f;
+      float natural = face != null && face.faceInfo.pointSize > 0f ? face.faceInfo.lineHeight / face.faceInfo.pointSize : 0f;
+      if (natural <= 0f) return 0.73f * (row.leading - 100f);
+      return (0.73f * row.leading / 100f - natural) * 100f;
     }
     /* the label's anchor-shift off the shell box, in sprite-rect fractions —
        shared by the seat below and the redress probe, so they can never
@@ -14999,7 +18273,13 @@ namespace PatternBreak {
     static Vector2 LabelSeatShift(PBAsset row, Sprite sp, PBManifest m) {
       if (row == null || row.labelFs <= 1f || sp == null || sp.rect.width < 2f || sp.rect.height < 2f) return Vector2.zero;
       float ps = m != null && m.pngScale > 0 ? m.pngScale : 2;
-      return new Vector2(row.labelDx * ps / sp.rect.width, -row.labelDy * ps / sp.rect.height);
+      var v = new Vector2(row.labelDx * ps / sp.rect.width, -row.labelDy * ps / sp.rect.height);
+      /* a START-anchored title (round 44, item 29a — the quest tracker):
+         labelDx speaks the drawn word's LEFT EDGE from the shell center,
+         so the seat rect slides half a shell right and the rung pins the
+         word left. Rows without labelAnchor keep today's centered seat. */
+      if (row.labelAnchor == "start" && row.shell != null && row.shell.w > 2f) v.x += row.shell.w * 0.5f / sp.rect.width;
+      return v;
     }
     /* ShellStretch, then slide the seat to the label's TRUE center — the
        app centers words in the CONTENT zone, not the shell (the flame's
@@ -15268,20 +18548,39 @@ namespace PatternBreak {
        vertically (the track's extrusion pads its bottom; rect-centered
        children sat below the well). Filled mode IS the app's clip
        semantic: the engine drives fillAmount and leaves the rect alone. */
-    static RectTransform BuildBarFill(GameObject host, string name, Sprite fill, Sprite track, int pngScale, PBManifest m, string fam, float staged, bool fromRight) {
+    static RectTransform BuildBarFill(GameObject host, string name, Sprite fill, Sprite track, int pngScale, PBManifest m, string root, string fam, float staged, bool fromRight) {
       var rt0 = host.GetComponent<RectTransform>();
       float trackW = rt0.sizeDelta.x, trackH = rt0.sizeDelta.y;
       float fillW = fill.rect.width / pngScale, fillH = fill.rect.height / pngScale;
-      float upS = 0f; float zoneL = -1f, zoneR = -1f;
-      if (m != null && m.assets != null) foreach (var aT in m.assets) {
-        if (aT == null || aT.component != fam || aT.part != "track") continue;
-        if (aT.shell != null && aT.shell.h > 2f && track.rect.height > 1f)
-          upS = (0.5f - (aT.shell.y + aT.shell.h / 2f) / track.rect.height) * trackH;
-        if (aT.track != null && aT.track.w > 2f) {
-          zoneL = aT.track.x / pngScale;
-          zoneR = trackW - (aT.track.x + aT.track.w) / pngScale;
+      float upS = 0f; float zoneL = -1f, zoneR = -1f; float bandCy = -1f;
+      if (m != null && m.assets != null) {
+        PBAsset rowT = null;
+        foreach (var aT in m.assets) if (aT != null && aT.component == fam && aT.part == "track") { rowT = aT; break; }
+        /* round 44 (RIG-1 riders): the display bars stamp their zone on
+           the BASE row — no separate track part ships (the cell-meter
+           rule); the track row keeps winning where one exists */
+        /* round 47 (owner field: buildqueue's cap beside the TITLE,
+           questpanel's strip across an objective row, unitplate's fill
+           behind the name): the any-row fallback drank whichever row
+           came FIRST, and on composite families the icon rows precede
+           base carrying crop-shifted zone garbage. The BASE row is the
+           zone's only truth here — the any-row rung stays as the last
+           resort for legacy zips only. */
+        if (rowT == null) foreach (var aT in m.assets) if (aT != null && aT.component == fam && aT.part == "base" && aT.track != null && aT.track.w > 2f) { rowT = aT; break; }
+        if (rowT == null) foreach (var aT in m.assets) if (aT != null && aT.component == fam && aT.track != null && aT.track.w > 2f) { rowT = aT; break; }
+        if (rowT != null) {
+          if (rowT.shell != null && rowT.shell.h > 2f && track.rect.height > 1f)
+            upS = (0.5f - (rowT.shell.y + rowT.shell.h / 2f) / track.rect.height) * trackH;
+          if (rowT.track != null && rowT.track.w > 2f) {
+            zoneL = rowT.track.x / pngScale;
+            zoneR = trackW - (rowT.track.x + rowT.track.w) / pngScale;
+            /* the VERTICAL band (round 44): bars off the shell centerline
+               ship y/h — the fill centers ON the band (its own cropped
+               height carries the glow bleed, exactly the progress rule) */
+            if (rowT.track.h > 2f && track.rect.height > 1f)
+              bandCy = (rowT.track.y + rowT.track.h / 2f) / track.rect.height * trackH;
+          }
         }
-        break;
       }
       float inXL = zoneL >= 0f ? Mathf.Max(1f, zoneL) : Mathf.Max(2f, (trackW - fillW) * 0.5f);
       float inXR = zoneR >= 0f ? Mathf.Max(1f, zoneR) : Mathf.Max(2f, (trackW - fillW) * 0.5f);
@@ -15290,8 +18589,14 @@ namespace PatternBreak {
       area.transform.SetParent(host.transform, false);
       var art = area.GetComponent<RectTransform>();
       art.anchorMin = Vector2.zero; art.anchorMax = Vector2.one;
-      art.offsetMin = new Vector2(inXL, inY); art.offsetMax = new Vector2(-inXR, -inY);
-      art.anchoredPosition += new Vector2(0f, upS);
+      if (bandCy >= 0f) {
+        // band frame: y runs down in file px; Unity offsets run up
+        float topGap = bandCy - fillH * 0.5f, botGap = trackH - bandCy - fillH * 0.5f;
+        art.offsetMin = new Vector2(inXL, botGap); art.offsetMax = new Vector2(-inXR, -topGap);
+      } else {
+        art.offsetMin = new Vector2(inXL, inY); art.offsetMax = new Vector2(-inXR, -inY);
+        art.anchoredPosition += new Vector2(0f, upS);
+      }
       var fillGo = ImageObject(name, fill, pngScale);
       fillGo.transform.SetParent(area.transform, false);
       var fImg = fillGo.GetComponent<Image>();
@@ -15304,7 +18609,213 @@ namespace PatternBreak {
       var frt = fillGo.GetComponent<RectTransform>();
       frt.anchorMin = Vector2.zero; frt.anchorMax = Vector2.one;
       frt.offsetMin = Vector2.zero; frt.offsetMax = Vector2.zero;
+      /* the ROUNDED HEAD (round 44, owner kit-wide): the app's own bead
+         rides the value line while the Filled crop hides under it — the
+         dev contract stands (drive fillAmount; the head follows). Old
+         zips without the cap atom keep today's behavior exactly. */
+      WireBarCap(area, fImg, root, fam, fromRight, staged);
+      WireBarBodies(area, m); // round 48: the body boxes seat the ink zone-true
       return frt;
+    }
+    static void WireBarCap(GameObject area, Image fImg, string root, string fam, bool fromRight, float staged) {
+      WireBarCap(area, fImg, root, fam, fromRight, staged, null);
+    }
+    /* round 48 (owner field: "the fill needs to line up with the start of
+       the well"): the atoms' crops carry glow bleed — the manifest's body
+       boxes hand the rig the true mercury/bead spans. Resolved off each
+       sprite's own file so every road (fresh builds, grafts, rails, the
+       slider) rides the same wire. Old zips ship no body rows: the 0/1
+       defaults keep them byte-identical. */
+    static void WireBarBodies(GameObject area, PBManifest m) {
+      var kbf = area != null ? area.GetComponent<KitBarFill>() : null;
+      if (kbf == null || m == null || m.assets == null) return;
+      if (kbf.fill != null && kbf.fill.sprite != null) {
+        var rowF = RowOfSprite(m, kbf.fill.sprite);
+        if (rowF != null && rowF.body != null && rowF.body.w > 2f && kbf.fill.sprite.rect.width > 2f) {
+          kbf.bodyU0 = Mathf.Clamp01(rowF.body.x / kbf.fill.sprite.rect.width);
+          kbf.bodyU1 = Mathf.Clamp01((rowF.body.x + rowF.body.w) / kbf.fill.sprite.rect.width);
+        }
+      }
+      var capImgW = kbf.capHead != null ? kbf.capHead.GetComponent<Image>() : null;
+      if (capImgW != null && capImgW.sprite != null) {
+        var rowC = RowOfSprite(m, capImgW.sprite);
+        if (rowC != null && rowC.body != null && rowC.body.w > 2f && capImgW.sprite.rect.width > 2f) {
+          kbf.capU0 = Mathf.Clamp01(rowC.body.x / capImgW.sprite.rect.width);
+          kbf.capU1 = Mathf.Clamp01((rowC.body.x + rowC.body.w) / capImgW.sprite.rect.width);
+        }
+      }
+      kbf.Apply();
+    }
+    static PBAsset RowOfSprite(PBManifest m, Sprite sp) {
+      if (m == null || m.assets == null || sp == null) return null;
+      var pR = AssetDatabase.GetAssetPath(sp).Replace("\\\\", "/");
+      foreach (var aR in m.assets) if (aR != null && aR.file != null && pR.EndsWith("/" + aR.file)) return aR;
+      return null;
+    }
+    static void WireBarCap(GameObject area, Image fImg, string root, string fam, bool fromRight, float staged, string capNameOverride) {
+      var kbf = area.AddComponent<KitBarFill>();
+      kbf.fill = fImg;
+      kbf.fromRight = fromRight;
+      string capName = capNameOverride != null ? capNameOverride : (fam == "vsbar" ? (fromRight ? "cap-r" : "cap-l") : "cap");
+      var capSp = S(root + "/assets/" + fam + "/" + fam + "-" + capName + ".png");
+      if (capSp != null) {
+        var capGo = new GameObject("Cap", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        capGo.transform.SetParent(area.transform, false);
+        var cImg = capGo.GetComponent<Image>();
+        cImg.sprite = capSp; cImg.raycastTarget = false; cImg.type = Image.Type.Simple; cImg.preserveAspect = false;
+        kbf.capHead = (RectTransform)capGo.transform;
+      }
+      /* round 47 (owner field: the VS caps clashed with the ramp): a bar
+         that ships a NUB atom is a ramped mercury — the rig compresses
+         the fill into the run like the app compresses its gradient, and
+         the nub pill owns the short tail. Zips without the atom (older
+         exports, flat bars) keep the windowed crop exactly as shipped. */
+      var nubSp = S(root + "/assets/" + fam + "/" + fam + "-nub-" + (fromRight ? "r" : "l") + ".png");
+      if (nubSp != null && capSp != null) {
+        kbf.stretchRun = true;
+        var nubGo = new GameObject("Nub", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        nubGo.transform.SetParent(area.transform, false);
+        var nImg = nubGo.GetComponent<Image>();
+        nImg.sprite = nubSp; nImg.raycastTarget = false; nImg.type = Image.Type.Simple; nImg.preserveAspect = false;
+        kbf.nub = (RectTransform)nubGo.transform;
+      }
+      kbf.SetValue(staged);
+    }
+    /* ── the TWIN RAILS (round 44, item 21): mana and stamina each ride
+       their own Filled atom + rounded bead, seated SHELL-CENTER relative
+       from the fill rows' rail bands (the FireButton exact-seat
+       discipline — crop-proof). Shared by the fresh build and the
+       kept-project graft. ── */
+    static void WireManaRails(GameObject go, Sprite baseSp, PBAsset baseRow, string root, int pngScale, PBManifest m) {
+      WireNamedRails(go, baseSp, baseRow, root, pngScale, m, "manarails", new string[] { "mana", "stamina" }, new string[] { "Mana", "Stamina" });
+    }
+    /* the STEPPER goes live (round 44, item 37 — RIG-2 + RIG-7): the Lit
+       overlay + cell snapper land on the empty-celled base; the two caps
+       are already REAL Buttons (the icon-children road mounted them from
+       their seats); here the plus cap arms with the app's own hover ring
+       (Sprite Swap), the minus keeps press-dim manners, and KitStepper
+       steps the meter from their clicks — persistent listeners, visible
+       in the Inspector. */
+    static void WireStepper(GameObject go, Sprite baseSp, PBAsset baseRow, string root, int pngScale, PBManifest m) {
+      var litST = S(root + "/assets/stepper/stepper-lit.png");
+      if (litST == null || go.GetComponent<KitStepper>() != null) return;
+      var lgoST = new GameObject("Lit", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+      lgoST.transform.SetParent(go.transform, false);
+      lgoST.transform.SetSiblingIndex(0); // over the base plate, under the caps and words
+      StretchFull((RectTransform)lgoST.transform);
+      var liST = lgoST.GetComponent<Image>();
+      liST.sprite = litST; liST.raycastTarget = false; liST.preserveAspect = false;
+      liST.type = Image.Type.Filled;
+      liST.fillMethod = Image.FillMethod.Horizontal;
+      liST.fillOrigin = (int)Image.OriginHorizontal.Left;
+      var kcmST = go.AddComponent<KitCellMeter>();
+      kcmST.lit = liST; kcmST.cells = 8;
+      PBAsset litRowST = null;
+      foreach (var aST in m.assets) if (aST != null && aST.component == "stepper" && aST.part == "lit") { litRowST = aST; break; }
+      if (litRowST != null && litRowST.track != null && litRowST.track.w > 2f && litST.rect.width > 2f) {
+        kcmST.zone0 = Mathf.Clamp01(litRowST.track.x / litST.rect.width);
+        kcmST.zone1 = Mathf.Clamp01((litRowST.track.x + litRowST.track.w) / litST.rect.width);
+      }
+      float v0ST = litRowST != null && litRowST.ringV > 0f ? Mathf.Clamp01(litRowST.ringV) : 0.62f;
+      var ksST = go.AddComponent<KitStepper>();
+      ksST.cellMeter = kcmST; ksST.cells = 8;
+      ksST.SetValue(v0ST);
+      var plusT = go.transform.Find("Plus button");
+      var minusT = go.transform.Find("Minus button");
+      var btnP = plusT != null ? plusT.GetComponent<Button>() : null;
+      var btnM = minusT != null ? minusT.GetComponent<Button>() : null;
+      var hovSp = S(root + "/assets/stepper/stepper-cap-plus-hover.png");
+      var disSp = S(root + "/assets/stepper/stepper-cap-plus-disabled.png");
+      if (btnP != null && hovSp != null) {
+        btnP.transition = Selectable.Transition.SpriteSwap;
+        var ssP = btnP.spriteState;
+        ssP.highlightedSprite = hovSp;
+        ssP.pressedSprite = hovSp;
+        ssP.disabledSprite = disSp;
+        ssP.selectedSprite = null; // released = the resting face (the Button lesson)
+        btnP.spriteState = ssP;
+      }
+      if (btnM != null) {
+        btnM.transition = Selectable.Transition.ColorTint;
+        var cbM = btnM.colors;
+        cbM.normalColor = Color.white; cbM.highlightedColor = Color.white; cbM.selectedColor = Color.white;
+        cbM.pressedColor = new Color(0.86f, 0.86f, 0.86f, 1f);
+        cbM.disabledColor = new Color(1f, 1f, 1f, 0.45f);
+        cbM.colorMultiplier = 1f;
+        btnM.colors = cbM;
+      }
+      if (btnP != null) UnityEditor.Events.UnityEventTools.AddPersistentListener(btnP.onClick, ksST.StepUp);
+      if (btnM != null) UnityEditor.Events.UnityEventTools.AddPersistentListener(btnM.onClick, ksST.StepDown);
+    }
+    /* the SETTINGS ROW's mini slider (round 44, item 34 — RIG-7): the
+       rig's Fill Area is already seated on the stamped well; a REAL
+       Slider rides the same zone with the un-burned candy knob as its
+       handle. The Slider writes fillAmount (the SliderPrefab lesson) and
+       KitBarFill's change-guarded follow re-parks the rounded head. */
+    static void WireSetrowSlider(GameObject go, string root, PBManifest m, int pngScale) {
+      var knobSp = S(root + "/assets/setrow/setrow-knob.png");
+      var areaSR = go.transform.Find("Fill Area") as RectTransform;
+      var fillSR = areaSR != null ? areaSR.Find("Fill") : null;
+      var fiSR = fillSR != null ? fillSR.GetComponent<Image>() : null;
+      if (knobSp == null || areaSR == null || fiSR == null || go.GetComponentInChildren<Slider>(true) != null) return;
+      float psSR = Mathf.Max(1, pngScale);
+      float thW = knobSp.rect.width / psSR, thH = knobSp.rect.height / psSR;
+      var slideSR = new GameObject("Handle Slide Area", typeof(RectTransform));
+      slideSR.transform.SetParent(go.transform, false);
+      var srtSR = slideSR.GetComponent<RectTransform>();
+      srtSR.anchorMin = areaSR.anchorMin; srtSR.anchorMax = areaSR.anchorMax;
+      // endpoint clamp like the slider family: the knob stays on the well
+      srtSR.offsetMin = new Vector2(areaSR.offsetMin.x + thW * 0.5f, areaSR.offsetMin.y);
+      srtSR.offsetMax = new Vector2(areaSR.offsetMax.x - thW * 0.5f, areaSR.offsetMax.y);
+      srtSR.anchoredPosition = areaSR.anchoredPosition;
+      var handleSR = ImageObject("Handle", knobSp, pngScale);
+      handleSR.transform.SetParent(slideSR.transform, false);
+      var hiSR = handleSR.GetComponent<Image>();
+      hiSR.type = Image.Type.Simple;
+      hiSR.preserveAspect = true; // the field's "eggshaped handles", never again
+      var hrtSR = handleSR.GetComponent<RectTransform>();
+      hrtSR.sizeDelta = new Vector2(thW, thH);
+      var slSR = go.AddComponent<Slider>();
+      slSR.fillRect = fillSR as RectTransform;
+      slSR.handleRect = hrtSR;
+      slSR.targetGraphic = hiSR;
+      float v0SR = 0.7f;
+      foreach (var aS in m.assets) if (aS != null && aS.component == "setrow" && aS.part == "fill" && aS.ringV > 0f) { v0SR = Mathf.Clamp01(aS.ringV); break; }
+      slSR.value = v0SR;
+      var kbSR = areaSR.GetComponent<KitBarFill>();
+      if (kbSR != null) kbSR.SetValue(v0SR);
+    }
+    static void WireNamedRails(GameObject go, Sprite baseSp, PBAsset baseRow, string root, int pngScale, PBManifest m, string fam, string[] rails, string[] nices) {
+      if (baseSp == null || baseRow == null || baseRow.shell == null || baseRow.shell.w < 4f || baseSp.rect.width < 2f) return;
+      for (int iR = 0; iR < rails.Length; iR++) {
+        string railN = rails[iR];
+        var fillR = S(root + "/assets/" + fam + "/" + fam + "-fill-" + railN + ".png");
+        PBAsset rowR = null;
+        foreach (var aR in m.assets) if (aR != null && aR.component == fam && aR.part == "fill-" + railN) { rowR = aR; break; }
+        if (fillR == null || rowR == null || rowR.railW < 1f) continue;
+        string railNice = nices[iR];
+        if (go.transform.Find(railNice + " Area") != null) continue; // theirs already
+        var areaR = new GameObject(railNice + " Area", typeof(RectTransform));
+        areaR.transform.SetParent(go.transform, false);
+        var artR = areaR.GetComponent<RectTransform>();
+        artR.anchorMin = artR.anchorMax = new Vector2(
+          (baseRow.shell.x + baseRow.shell.w / 2f + rowR.railDx * pngScale) / baseSp.rect.width,
+          1f - (baseRow.shell.y + baseRow.shell.h / 2f + rowR.railDy * pngScale) / baseSp.rect.height);
+        artR.pivot = new Vector2(0.5f, 0.5f);
+        artR.anchoredPosition = Vector2.zero;
+        // width = the rail band; height = the atom's own cropped height
+        // (glow bleed intact), centered on the band — the S12 rule
+        artR.sizeDelta = new Vector2(rowR.railW, fillR.rect.height / Mathf.Max(1, pngScale));
+        var fgoR = ImageObject(railNice, fillR, pngScale);
+        fgoR.transform.SetParent(areaR.transform, false);
+        var fiR = fgoR.GetComponent<Image>();
+        fiR.raycastTarget = false; fiR.type = Image.Type.Filled; fiR.preserveAspect = false;
+        fiR.fillMethod = Image.FillMethod.Horizontal; fiR.fillOrigin = (int)Image.OriginHorizontal.Left;
+        var frtR = fgoR.GetComponent<RectTransform>();
+        frtR.anchorMin = Vector2.zero; frtR.anchorMax = Vector2.one; frtR.offsetMin = Vector2.zero; frtR.offsetMax = Vector2.zero;
+        WireBarCap(areaR, fiR, root, fam, false, rowR.ringV > 0f ? Mathf.Clamp01(rowR.ringV) : 0.6f, "cap-" + railN);
+        WireBarBodies(areaR, m); // round 48: the body boxes seat the ink zone-true
+      }
     }
     static bool ProgressPrefab(string dir, string root, int pngScale, PBManifest m) {
       var track = S(root + "/assets/progress/progress-track.9.png");
@@ -15313,7 +18824,7 @@ namespace PatternBreak {
       var fill = S(root + "/assets/progress/progress-fill.9.png");
       // staged at 62% (the app's resting default) — drive Fill's
       // fillAmount from your live value
-      if (fill != null) BuildBarFill(go, "Fill", fill, track, pngScale, m, "progress", 0.62f, false);
+      if (fill != null) BuildBarFill(go, "Fill", fill, track, pngScale, m, root, "progress", 0.62f, false);
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/ProgressBar.prefab");
       UnityEngine.Object.DestroyImmediate(go);
       return true;
@@ -15335,6 +18846,15 @@ namespace PatternBreak {
       if (m == null || m.assets == null) return null;
       foreach (var aT in m.assets)
         if (aT != null && aT.component == fam && aT.part == "track" && aT.track != null && aT.track.w > 2f) return aT.track;
+      /* cell meters stamp their zone on base/lit rows (no track part
+         ships) — round 47: base first, then lit; the any-row rung is the
+         legacy-zip last resort (icon rows can carry crop-shifted zones) */
+      foreach (var aT in m.assets)
+        if (aT != null && aT.component == fam && aT.part == "base" && aT.track != null && aT.track.w > 2f) return aT.track;
+      foreach (var aT in m.assets)
+        if (aT != null && aT.component == fam && aT.part == "lit" && aT.track != null && aT.track.w > 2f) return aT.track;
+      foreach (var aT in m.assets)
+        if (aT != null && aT.component == fam && aT.track != null && aT.track.w > 2f) return aT.track;
       return null;
     }
     /* the VS health bar, WIRED (round 21) — two Filled mercuries drain
@@ -15356,7 +18876,12 @@ namespace PatternBreak {
       // zone, inner edge anchored to CENTER so a stretched bar widens the
       // wells while the axis reserve holds (the app's stretch rule)
       if (fillL != null) {
-        float fw = fillL.rect.width / pngScale, fh = fillL.rect.height / pngScale;
+        /* round 48: the half-run AREA sizes from the mercury's BODY where
+           the row ships it — the crop's glow margins overhung the run by
+           ~9px per side (the r47 run-scale measurement, now closed) */
+        PBAsset rowFL = null;
+        foreach (var aFL in m != null && m.assets != null ? m.assets : new PBAsset[0]) if (aFL != null && aFL.component == "vsbar" && aFL.part == "fill-l") { rowFL = aFL; break; }
+        float fw = (rowFL != null && rowFL.body != null && rowFL.body.w > 2f ? rowFL.body.w : fillL.rect.width) / pngScale, fh = fillL.rect.height / pngScale;
         float inY = Mathf.Max(2f, (trackH - fh) * 0.5f);
         var area = new GameObject("FillL Area", typeof(RectTransform));
         area.transform.SetParent(go.transform, false);
@@ -15373,9 +18898,14 @@ namespace PatternBreak {
         fi.fillAmount = 0.72f; // the app's resting left fighter
         var frt = fgo.GetComponent<RectTransform>();
         frt.anchorMin = Vector2.zero; frt.anchorMax = Vector2.one; frt.offsetMin = Vector2.zero; frt.offsetMax = Vector2.zero;
+        // round 44 (owner item 43): the drain bead rides the health line
+        WireBarCap(area, fi, root, "vsbar", false, 0.72f);
+        WireBarBodies(area, m); // round 48: the body boxes seat the ink zone-true
       }
       if (fillR != null) {
-        float fw = fillR.rect.width / pngScale, fh = fillR.rect.height / pngScale;
+        PBAsset rowFR = null;
+        foreach (var aFR in m != null && m.assets != null ? m.assets : new PBAsset[0]) if (aFR != null && aFR.component == "vsbar" && aFR.part == "fill-r") { rowFR = aFR; break; }
+        float fw = (rowFR != null && rowFR.body != null && rowFR.body.w > 2f ? rowFR.body.w : fillR.rect.width) / pngScale, fh = fillR.rect.height / pngScale;
         float inY = Mathf.Max(2f, (trackH - fh) * 0.5f);
         var area = new GameObject("FillR Area", typeof(RectTransform));
         area.transform.SetParent(go.transform, false);
@@ -15392,6 +18922,9 @@ namespace PatternBreak {
         fi.fillAmount = 0.58f; // the app's resting right fighter
         var frt = fgo.GetComponent<RectTransform>();
         frt.anchorMin = Vector2.zero; frt.anchorMax = Vector2.one; frt.offsetMin = Vector2.zero; frt.offsetMax = Vector2.zero;
+        // the right fighter's bead, mirrored (fillOrigin Right)
+        WireBarCap(area, fi, root, "vsbar", true, 0.58f);
+        WireBarBodies(area, m); // round 48: the body boxes seat the ink zone-true
       }
       var medal = S(root + "/assets/vsbar/vsbar-medal.png");
       if (medal != null) {
@@ -15402,6 +18935,10 @@ namespace PatternBreak {
         var mrt = mgo.GetComponent<RectTransform>();
         mrt.anchorMin = new Vector2(0.5f, 0.5f); mrt.anchorMax = new Vector2(0.5f, 0.5f);
         mrt.anchoredPosition = new Vector2(0f, upS); // fixed size ON PURPOSE: the axis holds when the bar stretches
+        /* round 44 (words-are-live law): the "VS" rides LIVE on the medal
+           — the sprite ships wordless and the medal row's text seat seeds
+           the TMP here, so retyping or restyling the word is one edit */
+        WireTextSeats(mgo, root, m, pngScale);
       }
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/VsBar.prefab");
       UnityEngine.Object.DestroyImmediate(go);
@@ -15416,7 +18953,7 @@ namespace PatternBreak {
       if (track == null) return false;
       var go = ImageObject("EmblemBar", track, pngScale);
       var fill = S(root + "/assets/emblembar/emblembar-fill.9.png");
-      if (fill != null) BuildBarFill(go, "Fill", fill, track, pngScale, m, "emblembar", 0.62f, false);
+      if (fill != null) BuildBarFill(go, "Fill", fill, track, pngScale, m, root, "emblembar", 0.62f, false);
       var sock = S(root + "/assets/emblembar/emblembar-socket.png");
       if (sock != null) {
         var rt0 = go.GetComponent<RectTransform>();
@@ -15478,6 +19015,16 @@ namespace PatternBreak {
         var lrt = lgo.GetComponent<RectTransform>();
         // base and lit bake on ONE canvas (no crop) — full-stretch overlay is pixel-true
         lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one; lrt.offsetMin = Vector2.zero; lrt.offsetMax = Vector2.zero;
+        /* round 44 (dossier RIG-2, item 33): the SNAPPER ships — a dev
+           driving the value live gets whole cells, never a mid-pill chop */
+        var kcmSeg = go.AddComponent<KitCellMeter>();
+        kcmSeg.lit = li; kcmSeg.cells = 5;
+        var zoneSeg = BarZone(m, "segbar");
+        if (zoneSeg != null && lit.rect.width > 2f) {
+          kcmSeg.zone0 = Mathf.Clamp01(zoneSeg.x / lit.rect.width);
+          kcmSeg.zone1 = Mathf.Clamp01((zoneSeg.x + zoneSeg.w) / lit.rect.width);
+        }
+        kcmSeg.SetValue(0.62f);
       }
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/SegmentMeter.prefab");
       UnityEngine.Object.DestroyImmediate(go);
@@ -15726,6 +19273,209 @@ namespace PatternBreak {
       // the piece's words, live (manifest textSeats) — bones stop shipping bare
       WireTextSeats(go, root, m, pngScale);
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/" + goName + ".prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
+    /* ── RIG-5 (round 44): the discrete-count rigs — geometry from the
+       manifest blocks, art from the part atoms, an [ExecuteAlways]
+       runtime that makes the count a DIAL. Old zips (no geo block, no
+       atoms) fall back to yesterday's picture road, byte-for-byte. ── */
+    static bool PageDotsPrefab(string dir, string root, int pngScale, PBManifest m) {
+      var geo = m != null ? m.pageDots : null;
+      var dotSp = S(root + "/assets/pagedots/pagedots-dot.png");
+      var knobSp = S(root + "/assets/pagedots/pagedots-knob.png");
+      if (geo == null || geo.pitch < 0.01f || dotSp == null || knobSp == null)
+        return PicturePrefab(dir, root, pngScale, m, "pagedots/pagedots-base.png", "Pagedots", false);
+      var go = new GameObject("Pagedots", typeof(RectTransform));
+      var rt = go.GetComponent<RectTransform>();
+      rt.sizeDelta = new Vector2(geo.w, geo.h); // canvas design px = UI units (one svg px = one unit)
+      var rig = go.AddComponent<PatternBreakPageDots>();
+      rig.dotSprite = dotSp; rig.knobSprite = knobSp;
+      rig.pitch = geo.pitch;
+      rig.spriteScale = pngScale > 0 ? 1f / pngScale : 0.5f;
+      rig.pageCount = geo.n > 0 ? geo.n : 5;
+      rig.currentPage = Mathf.Clamp(geo.staged, 0, Mathf.Max(0, rig.pageCount - 1)); // the maker's staged pick, not a guess
+      rig.Rebuild();
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/Pagedots.prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
+    /* ── ROUND 46, R1: the chrome radials arrive as WORKING rigs — all
+       parts share one full square canvas, so the children stretch full
+       over the worn ground and register by construction. ── */
+    static bool SpinnerPrefab(string dir, string root, int pngScale, PBManifest m) {
+      var trSP = S(root + "/assets/spinner/spinner-track.png");
+      var cmSP = S(root + "/assets/spinner/spinner-comet.png");
+      if (trSP == null || cmSP == null) return false;
+      var go = ImageObject("Spinner", trSP, pngScale);
+      var cGo = new GameObject("Comet", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+      cGo.transform.SetParent(go.transform, false);
+      StretchFull((RectTransform)cGo.transform);
+      var cIm = cGo.GetComponent<Image>();
+      cIm.sprite = cmSP; cIm.raycastTarget = false;
+      var rig = go.AddComponent<PatternBreakSpinner>();
+      rig.comet = (RectTransform)cGo.transform;
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/Spinner.prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
+    static bool CooldownPrefab(string dir, string root, int pngScale, PBManifest m, Font kitFont) {
+      var faceCD = S(root + "/assets/cooldown/cooldown-face.png");
+      var secCD = S(root + "/assets/cooldown/cooldown-sector.png");
+      var tksCD = S(root + "/assets/cooldown/cooldown-ticks-lit.png");
+      var handCD = S(root + "/assets/cooldown/cooldown-hand.png");
+      if (faceCD == null || secCD == null || tksCD == null) return false;
+      var go = ImageObject("Cooldown", faceCD, pngScale);
+      System.Func<string, Sprite, Image> layerCD = (nm, sp9) => {
+        var cGo = new GameObject(nm, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        cGo.transform.SetParent(go.transform, false);
+        StretchFull((RectTransform)cGo.transform);
+        var cIm = cGo.GetComponent<Image>();
+        cIm.sprite = sp9; cIm.raycastTarget = false;
+        return cIm;
+      };
+      // the app's own stack: lit crown, spent sector, sweep edge, sheen
+      var tickImg = layerCD("Ticks Lit", tksCD);
+      tickImg.type = Image.Type.Filled;
+      tickImg.fillMethod = Image.FillMethod.Radial360;
+      tickImg.fillOrigin = (int)Image.Origin360.Top;
+      tickImg.fillClockwise = false;
+      var secImg = layerCD("Spent Sector", secCD);
+      secImg.type = Image.Type.Filled;
+      secImg.fillMethod = Image.FillMethod.Radial360;
+      secImg.fillOrigin = (int)Image.Origin360.Top;
+      secImg.fillClockwise = true;
+      Image handImg = handCD != null ? layerCD("Sweep Edge", handCD) : null;
+      var shCD = S(root + "/assets/cooldown/cooldown-sheen.png");
+      if (shCD != null) layerCD("Sheen", shCD);
+      var rig = go.AddComponent<PatternBreakCooldown>();
+      rig.sector = secImg;
+      rig.ticksLit = tickImg;
+      rig.hand = handImg != null ? (RectTransform)handImg.transform : null;
+      PBAsset secRowCD = null;
+      foreach (var aCD in m.assets) if (aCD != null && aCD.component == "cooldown" && aCD.part == "sector") { secRowCD = aCD; break; }
+      rig.value = secRowCD != null && secRowCD.ringV > 0f ? Mathf.Clamp01(secRowCD.ringV) : 0.4f;
+      // the seconds seat seeds live like every bones word, then joins the rig
+      WireTextSeats(go, root, m, pngScale);
+#if UNITY_2023_2_OR_NEWER
+      foreach (var tCD in go.GetComponentsInChildren<TMPro.TMP_Text>(true)) {
+        var s9 = tCD != null ? tCD.text : null;
+        if (!string.IsNullOrEmpty(s9) && s9.Length > 1 && s9.Length <= 7 && s9[s9.Length - 1] == 's') { rig.readout = tCD; break; }
+      }
+#endif
+      rig.Apply();
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/Cooldown.prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
+    static bool PathConnectorPrefab(string dir, string root, int pngScale, PBManifest m) {
+      var geo = m != null ? m.pathConnector : null;
+      var beadSp = S(root + "/assets/pathconnector/pathconnector-bead.png");
+      var litSp = S(root + "/assets/pathconnector/pathconnector-bead-lit.png");
+      // old zips (no geo block, no atoms) keep yesterday's picture road
+      if (geo == null || geo.pts == null || geo.pts.Length < 6 || geo.w < 4f || geo.h < 4f || beadSp == null || litSp == null)
+        return PicturePrefab(dir, root, pngScale, m, "pathconnector/pathconnector-base.png", "Pathconnector", false);
+      var go = new GameObject("Pathconnector", typeof(RectTransform));
+      var rt = go.GetComponent<RectTransform>();
+      rt.sizeDelta = new Vector2(geo.w, geo.h); // canvas design px = UI units
+      var rig = go.AddComponent<PatternBreakPathConnector>();
+      rig.bead = beadSp; rig.lit = litSp;
+      int nPC = geo.pts.Length / 2;
+      var beadsPC = new Image[nPC];
+      for (int iPC = 0; iPC < nPC; iPC++) {
+        var bGo = new GameObject("Bead " + (iPC + 1) + " (auto)", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        bGo.transform.SetParent(go.transform, false);
+        var bIm = bGo.GetComponent<Image>();
+        bIm.sprite = beadSp; bIm.raycastTarget = false;
+        var bRt = (RectTransform)bGo.transform;
+        bRt.anchorMin = bRt.anchorMax = new Vector2(geo.pts[iPC * 2] / geo.w, 1f - geo.pts[iPC * 2 + 1] / geo.h);
+        bRt.pivot = new Vector2(0.5f, 0.5f);
+        bRt.anchoredPosition = Vector2.zero;
+        bRt.sizeDelta = new Vector2(beadSp.rect.width / (pngScale > 0 ? pngScale : 2), beadSp.rect.height / (pngScale > 0 ? pngScale : 2));
+        beadsPC[iPC] = bIm;
+      }
+      rig.beads = beadsPC;
+      rig.value = geo.staged > 0f ? Mathf.Clamp01(geo.staged) : 0.6f; // the app's staged pose, not a guess
+      rig.Apply();
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/Pathconnector.prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
+    static bool StartLightsPrefab(string dir, string root, int pngScale, PBManifest m) {
+      var geo = m != null ? m.startLights : null;
+      var lampSp = S(root + "/assets/startlights/startlights-lamp.png");
+      if (geo == null || geo.pitch < 0.01f || geo.w < 4f || geo.h < 4f || lampSp == null)
+        return PicturePrefab(dir, root, pngScale, m, "startlights/startlights-base.png", "Startlights", false);
+      var sp = S(root + "/assets/startlights/startlights-base.png");
+      if (sp == null) return false;
+      var go = ImageObject("Startlights", sp, pngScale);
+      var rig = go.AddComponent<PatternBreakStartLights>();
+      rig.lamps = new Image[5];
+      for (int i = 0; i < 5; i++) {
+        var lgo = new GameObject("Lamp " + (i + 1) + " (auto)", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        lgo.transform.SetParent(go.transform, false);
+        var li = lgo.GetComponent<Image>();
+        li.sprite = lampSp; li.raycastTarget = false;
+        var lrt = lgo.GetComponent<RectTransform>();
+        // pods stamped in canvas design px; the base ships uncropped, so
+        // canvas fractions ARE sprite fractions (y flips to bottom origin)
+        lrt.anchorMin = lrt.anchorMax = new Vector2((geo.x0 + geo.pitch * i) / geo.w, 1f - geo.cy / geo.h);
+        lrt.pivot = new Vector2(0.5f, 0.5f);
+        lrt.anchoredPosition = Vector2.zero;
+        lrt.sizeDelta = new Vector2(lampSp.rect.width / (pngScale > 0 ? pngScale : 2), lampSp.rect.height / (pngScale > 0 ? pngScale : 2));
+        rig.lamps[i] = li;
+      }
+      // the caption seat seeds live like every bones word
+      WireTextSeats(go, root, m, pngScale);
+      foreach (var tCap in go.GetComponentsInChildren<TMPro.TMP_Text>(true))
+        if (tCap != null && tCap.text == rig.readyWord) {
+#if UNITY_2023_2_OR_NEWER
+          rig.caption = tCap;
+#endif
+          rig.readyInk = tCap.color;
+          break;
+        }
+      // rest = lights out (the racing gantry's zero) — NOT the demo pose
+      rig.litCount = 0;
+      rig.Apply();
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/Startlights.prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
+    /* ── the DIALOG, fully wired (round 44, owner: "quest complete fully
+       wired"): frame + live title, the body placeholder a live deletable
+       child, and BOTH CTAs as genuine pressing Buttons — fixed-canvas
+       Sprite Swap skins, the words riding their buttons (rider seats).
+       The generic icon-children road mounts everything; this builder
+       only upgrades the two Buttons from ColorTint to the kit's own
+       swap skins, then seats the words. ── */
+    static bool DialogPrefab(string dir, string root, int pngScale, PBManifest m) {
+      var sp = S(root + "/assets/dialog/dialog-base.png");
+      if (sp == null) return false;
+      var go = ImageObject("Dialog", sp, pngScale);
+      var row = LabelRow(m, "dialog");
+      if (row != null && row.iconSeats != null && row.iconSeats.Length > 0) WireIconChildrenRow(go, root, m, row);
+      foreach (var pairD in new string[][] { new string[] { "Claim button", "cta1" }, new string[] { "Later button", "cta2" } }) {
+        var tD = go.transform.Find(pairD[0]);
+        var btD = tD != null ? tD.GetComponent<Button>() : null;
+        var imD = tD != null ? tD.GetComponent<Image>() : null;
+        if (btD == null || imD == null) continue;
+        var hovD = S(root + "/assets/dialog/dialog-" + pairD[1] + "-hover.png");
+        var prsD = S(root + "/assets/dialog/dialog-" + pairD[1] + "-pressed.png");
+        var disD = S(root + "/assets/dialog/dialog-" + pairD[1] + "-disabled.png");
+        if (hovD == null && prsD == null && disD == null) continue;
+        btD.transition = Selectable.Transition.SpriteSwap;
+        var ssD = new SpriteState();
+        ssD.highlightedSprite = hovD;
+        ssD.selectedSprite = null; // the resting face after a click (the FamilyPrefab rule)
+        ssD.pressedSprite = prsD;
+        ssD.disabledSprite = disD;
+        btD.spriteState = ssD;
+      }
+      // the title seat + the CLAIM/LATER rider words (AdoptSeatRiders
+      // parents each word onto its Button — move or delete them as one)
+      WireTextSeats(go, root, m, pngScale);
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/Dialog.prefab");
       UnityEngine.Object.DestroyImmediate(go);
       return true;
     }
@@ -16282,6 +20032,12 @@ namespace PatternBreak {
        receipt then carries the previous ledger forward) — see the
        one-shot un-burn trigger in MaintainExamplePrefabs */
     static string[] passSeededChildren;
+    /* the PREFAB-SEEDING ledger this pass authored (round 43 — the
+       children-ledger philosophy applied to whole prefabs: a family
+       prefab seeds ONCE; a dev-deleted prefab is the dev's decision
+       forever). null = neither generation nor the missing-pass ran; the
+       receipt then carries the previous ledger forward. */
+    static string[] passSeededPrefabs;
     static bool seatSpaceWarned;
     static PBAsset SeatRowOf(GameObject host, PBManifest m, string root) {
       if (host == null || m == null || m.assets == null) return null;
@@ -16314,6 +20070,110 @@ namespace PatternBreak {
     // extras/ hosts several one-off prefabs — key materials by part there
     static string SeatMatKey(PBAsset a) { return a.component == "extras" ? a.part : a.component; }
     static bool SeatInkShips(PBAsset a) { return a != null && a.seatInk != null && !string.IsNullOrEmpty(a.seatInk.fillMode); }
+    /* ── seat GEOMETRY, one hand for builder and probe — RUNG-AGNOSTIC
+       (round 43: the LTS seat road seeds live words on 2022.3 too, so
+       the geometry moved out of the styled-rung guard; fully-qualified
+       TMP per the guard standard's rule 2) ── */
+    static float SeatRootH(GameObject host, int pngScale) {
+      var rt = host.GetComponent<RectTransform>();
+      float h = rt != null ? rt.rect.height : 0f;
+      if (h < 2f) {
+        var img = BodyImage(host);
+        if (img != null && img.sprite != null && pngScale > 0) h = img.sprite.rect.height / pngScale;
+      }
+      return h;
+    }
+    static float SeatFs(PBSeat seat, float rootH) { return Mathf.Max(1f, seat.ffs * rootH); }
+    static Vector2 SeatBox(PBSeat seat, float fs) {
+      var plain = System.Text.RegularExpressions.Regex.Replace(seat.text ?? "", "<[^>]+>", "");
+      // generous, glyph-safe box centered on the seat — overflow shows, never reflows
+      return new Vector2(Mathf.Max(fs * 2f, plain.Length * fs * 0.8f), fs * 1.8f);
+    }
+    static bool SeatRect(RectTransform rt, PBSeat seat, TMPro.TMP_FontAsset face, float rootH, bool inRow, float rowFy, bool apply) {
+      float fs = SeatFs(seat, rootH);
+      var box = SeatBox(seat, fs);
+      var pv = new Vector2(seat.anchor == "middle" ? 0.5f : seat.anchor == "end" ? 1f : 0f, 0.5f);
+      // edge-hugging seats stay INSIDE: clamp the center so the glyph
+      // box can never cross the rect's top/bottom (round-10 field: the
+      // telemetry header rides ~8px under the sprite top — half a TMP
+      // metric away from poking out). A RIDER's word is exempt (round 44
+      // field: "Elder Rowan sits a bit low" — the dialoguebox speaker tab
+      // hugs the sprite's top edge BY DESIGN, and the clamp dragged its
+      // word ~12px down the sheet before adoption froze it there): the
+      // plate's own drawn geometry is the inside-the-art guarantee.
+      float fyC = string.IsNullOrEmpty(seat.rider) && rootH > fs * 1.3f ? Mathf.Clamp(seat.fy, (fs * 0.62f) / rootH, 1f - (fs * 0.62f) / rootH) : seat.fy;
+      var c = inRow ? new Vector2(seat.fx, 0.5f) : new Vector2(seat.fx, 1f - fyC);
+      /* TMP centers a middle-aligned rect on the LINE middle; a seat from
+         a baseline-anchored node marks the CAP middle (midEm, measured).
+         Lift the rect by the delta so the glyphs land on the app's pixels. */
+      float lift = 0f;
+      if (seat.midEm > 0f && face != null && face.faceInfo.pointSize > 0f) {
+        float lineMidEm = (face.faceInfo.ascentLine + face.faceInfo.descentLine) * 0.5f / face.faceInfo.pointSize;
+        lift = (lineMidEm - seat.midEm) * fs;
+      }
+      var ap = inRow ? new Vector2(0f, (rowFy - seat.fy) * rootH + lift) : new Vector2(0f, lift);
+      bool current = rt.pivot == pv && rt.anchorMin == c && rt.anchorMax == c
+        && (rt.anchoredPosition - ap).sqrMagnitude < 0.01f
+        && (rt.sizeDelta - box).sqrMagnitude < 0.01f;
+      if (current || !apply) return current;
+      rt.pivot = pv;
+      rt.anchorMin = c; rt.anchorMax = c;
+      rt.anchoredPosition = ap;
+      rt.sizeDelta = box;
+      return false;
+    }
+    static void SeatRows(PBAsset row, out Dictionary<int, int> count, out Dictionary<int, float> fy, out Dictionary<int, float> ffs) {
+      count = new Dictionary<int, int>(); fy = new Dictionary<int, float>(); ffs = new Dictionary<int, float>();
+      foreach (var s0 in row.textSeats) {
+        int k = s0.row;
+        count[k] = (count.ContainsKey(k) ? count[k] : 0) + 1;
+        fy[k] = (fy.ContainsKey(k) ? fy[k] : 0f) + s0.fy;
+        ffs[k] = Mathf.Max(ffs.ContainsKey(k) ? ffs[k] : 0f, s0.ffs);
+      }
+      foreach (var k in new List<int>(fy.Keys)) fy[k] = fy[k] / count[k];
+    }
+    static bool RowRect(RectTransform rrt, float rowFy, float rowFfs, float rootH, bool apply) {
+      float fsR = rowFfs * rootH;
+      float rowFyC = rootH > fsR * 1.3f ? Mathf.Clamp(rowFy, (fsR * 0.62f) / rootH, 1f - (fsR * 0.62f) / rootH) : rowFy;
+      float yf = Mathf.Clamp01(1f - rowFyC);
+      var mn = new Vector2(0f, yf); var mx = new Vector2(1f, yf);
+      var sz = new Vector2(0f, rowFfs * rootH * 1.8f);
+      bool current = rrt.anchorMin == mn && rrt.anchorMax == mx
+        && rrt.pivot == new Vector2(0.5f, 0.5f)
+        && (rrt.sizeDelta - sz).sqrMagnitude < 0.01f
+        && rrt.anchoredPosition.sqrMagnitude < 0.01f;
+      if (current || !apply) return current;
+      rrt.anchorMin = mn; rrt.anchorMax = mx;
+      rrt.pivot = new Vector2(0.5f, 0.5f);
+      rrt.sizeDelta = sz;
+      rrt.anchoredPosition = Vector2.zero;
+      return false;
+    }
+    /* round 48 (the smashed-pair guard, cross-lane): a kern-guarded seat
+       word renders with TMP kerning OFF — per label, never global, on
+       BOTH rungs. The toggle rides reflection so every shipped TMP
+       version compiles: the enableKerning property where it exists (all
+       current TMPs), a cleared fontFeatures list where a future TMP
+       retires it. */
+    static bool SeatKernIsOff(TMPro.TMP_Text t) {
+      var pK = typeof(TMPro.TMP_Text).GetProperty("enableKerning");
+      if (pK != null) { try { return !(bool)pK.GetValue(t, null); } catch { return false; } }
+      var pF = typeof(TMPro.TMP_Text).GetProperty("fontFeatures");
+      if (pF != null) { try { var v = pF.GetValue(t, null) as System.Collections.ICollection; return v != null && v.Count == 0; } catch { return false; } }
+      return true; // no kerning surface at all — nothing to guard
+    }
+    static void SeatKernOff(TMPro.TMP_Text t) {
+      var pK = typeof(TMPro.TMP_Text).GetProperty("enableKerning");
+      if (pK != null) { try { pK.SetValue(t, false, null); return; } catch { /* fall through */ } }
+      var pF = typeof(TMPro.TMP_Text).GetProperty("fontFeatures");
+      if (pF != null) {
+        try {
+          var v = pF.GetValue(t, null);
+          var clear = v != null ? v.GetType().GetMethod("Clear") : null;
+          if (clear != null) clear.Invoke(v, null);
+        } catch { /* the label keeps the face's kerns — the stamp note stands */ }
+      }
+    }
 #if UNITY_2023_2_OR_NEWER
     /* which face + material a seat wears — one resolver for builder,
        dresser and probe, so they can never disagree. aboardWeight names
@@ -16344,51 +20204,10 @@ namespace PatternBreak {
       else if (grotesk != null) { face = grotesk; mat = null; aboardWeight = 400; /* LiberationSans ships one Regular cut */ }
       else { face = kitFace; mat = plainKitMat; aboardWeight = shipped; }
     }
-    /* ── seat GEOMETRY, one hand for builder and probe ── */
-    static float SeatRootH(GameObject host, int pngScale) {
-      var rt = host.GetComponent<RectTransform>();
-      float h = rt != null ? rt.rect.height : 0f;
-      if (h < 2f) {
-        var img = BodyImage(host);
-        if (img != null && img.sprite != null && pngScale > 0) h = img.sprite.rect.height / pngScale;
-      }
-      return h;
-    }
-    static float SeatFs(PBSeat seat, float rootH) { return Mathf.Max(1f, seat.ffs * rootH); }
-    static Vector2 SeatBox(PBSeat seat, float fs) {
-      var plain = System.Text.RegularExpressions.Regex.Replace(seat.text ?? "", "<[^>]+>", "");
-      // generous, glyph-safe box centered on the seat — overflow shows, never reflows
-      return new Vector2(Mathf.Max(fs * 2f, plain.Length * fs * 0.8f), fs * 1.8f);
-    }
-    static bool SeatRect(RectTransform rt, PBSeat seat, TMP_FontAsset face, float rootH, bool inRow, float rowFy, bool apply) {
-      float fs = SeatFs(seat, rootH);
-      var box = SeatBox(seat, fs);
-      var pv = new Vector2(seat.anchor == "middle" ? 0.5f : seat.anchor == "end" ? 1f : 0f, 0.5f);
-      // edge-hugging seats stay INSIDE: clamp the center so the glyph
-      // box can never cross the rect's top/bottom (round-10 field: the
-      // telemetry header rides ~8px under the sprite top — half a TMP
-      // metric away from poking out)
-      float fyC = rootH > fs * 1.3f ? Mathf.Clamp(seat.fy, (fs * 0.62f) / rootH, 1f - (fs * 0.62f) / rootH) : seat.fy;
-      var c = inRow ? new Vector2(seat.fx, 0.5f) : new Vector2(seat.fx, 1f - fyC);
-      /* TMP centers a middle-aligned rect on the LINE middle; a seat from
-         a baseline-anchored node marks the CAP middle (midEm, measured).
-         Lift the rect by the delta so the glyphs land on the app's pixels. */
-      float lift = 0f;
-      if (seat.midEm > 0f && face != null && face.faceInfo.pointSize > 0f) {
-        float lineMidEm = (face.faceInfo.ascentLine + face.faceInfo.descentLine) * 0.5f / face.faceInfo.pointSize;
-        lift = (lineMidEm - seat.midEm) * fs;
-      }
-      var ap = inRow ? new Vector2(0f, (rowFy - seat.fy) * rootH + lift) : new Vector2(0f, lift);
-      bool current = rt.pivot == pv && rt.anchorMin == c && rt.anchorMax == c
-        && (rt.anchoredPosition - ap).sqrMagnitude < 0.01f
-        && (rt.sizeDelta - box).sqrMagnitude < 0.01f;
-      if (current || !apply) return current;
-      rt.pivot = pv;
-      rt.anchorMin = c; rt.anchorMax = c;
-      rt.anchoredPosition = ap;
-      rt.sizeDelta = box;
-      return false;
-    }
+    /* seat GEOMETRY (SeatRootH/SeatFs/SeatBox/SeatRect/SeatRows/RowRect)
+       moved OUT of this styled-rung guard (round 43): the LTS seat road
+       places live words on 2022.3 too — see their rung-agnostic
+       definitions beside SeatInkShips. */
     /* never reflow: a seat is a placed word, not a paragraph (round-8
        field: word wrap stacked HAMMER into vertical letters) */
     /* SeatHarden / SeatHardened moved OUT of this styled-rung guard
@@ -16422,6 +20241,7 @@ namespace PatternBreak {
         && t.enableVertexGradient == grad
         && (grad ? t.colorGradient.topLeft == top && t.colorGradient.bottomLeft == bot && t.color == Color.white : t.color == top)
         && matOk
+        && (!seat.unkern || SeatKernIsOff(t))
         && SeatHardened(t);
       if (current || !apply) return current;
       if (face != null && t.font != face) t.font = face;
@@ -16433,36 +20253,12 @@ namespace PatternBreak {
       if (grad) { t.enableVertexGradient = true; t.colorGradient = new VertexGradient(top, top, bot, bot); t.color = Color.white; }
       else { t.enableVertexGradient = false; t.color = top; }
       if (mat != null && face != null && t.font == face) t.fontSharedMaterial = mat;
+      if (seat.unkern) SeatKernOff(t); // the smashed-pair guard, this label only
       return false;
     }
     /* the row layout, recomputed the same way everywhere */
-    static void SeatRows(PBAsset row, out Dictionary<int, int> count, out Dictionary<int, float> fy, out Dictionary<int, float> ffs) {
-      count = new Dictionary<int, int>(); fy = new Dictionary<int, float>(); ffs = new Dictionary<int, float>();
-      foreach (var s0 in row.textSeats) {
-        int k = s0.row;
-        count[k] = (count.ContainsKey(k) ? count[k] : 0) + 1;
-        fy[k] = (fy.ContainsKey(k) ? fy[k] : 0f) + s0.fy;
-        ffs[k] = Mathf.Max(ffs.ContainsKey(k) ? ffs[k] : 0f, s0.ffs);
-      }
-      foreach (var k in new List<int>(fy.Keys)) fy[k] = fy[k] / count[k];
-    }
-    static bool RowRect(RectTransform rrt, float rowFy, float rowFfs, float rootH, bool apply) {
-      float fsR = rowFfs * rootH;
-      float rowFyC = rootH > fsR * 1.3f ? Mathf.Clamp(rowFy, (fsR * 0.62f) / rootH, 1f - (fsR * 0.62f) / rootH) : rowFy;
-      float yf = Mathf.Clamp01(1f - rowFyC);
-      var mn = new Vector2(0f, yf); var mx = new Vector2(1f, yf);
-      var sz = new Vector2(0f, rowFfs * rootH * 1.8f);
-      bool current = rrt.anchorMin == mn && rrt.anchorMax == mx
-        && rrt.pivot == new Vector2(0.5f, 0.5f)
-        && (rrt.sizeDelta - sz).sqrMagnitude < 0.01f
-        && rrt.anchoredPosition.sqrMagnitude < 0.01f;
-      if (current || !apply) return current;
-      rrt.anchorMin = mn; rrt.anchorMax = mx;
-      rrt.pivot = new Vector2(0.5f, 0.5f);
-      rrt.sizeDelta = sz;
-      rrt.anchoredPosition = Vector2.zero;
-      return false;
-    }
+    /* SeatRows / RowRect: rung-agnostic now — defined beside SeatInkShips
+       (round 43, the LTS seat road). */
     /* probe + apply in one hand. Returns TRUE when a pass would (or did)
        change something; a dev-restructured Words group changes nothing.
        Geometry, size and dress heal on seats still equal to their seed
@@ -16501,7 +20297,18 @@ namespace PatternBreak {
         int wi = 0;
         foreach (var s9 in row.textSeats) {
           if (s9 == null) continue;
-          if (string.IsNullOrEmpty(s9.rider)) { textsAcc.Add(texts[wi]); seatsAcc.Add(s9); adoptedAcc.Add(false); wi++; continue; }
+          if (string.IsNullOrEmpty(s9.rider)) {
+            /* re-verdict close (round 41): counts alone can alias a kept
+               PRE-adoption tree with one non-rider word deleted (exactly-
+               one-rider families) — an index mispair would REWRITE the
+               survivors and resurrect the deleted word. The pairing must
+               prove itself by seed name; anything else is the dev's. */
+            if (PlainWord(texts[wi].gameObject.name) != PlainWord(s9.text)) {
+              if (apply) Debug.Log("UI Kit Maker: " + host.name + " — its Words group doesn't line up with the kit's seats by name (a word was deleted or renamed), so the group is yours now and updates skip it. Delete the Words object and re-import to re-seed it fresh.");
+              return false;
+            }
+            textsAcc.Add(texts[wi]); seatsAcc.Add(s9); adoptedAcc.Add(false); wi++; continue;
+          }
           var tR = AdoptedRiderText(host, row, s9);
           if (tR != null) { textsAcc.Add(tR); seatsAcc.Add(s9); adoptedAcc.Add(true); }
         }
@@ -16595,6 +20402,31 @@ namespace PatternBreak {
            plate carries the word wherever the dev moves the pair — that
            travel is the feature, not drift */
         if (!adopted && srt != null && !SeatRect(srt, seat, face, rootH, inRow, inRow ? rowFy[seat.row] : 0f, apply)) drift = true;
+        else if (adopted && srt != null) {
+          /* round 44 ("Elder Rowan sits a bit low"): the ONE rect heal an
+             adopted rider takes is PROVABLY-OURS — the old edge clamp
+             (retired for riders in SeatRect) parked edge-plate words low,
+             and adoption froze that spot into every kept kit. A word
+             still sitting EXACTLY where the clamped math put it (in the
+             host frame) re-seats on the app's own fy; any other spot is
+             the maker's travel and stays theirs, as ever. */
+          float fsR9 = SeatFs(seat, rootH);
+          float edge9 = (fsR9 * 0.62f) / rootH;
+          float fyOld9 = rootH > fsR9 * 1.3f ? Mathf.Clamp(seat.fy, edge9, 1f - edge9) : seat.fy;
+          var hostRt9 = host.transform as RectTransform;
+          if (fyOld9 != seat.fy && hostRt9 != null) {
+            var r9 = hostRt9.rect;
+            float lift9 = 0f;
+            if (seat.midEm > 0f && face != null && face.faceInfo.pointSize > 0f)
+              lift9 = ((face.faceInfo.ascentLine + face.faceInfo.descentLine) * 0.5f / face.faceInfo.pointSize - seat.midEm) * fsR9;
+            var oldP9 = new Vector3(r9.xMin + seat.fx * r9.width, r9.yMin + (1f - fyOld9) * r9.height + lift9, 0f);
+            var cur9 = hostRt9.InverseTransformPoint(srt.position);
+            if ((cur9 - oldP9).sqrMagnitude < 0.5f) {
+              drift = true;
+              if (apply) srt.position = hostRt9.TransformPoint(new Vector3(oldP9.x, r9.yMin + (1f - seat.fy) * r9.height + lift9, oldP9.z));
+            }
+          }
+        }
         if (t.text != seat.text || t.gameObject.name != PlainWord(seat.text)) {
           drift = true;
           if (apply) { t.gameObject.name = PlainWord(seat.text); t.text = seat.text; }
@@ -16607,12 +20439,19 @@ namespace PatternBreak {
     }
 #endif
     static void WireTextSeats(GameObject host, string root, PBManifest m, int pngScale) {
-#if UNITY_2023_2_OR_NEWER
       var row = SeatRowOf(host, m, root);
       if (row == null) return;
       float rootH = SeatRootH(host, pngScale);
       if (rootH < 2f) return;
-      if (host.transform.Find("Words") != null) { SeatsDrift(host, row, root, m, pngScale, true); return; }
+      if (host.transform.Find("Words") != null) {
+#if UNITY_2023_2_OR_NEWER
+        SeatsDrift(host, row, root, m, pngScale, true);
+#endif
+        /* pre-2023.2: seeded words are the dev's from the moment they
+           land — the styled convergence heal is 2023.2+ machinery */
+        return;
+      }
+#if UNITY_2023_2_OR_NEWER
       var kitFace = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
       if (kitFace == null) foreach (var s1 in row.textSeats) if (s1.kit) { faceStarved++; break; }
       var grotesk = GaugeUnitFace();
@@ -16676,6 +20515,17 @@ namespace PatternBreak {
         if (face != null) t.font = face;
         DressSeatText(t, seat, face, mat, rootH, aboardWeight, true);
       }
+      AdoptSeatRiders(host, row);
+#else
+      /* the LTS SEAT ROAD (round 43 review — the catalog grew to 108
+         families, most of them seat-worded, and the whole new shelf was
+         word-BARE on 2022.3 while the docs promised live labels): every
+         seat seeds as LIVE TMP here too, the fd28efa doctrine scaled up —
+         fully-qualified TMP, faces minted straight from the shipped TTFs.
+         Words, places, sizes, inks and weights are the seat's own; the
+         styled SDF dress (outline/glow/emboss materials) stays 2023.2+,
+         and so does the convergence heal — LTS words seed once. */
+      LtsWireTextSeats(host, row, root, m, rootH);
       AdoptSeatRiders(host, row);
 #endif
     }
@@ -16771,6 +20621,91 @@ namespace PatternBreak {
       Debug.Log("UI Kit Maker: generated the instrument face at " + pathRF + " — posed counts wear the app's real heavy cut on this rung too.");
       return fa;
     }
+    /* the LTS rung's KIT face for seat words (round 43 — the LTS seat
+       road): minted straight from the kit's shipped label TTF, its own
+       asset path so it can never collide with the styled rung's
+       "KitFace SDF" recipe if a project later upgrades editors. Null =
+       no TTF aboard — seats fall to the instrument, then TMP's default. */
+    static TMPro.TMP_FontAsset LtsKitFace(string root, PBManifest m) {
+      var pathKL = root + "/fonts/KitFace LTS.asset";
+      var existing = AssetDatabase.LoadAssetAtPath<TMPro.TMP_FontAsset>(pathKL);
+      if (existing != null) return existing;
+      var ttf = m != null && m.typography != null && !string.IsNullOrEmpty(m.typography.fontFile)
+        ? AssetDatabase.LoadAssetAtPath<Font>(root + "/" + m.typography.fontFile) : null;
+      if (ttf == null) return null;
+      TMPro.TMP_FontAsset fa = null;
+      try { fa = TMPro.TMP_FontAsset.CreateFontAsset(ttf); } catch (Exception) { }
+      if (fa == null) return null;
+      fa.name = "KitFace LTS";
+      AssetDatabase.CreateAsset(fa, pathKL);
+      if (fa.material != null) { fa.material.name = "KitFace LTS Material"; AssetDatabase.AddObjectToAsset(fa.material, fa); }
+      if (fa.atlasTextures != null && fa.atlasTextures.Length > 0 && fa.atlasTextures[0] != null) { fa.atlasTextures[0].name = "KitFace LTS Atlas"; AssetDatabase.AddObjectToAsset(fa.atlasTextures[0], fa); }
+      EditorUtility.SetDirty(fa);
+      AssetDatabase.SaveAssetIfDirty(fa); // ours alone — never flush the world (immutable-package policy)
+      return fa;
+    }
+    /* the LTS SEAT BUILDER (round 43): the styled builder's geometry —
+       same rows, same rects, same seats — with the dress reduced to what
+       this rung carries honestly: minted faces (kit TTF for kit-voiced
+       seats, the heavy instrument for readout voices), the seat's own
+       solid ink, spacing, italics, and the F3 gap rule for synthetic
+       bold. Fully-qualified TMP throughout (the guard standard). */
+    static void LtsWireTextSeats(GameObject host, PBAsset row, string root, PBManifest m, float rootH) {
+      var wordsL = new GameObject("Words", typeof(RectTransform));
+      wordsL.transform.SetParent(host.transform, false);
+      StretchFull(wordsL.GetComponent<RectTransform>());
+      Dictionary<int, int> rowCountL; Dictionary<int, float> rowFyL; Dictionary<int, float> rowFfsL;
+      SeatRows(row, out rowCountL, out rowFyL, out rowFfsL);
+      var kitFaceL = LtsKitFace(root, m);
+      var instFaceL = RiderFace(root, m);
+      int shippedL = m != null && m.typography != null && m.typography.style != null && m.typography.style.shippedWeight > 0
+        ? m.typography.style.shippedWeight : 400;
+      var madeL = new Dictionary<int, Transform>();
+      int nRowL = 0;
+      foreach (var seat in row.textSeats) {
+        if (seat == null || string.IsNullOrEmpty(seat.text)) continue;
+        Transform parentL = wordsL.transform;
+        bool inRowL = rowCountL[seat.row] >= 2;
+        if (inRowL) {
+          Transform rTL;
+          if (!madeL.TryGetValue(seat.row, out rTL)) {
+            nRowL++;
+            var rGoL = new GameObject("Row " + nRowL, typeof(RectTransform));
+            rGoL.transform.SetParent(wordsL.transform, false);
+            RowRect(rGoL.GetComponent<RectTransform>(), rowFyL[seat.row], rowFfsL[seat.row], rootH, true);
+            rTL = rGoL.transform;
+            madeL[seat.row] = rTL;
+          }
+          parentL = rTL;
+        }
+        var goL = new GameObject(PlainWord(seat.text), typeof(RectTransform), typeof(CanvasRenderer), typeof(TMPro.TextMeshProUGUI));
+        goL.transform.SetParent(parentL, false);
+        var tL = goL.GetComponent<TMPro.TextMeshProUGUI>();
+        tL.text = seat.text;
+        tL.raycastTarget = false;
+        tL.richText = seat.text.Contains("<color=");
+        tL.fontSize = SeatFs(seat, rootH);
+        SeatHarden(tL);
+        tL.alignment = seat.anchor == "middle" ? TMPro.TextAlignmentOptions.Center : seat.anchor == "end" ? TMPro.TextAlignmentOptions.Right : TMPro.TextAlignmentOptions.Left;
+        var faceL = seat.kit ? (kitFaceL != null ? kitFaceL : instFaceL) : (instFaceL != null ? instFaceL : kitFaceL);
+        if (faceL != null) tL.font = faceL;
+        tL.characterSpacing = seat.spacingEmPct;
+        /* the F3 gap rule, LTS edition: aboard = the shipped kit cut for
+           kit voices, the Inter-ExtraBold instance (800) for readouts;
+           no face at all reads as a 400 default */
+        int aboardL = faceL == null ? 400 : (seat.kit ? shippedL : 800);
+        var styleL = seat.italic ? TMPro.FontStyles.Italic : TMPro.FontStyles.Normal;
+        if (seat.weight - aboardL >= 150) styleL |= TMPro.FontStyles.Bold;
+        tL.fontStyle = styleL;
+        Color inkL;
+        if (!string.IsNullOrEmpty(seat.fill) && ColorUtility.TryParseHtmlString(seat.fill, out inkL)) {
+          if (seat.fillOpacity > 0f) inkL.a *= Mathf.Clamp01(seat.fillOpacity / 100f);
+          tL.color = inkL;
+        }
+        if (seat.unkern) SeatKernOff(tL); // the smashed-pair guard rides the LTS rung too
+        SeatRect(goL.GetComponent<RectTransform>(), seat, faceL, rootH, inRowL, inRowL ? rowFyL[seat.row] : 0f, true);
+      }
+    }
     static bool TextSeatsStale(GameObject asset, PBManifest m, string root, int pngScale) {
 #if UNITY_2023_2_OR_NEWER
       var row = SeatRowOf(asset, m, root);
@@ -16814,7 +20749,7 @@ namespace PatternBreak {
       return DefaultLabel(fam);
     }
     // every family whose prefab wires a live label from LabelWordOf
-    static readonly string[] SeededFamilies = new string[] { "button-primary", "button-secondary", "button-small", "chip", "tab", "tab-back", "endturn", "keycap", "pricebtn", "header-banner", "badge", "dropdown" };
+    static readonly string[] SeededFamilies = new string[] { "button-primary", "button-secondary", "button-small", "chip", "tab", "tab-back", "endturn", "keycap", "pricebtn", "header-banner", "badge", "dropdown", "keycap-space", "padbtn", "padbtn-b", "padbtn-x", "padbtn-y" };
     static PBSeedEntry[] SeedTable(PBManifest m) {
       var outp = new List<PBSeedEntry>();
       foreach (var fam in SeededFamilies) {
@@ -17597,6 +21532,11 @@ namespace PatternBreak {
       sl.handleRect = hrt;
       sl.targetGraphic = handle.GetComponent<Image>();
       sl.value = 0.62f;
+      /* the ROUNDED HEAD (round 44): usually under the thumb, honest at
+         the extremes — the Slider keeps writing fillAmount and the rig's
+         change-guarded follow re-parks the bead. */
+      WireBarCap(area, fImg, root, "slider", false, 0.62f);
+      WireBarBodies(area, m); // round 48: the body boxes seat the ink zone-true
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/Slider.prefab");
       UnityEngine.Object.DestroyImmediate(go);
       return true;
@@ -17709,10 +21649,23 @@ namespace PatternBreak {
       Vector2 shlF;
       float domeShellW = ShellCenterAnchor(wGo, go, "firebutton", m, out shlF) ? Mathf.Min(shlF.x, shlF.y) : domeW;
       var wRt = wGo.GetComponent<RectTransform>();
-      wRt.sizeDelta = new Vector2(domeShellW, domeShellW) * (themed ? 0.62f : 0.52f);
-      // the app seats the armed glyph a touch BELOW the dome's center
-      // (cy + kr·0.14) — the up-nudge read off-center (owner)
-      wRt.anchoredPosition += new Vector2(0f, -domeShellW * 0.045f);
+      /* round 44 ("the main icon sits low"): the app's OWN armed seat when
+         the dome row ships it — fireDx/fireDy from the shell center
+         (design px == prefab units), fireW the themed glyph SPRITE's box
+         (canvas padding + Size dial already in the number). The hand
+         heuristic stays only for old zips without the seat, and for the
+         flat icons/ fallback (tight canvas — the padded box would balloon
+         it). */
+      var rowFS = ShellRowOf(go, "firebutton", m);
+      if (themed && rowFS != null && rowFS.fireW > 1f) {
+        wRt.sizeDelta = new Vector2(rowFS.fireW, rowFS.fireW);
+        wRt.anchoredPosition += new Vector2(rowFS.fireDx, -rowFS.fireDy);
+      } else {
+        wRt.sizeDelta = new Vector2(domeShellW, domeShellW) * (themed ? 0.62f : 0.52f);
+        // the app seats the armed glyph a touch BELOW the dome's center
+        // (cy + kr·0.14) — the up-nudge read off-center (owner)
+        wRt.anchoredPosition += new Vector2(0f, -domeShellW * 0.045f);
+      }
       fb.weapon = wIm;
       // waiting chambers, tangent to the dome's upper-left arc
       var chambers = new Image[3];
@@ -17950,6 +21903,80 @@ namespace PatternBreak {
       UnityEngine.Object.DestroyImmediate(go);
       return true;
     }
+    /* the STANDALONE SCROLLBAR goes wired (round 44, item 32 — RIG-7):
+       the ScrollView's bar block, freed — track.9 (thumb-suppressed, the
+       kit's own arrows in the caps) + thumb.9 + a real Scrollbar
+       (BottomToTop, the kit's pixels in every state). Sliding Area
+       insets come from the track row's crop-normalized lane; size and
+       rest come from the thumb row's geometry. */
+    static bool ScrollbarPrefab(string dir, string root, int pngScale, PBManifest m) {
+      var trackSB = S(root + "/assets/scrollbar/scrollbar-track.9.png");
+      var thumbSB = S(root + "/assets/scrollbar/scrollbar-thumb.9.png");
+      if (trackSB == null || thumbSB == null) return false;
+      float psB = pngScale > 0 ? pngScale : 2f;
+      PBAsset rowTB = null, rowHB = null;
+      foreach (var aB in m.assets) { if (aB == null || aB.component != "scrollbar") continue; if (aB.part == "track") rowTB = aB; if (aB.part == "thumb") rowHB = aB; }
+      var go = ImageObject("Scrollbar", trackSB, pngScale);
+      go.GetComponent<Image>().type = Image.Type.Sliced;
+      var bar = go.AddComponent<Scrollbar>();
+      var slideB = new GameObject("Sliding Area", typeof(RectTransform));
+      slideB.transform.SetParent(go.transform, false);
+      var srtB = slideB.GetComponent<RectTransform>();
+      srtB.anchorMin = Vector2.zero; srtB.anchorMax = Vector2.one;
+      float inL = 4f, inR = 4f, inT = 10f, inB = 10f;
+      if (rowTB != null && rowTB.track != null && rowTB.track.w > 2f && trackSB.rect.width > 2f && trackSB.rect.height > 2f) {
+        inL = rowTB.track.x / psB;
+        inR = (trackSB.rect.width - rowTB.track.x - rowTB.track.w) / psB;
+        inT = rowTB.track.y / psB;
+        inB = (trackSB.rect.height - rowTB.track.y - rowTB.track.h) / psB;
+      }
+      srtB.offsetMin = new Vector2(inL, inB); srtB.offsetMax = new Vector2(-inR, -inT);
+      var hdB = ImageObject("Handle", thumbSB, pngScale);
+      hdB.transform.SetParent(slideB.transform, false);
+      var hiB = hdB.GetComponent<Image>();
+      hiB.type = Image.Type.Sliced;
+      var hrtB = hdB.GetComponent<RectTransform>();
+      hrtB.anchorMin = Vector2.zero; hrtB.anchorMax = Vector2.one;
+      hrtB.offsetMin = Vector2.zero; hrtB.offsetMax = Vector2.zero;
+      bar.handleRect = hrtB;
+      bar.targetGraphic = hiB;
+      bar.direction = Scrollbar.Direction.BottomToTop;
+      float restSB = rowHB != null && rowHB.ringV > 0f ? Mathf.Clamp01(rowHB.ringV) : 0.3f;
+      bar.size = rowHB != null && rowHB.railW > 2f && rowHB.railH > 1f ? Mathf.Clamp01(rowHB.railH / rowHB.railW) : 0.32f;
+      bar.value = 1f - restSB; // the app measures from the top; BottomToTop from the bottom
+      // the kit's pixels in EVERY state (the ScrollView handle's manners)
+      bar.transition = Selectable.Transition.ColorTint;
+      var hbB = bar.colors;
+      hbB.normalColor = Color.white;
+      hbB.highlightedColor = Color.white;
+      hbB.selectedColor = Color.white;
+      hbB.pressedColor = new Color(0.86f, 0.86f, 0.86f, 1f);
+      hbB.disabledColor = new Color(1f, 1f, 1f, 0.45f);
+      hbB.colorMultiplier = 1f;
+      bar.colors = hbB;
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/Scrollbar.prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
+    /* round 44 (item 32): a kept project's Scrollbar.prefab from the
+       display era is a bare Image wearing scrollbar-base.png — ours
+       beyond doubt when it carries no Scrollbar component and no
+       children. Rebuild it wired; a prefab the dev reshaped is theirs
+       (Regenerate stays the explicit escape hatch). */
+    static void HealScrollbar(string root, PBManifest m) {
+      var pathSB = root + "/Prefabs/Scrollbar.prefab";
+      var assetSB = AssetDatabase.LoadAssetAtPath<GameObject>(pathSB);
+      if (assetSB == null) return;
+      if (assetSB.GetComponent<Scrollbar>() != null) return; // already wired
+      if (assetSB.transform.childCount != 0) return;         // reshaped: theirs
+      var imgSB = assetSB.GetComponent<Image>();
+      if (imgSB == null || imgSB.sprite == null) return;
+      if (!AssetDatabase.GetAssetPath(imgSB.sprite).Replace("\\\\", "/").EndsWith("/assets/scrollbar/scrollbar-base.png")) return;
+      if (S(root + "/assets/scrollbar/scrollbar-track.9.png") == null || S(root + "/assets/scrollbar/scrollbar-thumb.9.png") == null) return;
+      AssetDatabase.DeleteAsset(pathSB);
+      if (ScrollbarPrefab(root + "/Prefabs", root, m != null && m.pngScale > 0 ? m.pngScale : 2, m))
+        Debug.Log("UI Kit Maker: Scrollbar.prefab upgraded to a wired Unity Scrollbar (it was the display strip). Placed instances update with the prefab; the old sheet stays in assets/scrollbar/.");
+    }
     /* round 26: a ScrollView born with the SLIVER bar re-seats in place on
        the next import — but only when it still wears OUR generation
        constants beyond doubt (bar width 22, x -10) and its Content is
@@ -18078,6 +22105,7 @@ namespace PatternBreak {
       c.nodeLitSprite = S(pre + "node-lit.png");
       c.spineSprite = S(pre + "spine.9.png");
       c.fillSprite = S(root + "/assets/progress/progress-fill.9.png");
+      c.runSprite = S(pre + "run.9.png"); // round 44: the rail-height run atom
       c.claimedCheck = S(root + "/assets/icons/check.png");
       c.spriteScale = 1f / Mathf.Max(1, pngScale);
       Font kitFont = null;
@@ -18200,7 +22228,11 @@ namespace PatternBreak {
       if (!any && !hadSub) AssetDatabase.DeleteAsset(sub);
       return any;
     }
-    static bool RunPrefabBuilders(string dir, string root, PBManifest m) {
+    /* staging = the missing-pass builds into PrefabsStaging and discards
+       most of it — the wires still wire (a moved prefab must arrive
+       whole) but their Console receipts stay quiet (round 43 review: the
+       Combo/Streakmeter lines printed on every no-op import forever) */
+    static bool RunPrefabBuilders(string dir, string root, PBManifest m, bool staging) {
       var pngScale = m.pngScale > 0 ? m.pngScale : 2;
       bool any = false;
       // the kit's own face, shipped in fonts/ with its license — labels wire to it
@@ -18218,11 +22250,25 @@ namespace PatternBreak {
       if (SwitchPrefab(dir, root, pngScale, m)) any = true;
       if (FireButtonPrefab(dir, root, pngScale, m)) any = true;
       if (ScrollViewPrefab(dir, root, pngScale, m)) any = true;
+      if (ScrollbarPrefab(dir, root, pngScale, m)) any = true;
       /* the BONES set: board-placeable display pieces from the skip set,
          shipped as simple prefabs (owner: "the bones to customize") —
          each carries a README note naming what a dev swaps */
       if (PicturePrefab(dir, root, pngScale, m, "circuit/circuit-track.png", "Circuit", false)) any = true;
-      if (PicturePrefab(dir, root, pngScale, m, "startlights/startlights-base.png", "Startlights", false)) any = true;
+      // round 44 (RIG-5): the gantry goes DRIVABLE — lamps + LitCount;
+      // old zips (no lamp atom / geo) fall back to the picture road inside
+      if (StartLightsPrefab(dir, root, pngScale, m)) any = true;
+      // round 44 (RIG-5 pilot): the carousel position becomes a dial
+      if (PageDotsPrefab(dir, root, pngScale, m)) any = true;
+      // round 44 (item 26): the saga trail deals its beads and lights
+      // them by value — old zips fall back to the picture road inside
+      if (PathConnectorPrefab(dir, root, pngScale, m)) any = true;
+      // round 46 (R1): the chrome radials arrive as working rigs
+      if (SpinnerPrefab(dir, root, pngScale, m)) any = true;
+      if (CooldownPrefab(dir, root, pngScale, m, kitFont)) any = true;
+      // round 44 (owner: "quest complete fully wired"): the modal arrives
+      // as a real usable piece — two genuine pressing CTAs included
+      if (DialogPrefab(dir, root, pngScale, m)) any = true;
       /* the glow orb joins the shelf (slice 4b — Playground has
          EVERYTHING): it ships lit + off sprites but had no prefab and no
          catalog spot. One placeable piece, lit by default — swap the
@@ -18273,7 +22319,7 @@ namespace PatternBreak {
          but they don't make useful drag-in prefabs (owner) */
       /* firebutton joined the composed rigs: FireButtonPrefab builds the
          wired swipe carousel, so the generic base-sprite prefab bows out */
-      var skip = new HashSet<string> { "progress", "slider", "toggle", "segbar", "fx", "icons", "dropdown", "rarityframe", "loottag", "speedo", "speedo2", "circuit", "startlights", "laptimes", "leaderboard", "telemetry", "joystick", "globe", "seasontrack", "extras", "firebutton" };
+      var skip = new HashSet<string> { "progress", "slider", "toggle", "segbar", "fx", "icons", "dropdown", "rarityframe", "loottag", "speedo", "speedo2", "circuit", "startlights", "laptimes", "leaderboard", "telemetry", "joystick", "globe", "seasontrack", "extras", "firebutton", "pagedots", "dialog", "scrollbar", "pathconnector" };
       /* the GLYPH RACK gets its own shelf (owner call: ~40 Glyph* prefabs
          drowned Prefabs/) — Prefabs/Glyphs/, the BigGlyphs pattern.
          Glyphs STAY prefabs (drag-drop convenience; they'll gain states
@@ -18306,10 +22352,165 @@ namespace PatternBreak {
       }
       // a glyph-less kit leaves no empty shelf behind
       if (!anyGlyph && !hadGlyphDir && AssetDatabase.IsValidFolder(glyphDir)) AssetDatabase.DeleteAsset(glyphDir);
+      if (StreakIgniteWire(dir, root, staging)) any = true;
+      if (ComboPopWire(dir, root, m, staging)) any = true;
+      if (DmgNumberWire(dir, root, m, staging)) any = true;
 #if UNITY_2023_2_OR_NEWER
       if (HeroLabelPrefab(dir, root)) any = true;
 #endif
       return any;
+    }
+    /* the COMBO CELEBRATES (owner roster, round 41): the generated Combo
+       prefab pops on click exactly like the app — ComboPop replays the
+       fxComboPop keyframes on the root and ClaimBurst throws the sparks.
+       Wired once at generation; thereafter the prefab is the dev's. */
+    static bool ComboPopWire(string dir, string root, PBManifest m, bool quiet) {
+      var pathCP = dir + "/Combo.prefab";
+      if (AssetDatabase.LoadAssetAtPath<GameObject>(pathCP) == null) return false;
+      var contents = PrefabUtility.LoadPrefabContents(pathCP);
+      try {
+        if (contents.GetComponent<ComboPop>() != null) return false; // wired — and thereafter yours
+        var imgCP = contents.GetComponent<Image>();
+        if (imgCP != null) imgCP.raycastTarget = true; // the pop fires on click, the kit page's own behavior
+        var popC = contents.AddComponent<ComboPop>();
+        /* ── the multiplier goes DYNAMIC (round 47, item 3 — the digit
+           road): the digit set + advances + the authored seat wire in;
+           count rests 0 (the shipped ×N sprite — pixel parity), and
+           SetCount(n) composes the kit's own celebration digits at the
+           exact seat. Old zips (no digit atoms) keep the static child. ── */
+        var seatTC = contents.transform.Find("Multiplier");
+        var seatImgC = seatTC != null ? seatTC.GetComponent<Image>() : null;
+        var timesC = S(root + "/assets/combo/combo-digit-x.png");
+        if (popC != null && seatImgC != null && timesC != null && m != null && m.assets != null) {
+          float psC = m.pngScale > 0 ? m.pngScale : 2f;
+          var digitsC = new Sprite[10]; var advC = new float[10];
+          bool allC = true;
+          for (int iC = 0; iC < 10; iC++) {
+            digitsC[iC] = S(root + "/assets/combo/combo-digit-" + iC + ".png");
+            PBAsset rowC = null;
+            foreach (var aC in m.assets) if (aC != null && aC.component == "combo" && aC.part == "digit-" + iC) { rowC = aC; break; }
+            if (digitsC[iC] == null || rowC == null || rowC.railW < 1f) { allC = false; break; }
+            advC[iC] = rowC.railW / psC;
+          }
+          PBAsset rowXC = null, baseCC = null;
+          foreach (var aC in m.assets) if (aC != null && aC.component == "combo") { if (aC.part == "digit-x") rowXC = aC; else if (aC.part == "base") baseCC = aC; }
+          var bsCC = contents.GetComponent<Image>() != null ? contents.GetComponent<Image>().sprite : null;
+          if (allC && rowXC != null && rowXC.railW > 1f && baseCC != null && baseCC.gauge != null && baseCC.shell != null && bsCC != null && bsCC.rect.width > 2f) {
+            popC.numeralSeat = seatImgC;
+            popC.timesSprite = timesC;
+            popC.digitSprites = digitsC;
+            popC.digitAdvance = advC;
+            popC.timesAdvance = rowXC.railW / psC;
+            popC.glyphScale = 1f / psC;
+            /* the authored anchor vs the resting child's cut-box center,
+               in ROOT UI units — the compose lands on the app's own
+               text anchor, not the glow-padded crop's middle */
+            PBIconChild seatRowC = null;
+            if (baseCC.iconSeats != null) foreach (var icC in baseCC.iconSeats) if (icC != null && icC.name == "numeral") { seatRowC = icC; break; }
+            if (seatRowC != null) {
+              var rootRtC = (RectTransform)contents.transform;
+              float fxSeat = (baseCC.shell.x + baseCC.shell.w / 2f + seatRowC.dx * psC) / bsCC.rect.width;
+              float fySeat = 1f - (baseCC.shell.y + baseCC.shell.h / 2f + seatRowC.dy * psC) / bsCC.rect.height;
+              float axF = baseCC.gauge.dialX / bsCC.rect.width;
+              float ayF = 1f - baseCC.gauge.dialY / bsCC.rect.height;
+              popC.seatOffset = new Vector2((axF - fxSeat) * rootRtC.sizeDelta.x, (ayF - fySeat) * rootRtC.sizeDelta.y);
+            }
+            popC.count = 0; // rest = the authored numeral, byte-for-byte
+            popC.Apply();
+          }
+        }
+        if (contents.GetComponent<ClaimBurst>() == null) AddClaimBurst(contents, root, "combo", m);
+        PrefabUtility.SaveAsPrefabAsset(contents, pathCP);
+        if (!quiet) Debug.Log("UI Kit Maker: the Combo prefab celebrates — click it in Play (or call ComboPop.Pop() / ClaimBurst.Fire() from your game) and it pops exactly like the app; round 47: SetCount(n) deals the multiplier from the kit's own digits.");
+        return true;
+      } finally { PrefabUtility.UnloadPrefabContents(contents); }
+    }
+    /* the DAMAGE NUMBER becomes a DEV INSTRUMENT (round 47, owner) — the
+       ComboPop pattern on the floating combat number: the digit set +
+       advances + the authored seat wire in; value rests 0 (the shipped
+       number child — pixel parity), and Show(n) composes the kit's own
+       damage digits at the exact seat and plays the app's flight. Old
+       zips (no digit atoms) keep the static child. Wired once at
+       generation; thereafter the prefab is the dev's. */
+    static bool DmgNumberWire(string dir, string root, PBManifest m, bool quiet) {
+      var pathDN = dir + "/Dmgnumber.prefab";
+      if (AssetDatabase.LoadAssetAtPath<GameObject>(pathDN) == null) return false;
+      var contents = PrefabUtility.LoadPrefabContents(pathDN);
+      try {
+        if (contents.GetComponent<PatternBreakDmgNumber>() != null) return false; // wired — and thereafter yours
+        var seatTD = contents.transform.Find("Damage number");
+        var seatImgD = seatTD != null ? seatTD.GetComponent<Image>() : null;
+        if (seatImgD == null || m == null || m.assets == null) return false;
+        float psD = m.pngScale > 0 ? m.pngScale : 2f;
+        var digitsD = new Sprite[10]; var advD = new float[10];
+        bool allD = true;
+        for (int iD = 0; iD < 10; iD++) {
+          digitsD[iD] = S(root + "/assets/dmgnumber/dmgnumber-digit-" + iD + ".png");
+          PBAsset rowD = null;
+          foreach (var aD in m.assets) if (aD != null && aD.component == "dmgnumber" && aD.part == "digit-" + iD) { rowD = aD; break; }
+          if (digitsD[iD] == null || rowD == null || rowD.railW < 1f) { allD = false; break; }
+          advD[iD] = rowD.railW / psD;
+        }
+        PBAsset rowCommaD = null, baseDD = null;
+        foreach (var aD in m.assets) if (aD != null && aD.component == "dmgnumber") { if (aD.part == "digit-comma") rowCommaD = aD; else if (aD.part == "base") baseDD = aD; }
+        var bsDD = contents.GetComponent<Image>() != null ? contents.GetComponent<Image>().sprite : null;
+        if (!allD || baseDD == null || baseDD.gauge == null || baseDD.shell == null || bsDD == null || bsDD.rect.width <= 2f) return false; // old zip — the static child stands
+        var dmgC = contents.AddComponent<PatternBreakDmgNumber>();
+        dmgC.numberSeat = seatImgD;
+        dmgC.digitSprites = digitsD;
+        dmgC.digitAdvance = advD;
+        dmgC.commaSprite = S(root + "/assets/dmgnumber/dmgnumber-digit-comma.png");
+        dmgC.commaAdvance = rowCommaD != null && rowCommaD.railW > 1f ? rowCommaD.railW / psD : 0f;
+        dmgC.glyphScale = 1f / psD;
+        /* the authored anchor vs the resting child's cut-box center, in
+           ROOT UI units — the compose lands on the app's own text
+           anchor, not the glow-padded crop's middle (the combo lesson) */
+        PBIconChild seatRowD = null;
+        if (baseDD.iconSeats != null) foreach (var icD in baseDD.iconSeats) if (icD != null && icD.name == "number") { seatRowD = icD; break; }
+        if (seatRowD != null) {
+          var rootRtD = (RectTransform)contents.transform;
+          float fxSeatD = (baseDD.shell.x + baseDD.shell.w / 2f + seatRowD.dx * psD) / bsDD.rect.width;
+          float fySeatD = 1f - (baseDD.shell.y + baseDD.shell.h / 2f + seatRowD.dy * psD) / bsDD.rect.height;
+          float axD = baseDD.gauge.dialX / bsDD.rect.width;
+          float ayD = 1f - baseDD.gauge.dialY / bsDD.rect.height;
+          dmgC.seatOffset = new Vector2((axD - fxSeatD) * rootRtD.sizeDelta.x, (ayD - fySeatD) * rootRtD.sizeDelta.y);
+        }
+        dmgC.value = 0; // rest = the authored number, byte-for-byte
+        dmgC.Apply();
+        PrefabUtility.SaveAsPrefabAsset(contents, pathDN);
+        if (!quiet) Debug.Log("UI Kit Maker: the Damage number is a dev instrument — call PatternBreakDmgNumber.Show(n) (or set Value in the Inspector to preview) and it composes the kit's own digits at the authored seat and plays the app's float-up-and-fade.");
+        return true;
+      } finally { PrefabUtility.UnloadPrefabContents(contents); }
+    }
+    /* the STREAK METER IGNITES (owner roster, round 41: "should ignite") —
+       the generated Streakmeter prefab gains the StreakIgnite rig with
+       both shipped poses: drive its value to 1 (Inspector slider, code, or
+       the context menu) and the Ignition glyph swaps to the app's own lit
+       pixels and pulses. Wired once at generation; a prefab the dev
+       already holds is theirs and is never re-touched. */
+    static bool StreakIgniteWire(string dir, string root, bool quiet) {
+      var pathSI = dir + "/Streakmeter.prefab";
+      if (AssetDatabase.LoadAssetAtPath<GameObject>(pathSI) == null) return false;
+      var litSI = AssetDatabase.LoadAssetAtPath<Sprite>(root + "/assets/streakmeter/streakmeter-icon-endicon-lit.png");
+      if (litSI == null) return false;
+      var contents = PrefabUtility.LoadPrefabContents(pathSI);
+      try {
+        if (contents.GetComponent<StreakIgnite>() != null) return false; // wired — and thereafter yours
+        var gT = contents.transform.Find("Ignition glyph");
+        var imgSI = gT != null ? gT.GetComponent<Image>() : null;
+        if (imgSI == null || imgSI.sprite == null) return false; // glyph deleted or slotless — the dev's call
+        var rig = contents.AddComponent<StreakIgnite>();
+        rig.glyph = imgSI;
+        rig.ghost = imgSI.sprite;
+        rig.lit = litSI;
+        /* round 44 (item 40): ONE dial — the cell meter joins the rig, and
+           the rig rests on the meter's own staged value so nothing moves */
+        var kcmSI = contents.GetComponent<KitCellMeter>();
+        if (kcmSI != null) { rig.cells = kcmSI; rig.value = kcmSI.value; }
+        PrefabUtility.SaveAsPrefabAsset(contents, pathSI);
+        if (!quiet) Debug.Log("UI Kit Maker: the Streakmeter prefab can IGNITE — drive Streak Ignite's value to 1 (or its context menu) and the glyph lights and pulses (round 44: the cells light whole from the same value); both poses are ordinary swappable sprites.");
+        return true;
+      } finally { PrefabUtility.UnloadPrefabContents(contents); }
     }
     static bool GeneratePrefabs(string root, PBManifest m) {
       bool createdHere = false;
@@ -18319,11 +22520,20 @@ namespace PatternBreak {
         createdHere = true;
       }
       var dir = root + "/Prefabs";
-      bool any = RunPrefabBuilders(dir, root, m);
+      bool any = RunPrefabBuilders(dir, root, m, false);
       // an EMPTY folder must not latch generation off forever — if nothing
       // landed (sprites missing on a manual run), clean up so the next
       // pass gets its first-import chance
       if (!any && createdHere) AssetDatabase.DeleteAsset(dir);
+      /* the prefab-seeding ledger's FIRST entry set: everything this
+         generation created counts as seeded — from here on, one shot */
+      if (any) {
+        var seededG = new List<string>();
+        foreach (var gG in AssetDatabase.FindAssets("t:Prefab", new string[] { dir }))
+          seededG.Add(Path.GetFileName(AssetDatabase.GUIDToAssetPath(gG)));
+        seededG.Sort();
+        passSeededPrefabs = seededG.ToArray();
+      }
       return any;
     }
     /* MaintainExamplePrefabs' surgical sibling: a kit UPDATE can carry
@@ -18332,22 +22542,43 @@ namespace PatternBreak {
        touching an existing prefab (yours after first generation). The
        builders run into a staging folder; only names the project lacks
        move over, the rest is discarded. */
-    static void GenerateMissingPrefabs(string root, PBManifest m) {
+    static void GenerateMissingPrefabs(string root, PBManifest m, PBLock prevLk) {
       var dir = root + "/Prefabs";
       if (!AssetDatabase.IsValidFolder(dir) || m == null) return;
       var have = new HashSet<string>();
       foreach (var g in AssetDatabase.FindAssets("t:Prefab", new string[] { dir }))
         have.Add(Path.GetFileName(AssetDatabase.GUIDToAssetPath(g)));
+      /* the PREFAB-SEEDING LEDGER (round 43 review — the 108-family
+         catalog made pruning real, and this pass used to resurrect every
+         deleted prefab by name on every import, announced as "newer
+         pieces"): kit.lock.json > seededPrefabs holds every prefab name
+         this kit ever seeded here. A ledgered name missing from the
+         project was DELETED by the dev — their decision forever, never
+         rebuilt. Genuinely NEW families (not in the ledger) still seed.
+         Adopt-present: prefabs already in the project enter the ledger
+         on first sight, so pre-ledger projects prune cleanly from now on
+         — the seededChildren one-shot law, applied to whole prefabs. */
+      var ledgerP = new HashSet<string>();
+      if (prevLk != null && prevLk.seededPrefabs != null)
+        foreach (var nmL in prevLk.seededPrefabs) if (!string.IsNullOrEmpty(nmL)) ledgerP.Add(nmL);
+      foreach (var nmL in have) ledgerP.Add(nmL); // adopt-present
       var stage = root + "/PrefabsStaging";
       if (AssetDatabase.IsValidFolder(stage)) AssetDatabase.DeleteAsset(stage);
       if (string.IsNullOrEmpty(AssetDatabase.CreateFolder(root, "PrefabsStaging"))) return;
       int added = 0;
+      int skippedDeleted = 0;
+      var addedNames = new List<string>();
       try {
-        RunPrefabBuilders(stage, root, m);
+        /* staging runs QUIET (round 43 review: the Combo/Streakmeter wire
+           receipts printed on every no-op import forever) — the honest
+           receipt is the seeded-names line below, only when something
+           actually moves */
+        RunPrefabBuilders(stage, root, m, true);
         foreach (var g in AssetDatabase.FindAssets("t:Prefab", new string[] { stage })) {
           var p = AssetDatabase.GUIDToAssetPath(g);
           var name = Path.GetFileName(p);
           if (have.Contains(name)) continue;
+          if (ledgerP.Contains(name)) { skippedDeleted++; continue; } // seeded once before — the dev deleted it, and that stands
           /* the staged layout carries subfolders (Tiled face) — a missing
              prefab moves into the SAME subfolder, not the root */
           var rel = p.Substring(stage.Length + 1);
@@ -18357,12 +22588,18 @@ namespace PatternBreak {
             targetDir = dir + "/" + sub;
             if (!AssetDatabase.IsValidFolder(targetDir)) AssetDatabase.CreateFolder(dir, sub);
           }
-          if (string.IsNullOrEmpty(AssetDatabase.MoveAsset(p, targetDir + "/" + name))) added++;
+          if (string.IsNullOrEmpty(AssetDatabase.MoveAsset(p, targetDir + "/" + name))) { added++; addedNames.Add(name); ledgerP.Add(name); }
         }
       } finally {
         AssetDatabase.DeleteAsset(stage);
       }
-      if (added > 0) Debug.Log("UI Kit Maker: " + added + " new prefab(s) added for this kit's newer pieces — existing prefabs untouched.");
+      var ledgerOut = new List<string>(ledgerP);
+      ledgerOut.Sort();
+      passSeededPrefabs = ledgerOut.ToArray();
+      if (added > 0) {
+        addedNames.Sort();
+        Debug.Log("UI Kit Maker: seeded " + added + " NEW prefab(s) for this kit's newer pieces (" + string.Join(", ", addedNames.ToArray()) + "). Each family prefab seeds exactly once (kit.lock.json > seededPrefabs) — a prefab you delete stays deleted, and existing prefabs are never touched." + (skippedDeleted > 0 ? " " + skippedDeleted + " previously deleted prefab(s) stayed deleted, as you decided." : ""));
+      }
     }
     /* Per-import maintenance for OUR example prefabs — the two things that
        must track the kit even though "your prefabs are yours" (owner field
@@ -18629,7 +22866,7 @@ namespace PatternBreak {
       RenameDataRowPrefab(root); // the owner's language, healed on every import
       RenameDataRowTiledFace(root); // and its stretch-safe twin — the scene road's one name
       RenameArtShelf(root); // BigGlyphs → Art, the class's name everywhere
-      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0, reseeded = 0, wordKept = 0, rebodied = 0, mapGrafted = 0, padTuned = 0, rigGrafted = 0, sinkTuned = 0, barRigged = 0, pieceBound = 0, ddRigged = 0, unburned = 0, retiredIc = 0;
+      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, glyphSeated = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0, reseeded = 0, wordKept = 0, rebodied = 0, mapGrafted = 0, padTuned = 0, rigGrafted = 0, sinkTuned = 0, barRigged = 0, capRigged = 0, pieceBound = 0, ddRigged = 0, unburned = 0, retiredIc = 0, medalWorded = 0;
       /* the ROOT-RECT ownership ledger (F5 — the resize pass was the one
          maintenance heal with NO ours-vs-theirs guard): rects we last
          authored, carried in kit.lock.json > authoredRects. A rect still
@@ -18724,6 +22961,58 @@ namespace PatternBreak {
             continue;
           }
         }
+        /* round 44 (item 14 — "objectives STILL not sitting on the
+           line"): a kept SeasonTrack already on the live rig froze
+           whatever this component carried at its own first import — new
+           art atoms (the rail-height run) and geometry corrections could
+           never reach the field. Converge OURS-ONLY:
+           - art: wire runSprite when it is still empty and the atom
+             ships (a reference is ours to fill exactly once — a dev who
+             swapped it later keeps their sprite; one who nulled a WIRED
+             field left a wired-then-cleared state we cannot tell from
+             never-wired, so the run wires and they may re-clear);
+           - geometry: only a component still wearing the CLASS DEFAULTS
+             on all six layout dials (provably never wired, pre-geo era)
+             takes the manifest's measured fractions — a single moved
+             slider keeps all six as the maker's. */
+        if (asset.GetComponent<SeasonTrack>() != null && spritePath.EndsWith("/seasontrack-board.9.png")) {
+          var stK0 = asset.GetComponent<SeasonTrack>();
+          var runSpK = S(root + "/assets/seasontrack/seasontrack-run.9.png");
+          bool wantStRun = stK0.runSprite == null && runSpK != null;
+          bool stDefaults = Mathf.Approximately(stK0.trackX0, 0.22f) && Mathf.Approximately(stK0.trackX1, 0.93f)
+            && Mathf.Approximately(stK0.spineY, 0.5f) && Mathf.Approximately(stK0.laneFreeY, 0.74f)
+            && Mathf.Approximately(stK0.lanePremY, 0.26f) && Mathf.Approximately(stK0.laneLabelX, 0.05f);
+          bool wantStGeo = stDefaults && m != null && m.seasonTrack != null && (m.seasonTrack.x1 - m.seasonTrack.x0) > 0.01f;
+          if (wantStRun || wantStGeo) {
+            var contentsSK = PrefabUtility.LoadPrefabContents(path);
+            try {
+              var stK = contentsSK.GetComponent<SeasonTrack>();
+              if (stK != null) {
+                if (wantStRun) stK.runSprite = runSpK;
+                if (wantStGeo) {
+                  var geoK = m.seasonTrack;
+                  PBAsset boardRowK = null;
+                  foreach (var aK in m.assets) if (aK != null && aK.component == "seasontrack" && aK.part == "board" && aK.shell != null) { boardRowK = aK; break; }
+                  var boardSpK = rootImg != null ? rootImg.sprite : null;
+                  if (boardRowK != null && boardSpK != null && boardSpK.rect.width > 4f) {
+                    var shK = boardRowK.shell;
+                    float WK = boardSpK.rect.width, HK = boardSpK.rect.height;
+                    stK.trackX0 = Mathf.Clamp01((shK.x + geoK.x0 * shK.w) / WK);
+                    stK.trackX1 = Mathf.Clamp01((shK.x + geoK.x1 * shK.w) / WK);
+                    stK.spineY = Mathf.Clamp01((HK - shK.y - shK.h + geoK.spineY * shK.h) / HK);
+                    stK.laneFreeY = Mathf.Clamp01((HK - shK.y - shK.h + geoK.laneFreeY * shK.h) / HK);
+                    stK.lanePremY = Mathf.Clamp01((HK - shK.y - shK.h + geoK.lanePremY * shK.h) / HK);
+                    stK.laneLabelX = Mathf.Clamp01((shK.x + geoK.labelX * shK.w) / WK);
+                  }
+                }
+                stK.Rebuild();
+                PrefabUtility.SaveAsPrefabAsset(contentsSK, path);
+                retracked++;
+              }
+            } finally { PrefabUtility.UnloadPrefabContents(contentsSK); }
+            continue;
+          }
+        }
 #endif
         /* the progress bar's rig era (round 21, owner: board bars arrive
            kit-dressed): a ProgressBar from the synthesized-capsule
@@ -18748,10 +23037,240 @@ namespace PatternBreak {
                   stagedPB = Mathf.Clamp01(ofR.sizeDelta.x / pbRt.sizeDelta.x); // keep the dev's staged width
                 UnityEngine.Object.DestroyImmediate(oldFill.gameObject);
               }
-              BuildBarFill(contentsPB, "Fill", fillBar, rootImg.sprite, m != null && m.pngScale > 0 ? m.pngScale : 2, m, "progress", stagedPB, false);
+              BuildBarFill(contentsPB, "Fill", fillBar, rootImg.sprite, m != null && m.pngScale > 0 ? m.pngScale : 2, m, root, "progress", stagedPB, false);
               PrefabUtility.SaveAsPrefabAsset(contentsPB, path);
               barRigged++;
             } finally { PrefabUtility.UnloadPrefabContents(contentsPB); }
+            continue;
+          }
+        }
+        /* the MEDAL'S LIVE WORD (round 44, dossier R1): a kept VsBar's
+           Medal child loses its baked "VS" the moment the wordless medal
+           sprite retextures in — seed the live seat exactly once, keyed
+           in the seeded-children ledger so a later delete of the Words
+           tree is the dev's forever (the un-burn's ONE-SHOT law). No
+           early continue: the cap retrofit below may be due the same import. */
+        if (spritePath.EndsWith("/vsbar-track.9.png")) {
+          Transform medalKT = null;
+          foreach (Transform chMK in asset.transform) {
+            var imMK = chMK.GetComponent<Image>();
+            if (imMK == null || imMK.sprite == null) continue;
+            var pMK = AssetDatabase.GetAssetPath(imMK.sprite).Replace("\\\\", "/");
+            if (pMK == root + "/assets/vsbar/vsbar-medal.png") { medalKT = chMK; break; }
+          }
+          if (medalKT != null) {
+            string keyMW = (path.StartsWith(root + "/") ? path.Substring(root.Length + 1) : path) + "|Medal Words";
+            if (medalKT.Find("Words") != null) unburnLedger.Add(keyMW);
+            else if (!unburnLedger.Contains(keyMW)) {
+              var contentsMW = PrefabUtility.LoadPrefabContents(path);
+              try {
+                Transform medalMW = null;
+                foreach (Transform chMW in contentsMW.transform) {
+                  var imMW = chMW.GetComponent<Image>();
+                  if (imMW == null || imMW.sprite == null) continue;
+                  var pMW = AssetDatabase.GetAssetPath(imMW.sprite).Replace("\\\\", "/");
+                  if (pMW == root + "/assets/vsbar/vsbar-medal.png") { medalMW = chMW; break; }
+                }
+                if (medalMW != null) {
+                  WireTextSeats(medalMW.gameObject, root, m, m != null && m.pngScale > 0 ? m.pngScale : 2);
+                  if (medalMW.Find("Words") != null) {
+                    unburnLedger.Add(keyMW);
+                    PrefabUtility.SaveAsPrefabAsset(contentsMW, path);
+                    medalWorded++;
+                  }
+                }
+              } finally { PrefabUtility.UnloadPrefabContents(contentsMW); }
+            }
+          }
+        }
+        /* the ROUNDED-HEAD retrofit (round 44, owner kit-wide mercury
+           ruling): a kept bar already on the round-21 rig gains the cap
+           and KitBarFill exactly once, OURS-ONLY — the Fill child still
+           Filled-mode and wearing OUR sprite, no rig yet, and the cap
+           atom actually shipping (old zips keep today's flat behavior).
+           The dev's staged fillAmount survives as the rig's value. */
+        {
+          string famBarK = spritePath.EndsWith("/progress-track.9.png") ? "progress"
+            : spritePath.EndsWith("/emblembar-track.9.png") ? "emblembar"
+            : spritePath.EndsWith("/slider-track.9.png") ? "slider"
+            : spritePath.EndsWith("/vsbar-track.9.png") ? "vsbar" : null;
+          if (famBarK != null) {
+            string[][] laneK = famBarK == "vsbar"
+              ? new string[][] { new string[] { "FillL Area", "FillL", "cap-l" }, new string[] { "FillR Area", "FillR", "cap-r" } }
+              : new string[][] { new string[] { "Fill Area", "Fill", "cap" } };
+            bool wantCapK = false;
+            foreach (var ln in laneK) {
+              var arT = asset.transform.Find(ln[0]);
+              var fiT = arT != null ? arT.Find(ln[1]) : null;
+              var fiI = fiT != null ? fiT.GetComponent<Image>() : null;
+              if (arT == null || fiI == null || fiI.type != Image.Type.Filled || fiI.sprite == null) continue;
+              var pSprK = AssetDatabase.GetAssetPath(fiI.sprite).Replace("\\\\", "/");
+              if (!pSprK.StartsWith(root + "/assets/")) continue; // dev art — theirs
+              if (arT.GetComponent<KitBarFill>() != null) continue; // already rigged
+              if (S(root + "/assets/" + famBarK + "/" + famBarK + "-" + ln[2] + ".png") == null) continue; // old zip
+              wantCapK = true;
+            }
+            /* the RAMP upgrade (round 47): a kept vsbar already on the
+               round-44 cap rig converges onto the stretch road ON THE
+               NUB'S ARRIVAL IMPORT only (the segbar Lit era rule) — the
+               rig still OURS (KitBarFill present, fill wearing our
+               sprite), the nub atom newly shipping, no Nub child yet.
+               After that the dev's rig is theirs and never fought. */
+            bool wantRampK = false;
+            if (famBarK == "vsbar" && !wantCapK) {
+              bool nubEraK = true;
+              if (prevLock != null && prevLock.files != null)
+                foreach (var fPrevN in prevLock.files) if (fPrevN != null && fPrevN.file == "assets/vsbar/vsbar-nub-l.png") { nubEraK = false; break; }
+              if (nubEraK)
+                foreach (var ln in laneK) {
+                  var arT = asset.transform.Find(ln[0]);
+                  var kbT = arT != null ? arT.GetComponent<KitBarFill>() : null;
+                  var fiI = kbT != null ? kbT.fill : null;
+                  if (kbT == null || kbT.stretchRun || kbT.nub != null || fiI == null || fiI.sprite == null) continue;
+                  var pSprN = AssetDatabase.GetAssetPath(fiI.sprite).Replace("\\\\", "/");
+                  if (!pSprN.StartsWith(root + "/assets/")) continue; // dev art — theirs
+                  if (S(root + "/assets/vsbar/vsbar-nub-" + (ln[2] == "cap-r" ? "r" : "l") + ".png") == null) continue; // old zip
+                  wantRampK = true;
+                }
+            }
+            if (wantCapK || wantRampK) {
+              var contentsBC = PrefabUtility.LoadPrefabContents(path);
+              try {
+                foreach (var ln in laneK) {
+                  var arT = contentsBC.transform.Find(ln[0]);
+                  var fiT = arT != null ? arT.Find(ln[1]) : null;
+                  var fiI = fiT != null ? fiT.GetComponent<Image>() : null;
+                  if (arT == null || fiI == null || fiI.type != Image.Type.Filled || fiI.sprite == null) continue;
+                  var pSprK2 = AssetDatabase.GetAssetPath(fiI.sprite).Replace("\\\\", "/");
+                  if (!pSprK2.StartsWith(root + "/assets/")) continue;
+                  var kbK2 = arT.GetComponent<KitBarFill>();
+                  if (kbK2 != null) {
+                    // the ramp upgrade lane: stretch + nub onto the kept rig
+                    if (!wantRampK || kbK2.stretchRun || kbK2.nub != null) continue;
+                    var nubSpK = S(root + "/assets/vsbar/vsbar-nub-" + (ln[2] == "cap-r" ? "r" : "l") + ".png");
+                    if (nubSpK == null) continue;
+                    kbK2.stretchRun = true;
+                    var nubGoK = new GameObject("Nub", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+                    nubGoK.transform.SetParent(arT, false);
+                    var nImgK = nubGoK.GetComponent<Image>();
+                    nImgK.sprite = nubSpK; nImgK.raycastTarget = false; nImgK.type = Image.Type.Simple; nImgK.preserveAspect = false;
+                    kbK2.nub = (RectTransform)nubGoK.transform;
+                    kbK2.SetValue(Mathf.Clamp01(kbK2.fill.fillAmount)); // the dev's staged health survives
+                    continue;
+                  }
+                  WireBarCap(arT.gameObject, fiI, root, famBarK, ln[2] == "cap-r", Mathf.Clamp01(fiI.fillAmount));
+                  WireBarBodies(arT.gameObject, m); // round 48: the graft rides the body wire too
+                }
+                PrefabUtility.SaveAsPrefabAsset(contentsBC, path);
+                capRigged++;
+              } finally { PrefabUtility.UnloadPrefabContents(contentsBC); }
+              continue;
+            }
+          }
+        }
+        /* the RIG-1 DISPLAY-BAR graft (round 44, items 19/27/30 +
+           buildqueue): a kept bar whose TRACKIFIED base just replaced the
+           burned bake grafts its Fill rig ON THE ARRIVAL IMPORT only
+           (the segbar Lit era rule — gated on the previous receipt not
+           knowing the fill atom). After that a deleted Fill is the
+           dev's choice and is never fought. */
+        {
+          string famDB = spritePath.EndsWith("/loadbar-base.png") ? "loadbar"
+            : spritePath.EndsWith("/popmeter-base.png") ? "popmeter"
+            : spritePath.EndsWith("/respawn-base.png") ? "respawn"
+            : spritePath.EndsWith("/buildqueue-base.png") ? "buildqueue"
+            : spritePath.EndsWith("/xpbar-base.png") ? "xpbar"
+            : spritePath.EndsWith("/unitplate-base.png") ? "unitplate"
+            : spritePath.EndsWith("/questpanel-base.png") ? "questpanel"
+            : spritePath.EndsWith("/setrow-base.png") ? "setrow" : null;
+          if (famDB != null && asset.transform.Find("Fill Area") == null && asset.GetComponentInChildren<KitBarFill>(true) == null) {
+            bool dbEra = true;
+            if (prevLock != null && prevLock.files != null)
+              foreach (var fPrev in prevLock.files) if (fPrev != null && fPrev.file == "assets/" + famDB + "/" + famDB + "-fill.png") { dbEra = false; break; }
+            var fillDB = dbEra ? S(root + "/assets/" + famDB + "/" + famDB + "-fill.png") : null;
+            var rootImgDB = BodyImage(asset);
+            if (fillDB != null && rootImgDB != null && rootImgDB.sprite != null
+                && AssetDatabase.GetAssetPath(rootImgDB.sprite).Replace("\\\\", "/") == root + "/assets/" + famDB + "/" + famDB + "-base.png") {
+              float stagedDB = 0.62f;
+              foreach (var aFD in m.assets) if (aFD != null && aFD.component == famDB && aFD.part == "fill" && aFD.ringV > 0f) { stagedDB = Mathf.Clamp01(aFD.ringV); break; }
+              var contentsDB = PrefabUtility.LoadPrefabContents(path);
+              try {
+                BuildBarFill(contentsDB, "Fill", fillDB, rootImgDB.sprite, m != null && m.pngScale > 0 ? m.pngScale : 2, m, root, famDB, stagedDB, false);
+                // the quest tracker's whole-objectives law rides the graft too
+                if (famDB == "questpanel") {
+                  var kbQG = contentsDB.GetComponentInChildren<KitBarFill>(true);
+                  if (kbQG != null) { kbQG.snapSteps = 3; kbQG.SetValue(stagedDB); }
+                }
+                // the settings row's Slider arrives with its rig
+                if (famDB == "setrow") WireSetrowSlider(contentsDB, root, m, m != null && m.pngScale > 0 ? m.pngScale : 2);
+                PrefabUtility.SaveAsPrefabAsset(contentsDB, path);
+                barRigged++;
+              } finally { PrefabUtility.UnloadPrefabContents(contentsDB); }
+              continue;
+            }
+          }
+        }
+        /* the twin-rail graft (round 44, item 21) — same arrival-import
+           era rule, keyed on the mana atom */
+        if (spritePath.EndsWith("/manarails-base.png") && asset.transform.Find("Mana Area") == null && asset.GetComponentInChildren<KitBarFill>(true) == null) {
+          bool mrEra = true;
+          if (prevLock != null && prevLock.files != null)
+            foreach (var fPrev in prevLock.files) if (fPrev != null && fPrev.file == "assets/manarails/manarails-fill-mana.png") { mrEra = false; break; }
+          var rootImgMR = BodyImage(asset);
+          var rowMR = LabelRow(m, "manarails");
+          if (mrEra && rootImgMR != null && rootImgMR.sprite != null && rowMR != null
+              && AssetDatabase.GetAssetPath(rootImgMR.sprite).Replace("\\\\", "/") == root + "/assets/manarails/manarails-base.png"
+              && S(root + "/assets/manarails/manarails-fill-mana.png") != null) {
+            var contentsMR = PrefabUtility.LoadPrefabContents(path);
+            try {
+              var imgMR2 = BodyImage(contentsMR);
+              WireManaRails(contentsMR, imgMR2 != null ? imgMR2.sprite : null, rowMR, root, m != null && m.pngScale > 0 ? m.pngScale : 2, m);
+              PrefabUtility.SaveAsPrefabAsset(contentsMR, path);
+              barRigged++;
+            } finally { PrefabUtility.UnloadPrefabContents(contentsMR); }
+            continue;
+          }
+        }
+        /* the party frame's twin HP/MP graft (round 44, item 25) — same
+           arrival-import era rule, keyed on the hp atom */
+        if (spritePath.EndsWith("/partyframe-base.png") && asset.transform.Find("HP Area") == null && asset.GetComponentInChildren<KitBarFill>(true) == null) {
+          bool pfEra = true;
+          if (prevLock != null && prevLock.files != null)
+            foreach (var fPrev in prevLock.files) if (fPrev != null && fPrev.file == "assets/partyframe/partyframe-fill-hp.png") { pfEra = false; break; }
+          var rootImgPF = BodyImage(asset);
+          var rowPF = LabelRow(m, "partyframe");
+          if (pfEra && rootImgPF != null && rootImgPF.sprite != null && rowPF != null
+              && AssetDatabase.GetAssetPath(rootImgPF.sprite).Replace("\\\\", "/") == root + "/assets/partyframe/partyframe-base.png"
+              && S(root + "/assets/partyframe/partyframe-fill-hp.png") != null) {
+            var contentsPF = PrefabUtility.LoadPrefabContents(path);
+            try {
+              var imgPF2 = BodyImage(contentsPF);
+              WireNamedRails(contentsPF, imgPF2 != null ? imgPF2.sprite : null, rowPF, root, m != null && m.pngScale > 0 ? m.pngScale : 2, m, "partyframe", new string[] { "hp", "mp" }, new string[] { "HP", "MP" });
+              PrefabUtility.SaveAsPrefabAsset(contentsPF, path);
+              barRigged++;
+            } finally { PrefabUtility.UnloadPrefabContents(contentsPF); }
+            continue;
+          }
+        }
+        /* the stepper's live graft (round 44, item 37) — same
+           arrival-import era rule, keyed on the lit atom; the meter +
+           brain graft even before the cap Buttons converge (null-guarded) */
+        if (spritePath.EndsWith("/stepper-base.png") && asset.transform.Find("Lit") == null && asset.GetComponent<KitStepper>() == null) {
+          bool stEra = true;
+          if (prevLock != null && prevLock.files != null)
+            foreach (var fPrev in prevLock.files) if (fPrev != null && fPrev.file == "assets/stepper/stepper-lit.png") { stEra = false; break; }
+          var rootImgST = BodyImage(asset);
+          var rowST = LabelRow(m, "stepper");
+          if (stEra && rootImgST != null && rootImgST.sprite != null && rowST != null
+              && AssetDatabase.GetAssetPath(rootImgST.sprite).Replace("\\\\", "/") == root + "/assets/stepper/stepper-base.png"
+              && S(root + "/assets/stepper/stepper-lit.png") != null) {
+            var contentsST = PrefabUtility.LoadPrefabContents(path);
+            try {
+              var imgST2 = BodyImage(contentsST);
+              WireStepper(contentsST, imgST2 != null ? imgST2.sprite : null, rowST, root, m != null && m.pngScale > 0 ? m.pngScale : 2, m);
+              PrefabUtility.SaveAsPrefabAsset(contentsST, path);
+              barRigged++;
+            } finally { PrefabUtility.UnloadPrefabContents(contentsST); }
             continue;
           }
         }
@@ -18783,6 +23302,76 @@ namespace PatternBreak {
               barRigged++;
             } finally { PrefabUtility.UnloadPrefabContents(contentsSB); }
             continue;
+          }
+        }
+        /* the CELL-METER convergences (round 44, dossier RIG-2):
+           - a kept meter with a Lit strip but NO snapper gains
+             KitCellMeter, ours-only (Lit still Filled + wearing OUR
+             sprite) — the StateFx re-wire class; the current fillAmount
+             survives as the snapped value;
+           - a kept energymeter/ammo whose NEW empty base just replaced
+             the old burned bake grafts its Lit layer ON THE ARRIVAL
+             IMPORT only (the segbar Lit-graft era rule: gated on the
+             previous receipt not knowing the lit atom) — after that a
+             deleted Lit stays deleted. */
+        {
+          string famCMk = spritePath.EndsWith("/segbar-base.png") ? "segbar"
+            : spritePath.EndsWith("/energymeter-base.png") ? "energymeter"
+            : spritePath.EndsWith("/ammo-base.png") ? "ammo"
+            : spritePath.EndsWith("/lives-base.png") ? "lives" : null;
+          if (famCMk != null) {
+            int cellsCMk = famCMk == "ammo" ? 3 : famCMk == "energymeter" ? 10 : 5;
+            bool mirCMk = famCMk == "ammo";
+            var litSpK = S(root + "/assets/" + famCMk + "/" + famCMk + "-lit.png");
+            var litTk = asset.transform.Find("Lit");
+            var litIk = litTk != null ? litTk.GetComponent<Image>() : null;
+            bool litOurs = litIk != null && litIk.type == Image.Type.Filled && litIk.sprite != null
+              && AssetDatabase.GetAssetPath(litIk.sprite).Replace("\\\\", "/").StartsWith(root + "/assets/");
+            bool wantSnap = litOurs && asset.GetComponent<KitCellMeter>() == null;
+            bool cmEra = true;
+            if (prevLock != null && prevLock.files != null)
+              foreach (var fPrev2 in prevLock.files) if (fPrev2 != null && fPrev2.file == "assets/" + famCMk + "/" + famCMk + "-lit.png") { cmEra = false; break; }
+            bool wantGraft = famCMk != "segbar" && litTk == null && litSpK != null && cmEra;
+            if (wantSnap || wantGraft) {
+              var contentsCM = PrefabUtility.LoadPrefabContents(path);
+              try {
+                var litT2 = contentsCM.transform.Find("Lit");
+                if (litT2 == null && wantGraft) {
+                  var lgo2 = new GameObject("Lit", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+                  lgo2.transform.SetParent(contentsCM.transform, false);
+                  var li2 = lgo2.GetComponent<Image>();
+                  li2.sprite = litSpK; li2.raycastTarget = false;
+                  li2.type = Image.Type.Filled; li2.preserveAspect = false;
+                  li2.fillMethod = Image.FillMethod.Horizontal;
+                  li2.fillOrigin = mirCMk ? (int)Image.OriginHorizontal.Right : (int)Image.OriginHorizontal.Left;
+                  StretchFull((RectTransform)lgo2.transform);
+                  litT2 = lgo2.transform;
+                }
+                var litI2 = litT2 != null ? litT2.GetComponent<Image>() : null;
+                if (litI2 != null && contentsCM.GetComponent<KitCellMeter>() == null) {
+                  var kcmK = contentsCM.AddComponent<KitCellMeter>();
+                  kcmK.lit = litI2; kcmK.cells = cellsCMk; kcmK.fromRight = mirCMk;
+                  var zoneK = BarZone(m, famCMk);
+                  if (zoneK != null && litI2.sprite != null && litI2.sprite.rect.width > 2f) {
+                    kcmK.zone0 = Mathf.Clamp01(zoneK.x / litI2.sprite.rect.width);
+                    kcmK.zone1 = Mathf.Clamp01((zoneK.x + zoneK.w) / litI2.sprite.rect.width);
+                  }
+                  /* staged value: a fresh graft takes the manifest's staged
+                     charge; an existing Lit keeps the dev's own pose
+                     (fillAmount read back through the snap) */
+                  float vK = famCMk == "ammo" ? 1f : famCMk == "energymeter" ? 0.8f : 0.62f;
+                  PBAsset litRowK = null;
+                  foreach (var aK2 in m.assets) if (aK2 != null && aK2.component == famCMk && aK2.part == "lit" && aK2.ringV > 0f) { litRowK = aK2; break; }
+                  if (litRowK != null) vK = Mathf.Clamp01(litRowK.ringV);
+                  if (famCMk == "lives" && litRowK != null && litRowK.railW > 0.5f) kcmK.cells = Mathf.RoundToInt(litRowK.railW);
+                  if (!wantGraft && litI2.fillAmount > 0f) vK = Mathf.Clamp01(litI2.fillAmount);
+                  kcmK.SetValue(vK);
+                  PrefabUtility.SaveAsPrefabAsset(contentsCM, path);
+                  barRigged++;
+                }
+              } finally { PrefabUtility.UnloadPrefabContents(contentsCM); }
+              continue;
+            }
           }
         }
         /* the dropdown's DROP-DOWN era: a Dropdown.prefab from the picture
@@ -19255,6 +23844,7 @@ namespace PatternBreak {
            Converge OUR stale defaults only — any other number is the
            maker's own tune and stays. */
         bool wantFbLift = false; float fbWant = 0f;
+        bool wantFbSeat = false; float fbSeatDx = 0f, fbSeatDy = 0f, fbSeatW = 0f;
         {
           var fbNow = asset.GetComponent<FireButton>();
           if (fbNow != null && famName == "firebutton") {
@@ -19276,6 +23866,23 @@ namespace PatternBreak {
               || Mathf.Approximately(fbNow.pressedLift, fbRow)
               || Mathf.Approximately(fbNow.pressedLift, fbRow - shellMin * 0.016f);
             if (fbStale && !Mathf.Approximately(fbNow.pressedLift, fbWant)) wantFbLift = true;
+            /* round 44 ("the main icon sits low"): the armed glyph
+               converges onto the app's own emitted seat — but only a
+               Weapon still wearing OUR heuristic geometry (0.62/0.52 ×
+               shell box, the −0.045 × shell nudge, no x drift) moves;
+               any other rect is the maker's hand and stays. */
+            if (rowFb != null && rowFb.fireW > 1f && fbNow.weapon != null) {
+              var wRtC = fbNow.weapon.rectTransform;
+              bool oursBox = Mathf.Abs(wRtC.sizeDelta.x - shellMin * 0.62f) < 0.75f
+                || Mathf.Abs(wRtC.sizeDelta.x - shellMin * 0.52f) < 0.75f;
+              bool oursNudge = Mathf.Abs(wRtC.anchoredPosition.x) < 0.05f
+                && Mathf.Abs(wRtC.anchoredPosition.y + shellMin * 0.045f) < 0.75f;
+              fbSeatDx = rowFb.fireDx; fbSeatDy = rowFb.fireDy; fbSeatW = rowFb.fireW;
+              var wantSz = new Vector2(fbSeatW, fbSeatW);
+              var wantAp = new Vector2(fbSeatDx, -fbSeatDy);
+              if (oursBox && oursNudge
+                  && ((wRtC.sizeDelta - wantSz).sqrMagnitude > 0.01f || (wRtC.anchoredPosition - wantAp).sqrMagnitude > 0.01f)) wantFbSeat = true;
+            }
           }
         }
         /* the ENGINE-COMPOSED specular converges too: a kit that ships
@@ -19372,13 +23979,17 @@ namespace PatternBreak {
                freshly dialed Leading; a hand-tuned nonzero value is the
                maker's and is never re-lost — and a dial turned BACK to
                factory leaves a nonzero value standing for the same reason.
+               Round 44: the want is ABSOLUTE now (rebased on the label's
+               own live face), so a factory-leading stack still parked at
+               natural height converges onto the app's 0.73em look too.
                The redress restore mirrors this gate exactly (probe and
                dresser disagreeing is an infinite re-dress). */
             if (!wantDress) {
-              float wantLsp = LeadingLineSpacing(probeRow);
+              var hlLd = probeRoot.GetComponent<HeroLabel>();
+              var tmLd = hlLd == null ? probeRoot.GetComponentInChildren<TextMeshProUGUI>(true) : null;
+              var faceLd = hlLd != null ? probeRoot.GetComponentInChildren<TextMeshProUGUI>(true) : tmLd;
+              float wantLsp = LeadingLineSpacing(probeRow, faceLd != null ? faceLd.font : null);
               if (wantLsp != 0f) {
-                var hlLd = probeRoot.GetComponent<HeroLabel>();
-                var tmLd = hlLd == null ? probeRoot.GetComponentInChildren<TextMeshProUGUI>(true) : null;
                 if ((hlLd != null && hlLd.lineSpacing == 0f) || (tmLd != null && tmLd.lineSpacing == 0f)) wantDress = true;
               }
             }
@@ -19415,7 +24026,7 @@ namespace PatternBreak {
            editor-only; a prefab already carrying it (or a dev's own) is
            untouched. */
         bool wantSelectRoot = asset.GetComponent<KitPiece>() == null;
-        if (!wantWiring && !wantDress && !wantFx && !wantUnswap && !wantResize && !wantSpecAdd && !wantSpecCut && !wantPad && !wantShape && !wantFbLift && !wantFaceRects
+        if (!wantWiring && !wantDress && !wantFx && !wantUnswap && !wantResize && !wantSpecAdd && !wantSpecCut && !wantPad && !wantShape && !wantFbLift && !wantFbSeat && !wantFaceRects
             && !wantWipeAdd && !wantWipeCut && !wantEdgeAdd && !wantEdgeCut && !wantGauge && !wantSeats && !wantSeatLabel && !wantWordSeed && !wantBody && !wantGlowPad && !wantSinkFix && !wantIconAdd && !wantIconStroke && !wantUnburn && !wantIconRetire && !wantSelectRoot) continue;
         var contents = PrefabUtility.LoadPrefabContents(path);
         try {
@@ -19482,6 +24093,21 @@ namespace PatternBreak {
           if (wantFbLift) {
             var fbFix = contents.GetComponent<FireButton>();
             if (fbFix != null) { fbFix.pressedLift = fbWant; pressArmed++; changed = true; }
+          }
+          if (wantFbSeat) {
+            var fbSeatC = contents.GetComponent<FireButton>();
+            var wFix = fbSeatC != null ? fbSeatC.weapon : null;
+            if (wFix != null) {
+              /* re-run the shell anchor first — the sprite re-adoption may
+                 have re-cropped the dome, and the old anchor fraction
+                 speaks the old crop's shell */
+              Vector2 shlFix;
+              ShellCenterAnchor(wFix.gameObject, contents, "firebutton", m, out shlFix);
+              var wFixRt = wFix.rectTransform;
+              wFixRt.sizeDelta = new Vector2(fbSeatW, fbSeatW);
+              wFixRt.anchoredPosition = new Vector2(fbSeatDx, -fbSeatDy);
+              glyphSeated++; changed = true;
+            }
           }
           if (wantFaceRects) {
             foreach (Transform chF in contents.transform) {
@@ -19686,9 +24312,11 @@ namespace PatternBreak {
                   /* lineSpacing: a hand-tuned value survives verbatim; a
                      still-at-default 0 adopts the manifest's Leading (the
                      birth just applied it — restoring the same want is
-                     idempotent). The probe's gate, mirrored. */
+                     idempotent; the absolute want reads the fresh label's
+                     own face). The probe's gate, mirrored. */
                   newHl.spacing = keepSpacing; newHl.wordSpacing = keepWordSpacing;
-                  newHl.lineSpacing = keepLineSpacing != 0f ? keepLineSpacing : LeadingLineSpacing(LabelRow(m, famName));
+                  var tmNw = newRoot.GetComponentInChildren<TextMeshProUGUI>(true);
+                  newHl.lineSpacing = keepLineSpacing != 0f ? keepLineSpacing : LeadingLineSpacing(LabelRow(m, famName), tmNw != null ? tmNw.font : null);
                   newHl.SetText(newHl.text);
                 }
               }
@@ -19755,12 +24383,18 @@ namespace PatternBreak {
         Debug.Log("UI Kit Maker: rebuilt the SeasonTrack prefab around live tier cells — the track art is now the bare board, and tier count, claims, reward icons and progress are Inspector dials on the SeasonTrack component. Placed copies picked it up automatically.");
       if (barRigged > 0)
         Debug.Log("UI Kit Maker: converged " + barRigged + " bar prefab(s) onto the kit-dressed rig (round 21) — the progress bar's mercury rides a Filled image on the app's well zone (drive Fill Area > Fill's fillAmount), and the segment meter gained its Lit layer (drive Lit's fillAmount; it snaps to whole cells). Placed copies picked it up automatically.");
+      if (capRigged > 0)
+        Debug.Log("UI Kit Maker: gave " + capRigged + " bar prefab(s) their ROUNDED mercury head — the app redraws the bead at every value, and the bar now parks that exact bead on the value line instead of showing the Filled crop's flat cut. Keep driving fillAmount (or KitBarFill.SetValue); the head follows.");
+      if (medalWorded > 0)
+        Debug.Log("UI Kit Maker: seated the VS bar medallion's word LIVE on " + medalWorded + " prefab(s) — the medal sprite ships wordless now and the VS rides it as editable TMP (retype or restyle it in the Inspector; deleting the Words tree is yours and sticks).");
       if (readopted > 0)
         Debug.Log("UI Kit Maker: re-adopted the kit's current sprites on " + readopted + " example prefab(s) — they were still wearing files this kit no longer exports (the pre-rename names), so their look froze while everything else updated. They now restyle with every re-export, like the rest.");
       if (reshaped > 0)
         Debug.Log("UI Kit Maker: corrected the Image mode on " + reshaped + " sprite layer(s) — border-less art was marked Sliced (Unity: \\"This Image doesn't have a border\\"), which stretches round pieces into ovals when resized. They now draw Simple with Preserve Aspect, so any rect keeps the drawn shape.");
       if (pressArmed > 0)
         Debug.Log("UI Kit Maker: armed the fire button's press sink — the armed glyph now rides the dome's full pressed trip (kit press lift + the dome's designed sink) instead of floating in place. Tune it anytime via Pressed Lift on the FireButton component.");
+      if (glyphSeated > 0)
+        Debug.Log("UI Kit Maker: re-seated the fire button's armed glyph on the app's own icon seat — the old placement was a hand estimate that sat the icon low; the kit now ships the exact center and size the app draws. A Weapon you moved or resized yourself is never touched.");
       if (faceRects > 0)
         Debug.Log("UI Kit Maker: re-converged the layer stack on " + faceRects + " tiled-face prefab(s) — an overlay child had drifted off the full-stretch contract, painting its gloss/edge art beside the piece instead of over it. All three layers ride one rect again.");
       if (idled > 0)

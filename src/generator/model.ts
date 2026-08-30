@@ -763,6 +763,14 @@ export interface GenConfig extends StateDesign {
    *  (owner: "let's add margin controls to make this an easy fix for any
    *  situation"). Absent = 0 on kits saved before the control existed. */
   contentMargin?: number;
+  /** RENDER-TIME ONLY — stamped by applyKitDesign when a piece's fork pins
+   *  its own type size; never stored in documents. Lets renderers whose
+   *  numerals are system chrome at the gold-standard scale (the badge
+   *  count) honor the PIECE's own size dial while still ignoring whatever
+   *  master type scale an applied look carries (round 46: round 45 made
+   *  the count look-independent but consumed this dial — the owner
+   *  overruled that trade; a dial that does nothing is a bug). */
+  pieceTypeSize?: number;
 }
 
 /** Effective kit size for a component — Small retired (reads as Medium),
@@ -1204,6 +1212,15 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
     { id: "active", name: "Active arm", kind: "choice", choices: ["None", "Up", "Left", "Right", "Down"],
       note: "Lights one arm with the selection ring — the focus a controller draws while cycling. None rests the cross." },
   ],
+  hotbar: [
+    /* the owner, field round 46: "wasn't able to edit the color of the
+       white numerics at the bottom" — the corner stock counts were baked
+       HUD white with no control anywhere. One color well answers. The
+       keybind digits (1–9) keep following the kit's Text color, where a
+       type edit is expected to land. */
+    { id: "countColor", name: "Count color", kind: "color", def: "#FFFFFF",
+      note: "The stock counts in the cell corners (the 64s). Factory is HUD white; a pick here inks them alone. The keybind digits (1–9) follow the kit's Text color under Typography instead." },
+  ],
   bottomnav: [
     /* the casual tab bar: four destination cells. Labels and glyphs are
        per-cell slots (the multi-cell house pattern — quickslots, invgrid);
@@ -1234,6 +1251,17 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
       note: "A number here pins the red count dot to the cell's corner. Empty removes it." },
     { id: "active", name: "Active cell", kind: "value",
       note: "Driven by the value slider, in quarters — 0–24% lights cell 1, 25–49% cell 2, 50–74% cell 3, 75–100% cell 4." },
+  ],
+  booster: [
+    /* the owner, field round 48: "can't change the color of the
+       notification number in the booster button" — the count rode its
+       plate in baked white, and the plate itself wore the kit's Bevel
+       role with no per-piece say. Two wells answer (the hotbar count-well
+       precedent); untouched, both keep the factory bytes exactly. */
+    { id: "countColor", name: "Count color", kind: "color", def: "#FFFFFF",
+      note: "The notification number riding the badge plate. Factory is white; a pick here inks it alone. The 0-count FREE ribbon keeps its gold." },
+    { id: "plateColor", name: "Badge plate", kind: "color", def: "#0E9CC9",
+      note: "The count badge's plate (halo included). Factory follows the kit's Bevel role under Effects; a pick here forks this piece's plate alone." },
   ],
   boostercard: [
     /* name rides the main Text control (KIT_LABEL_EDITABLE); the second
@@ -1342,6 +1370,11 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
        able to control / customize the icon on the streak counter") */
     { id: "endicon", name: "Ignition icon", kind: "choice", choices: STREAK_GLYPHS,
       note: "The glyph that lights when the streak fills — Factory is the zap. None removes it; size and weight follow Typography → Icons." },
+    /* round 48 (owner: "i can't change the icon color of the streak meter
+       (non-ignited)") — the unlit pose wore a baked dim white while the
+       lit pose answered the Glow role. One well inks the ghost. */
+    { id: "offink", name: "Idle icon color", kind: "color", def: "#FFFFFF",
+      note: "The ignition glyph's UNLIT pose — the ghost it wears while the streak builds. Factory is a dim HUD white; a pick here inks it alone. The lit pose follows the kit's Glow role." },
   ],
   joystick: [
     /* the overlay stick's stroke-and-glass ink all mixes from one hue
@@ -1834,6 +1867,21 @@ export const CLONE_INELIGIBLE = new Set<KitComponentId>(["datarow", "panel"]);
  *  before its switch, which stays compile-time exhaustive for the rest. */
 export type GlyphPieceId = Extract<KitComponentId, `glyph${string}`>;
 export const isGlyphPiece = (id: KitComponentId): id is GlyphPieceId => id.startsWith("glyph");
+/* ── the dressed-icon FAMILY and its ONE list (round 45 · B5) ──────────
+   The semantic ICON PROPS (gear/trophy/gift) are the same kind of thing
+   as the glyph rack — an icon silhouette the engine dresses — but they
+   were born before the glyph age's flat factory mandate and kept
+   rendering extruded/walled by default, drifting from the family (owner:
+   "semantic glyph icons need to update, per the latest glyph default
+   states, make a habit of this"). THE HABIT IS THIS LIST: the flat
+   factory seed in migrateKitDesigns and every family-aware surface read
+   it, so changing the factory look — or landing a new dressed-icon
+   piece — is one edit here and the whole family follows. Never seed a
+   family member anywhere else. */
+export const GLYPH_FAMILY_EXTRAS: KitComponentId[] = ["gearicon", "trophyicon", "gifticon"];
+/** Family membership: the glyph rack plus the icon props. */
+export const isGlyphFamily = (id: KitComponentId): boolean =>
+  isGlyphPiece(id) || GLYPH_FAMILY_EXTRAS.includes(id);
 
 /** True when a piece may be SHOWN: released pieces for everyone, staged
  *  pieces only for the admin (who tests them before release). A hard-deleted
@@ -1958,6 +2006,11 @@ export function applyKitDesign(cfg: GenConfig, kd?: KitDesign | null): GenConfig
     if (ov === undefined) continue;
     o[k] = k === "effects" ? JSON.parse(JSON.stringify(ov)) : deepMergeDesign(src[k], ov);
   }
+  /* the piece's OWN type-size fork rides along for renderers that pin their
+     numerals to the system scale (the badge count): the look-master's size
+     stays ignored there, but the piece's own dial must speak (round 46). */
+  const ownTS = kd.type?.size;
+  if (typeof ownTS === "number") out.pieceTypeSize = ownTS;
   return out;
 }
 
@@ -2053,6 +2106,13 @@ export function migrateKitDesigns(cfg: GenConfig, forks: Partial<Record<KitCompo
      workspace hydrate, preset load — so old saves pick it up too. */
   for (const g of GLYPH_LIBRARY) {
     const id = `glyph${g.id}` as KitComponentId;
+    if (out[id] === undefined) { out[id] = GLYPH_FLAT_DESIGN(); changed = true; }
+  }
+  /* the icon PROPS are glyph-family citizens (round 45 · B5, owner:
+     "semantic glyph icons need to update, per the latest glyph default
+     states") — same flat factory seed, same only-if-absent rule, read
+     from the ONE family list so no member can drift again. */
+  for (const id of GLYPH_FAMILY_EXTRAS) {
     if (out[id] === undefined) { out[id] = GLYPH_FLAT_DESIGN(); changed = true; }
   }
   return { forks: out, changed };
@@ -2222,6 +2282,8 @@ export const STOCK_ICONS: Record<string, IconDef> = {
   hand: { lib: "lucide", name: "Hand", viewBox: "0 0 24 24", inner: '<path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>', mode: "stroke" },
   boots: { lib: "lucide", name: "Footprints", viewBox: "0 0 24 24", inner: '<path d="M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 10 3.8 10 5.5c0 3.11-2 5.66-2 8.68V16a2 2 0 1 1-4 0Z"/><path d="M20 20v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4.5-6C14.63 6 14 7.8 14 9.5c0 3.11 2 5.66 2 8.68V20a2 2 0 1 0 4 0Z"/><path d="M16 17h4"/><path d="M4 13h4"/>', mode: "stroke" },
   zap: { lib: "lucide", name: "Zap", viewBox: "0 0 24 24", inner: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>', mode: "stroke" },
+  // the match-3 green lane's glyph (round 46: the bag read as a FILE at tile size)
+  leaf: { lib: "lucide", name: "Leaf", viewBox: "0 0 24 24", inner: '<path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>', mode: "stroke" },
   flask: { lib: "lucide", name: "FlaskConical", viewBox: "0 0 24 24", inner: '<path d="M10 2v7.527a2 2 0 0 1-.211.896L4.72 20.55a1 1 0 0 0 .9 1.45h12.76a1 1 0 0 0 .9-1.45l-5.069-10.127A2 2 0 0 1 14 9.527V2"/><path d="M8.5 2h7"/><path d="M7 16h10"/>', mode: "stroke" },
   scroll: { lib: "lucide", name: "Scroll", viewBox: "0 0 24 24", inner: '<path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/>', mode: "stroke" },
   key: { lib: "lucide", name: "Key", viewBox: "0 0 24 24", inner: '<path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4"/><path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/>', mode: "stroke" },

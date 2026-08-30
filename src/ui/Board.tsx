@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceBetween, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceBetween, ArrowDown, ArrowUp, BookmarkPlus, BringToFront, Copy, Download, Grid3x3, ImagePlus, LayoutTemplate, Lock, Monitor, Plus, Search, SendToBack, Shield, Smartphone, SquarePen, Trash2, Type, X } from "lucide-react";
 import { useGen, rehydrateBoardBgs, boardBgFilter, boardScaleMin, drawBoardNoise, drawBoardOverlays, stampFilter, stampSvg, warpStampRaster, importUserAssetFile, kitShadowFilter, suppressCastShadow } from "@/generator/store";
 import type { UserAsset, UserLogoFx } from "@/generator/store";
@@ -7,7 +7,7 @@ import { importBgAsset, bgAssetStatusLine, onAssetActivity, bgAssetDisplayUrl } 
 import { BACKDROP_LIBRARY, BACKDROP_CATEGORIES, backdropThumb, backdropUrl } from "@/generator/backdropLibrary";
 import type { BoardDef, BoardItem } from "@/generator/store";
 import { renderBevel, renderKit, VALUE_DRIVEN } from "@/generator/bevel";
-import { KIT_COMPONENTS, applyKitDesign, applyKitTextFill, baseOf, fontByName, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
+import { KIT_COMPONENTS, applyKitDesign, applyKitTextFill, baseOf, fontByName, isGlyphFamily, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
 import { LIVE_GLYPHS } from "@/generator/glyphLibrary";
 import { BIG_GLYPHS, BIG_GLYPH_BASE, bigGlyphById, bigGlyphThumb, bigGlyphMid, bigGlyphUrl, bigGlyphFilter, type BigGlyphDef, type BigGlyphFx } from "@/generator/bigGlyphs";
 import type { GenConfig, KitComponentId } from "@/generator/model";
@@ -159,18 +159,38 @@ type Tpl = {
   /** template is composed for a specific stage — applying it retunes the
    *  active board's aspect first (the Match-3 mobile grid) */
   aspect?: "169" | "mobile";
-  items: { kitId?: KitComponentId; big?: BigGlyphFx; x: number; y: number; scale?: number }[];
+  /** ov / v / label / rot ride the same instance fields the Inspector
+   *  edits — a starter can pose a mystery card (`ov`), a legendary tier
+   *  (`v`), its own words (`label`) or a turned trail bead (`rot`)
+   *  without touching the kit-wide settings */
+  items: { kitId?: KitComponentId; big?: BigGlyphFx; x: number; y: number; scale?: number; ov?: string; v?: number; label?: string; rot?: number }[];
 };
 /* The Match-3 board: 7×9 big-glyph tiles at 12% (~52px — the scale-floor
    round's whole point) on the 390×844 stage. The tiles are the set's six
-   true fruits (owner: "layout the fruit in a grid"). Seeded MATCHLESS the
-   way a real round starts: tile kind = (col + 2·row) mod 6, so horizontal
-   neighbours differ by 1 and vertical by 2 — never a 3-run — with one
-   bomb dropped in as the power piece (a single bomb can't form a run). */
-const M3_TILES = ["apple", "blueberry", "bananas", "lime", "grapes", "orange"];
+   true fruits (owner: "layout the fruit in a grid"). The deal is HAND-SET
+   (round 46): the old matchless formula ((col + 2·row) mod 6) was TOO
+   matchless — zero one-swap matches anywhere, so the board read as
+   wallpaper, not a puzzle (owner: too hard to read). This deal keeps the
+   real-round contract — no dealt 3-run — but plants ELEVEN one-swap
+   matches, several of them obvious pair-plus-one shapes near the top,
+   with the single bomb kept as the power piece. Checked by script:
+   0 dealt runs · 11 legal moves. */
+const M3_DEAL = [
+  // A apple · B blueberry · N bananas · L lime · G grapes · O orange · X bomb
+  "ABBNLOG",
+  "NAOBGLO",
+  "AAGBBNL",
+  "OGNLLBO",
+  "GONXAGN",
+  "BGGOANA",
+  "LBNGOLB",
+  "GLLBNOO",
+  "ANGGLBN",
+];
+const M3_KIND: Record<string, string> = { A: "apple", B: "blueberry", N: "bananas", L: "lime", G: "grapes", O: "orange", X: "bomb" };
 const M3_GRID: { big: BigGlyphFx; x: number; y: number; scale: number }[] = [];
 for (let r = 0; r < 9; r++) for (let c = 0; c < 7; c++) {
-  const gid = r === 4 && c === 3 ? "bomb" : M3_TILES[(c + 2 * r) % 6];
+  const gid = M3_KIND[M3_DEAL[r][c]];
   const gl = bigGlyphById(gid)!;
   M3_GRID.push({
     big: { gid },
@@ -180,154 +200,485 @@ for (let r = 0; r < 9; r++) for (let c = 0; c < 7; c++) {
   });
 }
 const BOARD_TEMPLATES: Record<string, Tpl> = {
-  "Main menu": { items: [
-    { kitId: "header", x: 560, y: 90, scale: 1.1 },
-    { kitId: "primary", x: 700, y: 390, scale: 1.1 },
-    { kitId: "badge", x: 1165, y: 370, scale: 0.9 },
-    { kitId: "secondary", x: 610, y: 585 },
-    { kitId: "ghost", x: 760, y: 780 },
-    { kitId: "resource", x: 70, y: 55 },
-    { kitId: "currency", x: 70, y: 160, scale: 0.9 },
-    { kitId: "iconbtn", x: 1680, y: 60, scale: 0.9 },
-    { kitId: "notifydot", x: 1640, y: 48, scale: 0.9 },
+  /* Grand title menu on the owner's Ember Isle scene: title over open sky,
+     the CTA ladder down the island, wallet strip left, news chrome right. */
+  "Main menu": { bg: "/backdrops/lib/ember-isle.webp", items: [
+    { kitId: "header", x: 474, y: 0, label: "EMBER ISLE" },
+    { kitId: "primary", x: 641, y: 341, scale: 1.2 },
+    { kitId: "secondary", x: 670, y: 592, scale: 0.85, label: "OPTIONS" },
+    { kitId: "ghost", x: 738, y: 760, scale: 0.8, label: "CREDITS" },
+    { kitId: "input", x: 656, y: 879, scale: 0.8 },
+    { kitId: "resource", x: 5, y: 6, scale: 0.9 },
+    { kitId: "currency", x: 5, y: 108, scale: 0.9, label: "8,420" },
+    { kitId: "notifydot", x: 1700, y: 5, scale: 0.9 },
+    { kitId: "badge", x: 1643, y: 2, scale: 0.7, label: "NEW" },
+    { kitId: "iconbtn", x: 1705, y: 172, scale: 0.9 },
+    // staged: glyphplay (icon child on the PLAY cta)
+    // staged: glyphreplay (icon child on the continue/options row)
+    // staged: glyphhome (icon child on the corner iconbtn)
   ] },
+  /* Squad FPS HUD — the big rescue sweep: crosshair dead-center with the
+     hitmarker riding it, damage arc ringing the screen center, feeds and
+     meters at the frame edges the genre way. */
   "FPS HUD": { bg: "/backdrops/fps-ruins.jpg", items: [
-    { kitId: "reticle", x: 870, y: 450 },
-    { kitId: "lives", x: 90, y: 55, scale: 0.85 },
-    { kitId: "capturemeter", x: 760, y: 50, scale: 0.9 },
-    { kitId: "minimap", x: 1540, y: 55, scale: 0.9 },
-    { kitId: "killfeed", x: 1330, y: 400, scale: 0.85 },
-    { kitId: "weaponwheel", x: 700, y: 560, scale: 0.7 },
-    { kitId: "progress", x: 70, y: 890 },
-    { kitId: "hotbar", x: 430, y: 905, scale: 0.85 },
-    { kitId: "ammo", x: 1500, y: 860 },
-    { kitId: "dmgnumber", x: 1060, y: 330, scale: 0.85 },
+    { kitId: "minimap", x: 60, y: 50, scale: 0.9 },
+    { kitId: "compass", x: 619, y: 28, scale: 0.8 },
+    { kitId: "capturemeter", x: 850, y: 190, scale: 0.85 },
+    { kitId: "killfeed", x: 1270, y: 58, scale: 0.75 },
+    { kitId: "streakmeter", x: 60, y: 430, scale: 0.85 },
+    { kitId: "equipselector", x: 1490, y: 380, scale: 0.85 },
+    { kitId: "waypoint", x: 520, y: 300, scale: 0.85 },
+    { kitId: "keycap", x: 660, y: 310, scale: 0.8 },
+    { kitId: "dmgarc", x: 802, y: 382 },
+    { kitId: "crosshair", x: 857, y: 437 },
+    { kitId: "hitmarker", x: 918, y: 418, scale: 0.9 },
+    { kitId: "dmgnumber", x: 1160, y: 350, scale: 0.85 },
+    { kitId: "dmgnumber", x: 1130, y: 240, scale: 0.6 },
+    { kitId: "respawn", x: 850, y: 640, scale: 0.9 },
+    { kitId: "lives", x: 70, y: 945, scale: 0.9 },
+    { kitId: "buffframe", x: 640, y: 800, scale: 0.6 },
+    { kitId: "buffframe", x: 760, y: 800, scale: 0.6 },
+    { kitId: "hotbar", x: 560, y: 900, scale: 0.85 },
+    { kitId: "magazine", x: 1530, y: 878, scale: 0.9 },
+    { kitId: "ammo", x: 1550, y: 905 },
+    // alt centerpiece: reticle (released) can swap in for the crosshair
+    // staged: glyphtarget — icon child on the waypoint marker
+    // staged: glyphshield — beside the buff row
+    // staged: glyphskull — killfeed row icon (id joins the KitComponentId
+    // union when the glyph set releases)
   ] },
-  "Arena HUD": { items: [
-    { kitId: "vsbar", x: 430, y: 40, scale: 0.9 },
-    { kitId: "scorebug", x: 820, y: 170, scale: 0.85 },
-    { kitId: "minimap", x: 1540, y: 130, scale: 0.9 },
-    { kitId: "streakmeter", x: 60, y: 300, scale: 0.85 },
-    { kitId: "joystick", x: 110, y: 600 },
-    { kitId: "hotbar", x: 510, y: 890, scale: 0.9 },
-    { kitId: "respawn", x: 780, y: 470, scale: 0.9 },
-    { kitId: "iconbtn", x: 1720, y: 620, scale: 0.85 },
+  /* Arena brawl HUD over the monster-pit melee: vs banner + score up top,
+     nameplates on the combatants, weapon wheel at the thumb line. */
+  "Arena HUD": { bg: "/backdrops/lib/monsterfire-melee.webp", items: [
+    { kitId: "vsbar", x: 430, y: 36, scale: 0.95 },
+    { kitId: "scorebug", x: 600, y: 145, scale: 0.85 },
+    { kitId: "chip", x: 1275, y: 155, scale: 0.8 },
+    { kitId: "killfeed", x: 1250, y: 250, scale: 0.85 },
+    { kitId: "streakmeter", x: 70, y: 230, scale: 0.85 },
+    { kitId: "buffframe", x: 70, y: 470, scale: 0.85 },
+    { kitId: "nameplate", x: 220, y: 375, scale: 0.75 },
+    { kitId: "nameplate", x: 1150, y: 420, scale: 0.75 },
+    { kitId: "respawn", x: 730, y: 400, scale: 0.9 },
+    { kitId: "minimap", x: 1540, y: 765, scale: 0.9 },
+    { kitId: "weaponwheel", x: 725, y: 600, scale: 0.62 },
   ] },
+  /* Skill tree & quests: a diamond skill web on the left two-thirds —
+     bead trails listed BEFORE nodes so node art paints over trail ends —
+     quest rail right, dialogue at the floor. */
   "RPG quest": { bg: "/backdrops/strategy-keep.jpg", items: [
-    { kitId: "nameplate", x: 60, y: 50, scale: 0.9 },
-    { kitId: "partyframe", x: 60, y: 210, scale: 0.85 },
-    { kitId: "waypoint", x: 880, y: 40, scale: 0.85 },
-    { kitId: "questpanel", x: 1290, y: 130, scale: 0.8 },
-    { kitId: "loottag", x: 620, y: 430, scale: 0.85 },
-    { kitId: "dialoguebox", x: 430, y: 700, scale: 0.9 },
-    { kitId: "xpbar", x: 560, y: 950, scale: 0.9 },
+    { kitId: "emblembar", x: 50, y: 40, scale: 0.8 },
+    { kitId: "pathconnector", x: 191, y: 287, scale: 0.5 },
+    { kitId: "pathconnector", x: 191, y: 452, scale: 0.5 },
+    { kitId: "pathconnector", x: 453, y: 207, scale: 0.5 },
+    { kitId: "pathconnector", x: 453, y: 532, scale: 0.5 },
+    { kitId: "pathconnector", x: 716, y: 290, scale: 0.5 },
+    { kitId: "pathconnector", x: 716, y: 450, scale: 0.5 },
+    { kitId: "pathconnector", x: 976, y: 370, scale: 0.5 },
+    { kitId: "skillnode", x: 62, y: 314, scale: 0.85 },
+    { kitId: "skillnode", x: 334, y: 160, scale: 0.75 },
+    { kitId: "skillnode", x: 334, y: 490, scale: 0.75 },
+    { kitId: "skillnode", x: 599, y: 165, scale: 0.75 },
+    { kitId: "skillnode", x: 599, y: 485, scale: 0.75 },
+    { kitId: "skillnode", x: 859, y: 325, scale: 0.75 },
+    { kitId: "skillnode", x: 1107, y: 314, scale: 0.85 },
+    { kitId: "questpanel", x: 1306, y: 144, scale: 0.8 },
+    { kitId: "choicelist", x: 1306, y: 574, scale: 0.8 },
+    { kitId: "dialoguebox", x: 466, y: 633, scale: 0.8 },
+    { kitId: "xpbar", x: 407, y: 872, scale: 1.1 },
+    // staged: glyphquests, glyphlock, glyphcheckmark (node states) — land
+    // with their set's release
   ] },
+  /* Social tavern: who's-online panel left, bounty board right, the
+     barkeep conversation at the hearth, ENTER TOWN on the scene's door. */
   "Tavern hub": { bg: "/backdrops/tavern.jpg", items: [
-    { kitId: "header", x: 560, y: 40 },
-    { kitId: "avatarframe", x: 60, y: 44, scale: 0.85 },
-    { kitId: "currency", x: 1550, y: 50, scale: 0.85 },
-    { kitId: "primary", x: 740, y: 500 },
-    { kitId: "friendrow", x: 1280, y: 290, scale: 0.85 },
-    { kitId: "friendrow", x: 1280, y: 420, scale: 0.85 },
-    { kitId: "clancrest", x: 1340, y: 560, scale: 0.8 },
-    { kitId: "chatbubble", x: 240, y: 560, scale: 0.85 },
-    { kitId: "dialoguebox", x: 430, y: 760, scale: 0.9 },
+    { kitId: "panel", x: 60, y: 170, scale: 0.75 },
+    { kitId: "friendrow", x: 130, y: 210, scale: 0.78, label: "NOVA_KNIGHT" },
+    { kitId: "friendrow", x: 130, y: 310, scale: 0.78, label: "KAIRO_77" },
+    { kitId: "friendrow", x: 130, y: 410, scale: 0.78, label: "EMBER_MAE" },
+    { kitId: "panel", x: 1170, y: 180, scale: 0.88 },
+    { kitId: "datarow", x: 1266, y: 209, scale: 0.68 },
+    { kitId: "datarow", x: 1266, y: 343, scale: 0.68 },
+    { kitId: "datarow", x: 1266, y: 477, scale: 0.68 },
+    { kitId: "chatbubble", x: 330, y: 600, scale: 0.75, label: "anyone up for the ember run?" },
+    { kitId: "avatarframe", x: 358, y: 830, scale: 0.85 },
+    { kitId: "dialoguebox", x: 555, y: 800, scale: 0.8, label: "Warm yourself — the pass can wait." },
+    { kitId: "secondary", x: 751, y: 636, scale: 0.62, label: "ENTER TOWN" },
+    { kitId: "iconbtn", x: 1586, y: 36, scale: 0.85 },
+    { kitId: "notifydot", x: 1734, y: 36, scale: 0.85 },
   ] },
-  "Card table": { bg: "/backdrops/valley.jpg", items: [
-    { kitId: "scorebug", x: 780, y: 40, scale: 0.85 },
-    { kitId: "chip", x: 90, y: 60, scale: 0.9 },
-    { kitId: "cardback", x: 540, y: 280, scale: 0.9 },
-    { kitId: "cardback", x: 810, y: 260, scale: 0.9 },
-    { kitId: "pack", x: 1180, y: 260, scale: 0.9 },
-    { kitId: "endturn", x: 1560, y: 830, scale: 0.9 },
-    { kitId: "avatarframe", x: 70, y: 820, scale: 0.85 },
+  /* Card duel table at the midnight club: opponent seat + fan up top, the
+     table itself stays open, player seat and deck at the near rail. */
+  "Card table": { bg: "/backdrops/lib/midnight-meeple-club.webp", items: [
+    { kitId: "vsbar", x: 445, y: 18, scale: 0.9 },
+    { kitId: "avatarframe", x: 48, y: 40, scale: 0.8 },
+    { kitId: "chip", x: 56, y: 245, scale: 0.85 },
+    { kitId: "cardback", x: 675, y: 150, scale: 0.42 },
+    { kitId: "cardback", x: 850, y: 134, scale: 0.42 },
+    { kitId: "cardback", x: 1025, y: 150, scale: 0.42 },
+    { kitId: "energymeter", x: 40, y: 420, scale: 0.85 },
+    { kitId: "combo", x: 590, y: 395, scale: 0.8 },
+    { kitId: "endturn", x: 1660, y: 430, scale: 0.9 },
+    { kitId: "pack", x: 1400, y: 650, scale: 0.5 },
+    { kitId: "cardback", x: 1630, y: 662, scale: 0.5 },
+    { kitId: "emotewheel", x: 245, y: 585, scale: 0.42 },
+    { kitId: "avatarframe", x: 48, y: 805, scale: 0.85 },
+    { kitId: "chip", x: 250, y: 905, scale: 0.85 },
+    // staged: glyphcrown — the winner's crown garnish, lands when the glyph rack releases
   ] },
+  /* Open-world street HUD: compass with the waypoint marking a building
+     down the block, quest tracker right, pickup + interact prompt mid. */
   "Open world": { bg: "/backdrops/city-streets.jpg", items: [
-    { kitId: "chip", x: 70, y: 50, scale: 0.9 },
-    { kitId: "waypoint", x: 850, y: 40, scale: 0.85 },
-    { kitId: "currency", x: 1550, y: 50, scale: 0.85 },
-    { kitId: "toast", x: 1200, y: 170, scale: 0.85 },
-    { kitId: "buffframe", x: 70, y: 560, scale: 0.85 },
+    { kitId: "heartmeter", x: 70, y: 50, scale: 0.9 },
+    { kitId: "compass", x: 640, y: 40, scale: 0.9 },
+    { kitId: "waypoint", x: 938, y: 210, scale: 0.85 },
+    { kitId: "currency", x: 1400, y: 50, scale: 0.85 },
+    { kitId: "iconbtn", x: 1710, y: 48, scale: 0.85 },
+    { kitId: "questpanel", x: 1330, y: 300, scale: 0.8 },
+    { kitId: "loottag", x: 560, y: 480, scale: 0.85 },
+    { kitId: "keycap", x: 703, y: 620, scale: 0.9 },
     { kitId: "minimap", x: 70, y: 730, scale: 0.95 },
-    { kitId: "compass", x: 620, y: 935, scale: 0.9 },
+    { kitId: "hotbar", x: 435, y: 900, scale: 0.9 },
   ] },
-  "Racing HUD": { items: [
-    { kitId: "circuit", x: 60, y: 80 },
-    { kitId: "leaderboard", x: 1460, y: 30, scale: 0.8 },
-    { kitId: "telemetry", x: 1450, y: 330, scale: 0.85 },
-    { kitId: "laptimes", x: 60, y: 620, scale: 0.9 },
-    { kitId: "tacho", x: 1290, y: 620, scale: 1.05 },
+  /* Racing start grid at the palmside pit: gantry centered, timing column
+     left, telemetry + the three-gauge dash cluster right. */
+  "Racing HUD": { bg: "/backdrops/lib/palmside-pitstop.webp", items: [
+    { kitId: "startlights", x: 723, y: 30 },
+    { kitId: "chip", x: 95, y: 10, scale: 0.6 },
+    { kitId: "laptimes", x: 60, y: 75, scale: 0.9 },
+    { kitId: "leaderboard", x: 60, y: 430, scale: 0.8 },
+    { kitId: "circuit", x: 60, y: 800, scale: 0.75 },
+    { kitId: "telemetry", x: 1435, y: 170, scale: 0.85 },
+    { kitId: "tacho", x: 1212, y: 756, scale: 0.48 },
+    { kitId: "speedo", x: 1428, y: 716, scale: 0.48 },
+    { kitId: "speedo2", x: 1645, y: 736, scale: 0.48 },
+    // staged: timerdigits — race clock (release with the timer set)
+    // { kitId: "timerdigits", x: 1500, y: 40, scale: 0.9 },
+    // staged: glyphcheckpoint, glyphtimer — swappable icon children for the
+    // gantry/clock (release with the glyph set)
   ] },
-  "Versus": { items: [
-    { kitId: "vsbar", x: 460, y: 60 },
-    { kitId: "badge", x: 480, y: 300, scale: 0.9 },
-    { kitId: "badge", x: 1260, y: 300, scale: 0.9 },
-    { kitId: "bignum", x: 770, y: 420, scale: 1.1 },
-    { kitId: "primary", x: 700, y: 790, scale: 1.05 },
+  /* Matchup card on the redline scene: mirrored fighters — frame, crest,
+     nameplate, rank shield per side — season record up top, CTA between. */
+  "Versus": { bg: "/backdrops/lib/redline-rebellion.webp", items: [
+    { kitId: "scorebug", x: 595, y: 0, scale: 0.85 },
+    { kitId: "chip", x: 1295, y: 0, scale: 0.9 },
+    { kitId: "vsbar", x: 396, y: 128 },
+    { kitId: "avatarframe", x: 232, y: 297, scale: 1.15 },
+    { kitId: "avatarframe", x: 1351, y: 297, scale: 1.15 },
+    { kitId: "clancrest", x: 546, y: 373, scale: 0.75 },
+    { kitId: "clancrest", x: 1164, y: 373, scale: 0.75 },
+    { kitId: "nameplate", x: 96, y: 619, scale: 0.8 },
+    { kitId: "nameplate", x: 1215, y: 619, scale: 0.8 },
+    { kitId: "badge", x: 311, y: 739, scale: 0.85 },
+    { kitId: "badge", x: 1430, y: 739, scale: 0.85 },
+    { kitId: "primary", x: 681, y: 729, scale: 1.05 },
+    { kitId: "emblembar", x: 640, y: 954, scale: 0.9 },
   ] },
   /* the owner: "let's have a match 3 mobile template in the dropdown that
      populates the correct match 3 layout" — the real portrait shape: kit
      header (moves + timer + goal bar), the 7×9 tile grid, boosters at the
      thumb line. Released with the set (owner order, 2026-08-21). */
-  "Match-3 (mobile)": { aspect: "mobile", items: [
-    { kitId: "movecounter", x: 10, y: 30, scale: 0.38 },
-    { kitId: "stopwatch", x: 286, y: 26, scale: 0.3 },
-    { kitId: "segbar", x: 86, y: 118, scale: 0.3 },
+  "Match-3 (mobile)": { aspect: "mobile", bg: "/backdrops/lib/candy-river-quest.webp", items: [
+    { kitId: "movecounter", x: 0, y: 0, scale: 0.34 },
+    { kitId: "stopwatch", x: 229, y: 0, scale: 0.28 },
+    { kitId: "glyphpause", x: 320, y: 0, scale: 0.16 },
+    { kitId: "segbar", x: 70, y: 99, scale: 0.28 },
     ...M3_GRID,
-    { kitId: "booster", x: 42, y: 730, scale: 0.45 },
-    { kitId: "booster", x: 148, y: 730, scale: 0.45 },
-    { kitId: "booster", x: 254, y: 730, scale: 0.45 },
+    { kitId: "combo", x: 191, y: 327, scale: 0.42 },
+    { kitId: "booster", x: 0, y: 654, scale: 0.38 },
+    { kitId: "booster", x: 84, y: 654, scale: 0.38 },
+    { kitId: "slot", x: 175, y: 663, scale: 0.34 },
+    { kitId: "slot", x: 263, y: 663, scale: 0.34 },
+    { kitId: "glyphhammer", x: 192, y: 692, scale: 0.21 },
+    { kitId: "glyphmagnet", x: 290, y: 690, scale: 0.21 },
+    { kitId: "qtybadge", x: 214, y: 676, scale: 0.18 },
+    // staged: glyphaddtime — +time chip seated on the stopwatch's dark dial edge
+    // staged: glyphtimer — on the segbar's dark left cap
   ] },
-  "RPG party": { items: [
-    { kitId: "header", x: 560, y: 30 },
-    { kitId: "datarow", x: 120, y: 350, scale: 0.9 },
-    { kitId: "datarow", x: 120, y: 515, scale: 0.9 },
-    { kitId: "datarow", x: 120, y: 680, scale: 0.9 },
-    { kitId: "panel", x: 1220, y: 340, scale: 0.75 },
-    ...[0, 1, 2, 3].map((i) => ({ kitId: "slot" as KitComponentId, x: 1220 + i * 165, y: 810, scale: 0.8 })),
-    { kitId: "small", x: 70, y: 60 },
+  /* Raid party HUD under the twin-moon pagoda: party stack left with the
+     player's buff row, boss plate + floating hits, mana rails at the feet. */
+  "RPG party": { bg: "/backdrops/lib/twin-moon-pagoda.webp", items: [
+    { kitId: "partyframe", x: 45, y: 120, scale: 0.85 },
+    { kitId: "buffframe", x: 90, y: 292, scale: 0.42 },
+    { kitId: "buffframe", x: 185, y: 292, scale: 0.42 },
+    { kitId: "buffframe", x: 280, y: 292, scale: 0.42 },
+    { kitId: "partyframe", x: 45, y: 375, scale: 0.85 },
+    { kitId: "partyframe", x: 45, y: 535, scale: 0.85 },
+    { kitId: "partyframe", x: 45, y: 695, scale: 0.85 },
+    { kitId: "nameplate", x: 600, y: 60 },
+    { kitId: "dmgnumber", x: 900, y: 240, scale: 0.75 },
+    { kitId: "dmgnumber", x: 1160, y: 420, scale: 0.5 },
+    { kitId: "chatbubble", x: 40, y: 850, scale: 0.8 },
+    { kitId: "manarails", x: 520, y: 760, scale: 0.7 },
+    { kitId: "manarails", x: 1120, y: 760, scale: 0.7 },
+    { kitId: "xpbar", x: 620, y: 880 },
+    // staged: healthglobe · staged: quickslots · staged: vitalbar ·
+    // staged: cooldown · staged: glyphheart · staged: glyphenergy
   ] },
-  "Inventory": { items: [
-    { kitId: "resource", x: 70, y: 55 },
-    { kitId: "chip", x: 640, y: 70, scale: 0.85 },
-    { kitId: "chip", x: 870, y: 70, scale: 0.85 },
-    { kitId: "chip", x: 1100, y: 70, scale: 0.85 },
-    ...([0, 1, 2] as const).flatMap((r) => [0, 1, 2, 3].map((c) => (
-      { kitId: "slot" as KitComponentId, x: 640 + c * 180, y: 240 + r * 180, scale: 0.9 }
-    ))),
-    { kitId: "rarityframe", x: 1450, y: 240, scale: 0.8 },
-    { kitId: "small", x: 1450, y: 700 },
+  /* Character & inventory: paper-doll panel left (six equip slots around
+     the shield silhouette), the 9/12 grid + scrollbar right, compare
+     strip on one baseline at the floor. */
+  "Inventory": { bg: "/backdrops/lib/teal-banner-keep.webp", items: [
+    { kitId: "panel", x: 60, y: 170, scale: 1.05 },
+    { kitId: "panel", x: 950, y: 160, scale: 1.12 },
+    { kitId: "tabback", x: 70, y: 36, scale: 0.8 },
+    { kitId: "tab", x: 920, y: 90, scale: 0.8 },
+    { kitId: "tab", x: 1150, y: 90, scale: 0.8 },
+    { kitId: "tab", x: 1380, y: 90, scale: 0.8 },
+    { kitId: "currency", x: 1600, y: 44, scale: 0.85 },
+    { big: { gid: "shield" }, x: 364, y: 315, scale: 0.8 },
+    { kitId: "equipslot", x: 130, y: 200, scale: 0.8 },
+    { kitId: "equipslot", x: 130, y: 360, scale: 0.8 },
+    { kitId: "equipslot", x: 130, y: 520, scale: 0.8 },
+    { kitId: "equipslot", x: 690, y: 200, scale: 0.8 },
+    { kitId: "equipslot", x: 690, y: 360, scale: 0.8 },
+    { kitId: "equipslot", x: 690, y: 520, scale: 0.8 },
+    { kitId: "invgrid", x: 1030, y: 200, scale: 0.84 },
+    { kitId: "scrollbar", x: 1720, y: 205, scale: 0.9 },
+    { kitId: "loottag", x: 1120, y: 590, scale: 0.85 },
+    { kitId: "slot", x: 150, y: 790, scale: 0.9 },
+    { kitId: "glyphgem", x: 211, y: 852, scale: 0.42 },
+    { kitId: "rarityframe", x: 430, y: 810, scale: 0.85 },
+    { kitId: "qtybadge", x: 528, y: 818, scale: 0.6 },
+    { kitId: "stepper", x: 700, y: 830, scale: 0.8 },
+    // staged: tooltip — compare callout, lands when System chrome releases
+    // staged: datarow — stat readout row under the paper doll
+    // staged: glyphkey — key icon child on a grid stack
   ] },
-  "Level select": { items: [
-    { kitId: "header", x: 560, y: 60 },
-    { kitId: "ring", x: 60, y: 55, scale: 0.8 },
-    { kitId: "iconbtn", x: 1680, y: 60, scale: 0.9 },
-    ...[0, 1, 2, 3, 4].map((i) => ({ kitId: "slot" as KitComponentId, x: 460 + i * 210, y: 380, scale: 0.95 })),
-    { kitId: "seasontrack", x: 480, y: 640, scale: 0.85 },
-    { kitId: "primary", x: 700, y: 800 },
+  /* the Brightside saga map, posed on its own owner art: numbered nodes on
+     the painted trail (cleared levels wear their star fans, the current one
+     pulses, the future one locks), best-result pills beside the cleared
+     levels, lives + chapter progress up top, season banner mid, nav below. */
+  "Level select": { bg: "/backdrops/brightside/level-select.jpg", aspect: "mobile", items: [
+    { kitId: "pathconnector", x: 206, y: 623, scale: 0.3, rot: -54, v: 1 },
+    { kitId: "pathconnector", x: 222, y: 512, scale: 0.3, rot: 65, v: 1 },
+    { kitId: "pathconnector", x: 198, y: 407, scale: 0.3, rot: -88, v: 1 },
+    { kitId: "pathconnector", x: 220, y: 304, scale: 0.3, rot: -68, v: 0.25 },
+    { kitId: "levelnode", x: 190, y: 676, scale: 0.22, ov: "stars:3", label: "1" },
+    { kitId: "levelnode", x: 273, y: 561, scale: 0.22, ov: "stars:2", label: "2" },
+    { kitId: "levelnode", x: 222, y: 454, scale: 0.22, ov: "stars:3", label: "3" },
+    { kitId: "levelnode", x: 225, y: 351, scale: 0.22, label: "4" },
+    { kitId: "levelnode", x: 267, y: 248, scale: 0.22, ov: "locked", label: "5" },
+    { kitId: "starrating", x: 97, y: 686, scale: 0.12, v: 1 },
+    { kitId: "starrating", x: 180, y: 571, scale: 0.12, v: 0.67 },
+    { kitId: "starrating", x: 129, y: 464, scale: 0.12, v: 1 },
+    { kitId: "glyphstar", x: 259, y: 328, scale: 0.09 },
+    { kitId: "header", x: 100, y: 10, scale: 0.24, label: "Sky Isles" },
+    { kitId: "avatarframe", x: 4, y: 6, scale: 0.22 },
+    { kitId: "currency", x: 286, y: 14, scale: 0.22 },
+    { kitId: "heartmeter", x: 6, y: 88, scale: 0.22 },
+    { kitId: "ring", x: 326, y: 86, scale: 0.2 },
+    { kitId: "seasontrack", x: 14, y: 150, scale: 0.24 },
+    { kitId: "bottomnav", x: 48, y: 736, scale: 0.37 },
+    { kitId: "notifydot", x: 317, y: 757, scale: 0.2 },
+    // staged: glyphflag — chapter-start pennant at the trailhead
+    // { kitId: "glyphflag", x: 155, y: 735, scale: 0.07 },
+    // staged: glyphcheckpoint — trail checkpoint on the bend past level 2
+    // { kitId: "glyphcheckpoint", x: 291, y: 505, scale: 0.07 },
+    // staged: glyphlock — swappable lock child on the sealed level 5
+    // { kitId: "glyphlock", x: 281, y: 244, scale: 0.07 },
+    // staged: glyphcrown — the chapter-end crown by the castle gate
+    // { kitId: "glyphcrown", x: 289, y: 168, scale: 0.08 },
+    // staged: glyphhome — swappable icon child for the nav's MAP cell
+    // { kitId: "glyphhome", x: 104, y: 758, scale: 0.07 },
+    // staged: glyphprofile — swappable icon child for the nav's HEROES cell
+    // { kitId: "glyphprofile", x: 217, y: 758, scale: 0.07 },
+    // staged: glyphplay — play affordance riding the current node
+    // { kitId: "glyphplay", x: 239, y: 352, scale: 0.08 },
   ] },
-  "Victory": { items: [
-    { kitId: "header", x: 520, y: 110, scale: 1.1 },
-    { kitId: "achievetoast", x: 1230, y: 130, scale: 0.85 },
-    { kitId: "orb", x: 600, y: 450, scale: 0.9 },
-    { kitId: "bignum", x: 770, y: 440 },
-    { kitId: "orb", x: 1230, y: 450, scale: 0.9 },
-    { kitId: "starrating", x: 800, y: 640, scale: 0.9 },
-    { kitId: "primary", x: 700, y: 780, scale: 1.05 },
+  /* Chest-opening rewards ceremony (starter-boards round): the reveal fan
+     — rare / legendary / mystery, an orb glowing behind the big pull —
+     counts riding each card, the wallet up top, and the claim row with
+     its 2×-ad sibling at the thumb line. Composed for the phone portrait
+     like the owner's own Victory board (valley backdrop kin). */
+  "Victory": { aspect: "mobile", bg: "/backdrops/valley.jpg", items: [
+    { kitId: "currency", x: 250, y: 34, scale: 0.34 },
+    { kitId: "header", x: 18, y: 104, scale: 0.32, label: "CHEST OPENED" },
+    // the burst — star + coin spray around the reveal (swappable glyph children)
+    { kitId: "glyphstar", x: 48, y: 246, scale: 0.2 },
+    { kitId: "glyphstar", x: 300, y: 226, scale: 0.26 },
+    // registry-derived glyph id (LIVE_GLYPHS) — the union lists only the
+    // hand-carved subset, so the cast follows the tray's own pattern
+    { kitId: "glyphcoinstack" as KitComponentId, x: 34, y: 304, scale: 0.24 },
+    // the glow behind the legendary pull (support) — drawn first, sits behind
+    { kitId: "orb", x: 90, y: 376, scale: 1.1 },
+    { kitId: "rewardcard", x: 18, y: 420, scale: 0.38, v: 0.5, label: "Sky Crystal" },
+    { kitId: "rewardcard", x: 272, y: 420, scale: 0.38, ov: "mystery" },
+    { kitId: "rewardcard", x: 133, y: 395, scale: 0.46, v: 1, label: "Sun Shard" },
+    // each count rides its card's qty seat (the corner-pill contract)
+    { kitId: "qtybadge", x: 28, y: 520, scale: 0.3, label: "×40" },
+    { kitId: "qtybadge", x: 158, y: 516, scale: 0.34, label: "×1" },
+    { kitId: "qtybadge", x: 289, y: 520, scale: 0.3, label: "×?" },
+    { kitId: "claimbtn", x: 14, y: 706, scale: 0.38 },
+    { kitId: "claimbtn", x: 200, y: 706, scale: 0.38, ov: "2x" },
+    /* Staged garnish — land these lines in the blessed batch that releases
+       the chest set (audition shot: starter-boards/shots/victory-06-garnish.png).
+       v: 0 poses the chest READY — an opened ceremony, not a 4h58m gate. */
+    // staged: chest — { kitId: "chest", x: 138, y: 580, scale: 0.36, v: 0 },
+    // staged: chestpanel — backplate behind the fan, alternate to the orb glow:
+    //   { kitId: "chestpanel", x: 0, y: 350, scale: 0.56 },
+    // staged: giftbox — { kitId: "giftbox", x: 30, y: 600, scale: 0.3 },
+    // staged: rewardtray — "also inside" strip, alternate seat to chest:
+    //   { kitId: "rewardtray", x: 40, y: 610, scale: 0.3 },
+    // staged: glyphchest — { kitId: "glyphchest" as KitComponentId, x: 330, y: 320, scale: 0.26 },
+    // staged: glyphgift — { kitId: "glyphgift" as KitComponentId, x: 24, y: 176, scale: 0.24 },
+    // staged: glyphstarformation — { kitId: "glyphstarformation" as KitComponentId, x: 140, y: 14, scale: 0.4 },
   ] },
+  /* Settings sheet on the bare navy stage: one full-frame panel, section
+     nav + scrollbar left, composed rows right (music, sfx, dropdown, the
+     2×2 choice group), profile mini-card bottom-left. */
   "Settings": { items: [
-    { kitId: "header", x: 620, y: 30, scale: 0.9 },
-    { kitId: "searchfield", x: 640, y: 230, scale: 0.9 },
-    { kitId: "setrow", x: 640, y: 380, scale: 0.9 },
-    { kitId: "slider", x: 640, y: 520 },
-    { kitId: "segment", x: 640, y: 660, scale: 0.9 },
-    { kitId: "dropdown", x: 1240, y: 380, scale: 0.8 },
-    { kitId: "checkbox", x: 1310, y: 550 },
-    { kitId: "toggle", x: 700, y: 800 },
-    { kitId: "toggle", x: 1000, y: 800 },
-    { kitId: "small", x: 1330, y: 710 },
+    { kitId: "panel", x: 73, y: 0, scale: 1.7 },
+    { kitId: "panel", x: 271, y: 568, scale: 0.6 },
+    { kitId: "tab", x: 229, y: 32, scale: 1.0 },
+    { kitId: "listmenu", x: 255, y: 199, scale: 0.78 },
+    { kitId: "scrollbar", x: 677, y: 245, scale: 0.58 },
+    { kitId: "setrow", x: 845, y: 190, scale: 0.72 },
+    { kitId: "glyphmusic", x: 791, y: 231, scale: 0.38 },
+    { kitId: "slider", x: 845, y: 335, scale: 0.72 },
+    { kitId: "glyphsound", x: 791, y: 355, scale: 0.38 },
+    { kitId: "toggle", x: 1277, y: 311, scale: 0.72 },
+    { kitId: "dropdown", x: 853, y: 444, scale: 0.66 },
+    { kitId: "keycap", x: 1185, y: 709, scale: 0.66 },
+    { kitId: "checkbox", x: 874, y: 595, scale: 0.62 },
+    { kitId: "checkbox", x: 1014, y: 595, scale: 0.62 },
+    { kitId: "radio", x: 874, y: 715, scale: 0.62 },
+    { kitId: "radio", x: 1014, y: 715, scale: 0.62 },
+    { kitId: "input", x: 320, y: 628, scale: 0.58 },
+    { kitId: "small", x: 515, y: 725, scale: 0.66 },
+    // staged: gearicon — beside the TAB chip, e.g. { kitId: "gearicon", x: 500, y: 32, scale: 0.8 }
+    // staged: glyphsettings — icon child on the tab (seats unverified — Core-only render)
+  ] },
+  /* ── New starters (§4B) — every key below ships in STAGED_TEMPLATES
+     until the owner releases it ─────────────────────────────────────── */
+  /* Touch shooter over the neon convoy: virtual stick + fire cluster at
+     the thumbs, wheel open right-mid, map with a medkit blip up top. */
+  "Mobile ops HUD": { bg: "/backdrops/lib/neon-convoy.webp", aspect: "mobile", items: [
+    { kitId: "minimap", x: 2, y: 36, scale: 0.3 },
+    { kitId: "glyphplus", x: 61, y: 103, scale: 0.06 },
+    { kitId: "countbadge", x: 68, y: 108, scale: 0.3 },
+    { kitId: "vitalbar", x: 161, y: 36, scale: 0.3 },
+    { kitId: "cooldown", x: 296, y: 108, scale: 0.3 },
+    { kitId: "waypoint", x: 154, y: 200, scale: 0.4 },
+    { kitId: "weaponwheel", x: 152, y: 384, scale: 0.3 },
+    { kitId: "qtybadge", x: 224, y: 563, scale: 0.3 },
+    { kitId: "joystick", x: 2, y: 645, scale: 0.42 },
+    { kitId: "padbtn", x: 167, y: 728, scale: 0.42 },
+    { kitId: "glyphrocket", x: 194, y: 758, scale: 0.12 },
+    { kitId: "firebutton", x: 222, y: 643, scale: 0.42 },
+    // NOTE: vitalbar / countbadge / firebutton / both glyphs are staged
+    // families — this key stays in STAGED_TEMPLATES until they release
+  ] },
+  /* Daily bonus sheet: countdown, the 7-day calendar (claimed / today /
+     locked), claim under the grid, refill row, carousel pips. */
+  "Daily bonus": { aspect: "mobile", bg: "/backdrops/lib/strawberry-skyfall.webp", items: [
+    { kitId: "header", x: 39, y: 27, scale: 0.3, label: "DAILY BONUS" },
+    { kitId: "flipclock", x: 86, y: 130, scale: 0.32, label: "23:14:09" },
+    { kitId: "dailycell", ov: "check", x: 7, y: 241, scale: 0.4, label: "DAY 1" },
+    { kitId: "dailycell", ov: "check", x: 94, y: 241, scale: 0.4, label: "DAY 2" },
+    { kitId: "dailycell", x: 179, y: 231, scale: 0.46, label: "TODAY" },
+    { kitId: "dailycell", x: 279, y: 241, scale: 0.4, label: "DAY 4" },
+    { kitId: "dailycell", x: 56, y: 364, scale: 0.4, label: "DAY 5" },
+    { kitId: "dailycell", x: 143, y: 364, scale: 0.4, label: "DAY 6" },
+    { kitId: "dailycell", ov: "locked", x: 230, y: 364, scale: 0.4, label: "DAY 7" },
+    { kitId: "claimbtn", x: 78, y: 500, scale: 0.5, label: "CLAIM" },
+    { kitId: "energymeter", x: 71, y: 628, scale: 0.38, v: 0.6 },
+    { kitId: "pagedots", x: 120, y: 740, scale: 0.6 },
+    // staged: spinwheel, gifticon, glyphcalendar, glyphstreak,
+    // glyphprizewheel, glyphticket, glyphpiggybank — land with their sets
+  ] },
+  /* Store screen, tavern-counter kin of the owner's Shop board: wallet
+     pills up top, featured bundle + card-pack SKUs, the gem ladder in
+     ascending sizes with a price button per row, nav dock below. */
+  "Shop": { aspect: "mobile", bg: "/backdrops/tavern.jpg", items: [
+    { kitId: "resource", x: 0, y: 0, scale: 0.3 },
+    { kitId: "currency", x: 218, y: 0, scale: 0.3 },
+    { kitId: "tab", x: 47, y: 54, scale: 0.38 },
+    { kitId: "tab", x: 154, y: 54, scale: 0.38 },
+    { kitId: "boostercard", x: 0, y: 124, scale: 0.5 },
+    { kitId: "pack", x: 172, y: 130, scale: 0.32 },
+    { kitId: "stepper", x: 156, y: 371, scale: 0.3 },
+    { kitId: "glyphgem", x: 43, y: 443, scale: 0.24 },
+    { kitId: "pricebtn", x: 204, y: 441, scale: 0.3 },
+    { kitId: "glyphgem", x: 36, y: 519, scale: 0.28 },
+    { kitId: "pricebtn", x: 204, y: 528, scale: 0.3 },
+    { kitId: "glyphgem", x: 20, y: 584, scale: 0.36 },
+    { kitId: "qtybadge", x: 81, y: 665, scale: 0.3 },
+    { kitId: "pricebtn", x: 204, y: 615, scale: 0.3 },
+    { kitId: "bottomnav", x: 0, y: 707, scale: 0.4 },
+    // staged garnish (dialog confirm sheet, countbadge, glyphcart,
+    // glyphsale, glyphcoin, glyphcoinsingle, glyphcoinpile) lands only
+    // with its release batch — bottomnav's STORE cell already carries a
+    // cart natively
+  ] },
+  /* Strategy base over the autumnhorn village: build queue docked left,
+     unit plates on the villagers, research card right, day bar + wallet
+     up top, END TURN at the corner. */
+  "Base command": { bg: "/backdrops/lib/autumnhorn-village.webp", items: [
+    { kitId: "emblembar", x: 645, y: 35, scale: 0.9 },
+    { kitId: "popmeter", x: 40, y: 30, scale: 0.9 },
+    { kitId: "resource", x: 1600, y: 30, scale: 0.85 },
+    { kitId: "resource", x: 1600, y: 145, scale: 0.85 },
+    { kitId: "unitplate", x: 330, y: 290, scale: 0.85 },
+    { kitId: "unitplate", x: 950, y: 470, scale: 0.85 },
+    { kitId: "unitplate", x: 430, y: 620, scale: 0.85 },
+    { kitId: "techcard", x: 1590, y: 370, scale: 0.9 },
+    { kitId: "buildqueue", x: 50, y: 825, scale: 0.95 },
+    { kitId: "glyphhammer", x: 666, y: 817, scale: 0.42 },
+    { kitId: "minimap", x: 1640, y: 735, scale: 0.85 },
+    { kitId: "endturn", x: 1420, y: 775, scale: 0.9 },
+    // staged: toast — { kitId: "toast", x: 1180, y: 170, scale: 0.85 },
+    // staged: glyphshield — { kitId: "glyphshield", x: 1150, y: 500, scale: 0.4 } (over the knight)
+  ] },
+  /* Clan hall at castlewood: crest + rank medals up top, the top-3 podium
+     over the TOP 5 panel, member rows, clan chat + quick-react, nav dock. */
+  "Clan hall": { aspect: "mobile", bg: "/backdrops/lib/castlewood-crown.webp", items: [
+    { kitId: "clancrest", x: 137, y: 18, scale: 0.5 },
+    { kitId: "badge", x: 82, y: 54, scale: 0.3 },
+    { kitId: "badge", x: 252, y: 54, scale: 0.3 },
+    { kitId: "notifydot", x: 292, y: 28, scale: 0.4 },
+    { kitId: "avatarframe", x: 150, y: 138, scale: 0.36 },
+    { kitId: "avatarframe", x: 60, y: 152, scale: 0.3 },
+    { kitId: "avatarframe", x: 256, y: 152, scale: 0.3 },
+    { kitId: "leaderboard", x: 47, y: 226, scale: 0.62 },
+    { kitId: "friendrow", x: 24, y: 446, scale: 0.42 },
+    { kitId: "friendrow", x: 24, y: 508, scale: 0.42 },
+    { kitId: "chatbubble", x: 12, y: 606, scale: 0.34 },
+    { kitId: "emotewheel", x: 184, y: 552, scale: 0.3 },
+    { kitId: "bottomnav", x: 6, y: 720, scale: 0.53 },
+    // staged: trophy, trophyicon, glyphfriends, glyphleaderboard, glyphmail,
+    // glyphnotification, glyphtrophy, glyphmedal — suggested seats: glyphmail
+    // on the requests bell, glyphtrophy/glyphmedal as swappable badge icons,
+    // trophyicon beside the podium champion
+  ] },
+  /* Loading screen — sparse by design, the scene carries it: tip card
+     center with carousel pips, connect steps and the loading bar at the
+     foot. Composed 16:9 ON PURPOSE with no aspect key — it reflows onto
+     mobile boards instead of retuning them. */
+  "Loading": { bg: "/backdrops/lib/frostwhistle-summit.webp", items: [
+    { kitId: "panel", x: 625, y: 243, scale: 0.78 },
+    { kitId: "pagedots", x: 836, y: 571 },
+    { kitId: "steps", x: 723, y: 727, scale: 0.9 },
+    { kitId: "loadbar", x: 455, y: 856 },
+    // staged: glyphrocket — tip-card illustration; lands when the glyph set releases
+    // { kitId: "glyphrocket", x: 760, y: 400, scale: 0.5 },
+    // staged: tooltip — floating "did you know" callout beside the tip card
+    // { kitId: "tooltip", x: 1350, y: 400, scale: 0.85 },
+    // staged: spinner — busy comet beside the loadbar's tail
+    // { kitId: "spinner", x: 1590, y: 900, scale: 0.8 },
   ] },
 };
+/* New starter screens ship GATED — admin-only until the owner releases
+   them (standing rule: new assets ship gated). Component staging can't
+   carry this: kitVisible filters only the TRAY, and addBoardItems deals
+   whatever a template names with no visibility check — so a template
+   referencing anything would reach everyone who can select it. The
+   option list is therefore the only control point: the pulldown hides
+   these keys from non-admins, and applyStarter refuses them too, so a
+   stale <select> value can't deal a gated board. Releasing a starter =
+   deleting its key here, one owner blessing per change. */
+const STAGED_TEMPLATES = new Set<string>([
+  "Mobile ops HUD", "Daily bonus", "Shop", "Base command", "Clan hall", "Loading",
+]);
 
 const STAGE: Record<"169" | "mobile", [number, number, string]> = {
   "169": [1920, 1080, "16:9"],
@@ -523,7 +874,7 @@ export function BoardView({ playing }: { playing: boolean }) {
   const {
     cfg, boards, activeBoard, library, kitClones, kitShapes, kitSizes, kitTextFill, kitDesigns, kitIcons, kitLabels, kitNoText, kitVals, kitRow, kitBar, kitTextOy, kitTextOx, kitSlotVals, kitSubs,
     setActiveBoard, addBoard, addBoardAfter, removeBoard, duplicateBoard, renameBoard, moveBoard, clearBoard, setBoardBg,
-    setBoardAspect, boardSnap, setBoardSnap, boardSafe, setBoardSafe, boardSel, setBoardSel, zoom,
+    setBoardAspect, boardSnap, setBoardSnap, boardSafe, setBoardSafe, boardSel, setBoardSel, zoom, panMode,
     addToBoard, addKitToBoard, moveBoardItem, scaleBoardItem, rotateBoardItem, removeBoardItem,
     duplicateBoardItem, componentReleases, isAdmin, tier,
     applyBoardItemPatches, removeBoardItems, transformBoardItems,
@@ -593,6 +944,9 @@ export function BoardView({ playing }: { playing: boolean }) {
     if (patches.length) st.transformBoardItems("mobiledeal", patches);
   };
   const applyStarter = (tname: string, mode: "fresh" | "replace" | "stack") => {
+    // gated starters never deal for non-admins — the pulldown already
+    // hides them, this catches a stale <select> value
+    if (STAGED_TEMPLATES.has(tname) && !isAdmin) return;
     const t = BOARD_TEMPLATES[tname];
     if (!t) return;
     const st = useGen.getState();
@@ -707,6 +1061,9 @@ export function BoardView({ playing }: { playing: boolean }) {
   useEffect(() => idleOnce(() => setTrayReady(true)), []);
   // rolling over a tray thumbnail previews the asset large in a viewport
   const [preview, setPreview] = useState<{ name: string; svg: string } | null>(null);
+  /* Round 45 · B4 (owner): the Uploads group folds under a caret and
+     starts CLOSED on every visit — searching auto-opens it for matches */
+  const [uploadsOpen, setUploadsOpen] = useState(false);
   /* in-place words: the item whose text is being edited on the stage
      (owner: "I need a way to edit the text here on in the right menu" —
      this is the "here"). Double-click opens it; Enter/Escape/blur close.
@@ -894,15 +1251,75 @@ export function BoardView({ playing }: { playing: boolean }) {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+  /* ── the desk pans like a canvas (owner, round-48: "I can scroll
+     vertically, but not horizontally. I also need to be able to scroll a
+     little bit beyond the canvas bounds") ── the frame scrolls BOTH axes
+     natively (two-finger pan, shift+wheel), .bd-desk carries the
+     viewport-sized overscroll pad, and the toolbar hand tool drags the
+     frame's own scroll position — it used to drag the outer .canvas
+     scroller, which has no range on this page, so the hand was dead here. */
+  const panDrag = useRef<{ x: number; y: number; sl: number; st: number } | null>(null);
+  const panDown = (e: React.PointerEvent) => {
+    const el = frameRef.current;
+    if (!el || !panMode || e.button !== 0) return;
+    // chrome still clicks in hand mode — only the desk itself grabs
+    if ((e.target as HTMLElement).closest("button, input, select, textarea, .bd-rszwrap")) return;
+    e.preventDefault();
+    panDrag.current = { x: e.clientX, y: e.clientY, sl: el.scrollLeft, st: el.scrollTop };
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+  };
+  const panMove = (e: React.PointerEvent) => {
+    const el = frameRef.current;
+    if (!el || !panDrag.current) return;
+    el.scrollLeft = panDrag.current.sl - (e.clientX - panDrag.current.x);
+    el.scrollTop = panDrag.current.st - (e.clientY - panDrag.current.y);
+  };
+  const panUp = () => { panDrag.current = null; };
+  /* entry seat: the overscroll pad must not read as a blank desk — land
+     with the first board just under the header, horizontally centered.
+     Waits for the REAL frame measure (the 900 seed mis-centers), and
+     yields entirely to the return-leg seek when a selection is parked. */
+  const seated = useRef(false);
+  useLayoutEffect(() => {
+    const el = frameRef.current;
+    if (!el || seated.current) return;
+    if (Math.abs(el.getBoundingClientRect().width - frameW) > 3) return;
+    const desk = el.querySelector<HTMLElement>(".bd-desk");
+    if (!desk) return;
+    seated.current = true;
+    if (useGen.getState().boardSel) return; // the seek owns this entry
+    el.scrollLeft = (el.scrollWidth - el.clientWidth) / 2;
+    el.scrollTop = Math.max(0, (parseFloat(getComputedStyle(desk).paddingTop) || 0) - 30);
+  }, [frameW]);
+  /* zoom anchors the view's CENTER, like the master canvas — only the art
+     scales (the overscroll pad is constant screen px), so the anchor maps
+     the content point under the center, not the raw scroll offset. The
+     row sizes are live W*fit styles, so layout is already the new scale
+     when this runs. */
+  const lastZoom = useRef(zoom);
+  useLayoutEffect(() => {
+    const el = frameRef.current;
+    const prev = lastZoom.current;
+    if (!el || prev === zoom) return;
+    const k = zoom / prev;
+    lastZoom.current = zoom;
+    const desk = el.querySelector<HTMLElement>(".bd-desk");
+    const cs = desk ? getComputedStyle(desk) : null;
+    const padX = cs ? parseFloat(cs.paddingLeft) || 0 : 0;
+    const padY = cs ? parseFloat(cs.paddingTop) || 0 : 0;
+    el.scrollLeft = (el.scrollLeft + el.clientWidth / 2 - padX) * k + padX - el.clientWidth / 2;
+    el.scrollTop = (el.scrollTop + el.clientHeight / 2 - padY) * k + padY - el.clientHeight / 2;
+  }, [zoom]);
   /* ── rows: the desk is a stack of explicit rows. THE rule (owner:
      "let's just do 1 board per row unless it's mobile then we can do 3 —
      I can't have two big boards side by side"): a 16:9 board always
      stands alone at full size; only mobiles share a row, three at most.
      rowsOf NORMALIZES — a doc that carries an illegal mix (legacy data,
      an aspect flip mid-row) simply splits, so the desk can never show
-     it. nl still forces a break. A row never scrolls sideways: its
-     boards share the frame at one true scale, and the shared canvas
-     zoom rides every gesture via the fit factor. */
+     it. nl still forces a break. A row shares the frame at one true
+     scale, and the shared canvas zoom rides every gesture via the fit
+     factor — past 100% the row outgrows the frame and the desk pans to
+     reach it (round-48; horizontal used to be clipped). */
   const rowsOf = (bs: BoardDef[]) => {
     const rows: BoardDef[][] = [];
     for (const b2 of bs) {
@@ -988,11 +1405,12 @@ export function BoardView({ playing }: { playing: boolean }) {
         const [bid, ov] = entry.split("~");
         const kid = bid as KitComponentId;
         const nm = ov ? `${name(kid)} · ${ov}` : name(kid);
-        /* glyph thumbs wear their per-piece fork (the family is born with
-           a flat factory design) — a walled tray thumb would promise a
-           look that never lands on the board. Other stock thumbs stay the
-           master-look catalog they've always been. */
-        const gtc = kid.startsWith("glyph") ? applyKitDesign(tc, kitDesigns[kid]) : tc;
+        /* glyph-FAMILY thumbs wear their per-piece fork (the family is
+           born with a flat factory design — icon props included, round
+           45 · B5) — a walled tray thumb would promise a look that never
+           lands on the board. Other stock thumbs stay the master-look
+           catalog they've always been. */
+        const gtc = isGlyphFamily(kid) ? applyKitDesign(tc, kitDesigns[kid]) : tc;
         return { id: entry, kitId: kid, ov, name: nm, hay: `${nm} ${entry} ${g.name} ${SEARCH_TERMS[kid] ?? ""}${ov ? ` ${ov} overlay` : ""}`.toLowerCase(), svg: tightenSvg(renderKit(applyKitTextFill(gtc, kitTextFill[kid]), kid, "s", "default", undefined, kitShapes[kid], { icon: resolveKitIcon(kitIcons[kid], undefined), label: kitNoText[kid] ? "" : kitLabels[kid], overlay: ov }), 20) };
       }),
     }));
@@ -1337,9 +1755,27 @@ export function BoardView({ playing }: { playing: boolean }) {
   const scrollToBoard = (id: string) => {
     frameRef.current?.querySelector(`[data-board="${id}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
+  /* the roundtrip's RETURN leg (round-48): re-entering the Boards lands on
+     the piece you left selected — the frame starts at the top on every
+     mount, so a selection parked on a lower board arrived off-screen. The
+     scroll runs behind the board curtain; a short seek covers the beat
+     where the stage frame commits before its items. */
+  useEffect(() => {
+    const sel = useGen.getState().boardSel;
+    if (!sel) return;
+    let tries = 0;
+    let t = 0;
+    const seek = () => {
+      const el = frameRef.current?.querySelector(`[data-bid="${sel}"]`);
+      if (el) { el.scrollIntoView({ block: "center", inline: "center" }); return; }
+      if (++tries <= 20) t = window.setTimeout(seek, 120);
+    };
+    seek();
+    return () => window.clearTimeout(t);
+  }, []);
 
   return (
-    <div className={`board2${playing ? " playing" : ""}`} style={{ "--trayl": `${trayW.l}px`, "--trayr": `${trayW.r}px` } as React.CSSProperties}>
+    <div className={`board2${playing ? " playing" : ""}${panMode ? " pan" : ""}`} style={{ "--trayl": `${trayW.l}px`, "--trayr": `${trayW.r}px` } as React.CSSProperties}>
       <BoardCurtain />
       {/* ── assets ── */}
       <aside className="bd-assets">
@@ -1502,6 +1938,13 @@ export function BoardView({ playing }: { playing: boolean }) {
               return terms.every((t) => hay.includes(t));
             });
             if (!items.length) return null;
+            /* Round 45 · B4 (owner): the Uploads group folds under a caret,
+               CLOSED by default — 71 tiles of brought-in art shouldn't lead
+               the drawer. Everyone sees the group (the set is released in
+               code, no admin gate); a live search that matches upload items
+               opens the fold for those results, since the maker asked for
+               them by name. */
+            const open = uploadsOpen || terms.length > 0;
             return (
               <div>
                 {/* owner rename 2026-08-28: this class is uploaded artwork
@@ -1510,7 +1953,12 @@ export function BoardView({ playing }: { playing: boolean }) {
                     is PER-ITEM (owner correction, same day: uploads aren't
                     always AI-generated) — the note rides only entries whose
                     registry row says so, never the whole group. */}
-                <div className="bd-cat">Uploads</div>
+                <button className="bd-cat bd-catfold" aria-expanded={open}
+                  title={open ? "Fold the Uploads away" : `Show the ${items.length} upload tiles`}
+                  onClick={() => setUploadsOpen((v) => !v)}>
+                  Uploads <span className="bd-cat-note">{items.length}</span> {open ? "▾" : "▸"}
+                </button>
+                {open && (
                 <div className="bd-grid">
                   {items.map((g) => (
                     <button key={g.id} className="bd-asset" title={`Add ${g.name} to ${act?.name ?? "the board"}${g.ai ? " · AI-generated" : ""}`}
@@ -1520,6 +1968,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                     </button>
                   ))}
                 </div>
+                )}
               </div>
             );
           })()}
@@ -1605,6 +2054,7 @@ export function BoardView({ playing }: { playing: boolean }) {
               }}>
               <option value="">Starter screen…</option>
               {Object.keys(BOARD_TEMPLATES)
+                .filter((t) => isAdmin || !STAGED_TEMPLATES.has(t))
                 .map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
           </label>
@@ -1637,9 +2087,15 @@ export function BoardView({ playing }: { playing: boolean }) {
              go of this one. The per-stage handlers below stay for the fast
              path; this one catches the void between and around boards. */
           onPointerDown={(e) => {
+            panDown(e);
             const t = e.target as HTMLElement;
             if (!t.closest(".board-item, .bd-rszwrap, .bd-abhead")) setBoardSel(null);
-          }}>
+          }}
+          onPointerMove={panMove} onPointerUp={panUp} onPointerCancel={panUp}>
+          {/* .bd-desk is the scrollable content — it wears the overscroll
+              pad (all four sides, ~45% of the window) and sizes to its
+              widest row so the trailing pad survives the scroller */}
+          <div className="bd-desk">
           {rowsOf(boards).map((row) => {
             const fit = rowFit(row);
             return (
@@ -1881,6 +2337,7 @@ export function BoardView({ playing }: { playing: boolean }) {
             );
           })}
           <button className="bd-addboard-inline" onClick={addBoard}><Plus size={14} strokeWidth={2.2} /> Add board</button>
+          </div>
         </div>
       </div>
 
@@ -2665,6 +3122,63 @@ function StampArt({ cfg, stamp }: { cfg: GenConfig; stamp: NonNullable<BoardItem
      interaction re-renders every stamp (the tray-click sluggishness) */
   const svg = useMemo(() => stampSvg(cfg, stamp), [cfg, stamp.text, stamp.size, stamp.plain?.color, stamp.plain?.outline, fontTick]); // eslint-disable-line react-hooks/exhaustive-deps
   const warped = !!stamp.warp && stamp.warp.style !== "none" && !!stamp.warp.amount;
+  /* Round 45 · B3 — the UNWARPED stamp's selection box hugs the LETTERING.
+     The specimen's own data-shell is the invisible button shell it was
+     built on: a fixed 130px-tall canvas with auto-width slack, so the box
+     ran far past the glyphs on every side (owner screenshot: "the bounding
+     boxes for everything is huge" — text especially, and the oversized
+     grab zone stole clicks meant for neighbours). The WARPED path already
+     scans its raster's true alpha bounds ("boxes must adhere to the actual
+     type stamp area", owner) — this is the same scan for the plain path,
+     restamped onto the DOM copy's data-shell only: exports keep reading
+     stampSvg() untouched. Debounced like the warp raster; re-runs when
+     faces land (svg re-memos on fontTick). */
+  const [tightShell, setTightShell] = useState<string | null>(null);
+  useEffect(() => {
+    if (warped) { setTightShell(null); return; } // the warp raster stamps its own
+    let on = true;
+    const t = window.setTimeout(() => {
+      /* faces are best-effort here: a hung font CDN must not park the scan
+         forever — after the race the fallback letterforms still bound the
+         ink far tighter than the specimen shell, and the fontTick re-memo
+         re-scans with the real face once it lands */
+      void Promise.race([
+        svgWithFaces(svg, cfg),
+        new Promise<string>((r) => window.setTimeout(() => r(svg), 1500)),
+      ]).then((svgF) => {
+        if (!on) return;
+        const img = new Image();
+        img.onload = () => {
+          if (!on) return;
+          const k = Math.min(1, 1600 / Math.max(1, img.width));
+          const cv = document.createElement("canvas");
+          cv.width = Math.max(1, Math.round(img.width * k));
+          cv.height = Math.max(1, Math.round(img.height * k));
+          const ctx = cv.getContext("2d", { willReadFrequently: true })!;
+          ctx.drawImage(img, 0, 0, cv.width, cv.height);
+          try {
+            const d = ctx.getImageData(0, 0, cv.width, cv.height).data;
+            let x0 = cv.width, y0 = cv.height, x1 = 0, y1 = 0;
+            for (let py = 0; py < cv.height; py += 2) for (let px = 0; px < cv.width; px += 2) {
+              if (d[(py * cv.width + px) * 4 + 3] > 8) {
+                if (px < x0) x0 = px; if (px > x1) x1 = px;
+                if (py < y0) y0 = py; if (py > y1) y1 = py;
+              }
+            }
+            if (x1 > x0 && on) setTightShell([x0 / k, y0 / k, (x1 - x0) / k, (y1 - y0) / k].map((n) => n.toFixed(1)).join(" "));
+          } catch { /* tainted or empty — the specimen shell stands */ }
+        };
+        img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgF)));
+      });
+    }, 160); // one scan per settled render, not per tick
+    return () => { on = false; window.clearTimeout(t); };
+  }, [svg, warped]); // eslint-disable-line react-hooks/exhaustive-deps
+  const shownSvg = useMemo(() => {
+    if (warped || !tightShell) return svg;
+    return /data-shell="[^"]*"/.test(svg)
+      ? svg.replace(/data-shell="[^"]*"/, `data-shell="${tightShell}"`)
+      : svg.replace(/<svg /, `<svg data-shell="${tightShell}" `);
+  }, [svg, tightShell, warped]);
   const [frame, setFrame] = useState<{ url: string; w: number; h: number; shell: [number, number, number, number] | null } | null>(null);
   const urlRef = useRef<string | null>(null);
   useEffect(() => {
@@ -2675,8 +3189,15 @@ function StampArt({ cfg, stamp }: { cfg: GenConfig; stamp: NonNullable<BoardItem
     let on = true;
     const t = window.setTimeout(() => {
       /* the raster trip is sealed — the kit face must ride INSIDE the svg
-         or the warped preview speaks a system font (owner report) */
-      void svgWithFaces(svg, cfg).then((svgF) => {
+         or the warped preview speaks a system font (owner report). Sealing
+         is best-effort though (round 45): a hung font CDN must not park
+         the warp raster forever — after the race the fallback letterforms
+         still bend and bound correctly, and the fontTick re-memo re-runs
+         the trip with the real face once it lands */
+      void Promise.race([
+        svgWithFaces(svg, cfg),
+        new Promise<string>((r) => window.setTimeout(() => r(svg), 1500)),
+      ]).then((svgF) => {
         if (!on) return;
         const img = new Image();
         img.onload = () => {
@@ -2725,7 +3246,7 @@ function StampArt({ cfg, stamp }: { cfg: GenConfig; stamp: NonNullable<BoardItem
     ? <img src={frame.url} width={frame.w} height={frame.h} draggable={false}
         data-shell={frame.shell ? frame.shell.map((n) => n.toFixed(1)).join(" ") : undefined}
         style={{ filter: stampFilter(cfg, stamp), display: "block", pointerEvents: "none", userSelect: "none" }} alt="" />
-    : <span style={{ filter: stampFilter(cfg, stamp), display: "block" }} dangerouslySetInnerHTML={{ __html: svg }} />;
+    : <span style={{ filter: stampFilter(cfg, stamp), display: "block" }} dangerouslySetInnerHTML={{ __html: shownSvg }} />;
 }
 
 /* depth guard for the shell-miss relay below — dispatchEvent is

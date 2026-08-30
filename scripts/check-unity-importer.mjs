@@ -344,11 +344,12 @@ if (!/addPng\("progress\/track\.9\.png", shell\("progress", \{ overlay: "track" 
   errors.push("the progress bar's assets must be the DRESSED part renders (overlay track/fill), not synthesized capsules (round 21)");
 if (!/const tzm = \/data-track=/.test(src))
   errors.push("the raster pass must capture the bar renders' data-track zone into the manifest (round 21)");
-if (!/class PBTrack \{ public float x; public float w; \}/.test(cs))
-  errors.push("PBTrack (the manifest's well-zone row) is missing from the importer (round 21)");
+// round 44 extends the zone with the optional vertical band (y/h, zero-gated)
+if (!/class PBTrack \{ public float x; public float w; public float y; public float h; \}/.test(cs))
+  errors.push("PBTrack (the manifest's well-zone row, x/w + the round-44 y/h band) is missing from the importer (round 21/44)");
 if (!/static RectTransform BuildBarFill\(/.test(cs) || !/aT\.track != null && aT\.track\.w > 2f/.test(cs))
   errors.push("the shared mercury-seat builder (BuildBarFill, manifest-zone seated) is missing (round 21)");
-if (!/BuildBarFill\(go, "Fill", fill, track, pngScale, m, "progress", 0\.62f, false\)/.test(cs))
+if (!/BuildBarFill\(go, "Fill", fill, track, pngScale, m, root, "progress", 0\.62f, false\)/.test(cs))
   errors.push("ProgressPrefab must assemble the dressed rig through BuildBarFill (round 21)");
 if (!/\(it\.component == "progress" \|\| it\.component == "emblembar"\) && it\.value > 0f/.test(cs))
   errors.push("board placement must drive the progress/emblem bars' fillAmount from the board's value (round 21)");
@@ -537,10 +538,16 @@ if (!/stampsInUse\.Add\("bigglyphs\/" \+ itR\.big\.id \+ "\.png"\);/.test(cs)
   errors.push("the orphan sweep must cover bigglyphs/ AND keep a used asset's clean original in-use (the prefab wears it even when every copy is fx) (round 23)");
 if (!/it2\.big != null && !string\.IsNullOrEmpty\(it2\.big\.id\)/.test(cs))
   errors.push("the kept-scene heal must re-point a big-glyph copy's clean/fx flip and shield big rows from the stamp branch's WipeShine (round 23)");
-if (!/component: "bigglyph"/.test(src) || !/big: \{ id: gl\.id, name: gl\.name, sprite: file, fx: hasFx \}/.test(src))
-  errors.push("the app-side big-glyph emission seam (component bigglyph + big{id,name,sprite,fx}) is missing (round 23)");
-if (!/const padB = hasFx \? bigGlyphFilterPad\(b\.big\) : 0;/.test(src))
-  errors.push("fx rows must ship the PADDED footprint (w/h of the shipped raster) — without it the importer squeezes the halo into the art rect (round 23)");
+/* round 44 REVERSES the round-23 emission pins: the Uploads/Art drawer
+   (big-glyph drop + account logo uploads) never ships in the Unity
+   download (owner mandate — AI-generated art stays out of the product's
+   engine export). The IMPORTER machinery above stays for old zips; the
+   EMISSION road must stay closed. */
+if (/component: "bigglyph"/.test(src) || /stampFiles\.push\(\{ file: `bigglyphs\//.test(src))
+  errors.push("the big-glyph/upload emission road reopened — Uploads/Art must never ship in the Unity download (owner mandate, round 44)");
+if (!/const items = bd\.items\.filter\(\(b\) => b\.kitId \|\| b\.stamp \|\| b\.libId\);/.test(src)
+    || !/Uploads\/Art never ships in the Unity download \(owner mandate\)/.test(src))
+  errors.push("the Uploads/Art export exclusion (item filter + the loud skip warn) is gone from collectExportBoards (round 44)");
 if (!/Prefabs\/Art\/\*\*/.test(src))
   errors.push("the README's Prefabs/Art pointer is missing (round 23; the shelf renamed to Art on the owner's decision)");
 
@@ -704,8 +711,9 @@ if (!/public float artW; public float artH; public float rot;/.test(cs))
   errors.push("PBBoardItem must carry the art box (artW/artH) — JsonUtility drops the fx-pad geometry without it (round 25)");
 if (!/artW: Math\.round\(\(\(rw \/ 2\) \* k\) \* 10\) \/ 10, artH: Math\.round\(\(\(rh \/ 2\) \* k\) \* 10\) \/ 10/.test(src))
   errors.push("type-stamp items must ship their pre-filter art box (artW/artH) — the raycast inset has no truth without it (round 25)");
-if (!/artW: Math\.round\(gl\.w \* kB \* 10\) \/ 10, artH: Math\.round\(gl\.h \* kB \* 10\) \/ 10/.test(src))
-  errors.push("big-glyph items must ship the glyph's own art box (artW/artH) — fx pads are (w-artW)/2 per side (round 25)");
+/* the round-25 big-glyph artW emission pin retired with the road: the
+   Uploads/Art drawer never ships in the Unity download (round 44); the
+   PBBoardItem artW/artH C# pin above stays for old-zip compat */
 if (!/static void ArtRaycastPad\(Image img, PBBoardItem it\)/.test(cs)
     || !/float padX = Mathf\.Max\(0f, \(it\.w - it\.artW\) \* 0\.5f\);/.test(cs))
   errors.push("ArtRaycastPad (the baked-art inset, symmetric from the manifest art box) is missing (round 25)");
@@ -1212,43 +1220,52 @@ if (!/outer 18%\*\* of the frame/.test(src) || !/80%\+ of a dimension\*\*/.test(
     errors.push("the Editor asmdef must declare Unity.TextMeshPro (and its documented companions) — the TMPro.-qualified standard outside the guards rides on that declaration");
 }
 
-/* ── LEADING TRAVELS (the End Turn line-gap round): the app stacks the
-   endturn's two lines at fs · 0.73em · leading/100 (bevel, fork-first
-   per key — a fork snapshot without the key falls through to the dial),
-   and the export must carry the resolved dial or Unity's LIVE label
-   re-typesets at TMP's default line height forever (owner: "Leading did
-   not work on the End Turn button"). The plumb: manifest rows (base +
-   per-state, ≠100 only so factory kits stay byte-identical) →
-   PBAsset.leading → ONE importer seam, LeadingLineSpacing =
-   0.73 * (leading − 100) — TMP lineSpacing is em*100 of font size, so
-   the app's delta-from-factory maps exactly and absent/100 (the old-zip
-   0-gate) keeps today's look untouched. Convergence rides the redress
-   with a still-at-0 gate, mirrored probe and dresser. ── */
+/* ── LEADING TRAVELS (the End Turn line-gap round; ABSOLUTE since round
+   44): the app stacks the endturn's two lines at fs · 0.73em ·
+   leading/100 CENTER TO CENTER (bevel, fork-first per key — a fork
+   snapshot without the key falls through to the dial), and the export
+   must carry the resolved dial or Unity's LIVE label re-typesets at
+   TMP's default line height forever (owner: "Leading did not work on
+   the End Turn button"; round 44 field: "leading between lines is off
+   in Unity; correct in the app" — the old DELTA mapping rode on the
+   face's natural line height, which is NOT the app's stack). The plumb:
+   manifest rows (base + per-state, ALWAYS on stacked props — the
+   absolute rebase needs factory 100 too) → PBAsset.leading → ONE
+   importer seam, LeadingLineSpacing(row, face) =
+   (0.73 · leading/100 − lineHeight/pointSize) · 100 — TMP's line
+   advance is natural + lineSpacing/100 em, so the app's gap lands
+   exactly on any face; absent rows (old zips, JsonUtility 0) map to 0
+   and a faceless call keeps the old delta. Convergence rides the
+   redress with a still-at-0 gate, mirrored probe and dresser, the want
+   read off the label's own live face. ── */
 if (!/const lead = fsW \* 0\.73 \* \(\(leadT\.leading \?\? cfg\.type\.leading \?\? 100\) \/ 100\);/.test(bevelSrc))
   errors.push("the app's endturn leading rule (fs * 0.73em * leading/100, fork-first per key) moved — the importer's 0.73 mapping is derived from it, re-derive BOTH together");
 if (!/const STACKED_LABEL_PROPS = new Set<KitComponentId>\(\["endturn"\]\);/.test(src))
   errors.push("STACKED_LABEL_PROPS (the stacked multi-line label set the Leading emission rides) is missing — future stacked labels inherit the plumb through it");
 if (!/\(stName \? c\.stateDesigns\?\.\[stName\]\?\.type\?\.leading : undefined\) \?\? c\.type\.leading \?\? 100/.test(src))
   errors.push("the export's leading resolution must mirror bevel's fork-first PER-KEY read — a wholesale fork read masks the dial at 100% the moment a state is designed (the app's own End Turn lesson)");
-if (!/leadingOf\(id, stName\) !== 100 \? \{ leading: leadingOf\(id, stName\) \} : \{\}/.test(src))
-  errors.push("the leading row must emit ONLY when non-factory (≠ 100) — factory kits stay byte-identical, and the importer's 0-gate is the old-zip contract");
+if (!/STACKED_LABEL_PROPS\.has\(id\) \? \{ leading: leadingOf\(id, stName\) \} : \{\}/.test(src))
+  errors.push("the leading row must emit on EVERY stacked-prop row, factory 100 included (round 44) — the importer's absolute rebase needs the factory value, and a ≠100 gate re-parks factory stacks at TMP's natural height");
 if (!/public float labelFs; public string labelInk; public string labelInk2; public float leading; public string labelText;/.test(cs))
   errors.push("PBAsset must carry the leading field — JsonUtility silently drops the manifest row without it");
-if (!/static float LeadingLineSpacing\(PBAsset row\)/.test(cs)
-    || !/return row != null && row\.leading > 0f \? 0\.73f \* \(row\.leading - 100f\) : 0f;/.test(cs))
-  errors.push("LeadingLineSpacing (the ONE seam: 0.73 * (leading − 100), 0-gated so absent/factory rows leave TMP's natural line height — today's look) is missing or its formula drifted");
-if (!/hlLead\.lineSpacing = lsp; hlLead\.SetText\(text\);/.test(cs))
-  errors.push("the hero-stack birth must apply the Leading (set, then re-Apply via SetText — BuildHeroStack's construction-order rule)");
-if (!/if \(lsp != 0f\) t\.lineSpacing = lsp;/.test(cs))
-  errors.push("the solo baked-label birth must apply the Leading (0-gated)");
-if (!/if \(tLead != null && lspT != 0f\) tLead\.lineSpacing = lspT;/.test(cs))
-  errors.push("the styled-SDF label rung must apply the Leading (one seam, one number)");
+if (!/static float LeadingLineSpacing\(PBAsset row, TMPro\.TMP_FontAsset face\)/.test(cs)
+    || !/float natural = face != null && face\.faceInfo\.pointSize > 0f \? face\.faceInfo\.lineHeight \/ face\.faceInfo\.pointSize : 0f;/.test(cs)
+    || !/if \(natural <= 0f\) return 0\.73f \* \(row\.leading - 100f\);/.test(cs)
+    || !/return \(0\.73f \* row\.leading \/ 100f - natural\) \* 100f;/.test(cs))
+  errors.push("LeadingLineSpacing (the ONE seam, ABSOLUTE since round 44: (0.73·leading/100 − face natural)·100, 0-gated for absent rows, delta fallback for faceless calls) is missing or its formula drifted");
+if (!/float lsp = LeadingLineSpacing\(lrow, layersFa\);/.test(cs) || !/hlLead\.lineSpacing = lsp; hlLead\.SetText\(text\);/.test(cs))
+  errors.push("the hero-stack birth must apply the Leading rebased on ITS face (layersFa; set, then re-Apply via SetText — BuildHeroStack's construction-order rule)");
+if (!/float lspSolo = LeadingLineSpacing\(lrow, solo\);/.test(cs) || !/if \(lspSolo != 0f\) t\.lineSpacing = lspSolo;/.test(cs))
+  errors.push("the solo baked-label birth must apply the Leading rebased on the solo face (0-gated)");
+if (!/float lspT = LeadingLineSpacing\(lrowA, face\);/.test(cs) || !/if \(tLead != null && lspT != 0f\) tLead\.lineSpacing = lspT;/.test(cs))
+  errors.push("the styled-SDF label rung must apply the Leading (one seam, one number, its own face)");
 if (!/if \(lrowA != null && lrowA\.leading > 0f\) t\.lineSpacing = lrowA\.leading \/ 100f;/.test(cs))
   errors.push("the legacy Text rung must carry the dial as its line-height multiplier (0-gated; factory 100 ⇒ 1.0 = Unity's default)");
-if (!/\(hlLd != null && hlLd\.lineSpacing == 0f\) \|\| \(tmLd != null && tmLd\.lineSpacing == 0f\)\) wantDress = true;/.test(cs))
-  errors.push("the redress probe must converge a still-at-0 lineSpacing when the manifest resolves a Leading (and ONLY then — hand-tuned values are the maker's)");
-if (!/newHl\.lineSpacing = keepLineSpacing != 0f \? keepLineSpacing : LeadingLineSpacing\(LabelRow\(m, famName\)\);/.test(cs))
-  errors.push("the redress restore must mirror the probe's gate (hand-tuned survives verbatim; still-at-0 adopts the manifest) — probe and dresser disagreeing is an infinite re-dress");
+if (!/float wantLsp = LeadingLineSpacing\(probeRow, faceLd != null \? faceLd\.font : null\);/.test(cs)
+    || !/\(hlLd != null && hlLd\.lineSpacing == 0f\) \|\| \(tmLd != null && tmLd\.lineSpacing == 0f\)\) wantDress = true;/.test(cs))
+  errors.push("the redress probe must converge a still-at-0 lineSpacing when the manifest resolves a Leading — the absolute want read off the label's own live face (and ONLY still-at-0 — hand-tuned values are the maker's)");
+if (!/newHl\.lineSpacing = keepLineSpacing != 0f \? keepLineSpacing : LeadingLineSpacing\(LabelRow\(m, famName\), tmNw != null \? tmNw\.font : null\);/.test(cs))
+  errors.push("the redress restore must mirror the probe's gate (hand-tuned survives verbatim; still-at-0 adopts the manifest, face-rebased) — probe and dresser disagreeing is an infinite re-dress");
 
 /* ── round-31 (store packaging · slice 1): Third-Party Notices.txt.
    The Asset Store requires third-party components to carry notices. The
@@ -1530,7 +1547,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     }
   };
   literalParity(/labelSizes: \(\[\[[\s\S]{0,3000}?\n      \}\),/, ["family", "size", "scene"], "PBLabelSize", "labelSizes");
-  literalParity(/stateFx: \(\[\[[\s\S]{0,3000}?\n      \}\),/, ["family", "state", "glow", "lift"], "PBStateFx", "stateFx");
+  literalParity(/stateFx: \(\[\[[\s\S]{0,4500}?\n      \}\),/, ["family", "state", "glow", "lift"], "PBStateFx", "stateFx");
   // two passes since the bespoke-pose round: labeled ink+dy rows, then
   // measured dy-only rows for the other stateFx families
   literalParity(/labelStates: \[\n[\s\S]{0,8000}?\n      \],/, ["family", "state", "fillMode", "fill", "fill2", "dy"], "PBLabelState", "labelStates");
@@ -1662,9 +1679,11 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   const dilatedUses = (exSrc.match(/canvasToPngBytesDilated\(/g) ?? []).length;
   if (dilatedUses < 5)
     errors.push(`exportUtils rides canvasToPngBytesDilated only ${dilatedUses}x (need >=5: definition, svgToPngBytes, tight crop, union crop, glow/catalog) — a raster road fell back to premultiplied toBlob (slice 1)`);
+  /* round 44: the bigglyph-fx and logo bake roads left with the Uploads/Art
+     export exclusion — the floor drops from 9 to 7 */
   const dilatedUsesEE = (src.match(/canvasToPngBytesDilated\(/g) ?? []).length;
-  if (dilatedUsesEE < 9)
-    errors.push(`engineExport's direct canvas bakes ride canvasToPngBytesDilated only ${dilatedUsesEE}x (need >=9: backgrounds, stamp, stamp mask, bigglyph fx, logo, dialed-shadow bake, mask re-register, shadow sibling, baked-face atlas) — a bake road still ships premultiplied black fringe (slice 1)`);
+  if (dilatedUsesEE < 7)
+    errors.push(`engineExport's direct canvas bakes ride canvasToPngBytesDilated only ${dilatedUsesEE}x (need >=7: backgrounds, stamp, stamp mask, dialed-shadow bake, mask re-register, shadow sibling, baked-face atlas) — a bake road still ships premultiplied black fringe (slice 1)`);
   if (!/if \(!ti\.mipmapEnabled\) \{ ti\.mipmapEnabled = true; changed = true; \}/.test(cs)
       || !/if \(ti\.filterMode != FilterMode\.Trilinear\) \{ ti\.filterMode = FilterMode\.Trilinear; changed = true; \}/.test(cs))
     errors.push("Configure must import kit sprites with mips + trilinear — scaled board copies undersample into white specks without them (slice 1)");
@@ -1831,7 +1850,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   // C#: manifest-declared labeled families, art-honest glyphs, posed Words stand-down
   if (!/if \(label == null && a\.labelText != null && a\.labelText\.Length > 0\) label = a\.labelText;/.test(cs))
     errors.push("RunPrefabBuilders must admit manifest-declared labeled families (labelText) — ghost/qtybadge/levelnode prefabs lose their live words (slice 2)");
-  if (!/if \(baseAsset\.component != null && baseAsset\.component\.StartsWith\("glyph"\)\) img\.raycastTarget = false;/.test(cs))
+  if (!/if \(baseAsset\.component != null && \(baseAsset\.component\.StartsWith\("glyph"\) \|\| PoseVariantName\(baseAsset\.component\)\)\) img\.raycastTarget = false;/.test(cs))
     errors.push("glyph prefabs must not catch raycasts — art, never fake buttons (slice 2)");
   if (!/var wdPos = inst\.transform\.Find\("Words"\);\s*\n\s*if \(wdPos != null\) wdPos\.gameObject\.SetActive\(false\);/.test(cs))
     errors.push("the posed road must stand the Words group down — family-level seats would double over the copy's own posed words (slice 2)");
@@ -1839,7 +1858,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   // words and glow sink by the dial) — measured dy rows for stateFx
   // families; clean translates measure 0 and stay byte-stable
   if (!/const measuredStateDy = \(pid: KitComponentId, sn: "hover" \| "pressed" \| "disabled"\): number \| null =>/.test(src)
-      || !/\["rewardcard", "rewardcard"\]\] as const\)\.flatMap\(\(\[pid, fam\]\) =>/.test(src))
+      || !/\["skillnode", "skillnode"\], \["booster", "booster"\], \["claimbtn", "claimbtn-double"\],/.test(src))
     errors.push("the bespoke-pose measured-dy pass is missing from labelStates — riders would take the raw lift dial on squash-pose kits (slice 2)");
   // the × glyph rides the baked atlas — qtybadge's live words are ×-counts
   if (!/'&\(\)×";/.test(src.replace(/\\/g, "")) && !/&\(\)×/.test(src))
@@ -2116,7 +2135,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
       || !/static Color LegacyFlatInk\(PBManifest m, string family\)/.test(cs))
     errors.push("the 2022.3 label rung lost the family ink ladder — dark-ink kits go white-on-cream again (reviewer B2)");
   // the docs' 2022.3 notes are load-bearing honesty, not prose polish
-  if (!/On Unity 2022\.3:\*\* labels are still live, editable text/.test(src)
+  if (!/On Unity 2022\.3:\*\* every word is still live, editable text/.test(src)
       || !/The full 2022\.3 picture, feature by feature/.test(src))
     errors.push("the QuickStart/README 2022.3 qualifications are gone — the docs overpromise the legacy rung again (reviewer B2)");
 }
@@ -2196,7 +2215,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/var famRowSD = LabelRow\(m, it\.component\);/.test(cs)
       || !/var tSD = inst\.transform\.Find\(IconChildName\(icSD\)\);/.test(cs))
     errors.push("posed copies no longer stand down nick-named family children by the manifest — the Shop bottomnav's Selected ring blobs over MAP again (round 40)");
-  if (!/public PBStyle seatInk; public float ringV; public PBIconChild\[\] iconSeats; \}/.test(cs))
+  if (!/public PBStyle seatInk; public float ringV; public PBIconChild\[\] iconSeats;/.test(cs))
     errors.push("PBAsset must carry iconSeats — without it JsonUtility drops the un-burn seats");
   if (!/static List<string> WireIconChildren\(GameObject go, string root, PBManifest m, string fam\)/.test(cs)
       || !/static List<string> WireIconChildrenRow\(GameObject go, string root, PBManifest m, PBAsset row\)/.test(cs)
@@ -2233,7 +2252,11 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
       || !/if \(texts\.Length == row\.textSeats\.Length && !adoptedTree\) \{/.test(cs)
       || !/static TMPro\.TMP_Text AdoptedRiderText\(GameObject host, PBAsset row, PBSeat seat\)/.test(cs)
       || !/rider words live under their plates/.test(cs)
-      || !/if \(!adopted && srt != null && !SeatRect\(/.test(cs))
+      || !/if \(!adopted && srt != null && !SeatRect\(/.test(cs)
+      /* re-verdict close: the non-rider pairing proves itself by seed name
+         — a kept pre-adoption tree with one word deleted must never
+         index-mispair and rewrite survivors */
+      || !/if \(PlainWord\(texts\[wi\]\.gameObject\.name\) != PlainWord\(s9\.text\)\) \{/.test(cs))
     errors.push("the rider-aware seat accounting is gone — a fresh import's own adoption trips the dev-restructured gate again (boostercard 2v3, avatarframe 0v1) and every later heal silently skips");
   /* round 41 review, blocker 2: posed rider counts rebuild on BOTH rungs —
      fully-qualified TMP outside the styled-rung guard + the LTS face mint */
@@ -2243,7 +2266,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the posed rider words hid behind the styled-rung guard again — 2022.3 ships empty qty pills and badge plates");
   {
     // the docs tell the LTS truth: the rider exception is stated in BOTH docs
-    if (!/rebuilt as editable\s*\n?> TMP text on BOTH rungs/.test(src) || !/which arrive as editable TMP text on both\s*\n?> rungs/.test(src))
+    if (!/which rebuild as editable TMP on\s*\n?> BOTH rungs/.test(src) || !/which arrive as editable TMP text on both\s*\n?> rungs/.test(src))
       errors.push("the 2022.3 rung contract in README/QuickStart no longer states the rider-count exception — the shipped docs would lie again");
     if (!/### What arrives LIVE — the swap-the-sprite contract/.test(src))
       errors.push("the README's live-children paragraph (swap-the-sprite contract) is gone — the flagship editability is undocumented again");
@@ -2252,7 +2275,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
      is recorded in kit.lock.json > seededChildren, and is never re-added
      — a deleted child stays deleted, a renamed child never grows a
      canonical twin, and unburned++ only counts real adds. */
-  if (!/public PBRectEntry\[\] authoredRects; public string\[\] seededChildren; \}/.test(cs))
+  if (!/public PBRectEntry\[\] authoredRects; public string\[\] seededChildren; public string\[\] seededPrefabs; \}/.test(cs))
     errors.push("PBLock lost the seededChildren ledger — the un-burn resurrects deleted children and twins renamed ones again");
   if (!/receipt\.seededChildren = passSeededChildren != null \? passSeededChildren : \(prev != null \? prev\.seededChildren : null\);/.test(cs))
     errors.push("the receipt no longer carries the seeded-children ledger forward — one import without maintenance would amnesia every seeded seat");
@@ -2279,7 +2302,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
       || !/\.\.\.\(mk\.nick \? \{ nick: mk\.nick \} : \{\}\),/.test(src)
       || !/\.\.\.\(t\.getAttribute\("data-seat-rider"\) \? \{ rider: t\.getAttribute\("data-seat-rider"\)! \} : \{\}\),/.test(src))
     errors.push("the export no longer carries the friendly child names (nick) or the badge count's rider through to the manifest");
-  if (!/public float strokeEmPct; public string rider; \}/.test(cs)
+  if (!/public float strokeEmPct; public string rider; public bool unkern; \}/.test(cs) // round 48 appended the smashed-pair flag
       || !/static void AdoptSeatRiders\(GameObject host, PBAsset row\)/.test(cs)
       || !/AdoptSeatRiders\(host, row\);/.test(cs)
       || !/AdoptSeatRiders\(contents, rowUA\);/.test(cs))
@@ -2419,6 +2442,1107 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the notification badge's plate/rider grammar is gone — plate baked or count orphaned");
   if (!/data-icon="ribbon" data-icon-nick="Title ribbon"/.test(bevelSrc) || !/data-seat-rider="ribbon"/.test(bevelSrc))
     errors.push("the nameplate's title ribbon lost its live plate + riding word");
+}
+
+/* FULL-CATALOG round, slice 2 pins: the RPG & MMO chapter. */
+{
+  const S2D = ["questpanel", "dialoguebox", "choicelist", "manarails", "xpbar", "invgrid", "partyframe", "compass", "dmgnumber", "equipslot"];
+  const dispM = /const UNIVERSAL_DISPLAY = new Set<KitComponentId>\(\[([\s\S]*?)\]\);/.exec(src);
+  const interM = /const UNIVERSAL_INTERACTIVE = new Set<KitComponentId>\(\[([\s\S]*?)\]\);/.exec(src);
+  for (const id of S2D)
+    if (!dispM || !new RegExp(`"${id}"`).test(dispM[1]))
+      errors.push(`${id} left the universal display road — the owner's RPG roster item stops exporting live`);
+  if (!interM || !/"skillnode"/.test(interM[1]))
+    errors.push("skillnode left the interactive road — the skill node stops pressing in Unity");
+  for (const id of [...S2D, "skillnode"])
+    if (!new RegExp(`${id}: "${id}"`).test(src))
+      errors.push(`${id} lost its PREFAB_FAMILY entry — board copies of it bake dead again`);
+  if (!/\("RPG & MMO", new\[\] \{ "Questpanel", "Dialoguebox", "Choicelist", "Manarails", "Xpbar", "Invgrid", "Partyframe", "Skillnode", "Dmgnumber", "Equipslot" \}\)/.test(cs))
+    errors.push("the Playground's RPG & MMO chapter is gone or reshuffled");
+  if (!/"Minimap", "Compass"/.test(cs))
+    errors.push("the compass fell off the HUD & DATA shelf");
+  // the un-burn marks
+  if (!/STOCK_ICONS\.flask, "mana"/.test(bevelSrc) || !/STOCK_ICONS\.zap, "stamina"/.test(bevelSrc) || !/data-icon="\$\{icName \?\? "glyph"\}"/.test(bevelSrc))
+    errors.push("the mana/stamina rail glyphs lost their icon markers");
+  if (!/data-icon="speaker" data-icon-nick="Speaker plate"/.test(bevelSrc) || !/rider: "speaker"/.test(bevelSrc))
+    errors.push("the dialogue box's speaker plate/rider grammar is gone");
+  if (!/data-icon="cell\$\{i \+ 1\}"/.test(bevelSrc) || !/data-seat-rider="count\$\{i \+ 1\}"/.test(bevelSrc))
+    errors.push("the inventory grid's cell glyphs or count riders lost their markers");
+  if (!/data-icon-well="\$\{pcx\.toFixed\(1\)\} \$\{cy\.toFixed\(1\)\} \$\{pr\.toFixed\(1\)\}"/.test(bevelSrc))
+    errors.push("the party frame's portrait well marker is gone — the portrait bakes burned again");
+  // the family invgrid ships ringless + the ring layer always ships full
+  if (!/if \(uid === "invgrid"\) baseSvgU = baseSvgU\.replace\(\/<rect data-invring="1"\[\^>\]\*\\\/\?>\/g, ""\);/.test(src))
+    errors.push("the invgrid family base bakes its selection ring again — the selection must be the live cell-ring layer");
+  // SMIL discipline on the universal road (the empty-damage-number bake)
+  if (!/const stripLoopsU = \(sv: string\) => sv/.test(src))
+    errors.push("the universal road stopped stripping SMIL loops — spawn-fade pieces (damage number) bake EMPTY at t=0");
+}
+
+/* FULL-CATALOG round, slice 3 pins: Shooter & Action, complete. */
+{
+  const S3 = ["ammo", "killfeed", "magazine", "equipselector", "streakmeter", "waypoint", "capturemeter", "respawn", "weaponwheel", "crosshair", "hitmarker", "dmgarc", "buffframe", "hotbar", "lives"];
+  const dispM = /const UNIVERSAL_DISPLAY = new Set<KitComponentId>\(\[([\s\S]*?)\]\);/.exec(src);
+  for (const id of S3) {
+    if (!dispM || !new RegExp(`"${id}"`).test(dispM[1]))
+      errors.push(`${id} left the universal display road — the shooter section stops being complete`);
+    if (!new RegExp(`${id}: "${id}"`).test(src))
+      errors.push(`${id} lost its PREFAB_FAMILY entry`);
+  }
+  if (!/\("SHOOTER & ACTION", new\[\] \{ "Crosshair", "Hitmarker", "Dmgarc", "Weaponwheel", "Equipselector", "Magazine", "Ammo", "Streakmeter", "Killfeed", "Waypoint", "Capturemeter", "Respawn", "Buffframe", "Hotbar", "Lives" \}\)/.test(cs))
+    errors.push("the Playground's SHOOTER & ACTION chapter is gone or reshuffled");
+  // the un-burn marks
+  if (!/data-icon="weapon"/.test(bevelSrc)) errors.push("the kill feed's weapon glyph lost its marker");
+  if (!/data-icon="item\$\{items\.indexOf\(it\) \+ 1\}"/.test(bevelSrc)) errors.push("the equipment selector's item glyphs lost their markers");
+  if (!/data-icon="endicon" data-icon-nick="Ignition glyph"/.test(bevelSrc)) errors.push("the streak meter's ignition glyph lost its marker");
+  if (!/data-icon="w\$\{i \+ 1\}"/.test(bevelSrc)) errors.push("the weapon wheel's chamber glyphs lost their markers");
+  if (!/data-icon="slot\$\{i \+ 1\}"/.test(bevelSrc)) errors.push("the hotbar's slot glyphs lost their markers");
+  // (lives' hearts are VALUE PIPS — deliberately unmarked, the magazine/steps stance: an all-children piece ships an empty base)
+  // the IGNITE road: lit-pose emission + runtime + shared registration + wire
+  if (!/iconSeatsOf\(uid, litSvg, undefined, "endicon-lit"\)/.test(src))
+    errors.push("the streak meter's lit ignition pose no longer ships — ignite has nothing to swap in");
+  if (!/public class StreakIgnite : MonoBehaviour/.test(src))
+    errors.push("the StreakIgnite runtime is gone — the streak meter can't ignite in Unity");
+  if (!/"Runtime\/PatternBreakStreakIgnite\.cs",/.test(src))
+    errors.push("PatternBreakStreakIgnite.cs left the sharedScripts set — it would land per-slug OUTSIDE the runtime assembly (the IdleShine CS0246 lesson)");
+  if (!/static bool StreakIgniteWire\(string dir, string root, bool quiet\)/.test(cs) || !/if \(StreakIgniteWire\(dir, root, staging\)\) any = true;/.test(cs))
+    errors.push("the importer no longer wires StreakIgnite onto the Streakmeter prefab");
+}
+
+/* FULL-CATALOG round, slice 4 pins: Casual & saga + the combo's celebration. */
+{
+  const S4D = ["heartmeter", "energymeter", "starrating", "pathconnector", "combo", "flipclock", "stopwatch"];
+  const dispM = /const UNIVERSAL_DISPLAY = new Set<KitComponentId>\(\[([\s\S]*?)\]\);/.exec(src);
+  const interM = /const UNIVERSAL_INTERACTIVE = new Set<KitComponentId>\(\[([\s\S]*?)\]\);/.exec(src);
+  for (const id of S4D)
+    if (!dispM || !new RegExp(`"${id}"`).test(dispM[1]))
+      errors.push(`${id} left the universal display road`);
+  if (!interM || !/"booster"/.test(interM[1]))
+    errors.push("booster left the interactive road — the booster button stops pressing in Unity");
+  for (const id of [...S4D, "booster"])
+    if (!new RegExp(`${id}: "${id}"`).test(src))
+      errors.push(`${id} lost its PREFAB_FAMILY entry`);
+  if (!/\("CASUAL & SAGA", new\[\] \{ "Heartmeter", "Energymeter", "Starrating", "Pathconnector", "Combo", "Booster", "Flipclock", "Stopwatch" \}\)/.test(cs))
+    errors.push("the Playground's CASUAL & SAGA chapter is gone or reshuffled");
+  // the meters' live icon slots (the c98eade Unity half)
+  if (!/data-icon="pip\$\{i \+ 1\}"/.test(bevelSrc))
+    errors.push("the heart meter's pips lost their per-pip markers — the icon slot stops reaching Unity");
+  if (!/data-icon="badge" data-icon-nick="Energy badge"/.test(bevelSrc))
+    errors.push("the energy meter's badge lost its marker");
+  if (!/data-icon-nick="Badge plate" data-badge="1"/.test(bevelSrc) || !/data-icon-nick="Free ribbon" data-badge="1"/.test(bevelSrc))
+    errors.push("the booster's badge plate/rider grammar is gone");
+  // the combo's celebration: runtime + shared registration + wire
+  if (!/public class ComboPop : MonoBehaviour, IPointerClickHandler/.test(src))
+    errors.push("the ComboPop runtime is gone — the combo stops celebrating in Unity");
+  if (!/"Runtime\/PatternBreakComboPop\.cs",/.test(src))
+    errors.push("PatternBreakComboPop.cs left the sharedScripts set (the IdleShine CS0246 lesson)");
+  if (!/static bool ComboPopWire\(string dir, string root, PBManifest m, bool quiet\)/.test(cs) || !/if \(ComboPopWire\(dir, root, m, staging\)\) any = true;/.test(cs))
+    errors.push("the importer no longer wires ComboPop + ClaimBurst onto the Combo prefab");
+  if (!/Mathf\.Lerp\(0\.82f, 1\.32f, u\)/.test(src))
+    errors.push("ComboPop lost the app's own keyframes (0.82 squash → 1.32 overshoot)");
+}
+
+/* FULL-CATALOG round, slice 5 pins: Strategy & social + the Match Score. */
+{
+  const S5 = ["scorebug", "friendrow", "clancrest", "chatbubble", "emotewheel", "buildqueue", "unitplate", "techcard", "popmeter"];
+  const dispM = /const UNIVERSAL_DISPLAY = new Set<KitComponentId>\(\[([\s\S]*?)\]\);/.exec(src);
+  for (const id of S5) {
+    if (!dispM || !new RegExp(`"${id}"`).test(dispM[1]))
+      errors.push(`${id} left the universal display road`);
+    if (!new RegExp(`${id}: "${id}"`).test(src))
+      errors.push(`${id} lost its PREFAB_FAMILY entry`);
+  }
+  if (!/\("STRATEGY & SOCIAL", new\[\] \{ "Scorebug", "Friendrow", "Chatbubble", "Emotewheel", "Clancrest", "Unitplate", "Buildqueue", "Techcard", "Popmeter" \}\)/.test(cs))
+    errors.push("the Playground's STRATEGY & SOCIAL chapter is gone or reshuffled");
+  // the Match Score's Unity half (ba34520): tintable team bars, live names
+  if (!/data-icon="homebar" data-icon-nick="Home color bar" data-icon-tint="\$\{TA\}"/.test(bevelSrc)
+      || !/data-icon="awaybar" data-icon-nick="Away color bar" data-icon-tint="\$\{TB\}"/.test(bevelSrc))
+    errors.push("the score bug's team color bars lost their tintable markers — the ba34520 color slots stop reaching Unity");
+  if (!/const tint = gs0\[gi\]\.getAttribute\("data-icon-tint"\) \|\| null;/.test(src)
+      || !/if \(norm\(el\.getAttribute\("fill"\)\) === norm\(tint\)\) el\.setAttribute\("fill", "#FFFFFF"\);/.test(src))
+    errors.push("the tint grammar's white cut is gone — team bars would ship colored and Unity tints would multiply muddy");
+  if (!/public string tint;/.test(cs) || !/ColorUtility\.TryParseHtmlString\(ic\.tint, out tintC\)\) ii\.color = tintC;/.test(cs))
+    errors.push("the importer no longer applies iconSeat tints (PBIconChild.tint / Image.color)");
+  // the social marks
+  if (!/data-icon="joinbtn" data-icon-btn="1"/.test(bevelSrc) || !/rider: "joinbtn"/.test(bevelSrc))
+    errors.push("the friend row's JOIN capsule lost its button-plate/rider grammar");
+  if (!/data-icon="emote\$\{i \+ 1\}"/.test(bevelSrc) || !/data-icon="hub" data-icon-nick="Selected emote"/.test(bevelSrc))
+    errors.push("the emote wheel's sector/hub emotes lost their markers");
+  if (!/data-icon="emblem" data-icon-nick="Crest emblem"/.test(bevelSrc) || !/data-icon="ribbon" data-icon-nick="Tag ribbon"/.test(bevelSrc))
+    errors.push("the clan crest's emblem/ribbon grammar is gone");
+  if (!/data-icon="atk" data-icon-nick="Attack glyph"/.test(bevelSrc) || !/data-icon="def" data-icon-nick="Defense glyph"/.test(bevelSrc))
+    errors.push("the unit plate's stat glyphs lost their markers");
+}
+
+/* FULL-CATALOG round, slice 6 pins: the rewards completion. */
+{
+  const dispM = /const UNIVERSAL_DISPLAY = new Set<KitComponentId>\(\[([\s\S]*?)\]\);/.exec(src);
+  const interM = /const UNIVERSAL_INTERACTIVE = new Set<KitComponentId>\(\[([\s\S]*?)\]\);/.exec(src);
+  for (const id of ["pack", "cardback", "rewardtray", "chestpanel"])
+    if (!dispM || !new RegExp(`"${id}"`).test(dispM[1]))
+      errors.push(`${id} left the universal display road`);
+  for (const id of ["orderticket", "chest", "giftbox"])
+    if (!interM || !new RegExp(`"${id}"`).test(interM[1]))
+      errors.push(`${id} left the interactive road — the staged reward stops being press-ready for its release day`);
+  // the 2x reward button's own-child ribbon (owner verbatim)
+  if (!/data-icon="adribbon" data-icon-nick="AD x2 ribbon"/.test(bevelSrc))
+    errors.push("the AD x2 angled ribbon lost its own-child marker — burned into the orange background again");
+  // the variants machinery + the REWARDS chapter
+  if (!/const VARIANTS: \{ uid: KitComponentId; suffix: string;/.test(src) || !/suffix: "double"/.test(src)
+      || !/suffix: "legendary"/.test(src) || !/suffix: "mystery"/.test(src)
+      || !/suffix: "claimed"/.test(src) || !/suffix: "locked"/.test(src))
+    errors.push("the rewards state-variant emission is gone — ALL rewards states stop shelving");
+  if (!/\("REWARDS", new\[\] \{ "Pack", "Cardback", "ClaimbtnDouble", "RewardcardLegendary", "RewardcardMystery", "DailycellClaimed", "DailycellLocked", "Chest", "Giftbox", "Rewardtray", "Chestpanel", "Orderticket" \}\)/.test(cs))
+    errors.push("the Playground's REWARDS chapter is gone or reshuffled");
+}
+
+/* ROUND 43 pins — the r42 reviewer gate's blocker + paper cuts. */
+{
+  // BLOCKER: the 2x reward button is a REAL button — variant state skins,
+  // dials under its family name, its own aura
+  if (!/interactive: true, opts: \{ slots: \{ \.\.\.\(st\.kitSlotVals\?\.claimbtn \?\? \{\}\), mode: "2x by ad" \} \}/.test(src))
+    errors.push("the 2x reward button lost its interactive variant flag — it ships as a dead click-eater again");
+  if (!/\["claimbtn", "claimbtn-double"\]/.test(src))
+    errors.push("claimbtn-double lost its stateFx/labelStates dials — no glow, no lift, no Button");
+  if (!/"claimbtn-double",/.test(src) || !/"keycap-space", "padbtn", "padbtn-b", "padbtn-x", "padbtn-y"\]\);/.test(src))
+    errors.push("claimbtn-double (or the round-44 input-prompt variants) left GLOW_FAMS — hover auras fall to the generic blob");
+  // pose variants never eat clicks
+  if (!/static bool PoseVariantName\(string c\) \{ return c == "rewardcard-legendary" \|\| c == "rewardcard-mystery" \|\| c == "dailycell-claimed" \|\| c == "dailycell-locked"; \}/.test(cs))
+    errors.push("PoseVariantName is gone — display pose variants eat clicks their live base siblings would answer");
+  // PAPER CUT 2: tint crosses the posed road
+  if (!/ColorUtility\.TryParseHtmlString\(pIc\.tint, out pTintC\)\) pIi\.color = pTintC;/.test(cs))
+    errors.push("the posed road no longer applies pIc.tint — the first board scorebug ships WHITE team bars");
+  if (!/\.\.\.\(cut\.tint \? \{ tint: cut\.tint \} : \{\}\),/.test(src))
+    errors.push("posed icon cuts no longer carry their tint into posedIcons");
+  // PAPER CUT 3: the prefab-seeding ledger + quiet staging
+  if (!/public string\[\] seededPrefabs; \}/.test(cs))
+    errors.push("PBLock lost the seededPrefabs ledger — deleted prefabs resurrect on every import again");
+  if (!/if \(ledgerP\.Contains\(name\)\) \{ skippedDeleted\+\+; continue; \}/.test(cs)
+      || !/foreach \(var nmL in have\) ledgerP\.Add\(nmL\); \/\/ adopt-present/.test(cs)
+      || !/static void GenerateMissingPrefabs\(string root, PBManifest m, PBLock prevLk\)/.test(cs))
+    errors.push("GenerateMissingPrefabs lost the one-shot prefab ledger (skip-deleted / adopt-present / prev lock)");
+  if (!/receipt\.seededPrefabs = passSeededPrefabs != null \? passSeededPrefabs : \(prev != null \? prev\.seededPrefabs : null\);/.test(cs))
+    errors.push("the receipt no longer carries the prefab-seeding ledger forward");
+  if (!/RunPrefabBuilders\(stage, root, m, true\);/.test(cs) || !/RunPrefabBuilders\(dir, root, m, false\);/.test(cs)
+      || !/if \(!quiet\) Debug\.Log\("UI Kit Maker: the Streakmeter prefab can IGNITE/.test(cs)
+      || !/if \(!quiet\) Debug\.Log\("UI Kit Maker: the Combo prefab celebrates/.test(cs))
+    errors.push("the staging pass is loud again — the Combo/Streakmeter wire receipts print on every no-op import");
+  // PAPER CUT 4: staged families ship no dials
+  if (!/\.filter\(\(\[pid\]\) => stagedShips\(pid\)\)/.test(src))
+    errors.push("the stateFx/labelStates staged filter is gone — dark families leak dials against the ships-nothing receipt");
+  // PAPER CUT 5: the LTS seat road
+  if (!/static void LtsWireTextSeats\(GameObject host, PBAsset row, string root, PBManifest m, float rootH\)/.test(cs)
+      || !/LtsWireTextSeats\(host, row, root, m, rootH\);/.test(cs)
+      || !/static TMPro\.TMP_FontAsset LtsKitFace\(string root, PBManifest m\)/.test(cs))
+    errors.push("the LTS seat road is gone — the seat-worded catalog ships word-BARE on 2022.3 against the docs");
+  if (!/static bool SeatRect\(RectTransform rt, PBSeat seat, TMPro\.TMP_FontAsset face, float rootH, bool inRow, float rowFy, bool apply\)/.test(cs))
+    errors.push("SeatRect fell back inside the styled guard (or lost its qualified signature) — the LTS seat road can't place words");
+}
+
+/* ── ROUND 44 · S1 (parity seats — owner field round): the dialoguebox
+   speaker rides the app's exact fy (the edge clamp is for FREE seats;
+   a rider's plate is its own inside-the-art guarantee), kept kits heal
+   the clamp-parked rider provably-ours, and the fire button's armed
+   glyph sits on the app's own emitted seat instead of a hand estimate. */
+{
+  // 1) SeatRect: rider seats are EXEMPT from the top/bottom edge clamp
+  if (!/float fyC = string\.IsNullOrEmpty\(seat\.rider\) && rootH > fs \* 1\.3f \? Mathf\.Clamp\(seat\.fy, \(fs \* 0\.62f\) \/ rootH, 1f - \(fs \* 0\.62f\) \/ rootH\) : seat\.fy;/.test(cs))
+    errors.push("SeatRect's rider clamp exemption is gone — the dialoguebox speaker (and every edge-plate rider) parks ~12px off the app's seat again (round 44, item 8)");
+  // 2) the adopted-rider rect heal: ONLY a word still at the old clamped
+  //    spot moves (provably ours); the maker's travel stays theirs
+  if (!/float fyOld9 = rootH > fsR9 \* 1\.3f \? Mathf\.Clamp\(seat\.fy, edge9, 1f - edge9\) : seat\.fy;/.test(cs)
+      || !/if \(\(cur9 - oldP9\)\.sqrMagnitude < 0\.5f\) \{/.test(cs)
+      || !/if \(apply\) srt\.position = hostRt9\.TransformPoint\(new Vector3\(oldP9\.x, r9\.yMin \+ \(1f - seat\.fy\) \* r9\.height \+ lift9, oldP9\.z\)\);/.test(cs))
+    errors.push("the adopted-rider clamp heal is gone (or lost its provably-ours gate) — kept kits keep the speaker parked low forever, or a dev-moved rider gets re-seated (round 44, item 8)");
+  // 3) the fire seat plumb: bevel stamp → manifest row → prefab + converge
+  if (!/data-fireseat="\$\{cx9\.toFixed\(1\)\} \$\{\(cy9 \+ sink \+ krF \* 0\.14\)\.toFixed\(1\)\} \$\{\(icF \* \(gsA9 \+ 2 \* gpadA9\) \/ gsA9\)\.toFixed\(1\)\}"/.test(bevelSrc))
+    errors.push("the bare dome render no longer stamps data-fireseat (center + padded glyph-sprite box) — the exact armed seat can't reach the manifest (round 44, item 15)");
+  if (!/fireDx: r1\(fsM\[0\] - \(shM\[0\] \+ shM\[2\] \/ 2\)\), fireDy: r1\(fsM\[1\] - \(shM\[1\] \+ shM\[3\] \/ 2\)\), fireW: r1\(fsM\[2\]\)/.test(src))
+    errors.push("the emission no longer re-speaks data-fireseat shell-center relative onto the dome row (fireDx/fireDy/fireW)");
+  if (!/public PBIconChild\[\] iconSeats; public float fireDx; public float fireDy; public float fireW; public float railDx; public float railDy; public float railW; public float railH; public string labelAnchor; \}/.test(cs))
+    errors.push("PBAsset lost the fireDx/fireDy/fireW (or S15 rail / S17 labelAnchor) fields — JsonUtility drops them silently");
+  if (!/if \(themed && rowFS != null && rowFS\.fireW > 1f\) \{/.test(cs)
+      || !/wRt\.sizeDelta = new Vector2\(rowFS\.fireW, rowFS\.fireW\);/.test(cs)
+      || !/wRt\.anchoredPosition \+= new Vector2\(rowFS\.fireDx, -rowFS\.fireDy\);/.test(cs))
+    errors.push("FireButtonPrefab no longer seats the armed glyph on the app's emitted seat (themed + fireW-gated, heuristic fallback for old zips) — the main icon sits low again (round 44, item 15)");
+  if (!/if \(oursBox && oursNudge/.test(cs) || !/wFixRt\.anchoredPosition = new Vector2\(fbSeatDx, -fbSeatDy\);/.test(cs))
+    errors.push("the kept-project Weapon seat convergence is gone (or lost its ours-only gate) — field kits never pick up the exact armed seat, or a dev-moved Weapon gets clobbered");
+  // S2 — Data Row arrow REMOVAL (owner decision, item 7): the trailing
+  // action renders ONLY as per-copy poses; the default forward arrow is
+  // gone for good (its color was uncontrollable from the app)
+  if (/iconGroup\(STOCK_ICONS\.forward, 39 \+ w - 48 \* k/.test(bevelSrc))
+    errors.push("the data row's default forward arrow came back — the owner removed it (round 44, item 7: color uncontrollable through the app)");
+  if (!/: ov === "locked"\n\s*\? `<g data-part="icon" data-icon="action">/.test(bevelSrc))
+    errors.push("the data row's posed action badges (locked/check/alert) lost their marked-group grammar — posed board copies would bake or vanish");
+  if (!/No trailing arrow ships \(owner ruling\)/.test(src))
+    errors.push("the data row's usage no longer states the arrow ruling — the manifest would promise a live action child that never ships");
+  // S3 — the daily cell's pose badges are live children (item 6: "separate
+  // the checkmark from the background"; the lock rides the same sweep)
+  if (!/data-icon="claimbadge" data-icon-nick="Claimed badge"/.test(bevelSrc)
+      || !/data-icon="lockbadge" data-icon-nick="Lock badge"/.test(bevelSrc))
+    errors.push("the daily cell's claimed/lock badges lost their marked-ink grammar — the checkmark burns back into the background (round 44, item 6)");
+  // S4 — the capture meter joins the ring rig (item 4: "mercury bleed at
+  // the edge — same class as the earlier circular progress fix")
+  if (!/const ringRig = uid === "ring" \|\| uid === "capturemeter";/.test(src))
+    errors.push("the capture meter left the ring-rig emission — its arc bakes static (glow bleed and all) again (round 44, item 4)");
+  if (!/if \(baseAsset\.component == "ring" \|\| baseAsset\.component == "capturemeter"\) \{/.test(cs)
+      || !/var ringTrackSp = S\(root \+ "\/assets\/" \+ famRg \+ "\/" \+ famRg \+ "-track\.png"\);/.test(cs))
+    errors.push("FamilyPrefab's ring rig no longer serves the capture meter — its prefab ships a dead bake again (round 44, item 4)");
+  // the capture atoms carry NO baked glow — the bleed the owner flagged
+  if (!/opts\.part === "track" \|\| opts\.part === "fill" \|\| opts\.part === "cap"/.test(bevelSrc.slice(bevelSrc.indexOf('case "capturemeter"'), bevelSrc.indexOf('case "respawn"'))))
+    errors.push("the capture meter's part renders (track/fill/cap) are gone from bevel — the ring-rig emission would ship the full bake as every atom");
+  // S4 — the buff frame's countdown FUNCTIONS (item 2)
+  if (!/<g data-buffsweep="1"><g clip-path="url\(#\$\{fcRef\}\)">/.test(bevelSrc))
+    errors.push("the buff frame's sweep lost its data-buffsweep marker — the plate can't strip it and the live rig double-draws (round 44, item 2)");
+  if (!/opts\.part === "sweep" \|\| opts\.part === "sweephand" \|\| opts\.part === "sweepmask"/.test(bevelSrc))
+    errors.push("the buff frame's sweep atoms (sweep/sweephand/sweepmask) are gone from bevel (round 44, item 2)");
+  if (!/const buffRig = uid === "buffframe";/.test(src) || !/await addPng\(`\$\{uid\}\/plate\.png`, stripBuffSweep\(baseSvgU\), \{/.test(src))
+    errors.push("the buff frame's plate/atom emission is gone — base.png must stay the byte-identical baked pose while the rig wears the sweep-less plate (round 44, item 2)");
+  if (!/var bfPlate = S\(root \+ "\/assets\/buffframe\/buffframe-plate\.png"\);/.test(cs)
+      || !/var bsw = go\.AddComponent<KitBuffSweep>\(\);/.test(cs)
+      || !/winMask\.showMaskGraphic = false;/.test(cs))
+    errors.push("FamilyPrefab's buff-sweep rig is gone (plate swap + masked window + KitBuffSweep) — the countdown burns back into the face (round 44, item 2)");
+  if (!/public class KitBuffSweep : MonoBehaviour \{/.test(cs.includes("KitBuffSweep") ? cs : "") && !/const BUFF_SWEEP_RUNTIME = `using UnityEngine;/.test(src))
+    errors.push("the KitBuffSweep runtime is missing");
+  // the IdleShine lesson: every runtime ships SHARED or the editor
+  // assembly can't resolve it (CS0246) — both registrations, always
+  if (!/files\.push\(\{ path: "Runtime\/PatternBreakBuffSweep\.cs", data: BUFF_SWEEP_RUNTIME \}\);/.test(src)
+      || !/"Runtime\/PatternBreakBuffSweep\.cs",/.test(src))
+    errors.push("PatternBreakBuffSweep.cs must ride BOTH files.push and sharedScripts (the IdleShine CS0246 lesson)");
+  if (!/var bswS = inst\.GetComponent<KitBuffSweep>\(\);/.test(cs))
+    errors.push("board copies no longer strike the buff frame's staged pose (KitBuffSweep board line)");
+  // S5 — the season track's RUN atom + kept-rig convergence (item 14).
+  // The reproduction proved the geometry EXACT at generation (marker
+  // seats to 0.2px); the real drops were the crushed mercury stand-in
+  // and kept prefabs frozen at their first import.
+  if (!/data-seasontrack-part="run"/.test(bevelSrc))
+    errors.push("the season track's run atom left bevel — the rig squashes the 44px-bordered mercury into the rail again (round 44, item 14)");
+  if (!/await addPng\("seasontrack\/run\.9\.png", shell\("seasontrack", \{ part: "run" \}\)/.test(src))
+    errors.push("the run atom stopped shipping (seasontrack/run.9.png)");
+  // the SeasonTrack runtime lives in its own shared file (SEASON_TRACK_
+  // RUNTIME), so its pins read the TS source, not the importer template
+  if (!/public Sprite runSprite;/.test(src) || !/var runSp = runSprite != null \? runSprite : fillSprite;/.test(src)
+      || !/float fillH = runSprite != null \? runSprite\.rect\.size\.y \* spriteScale : spineH \* 0\.62f;/.test(src))
+    errors.push("SeasonTrack no longer prefers the run atom (fillSprite crush returns) — round 44, item 14");
+  if (!/c\.runSprite = S\(pre \+ "run\.9\.png"\);/.test(cs))
+    errors.push("WireSeasonTrack no longer wires the run atom");
+  if (!/spritePath\.EndsWith\("\/seasontrack-board\.9\.png"\)/.test(cs)
+      || !/bool wantStRun = stK0\.runSprite == null && runSpK != null;/.test(cs)
+      || !/bool stDefaults = Mathf\.Approximately\(stK0\.trackX0, 0\.22f\)/.test(cs))
+    errors.push("the kept-rig SeasonTrack convergence is gone (run wire + defaults-only geometry) — field kits freeze at their first import forever (round 44, item 14)");
+  // RIG-1 — the LINEAR CAP RIG (owner kit-wide mercury ruling; settles
+  // part-1 item 10 + part-2 items 28/43): the app's bead parks on the
+  // value line while the Filled crop hides beneath it
+  if (!/if \(opts\.overlay === "cap"\) \{\n        const vCap = 0\.8;/.test(bevelSrc))
+    errors.push("the progress/emblembar cap atom (windowed bead) left bevel — the mercury goes flat at the growing end again (round 44, item 10)");
+  if (!/const wx0s = fx1s - bh - 8, wwCs = Math\.ceil\(bh \+ 16\);/.test(bevelSrc))
+    errors.push("the slider cap atom left bevel");
+  if (!/opts\.overlay === "fill-right" \|\| opts\.overlay === "cap-r"/.test(bevelSrc)
+      || !/const capF = opts\.overlay === "cap-l" \|\| opts\.overlay === "cap-r";/.test(bevelSrc))
+    errors.push("the vsbar drain beads (rounded atoms + cap windows) left bevel (round 44, item 43)");
+  for (const capRow of ['"progress\\/cap.png"', '"emblembar\\/cap.png"', '"slider\\/cap.png"', '"vsbar\\/cap-l.png"', '"vsbar\\/cap-r.png"'])
+    if (!new RegExp("await addPng\\(" + capRow).test(src))
+      errors.push(`the ${capRow} cap atom stopped shipping`);
+  if (!/public class KitBarFill : MonoBehaviour \{/.test(src)
+      || !/float capW = areaH \* \(capImg\.sprite\.rect\.width \/ Mathf\.Max\(1f, capImg\.sprite\.rect\.height\)\);/.test(src)
+      || !/fill\.fillAmount = Mathf\.Max\(0f, v - capFrac \* 0\.5f\);/.test(src)
+      || !/if \(!Mathf\.Approximately\(fill\.fillAmount, wroteFill\)\) \{ value = Snap\(fill\.fillAmount\); Apply\(\); \}/.test(src))
+    errors.push("KitBarFill lost its rig semantics (height-ratio cap, crop retreat under the bead, change-guarded fillAmount follow — the SHIPPED dev contract)");
+  if (!/files\.push\(\{ path: "Runtime\/PatternBreakKitBarFill\.cs", data: KIT_BAR_FILL_RUNTIME \}\);/.test(src)
+      || !/"Runtime\/PatternBreakKitBarFill\.cs",/.test(src))
+    errors.push("PatternBreakKitBarFill.cs must ride BOTH files.push and sharedScripts (the IdleShine CS0246 lesson)");
+  if (!/static void WireBarCap\(GameObject area, Image fImg, string root, string fam, bool fromRight, float staged\)/.test(cs)
+      || !/WireBarCap\(area, fImg, root, fam, fromRight, staged\);/.test(cs)
+      || !/WireBarCap\(area, fImg, root, "slider", false, 0\.62f\);/.test(cs)
+      || !/WireBarCap\(area, fi, root, "vsbar", false, 0\.72f\);/.test(cs)
+      || !/WireBarCap\(area, fi, root, "vsbar", true, 0\.58f\);/.test(cs))
+    errors.push("the cap wiring left a bar prefab road (BuildBarFill/Slider/VsBar) — that family's mercury goes flat again");
+  if (!/var kbP = pfT\.GetComponentInParent<KitBarFill>\(\);/.test(cs) || !/var kbV = vlT\.GetComponentInParent<KitBarFill>\(\);/.test(cs))
+    errors.push("board copies no longer re-park the bead on their posed value (KitBarFill board lines)");
+  if (!/string famBarK = spritePath\.EndsWith\("\/progress-track\.9\.png"\) \? "progress"/.test(cs)
+      || !/capRigged\+\+;/.test(cs))
+    errors.push("the kept-project rounded-head retrofit is gone — field bars keep the flat crop forever (round 44)");
+  // RIG-2 — the CELL-METER road (items 1, 13, 33 under the mercury ruling)
+  if (!/rx="\$\{Math\.min\(cellW \/ 2, bh \/ 2\)\.toFixed\(1\)\}"/.test(bevelSrc))
+    errors.push("the segbar cells lost the mercury rounding (round 44, item 33)");
+  if (!/rx="\$\{Math\.min\(cellW9 \/ 2, 11\.5 \* k\)\.toFixed\(1\)\}"/.test(bevelSrc))
+    errors.push("the energymeter cells lost the mercury rounding (round 44)");
+  if (!/const litA5 = Math\.round\(vA5 \* 3\);/.test(bevelSrc) || !/const on = i >= 3 - litA5;/.test(bevelSrc))
+    errors.push("the ammo thirds meter left bevel — bars must go dark LEFT→RIGHT as ammo depletes (round 44, item 1)");
+  if (!/return stampTrack\(inject\(track, bullets \+ txt\), 39 \+ 16 \* k, 23 \* k\);/.test(bevelSrc)
+      || !/return stampTrack\(inject\(shell\.replace\("<svg ", '<svg data-energymeter="1" '\), inner\), cellsX, cellsW\);/.test(bevelSrc))
+    errors.push("the cell meters' zone stamps left bevel — the engine scissor cannot land in the gaps");
+  if (!/const cellRig = uid === "energymeter" \|\| uid === "ammo" \|\| uid === "magazine" \|\| uid === "streakmeter";/.test(src)
+      || !/await addPng\(`\$\{uid\}\/lit\.png`, litSvgU, \{/.test(src))
+    errors.push("the cell-rig emission (empty base + full lit, one crop group) is gone");
+  if (!/public class KitCellMeter : MonoBehaviour \{/.test(src)
+      || !/else if \(!fromRight\) f = Mathf\.Clamp01\(zone0 \+ \(zone1 - zone0\) \* \(L \/ \(float\)n\)\);/.test(src)
+      || !/else f = Mathf\.Clamp01\(1f - \(zone0 \+ \(zone1 - zone0\) \* \(\(n - L\) \/ \(float\)n\)\)\);/.test(src))
+    errors.push("KitCellMeter lost its snap semantics (gap-landing cut, mirrored for ammo)");
+  if (!/files\.push\(\{ path: "Runtime\/PatternBreakCellMeter\.cs", data: CELL_METER_RUNTIME \}\);/.test(src)
+      || !/"Runtime\/PatternBreakCellMeter\.cs",/.test(src))
+    errors.push("PatternBreakCellMeter.cs must ride BOTH files.push and sharedScripts (the IdleShine CS0246 lesson)");
+  if (!/if \(baseAsset\.component == "energymeter" \|\| baseAsset\.component == "ammo" \|\| baseAsset\.component == "lives" \|\| baseAsset\.component == "magazine" \|\| baseAsset\.component == "streakmeter"\) \{/.test(cs)
+      || !/var kcmSeg = go\.AddComponent<KitCellMeter>\(\);/.test(cs)
+      || !/var kcmS = inst\.GetComponent<KitCellMeter>\(\);/.test(cs)
+      || !/var kcmSg = inst\.GetComponent<KitCellMeter>\(\);/.test(cs))
+    errors.push("the cell-meter wiring left the importer (FamilyPrefab block / segbar snapper / board strikes)");
+  if (!/cell meters stamp their zone on base\/lit rows \(no track part/.test(cs))
+    errors.push("BarZone lost its base-row zone fallback — cell zones never reach the runtime");
+  if (!/string famCMk = spritePath\.EndsWith\("\/segbar-base\.png"\) \? "segbar"/.test(cs))
+    errors.push("the kept-project cell-meter convergence is gone — field meters keep raw cuts (or empty bases) forever");
+}
+
+/* ── ROUND 44 · S8 (the RIG-4 marked-ink wrap sweep — items 16/17/41,
+   the owner's caret ruling, and the R1/R9/R11 sweep riders): every wrap
+   is app-side grammar in bevel.ts; the exporter's existing hands
+   (markedIconOnlySvgs / stripMarkedIcons / iconSeatsOf / rider adoption)
+   do the rest. Plus the medal's live word and the paint-order insert. ── */
+{
+  if (!/data-icon="presence" data-icon-nick="Presence dot"/.test(bevelSrc))
+    errors.push("the friendrow presence dot lost its marked wrap — the row's only green ink burns into the base again (round 44, item 16; deliberately UN-tinted: mixed ink, see the bevel comment)");
+  if (!/data-icon="addcap" data-icon-btn="1"/.test(bevelSrc) || !/data-seat-rider="addcap"/.test(bevelSrc))
+    errors.push("the heartmeter add cap lost its marked BUTTON wrap or its + rider — the candy knob burns into the base again (round 44, item 17 — the HEARTMETER half of the 16/17 pair)");
+  if (!/data-icon="cost" data-icon-nick="Cost gem"/.test(bevelSrc))
+    errors.push("the techcard cost gem lost its marked wrap (round 44, item 41 — owner: the yellow dot beside 120 un-burns)");
+  if ((bevelSrc.match(/data-icon="caret" data-icon-nick="Continue caret"/g) ?? []).length < 2)
+    errors.push("the dialoguebox continue caret must be marked in BOTH state branches (owner ruling, round 44: the caret IS ITS OWN LAYER)");
+  if (!/data-icon="qtychip" data-icon-nick="Qty chip"/.test(bevelSrc) || !/data-seat-rider="qtychip"/.test(bevelSrc))
+    errors.push("the rewardcard qty chip lost its marked plate wrap or its count rider (round 44, dossier R9 — covers the legendary variant too)");
+  if (!/data-icon="medallion" data-icon-nick="Gold medallion"/.test(bevelSrc))
+    errors.push("the achievetoast gold medallion lost its marked wrap — the orb burns while its glyph ships live (round 44, dossier R11)");
+  if (!/const vsMedalSeats = parseTextSeats\(vsMedalFull, pieceCfg\("vsbar"\)\.type\.font\);/.test(src)
+      || !/stripWordInk\(vsMedalFull\)\.svg/.test(src))
+    errors.push("the vsbar medal's word must parse as a text seat and strip from the sprite — the VS burns into the medallion again (round 44, dossier R1)");
+  if (!/WireTextSeats\(mgo, root, m, pngScale\);/.test(cs))
+    errors.push("VsBarPrefab no longer seats the medal's VS live (WireTextSeats on the Medal child)");
+  if (!/\|Medal Words/.test(cs) || !/medalWorded\+\+;/.test(cs))
+    errors.push("the kept-project medal-word graft is gone (or lost its seeded-children ledger key) — field VsBars go wordless when the wordless medal sprite retextures in");
+  if (!/for \(int nxI = icI \+ 1; nxI < row\.iconSeats\.Length && beforeIC == null; nxI\+\+\)/.test(cs)
+      || !/if \(beforeIC == null\) beforeIC = go\.transform\.Find\("Words"\);/.test(cs))
+    errors.push("WireIconChildrenRow lost the order-aware insert — a converged medallion lands OVER its glyph on kept prefabs (seat order is paint order, round 44)");
+  if (/The continue arrow is anatomy/.test(src))
+    errors.push("the dialoguebox usage still claims the continue arrow is anatomy — the owner overturned that (round 44 ruling)");
+}
+
+/* ── ROUND 44 · S10 (RIG-6 pilot — item 18, the hotbar's Selected ring):
+   every cell rests uniform (0.85 + keyline) and the WHOLE active dress
+   rides the marked ring group; the 0.8667 bridge is load-bearing —
+   1−(1−0.85)(1−0.8667)=0.98, so recomposition is exact. ── */
+{
+  if (!/opacity="0\.85" stroke="\$\{hexRgba\(darken\(bevel, 0\.4\), 0\.6\)\}" stroke-width="1\.2" data-cell="\$\{i\}"\/>`;\s*\n\s*if \(on\) cells \+= `<g data-part="icon" data-icon="ring" data-icon-nick="Selected ring"><path d="\$\{roundRect\(cx0, yh, cell, cell, cellR\)\}" fill="\$\{wellFill\}" opacity="0\.8667"/.test(bevelSrc))
+    errors.push("the hotbar's Selected-ring group (uniform 0.85 wells + the EXACT 0.8667 bridge) left bevel — the selection burns into the strip again, or the bridge drifts and recomposition breaks (round 44, item 18)");
+  if ((src.match(/The Selected ring child IS the selection/g) ?? []).length < 2)
+    errors.push("the hotbar usage lost the bottomnav Selected-ring wording (round 44, item 18 — the dossier's usage-rewrite gate)");
+  if (!/the \*\*Hotbar\*\* carries the same \*\*Selected ring\*\*/.test(src))
+    errors.push("the QuickStart ring paragraph no longer names the Hotbar (round 44, item 18)");
+}
+
+/* ── ROUND 44 · S11 (RIG-5 chassis + pagedots 24 / startlights 36):
+   discrete counts become DIALS — part atoms + geometry blocks + two
+   [ExecuteAlways] runtimes; both bases stay byte-identical (the
+   geometry rides attributes, which never rasterize). ── */
+{
+  if (!/data-pagedots="\$\{\(pad0 \+ dR \* 2\)\.toFixed\(1\)\} \$\{\(H0 \/ 2\)\.toFixed\(1\)\} \$\{gap0\.toFixed\(1\)\} \$\{dR\.toFixed\(1\)\} \$\{n0\} \$\{selD\}"/.test(bevelSrc))
+    errors.push("the pagedots geometry stamp (x0 cy pitch r n staged) left bevel — the rig loses its layout truth (round 44, item 24)");
+  if (!/opts\.part === "dot"/.test(bevelSrc) || !/opts\.part === "knob"/.test(bevelSrc))
+    errors.push("the pagedots atoms (dot/knob part branches) left bevel");
+  if (!/data-pods="\$\{\(hx \+ gapP \+ podR\)\.toFixed\(1\)\} \$\{\(hy \+ housH \/ 2\)\.toFixed\(1\)\} \$\{\(podR \* 2 \+ gapP\)\.toFixed\(1\)\} \$\{podR\.toFixed\(1\)\}"/.test(bevelSrc))
+    errors.push("the startlights pod stamp (data-pods) left bevel (round 44, item 36 — the base must stay byte-identical, so the geometry MUST ride an attribute)");
+  if (!/opts\.part === "lamp"/.test(bevelSrc))
+    errors.push("the startlights lamp atom branch left bevel");
+  if (!/pageDots: pageDotsGeo,\s*\n\s*startLights: startLightsGeo,/.test(src))
+    errors.push("the RIG-5 geometry blocks left the manifest emission");
+  if (!/\[Serializable\] class PBDotsGeo \{ public float x0; public float cy; public float pitch; public float r; public int n; public int staged; public float w; public float h; \}/.test(cs)
+      || !/public PBDotsGeo pageDots; public PBDotsGeo startLights;/.test(cs))
+    errors.push("PBDotsGeo (or its two manifest fields) left the importer — the rigs go blind (round 44)");
+  if (!/static bool PageDotsPrefab\(string dir, string root, int pngScale, PBManifest m\)/.test(cs)
+      || !/static bool StartLightsPrefab\(string dir, string root, int pngScale, PBManifest m\)/.test(cs)
+      || !/return PicturePrefab\(dir, root, pngScale, m, "pagedots\/pagedots-base\.png", "Pagedots", false\);/.test(cs)
+      || !/return PicturePrefab\(dir, root, pngScale, m, "startlights\/startlights-base\.png", "Startlights", false\);/.test(cs))
+    errors.push("a RIG-5 prefab road (or its old-zip picture fallback) left the importer (round 44)");
+  if (!/"firebutton", "pagedots", "dialog", "scrollbar", "pathconnector" \}/.test(cs))
+    errors.push("pagedots/dialog/pathconnector left the family-road skip set — FamilyPrefab would double-own their prefabs (round 44)");
+  if (!/var pdS = inst\.GetComponent<PatternBreakPageDots>\(\);/.test(cs) || !/var slgS = inst\.GetComponent<PatternBreakStartLights>\(\);/.test(cs))
+    errors.push("the RIG-5 board-pose strikes left the importer (round 44)");
+  if (!/rig\.litCount = 0;/.test(cs))
+    errors.push("the StartLights prefab no longer rests at LIGHTS OUT — the dossier forbids defaulting the demo 3 (round 44, item 36)");
+  if (!/caption\.text == readyWord \|\| caption\.text == goWord/.test(src))
+    errors.push("the StartLights caption rewrite lost its ours-only gate — a retyped caption would be clobbered (round 44)");
+  if (!/files\.push\(\{ path: "Runtime\/PatternBreakPageDots\.cs", data: PAGE_DOTS_RUNTIME \}\);/.test(src)
+      || !/files\.push\(\{ path: "Runtime\/PatternBreakStartLights\.cs", data: START_LIGHTS_RUNTIME \}\);/.test(src)
+      || !/"Runtime\/PatternBreakPageDots\.cs", "Runtime\/PatternBreakStartLights\.cs",/.test(src))
+    errors.push("PatternBreakPageDots/StartLights must ride BOTH files.push AND sharedScripts (the IdleShine CS0246 lesson)");
+}
+
+/* ── ROUND 44 · S12 (RIG-1 riders batch 1 — loadbar 19 / popmeter 27 /
+   respawn 30 / buildqueue): the mercury is MARKED ink (data-barfill),
+   the base bakes trackified, and fill/cap atoms ride KitBarFill on the
+   base row's extended data-track band. ── */
+{
+  if (!/function stampTrack\(svg: string, x: number, w: number, y\?: number, h\?: number\): string/.test(bevelSrc))
+    errors.push("stampTrack lost the optional vertical band (round 44 — bars off the shell centerline need y/h)");
+  if ((bevelSrc.match(/data-barfill="/g) ?? []).length < 4)
+    errors.push("the four display bars' mercury marks (data-barfill) left bevel — the un-burn loses its ink map (round 44, items 19/27/30 + buildqueue)");
+  if (!/const nearCap = opts\.part === "fill" \? false : vP0 > 0\.9;/.test(bevelSrc))
+    errors.push("popmeter's fill atom lost its CALM gate — a red-baked run would alarm at every value (round 44, item 27)");
+  if (!/return barH9 > 0\.5 \? stampTrack\(outR9, barX9 \+ gR9, barW9 - gR9 \* 2, barY9 \+ gR9, mHR9\) : outR9;/.test(bevelSrc))
+    errors.push("respawn's conditional zone stamp left bevel — Barheight Hidden must ship no zone (round 44, item 30)");
+  if (!/function barFillOnlySvg\(/.test(src) || !/function stripBarFill\(/.test(src))
+    errors.push("the RIG-1 bar un-burn hands (barFillOnlySvg/stripBarFill) left the exporter");
+  if (!/const barRigU = uid === "loadbar" \|\| uid === "popmeter" \|\| uid === "respawn" \|\| uid === "buildqueue" \|\| uid === "xpbar" \|\| uid === "unitplate" \|\| uid === "questpanel" \|\| uid === "setrow" \|\| uid === "orderticket" \|\| uid === "vitalbar";/.test(src))
+    errors.push("the display-bar rig gate left the universal loop (eight families incl. xpbar/unitplate/questpanel/setrow)");
+  if (!/tzy \+ riseDyT/.test(src))
+    errors.push("the track band lost its riseDy correction — the zone would seat a full extrusion headroom too high (round 44 field lesson)");
+  if (!/track\?: \{ x: number; w: number; y\?: number; h\?: number \} \| null;/.test(src))
+    errors.push("AssetMeta.track lost the optional vertical band");
+  if (!/float bandCy = -1f;/.test(cs) || !/float topGap = bandCy - fillH \* 0\.5f, botGap = trackH - bandCy - fillH \* 0\.5f;/.test(cs))
+    errors.push("BuildBarFill lost the vertical-band seat (round 44) — off-centerline bars would center mid-shell");
+  if (!/if \(baseAsset\.component == "loadbar" \|\| baseAsset\.component == "popmeter" \|\| baseAsset\.component == "respawn" \|\| baseAsset\.component == "buildqueue" \|\| baseAsset\.component == "xpbar" \|\| baseAsset\.component == "unitplate" \|\| baseAsset\.component == "questpanel" \|\| baseAsset\.component == "setrow" \|\| baseAsset\.component == "orderticket" \|\| baseAsset\.component == "vitalbar"\)/.test(cs)
+      || !/string famDB = spritePath\.EndsWith\("\/loadbar-base\.png"\) \? "loadbar"/.test(cs))
+    errors.push("the display bars' FamilyPrefab wiring or kept-project Fill graft left the importer (round 44)");
+  const liveArtSrc = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../src/ui/LiveArt.tsx"), "utf8");
+  if (!/track\.length < 2 \|\| !track\[1\]/.test(liveArtSrc))
+    errors.push("LiveArt's track scrub must tolerate 4-number stamps (round 44) — a strict length===2 check kills pointer scrubbing on banded bars");
+}
+
+/* ── ROUND 44 · S13 (owner: "make sure key space is in the unity output
+   as well as Pad A, Pad B, etc"): the input-prompt variants — SPACE bar
+   + gamepad A/B/X/Y as pressing labeled families; the pad ring is live
+   tintable ink, never fixed trade-dress art. ── */
+{
+  if (!/data-icon="ring" data-icon-tint="\$\{ringC8\}" data-icon-nick="Prompt ring"/.test(bevelSrc))
+    errors.push("the padbtn prompt ring lost its tintable mark — the ring burns back into the cap (round 44)");
+  if (!/\{ fam: "keycap-space", baseId: "keycap", word: "SPACE",/.test(src)
+      || !/\{ fam: "padbtn", baseId: "padbtn", word: "A",/.test(src)
+      || !/\{ fam: "padbtn-y", baseId: "padbtn", word: "Y",/.test(src))
+    errors.push("the PROMPTS variant emission (keycap-space + the four pads) left the exporter (round 44, owner ask)");
+  if (!/const ghostPV = \(c: GenConfig\) => \{ c\.transparency\.content = 0; \};/.test(src))
+    errors.push("the prompt bakes lost the ghosted-geometry render — the letters would burn into the caps (round 44)");
+  if (!/if \(id === "keycap" \|\| id === "padbtn"\) \{/.test(src))
+    errors.push("padbtn left the labelSeatOf road — its letter would seat by guesswork (round 44)");
+  if (!/"Keycap", "KeycapSpace", "Padbtn", "PadbtnB", "PadbtnX", "PadbtnY", "Pricebtn"/.test(cs))
+    errors.push("the Playground BUTTONS chapter no longer shelves the input prompts (round 44, owner ask)");
+  if (!/"dropdown", "keycap-space", "padbtn", "padbtn-b", "padbtn-x", "padbtn-y" \};/.test(cs))
+    errors.push("SeededFamilies lost the prompt variants — retyped letters would be clobbered by the word seed (round 44)");
+  if (!/\["keycap", "keycap-space"\], \["padbtn", "padbtn"\],/.test(src))
+    errors.push("the prompt variants lost their stateFx dial rows — no glow, no lift, no Button (round 44)");
+}
+
+/* ── ROUND 44 · S14 (owner verbatim: "also quest complete fully wired"):
+   the DIALOG ships as a real usable modal — live title, deletable body
+   placeholder, and BOTH CTAs as genuine pressing Buttons on fixed-canvas
+   Sprite Swap skins with their words riding them. ── */
+{
+  if (!/data-dialogcta="\$\{primaryB \? 1 : 2\}"/.test(bevelSrc) || !/data-seat-rider="\$\{primaryB \? "cta1" : "cta2"\}"/.test(bevelSrc))
+    errors.push("the dialog CTAs lost their strip mark or rider words — the capsules burn back into the frame (round 44, owner ask)");
+  if (!/data-icon="placeholder" data-icon-nick="Body placeholder"/.test(bevelSrc))
+    errors.push("the dialog's body placeholder lost its marked wrap — devs can't clear the well in one stroke (round 44)");
+  if (!/opts\.overlay === "cta1" \|\| opts\.overlay === "cta2"/.test(bevelSrc) || !/data-dialogctas="\$\{bx0\.toFixed\(1\)\} \$\{btnY\.toFixed\(1\)\} \$\{btnW\.toFixed\(1\)\} \$\{btnH\.toFixed\(1\)\} \$\{btnGap\.toFixed\(1\)\}"/.test(bevelSrc))
+    errors.push("the dialog CTA atoms (fixed-canvas overlays + the seat stamp) left bevel (round 44)");
+  if (!/if \(shipProp\("dialog"\)\) \{/.test(src) || !/await addPng\("dialog\/base\.png", baseD, \{/.test(src))
+    errors.push("the dialog emission left the exporter — the #1 modal ships nothing again (round 44, owner ask)");
+  if (!/static bool DialogPrefab\(string dir, string root, int pngScale, PBManifest m\)/.test(cs)
+      || !/btD\.transition = Selectable\.Transition\.SpriteSwap;/.test(cs)
+      || !/if \(DialogPrefab\(dir, root, pngScale, m\)\) any = true;/.test(cs))
+    errors.push("DialogPrefab (or its Sprite Swap upgrade / build call) left the importer (round 44)");
+  if (!/"Panel", "Dialog", "DataRow"/.test(cs))
+    errors.push("the Dialog left the Playground NAVIGATION & CHROME chapter (round 44)");
+}
+
+/* ── ROUND 44 · S15 (RIG-1 riders batch 2 — xpbar 45 / manarails 21):
+   xpbar joins the five-family universal bar rig (notch-aware mercury +
+   Level-knob child with its rider number); manarails rides as TWIN
+   coupled KitBarFills seated by railDx geometry, stamina counter-moving
+   mana by the app's own law. ── */
+{
+  if (!/data-icon="knob" data-icon-nick="Level knob"/.test(bevelSrc) || !/data-seat-rider="knob"/.test(bevelSrc))
+    errors.push("xpbar's Level knob lost its marked wrap or rider number — the level burns back into the bar (round 44, item 45)");
+  if (!/const atomsMR = opts\.part === "fill";/.test(bevelSrc) || !/data-barfill-name="\$\{icName \?\? "rail"\}"/.test(bevelSrc))
+    errors.push("manarails lost its atom force-full gate or named mercury marks — the twin rails can't be cut (round 44, item 21)");
+  if (!/let railsOut:/.test(src) || !/function barFillGroups\(/.test(src))
+    errors.push("the named-rail compute road (barFillGroups/railsOut) left the exporter (round 44, item 21)");
+  if (!/ringV: rl\.staged, railDx: rl\.dx, railDy: rl\.dy, railW: rl\.w9, railH: rl\.h9,/.test(src))
+    errors.push("the per-rail fill rows lost their staged value or shell-center rail geometry (round 44, item 21)");
+  if (!/static void WireManaRails\(GameObject go, Sprite baseSp, PBAsset baseRow, string root, int pngScale, PBManifest m\)/.test(cs)
+      || !/if \(baseAsset\.component == "manarails"\) WireManaRails\(go, baseSp, baseAsset, root, pngScale, m\);/.test(cs))
+    errors.push("WireManaRails (or its FamilyPrefab call) left the importer — the twin rails ship baked (round 44, item 21)");
+  if (!/stK9\.SetValue\(Mathf\.Clamp01\(0\.15f \+ \(1f - vMn9\) \* 0\.7f\)\);/.test(cs))
+    errors.push("the manarails board strike lost the stamina coupling — boards would pose only one rail (round 44, item 21)");
+  if (!/spritePath\.EndsWith\("\/xpbar-base\.png"\) \? "xpbar"/.test(cs)
+      || !/fPrev\.file == "assets\/manarails\/manarails-fill-mana\.png"/.test(cs))
+    errors.push("the kept-project grafts (xpbar Fill / manarails twin-rail era gate) left the importer (round 44)");
+}
+
+/* ── ROUND 44 · S16 (RIG-1 riders batch 3 — unitplate 42 / partyframe 25):
+   the unit plate's HP mercury joins the six-family universal rig (with
+   the board value strike the dossier flagged — plates on posed boards
+   must land on their value, never render empty); the party frame's twin
+   HP/MP rails ride the generalized named-rail road with the level knob
+   un-burned and its "12" riding live. ── */
+{
+  if (!/const atomsUP = opts\.part === "fill";/.test(bevelSrc) || !/stampTrack\(inject\(shell\.replace\("<svg ", '<svg data-unitplate="1" '\), parts\), tx0 \+ gU, txw - gU \* 2, railY \+ gU, mHU\)/.test(bevelSrc))
+    errors.push("unitplate lost its atom force-full gate or banded track stamp — the plate's HP can't rig (round 44, item 42)");
+  if (!/const atomsPF = opts\.part === "fill";/.test(bevelSrc) || !/data-barfill-name="\$\{nm9\}"/.test(bevelSrc))
+    errors.push("partyframe lost its atom force-full gate or named HP/MP mercury marks (round 44, item 25)");
+  if (!/data-seat-rider="knob">12<\/text>/.test(bevelSrc))
+    errors.push("partyframe's level number no longer rides the knob — the 12 burns back beside a live bubble (round 44, item 25)");
+  if (!/partyframe: \{ primary: "hp", rest: 0\.78, couple: \(v\) => 0\.25 \+ \(1 - v\) \* 0\.5 \},/.test(src))
+    errors.push("the named-rail family table lost partyframe (or its coupling law) — the twin rails can't stage the app's pose (round 44, item 25)");
+  if (!/static void WireNamedRails\(GameObject go, Sprite baseSp, PBAsset baseRow, string root, int pngScale, PBManifest m, string fam, string\[\] rails, string\[\] nices\)/.test(cs)
+      || !/WireNamedRails\(go, baseSp, baseAsset, root, pngScale, m, "partyframe", new string\[\] \{ "hp", "mp" \}, new string\[\] \{ "HP", "MP" \}\);/.test(cs))
+    errors.push("WireNamedRails (or partyframe's FamilyPrefab call) left the importer — the HP/MP rails ship baked (round 44, item 25)");
+  if (!/it\.component == "unitplate" \|\| /.test(cs))
+    errors.push("unitplate left the board value strike — posed plates would render an EMPTY rail (round 44, item 42, the dossier's silent regression)");
+  if (!/mpK9\.SetValue\(Mathf\.Clamp01\(0\.25f \+ \(1f - vHp9\) \* 0\.5f\)\);/.test(cs))
+    errors.push("the partyframe board strike lost the MP coupling — boards would pose only one rail (round 44, item 25)");
+  if (!/spritePath\.EndsWith\("\/unitplate-base\.png"\) \? "unitplate"/.test(cs)
+      || !/fPrev\.file == "assets\/partyframe\/partyframe-fill-hp\.png"/.test(cs))
+    errors.push("the kept-project grafts (unitplate Fill / partyframe twin-rail era gate) left the importer (round 44)");
+}
+
+/* ── ROUND 44 · S17 (questpanel, item 29's three fixes): the title's
+   START-anchored seat ships honestly (labelAnchor road — every other
+   labeled family stays middle, byte-still); each objective pip un-burns
+   as a live child with three shipped looks; the footer mercury joins
+   the universal rig and the ONE rig learns the family's whole-objectives
+   law (snapSteps, zero-gated). ── */
+{
+  if (!/data-icon="pip\$\{i \+ 1\}" \$\{pipBox\} data-icon-nick="Objective \$\{i \+ 1\} pip"/.test(bevelSrc)
+      || !/data-icon-box="\$\{\(x0 \+ pipR - pipBoxH\)\.toFixed\(1\)\}/.test(bevelSrc))
+    errors.push("the quest tracker's pips lost their marked wraps or shared crop frame — rows can't toggle cleanly in the Inspector (round 44, item 29b)");
+  if (!/data-icon-box"\)\?\.split\(" "\)\.map\(Number\) \?\? null,/.test(src) || !/bx = mk\.box\[0\]; by = mk\.box\[1\] \+ riseDy; bw9 = mk\.box\[2\]; bh9 = mk\.box\[3\];/.test(src))
+    errors.push("the fixed-frame icon crop (data-icon-box) left the cut road — look swaps would distort (round 44, item 29b)");
+  if (!/stampTrack\(inject\(shell\.replace\("<svg ", '<svg data-questpanel="1" '\), inner\), x0 \+ gQ, fw - gQ \* 2, fy \+ gQ, mHQ\)/.test(bevelSrc))
+    errors.push("questpanel's banded track stamp left bevel — the footer rig can't seat (round 44, item 29c)");
+  if (!/taU === "start" \? \{ labelAnchor: "start" \}/.test(src))
+    errors.push("the label-anchor parse left the universal loop — the quest title's LEFT EDGE ships as its center again (round 44, item 29a)");
+  if (!/\["pip-done", "pip1", 1,/.test(src) || !/\["pip-empty", "pip2", 0,/.test(src))
+    errors.push("the pip LOOK atoms left the exporter — devs can seat pips but not toggle their state (round 44, item 29b)");
+  if (!/public int snapSteps = 0;/.test(src) || !/float Snap\(float v\) \{ v = Mathf\.Clamp01\(v\); return snapSteps > 0 \? Mathf\.Round\(v \* snapSteps\) \/ snapSteps : v; \}/.test(src))
+    errors.push("KitBarFill lost the zero-gated snapSteps law — the quest footer would fill mid-objective (round 44, item 29c)");
+  if (!/kbQ3\.snapSteps = 3; kbQ3\.SetValue\(stagedB4\);/.test(cs) || !/kbQG\.snapSteps = 3; kbQG\.SetValue\(stagedDB\);/.test(cs))
+    errors.push("questpanel's snap wiring (fresh build or kept graft) left the importer (round 44, item 29c)");
+  if (!/if \(row\.labelAnchor == "start" && row\.shell != null && row\.shell\.w > 2f\) v\.x \+= row\.shell\.w \* 0\.5f \/ sp\.rect\.width;/.test(cs))
+    errors.push("LabelSeatShift lost the start-anchor slide — the labelAnchor field ships but seats nothing (round 44, item 29a)");
+  if (!/static void AlignLabelStart\(GameObject labelRoot, PBAsset row\)/.test(cs)
+      || !/lrowA != null && lrowA\.labelAnchor == "start" \? TextAnchor\.MiddleLeft : TextAnchor\.MiddleCenter;/.test(cs))
+    errors.push("the start-anchored word's left pin left a label rung (TMP, baked, or legacy) — the seat slides but the word still centers (round 44, item 29a)");
+}
+
+/* ── ROUND 44 · S18 (setrow, item 34 — RIG-1 mini rig + RIG-7 wired
+   control): the settings row's mercury joins the universal rig (eighth
+   family), the candy knob un-burns on a strip-only mark as the mini
+   Slider's HANDLE, and the row ships as a REAL Unity Slider. ── */
+{
+  if (!/const atomsSR = opts\.part === "fill";/.test(bevelSrc) || !/<g data-setrow-knob="\$\{\(trX \+ trW \* vS0\)\.toFixed\(1\)\} \$\{cy\.toFixed\(1\)\} \$\{\(20 \* k\)\.toFixed\(1\)\}">/.test(bevelSrc))
+    errors.push("setrow lost its atom force-full gate or center-stamped knob mark — the mini slider can't un-burn true (round 44, item 34)");
+  if (!/stampTrack\(inject\(shell\.replace\("<svg ", '<svg data-setrow="1" '\), parts\), trX, trW, cy - mHR \/ 2, mHR\)/.test(bevelSrc))
+    errors.push("setrow's banded track stamp left bevel — the rig can't seat (and the app's well-frame scrub must keep x/w) (round 44, item 34)");
+  if (!/let knobSvgSR: string \| null = null;/.test(src) || !/querySelectorAll\("\[data-setrow-knob\]"\)/.test(src))
+    errors.push("the setrow knob cut/strip left the exporter — the handle sprite can't ship (round 44, item 34)");
+  if (!/static void WireSetrowSlider\(GameObject go, string root, PBManifest m, int pngScale\)/.test(cs)
+      || !/if \(famB4 == "setrow"\) WireSetrowSlider\(go, root, m, pngScale\);/.test(cs))
+    errors.push("WireSetrowSlider (or its FamilyPrefab call) left the importer — the row ships display-only again (round 44, item 34)");
+  if (!/slSR\.fillRect = fillSR as RectTransform;/.test(cs) || !/hiSR\.preserveAspect = true;/.test(cs))
+    errors.push("the setrow Slider lost its fill wiring or the round-handle guard (round 44, item 34)");
+  if (!/it\.component == "setrow"\) && it\.value > 0f/.test(cs) === false && !/if \(it\.component == "setrow" && it\.value > 0f\)/.test(cs))
+    errors.push("setrow left the board value strike — posed rows would ignore their board value (round 44, item 34)");
+  if (!/spritePath\.EndsWith\("\/setrow-base\.png"\) \? "setrow" : null;/.test(cs)
+      || !/if \(famDB == "setrow"\) WireSetrowSlider\(contentsDB, root, m, m != null && m\.pngScale > 0 \? m\.pngScale : 2\);/.test(cs))
+    errors.push("the kept-project setrow graft (fill rig + Slider) left the importer (round 44, item 34)");
+}
+
+/* ── ROUND 44 · S19 (scrollbar, item 32 — RIG-7): the display strip
+   becomes a real UnityEngine.UI.Scrollbar — thumb-suppressed track.9
+   (arrows in the caps) + thumb.9, Sliding Area from the crop-normalized
+   lane, BottomToTop with the app's rest mirrored. The base row keeps
+   shipping byte-identical as the kept-projects' legacy sheet. ── */
+{
+  if (!/<g data-sbthumb="\$\{\(tx0 - trackW \/ 2 \+ 1\.5\)\.toFixed\(1\)\} \$\{thumbY\.toFixed\(1\)\}/.test(bevelSrc)
+      || !/data-sbgeo="\$\{\(tx0 - trackW \/ 2\)\.toFixed\(1\)\} \$\{ty0\.toFixed\(1\)\} \$\{trackW\.toFixed\(1\)\} \$\{th0\.toFixed\(1\)\} \$\{thumbH\.toFixed\(1\)\}"/.test(bevelSrc))
+    errors.push("the scrollbar's thumb mark or geometry stamp left bevel — the wired road can't cut (round 44, item 32)");
+  if (!/querySelectorAll\("\[data-sbthumb\]"\)/.test(src) || !/await addPng\(`\$\{uid\}\/track\.9\.png`, trackSvgB, \{/.test(src) || !/await addPng\(`\$\{uid\}\/thumb\.9\.png`, thumbSvgB, \{/.test(src))
+    errors.push("the scrollbar track/thumb emission left the exporter (round 44, item 32)");
+  if (!/static bool ScrollbarPrefab\(string dir, string root, int pngScale, PBManifest m\)/.test(cs)
+      || !/if \(ScrollbarPrefab\(dir, root, pngScale, m\)\) any = true;/.test(cs))
+    errors.push("ScrollbarPrefab (or its build call) left the importer — the strip ships display-only again (round 44, item 32)");
+  if (!/bar\.direction = Scrollbar\.Direction\.BottomToTop;/.test(cs) || !/bar\.value = 1f - restSB;/.test(cs))
+    errors.push("the Scrollbar lost its direction or the top-measured rest mirror (round 44, item 32)");
+  if (!/static void HealScrollbar\(string root, PBManifest m\)/.test(cs) || !/HealScrollbar\(root, manifest\);/.test(cs))
+    errors.push("the kept-project Scrollbar heal left the importer — display-era prefabs would never upgrade (round 44, item 32)");
+  if (!/if \(it\.component == "scrollbar" && it\.value > 0f\)/.test(cs) || !/sbB9\.value = 1f - Mathf\.Clamp01\(it\.value\);/.test(cs))
+    errors.push("scrollbar left the board value strike (round 44, item 32)");
+}
+
+/* ── ROUND 44 · S20 (stepper, item 37 — RIG-2 + RIG-4 + RIG-7): base
+   re-bakes with empty cells, the lit strip + snapper go live, both caps
+   become REAL Buttons on stamped fixed frames with their +/− glyphs
+   riding as words, and KitStepper steps the meter from their clicks. ── */
+{
+  if (!/data-stepcap="minus \$\{minusX\.toFixed\(1\)\}/.test(bevelSrc) || !/data-stepcap="plus \$\{plusX\.toFixed\(1\)\}/.test(bevelSrc))
+    errors.push("the stepper caps lost their stamped marks — the Buttons can't cut (round 44, item 37)");
+  if (!/data-seat-rider="minus">−<\/text>/.test(bevelSrc) || !/data-seat-rider="plus">\+<\/text>/.test(bevelSrc))
+    errors.push("the stepper's +/− glyphs no longer ride their caps as live words (round 44, item 37)");
+  if (!/stampTrack\(inject\(shell\.replace\("<svg ", '<svg data-stepper="1" '\), inner\), cellsX, cellsW, cy - 13 \* k, 26 \* k\)/.test(bevelSrc))
+    errors.push("the stepper's cell-run stamp left bevel — the snapper can't seat (round 44, item 37)");
+  if (!/let stepperOut:/.test(src) || !/querySelectorAll\("\[data-stepcap\]"\)/.test(src))
+    errors.push("the stepper cut/strip road left the exporter (round 44, item 37)");
+  if (!/const KIT_STEPPER_RUNTIME = `using UnityEngine;/.test(src)
+      || !/files\.push\(\{ path: "Runtime\/PatternBreakKitStepper\.cs", data: KIT_STEPPER_RUNTIME \}\);/.test(src)
+      || !/"Runtime\/PatternBreakKitStepper\.cs",/.test(src))
+    errors.push("KitStepper's runtime or its registration (files + sharedScripts BOTH — the law) left the exporter (round 44, item 37)");
+  if (!/static void WireStepper\(GameObject go, Sprite baseSp, PBAsset baseRow, string root, int pngScale, PBManifest m\)/.test(cs)
+      || !/if \(baseAsset\.component == "stepper"\) WireStepper\(go, baseSp, baseAsset, root, pngScale, m\);/.test(cs))
+    errors.push("WireStepper (or its FamilyPrefab call) left the importer — the stepper ships display-only again (round 44, item 37)");
+  if (!/UnityEditor\.Events\.UnityEventTools\.AddPersistentListener\(btnP\.onClick, ksST\.StepUp\);/.test(cs)
+      || !/UnityEditor\.Events\.UnityEventTools\.AddPersistentListener\(btnM\.onClick, ksST\.StepDown\);/.test(cs))
+    errors.push("the cap Buttons lost their click wiring — pressing would do nothing (round 44, item 37)");
+  if (!/if \(it\.component == "stepper" && it\.value > 0f\)/.test(cs))
+    errors.push("stepper left the board value strike (round 44, item 37)");
+  if (!/fPrev\.file == "assets\/stepper\/stepper-lit\.png"/.test(cs))
+    errors.push("the kept-project stepper graft era gate left the importer (round 44, item 37)");
+}
+
+/* ── ROUND 44 · S21 (the RIG-6 selection sweep — R2 listmenu, R3
+   choicelist, R4 leaderboard, R5 equipselector): every baked selection
+   dress becomes a live child; the choicelist's active capsule rides an
+   EXACT color-solved bridge; the leaderboard's gold band leaves the
+   nine-slice stretch region; the equipselector's chevrons become real
+   Buttons. ── */
+{
+  if (!/data-icon-nick="Row highlight"/.test(bevelSrc))
+    errors.push("the list menu's active-row bar lost its mark (round 44, R2)");
+  if (!/const bridge9 = \(a0: number, a1: number, w0: number\) => \{/.test(bevelSrc) || !/data-icon-nick="Choice highlight"/.test(bevelSrc))
+    errors.push("the choicelist's exact bridge overlay left bevel — the active capsule burns back (round 44, R3)");
+  if (!/data-icon-nick="Your-row highlight"/.test(bevelSrc) || !/data-icon-nick="Legend dashes"/.test(bevelSrc))
+    errors.push("the leaderboard's gold band or legend pills lost their marks (round 44, R4)");
+  if (!/data-icon="prev" data-icon-btn="1" data-icon-nick="Previous button"/.test(bevelSrc) || !/data-icon="next" data-icon-btn="1" data-icon-nick="Next button"/.test(bevelSrc) || !/data-icon-nick="Armed ring"/.test(bevelSrc))
+    errors.push("the equipselector's chevron Buttons or armed ring lost their marks (round 44, R5)");
+  if (!/const lbSeats = await iconSeatsOf\("leaderboard", lbSvg\);/.test(src) || !/const lbOut = lbSeats \? stripMarkedIcons\(lbSvg\)\.svg : lbSvg;/.test(src))
+    errors.push("the leaderboard emission no longer strips its marked children — the band stays inside the stretch zone (round 44, R4)");
+}
+
+/* ── ROUND 44 · S22 (R6 lives + R7 compass): the hearts become a
+   drivable cell meter on the lit-overlay road (count from the row's own
+   railW), and the compass heading caret un-burns to a live child. ── */
+{
+  if (!/data-icon="caret" data-icon-nick="Heading caret"/.test(bevelSrc))
+    errors.push("the compass caret lost its mark (round 44, R7)");
+  if (!/let livesOut: \{ lit: string; staged: number; n: number \} \| null = null;/.test(src) || !/aria-label="lives: \(\\d\+\) of \(\\d\+\)"/.test(src))
+    errors.push("the lives lit-overlay road left the exporter (round 44, R6)");
+  if (!/baseAsset\.component == "energymeter" \|\| baseAsset\.component == "ammo" \|\| baseAsset\.component == "lives" \|\| baseAsset\.component == "magazine" \|\| baseAsset\.component == "streakmeter"/.test(cs)
+      || !/if \(famCM == "lives" && litRowCM != null && litRowCM\.railW > 0\.5f\) kcm\.cells = Mathf\.RoundToInt\(litRowCM\.railW\);/.test(cs))
+    errors.push("lives left the cell-meter wiring (or its railW heart count) (round 44, R6)");
+  if (!/spritePath\.EndsWith\("\/lives-base\.png"\) \? "lives" : null;/.test(cs))
+    errors.push("lives left the kept-project cell graft chain (round 44, R6)");
+}
+
+/* ── ROUND 44 · S23 (item 35 — starrating): the three stars, the
+   celebration flare and the Replay button are LIVE children on ONE
+   shared frame; the two star LOOKS ship as atoms; PatternBreakStarRating
+   makes the score a dial (celebration + replay only at full marks). ── */
+{
+  if (!/data-icon="star\$\{i \+ 1\}" \$\{sBox\} data-icon-nick="Star \$\{i \+ 1\}"/.test(bevelSrc)
+      || !/data-icon="flare" data-icon-nick="Celebration flare"/.test(bevelSrc)
+      || !/data-icon="replay" data-icon-btn="1" data-icon-nick="Replay button"/.test(bevelSrc))
+    errors.push("the starrating marks left bevel — stars/flare/replay burn back (round 44, item 35)");
+  if (!/\["star-earned", 1, /.test(src) || !/\["star-unearned", 0, /.test(src))
+    errors.push("the star LOOK atoms left the exporter (round 44, item 35)");
+  if (!/const STAR_RATING_RUNTIME = `using UnityEngine;/.test(src)
+      || !/files\.push\(\{ path: "Runtime\/PatternBreakStarRating\.cs", data: STAR_RATING_RUNTIME \}\);/.test(src)
+      || !/"Runtime\/PatternBreakStarRating\.cs",/.test(src))
+    errors.push("StarRating's runtime or its registration (files + sharedScripts BOTH — the law) left the exporter (round 44, item 35)");
+  if (!/if \(baseAsset\.component == "starrating"\) \{/.test(cs)
+      || !/rigSR\.stars = unRowSR != null && unRowSR\.ringV > 0f \? Mathf\.RoundToInt\(Mathf\.Clamp01\(unRowSR\.ringV\) \* 3f\) : 3;/.test(cs))
+    errors.push("the StarRating prefab wiring (or its staged-score rest) left the importer (round 44, item 35)");
+  if (!/inst\.GetComponent<PatternBreakStarRating>\(\);/.test(cs))
+    errors.push("starrating left the board value strike (round 44, item 35)");
+}
+
+/* ── ROUND 44 · S24 (items 20 + 40 — magazine + streakmeter cells join
+   the cell-meter road): base rests all-dark, the Lit strip lights whole
+   cells by the zone stamp; the streak's ONE dial (StreakIgnite) drives
+   cells + ignition together. ── */
+{
+  if (!/data-magazine="1" role="img" aria-label="magazine \$\{Math\.round\(vM9 \* cap\)\} of \$\{cap\}"><g opacity="\$\{state === "disabled" \? 0\.4 : 1\}">\$\{pips\}<\/g><\/svg>`, padM, nM \* pipW \+ \(nM - 1\) \* gapM2\)/.test(bevelSrc))
+    errors.push("the magazine's pip-run stamp left bevel — the snapper can't seat (round 44, item 20)");
+  if (!/inject\(shell\.replace\("<svg ", '<svg data-streakmeter="1" '\), inner\), cellsX, cellsW\)/.test(bevelSrc))
+    errors.push("the streakmeter's cell-run stamp left bevel (round 44, item 40)");
+  if (!/rx="\$\{Math\.min\(cellW9 \/ 2, 12 \* k\)\.toFixed\(1\)\}"/.test(bevelSrc))
+    errors.push("the streakmeter cells lost the mercury rounding (round 44, item 40)");
+  if (!/uid === "energymeter" \|\| uid === "ammo" \|\| uid === "magazine" \|\| uid === "streakmeter"/.test(src))
+    errors.push("magazine/streakmeter left the cell-rig emission (round 44, items 20 + 40)");
+  if (!/public KitCellMeter cells;/.test(src) || !/if \(cells != null && \(force \|\| !Mathf\.Approximately\(fwd, value\)\)\) \{ fwd = value; cells\.SetValue\(value\); \}/.test(src))
+    errors.push("StreakIgnite lost its one-dial cell forward (round 44, item 40)");
+  if (!/if \(kcmSI != null\) \{ rig\.cells = kcmSI; rig\.value = kcmSI\.value; \}/.test(cs))
+    errors.push("StreakIgniteWire no longer links the cell meter (round 44, item 40)");
+  if (!/var sigS = inst\.GetComponent<StreakIgnite>\(\);/.test(cs))
+    errors.push("the streak meter left the board value strike (round 44, item 40)");
+}
+
+/* ── ROUND 44 · S25 (item 11 — emotewheel): the wheel rests UNIFORM, the
+   armed dress is a MARKED full-disc wedge (parked by rotation), every
+   emote ships ghost+lit looks on one fixed frame, and the pick is a dial
+   (PatternBreakEmoteWheel). ── */
+{
+  if (!/data-icon="armed" data-icon-box="\$\{\(cE - rE\)\.toFixed\(1\)\}/.test(bevelSrc)
+      || !/data-icon="emote\$\{i \+ 1\}" data-icon-box=/.test(bevelSrc)
+      || !/data-wheelstage="\$\{nE9\} \$\{selE9\}"/.test(bevelSrc))
+    errors.push("the emotewheel marks (armed dress / fixed emote frames / stage stamp) left bevel (round 44, item 11)");
+  if (!/`\$\{uid\}\/emote\$\{i \+ 1\}-lit\.png`/.test(src) || !/`\$\{uid\}\/emote\$\{i \+ 1\}-ghost\.png`/.test(src))
+    errors.push("the emote look atoms left the exporter (round 44, item 11)");
+  if (!/const EMOTE_WHEEL_RUNTIME = `using UnityEngine;/.test(src)
+      || !/files\.push\(\{ path: "Runtime\/PatternBreakEmoteWheel\.cs", data: EMOTE_WHEEL_RUNTIME \}\);/.test(src)
+      || !/"Runtime\/PatternBreakEmoteWheel\.cs",/.test(src))
+    errors.push("EmoteWheel's runtime or its registration (files + sharedScripts BOTH — the law) left the exporter (round 44, item 11)");
+  if (!/if \(baseAsset\.component == "emotewheel"\) \{/.test(cs)
+      || !/rigEW\.baseSector = baseSecEW;/.test(cs)
+      || !/if \(rigEW\.hub != null\) rigEW\.hubRest = rigEW\.hub\.sprite;/.test(cs))
+    errors.push("the EmoteWheel prefab wiring (or its rest-parity hub/baseSector) left the importer (round 44, item 11)");
+  if (!/var ewS = inst\.GetComponent<PatternBreakEmoteWheel>\(\);/.test(cs))
+    errors.push("emotewheel left the board value strike (round 44, item 11)");
+}
+
+/* ── ROUND 44 · S26 (item 39 — stopwatch): the arc, hand and hub leave
+   the face as rotation-true atoms (dial-centered square canvases, half-
+   disc caps so the translucent arc never doubles), and
+   PatternBreakStopwatch drives arc + hand + alarm mood + readout from
+   ONE value. base.png stays byte-identical (the ring's compatibility
+   rule). ── */
+{
+  if (!/opts\.part === "arc" \|\| opts\.part === "cap-start" \|\| opts\.part === "cap-head" \|\| opts\.part === "hand" \|\| opts\.part === "hub" \|\| opts\.part === "hub-alarm"/.test(bevelSrc)
+      || !/const faceOnly = opts\.part === "face";/.test(bevelSrc))
+    errors.push("the stopwatch part renders left bevel (round 44, item 39)");
+  if (!/`\$\{uid\}\/face\.png`/.test(src) || !/`\$\{uid\}\/cap-head\.png`/.test(src) || !/`\$\{uid\}\/hub-alarm\.png`/.test(src)
+      || !/gauge: \{ x: 0, y: 0, fs: 0, unitY: 0, unitFs: 0, dialX: dcx \* PNG_SCALE, dialY: dcy \* PNG_SCALE \}/.test(src))
+    errors.push("the stopwatch atoms (or the face row's dial-center stamp) left the exporter (round 44, item 39)");
+  if (!/const STOPWATCH_RUNTIME = `using UnityEngine;/.test(src)
+      || !/files\.push\(\{ path: "Runtime\/PatternBreakStopwatch\.cs", data: STOPWATCH_RUNTIME \}\);/.test(src)
+      || !/"Runtime\/PatternBreakStopwatch\.cs",/.test(src))
+    errors.push("Stopwatch's runtime or its registration (files + sharedScripts BOTH — the law) left the exporter (round 44, item 39)");
+  if (!/if \(baseAsset\.component == "stopwatch"\) \{/.test(cs)
+      || !/rigSW\.hubAlarm = hubAlarmSW;/.test(cs)
+      || !/rigSW2\.readout = tSW; break;/.test(cs))
+    errors.push("the Stopwatch prefab wiring (or its readout join) left the importer (round 44, item 39)");
+  if (!/var pswS = inst\.GetComponent<PatternBreakStopwatch>\(\);/.test(cs))
+    errors.push("stopwatch left the board value strike (round 44, item 39)");
+}
+
+/* ── ROUND 44 · S27 (items 38 + 26 — steps + pathconnector, RIG-5): the
+   step lane wears a still plate (every digit a live seat, the '1'
+   included) with KitSteps swapping pip looks and lighting rails; the
+   saga trail deals nine live beads at the stamped bezier centers. Both
+   base sheets stay byte-identical. ── */
+{
+  if (!/data-steppips="\$\{\(padS \+ sR\)\.toFixed\(1\)\}/.test(bevelSrc)
+      || !/opts\.part === "pip-done" \|\| opts\.part === "pip-current" \|\| opts\.part === "pip-upcoming"/.test(bevelSrc)
+      || !/const plateS9 = opts\.part === "plate";/.test(bevelSrc))
+    errors.push("the step-lane stamp or part renders left bevel (round 44, item 38)");
+  if (!/data-pathgeo="\$\{ptsP9\.join\(" "\)\}"/.test(bevelSrc)
+      || !/opts\.part === "bead" \|\| opts\.part === "bead-lit"/.test(bevelSrc))
+    errors.push("the saga-trail stamp or bead renders left bevel (round 44, item 26)");
+  if (!/steps: stepsGeo,/.test(src) || !/pathConnector: pathGeo,/.test(src))
+    errors.push("the RIG-5 geo blocks left the manifest emission (round 44, items 38 + 26)");
+  if (!/const KIT_STEPS_RUNTIME = `using UnityEngine;/.test(src)
+      || !/files\.push\(\{ path: "Runtime\/PatternBreakKitSteps\.cs", data: KIT_STEPS_RUNTIME \}\);/.test(src)
+      || !/"Runtime\/PatternBreakKitSteps\.cs",/.test(src))
+    errors.push("KitSteps' runtime or its registration (files + sharedScripts BOTH — the law) left the exporter (round 44, item 38)");
+  if (!/const PATH_CONNECTOR_RUNTIME = `using UnityEngine;/.test(src)
+      || !/files\.push\(\{ path: "Runtime\/PatternBreakPathConnector\.cs", data: PATH_CONNECTOR_RUNTIME \}\);/.test(src)
+      || !/"Runtime\/PatternBreakPathConnector\.cs",/.test(src))
+    errors.push("PathConnector's runtime or its registration (files + sharedScripts BOTH — the law) left the exporter (round 44, item 26)");
+  if (!/public PBDotsGeo steps; public PBPathGeo pathConnector;/.test(cs)
+      || !/class PBPathGeo \{ public float w; public float h; public int n; public float staged; public float\[\] pts; \}/.test(cs))
+    errors.push("the RIG-5 geo classes left the importer's manifest schema (round 44, items 38 + 26)");
+  if (!/if \(baseAsset\.component == "steps"\) \{/.test(cs) || !/rigST\.step = Mathf\.Clamp\(geoST\.staged \+ 1, 1, geoST\.n\);/.test(cs)
+      || !/rigST2\.digits = digST;/.test(cs))
+    errors.push("the KitSteps prefab wiring (or its digit join) left the importer (round 44, item 38)");
+  if (!/static bool PathConnectorPrefab\(string dir, string root, int pngScale, PBManifest m\) \{/.test(cs)
+      || !/if \(PathConnectorPrefab\(dir, root, pngScale, m\)\) any = true;/.test(cs)
+      || !/"pathconnector" \}/.test(cs))
+    errors.push("PathConnectorPrefab (its call, or its generic-road skip) left the importer (round 44, item 26)");
+  if (!/var kstS = inst\.GetComponent<KitSteps>\(\);/.test(cs) || !/var pcS = inst\.GetComponent<PatternBreakPathConnector>\(\);/.test(cs))
+    errors.push("steps/pathconnector left the board value strike (round 44, items 38 + 26)");
+}
+
+/* ── ROUND 44 · S28 (item 44 — weaponwheel, RIG-7): the Cylinder is a
+   marked rotatable layer, glyphs orbit upright on fixed frames with
+   armed/quiet looks, the armed ring and name tag are nick'd children
+   (the tag word rides its plate), and PatternBreakWeaponWheel makes the
+   rotation a dial. ── */
+{
+  if (!/data-icon="cylinder" data-icon-box="\$\{\(cW - innerR\)\.toFixed\(1\)\}/.test(bevelSrc)
+      || !/data-icon="armed" data-icon-nick="Armed chamber ring"/.test(bevelSrc)
+      || !/data-icon="tag" data-icon-nick="Name tag"/.test(bevelSrc)
+      || !/data-seat-rider="tag"/.test(bevelSrc)
+      || !/data-wheelgeo="\$\{orbitR\.toFixed\(1\)\} \$\{nW\} \$\{vW\.toFixed\(4\)\}"/.test(bevelSrc))
+    errors.push("the weaponwheel marks (cylinder / armed ring / riding tag / orbit stamp) left bevel (round 44, item 44)");
+  if (!/`\$\{uid\}\/w\$\{c9i \+ 1\}-lit\.png`/.test(src) || !/`\$\{uid\}\/w\$\{c9i \+ 1\}-ghost\.png`/.test(src))
+    errors.push("the chamber look atoms left the exporter (round 44, item 44)");
+  if (!/const WEAPON_WHEEL_RUNTIME = `using UnityEngine;/.test(src)
+      || !/files\.push\(\{ path: "Runtime\/PatternBreakWeaponWheel\.cs", data: WEAPON_WHEEL_RUNTIME \}\);/.test(src)
+      || !/"Runtime\/PatternBreakWeaponWheel\.cs",/.test(src))
+    errors.push("WeaponWheel's runtime or its registration (files + sharedScripts BOTH — the law) left the exporter (round 44, item 44)");
+  if (!/if \(baseAsset\.component == "weaponwheel"\) \{/.test(cs)
+      || !/rigWW\.centerAnchor = \(\(RectTransform\)cylWW\)\.anchorMin;/.test(cs))
+    errors.push("the WeaponWheel prefab wiring left the importer (round 44, item 44)");
+  if (!/var wwS = inst\.GetComponent<PatternBreakWeaponWheel>\(\);/.test(cs))
+    errors.push("weaponwheel left the board value strike (round 44, item 44)");
+}
+
+/* ── ROUND 44 · S29 (staged roads — items 23 + 31 + vitalbar): the gated
+   families' roads stand READY (marked mercury + zone stamps, marked slot
+   glyphs, the bar-rig rosters) while stagedShips keeps every byte out of
+   the zip until the owner releases them. ── */
+{
+  if (!/data-barfill="\$\{\(bx \+ 2\.5 \* k\)\.toFixed\(1\)\}/.test(bevelSrc))
+    errors.push("the orderticket mercury lost its mark (round 44, item 23 — gated road)");
+  if (!/data-icon="slot\$\{i \+ 1\}" data-icon-nick="Reward \$\{i \+ 1\}"/.test(bevelSrc))
+    errors.push("the rewardtray slot glyphs lost their marks (round 44, item 31 — gated road)");
+  if (!/data-barfill="\$\{\(barX \+ gV\)\.toFixed\(1\)\}/.test(bevelSrc))
+    errors.push("the vitalbar mercury lost its mark (round 44 — gated road)");
+  if (!/uid === "orderticket" \|\| uid === "vitalbar";/.test(src)
+      || !/orderticket: 0\.62, vitalbar: 0\.72/.test(src))
+    errors.push("the staged families left the bar-rig emission roster (round 44, items 23 + vitalbar)");
+  if (!/barRigU \? stripBarFill\(sOut\)\.svg : sOut/.test(src))
+    errors.push("bar-rig state skins keep a baked mercury twin — hover would double-draw the bar (round 44, item 23)");
+  if (!/baseAsset\.component == "orderticket" \|\| baseAsset\.component == "vitalbar"/.test(cs)
+      || !/it\.component == "orderticket" \|\| it\.component == "vitalbar"/.test(cs))
+    errors.push("the staged families left the importer's bar wiring or board strike (round 44, items 23 + vitalbar)");
+}
+
+/* ── ROUND 46 · R1 (the radial mandate): spinner + cooldown ship as
+   WORKING rigs beside the capture ring — track/comet, face/sector/
+   ticks-lit/hand/sheen, PatternBreakSpinner + PatternBreakCooldown. ── */
+{
+  if (!/opts\.part === "track" \|\| opts\.part === "comet"/.test(bevelSrc))
+    errors.push("the spinner part renders left bevel (round 46, R1)");
+  if (!/opts\.part === "face" \|\| opts\.part === "sector" \|\| opts\.part === "ticks-lit" \|\| opts\.part === "hand"/.test(bevelSrc)
+      || !/const faceOnly9 = opts\.part === "face";/.test(bevelSrc))
+    errors.push("the cooldown part renders left bevel (round 46, R1)");
+  if (!/await addPng\("spinner\/comet\.png"/.test(src) || !/await addPng\("cooldown\/sector\.png"/.test(src) || !/await addPng\("cooldown\/ticks-lit\.png"/.test(src))
+    errors.push("the radial atoms left the exporter (round 46, R1)");
+  if (!/const SPINNER_RUNTIME = `using UnityEngine;/.test(src)
+      || !/files\.push\(\{ path: "Runtime\/PatternBreakSpinner\.cs", data: SPINNER_RUNTIME \}\);/.test(src)
+      || !/"Runtime\/PatternBreakSpinner\.cs",/.test(src))
+    errors.push("Spinner's runtime or its registration (files + sharedScripts BOTH — the law) left the exporter (round 46, R1)");
+  if (!/const COOLDOWN_RUNTIME = `using UnityEngine;/.test(src)
+      || !/files\.push\(\{ path: "Runtime\/PatternBreakCooldown\.cs", data: COOLDOWN_RUNTIME \}\);/.test(src)
+      || !/"Runtime\/PatternBreakCooldown\.cs",/.test(src))
+    errors.push("Cooldown's runtime or its registration (files + sharedScripts BOTH — the law) left the exporter (round 46, R1)");
+  if (!/static bool SpinnerPrefab\(string dir, string root, int pngScale, PBManifest m\) \{/.test(cs)
+      || !/static bool CooldownPrefab\(string dir, string root, int pngScale, PBManifest m, Font kitFont\) \{/.test(cs)
+      || !/if \(SpinnerPrefab\(dir, root, pngScale, m\)\) any = true;/.test(cs)
+      || !/if \(CooldownPrefab\(dir, root, pngScale, m, kitFont\)\) any = true;/.test(cs))
+    errors.push("the radial prefab builders (or their calls) left the importer (round 46, R1)");
+  if (!/tickImg\.fillClockwise = false;/.test(cs) || !/secImg\.fillClockwise = true;/.test(cs))
+    errors.push("the cooldown's two radial cuts lost their directions — the crown/sector semantics break (round 46, R1)");
+  if (!/var cdS = inst\.GetComponent<PatternBreakCooldown>\(\);/.test(cs))
+    errors.push("cooldown left the board value strike (round 46, R1)");
+}
+
+/* ── ROUND 46 · R2 (the definitive animation answer): attention pulse +
+   glow cycle ship as working behaviors (the app's own contract — 5%·mag
+   @1.26s; 2→14px / 25→85% @1.98s in the kit's Glow), and the QuickStart
+   carries the canonical "Driving the animations" section. ── */
+{
+  if (!/const ATTENTION_PULSE_RUNTIME = `using UnityEngine;/.test(src)
+      || !/files\.push\(\{ path: "Runtime\/PatternBreakAttentionPulse\.cs", data: ATTENTION_PULSE_RUNTIME \}\);/.test(src)
+      || !/"Runtime\/PatternBreakAttentionPulse\.cs",/.test(src))
+    errors.push("AttentionPulse's runtime or its registration (files + sharedScripts BOTH — the law) left the exporter (round 46, R2)");
+  if (!/const GLOW_CYCLE_RUNTIME = `using UnityEngine;/.test(src)
+      || !/files\.push\(\{ path: "Runtime\/PatternBreakGlowCycle\.cs", data: GLOW_CYCLE_RUNTIME \}\);/.test(src)
+      || !/"Runtime\/PatternBreakGlowCycle\.cs",/.test(src))
+    errors.push("GlowCycle's runtime or its registration (files + sharedScripts BOTH — the law) left the exporter (round 46, R2)");
+  if (!/public float period = 1\.26f;/.test(src) || !/1f \+ 0\.05f \* magnitude \* u;/.test(src))
+    errors.push("the attention pulse lost the app's contract (5%·magnitude, 1.26s) (round 46, R2)");
+  if (!/public float period = 1\.98f;/.test(src) || !/public float padMin = 2f;/.test(src) || !/public float padMax = 14f;/.test(src))
+    errors.push("the glow cycle lost the app's contract (2→14px, 1.98s) (round 46, R2)");
+  if (!/## Driving the animations/.test(src)
+      || !/PatternBreakAttentionPulse\*\* — the app's "attention pulse" Motion/.test(src))
+    errors.push("the QuickStart's 'Driving the animations' section is gone — the definitive answer stops shipping (round 46, R2)");
+}
+
+/* ── ROUND 47 · S32 (owner field: composite mercuries seated beside
+   their TITLES): the zone is only truth on base/track/lit rows, and the
+   importer's zone fallbacks prefer the BASE row over whichever row
+   comes first. ── */
+{
+  if (!/const zoneRowOk = q\.meta\.part === "base" \|\| q\.meta\.part === "track" \|\| q\.meta\.part === "lit";/.test(src))
+    errors.push("the zone-row gate left the exporter — icon/fill/cap rows would ship crop-shifted zone garbage again (round 47, item 1)");
+  if (!/if \(rowT == null\) foreach \(var aT in m\.assets\) if \(aT != null && aT\.component == fam && aT\.part == "base" && aT\.track != null && aT\.track\.w > 2f\) \{ rowT = aT; break; \}/.test(cs))
+    errors.push("BuildBarFill lost the base-row-first zone pick — composite bars seat off icon rows again (round 47, item 1)");
+  if (!/aT\.component == fam && aT\.part == "base" && aT\.track != null && aT\.track\.w > 2f\) return aT\.track;/.test(cs)
+      || !/aT\.component == fam && aT\.part == "lit" && aT\.track != null && aT\.track\.w > 2f\) return aT\.track;/.test(cs))
+    errors.push("BarZone lost its base-then-lit ladder — kept-project cell grafts zone off icon rows again (round 47, item 1)");
+  if (!/const gMargin = Math\.max\(4, \.\.\.idxs\.map\(\(i\) => typeof pngQueue\[i\]\.crop === "number" \? pngQueue\[i\]\.crop as number : 4\)\);/.test(src)
+      || !/\}, livesOut \? 40 : true, interactive \|\| buffRig \|\| cellRig \|\| stepperOut \|\| livesOut/.test(src))
+    errors.push("the lives glow-pad crop margin left the exporter — the lit hearts clip to a hard rectangle again (round 47, item 2)");
+}
+
+/* ── ROUND 47 · S34 (item 3 — the combo digit road): the numeral and
+   plaque un-burn to live children, the celebration digit set (0-9 + ×)
+   ships with advances, and ComboPop.SetCount composes ×N at the
+   authored seat while Pop() stays untouched. ── */
+{
+  if (!/data-icon="numeral" data-icon-nick="Multiplier"/.test(bevelSrc)
+      || !/data-icon="plaque" data-icon-nick="Combo plaque"/.test(bevelSrc)
+      || !/data-comboseat="\$\{cxC0\.toFixed\(1\)\} \$\{cyC0\.toFixed\(1\)\}"/.test(bevelSrc)
+      || !/if \(opts\.part === "digit"\) \{/.test(bevelSrc)
+      || !/data-adv="\$\{advG\.toFixed\(1\)\}"/.test(bevelSrc))
+    errors.push("the combo marks / seat stamp / digit part render left bevel (round 47, item 3)");
+  if (!/const mG = measureLive\(g9, cfg\.type\.font, TWc, itG\) \?\? measureLabel\(g9, cfg\.type\.font, TWc, itG\);/.test(bevelSrc))
+    errors.push("the digit advance stopped being measured LIVE at the rendered weight/italic — the baked table's ×-ceiling (0.661em vs Fredoka's real 0.474em) would drift every composed digit by half the miss again (round 47, item 3)");
+  if (!/`\$\{uid\}\/digit-\$\{dName\}\.png`/.test(src) || !/comboSeatG = \{ gauge: \{ x: 0, y: 0, fs: 0, unitY: 0, unitFs: 0, dialX: scx9 \* PNG_SCALE, dialY: scy9 \* PNG_SCALE \} \};/.test(src))
+    errors.push("the combo digit atoms or the seat gauge left the exporter (round 47, item 3)");
+  if (!/public void SetCount\(int n\) \{ count = Mathf\.Max\(0, n\); Apply\(\); \}/.test(src)
+      || !/deal\(timesSprite, timesAdvance\);/.test(src)
+      || !/public void Pop\(\) \{ if \(rt == null\) rt = \(RectTransform\)transform; t = 0f; \}/.test(src))
+    errors.push("ComboPop lost SetCount, the compose, or Pop's untouched body (round 47, item 3)");
+  if (!/popC\.seatOffset = new Vector2\(\(axF - fxSeat\) \* rootRtC\.sizeDelta\.x, \(ayF - fySeat\) \* rootRtC\.sizeDelta\.y\);/.test(cs)
+      || !/popC\.count = 0; \/\/ rest = the authored numeral, byte-for-byte/.test(cs))
+    errors.push("ComboPopWire lost the digit wiring or its rest-parity count (round 47, item 3)");
+}
+
+/* ── ROUND 47 · S35 (reviewer blocker — Glow Cycle wired the seat
+   SHADOW): GlowCycle's Reset scans the raw manifest text for its ink,
+   and the file's FIRST "glow" is a seat ink's "glow": null whose next
+   # is the seat shadow hex — the halo swelled shadow-brown instead of
+   the kit's Glow. The scan must anchor inside the "palette" object and
+   stay bounded by its braces; a whole-file first-"glow" scan can never
+   come back. Rider: the QuickStart's animation chapter carries the
+   2022.3 readout caveat. ── */
+{
+  if (!/var pIdx = ta\.text\.IndexOf\("\\\\"palette\\\\""\);/.test(src)
+      || !/var mIdx = ta\.text\.IndexOf\("\\\\"glow\\\\"", open9\);/.test(src)
+      || !/if \(mIdx < 0 \|\| mIdx > close9\) continue;/.test(src)
+      || !/if \(hIdx > 0 && hIdx < close9 && hIdx \+ 7 <= ta\.text\.Length\)/.test(src))
+    errors.push("GlowCycle's Reset lost the palette-anchored ink scan — the halo seeds the seat-shadow hex again (round 47, S35)");
+  if (/ta\.text\.IndexOf\("\\\\"glow\\\\""\);/.test(src))
+    errors.push('a whole-file first-"glow" manifest scan is back in the emitted C# — it lands on a seat ink\'s null glow and seeds the seat shadow (round 47, S35)');
+  if (!/the same rung rule as the step-4 word note\./.test(src))
+    errors.push("the QuickStart's animation chapter lost the 2022.3 readout caveat (round 47, S35)");
+}
+
+/* ── ROUND 47 · S36 (owner field screenshot — the VS bar's caps): the
+   app compresses its whole gradient into the live mercury, so a windowed
+   crop wears the wrong ink at every value but full, and the mirrored
+   (right) cap's extra x-flip threw the pre-mirrored atom onto naked
+   track left of the value line. The rig now STRETCHES ramped fills into
+   the run (nub pill owning the short tail, faded-lead caps blending into
+   the ramp), and a mirrored cap seats pivot-first with NO flip. ── */
+{
+  if (!/float shrink = stretchRun \? Mathf\.Clamp01\(runW \/ Mathf\.Max\(1f, capBodyW\)\) : Mathf\.Clamp01\(runW \/ Mathf\.Max\(1f, 2f \* r\)\);/.test(src)
+      || !/void ApplyStretched\(float v, float runW, float areaW, float areaH, float capBodyW, bool showFill, bool showCap\) \{/.test(src)
+      || !/public bool stretchRun;/.test(src)
+      || !/public RectTransform nub;/.test(src))
+    errors.push("KitBarFill lost the stretch-run road — ramped mercuries (the VS bar) window the wrong ink again (round 47, S36; round 48 renamed the head span to its BODY)");
+  if (!/var sc = capHead\.localScale; sc\.x = Mathf\.Max\(0\.01f, shrink\); sc\.y = Mathf\.Max\(0\.01f, shrink\); capHead\.localScale = sc;/.test(src)
+      || /\(fromRight \? -1f : 1f\) \* Mathf\.Max\(0\.01f, shrink\)/.test(src))
+    errors.push("the mirrored cap's x-flip is back — the pre-mirrored right bead lands on naked track again (round 47, S36)");
+  if (!/var nubSp = S\(root \+ "\/assets\/" \+ fam \+ "\/" \+ fam \+ "-nub-" \+ \(fromRight \? "r" : "l"\) \+ "\.png"\);/.test(cs)
+      || !/kbf\.stretchRun = true;/.test(cs)
+      || !/fPrevN\.file == "assets\/vsbar\/vsbar-nub-l\.png"/.test(cs))
+    errors.push("the nub wiring or its kept-project era rule left the importer (round 47, S36)");
+  if (!/opts\.overlay === "nub-l" \|\| opts\.overlay === "nub-r"/.test(bevelSrc)
+      || !/mask="url\(#\$\{gid\}fade\)"/.test(bevelSrc))
+    errors.push("the vsbar nub overlays or the cap lead-in fade left the app's drawing (round 47, S36)");
+  for (const nubRow of ['"vsbar\\/nub-l.png"', '"vsbar\\/nub-r.png"'])
+    if (!new RegExp("await addPng\\(" + nubRow).test(src))
+      errors.push(`the ${nubRow} nub atom stopped shipping (round 47, S36)`);
+}
+
+/* ── ROUND 47 · S37 (owner: the damage number must be a dev instrument,
+   not a picture): the combo digit road applied to dmgnumber — the
+   number un-burns to a live child, the damage digit set (0-9 + comma)
+   ships with advances, and PatternBreakDmgNumber.Show(n) composes the
+   amount at the authored seat and plays the app's SMIL flight with the
+   SAME keyframes the app animates. ── */
+{
+  if (!/data-part="icon" data-icon="number" data-icon-nick="Damage number"/.test(bevelSrc)
+      || !/data-dmgseat="\$\{cxD\.toFixed\(1\)\} \$\{cyD\.toFixed\(1\)\}"/.test(bevelSrc)
+      || !/aria-label="damage digit \$\{g9\}"/.test(bevelSrc))
+    errors.push("the damage number's un-burn marks / seat stamp / digit atom render left bevel (round 47, S37)");
+  if (!/const DMG_NUMBER_RUNTIME = `using UnityEngine;/.test(src)
+      || !/files\.push\(\{ path: "Runtime\/PatternBreakDmgNumber\.cs", data: DMG_NUMBER_RUNTIME \}\);/.test(src)
+      || !/"Runtime\/PatternBreakDmgNumber\.cs",/.test(src))
+    errors.push("DmgNumber's runtime or its registration (files + sharedScripts BOTH — the law) left the exporter (round 47, S37)");
+  if (!/public void Show\(int n\) \{ SetValue\(n\); Play\(\); \}/.test(src)
+      || !/dmgC\.value = 0; \/\/ rest = the authored number, byte-for-byte/.test(cs))
+    errors.push("DmgNumber lost Show or its rest-parity wiring (round 47, S37)");
+  /* the SMIL ↔ C# cross-pin: the app's keyframes and the runtime's must
+     name the SAME numbers — retune one and this fails until the other
+     follows */
+  const smilD = /values="\$\{crit \? "0\.55;1\.16;0\.97;1;1" : "0\.7;1\.09;0\.98;1;1"\}" keyTimes="0;0\.06;0\.1;0\.14;1"/.test(bevelSrc)
+    && /values="0;1;1;0" keyTimes="0;0\.05;0\.72;1"/.test(bevelSrc)
+    && /keyTimes="0;0\.4;1"/.test(bevelSrc)
+    && /crit \? "3s" : "2\.6s"/.test(bevelSrc);
+  const flightD = /Seg\(f, 0f, 0\.06f, 0\.55f, 1\.16f\)/.test(src) && /Seg\(f, 0f, 0\.06f, 0\.7f, 1\.09f\)/.test(src)
+    && /Seg\(f, 0\.06f, 0\.1f, 1\.09f, 0\.98f\)/.test(src) && /Seg\(f, 0\.1f, 0\.14f, 0\.98f, 1f\)/.test(src)
+    && /Seg\(f, 0f, 0\.4f, 8f, -6f\)/.test(src) && /Seg\(f, 0\.4f, 1f, -6f, -26f\)/.test(src)
+    && /Seg\(f, 0f, 0\.05f, 0f, 1f\)/.test(src) && /Seg\(f, 0\.72f, 1f, 1f, 0f\)/.test(src)
+    && /public float seconds = 2\.6f;/.test(src) && /seconds \* \(3f \/ 2\.6f\)/.test(src)
+    && /-dySvg \/ 210f \* rt\.rect\.height/.test(src);
+  if (!smilD || !flightD)
+    errors.push("the damage number's SMIL and the shipped C# flight no longer name the same keyframes — retune both together (round 47, S37)");
+  if (!/DmgNumberWire\(dir, root, m, staging\)/.test(cs) || !/var seatTD = contents\.transform\.Find\("Damage number"\);/.test(cs))
+    errors.push("DmgNumberWire (or its call) left the importer (round 47, S37)");
+  if (!/PatternBreakDmgNumber\*\* — the damage number as a dev instrument:/.test(src))
+    errors.push("the QuickStart's one-call lane lost the DmgNumber entry (round 47, S37)");
+}
+
+/* ── ROUND 48 · S38 (owner Unity notes on the bar rig): (1) SEATS — the
+   fill/cap atoms crop to their GLOW BLEED, and mapping the whole sprite
+   onto the zone seated the ink 10-24px right of the well ("the fill
+   needs to line up with the start of the well"). The atoms now stamp
+   their BODY boxes (data-fillbody), the manifest carries them, and
+   KitBarFill maps its whole value space through the body fractions —
+   0/1 defaults keep old zips byte-identical. (2) SEGBAR — the per-cell
+   gloss clips to the cell's own pill body (the progress/slider
+   containment mandate: gloss ∩ fill ∩ silhouette). ── */
+{
+  if (!/data-fillbody="\$\{/.test(bevelSrc) || (bevelSrc.match(/data-fillbody="\$\{/g) ?? []).length < 5
+      || (src.match(/data-fillbody="\$\{/g) ?? []).length < 4)
+    errors.push("the fill/cap atoms lost their data-fillbody stamps (round 48, S38: progress+cap, slider+cap, vsbar overlays in bevel; display bars + rails in the exporter)");
+  if (!/const fbm = \/data-fillbody="\(\[-\\d\. \]\+\)"\/\.exec\(q\.svg\);/.test(src)
+      || !/body\?: \{ x: number; w: number \} \| null;/.test(src)
+      || !/\.\.\.\(fillBody \? \{ body: fillBody \} : \{\}\)/.test(src))
+    errors.push("addPng lost the body-box parse or its manifest emission (round 48, S38)");
+  if (!/public PBTrack body;/.test(src))
+    errors.push("PBAsset lost the body field — the importer can no longer read the true ink spans (round 48, S38)");
+  if (!/public float bodyU0 = 0f;/.test(src) || !/public float capU0 = 0f;/.test(src)
+      || !/float capBodyW = capW \* capSpan;/.test(src)
+      || !/fill\.fillAmount = \(fromRight \? 1f - bodyU1 : bodyU0\) \+ fill\.fillAmount \* span;/.test(src)
+      || !/capHead\.anchoredPosition = new Vector2\(fromRight \? -capU0 \* capW \* shrink : \(1f - capU1\) \* capW \* shrink, 0f\);/.test(src))
+    errors.push("KitBarFill lost the body-space value map — fills seat right of the well again (round 48, S38)");
+  if (!/static void WireBarBodies\(GameObject area, PBManifest m\) \{/.test(cs)
+      || !/static PBAsset RowOfSprite\(PBManifest m, Sprite sp\) \{/.test(cs)
+      || (cs.match(/WireBarBodies\(/g) ?? []).length < 7)
+    errors.push("WireBarBodies (or enough of its call sites — BuildBarFill, Slider, VsBar x2, rails, graft) left the importer (round 48, S38)");
+  if (!/<clipPath id="\$\{gid\}g\$\{i\}">/.test(bevelSrc))
+    errors.push("the segbar per-cell gloss clip is gone — highlights overrun the pills again (round 48, S38)");
+}
+
+/* ── ROUND 48 · S39 (cross-lane, the smashed-pair guard reaches the
+   export): (a) the baked face's kerning table drops any pair whose own
+   kern fuses the strokes — the app's kernCollides is the one arbiter;
+   (b) a kern-guarded seat word ships unkern:true and the live TMP seat
+   renders with kerning off, per label, on both rungs. ── */
+{
+  if (!/, kernCollides \} from "\.\/bevel";/.test(src)
+      || !/if \(kp < 0 && kernCollides\(a \+ b, family, weight, !!base\.type\.italic, \(base\.type\.spacing \?\? 0\) \/ 100\)\) continue;/.test(src))
+    errors.push("the baked kerning table lost the smashed-pair guard — TMP fuses I into V again on hero labels (round 48, S39)");
+  if (!/if \(\/font-kerning:\\s\*none\/\.test\(p\.getAttribute\("style"\) \?\? ""\) \|\| p\.getAttribute\("font-kerning"\) === "none"\) unkern = true;/.test(src)
+      || !/\.\.\.\(unkern \? \{ unkern: true \} : \{\}\),/.test(src)
+      || !/unkern\?: boolean;/.test(src))
+    errors.push("the seat parse lost the unkern flag — guarded words kern again in Unity (round 48, S39)");
+  if (!/public bool unkern; \}/.test(src)
+      || !/static bool SeatKernIsOff\(TMPro\.TMP_Text t\) \{/.test(cs)
+      || !/static void SeatKernOff\(TMPro\.TMP_Text t\) \{/.test(cs)
+      || !/if \(seat\.unkern\) SeatKernOff\(t\); \/\/ the smashed-pair guard, this label only/.test(cs)
+      || !/&& \(!seat\.unkern \|\| SeatKernIsOff\(t\)\)/.test(cs)
+      || !/if \(seat\.unkern\) SeatKernOff\(tL\); \/\/ the smashed-pair guard rides the LTS rung too/.test(src))
+    errors.push("the TMP seat kern-off consumption left the importer (round 48, S39 — DressSeatText probe+apply and the LTS road)");
 }
 
 if (errors.length) {

@@ -10,6 +10,7 @@ import { capsOf, canExport, UPGRADE_LINES } from "@/generator/entitlements";
 import { openGate } from "@/shell/gateModal";
 import { renderBevel } from "@/generator/bevel";
 import { downloadSvg, downloadPng, downloadWebKit, downloadSettings, downloadGameKit, copyText, inlineKitFace } from "@/generator/exportUtils";
+import { downloadTestKit } from "@/generator/billing";
 import { fetchKitFont } from "@/generator/engineExport";
 import { fontByName } from "@/generator/model";
 import { guardedExport } from "@/generator/exportGate";
@@ -51,6 +52,17 @@ export function TopBar() {
   // the web-kit zip renders the whole kit — minutes, not a blink; the
   // menu row stays open and narrates so the wait never reads as a hang
   const [htmlProg, setHtmlProg] = useState<string | null>(null);
+  /* round 45 · B6 — the free-kit story told BEFORE the paywall: unpaid
+     tiers see the one thing that IS free right in this menu, beside the
+     locked formats, instead of discovering it only inside the gate modal
+     after a locked click. Free accounts download right here; guests get
+     the sign-up pitch (the kit is free WITH an account). */
+  const [tkBusy, setTkBusy] = useState(false);
+  const dlTestKit = () => {
+    if (tkBusy) return;
+    setTkBusy(true);
+    void downloadTestKit().then((err) => { if (err) window.alert(err); }).finally(() => setTkBusy(false));
+  };
   const menuRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -285,6 +297,23 @@ export function TopBar() {
                 title="Opens your kit page — the Unity ZIP is the big export button there.">
                 <Gamepad2 size={15} strokeWidth={1.8} /> Unity kit — on the Kit page
               </button>
+              {/* round 45 · B6: the one FREE download sits beside the locked
+                  formats, so the story lands before any paywall click —
+                  your own designs export with Pro; the stock test kit is
+                  free with an account. Paid tiers have the real thing. */}
+              {tier === "guest" ? (
+                <button className="lockedmi"
+                  title="The stock Brightside kit, free with an account — prove the whole Unity import in your engine before paying anything. Exporting your OWN designs is the Pro unlock."
+                  onClick={() => { setMenuOpen(false); gate(); }}>
+                  <Gamepad2 size={15} strokeWidth={1.8} /> Unity test kit <i className="protag">FREE</i>
+                </button>
+              ) : !paid ? (
+                <button disabled={tkBusy}
+                  title="The stock Brightside kit — the same fixed ZIP for everyone, not your design, yours to ship. Exporting your OWN designs is the Pro unlock."
+                  onClick={dlTestKit}>
+                  <Gamepad2 size={15} strokeWidth={1.8} /> {tkBusy ? "Fetching your kit…" : <>Unity test kit <i className="protag">FREE</i></>}
+                </button>
+              ) : null}
               {/* the settings file stays FREE for accounts (owner mandate:
                   backup/portability is workflow, not a deliverable) — but
                   guests take nothing home, so it's part of the sign-up pitch */}

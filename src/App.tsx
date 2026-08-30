@@ -6,6 +6,7 @@ import { useGen, rehydrateBoardBgs, SAFE_BOOT } from "./generator/store";
 import { LootModal } from "./ui/LootModal";
 import { GateModal } from "./ui/GateModal";
 import { NewKitSheet } from "./ui/NewKitSheet";
+import { LookSwitch } from "./ui/LookSwitch";
 import { loadPublicProject, onCloudStatus } from "./generator/cloud";
 import { readFlightRings } from "./generator/flightRecorder";
 import { ensureFont } from "./generator/fonts";
@@ -300,6 +301,7 @@ export function App() {
       <LootModal />
       <GateModal />
       <NewKitSheet />
+      <LookSwitch />
       <TutorTip />
       <ChromeNudge />
       {SAFE_BOOT && <SafeBootBanner />}
