@@ -4646,6 +4646,34 @@ export function resolveMenuStyle(cfg: GenConfig, slots?: Record<string, string>)
   return { items, plate, stroke, ink, inkDim: hexRgba(ink, 0.66), highlight: autoMenuHighlight(plate, ink), auto: true };
 }
 
+/* ── the honest swatch (owner: "make the swatch tell the truth") ──
+   A few color wells carry factory defs that are SENTINELS — hexes the
+   unset render never literally inks, because the untouched piece follows
+   a kit role instead: the dialogue body reads the kit's type ink, the
+   ghost stick wears Glow, the booster plate wears Bevel, the open menu
+   derives its whole voice. The panel asks here for the EFFECTIVE unset
+   color so the well shows what the piece actually renders — live, since
+   it recomputes from the current config. null = the slot's def is
+   already the literal truth (or the closest one hex can tell: the
+   translucent factory inks keep their base hue — alpha has no seat in a
+   hex well). Pure read — no render path touches this. */
+export function effSlotColor(cfg: GenConfig, cid: KitComponentId, slotId: string, slots?: Record<string, string>): string | null {
+  switch (`${cid}.${slotId}`) {
+    case "dialoguebox.bodyColor":
+      /* the body speaks the list voice (contentText list:true): List ink
+         first, else the type fill — a gradient shows its top stop, one
+         hex being all a well can say; fillMode "auto" leaves body text
+         the plain white contentText falls back to */
+      return cfg.type.listInk
+        ?? (cfg.type.fillMode === "auto" ? "#FFFFFF" : cfg.type.fill);
+    case "joystick.ghostink": return effect(cfg.effects, "Glow");
+    case "booster.plateColor": return effect(cfg.effects, "Bevel");
+    case "dropdown.rowplate": return resolveMenuStyle(cfg, slots).plate;
+    case "dropdown.rowtext": return resolveMenuStyle(cfg, slots).ink;
+    default: return null;
+  }
+}
+
 export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, state: GenStateName = "default", value?: number, shapeOv?: Shape, opts: KitOpts = {}): string {
   if (opts.tone === "alt") {
     // muted variant — same material, drained of celebration
