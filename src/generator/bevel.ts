@@ -6583,12 +6583,19 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const ry = rowY0 + i * rowH + rowH / 2;
         const done = i < doneN;
         const active = i === doneN && state !== "disabled";
+        /* round 44 (item 29b, RIG-4): each pip is marked swappable ink —
+           the export ships every row's pip as a live child plus the three
+           looks (done/active/empty), so devs toggle rows in the Inspector.
+           data-icon-box pins ONE shared crop frame (glow headroom
+           included) so any look swaps into any seat with zero distortion. */
+        const pipBoxH = pipR + 13 * k;
+        const pipBox = `data-icon-box="${(x0 + pipR - pipBoxH).toFixed(1)} ${(ry - pipBoxH).toFixed(1)} ${(pipBoxH * 2).toFixed(1)} ${(pipBoxH * 2).toFixed(1)}"`;
         if (done) {
-          inner += `<circle cx="${(x0 + pipR).toFixed(1)}" cy="${ry.toFixed(1)}" r="${pipR.toFixed(1)}" fill="${hexMix(bevel, glow, 0.4)}" stroke="${darken(bevel, 0.35)}" stroke-width="1.4"/>` +
-            iconGroup(STOCK_ICONS.check, x0 + pipR - pipR * 0.58, ry - pipR * 0.58, pipR * 1.16, "#FFFFFF", { strokeWidth: 3 * iconWK });
+          inner += `<g data-part="icon" data-icon="pip${i + 1}" ${pipBox} data-icon-nick="Objective ${i + 1} pip"><circle cx="${(x0 + pipR).toFixed(1)}" cy="${ry.toFixed(1)}" r="${pipR.toFixed(1)}" fill="${hexMix(bevel, glow, 0.4)}" stroke="${darken(bevel, 0.35)}" stroke-width="1.4"/>` +
+            iconGroup(STOCK_ICONS.check, x0 + pipR - pipR * 0.58, ry - pipR * 0.58, pipR * 1.16, "#FFFFFF", { strokeWidth: 3 * iconWK }) + `</g>`;
         } else {
           const hotQ = active && (state === "hover" || state === "pressed");
-          inner += `<circle cx="${(x0 + pipR).toFixed(1)}" cy="${ry.toFixed(1)}" r="${pipR.toFixed(1)}" fill="${wellFill}" stroke="${active ? hexRgba(glow, hotQ ? 1 : 0.7) : "rgba(255,255,255,0.22)"}" stroke-width="${active ? (hotQ ? 2.6 : 1.8) : 1.2}"${active ? ` style="filter: drop-shadow(0 0 ${(hotQ ? 7 : 4) * k}px ${hexRgba(glow, 0.6)})"` : ""}/>`;
+          inner += `<g data-part="icon" data-icon="pip${i + 1}" ${pipBox} data-icon-nick="Objective ${i + 1} pip"><circle cx="${(x0 + pipR).toFixed(1)}" cy="${ry.toFixed(1)}" r="${pipR.toFixed(1)}" fill="${wellFill}" stroke="${active ? hexRgba(glow, hotQ ? 1 : 0.7) : "rgba(255,255,255,0.22)"}" stroke-width="${active ? (hotQ ? 2.6 : 1.8) : 1.2}"${active ? ` style="filter: drop-shadow(0 0 ${(hotQ ? 7 : 4) * k}px ${hexRgba(glow, 0.6)})"` : ""}/></g>`;
         }
         inner += `<g data-part="slot-text">${contentText(o.lbl, x0 + pipR * 2 + 14 * k, ry + 1, fitFs(o.lbl, 22 * k * typeK, (o.count && !done ? xr - 52 * k : xr) - (x0 + pipR * 2 + 14 * k), 0.47, { list: true, keepCase: true }), { keepCase: true, list: true, opacity: done ? 0.55 : active ? 1 : 0.75 })}</g>`;
         if (o.count && !done) inner += infoText(o.count, xr, ry + 1, 18 * k, "end");
@@ -6597,11 +6604,15 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const gidQ = "qp" + UID++;
       const fw = (xr - x0) - 56 * k;
       const gQ = 2.5 * k, mHQ = fH - gQ * 2;
+      // round 44 (item 29c, RIG-1): the footer mercury is MARKED ink —
+      // it ships as a Filled atom the rig drives in WHOLE THIRDS (the
+      // app's own objectives law); the track stays anatomy
       inner += `<rect x="${x0.toFixed(1)}" y="${fy.toFixed(1)}" width="${fw.toFixed(1)}" height="${fH.toFixed(1)}" rx="${(fH / 2).toFixed(1)}" fill="${wellFill}"/>` +
         `<defs><linearGradient id="${gidQ}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(glow, 0.5)}"/><stop offset="1" stop-color="${darken(glow, 0.25)}"/></linearGradient></defs>` +
-        (doneN > 0 ? `<rect x="${(x0 + gQ).toFixed(1)}" y="${(fy + gQ).toFixed(1)}" width="${((fw - gQ * 2) * doneN / 3).toFixed(1)}" height="${mHQ.toFixed(1)}" rx="${(mHQ / 2).toFixed(1)}" fill="url(#${gidQ})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 3px ${hexRgba(glow, 0.6)})"` : ""}/>` : "") +
+        (doneN > 0 ? `<g data-barfill="${(x0 + gQ).toFixed(1)} ${(fy + gQ).toFixed(1)} ${((fw - gQ * 2) * doneN / 3).toFixed(1)} ${mHQ.toFixed(1)}"><rect x="${(x0 + gQ).toFixed(1)}" y="${(fy + gQ).toFixed(1)}" width="${((fw - gQ * 2) * doneN / 3).toFixed(1)}" height="${mHQ.toFixed(1)}" rx="${(mHQ / 2).toFixed(1)}" fill="url(#${gidQ})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 3px ${hexRgba(glow, 0.6)})"` : ""}/></g>` : "") +
         infoText(`${doneN}/3`, xr, fy + fH / 2 + 1, 18 * k, "end");
-      return inject(shell.replace("<svg ", '<svg data-questpanel="1" '), inner);
+      // the stamp speaks the mercury run + band (round 44, item 29c)
+      return stampTrack(inject(shell.replace("<svg ", '<svg data-questpanel="1" '), inner), x0 + gQ, fw - gQ * 2, fy + gQ, mHQ);
     }
     case "dialoguebox": {
       /* RPG · dialogue box — speaker plate riding the top edge, two lines,

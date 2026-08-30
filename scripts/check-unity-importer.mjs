@@ -2658,8 +2658,8 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the bare dome render no longer stamps data-fireseat (center + padded glyph-sprite box) — the exact armed seat can't reach the manifest (round 44, item 15)");
   if (!/fireDx: r1\(fsM\[0\] - \(shM\[0\] \+ shM\[2\] \/ 2\)\), fireDy: r1\(fsM\[1\] - \(shM\[1\] \+ shM\[3\] \/ 2\)\), fireW: r1\(fsM\[2\]\)/.test(src))
     errors.push("the emission no longer re-speaks data-fireseat shell-center relative onto the dome row (fireDx/fireDy/fireW)");
-  if (!/public PBIconChild\[\] iconSeats; public float fireDx; public float fireDy; public float fireW; public float railDx; public float railDy; public float railW; public float railH; \}/.test(cs))
-    errors.push("PBAsset lost the fireDx/fireDy/fireW (or S15 railDx/railDy/railW/railH) fields — JsonUtility drops the armed seat / rail geometry silently");
+  if (!/public PBIconChild\[\] iconSeats; public float fireDx; public float fireDy; public float fireW; public float railDx; public float railDy; public float railW; public float railH; public string labelAnchor; \}/.test(cs))
+    errors.push("PBAsset lost the fireDx/fireDy/fireW (or S15 rail / S17 labelAnchor) fields — JsonUtility drops them silently");
   if (!/if \(themed && rowFS != null && rowFS\.fireW > 1f\) \{/.test(cs)
       || !/wRt\.sizeDelta = new Vector2\(rowFS\.fireW, rowFS\.fireW\);/.test(cs)
       || !/wRt\.anchoredPosition \+= new Vector2\(rowFS\.fireDx, -rowFS\.fireDy\);/.test(cs))
@@ -2745,7 +2745,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/public class KitBarFill : MonoBehaviour \{/.test(src)
       || !/float capW = areaH \* \(capImg\.sprite\.rect\.width \/ Mathf\.Max\(1f, capImg\.sprite\.rect\.height\)\);/.test(src)
       || !/fill\.fillAmount = Mathf\.Max\(0f, v - capFrac \* 0\.5f\);/.test(src)
-      || !/if \(!Mathf\.Approximately\(fill\.fillAmount, wroteFill\)\) \{ value = Mathf\.Clamp01\(fill\.fillAmount\); Apply\(\); \}/.test(src))
+      || !/if \(!Mathf\.Approximately\(fill\.fillAmount, wroteFill\)\) \{ value = Snap\(fill\.fillAmount\); Apply\(\); \}/.test(src))
     errors.push("KitBarFill lost its rig semantics (height-ratio cap, crop retreat under the bead, change-guarded fillAmount follow — the SHIPPED dev contract)");
   if (!/files\.push\(\{ path: "Runtime\/PatternBreakKitBarFill\.cs", data: KIT_BAR_FILL_RUNTIME \}\);/.test(src)
       || !/"Runtime\/PatternBreakKitBarFill\.cs",/.test(src))
@@ -2889,15 +2889,15 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("respawn's conditional zone stamp left bevel — Barheight Hidden must ship no zone (round 44, item 30)");
   if (!/function barFillOnlySvg\(/.test(src) || !/function stripBarFill\(/.test(src))
     errors.push("the RIG-1 bar un-burn hands (barFillOnlySvg/stripBarFill) left the exporter");
-  if (!/const barRigU = uid === "loadbar" \|\| uid === "popmeter" \|\| uid === "respawn" \|\| uid === "buildqueue" \|\| uid === "xpbar" \|\| uid === "unitplate";/.test(src))
-    errors.push("the display-bar rig gate left the universal loop (six families incl. xpbar + unitplate)");
+  if (!/const barRigU = uid === "loadbar" \|\| uid === "popmeter" \|\| uid === "respawn" \|\| uid === "buildqueue" \|\| uid === "xpbar" \|\| uid === "unitplate" \|\| uid === "questpanel";/.test(src))
+    errors.push("the display-bar rig gate left the universal loop (seven families incl. xpbar/unitplate/questpanel)");
   if (!/tzy \+ riseDyT/.test(src))
     errors.push("the track band lost its riseDy correction — the zone would seat a full extrusion headroom too high (round 44 field lesson)");
   if (!/track\?: \{ x: number; w: number; y\?: number; h\?: number \} \| null;/.test(src))
     errors.push("AssetMeta.track lost the optional vertical band");
   if (!/float bandCy = -1f;/.test(cs) || !/float topGap = bandCy - fillH \* 0\.5f, botGap = trackH - bandCy - fillH \* 0\.5f;/.test(cs))
     errors.push("BuildBarFill lost the vertical-band seat (round 44) — off-centerline bars would center mid-shell");
-  if (!/if \(baseAsset\.component == "loadbar" \|\| baseAsset\.component == "popmeter" \|\| baseAsset\.component == "respawn" \|\| baseAsset\.component == "buildqueue" \|\| baseAsset\.component == "xpbar" \|\| baseAsset\.component == "unitplate"\)/.test(cs)
+  if (!/if \(baseAsset\.component == "loadbar" \|\| baseAsset\.component == "popmeter" \|\| baseAsset\.component == "respawn" \|\| baseAsset\.component == "buildqueue" \|\| baseAsset\.component == "xpbar" \|\| baseAsset\.component == "unitplate" \|\| baseAsset\.component == "questpanel"\)/.test(cs)
       || !/string famDB = spritePath\.EndsWith\("\/loadbar-base\.png"\) \? "loadbar"/.test(cs))
     errors.push("the display bars' FamilyPrefab wiring or kept-project Fill graft left the importer (round 44)");
   const liveArtSrc = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../src/ui/LiveArt.tsx"), "utf8");
@@ -2991,13 +2991,42 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/static void WireNamedRails\(GameObject go, Sprite baseSp, PBAsset baseRow, string root, int pngScale, PBManifest m, string fam, string\[\] rails, string\[\] nices\)/.test(cs)
       || !/WireNamedRails\(go, baseSp, baseAsset, root, pngScale, m, "partyframe", new string\[\] \{ "hp", "mp" \}, new string\[\] \{ "HP", "MP" \}\);/.test(cs))
     errors.push("WireNamedRails (or partyframe's FamilyPrefab call) left the importer — the HP/MP rails ship baked (round 44, item 25)");
-  if (!/it\.component == "unitplate"\) && it\.value > 0f/.test(cs))
+  if (!/it\.component == "unitplate" \|\| /.test(cs))
     errors.push("unitplate left the board value strike — posed plates would render an EMPTY rail (round 44, item 42, the dossier's silent regression)");
   if (!/mpK9\.SetValue\(Mathf\.Clamp01\(0\.25f \+ \(1f - vHp9\) \* 0\.5f\)\);/.test(cs))
     errors.push("the partyframe board strike lost the MP coupling — boards would pose only one rail (round 44, item 25)");
-  if (!/spritePath\.EndsWith\("\/unitplate-base\.png"\) \? "unitplate" : null;/.test(cs)
+  if (!/spritePath\.EndsWith\("\/unitplate-base\.png"\) \? "unitplate"/.test(cs)
       || !/fPrev\.file == "assets\/partyframe\/partyframe-fill-hp\.png"/.test(cs))
     errors.push("the kept-project grafts (unitplate Fill / partyframe twin-rail era gate) left the importer (round 44)");
+}
+
+/* ── ROUND 44 · S17 (questpanel, item 29's three fixes): the title's
+   START-anchored seat ships honestly (labelAnchor road — every other
+   labeled family stays middle, byte-still); each objective pip un-burns
+   as a live child with three shipped looks; the footer mercury joins
+   the universal rig and the ONE rig learns the family's whole-objectives
+   law (snapSteps, zero-gated). ── */
+{
+  if (!/data-icon="pip\$\{i \+ 1\}" \$\{pipBox\} data-icon-nick="Objective \$\{i \+ 1\} pip"/.test(bevelSrc)
+      || !/data-icon-box="\$\{\(x0 \+ pipR - pipBoxH\)\.toFixed\(1\)\}/.test(bevelSrc))
+    errors.push("the quest tracker's pips lost their marked wraps or shared crop frame — rows can't toggle cleanly in the Inspector (round 44, item 29b)");
+  if (!/data-icon-box"\)\?\.split\(" "\)\.map\(Number\) \?\? null,/.test(src) || !/bx = mk\.box\[0\]; by = mk\.box\[1\] \+ riseDy; bw9 = mk\.box\[2\]; bh9 = mk\.box\[3\];/.test(src))
+    errors.push("the fixed-frame icon crop (data-icon-box) left the cut road — look swaps would distort (round 44, item 29b)");
+  if (!/stampTrack\(inject\(shell\.replace\("<svg ", '<svg data-questpanel="1" '\), inner\), x0 \+ gQ, fw - gQ \* 2, fy \+ gQ, mHQ\)/.test(bevelSrc))
+    errors.push("questpanel's banded track stamp left bevel — the footer rig can't seat (round 44, item 29c)");
+  if (!/taU === "start" \? \{ labelAnchor: "start" \}/.test(src))
+    errors.push("the label-anchor parse left the universal loop — the quest title's LEFT EDGE ships as its center again (round 44, item 29a)");
+  if (!/\["pip-done", "pip1", 1,/.test(src) || !/\["pip-empty", "pip2", 0,/.test(src))
+    errors.push("the pip LOOK atoms left the exporter — devs can seat pips but not toggle their state (round 44, item 29b)");
+  if (!/public int snapSteps = 0;/.test(src) || !/float Snap\(float v\) \{ v = Mathf\.Clamp01\(v\); return snapSteps > 0 \? Mathf\.Round\(v \* snapSteps\) \/ snapSteps : v; \}/.test(src))
+    errors.push("KitBarFill lost the zero-gated snapSteps law — the quest footer would fill mid-objective (round 44, item 29c)");
+  if (!/kbQ3\.snapSteps = 3; kbQ3\.SetValue\(stagedB4\);/.test(cs) || !/kbQG\.snapSteps = 3; kbQG\.SetValue\(stagedDB\);/.test(cs))
+    errors.push("questpanel's snap wiring (fresh build or kept graft) left the importer (round 44, item 29c)");
+  if (!/if \(row\.labelAnchor == "start" && row\.shell != null && row\.shell\.w > 2f\) v\.x \+= row\.shell\.w \* 0\.5f \/ sp\.rect\.width;/.test(cs))
+    errors.push("LabelSeatShift lost the start-anchor slide — the labelAnchor field ships but seats nothing (round 44, item 29a)");
+  if (!/static void AlignLabelStart\(GameObject labelRoot, PBAsset row\)/.test(cs)
+      || !/lrowA != null && lrowA\.labelAnchor == "start" \? TextAnchor\.MiddleLeft : TextAnchor\.MiddleCenter;/.test(cs))
+    errors.push("the start-anchored word's left pin left a label rung (TMP, baked, or legacy) — the seat slides but the word still centers (round 44, item 29a)");
 }
 
 if (errors.length) {

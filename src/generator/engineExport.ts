@@ -117,6 +117,11 @@ interface AssetMeta {
    *  included). The app centers words in the CONTENT zone, not the shell
    *  (owner: "we are always cheating right a bit" on the flame). */
   labelDx?: number; labelDy?: number; labelFs?: number;
+  /** "start" when the drawn label is start-anchored (round 44, item 29a —
+   *  the quest tracker's title): labelDx then speaks the word's LEFT EDGE
+   *  from the shell center and the importer pins the word left. Absent =
+   *  middle (every other labeled family, byte-still). */
+  labelAnchor?: string;
   /** The family's RESOLVED resting label ink (P0 follow-up: header words
    *  arrived WHITE): the app flips white type to the kit ink on pale
    *  shells and per-family design forks pin their own — this is the
@@ -523,12 +528,12 @@ export interface ExportBoardData {
    ancestors, filters and clips kept, so the sprite is the app's exact
    pixels) and strip the groups from the shipping bake. ── */
 const ICON_DRAWABLE_SEL = "path,rect,circle,ellipse,line,polyline,polygon,text,image,use";
-function markedIconOnlySvgs(svgIn: string): { name: string; btn: boolean; well: number[] | null; nick: string | null; tint: string | null; svg: string }[] {
+function markedIconOnlySvgs(svgIn: string): { name: string; btn: boolean; well: number[] | null; box: number[] | null; nick: string | null; tint: string | null; svg: string }[] {
   try {
     const dom0 = new DOMParser().parseFromString(svgIn, "image/svg+xml");
     const gs0 = Array.from(dom0.querySelectorAll('[data-part="icon"]'));
     if (!gs0.length) return [];
-    const out: { name: string; btn: boolean; well: number[] | null; nick: string | null; tint: string | null; svg: string }[] = [];
+    const out: { name: string; btn: boolean; well: number[] | null; box: number[] | null; nick: string | null; tint: string | null; svg: string }[] = [];
     for (let gi = 0; gi < gs0.length; gi++) {
       const dom = new DOMParser().parseFromString(svgIn, "image/svg+xml");
       const gs = Array.from(dom.querySelectorAll('[data-part="icon"]'));
@@ -555,6 +560,12 @@ function markedIconOnlySvgs(svgIn: string): { name: string; btn: boolean; well: 
         name: gs0[gi].getAttribute("data-icon") ?? (gs0.length > 1 ? `icon${gi + 1}` : "glyph"),
         btn: gs0[gi].getAttribute("data-icon-btn") === "1",
         well: gs0[gi].getAttribute("data-icon-well")?.split(" ").map(Number) ?? null,
+        /* a FIXED crop frame "x y w h" in raw design px (round 44, item
+           29b — the quest pips): marks whose looks must SWAP cleanly all
+           declare the same box, so every cut shares one canvas and a
+           sprite swap registers with zero distortion (the dialog's
+           fixed-canvas lesson, brought to icon children) */
+        box: gs0[gi].getAttribute("data-icon-box")?.split(" ").map(Number) ?? null,
         nick: gs0[gi].getAttribute("data-icon-nick") || null,
         tint,
         svg: new XMLSerializer().serializeToString(dom.documentElement),
@@ -3144,7 +3155,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
          (the masked child stretches the sprite over the well rect 1:1);
          everything else crops to its drawn alpha box + 2px of AA air */
       let bx: number, by: number, bw9: number, bh9: number;
-      if (mk.well && mk.well.length === 3 && mk.well.every(Number.isFinite)) {
+      if (mk.box && mk.box.length === 4 && mk.box.every(Number.isFinite) && mk.box[2] > 1 && mk.box[3] > 1) {
+        // fixed frame (round 44): every look of this mark shares one canvas
+        bx = mk.box[0]; by = mk.box[1] + riseDy; bw9 = mk.box[2]; bh9 = mk.box[3];
+      } else if (mk.well && mk.well.length === 3 && mk.well.every(Number.isFinite)) {
         const [wcx, wcy, wr] = mk.well;
         bx = wcx - wr; by = wcy - wr + riseDy; bw9 = wr * 2; bh9 = wr * 2;
       } else {
@@ -4236,7 +4250,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         scrollbar: "Scrollbar — vertical strip, sunken track, candy thumb baked at the staged position. Display piece; pair with your own ScrollRect (the ScrollView prefab shows the wiring).",
         steps: "Step indicator — wizard pips; the step numbers are LIVE seats. Display piece.",
         pagedots: "Page dots — DRIVABLE (round 44): the PageDots prefab deals the strip live from pagedots-dot/knob at the kit's own pitch (PatternBreakPageDots — SetPage/SetCount, or SetValue 0..1). This baked sheet stays for older scenes and board stamps.",
-        questpanel: "Quest tracker — eyebrow, title, objectives and counts are LIVE seats (title is the live Label). Pips and footer bar are anatomy; per-copy progress rides posed skins. Display piece.",
+        questpanel: "Quest tracker — eyebrow, title, objectives and counts are LIVE seats (title is the live Label, pinned left like the app draws it). Every objective pip is a LIVE Image child — swap it between the shipped pip-done / pip-active / pip-empty looks to toggle a row. The footer mercury is a Filled fill that snaps to WHOLE objectives (drive Fill's fillAmount or KitBarFill.SetValue; snapSteps 3). The 1/3 and 2/3 count words are seats, not wired to the bar — retype them to match your value. Display piece.",
         dialoguebox: "Dialogue box — both lines are LIVE seats, the speaker plate a live child whose NAME rides it (move or delete plate + name as one), and the continue caret its OWN live child (owner ruling, round 44 — blink it, bob it or swap it; icons/* fit the seat). Display piece.",
         choicelist: "Dialogue choices — all three responses and their hotkey digits are LIVE seats; the active-choice marker is a LIVE Image child. Wire per-choice buttons over the capsules. Display piece.",
         manarails: "Mana & stamina rails — LIVE: each rail is its own Filled fill with the rounded head (drive Mana/Stamina fillAmount or KitBarFill.SetValue) and each rail glyph a LIVE Image child. Display piece.",
@@ -4314,7 +4328,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
            discipline (offsets from the shell0 center, frame-invariant);
            the RENDERED word ships as labelText (levelnode's number ignores
            the label chip — the render is the truth, never the dial) */
-        let uLabelMeta: { labelDx: number; labelDy: number; labelFs: number; labelInk?: string; labelInk2?: string } | null = null;
+        let uLabelMeta: { labelDx: number; labelDy: number; labelFs: number; labelAnchor?: string; labelInk?: string; labelInk2?: string } | null = null;
         let uWord: string | undefined;
         {
           const li = fullU.indexOf('data-part="label"');
@@ -4334,10 +4348,18 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
             const s0m = /data-shell0="([-\d. ]+)"/.exec(fullU) ?? /data-shell="([-\d. ]+)"/.exec(fullU);
             const s0 = s0m?.[1].split(" ").map(Number);
             if (tm && s0 && s0.length === 4 && +tm[3] > 1) {
+              /* the REAL anchor (round 44, item 29a): contentText omits
+                 text-anchor for start (the SVG default) — a start-anchored
+                 title's x is its LEFT EDGE, not its center, so the seat
+                 must say so or the word parks half its width left (the
+                 quest tracker's bug). Middle stays the silent default —
+                 every other labeled family's row is byte-still. */
+              const taU = /\btext-anchor="([a-z]+)"/.exec(tTagU)?.[1] ?? "start";
               uLabelMeta = {
                 labelDx: Math.round((+tm[1] - (s0[0] + s0[2] / 2)) * 10) / 10,
                 labelDy: Math.round((+tm[2] - (s0[1] + s0[3] / 2)) * 10) / 10,
                 labelFs: Math.round(+tm[3] * 10) / 10,
+                ...(taU === "start" ? { labelAnchor: "start" } : {}),
                 ...(labelInkOf(lg, fullU) ?? {}),
               };
               try {
@@ -4451,7 +4473,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
            row's extended data-track stamp (no separate track part ships,
            the cell meters' rule). The strip only happens once both atoms
            render, so a failed atom leaves today's baked bar intact. */
-        const barRigU = uid === "loadbar" || uid === "popmeter" || uid === "respawn" || uid === "buildqueue" || uid === "xpbar" || uid === "unitplate";
+        const barRigU = uid === "loadbar" || uid === "popmeter" || uid === "respawn" || uid === "buildqueue" || uid === "xpbar" || uid === "unitplate" || uid === "questpanel";
         let barFillSvgU: string | null = null, barCapSvgU: string | null = null;
         if (barRigU) {
           try {
@@ -4538,7 +4560,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           }
         }
         if (barRigU && barFillSvgU && barCapSvgU) {
-          const stagedBar = Math.max(0, Math.min(1, uVal ?? ({ loadbar: 0.62, popmeter: 0.84, respawn: 0.6, buildqueue: 0.55, xpbar: 0.45, unitplate: 0.82 } as Record<string, number>)[uid] ?? 0.62));
+          const stagedBar = Math.max(0, Math.min(1, uVal ?? ({ loadbar: 0.62, popmeter: 0.84, respawn: 0.6, buildqueue: 0.55, xpbar: 0.45, unitplate: 0.82, questpanel: 2 / 3 } as Record<string, number>)[uid] ?? 0.62));
           await addPng(`${uid}/fill.png`, barFillSvgU, {
             component: uid, part: "fill", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
             usage: "The mercury at 100% — the app's own dressing (gradient, gloss, glow) alone on the canvas; the prefab's Filled image scissors it to the live value and KitBarFill parks the rounded head (drive fillAmount or SetValue).",
@@ -4548,6 +4570,40 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
             component: uid, part: "cap", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
             usage: "The mercury's rounded head — KitBarFill parks it on the value line (hides at 0, yields to the full-run bead at 100%).",
           }, true);
+        }
+        /* ── the OBJECTIVE PIP LOOKS (round 44, item 29b): the base seats
+           each drawn pip as a live child above; the three LOOKS ship
+           beside them so a dev toggles any row in the Inspector — done
+           cut from the all-done render, active and empty from the
+           none-done one. Additive: a failed look leaves the seats. ── */
+        if (uid === "questpanel") {
+          try {
+            const lookQP: [string, string, number, string][] = [
+              ["pip-done", "pip1", 1, "An objective pip, DONE (disc + check) — swap any Objective pip child to this sprite to mark its row complete."],
+              ["pip-active", "pip1", 0, "An objective pip, ACTIVE (the glowing ring) — the current objective's look."],
+              ["pip-empty", "pip2", 0, "An objective pip, EMPTY — a not-yet-reached objective's look."],
+            ];
+            for (const [part9, cutName, v9, use9] of lookQP) {
+              const sv9 = stripLoopsU(shell(uid, uOpts, undefined, v9));
+              const cut9 = markedIconOnlySvgs(sv9).find((c9) => c9.name === cutName);
+              if (!cut9 || !cut9.box || cut9.box.length !== 4) continue;
+              // the SHARED frame (data-icon-box + the drawn rise), so every
+              // look registers 1:1 with every seat — swap without math
+              const shD9 = /data-shell="([-\d. ]+)"/.exec(sv9)?.[1].split(" ").map(Number);
+              const sh09 = /data-shell0="([-\d. ]+)"/.exec(sv9)?.[1].split(" ").map(Number);
+              const rise9 = shD9 && sh09 && shD9.length === 4 && sh09.length === 4 ? shD9[1] - sh09[1] : 0;
+              const bx9 = cut9.box[0], by9 = cut9.box[1] + rise9;
+              const bw9b = cut9.box[2], bh9b = cut9.box[3];
+              if (!(bw9b > 1) || !(bh9b > 1)) continue;
+              const spr9 = cut9.svg
+                .replace(/viewBox="[^"]+"/, `viewBox="${bx9.toFixed(1)} ${by9.toFixed(1)} ${bw9b.toFixed(1)} ${bh9b.toFixed(1)}"`)
+                .replace(/ width="[\d.]+"/, ` width="${Math.ceil(bw9b)}"`)
+                .replace(/ height="[\d.]+"/, ` height="${Math.ceil(bh9b)}"`);
+              await addPng(`${uid}/${part9}.png`, spr9, {
+                component: uid, part: part9, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: use9,
+              }, false);
+            }
+          } catch { /* the seats above still ship */ }
         }
         if (cellRig && litSvgU) {
           await addPng(`${uid}/lit.png`, litSvgU, {
@@ -6573,11 +6629,14 @@ namespace PatternBreak {
     public RectTransform capHead;
     [Tooltip("Mirrored bar (fillOrigin Right): the head rides the fill's left edge.")]
     public bool fromRight;
+    [Tooltip("Snap the value to N whole steps — the quest tracker fills by whole objectives (round 44). 0 = continuous; old prefabs keep today's behavior.")]
+    public int snapSteps = 0;
     float value = -1f; float wroteFill = float.NaN;
-    public void SetValue(float v) { value = Mathf.Clamp01(v); Apply(); }
+    float Snap(float v) { v = Mathf.Clamp01(v); return snapSteps > 0 ? Mathf.Round(v * snapSteps) / snapSteps : v; }
+    public void SetValue(float v) { value = Snap(v); Apply(); }
     public void Apply() {
       if (fill == null) return;
-      if (value < 0f) value = Mathf.Clamp01(fill.fillAmount);
+      if (value < 0f) value = Snap(fill.fillAmount);
       float v = value;
       var capImg = capHead != null ? capHead.GetComponent<Image>() : null;
       var area = transform as RectTransform;
@@ -6614,9 +6673,10 @@ namespace PatternBreak {
     }
     void OnEnable() { Apply(); }
     // the shipped contract stands: write fillAmount and the head follows
+    // (a raw write re-snaps too, the KitCellMeter rule)
     void LateUpdate() {
       if (fill == null) return;
-      if (!Mathf.Approximately(fill.fillAmount, wroteFill)) { value = Mathf.Clamp01(fill.fillAmount); Apply(); }
+      if (!Mathf.Approximately(fill.fillAmount, wroteFill)) { value = Snap(fill.fillAmount); Apply(); }
     }
   }
 }
@@ -10343,7 +10403,7 @@ namespace PatternBreak {
        posed pixels with its plate — rebuilt as live TMP ON the live child
        (wordDx/wordDy = word center from the CHILD center, board px). */
     public string word; public float wordFs; public float wordDx; public float wordDy; public string wordInk; public int wordW; }
-  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public PBTrack track; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelInk; public string labelInk2; public float leading; public string labelText; public PBIconSeat icon; public PBGauge gauge; public PBChart chart; public PBLoot loot; public PBSeat[] textSeats; public PBStyle seatInk; public float ringV; public PBIconChild[] iconSeats; public float fireDx; public float fireDy; public float fireW; public float railDx; public float railDy; public float railW; public float railH; }
+  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public PBTrack track; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelInk; public string labelInk2; public float leading; public string labelText; public PBIconSeat icon; public PBGauge gauge; public PBChart chart; public PBLoot loot; public PBSeat[] textSeats; public PBStyle seatInk; public float ringV; public PBIconChild[] iconSeats; public float fireDx; public float fireDy; public float fireW; public float railDx; public float railDy; public float railW; public float railH; public string labelAnchor; }
   [Serializable] class PBStyleOutline { public string color; public string color2; public float width; }
   [Serializable] class PBStyleGlow { public string color; public float size; public float opacity; }
   [Serializable] class PBStyleShadow { public string color; public float x; public float y; public float blur; public float opacity; }
@@ -13862,7 +13922,7 @@ namespace PatternBreak {
             /* the RIG-1 display bars strike the board's pose too (round 44
                — future-proof: their board copies bake as stamps today,
                but a live copy must land on its own value) */
-            if ((it.component == "loadbar" || it.component == "popmeter" || it.component == "respawn" || it.component == "buildqueue" || it.component == "xpbar" || it.component == "unitplate") && it.value > 0f) {
+            if ((it.component == "loadbar" || it.component == "popmeter" || it.component == "respawn" || it.component == "buildqueue" || it.component == "xpbar" || it.component == "unitplate" || it.component == "questpanel") && it.value > 0f) {
               var dbT = inst.transform.Find("Fill Area/Fill");
               var dbI = dbT != null ? dbT.GetComponent<Image>() : null;
               if (dbI != null && dbI.type == Image.Type.Filled) {
@@ -15137,6 +15197,14 @@ namespace PatternBreak {
         t.color = top9;
       }
     }
+    /* pin a START-anchored family's word left (round 44, item 29a): the
+       seat rect's left edge already sits at the drawn x (LabelSeatShift),
+       so every TMP layer in the label — solo or HeroLabel stack — aligns
+       Left (midline-left, the SeatRect precedent). No-op without the row. */
+    static void AlignLabelStart(GameObject labelRoot, PBAsset row) {
+      if (labelRoot == null || row == null || row.labelAnchor != "start") return;
+      foreach (var tA in labelRoot.GetComponentsInChildren<TextMeshProUGUI>(true)) tA.alignment = TextAlignmentOptions.Left;
+    }
     static void AddBakedLabel(GameObject parent, string text, string root, TMP_FontAsset solo, PBManifest m, string family) {
       float ls = LabelSize(m, family);
       /* the APP-TRUE size beats the calibrated shrink when the manifest
@@ -15167,6 +15235,7 @@ namespace PatternBreak {
           var hlLead = go.GetComponent<HeroLabel>();
           if (hlLead != null) { hlLead.lineSpacing = lsp; hlLead.SetText(text); }
         }
+        AlignLabelStart(go, lrow);
         return;
       }
       // solo fallback (kit shipped no layer faces): every glyph carries
@@ -15184,6 +15253,7 @@ namespace PatternBreak {
       ApplyFamilyInk(t, m, family, true);
       float lspSolo = LeadingLineSpacing(lrow, solo);
       if (lspSolo != 0f) t.lineSpacing = lspSolo;
+      AlignLabelStart(go, lrow);
     }
 #endif
     /* the label WE generated is the child GameObject named "Label" — a
@@ -15508,6 +15578,7 @@ namespace PatternBreak {
         // the family's RESOLVED ink beats the master style on SDF glyphs
         // (monochrome by construction — always tintable)
         ApplyFamilyInk(tLead, m, family, false);
+        AlignLabelStart(lr0, lrowA);
         return;
       }
 #endif
@@ -15519,7 +15590,8 @@ namespace PatternBreak {
       ShellSeatLabel(go, parent, family, m);
       var t = go.GetComponent<Text>();
       t.text = text;
-      t.alignment = TextAnchor.MiddleCenter;
+      // the start-anchored title pins left on this rung too (round 44, 29a)
+      t.alignment = lrowA != null && lrowA.labelAnchor == "start" ? TextAnchor.MiddleLeft : TextAnchor.MiddleCenter;
       t.fontSize = Mathf.RoundToInt(lsA);
       // the family's resolved ink on THIS rung too — the hardcoded white
       // here is how 2022.3 lost every dark-ink word (F2)
@@ -16013,13 +16085,20 @@ namespace PatternBreak {
          row); the zone (horizontal + vertical band) rides the base row's
          data-track stamp. Old zips ship no fill atom and keep today's
          baked look untouched. ── */
-      if (baseAsset.component == "loadbar" || baseAsset.component == "popmeter" || baseAsset.component == "respawn" || baseAsset.component == "buildqueue" || baseAsset.component == "xpbar" || baseAsset.component == "unitplate") {
+      if (baseAsset.component == "loadbar" || baseAsset.component == "popmeter" || baseAsset.component == "respawn" || baseAsset.component == "buildqueue" || baseAsset.component == "xpbar" || baseAsset.component == "unitplate" || baseAsset.component == "questpanel") {
         var famB4 = baseAsset.component;
         var fillB4 = S(root + "/assets/" + famB4 + "/" + famB4 + "-fill.png");
         if (fillB4 != null) {
           float stagedB4 = 0.62f;
           foreach (var aF4 in m.assets) if (aF4 != null && aF4.component == famB4 && aF4.part == "fill" && aF4.ringV > 0f) { stagedB4 = Mathf.Clamp01(aF4.ringV); break; }
           BuildBarFill(go, "Fill", fillB4, baseSp, pngScale, m, root, famB4, stagedB4, false);
+          /* the quest tracker fills by WHOLE objectives (round 44, item
+             29c): the ONE rig learns the family's own law — zero-gated,
+             every other bar stays continuous */
+          if (famB4 == "questpanel") {
+            var kbQ3 = go.GetComponentInChildren<KitBarFill>(true);
+            if (kbQ3 != null) { kbQ3.snapSteps = 3; kbQ3.SetValue(stagedB4); }
+          }
         }
       }
       /* the TWIN RAILS (round 44, item 21) — see WireManaRails: mana and
@@ -16217,7 +16296,13 @@ namespace PatternBreak {
     static Vector2 LabelSeatShift(PBAsset row, Sprite sp, PBManifest m) {
       if (row == null || row.labelFs <= 1f || sp == null || sp.rect.width < 2f || sp.rect.height < 2f) return Vector2.zero;
       float ps = m != null && m.pngScale > 0 ? m.pngScale : 2;
-      return new Vector2(row.labelDx * ps / sp.rect.width, -row.labelDy * ps / sp.rect.height);
+      var v = new Vector2(row.labelDx * ps / sp.rect.width, -row.labelDy * ps / sp.rect.height);
+      /* a START-anchored title (round 44, item 29a — the quest tracker):
+         labelDx speaks the drawn word's LEFT EDGE from the shell center,
+         so the seat rect slides half a shell right and the rung pins the
+         word left. Rows without labelAnchor keep today's centered seat. */
+      if (row.labelAnchor == "start" && row.shell != null && row.shell.w > 2f) v.x += row.shell.w * 0.5f / sp.rect.width;
+      return v;
     }
     /* ShellStretch, then slide the seat to the label's TRUE center — the
        app centers words in the CONTENT zone, not the shell (the flame's
@@ -20594,7 +20679,8 @@ namespace PatternBreak {
             : spritePath.EndsWith("/respawn-base.png") ? "respawn"
             : spritePath.EndsWith("/buildqueue-base.png") ? "buildqueue"
             : spritePath.EndsWith("/xpbar-base.png") ? "xpbar"
-            : spritePath.EndsWith("/unitplate-base.png") ? "unitplate" : null;
+            : spritePath.EndsWith("/unitplate-base.png") ? "unitplate"
+            : spritePath.EndsWith("/questpanel-base.png") ? "questpanel" : null;
           if (famDB != null && asset.transform.Find("Fill Area") == null && asset.GetComponentInChildren<KitBarFill>(true) == null) {
             bool dbEra = true;
             if (prevLock != null && prevLock.files != null)
@@ -20608,6 +20694,11 @@ namespace PatternBreak {
               var contentsDB = PrefabUtility.LoadPrefabContents(path);
               try {
                 BuildBarFill(contentsDB, "Fill", fillDB, rootImgDB.sprite, m != null && m.pngScale > 0 ? m.pngScale : 2, m, root, famDB, stagedDB, false);
+                // the quest tracker's whole-objectives law rides the graft too
+                if (famDB == "questpanel") {
+                  var kbQG = contentsDB.GetComponentInChildren<KitBarFill>(true);
+                  if (kbQG != null) { kbQG.snapSteps = 3; kbQG.SetValue(stagedDB); }
+                }
                 PrefabUtility.SaveAsPrefabAsset(contentsDB, path);
                 barRigged++;
               } finally { PrefabUtility.UnloadPrefabContents(contentsDB); }
