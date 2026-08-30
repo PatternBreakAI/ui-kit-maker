@@ -2889,7 +2889,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("respawn's conditional zone stamp left bevel — Barheight Hidden must ship no zone (round 44, item 30)");
   if (!/function barFillOnlySvg\(/.test(src) || !/function stripBarFill\(/.test(src))
     errors.push("the RIG-1 bar un-burn hands (barFillOnlySvg/stripBarFill) left the exporter");
-  if (!/const barRigU = uid === "loadbar" \|\| uid === "popmeter" \|\| uid === "respawn" \|\| uid === "buildqueue" \|\| uid === "xpbar" \|\| uid === "unitplate" \|\| uid === "questpanel" \|\| uid === "setrow";/.test(src))
+  if (!/const barRigU = uid === "loadbar" \|\| uid === "popmeter" \|\| uid === "respawn" \|\| uid === "buildqueue" \|\| uid === "xpbar" \|\| uid === "unitplate" \|\| uid === "questpanel" \|\| uid === "setrow" \|\| uid === "orderticket" \|\| uid === "vitalbar";/.test(src))
     errors.push("the display-bar rig gate left the universal loop (eight families incl. xpbar/unitplate/questpanel/setrow)");
   if (!/tzy \+ riseDyT/.test(src))
     errors.push("the track band lost its riseDy correction — the zone would seat a full extrusion headroom too high (round 44 field lesson)");
@@ -2897,7 +2897,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("AssetMeta.track lost the optional vertical band");
   if (!/float bandCy = -1f;/.test(cs) || !/float topGap = bandCy - fillH \* 0\.5f, botGap = trackH - bandCy - fillH \* 0\.5f;/.test(cs))
     errors.push("BuildBarFill lost the vertical-band seat (round 44) — off-centerline bars would center mid-shell");
-  if (!/if \(baseAsset\.component == "loadbar" \|\| baseAsset\.component == "popmeter" \|\| baseAsset\.component == "respawn" \|\| baseAsset\.component == "buildqueue" \|\| baseAsset\.component == "xpbar" \|\| baseAsset\.component == "unitplate" \|\| baseAsset\.component == "questpanel" \|\| baseAsset\.component == "setrow"\)/.test(cs)
+  if (!/if \(baseAsset\.component == "loadbar" \|\| baseAsset\.component == "popmeter" \|\| baseAsset\.component == "respawn" \|\| baseAsset\.component == "buildqueue" \|\| baseAsset\.component == "xpbar" \|\| baseAsset\.component == "unitplate" \|\| baseAsset\.component == "questpanel" \|\| baseAsset\.component == "setrow" \|\| baseAsset\.component == "orderticket" \|\| baseAsset\.component == "vitalbar"\)/.test(cs)
       || !/string famDB = spritePath\.EndsWith\("\/loadbar-base\.png"\) \? "loadbar"/.test(cs))
     errors.push("the display bars' FamilyPrefab wiring or kept-project Fill graft left the importer (round 44)");
   const liveArtSrc = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../src/ui/LiveArt.tsx"), "utf8");
@@ -3288,6 +3288,27 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the WeaponWheel prefab wiring left the importer (round 44, item 44)");
   if (!/var wwS = inst\.GetComponent<PatternBreakWeaponWheel>\(\);/.test(cs))
     errors.push("weaponwheel left the board value strike (round 44, item 44)");
+}
+
+/* ── ROUND 44 · S29 (staged roads — items 23 + 31 + vitalbar): the gated
+   families' roads stand READY (marked mercury + zone stamps, marked slot
+   glyphs, the bar-rig rosters) while stagedShips keeps every byte out of
+   the zip until the owner releases them. ── */
+{
+  if (!/data-barfill="\$\{\(bx \+ 2\.5 \* k\)\.toFixed\(1\)\}/.test(bevelSrc))
+    errors.push("the orderticket mercury lost its mark (round 44, item 23 — gated road)");
+  if (!/data-icon="slot\$\{i \+ 1\}" data-icon-nick="Reward \$\{i \+ 1\}"/.test(bevelSrc))
+    errors.push("the rewardtray slot glyphs lost their marks (round 44, item 31 — gated road)");
+  if (!/data-barfill="\$\{\(barX \+ gV\)\.toFixed\(1\)\}/.test(bevelSrc))
+    errors.push("the vitalbar mercury lost its mark (round 44 — gated road)");
+  if (!/uid === "orderticket" \|\| uid === "vitalbar";/.test(src)
+      || !/orderticket: 0\.62, vitalbar: 0\.72/.test(src))
+    errors.push("the staged families left the bar-rig emission roster (round 44, items 23 + vitalbar)");
+  if (!/barRigU \? stripBarFill\(sOut\)\.svg : sOut/.test(src))
+    errors.push("bar-rig state skins keep a baked mercury twin — hover would double-draw the bar (round 44, item 23)");
+  if (!/baseAsset\.component == "orderticket" \|\| baseAsset\.component == "vitalbar"/.test(cs)
+      || !/it\.component == "orderticket" \|\| it\.component == "vitalbar"/.test(cs))
+    errors.push("the staged families left the importer's bar wiring or board strike (round 44, items 23 + vitalbar)");
 }
 
 if (errors.length) {

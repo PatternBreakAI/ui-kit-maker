@@ -706,7 +706,8 @@ const PREFAB_FAMILY: Partial<Record<KitComponentId, string>> = {
   scrollbar: "scrollbar", steps: "steps", pagedots: "pagedots",
   // the RPG & MMO slice (S2)
   questpanel: "questpanel", dialoguebox: "dialoguebox", choicelist: "choicelist",
-  manarails: "manarails", xpbar: "xpbar", invgrid: "invgrid",
+  // round 44: the staged vital bar's road stands ready (ships on release)
+  manarails: "manarails", xpbar: "xpbar", vitalbar: "vitalbar", invgrid: "invgrid",
   partyframe: "partyframe", compass: "compass", dmgnumber: "dmgnumber",
   equipslot: "equipslot", skillnode: "skillnode",
   // the Shooter & Action slice (S3)
@@ -759,7 +760,7 @@ const UNIVERSAL_DISPLAY = new Set<KitComponentId>(["qtybadge", "resource", "curr
      icon children (portrait wells included). The damage number keeps its
      tilted digits in the art by the warped-stamp contract (rotation is
      the art); per-copy magnitudes ride posed skins. */
-  "questpanel", "dialoguebox", "choicelist", "manarails", "xpbar", "invgrid", "partyframe", "compass", "dmgnumber", "equipslot",
+  "questpanel", "dialoguebox", "choicelist", "manarails", "xpbar", "vitalbar", "invgrid", "partyframe", "compass", "dmgnumber", "equipslot",
   /* Shooter & Action slice: the section, complete (owner roster) — the
      spatial pieces (crosshair, marker, arc, waypoint) are shell-free art
      with the dark understroke; the loadout pieces carry live glyph
@@ -4285,6 +4286,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         heartmeter: "Heart meter — every pip is a LIVE Image child answering the app's icon picker (swap any sprite in the Inspector); the timer is a LIVE seat and the add cap ITSELF a REAL small-button child with its + mark riding it (move, restyle or delete cap + mark as one). Display piece with one pressable corner.",
         energymeter: "Energy meter — LIVE: the ten cells snap whole (KitCellMeter — drive Value or SetValue), the Energy badge is a LIVE Image child (the app's icon picker steers it) and the count is a LIVE seat. Display piece.",
         starrating: "Star rating — DRIVABLE (round 44): the three Stars, the Celebration flare and the Replay button are LIVE children, and PatternBreakStarRating makes the score a dial (SetStars 0..3, or drive Value — earned/unearned looks swap on one shared frame; celebration + replay appear only at full marks, the app's own rule). The Replay button is a REAL Button. Display piece.",
+        vitalbar: "Vital bar — LIVE: the mercury is a Filled atom with a rounded head (drive fillAmount or KitBarFill.SetValue); the readout is a LIVE seat — drive both from your resource. Display piece.",
         pathconnector: "Saga path connector — DRIVABLE (round 44): the Pathconnector prefab deals nine live beads along the kit's own S-curve and PatternBreakPathConnector lights them by value (SetProgress / SetValue 0..1). This baked sheet stays for older scenes and board stamps.",
         combo: "Combo burst — CLICK IT IN PLAY: the ComboPop rig replays the app's exact celebration (squash, overshoot, settle) and ClaimBurst throws the sparks; call ComboPop.Pop() on every multiplier tick. The tilted numeral is art by the warped-stamp contract (per-copy words ride posed skins).",
         booster: "Booster button — a REAL button (Sprite Swap states); the booster glyph is a LIVE Image child and the count badge a live plate child with its count RIDING it (the ×0 FREE ribbon ships the same way).",
@@ -4301,10 +4303,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         popmeter: "Population meter — LIVE: the population glyph is a LIVE Image child, the count a seat, and the supply bar a Filled fill with the rounded head (drive Fill's fillAmount or KitBarFill.SetValue; the app's near-cap alarm red stays an app-side draw for now). Display piece.",
         pack: "Card pack — the pack art with its live word; open ceremonies are your game's (ClaimBurst fires on CLAIM-labeled copies). Display piece.",
         cardback: "Card back — the deck's face-down art with its live emblem child. Display piece.",
-        orderticket: "Kitchen order ticket — a REAL button; dish name and recipe lines are LIVE seats and the dish glyph a LIVE Image child. Served/urgent poses ride per-copy posed skins.",
+        orderticket: "Kitchen order ticket — a REAL button; dish name and recipe lines are LIVE seats, the dish glyph a LIVE Image child, and the countdown bar is LIVE (Filled mercury + rounded head — drive fillAmount or KitBarFill.SetValue; the ≤25% alarm recolor + pulse are the game's runtime to add). Served poses ride per-copy posed skins.",
         chest: "Treasure chest — a REAL button; tier and gate poses ride per-copy posed skins.",
         giftbox: "Gift box — a REAL button; tag and readiness poses ride per-copy posed skins.",
-        rewardtray: "Reward tray — the multi-reward strip; title and quantities are LIVE seats and reveal states ride posed skins. Display piece.",
+        rewardtray: "Reward tray — the multi-reward strip; title and quantities are LIVE seats and every revealed slot glyph is a LIVE Image child (swap any sprite in the Inspector; icons/* fit the seats). Reveal states ride posed skins. Display piece.",
         chestpanel: "Chest-opening ceremony panel — words are LIVE seats; stage poses ride posed skins. Display piece.",
         bottomnav: "Bottom nav bar — one placeable piece; the item words are LIVE seats and every tab glyph a LIVE Image child (swap any sprite in the Inspector). The Selected ring child IS the selection: move it a cell over (one cell pitch) or disable it. The Badge plate child carries its live count with it — move, restyle or delete the pair as one. Wire your own per-item buttons over it (the bar itself is not one button).",
       };
@@ -4482,7 +4484,11 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
            row's extended data-track stamp (no separate track part ships,
            the cell meters' rule). The strip only happens once both atoms
            render, so a failed atom leaves today's baked bar intact. */
-        const barRigU = uid === "loadbar" || uid === "popmeter" || uid === "respawn" || uid === "buildqueue" || uid === "xpbar" || uid === "unitplate" || uid === "questpanel" || uid === "setrow";
+        /* round 44 tail: the STAGED roads stand ready (items 23 +
+           vitalbar) — orderticket and vitalbar ride the same rig, but
+           stagedShips gates their whole emission until the owner
+           releases the families */
+        const barRigU = uid === "loadbar" || uid === "popmeter" || uid === "respawn" || uid === "buildqueue" || uid === "xpbar" || uid === "unitplate" || uid === "questpanel" || uid === "setrow" || uid === "orderticket" || uid === "vitalbar";
         let barFillSvgU: string | null = null, barCapSvgU: string | null = null;
         if (barRigU) {
           try {
@@ -4711,7 +4717,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           }
         }
         if (barRigU && barFillSvgU && barCapSvgU) {
-          const stagedBar = Math.max(0, Math.min(1, uVal ?? ({ loadbar: 0.62, popmeter: 0.84, respawn: 0.6, buildqueue: 0.55, xpbar: 0.45, unitplate: 0.82, questpanel: 2 / 3, setrow: 0.7 } as Record<string, number>)[uid] ?? 0.62));
+          const stagedBar = Math.max(0, Math.min(1, uVal ?? ({ loadbar: 0.62, popmeter: 0.84, respawn: 0.6, buildqueue: 0.55, xpbar: 0.45, unitplate: 0.82, questpanel: 2 / 3, setrow: 0.7, orderticket: 0.62, vitalbar: 0.72 } as Record<string, number>)[uid] ?? 0.62));
           await addPng(`${uid}/fill.png`, barFillSvgU, {
             component: uid, part: "fill", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
             usage: "The mercury at 100% — the app's own dressing (gradient, gloss, glow) alone on the canvas; the prefab's Filled image scissors it to the live value and KitBarFill parks the rounded head (drive fillAmount or SetValue).",
@@ -5127,7 +5133,11 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           for (const stName of ["hover", "pressed", "disabled"] as const) {
             let sSvg: string;
             try { sSvg = stripLoopsU(stateShell(uid, stName, uOpts, uVal)); } catch { continue; }
-            await addPng(`${uid}/base-${stName}.png`, stripIconInk(stripWordInk(sSvg).svg).svg, {
+            /* a bar-rig family's state skins strip the mercury too (round
+               44, item 23): the live Fill child rides the press — a baked
+               twin beneath would double-draw the bar on hover */
+            const sOut = stripIconInk(stripWordInk(sSvg).svg).svg;
+            await addPng(`${uid}/base-${stName}.png`, barRigU ? stripBarFill(sOut).svg : sOut, {
               component: uid, part: `base-${stName}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
               usage: `${SWAP_USAGE[stName]} state — Sprite Swap beside base.png (the generated prefab wires it). Union-cropped with base, so the press pose stays registered.`,
             }, true, uid);
@@ -14804,7 +14814,7 @@ namespace PatternBreak {
             /* the RIG-1 display bars strike the board's pose too (round 44
                — future-proof: their board copies bake as stamps today,
                but a live copy must land on its own value) */
-            if ((it.component == "loadbar" || it.component == "popmeter" || it.component == "respawn" || it.component == "buildqueue" || it.component == "xpbar" || it.component == "unitplate" || it.component == "questpanel") && it.value > 0f) {
+            if ((it.component == "loadbar" || it.component == "popmeter" || it.component == "respawn" || it.component == "buildqueue" || it.component == "xpbar" || it.component == "unitplate" || it.component == "questpanel" || it.component == "orderticket" || it.component == "vitalbar") && it.value > 0f) {
               var dbT = inst.transform.Find("Fill Area/Fill");
               var dbI = dbT != null ? dbT.GetComponent<Image>() : null;
               if (dbI != null && dbI.type == Image.Type.Filled) {
@@ -17060,7 +17070,7 @@ namespace PatternBreak {
          row); the zone (horizontal + vertical band) rides the base row's
          data-track stamp. Old zips ship no fill atom and keep today's
          baked look untouched. ── */
-      if (baseAsset.component == "loadbar" || baseAsset.component == "popmeter" || baseAsset.component == "respawn" || baseAsset.component == "buildqueue" || baseAsset.component == "xpbar" || baseAsset.component == "unitplate" || baseAsset.component == "questpanel" || baseAsset.component == "setrow") {
+      if (baseAsset.component == "loadbar" || baseAsset.component == "popmeter" || baseAsset.component == "respawn" || baseAsset.component == "buildqueue" || baseAsset.component == "xpbar" || baseAsset.component == "unitplate" || baseAsset.component == "questpanel" || baseAsset.component == "setrow" || baseAsset.component == "orderticket" || baseAsset.component == "vitalbar") {
         var famB4 = baseAsset.component;
         var fillB4 = S(root + "/assets/" + famB4 + "/" + famB4 + "-fill.png");
         if (fillB4 != null) {

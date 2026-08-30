@@ -6444,11 +6444,14 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         `<defs><linearGradient id="${gidV}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(tint, 0.5)}"/><stop offset="0.45" stop-color="${tint}"/><stop offset="1" stop-color="${darken(tint, 0.28)}"/></linearGradient></defs>`;
       if (vV > 0.02) {
         // negative-space canon: mercury floats in the track with air all round
+        /* round 44 (mercury inventory — the gated RIG-1 road): the mercury
+           + its gloss are MARKED ink, so the release-day export un-burns
+           them into a live Filled atom + rounded cap. Gated. */
         const gV = 3.5 * k, mH = barH - gV * 2, mW = Math.max(0, (barW - gV * 2) * vV);
-        inner += `<rect x="${(barX + gV).toFixed(1)}" y="${(barY + gV).toFixed(1)}" width="${mW.toFixed(1)}" height="${mH.toFixed(1)}" rx="${(mH / 2).toFixed(1)}" fill="url(#${gidV})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(5 * k).toFixed(1)}px ${hexRgba(tint, 0.6)})"` : ""}/>
-          <rect x="${(barX + gV + 4 * k).toFixed(1)}" y="${(barY + gV + 2.5 * k).toFixed(1)}" width="${Math.max(0, mW - 8 * k).toFixed(1)}" height="${(mH * 0.32).toFixed(1)}" rx="${(mH * 0.16).toFixed(1)}" fill="#FFFFFF" opacity="0.5"/>`;
+        inner += `<g data-barfill="${(barX + gV).toFixed(1)} ${(barY + gV).toFixed(1)} ${mW.toFixed(1)} ${mH.toFixed(1)}"><rect x="${(barX + gV).toFixed(1)}" y="${(barY + gV).toFixed(1)}" width="${mW.toFixed(1)}" height="${mH.toFixed(1)}" rx="${(mH / 2).toFixed(1)}" fill="url(#${gidV})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(5 * k).toFixed(1)}px ${hexRgba(tint, 0.6)})"` : ""}/>
+          <rect x="${(barX + gV + 4 * k).toFixed(1)}" y="${(barY + gV + 2.5 * k).toFixed(1)}" width="${Math.max(0, mW - 8 * k).toFixed(1)}" height="${(mH * 0.32).toFixed(1)}" rx="${(mH * 0.16).toFixed(1)}" fill="#FFFFFF" opacity="0.5"/></g>`;
       }
-      return stampTrack(inject(shell.replace("<svg ", '<svg data-vitalbar="1" '), inner), barX, barW);
+      return stampTrack(inject(shell.replace("<svg ", '<svg data-vitalbar="1" '), inner), barX + 3.5 * k, barW - 7 * k, barY + 3.5 * k, barH - 7 * k);
     }
     case "quickslots": {
       /* RPG · quick slots — the EQUIPMENT QUADRANT of the soulslike
@@ -8068,9 +8071,14 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const by = sy + sh - inset - bh2 - 12 * k;
       const gidT = "ot" + UID++;
       const pulseT = late ? `<animate attributeName="opacity" values="1;0.55;1" dur="0.9s" repeatCount="indefinite"/>` : "";
+      /* round 44 (item 23 — the gated RIG-1 road): the countdown mercury
+         is MARKED ink, so the release-day export un-burns it into a live
+         Filled atom + rounded cap (the alarm recolor + pulse stay the
+         game's runtime — documented on the fill row). Gated: nothing
+         ships until the owner releases the family. */
       const bar = `<rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${bw2.toFixed(1)}" height="${bh2.toFixed(1)}" rx="${(bh2 / 2).toFixed(1)}" fill="${wellFill}" opacity="0.9"/>` +
         (vT > 0.02 ? `<defs><linearGradient id="${gidT}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(barC, 0.4)}"/><stop offset="1" stop-color="${darken(barC, 0.2)}"/></linearGradient></defs>
-          <rect x="${(bx + 2.5 * k).toFixed(1)}" y="${(by + 2.5 * k).toFixed(1)}" width="${((bw2 - 5 * k) * vT).toFixed(1)}" height="${(bh2 - 5 * k).toFixed(1)}" rx="${((bh2 - 5 * k) / 2).toFixed(1)}" fill="url(#${gidT})"${!dim ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(barC, 0.6)})"` : ""}>${pulseT}</rect>` : "");
+          <g data-barfill="${(bx + 2.5 * k).toFixed(1)} ${(by + 2.5 * k).toFixed(1)} ${((bw2 - 5 * k) * vT).toFixed(1)} ${(bh2 - 5 * k).toFixed(1)}"><rect x="${(bx + 2.5 * k).toFixed(1)}" y="${(by + 2.5 * k).toFixed(1)}" width="${((bw2 - 5 * k) * vT).toFixed(1)}" height="${(bh2 - 5 * k).toFixed(1)}" rx="${((bh2 - 5 * k) / 2).toFixed(1)}" fill="url(#${gidT})"${!dim ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(barC, 0.6)})"` : ""}>${pulseT}</rect></g>` : "");
       const secs = infoText(`${Math.ceil(vT * 90)}s`, sx + sw - insetC - 12 * k, by - 13 * k, 15 * k, "end", 800) +
         infoText("TIME", bx + 2 * k, by - 13 * k, 13 * k, "start", 800);
       // served = done — the happy teal stamp, not the alarm
@@ -8078,7 +8086,8 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const stamp = dim ? `<g transform="rotate(-14 ${(sx + sw / 2).toFixed(1)} ${(sy + sh * 0.56).toFixed(1)})" opacity="0.9">
         <rect x="${(sx + sw / 2 - 66 * k).toFixed(1)}" y="${(sy + sh * 0.56 - 21 * k).toFixed(1)}" width="${(132 * k).toFixed(1)}" height="${(42 * k).toFixed(1)}" rx="${(9 * k).toFixed(1)}" fill="none" stroke="${stampC}" stroke-width="${(3 * k).toFixed(1)}"/>
         <text x="${(sx + sw / 2).toFixed(1)}" y="${(sy + sh * 0.56).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(23 * k).toFixed(1)}" font-weight="900" letter-spacing="0.2em" fill="${stampC}" text-anchor="middle" dominant-baseline="central">SERVED</text></g>` : "";
-      return inject(shell.replace("<svg ", '<svg data-orderticket="1" '), hole + glyph + dish + num + perf + linesT + bar + secs + stamp);
+      // the countdown run's zone stamp (round 44, item 23 — gated road)
+      return stampTrack(inject(shell.replace("<svg ", '<svg data-orderticket="1" '), hole + glyph + dish + num + perf + linesT + bar + secs + stamp), bx + 2.5 * k, bw2 - 5 * k, by + 2.5 * k, bh2 - 5 * k);
     }
     case "chest": {
       /* Rewards · treasure chest — the body wears the KIT material, the
@@ -8327,7 +8336,11 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const on = i < shown && !dimT;
         cells += `<rect x="${cx9.toFixed(1)}" y="${rowY.toFixed(1)}" width="${cell.toFixed(1)}" height="${cell.toFixed(1)}" rx="${(10 * k).toFixed(1)}" fill="${wellFill}" opacity="0.9"${on ? ` stroke="${hexRgba(glow, 0.55)}" stroke-width="1.6"` : ""}/>`;
         if (on) {
-          if (icons[i]) cells += themedIcon(icons[i], cx9 + cell * 0.28, rowY + cell * 0.14, cell * 0.44, hexMix(glow, "#FFFFFF", 0.3), 2);
+          /* round 44 (item 31 — the gated RIG-4 road): every revealed slot
+             glyph is MARKED swappable ink (the law) — the release-day
+             export strips it from the bake and ships it as a live Image
+             child. Gated: nothing ships until the owner releases. */
+          if (icons[i]) cells += `<g data-part="icon" data-icon="slot${i + 1}" data-icon-nick="Reward ${i + 1}">${themedIcon(icons[i], cx9 + cell * 0.28, rowY + cell * 0.14, cell * 0.44, hexMix(glow, "#FFFFFF", 0.3), 2)}</g>`;
           cells += hudText(qtys[i].slice(0, 6), cx9 + cell / 2, rowY + cell * 0.82, 14.5 * k, "middle");
         } else {
           cells += `<text x="${(cx9 + cell / 2).toFixed(1)}" y="${(rowY + cell / 2).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(30 * k).toFixed(1)}" font-weight="900" fill="rgba(255,255,255,0.3)" text-anchor="middle" dominant-baseline="central">?</text>`;
