@@ -158,6 +158,11 @@ export function hydrate(parsed: Record<string, any>): GenConfig {
   if (!cfg.stateDesigns) cfg.stateDesigns = {};
   if (!cfg.knob) cfg.knob = { color: null };
   if (!cfg.idle) cfg.idle = { wipe: false, edge: false };
+  /* pieceTypeSize is RENDER-TIME metadata (applyKitDesign stamps a piece's
+     own type-size fork for the badge count) — a composed cfg can reach the
+     store through "Push look to whole kit", and a stale stamp on the MASTER
+     would freeze every badge numeral at that size. It never settles. */
+  delete cfg.pieceTypeSize;
   /* A fork is a COMPLETE design snapshot — the engine reads type/shape/
      bevel off every one without asking. One saved sparse (an ancient
      format, an interrupted write) completes against the master here, so
