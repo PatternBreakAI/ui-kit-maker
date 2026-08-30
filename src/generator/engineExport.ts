@@ -4245,7 +4245,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         stepper: "Stepper — minus cap, snapped cells, plus cap in one strip; the +/− cap marks are LIVE seats. Display piece: wire your own buttons over the caps (two hits, never one).",
         notifydot: "Notification badge — the bell/scroll glyph is a LIVE Image child and the red counter a live plate child whose count RIDES it (delete the pair as one, or drive the count). Display piece.",
         loadbar: "Loading bar — LIVE: caption and percent are seats and the mercury is a Filled fill with the rounded head riding the value line (drive Fill's fillAmount or KitBarFill.SetValue). Display piece.",
-        setrow: "Settings row — the row label and value readout are LIVE seats; the mini-slider is anatomy. Display piece: compose the wired Slider prefab over it for a working control.",
+        setrow: "Settings row — a WORKING control: the mini-slider is a real Unity Slider (drag the candy knob or set Slider.value; the Filled mercury and rounded head follow). The row label and value readout are LIVE seats — the readout is not wired to the slider, hook it to Slider.onValueChanged or retype it.",
         listmenu: "List menu — four rows: every row glyph is a LIVE Image child and every word a LIVE seat; the highlight bar bakes on the staged row. Display piece: wire per-row buttons over it.",
         scrollbar: "Scrollbar — vertical strip, sunken track, candy thumb baked at the staged position. Display piece; pair with your own ScrollRect (the ScrollView prefab shows the wiring).",
         steps: "Step indicator — wizard pips; the step numbers are LIVE seats. Display piece.",
@@ -4473,7 +4473,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
            row's extended data-track stamp (no separate track part ships,
            the cell meters' rule). The strip only happens once both atoms
            render, so a failed atom leaves today's baked bar intact. */
-        const barRigU = uid === "loadbar" || uid === "popmeter" || uid === "respawn" || uid === "buildqueue" || uid === "xpbar" || uid === "unitplate" || uid === "questpanel";
+        const barRigU = uid === "loadbar" || uid === "popmeter" || uid === "respawn" || uid === "buildqueue" || uid === "xpbar" || uid === "unitplate" || uid === "questpanel" || uid === "setrow";
         let barFillSvgU: string | null = null, barCapSvgU: string | null = null;
         if (barRigU) {
           try {
@@ -4535,6 +4535,46 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
             }
           } catch { railsOut = null; }
         }
+        /* ── the SETROW KNOB (round 44, item 34 — RIG-7): the candy knob
+           un-burns as the mini Slider's HANDLE sprite. Strip-only mark
+           (data-setrow-knob, the dialog-CTA grammar) — never an icon
+           seat, because the knob must belong to the Slider, not sit as a
+           second mounted child. Gated on the fill atoms so a failed rig
+           leaves today's baked row whole. ── */
+        let knobSvgSR: string | null = null;
+        if (uid === "setrow" && barFillSvgU && barCapSvgU) {
+          try {
+            const svK = stripLoopsU(shell(uid, uOpts, undefined, uVal));
+            const domK = new DOMParser().parseFromString(svK, "image/svg+xml");
+            const keepK = domK.querySelector("[data-setrow-knob]");
+            if (keepK) {
+              for (const el of Array.from(domK.querySelectorAll(ICON_DRAWABLE_SEL)))
+                if (!el.closest("defs") && !keepK.contains(el)) el.remove();
+              const onlyK = new XMLSerializer().serializeToString(domK.documentElement);
+              /* the mark stamps disc center + half-frame — a symmetric
+                 crop about the GRIP, so the handle sprite centers on the
+                 slider anchor (an alpha box leaned low: the drop shadow
+                 dragged the crop center off the disc) */
+              const kb9 = (keepK.getAttribute("data-setrow-knob") ?? "").split(" ").map(Number);
+              const shDK = /data-shell="([-\d. ]+)"/.exec(svK)?.[1].split(" ").map(Number);
+              const sh0K = /data-shell0="([-\d. ]+)"/.exec(svK)?.[1].split(" ").map(Number);
+              const riseK = shDK && sh0K && shDK.length === 4 && sh0K.length === 4 ? shDK[1] - sh0K[1] : 0;
+              if (kb9.length === 3 && kb9.every(Number.isFinite) && kb9[2] > 2) {
+                const bxK = kb9[0] - kb9[2], byK = kb9[1] - kb9[2] + riseK;
+                const bwK = kb9[2] * 2, bhK = kb9[2] * 2;
+                if (bwK > 1 && bhK > 1) {
+                  knobSvgSR = onlyK
+                    .replace(/viewBox="[^"]+"/, `viewBox="${bxK.toFixed(1)} ${byK.toFixed(1)} ${bwK.toFixed(1)} ${bhK.toFixed(1)}"`)
+                    .replace(/ width="[\d.]+"/, ` width="${Math.ceil(bwK)}"`)
+                    .replace(/ height="[\d.]+"/, ` height="${Math.ceil(bhK)}"`);
+                  const domB = new DOMParser().parseFromString(baseSvgU, "image/svg+xml");
+                  for (const g9 of Array.from(domB.querySelectorAll("[data-setrow-knob]"))) g9.remove();
+                  baseSvgU = new XMLSerializer().serializeToString(domB.documentElement);
+                }
+              }
+            }
+          } catch { knobSvgSR = null; }
+        }
         await addPng(`${uid}/base.png`, baseSvgU, {
           component: uid, part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
           usage: UNIVERSAL_USAGE[uid] ?? (GLYPH_BUTTONS.has(uid)
@@ -4560,7 +4600,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           }
         }
         if (barRigU && barFillSvgU && barCapSvgU) {
-          const stagedBar = Math.max(0, Math.min(1, uVal ?? ({ loadbar: 0.62, popmeter: 0.84, respawn: 0.6, buildqueue: 0.55, xpbar: 0.45, unitplate: 0.82, questpanel: 2 / 3 } as Record<string, number>)[uid] ?? 0.62));
+          const stagedBar = Math.max(0, Math.min(1, uVal ?? ({ loadbar: 0.62, popmeter: 0.84, respawn: 0.6, buildqueue: 0.55, xpbar: 0.45, unitplate: 0.82, questpanel: 2 / 3, setrow: 0.7 } as Record<string, number>)[uid] ?? 0.62));
           await addPng(`${uid}/fill.png`, barFillSvgU, {
             component: uid, part: "fill", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
             usage: "The mercury at 100% — the app's own dressing (gradient, gloss, glow) alone on the canvas; the prefab's Filled image scissors it to the live value and KitBarFill parks the rounded head (drive fillAmount or SetValue).",
@@ -4570,6 +4610,14 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
             component: uid, part: "cap", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
             usage: "The mercury's rounded head — KitBarFill parks it on the value line (hides at 0, yields to the full-run bead at 100%).",
           }, true);
+        }
+        if (knobSvgSR) {
+          // crop=false: the svg IS the fixed frame already (the windowed-
+          // atom rule — a re-crop pass rescales and blurs the crisp rim)
+          await addPng(`${uid}/knob.png`, knobSvgSR, {
+            component: uid, part: "knob", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+            usage: "The candy knob — the mini Slider's Handle wears it (generated wiring). Swap the sprite to restyle the grip.",
+          }, false);
         }
         /* ── the OBJECTIVE PIP LOOKS (round 44, item 29b): the base seats
            each drawn pip as a live child above; the three LOOKS ship
@@ -13930,6 +13978,12 @@ namespace PatternBreak {
                 if (kbD != null) kbD.SetValue(Mathf.Clamp01(it.value)); else dbI.fillAmount = Mathf.Clamp01(it.value);
               }
             }
+            if (it.component == "setrow" && it.value > 0f) {
+              // the board's value poses the REAL control — the Slider
+              // writes fillAmount and the rig's follow re-parks the bead
+              var slS9 = inst.GetComponentInChildren<Slider>(true);
+              if (slS9 != null) slS9.value = Mathf.Clamp01(it.value);
+            }
             if (it.component == "partyframe" && it.value > 0f) {
               // the board's value drives HP (the app's rule); MP
               // counter-moves by the app's own coupling
@@ -16085,7 +16139,7 @@ namespace PatternBreak {
          row); the zone (horizontal + vertical band) rides the base row's
          data-track stamp. Old zips ship no fill atom and keep today's
          baked look untouched. ── */
-      if (baseAsset.component == "loadbar" || baseAsset.component == "popmeter" || baseAsset.component == "respawn" || baseAsset.component == "buildqueue" || baseAsset.component == "xpbar" || baseAsset.component == "unitplate" || baseAsset.component == "questpanel") {
+      if (baseAsset.component == "loadbar" || baseAsset.component == "popmeter" || baseAsset.component == "respawn" || baseAsset.component == "buildqueue" || baseAsset.component == "xpbar" || baseAsset.component == "unitplate" || baseAsset.component == "questpanel" || baseAsset.component == "setrow") {
         var famB4 = baseAsset.component;
         var fillB4 = S(root + "/assets/" + famB4 + "/" + famB4 + "-fill.png");
         if (fillB4 != null) {
@@ -16099,6 +16153,10 @@ namespace PatternBreak {
             var kbQ3 = go.GetComponentInChildren<KitBarFill>(true);
             if (kbQ3 != null) { kbQ3.snapSteps = 3; kbQ3.SetValue(stagedB4); }
           }
+          /* the settings row becomes a WORKING control (round 44, item
+             34): a real Slider over the rig's zone, the candy knob as
+             its handle */
+          if (famB4 == "setrow") WireSetrowSlider(go, root, m, pngScale);
         }
       }
       /* the TWIN RAILS (round 44, item 21) — see WireManaRails: mana and
@@ -16656,6 +16714,44 @@ namespace PatternBreak {
        kept-project graft. ── */
     static void WireManaRails(GameObject go, Sprite baseSp, PBAsset baseRow, string root, int pngScale, PBManifest m) {
       WireNamedRails(go, baseSp, baseRow, root, pngScale, m, "manarails", new string[] { "mana", "stamina" }, new string[] { "Mana", "Stamina" });
+    }
+    /* the SETTINGS ROW's mini slider (round 44, item 34 — RIG-7): the
+       rig's Fill Area is already seated on the stamped well; a REAL
+       Slider rides the same zone with the un-burned candy knob as its
+       handle. The Slider writes fillAmount (the SliderPrefab lesson) and
+       KitBarFill's change-guarded follow re-parks the rounded head. */
+    static void WireSetrowSlider(GameObject go, string root, PBManifest m, int pngScale) {
+      var knobSp = S(root + "/assets/setrow/setrow-knob.png");
+      var areaSR = go.transform.Find("Fill Area") as RectTransform;
+      var fillSR = areaSR != null ? areaSR.Find("Fill") : null;
+      var fiSR = fillSR != null ? fillSR.GetComponent<Image>() : null;
+      if (knobSp == null || areaSR == null || fiSR == null || go.GetComponentInChildren<Slider>(true) != null) return;
+      float psSR = Mathf.Max(1, pngScale);
+      float thW = knobSp.rect.width / psSR, thH = knobSp.rect.height / psSR;
+      var slideSR = new GameObject("Handle Slide Area", typeof(RectTransform));
+      slideSR.transform.SetParent(go.transform, false);
+      var srtSR = slideSR.GetComponent<RectTransform>();
+      srtSR.anchorMin = areaSR.anchorMin; srtSR.anchorMax = areaSR.anchorMax;
+      // endpoint clamp like the slider family: the knob stays on the well
+      srtSR.offsetMin = new Vector2(areaSR.offsetMin.x + thW * 0.5f, areaSR.offsetMin.y);
+      srtSR.offsetMax = new Vector2(areaSR.offsetMax.x - thW * 0.5f, areaSR.offsetMax.y);
+      srtSR.anchoredPosition = areaSR.anchoredPosition;
+      var handleSR = ImageObject("Handle", knobSp, pngScale);
+      handleSR.transform.SetParent(slideSR.transform, false);
+      var hiSR = handleSR.GetComponent<Image>();
+      hiSR.type = Image.Type.Simple;
+      hiSR.preserveAspect = true; // the field's "eggshaped handles", never again
+      var hrtSR = handleSR.GetComponent<RectTransform>();
+      hrtSR.sizeDelta = new Vector2(thW, thH);
+      var slSR = go.AddComponent<Slider>();
+      slSR.fillRect = fillSR as RectTransform;
+      slSR.handleRect = hrtSR;
+      slSR.targetGraphic = hiSR;
+      float v0SR = 0.7f;
+      foreach (var aS in m.assets) if (aS != null && aS.component == "setrow" && aS.part == "fill" && aS.ringV > 0f) { v0SR = Mathf.Clamp01(aS.ringV); break; }
+      slSR.value = v0SR;
+      var kbSR = areaSR.GetComponent<KitBarFill>();
+      if (kbSR != null) kbSR.SetValue(v0SR);
     }
     static void WireNamedRails(GameObject go, Sprite baseSp, PBAsset baseRow, string root, int pngScale, PBManifest m, string fam, string[] rails, string[] nices) {
       if (baseSp == null || baseRow == null || baseRow.shell == null || baseRow.shell.w < 4f || baseSp.rect.width < 2f) return;
@@ -20680,7 +20776,8 @@ namespace PatternBreak {
             : spritePath.EndsWith("/buildqueue-base.png") ? "buildqueue"
             : spritePath.EndsWith("/xpbar-base.png") ? "xpbar"
             : spritePath.EndsWith("/unitplate-base.png") ? "unitplate"
-            : spritePath.EndsWith("/questpanel-base.png") ? "questpanel" : null;
+            : spritePath.EndsWith("/questpanel-base.png") ? "questpanel"
+            : spritePath.EndsWith("/setrow-base.png") ? "setrow" : null;
           if (famDB != null && asset.transform.Find("Fill Area") == null && asset.GetComponentInChildren<KitBarFill>(true) == null) {
             bool dbEra = true;
             if (prevLock != null && prevLock.files != null)
@@ -20699,6 +20796,8 @@ namespace PatternBreak {
                   var kbQG = contentsDB.GetComponentInChildren<KitBarFill>(true);
                   if (kbQG != null) { kbQG.snapSteps = 3; kbQG.SetValue(stagedDB); }
                 }
+                // the settings row's Slider arrives with its rig
+                if (famDB == "setrow") WireSetrowSlider(contentsDB, root, m, m != null && m.pngScale > 0 ? m.pngScale : 2);
                 PrefabUtility.SaveAsPrefabAsset(contentsDB, path);
                 barRigged++;
               } finally { PrefabUtility.UnloadPrefabContents(contentsDB); }

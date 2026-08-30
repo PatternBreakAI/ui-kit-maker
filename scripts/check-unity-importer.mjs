@@ -2889,15 +2889,15 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("respawn's conditional zone stamp left bevel — Barheight Hidden must ship no zone (round 44, item 30)");
   if (!/function barFillOnlySvg\(/.test(src) || !/function stripBarFill\(/.test(src))
     errors.push("the RIG-1 bar un-burn hands (barFillOnlySvg/stripBarFill) left the exporter");
-  if (!/const barRigU = uid === "loadbar" \|\| uid === "popmeter" \|\| uid === "respawn" \|\| uid === "buildqueue" \|\| uid === "xpbar" \|\| uid === "unitplate" \|\| uid === "questpanel";/.test(src))
-    errors.push("the display-bar rig gate left the universal loop (seven families incl. xpbar/unitplate/questpanel)");
+  if (!/const barRigU = uid === "loadbar" \|\| uid === "popmeter" \|\| uid === "respawn" \|\| uid === "buildqueue" \|\| uid === "xpbar" \|\| uid === "unitplate" \|\| uid === "questpanel" \|\| uid === "setrow";/.test(src))
+    errors.push("the display-bar rig gate left the universal loop (eight families incl. xpbar/unitplate/questpanel/setrow)");
   if (!/tzy \+ riseDyT/.test(src))
     errors.push("the track band lost its riseDy correction — the zone would seat a full extrusion headroom too high (round 44 field lesson)");
   if (!/track\?: \{ x: number; w: number; y\?: number; h\?: number \} \| null;/.test(src))
     errors.push("AssetMeta.track lost the optional vertical band");
   if (!/float bandCy = -1f;/.test(cs) || !/float topGap = bandCy - fillH \* 0\.5f, botGap = trackH - bandCy - fillH \* 0\.5f;/.test(cs))
     errors.push("BuildBarFill lost the vertical-band seat (round 44) — off-centerline bars would center mid-shell");
-  if (!/if \(baseAsset\.component == "loadbar" \|\| baseAsset\.component == "popmeter" \|\| baseAsset\.component == "respawn" \|\| baseAsset\.component == "buildqueue" \|\| baseAsset\.component == "xpbar" \|\| baseAsset\.component == "unitplate" \|\| baseAsset\.component == "questpanel"\)/.test(cs)
+  if (!/if \(baseAsset\.component == "loadbar" \|\| baseAsset\.component == "popmeter" \|\| baseAsset\.component == "respawn" \|\| baseAsset\.component == "buildqueue" \|\| baseAsset\.component == "xpbar" \|\| baseAsset\.component == "unitplate" \|\| baseAsset\.component == "questpanel" \|\| baseAsset\.component == "setrow"\)/.test(cs)
       || !/string famDB = spritePath\.EndsWith\("\/loadbar-base\.png"\) \? "loadbar"/.test(cs))
     errors.push("the display bars' FamilyPrefab wiring or kept-project Fill graft left the importer (round 44)");
   const liveArtSrc = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../src/ui/LiveArt.tsx"), "utf8");
@@ -3027,6 +3027,29 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/static void AlignLabelStart\(GameObject labelRoot, PBAsset row\)/.test(cs)
       || !/lrowA != null && lrowA\.labelAnchor == "start" \? TextAnchor\.MiddleLeft : TextAnchor\.MiddleCenter;/.test(cs))
     errors.push("the start-anchored word's left pin left a label rung (TMP, baked, or legacy) — the seat slides but the word still centers (round 44, item 29a)");
+}
+
+/* ── ROUND 44 · S18 (setrow, item 34 — RIG-1 mini rig + RIG-7 wired
+   control): the settings row's mercury joins the universal rig (eighth
+   family), the candy knob un-burns on a strip-only mark as the mini
+   Slider's HANDLE, and the row ships as a REAL Unity Slider. ── */
+{
+  if (!/const atomsSR = opts\.part === "fill";/.test(bevelSrc) || !/<g data-setrow-knob="\$\{\(trX \+ trW \* vS0\)\.toFixed\(1\)\} \$\{cy\.toFixed\(1\)\} \$\{\(20 \* k\)\.toFixed\(1\)\}">/.test(bevelSrc))
+    errors.push("setrow lost its atom force-full gate or center-stamped knob mark — the mini slider can't un-burn true (round 44, item 34)");
+  if (!/stampTrack\(inject\(shell\.replace\("<svg ", '<svg data-setrow="1" '\), parts\), trX, trW, cy - mHR \/ 2, mHR\)/.test(bevelSrc))
+    errors.push("setrow's banded track stamp left bevel — the rig can't seat (and the app's well-frame scrub must keep x/w) (round 44, item 34)");
+  if (!/let knobSvgSR: string \| null = null;/.test(src) || !/querySelectorAll\("\[data-setrow-knob\]"\)/.test(src))
+    errors.push("the setrow knob cut/strip left the exporter — the handle sprite can't ship (round 44, item 34)");
+  if (!/static void WireSetrowSlider\(GameObject go, string root, PBManifest m, int pngScale\)/.test(cs)
+      || !/if \(famB4 == "setrow"\) WireSetrowSlider\(go, root, m, pngScale\);/.test(cs))
+    errors.push("WireSetrowSlider (or its FamilyPrefab call) left the importer — the row ships display-only again (round 44, item 34)");
+  if (!/slSR\.fillRect = fillSR as RectTransform;/.test(cs) || !/hiSR\.preserveAspect = true;/.test(cs))
+    errors.push("the setrow Slider lost its fill wiring or the round-handle guard (round 44, item 34)");
+  if (!/it\.component == "setrow"\) && it\.value > 0f/.test(cs) === false && !/if \(it\.component == "setrow" && it\.value > 0f\)/.test(cs))
+    errors.push("setrow left the board value strike — posed rows would ignore their board value (round 44, item 34)");
+  if (!/spritePath\.EndsWith\("\/setrow-base\.png"\) \? "setrow" : null;/.test(cs)
+      || !/if \(famDB == "setrow"\) WireSetrowSlider\(contentsDB, root, m, m != null && m\.pngScale > 0 \? m\.pngScale : 2\);/.test(cs))
+    errors.push("the kept-project setrow graft (fill rig + Slider) left the importer (round 44, item 34)");
 }
 
 if (errors.length) {

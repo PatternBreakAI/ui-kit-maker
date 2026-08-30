@@ -5885,17 +5885,26 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const shell = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 110 }, { pinDesign: true, iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const inset = bw + 6 * k;
       const cy = 30 + h / 2;
-      const vS0 = clamp(value ?? 0.7, 0, 1);
+      /* round 44 (item 34, RIG-1 + RIG-7): the fill ATOM renders the run
+         at 100% for the rig's scissor; the mercury and the candy knob are
+         MARKED ink — in Unity the row carries a REAL mini Slider (the
+         knob is its handle), so "value drives the knob" survives export */
+      const atomsSR = opts.part === "fill";
+      const vS0 = atomsSR ? 1 : clamp(value ?? 0.7, 0, 1);
       const trX = 39 + w - inset - 250 * k, trW = 180 * k, trH = 14 * k;
       const gidR = "sr" + UID++;
       const gR = 2.5 * k, mHR = trH - gR * 2, mWR = Math.max(0, (trW - gR * 2) * vS0);
       const parts = contentText(opts.label ?? "MUSIC VOLUME", 39 + inset + 18 * k, cy + 1, 24 * k * typeK) +
         `<rect x="${trX.toFixed(1)}" y="${(cy - trH / 2).toFixed(1)}" width="${trW.toFixed(1)}" height="${trH.toFixed(1)}" rx="${(trH / 2).toFixed(1)}" fill="${wellFill}"/>` +
         `<defs><linearGradient id="${gidR}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(glow, 0.5)}"/><stop offset="0.5" stop-color="${glow}"/><stop offset="1" stop-color="${darken(glow, 0.25)}"/></linearGradient></defs>` +
-        (mWR > 1 ? `<rect x="${(trX + gR).toFixed(1)}" y="${(cy - mHR / 2).toFixed(1)}" width="${mWR.toFixed(1)}" height="${mHR.toFixed(1)}" rx="${(mHR / 2).toFixed(1)}" fill="url(#${gidR})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 3px ${hexRgba(glow, 0.6)})"` : ""}/>` : "") +
-        candyKnob(trX + trW * vS0, cy, 15 * k, knobC) +
+        (mWR > 1 ? `<g data-barfill="${(trX + gR).toFixed(1)} ${(cy - mHR / 2).toFixed(1)} ${mWR.toFixed(1)} ${mHR.toFixed(1)}"><rect x="${(trX + gR).toFixed(1)}" y="${(cy - mHR / 2).toFixed(1)}" width="${mWR.toFixed(1)}" height="${mHR.toFixed(1)}" rx="${(mHR / 2).toFixed(1)}" fill="url(#${gidR})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 3px ${hexRgba(glow, 0.6)})"` : ""}/></g>` : "") +
+        // the mark stamps the DISC center + a symmetric half-frame, so the
+        // cut centers on the grip (the drop shadow rides inside, unbiased)
+        `<g data-setrow-knob="${(trX + trW * vS0).toFixed(1)} ${cy.toFixed(1)} ${(20 * k).toFixed(1)}">${candyKnob(trX + trW * vS0, cy, 15 * k, knobC)}</g>` +
         infoText(String(Math.round(vS0 * 100)), 39 + w - inset - 18 * k, cy + 1, 20 * k, "end");
-      return stampTrack(inject(shell.replace("<svg ", '<svg data-setrow="1" '), parts), trX, trW);
+      // the stamp keeps the app's WELL frame for x/w (pointer scrub is
+      // untouched) and gains the band (round 44) for the rig's seat
+      return stampTrack(inject(shell.replace("<svg ", '<svg data-setrow="1" '), parts), trX, trW, cy - mHR / 2, mHR);
     }
     case "searchfield": {
       /* System chrome · search field — input well with the themed magnifier
