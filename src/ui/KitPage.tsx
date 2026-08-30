@@ -712,9 +712,13 @@ function PieceInner(p: PieceOpts & { caption: string; ambient?: boolean }) {
  *  brochure, and lock cards inside them read as wreckage (owner, logged-out
  *  Safari FTUE). The sell stays where the value is — grid teasers, exports,
  *  the editor. */
-function PPiece(p: PieceOpts & { ambient?: boolean }) {
+function PPiece(p: PieceOpts & { ambient?: boolean; bay?: boolean }) {
   const stagedHidden = useStagedHidden(p.id);
-  if (stagedHidden) return null;
+  /* the bay bypass, same as Piece's: the staging bay is the ONE surface
+     that must always render staged pieces — it exists to judge them. The
+     nulling guards every PUBLIC path only (patterns, assemblies, the
+     body's state strips); no public caller passes `bay`. */
+  if (stagedHidden && !p.bay) return null;
   return <PPieceInner {...p} />;
 }
 function PPieceInner(p: PieceOpts & { ambient?: boolean }) {
@@ -1343,15 +1347,19 @@ function assess(cfg: GenConfig): { level: "Strong" | "Fair" | "Risky"; notes: st
 /** A live piece row shown at several states, tiny captions underneath.
  *  `hug` crops each cell to its measured art so the specimens sit with
  *  their captions instead of floating high over reserve canvas. */
-function StateStrip({ variants, hug }: {
+function StateStrip({ variants, hug, bay }: {
   variants: { cap: string; piece: PieceOpts }[];
   hug?: boolean;
+  /** Bay-hosted strip: renders staged pieces (the admin review surface —
+   *  a piece under judgment must show its whole pressing story). Only the
+   *  staging bay passes this. */
+  bay?: boolean;
 }) {
   return (
     <div className="kp-states">
       {variants.map((v) => (
         <figure className="kp-state" key={v.cap}>
-          <PPiece {...v.piece} scale={v.piece.scale ?? 0.3} hug={hug} />
+          <PPiece {...v.piece} scale={v.piece.scale ?? 0.3} hug={hug} bay={bay} />
           <figcaption>{v.cap}</figcaption>
         </figure>
       ))}
@@ -2843,6 +2851,20 @@ const kitTier = useGen((s) => s.tier);
                     <div className="kp-tray kp-axis">
                       <Piece id={sid} caption={nm} scale={0.5} bay bayHome />
                     </div>
+                    {/* a PRESSING piece is judged by its whole grammar, and
+                        pre-release the bay is the only place that story can
+                        show (the body's state strip is rightly released-only;
+                        owner field report: reviewing the slot button, no
+                        states anywhere). Buttons-group pieces preview all
+                        four states right on their bay card. */}
+                    {groupOf(sid)?.id === "buttons" && (
+                      <StateStrip bay hug variants={[
+                        { cap: "Default", piece: { id: sid, scale: 0.24 } },
+                        { cap: "Hover", piece: { id: sid, baseState: "hover", scale: 0.24 } },
+                        { cap: "Pressed", piece: { id: sid, baseState: "pressed", scale: 0.24 } },
+                        { cap: "Disabled", piece: { id: sid, baseState: "disabled", scale: 0.24 } },
+                      ]} />
+                    )}
                     <div className="kp-bayside">
                       <span className="kp-baychip">In the bay — only you see this</span>
                       <div className="kp-bayacts">
