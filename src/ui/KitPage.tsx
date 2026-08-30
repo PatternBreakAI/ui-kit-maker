@@ -2487,6 +2487,107 @@ const kitTier = useGen((s) => s.tier);
       </header>
 
 
+      {/* ── the staging bay — new pieces wait HERE for the owner's
+          release. Admin-only, back at the HEAD of the page — its original
+          seat, restored on the owner's order ("why would you move the
+          staging area") — and for everyone else these pieces don't exist
+          anywhere on the site. ── */}
+      {isAdmin && STAGED_KIT.size > 0 && (() => {
+        // released pieces LEAVE the queue (owner call) — they live in the
+        // kit proper now; a quiet footer keeps the pull-back reversible.
+        // Rejects leave too (owner: "somewhere else not here in staging
+        // bay") — they wait in the trash at the page bottom.
+        const inBay = [...STAGED_KIT].filter((sid) => !releases[sid]);
+        const releasedStaged = [...STAGED_KIT].filter((sid) => releases[sid] === "released");
+        const act = (sid: KitComponentId, next: "released" | "rejected" | null, confirmMsg?: string) => {
+          if (confirmMsg && !window.confirm(confirmMsg)) return;
+          void setComponentRelease(sid, next).then((err) => { if (err) window.alert(err); });
+        };
+        if (!bayOpen) return (
+          <section className="kp-sec kp-baycollapsed">
+            <button className="kp-baytoggle" onClick={() => setBayOpen(true)}>
+              <ShieldCheck size={13} strokeWidth={2.2} /> Staging bay · {inBay.length} waiting — only you see this
+            </button>
+          </section>
+        );
+        return (
+          <Sec n="00" title="The staging bay"
+            note="New pieces land here first, visible only to you. Test them across the editor, the Board and the exports, then approve — the piece leaves the bay and appears for every maker the moment you do, no deploy needed. Reject moves it to the trash at the page bottom; both are reversible.">
+            <button className="kp-baytoggle" onClick={() => setBayOpen(false)}>Collapse the bay</button>
+            {inBay.length === 0 && <p className="kp-baynote">The bay is clear — everything staged is released or waiting in the trash. New pieces will land here.</p>}
+            {/* batch lane for the GLYPH SET only (owner: 44 one-by-one approvals
+                is a chore) — one atomic ledger write; every card stays
+                individually reversible afterward */}
+            {(() => {
+              const glyphBay = inBay.filter((sid) => sid.startsWith("glyph"));
+              if (glyphBay.length < 2) return null;
+              const batch = (next: "released" | "rejected", msg: string) => {
+                if (!window.confirm(msg)) return;
+                void setComponentReleasesBatch(Object.fromEntries(glyphBay.map((sid) => [sid, next])))
+                  .then((err) => { if (err) window.alert(err); });
+              };
+              return (
+                <div className="kp-bayacts" style={{ margin: "6px 0 10px" }}>
+                  <button className="cg-curate cg-curate--add" onClick={() => batch("released",
+                    `Release all ${glyphBay.length} glyphs to every maker? The whole set leaves the bay and appears across the app the moment you approve. Any glyph can be pulled back individually afterward.`)}>
+                    <ShieldCheck size={13} strokeWidth={2.2} /> Release all {glyphBay.length} glyphs
+                  </button>
+                  <button className="cg-curate cg-curate--danger" onClick={() => batch("rejected",
+                    `Park all ${glyphBay.length} glyphs? They move to the trash at the page bottom — still admin-only; restore any of them from there.`)}>
+                    Park all glyphs
+                  </button>
+                </div>
+              );
+            })()}
+            <div className="kp-baygrid">
+              {inBay.map((sid) => {
+                const nm = pieceName(sid);
+                return (
+                  <div className={`kp-bayrow${bayHot === sid ? " kp-bayhot" : ""}`} key={sid} data-bayid={sid}>
+                    <div className="kp-tray kp-axis">
+                      <Piece id={sid} caption={nm} scale={0.5} bay bayHome />
+                    </div>
+                    {/* a PRESSING piece is judged by its whole grammar, and
+                        pre-release the bay is the only place that story can
+                        show (the body's state strip is rightly released-only;
+                        owner field report: reviewing the slot button, no
+                        states anywhere). Buttons-group pieces preview all
+                        four states right on their bay card. */}
+                    {groupOf(sid)?.id === "buttons" && (
+                      <StateStrip bay hug variants={[
+                        { cap: "Default", piece: { id: sid, scale: 0.24 } },
+                        { cap: "Hover", piece: { id: sid, baseState: "hover", scale: 0.24 } },
+                        { cap: "Pressed", piece: { id: sid, baseState: "pressed", scale: 0.24 } },
+                        { cap: "Disabled", piece: { id: sid, baseState: "disabled", scale: 0.24 } },
+                      ]} />
+                    )}
+                    <div className="kp-bayside">
+                      <span className="kp-baychip">In the bay — only you see this</span>
+                      <div className="kp-bayacts">
+                        <button className="cg-curate cg-curate--add" onClick={() => act(sid, "released", `Release ${nm} to every maker? It leaves the bay and appears across the app the moment you approve.`)}>
+                          <ShieldCheck size={13} strokeWidth={2.2} /> Approve — release to everyone
+                        </button>
+                        <button className="cg-curate cg-curate--danger" title="Move to the trash at the page bottom — restorable from there" onClick={() => act(sid, "rejected")}>Reject</button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {releasedStaged.length > 0 && (
+              <p className="kp-baynote">
+                Released from this bay:{" "}
+                {releasedStaged.map((sid, i) => (
+                  <span key={sid}>{i > 0 && " · "}<b>{pieceName(sid)}</b>{" "}
+                    <button className="cg-curate" onClick={() => act(sid, null, `Pull ${pieceName(sid)} back into the bay? Makers lose it until you release again.`)}>pull back</button>
+                  </span>
+                ))}
+              </p>
+            )}
+          </Sec>
+        );
+      })()}
+
       <Chapter n={chapN("foundations")} id="foundations" label="Foundations" blurb="The design story every piece inherits: color roles, typography, and the material's anatomy — parts, layers and the nine-slice bones." />
 
       {/* ── 01 · style tokens ── */}
@@ -2791,106 +2892,6 @@ const kitTier = useGen((s) => s.tier);
       </Sec>
 
       </>}</Deferred>
-
-      {/* ── the staging bay — new pieces wait HERE for the owner's
-          release. Admin-only, seated at the head of the components zone —
-          AFTER the Foundations story (owner IA round) — and for everyone
-          else these pieces don't exist anywhere on the site. ── */}
-      {isAdmin && STAGED_KIT.size > 0 && (() => {
-        // released pieces LEAVE the queue (owner call) — they live in the
-        // kit proper now; a quiet footer keeps the pull-back reversible.
-        // Rejects leave too (owner: "somewhere else not here in staging
-        // bay") — they wait in the trash at the page bottom.
-        const inBay = [...STAGED_KIT].filter((sid) => !releases[sid]);
-        const releasedStaged = [...STAGED_KIT].filter((sid) => releases[sid] === "released");
-        const act = (sid: KitComponentId, next: "released" | "rejected" | null, confirmMsg?: string) => {
-          if (confirmMsg && !window.confirm(confirmMsg)) return;
-          void setComponentRelease(sid, next).then((err) => { if (err) window.alert(err); });
-        };
-        if (!bayOpen) return (
-          <section className="kp-sec kp-baycollapsed">
-            <button className="kp-baytoggle" onClick={() => setBayOpen(true)}>
-              <ShieldCheck size={13} strokeWidth={2.2} /> Staging bay · {inBay.length} waiting — only you see this
-            </button>
-          </section>
-        );
-        return (
-          <Sec n="00" title="The staging bay"
-            note="New pieces land here first, visible only to you. Test them across the editor, the Board and the exports, then approve — the piece leaves the bay and appears for every maker the moment you do, no deploy needed. Reject moves it to the trash at the page bottom; both are reversible.">
-            <button className="kp-baytoggle" onClick={() => setBayOpen(false)}>Collapse the bay</button>
-            {inBay.length === 0 && <p className="kp-baynote">The bay is clear — everything staged is released or waiting in the trash. New pieces will land here.</p>}
-            {/* batch lane for the GLYPH SET only (owner: 44 one-by-one approvals
-                is a chore) — one atomic ledger write; every card stays
-                individually reversible afterward */}
-            {(() => {
-              const glyphBay = inBay.filter((sid) => sid.startsWith("glyph"));
-              if (glyphBay.length < 2) return null;
-              const batch = (next: "released" | "rejected", msg: string) => {
-                if (!window.confirm(msg)) return;
-                void setComponentReleasesBatch(Object.fromEntries(glyphBay.map((sid) => [sid, next])))
-                  .then((err) => { if (err) window.alert(err); });
-              };
-              return (
-                <div className="kp-bayacts" style={{ margin: "6px 0 10px" }}>
-                  <button className="cg-curate cg-curate--add" onClick={() => batch("released",
-                    `Release all ${glyphBay.length} glyphs to every maker? The whole set leaves the bay and appears across the app the moment you approve. Any glyph can be pulled back individually afterward.`)}>
-                    <ShieldCheck size={13} strokeWidth={2.2} /> Release all {glyphBay.length} glyphs
-                  </button>
-                  <button className="cg-curate cg-curate--danger" onClick={() => batch("rejected",
-                    `Park all ${glyphBay.length} glyphs? They move to the trash at the page bottom — still admin-only; restore any of them from there.`)}>
-                    Park all glyphs
-                  </button>
-                </div>
-              );
-            })()}
-            <div className="kp-baygrid">
-              {inBay.map((sid) => {
-                const nm = pieceName(sid);
-                return (
-                  <div className={`kp-bayrow${bayHot === sid ? " kp-bayhot" : ""}`} key={sid} data-bayid={sid}>
-                    <div className="kp-tray kp-axis">
-                      <Piece id={sid} caption={nm} scale={0.5} bay bayHome />
-                    </div>
-                    {/* a PRESSING piece is judged by its whole grammar, and
-                        pre-release the bay is the only place that story can
-                        show (the body's state strip is rightly released-only;
-                        owner field report: reviewing the slot button, no
-                        states anywhere). Buttons-group pieces preview all
-                        four states right on their bay card. */}
-                    {groupOf(sid)?.id === "buttons" && (
-                      <StateStrip bay hug variants={[
-                        { cap: "Default", piece: { id: sid, scale: 0.24 } },
-                        { cap: "Hover", piece: { id: sid, baseState: "hover", scale: 0.24 } },
-                        { cap: "Pressed", piece: { id: sid, baseState: "pressed", scale: 0.24 } },
-                        { cap: "Disabled", piece: { id: sid, baseState: "disabled", scale: 0.24 } },
-                      ]} />
-                    )}
-                    <div className="kp-bayside">
-                      <span className="kp-baychip">In the bay — only you see this</span>
-                      <div className="kp-bayacts">
-                        <button className="cg-curate cg-curate--add" onClick={() => act(sid, "released", `Release ${nm} to every maker? It leaves the bay and appears across the app the moment you approve.`)}>
-                          <ShieldCheck size={13} strokeWidth={2.2} /> Approve — release to everyone
-                        </button>
-                        <button className="cg-curate cg-curate--danger" title="Move to the trash at the page bottom — restorable from there" onClick={() => act(sid, "rejected")}>Reject</button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            {releasedStaged.length > 0 && (
-              <p className="kp-baynote">
-                Released from this bay:{" "}
-                {releasedStaged.map((sid, i) => (
-                  <span key={sid}>{i > 0 && " · "}<b>{pieceName(sid)}</b>{" "}
-                    <button className="cg-curate" onClick={() => act(sid, null, `Pull ${pieceName(sid)} back into the bay? Makers lose it until you release again.`)}>pull back</button>
-                  </span>
-                ))}
-              </p>
-            )}
-          </Sec>
-        );
-      })()}
 
       {/* ── your components — duplicated pieces, filed by the
           classification chosen at creation, leading the components zone
