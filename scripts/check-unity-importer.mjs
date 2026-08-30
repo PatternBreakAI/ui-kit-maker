@@ -2860,8 +2860,8 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
       || !/return PicturePrefab\(dir, root, pngScale, m, "pagedots\/pagedots-base\.png", "Pagedots", false\);/.test(cs)
       || !/return PicturePrefab\(dir, root, pngScale, m, "startlights\/startlights-base\.png", "Startlights", false\);/.test(cs))
     errors.push("a RIG-5 prefab road (or its old-zip picture fallback) left the importer (round 44)");
-  if (!/"firebutton", "pagedots" \}/.test(cs))
-    errors.push("pagedots left the family-road skip set — FamilyPrefab would double-own the prefab (round 44)");
+  if (!/"firebutton", "pagedots", "dialog" \}/.test(cs))
+    errors.push("pagedots/dialog left the family-road skip set — FamilyPrefab would double-own their prefabs (round 44)");
   if (!/var pdS = inst\.GetComponent<PatternBreakPageDots>\(\);/.test(cs) || !/var slgS = inst\.GetComponent<PatternBreakStartLights>\(\);/.test(cs))
     errors.push("the RIG-5 board-pose strikes left the importer (round 44)");
   if (!/rig\.litCount = 0;/.test(cs))
@@ -2926,6 +2926,27 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("SeededFamilies lost the prompt variants — retyped letters would be clobbered by the word seed (round 44)");
   if (!/\["keycap", "keycap-space"\], \["padbtn", "padbtn"\],/.test(src))
     errors.push("the prompt variants lost their stateFx dial rows — no glow, no lift, no Button (round 44)");
+}
+
+/* ── ROUND 44 · S14 (owner verbatim: "also quest complete fully wired"):
+   the DIALOG ships as a real usable modal — live title, deletable body
+   placeholder, and BOTH CTAs as genuine pressing Buttons on fixed-canvas
+   Sprite Swap skins with their words riding them. ── */
+{
+  if (!/data-dialogcta="\$\{primaryB \? 1 : 2\}"/.test(bevelSrc) || !/data-seat-rider="\$\{primaryB \? "cta1" : "cta2"\}"/.test(bevelSrc))
+    errors.push("the dialog CTAs lost their strip mark or rider words — the capsules burn back into the frame (round 44, owner ask)");
+  if (!/data-icon="placeholder" data-icon-nick="Body placeholder"/.test(bevelSrc))
+    errors.push("the dialog's body placeholder lost its marked wrap — devs can't clear the well in one stroke (round 44)");
+  if (!/opts\.overlay === "cta1" \|\| opts\.overlay === "cta2"/.test(bevelSrc) || !/data-dialogctas="\$\{bx0\.toFixed\(1\)\} \$\{btnY\.toFixed\(1\)\} \$\{btnW\.toFixed\(1\)\} \$\{btnH\.toFixed\(1\)\} \$\{btnGap\.toFixed\(1\)\}"/.test(bevelSrc))
+    errors.push("the dialog CTA atoms (fixed-canvas overlays + the seat stamp) left bevel (round 44)");
+  if (!/if \(shipProp\("dialog"\)\) \{/.test(src) || !/await addPng\("dialog\/base\.png", baseD, \{/.test(src))
+    errors.push("the dialog emission left the exporter — the #1 modal ships nothing again (round 44, owner ask)");
+  if (!/static bool DialogPrefab\(string dir, string root, int pngScale, PBManifest m\)/.test(cs)
+      || !/btD\.transition = Selectable\.Transition\.SpriteSwap;/.test(cs)
+      || !/if \(DialogPrefab\(dir, root, pngScale, m\)\) any = true;/.test(cs))
+    errors.push("DialogPrefab (or its Sprite Swap upgrade / build call) left the importer (round 44)");
+  if (!/"Panel", "Dialog", "DataRow"/.test(cs))
+    errors.push("the Dialog left the Playground NAVIGATION & CHROME chapter (round 44)");
 }
 
 if (errors.length) {

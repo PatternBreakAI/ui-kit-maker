@@ -4096,6 +4096,68 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         }
       }
     }
+    /* ── THE DIALOG GOES TO UNITY, FULLY WIRED (round 44, owner verbatim:
+       "also quest complete fully wired"): the #1 modal never shipped at
+       all. Now it lands as a REAL usable piece — frame + live title, the
+       body placeholder a live deletable child, and BOTH CTA capsules as
+       genuine pressing Buttons: fixed-canvas Sprite Swap skins (every
+       state renders into the same frame, press ride included, so the
+       swap registers with zero crop math) with their words RIDING them
+       (rider seats — the booster badge grammar). ── */
+    if (shipProp("dialog")) {
+      const dOpts: Record<string, unknown> = {
+        label: st.kitNoText?.dialog ? "" : st.kitLabels?.dialog,
+        slots: st.kitSlotVals?.dialog,
+        themedText: !!st.kitDesigns?.dialog?.type || !!st.kitTextFill.dialog,
+      };
+      const fullD = shell("dialog", dOpts);
+      const stripCtaArt = (sv: string): string => {
+        try {
+          const dom = new DOMParser().parseFromString(sv, "image/svg+xml");
+          for (const g9 of Array.from(dom.querySelectorAll("[data-dialogcta]"))) g9.remove();
+          return new XMLSerializer().serializeToString(dom.documentElement);
+        } catch { return sv; }
+      };
+      const phSeats = await iconSeatsOf("dialog", fullD);
+      const wordlessD = stripWordInk(fullD).svg;
+      const baseD = stripCtaArt(phSeats ? stripIconInk(wordlessD).svg : wordlessD);
+      const r1d = (n: number) => Math.round(n * 10) / 10;
+      const ctasD = /data-dialogctas="([-\d. ]+)"/.exec(fullD)?.[1].split(" ").map(Number);
+      const shDD = (/data-shell="([-\d. ]+)"/.exec(fullD) ?? /data-shell0="([-\d. ]+)"/.exec(fullD))?.[1].split(" ").map(Number);
+      const sh0DD = /data-shell0="([-\d. ]+)"/.exec(fullD)?.[1].split(" ").map(Number);
+      const riseDD = shDD && sh0DD && shDD.length === 4 && sh0DD.length === 4 ? shDD[1] - sh0DD[1] : 0;
+      const ctaSeatRows: NonNullable<AssetMeta["iconSeats"]> = [];
+      if (ctasD && ctasD.length === 5 && shDD && shDD.length === 4) {
+        const [cbx, cby, cbw, cbh, cgap] = ctasD;
+        for (let i = 0; i < 2; i++) ctaSeatRows.push({
+          name: i === 0 ? "cta1" : "cta2",
+          file: `assets/dialog/dialog-cta${i + 1}.png`,
+          dx: r1d(cbx + i * (cbw + cgap) + cbw / 2 - (shDD[0] + shDD[2] / 2)),
+          dy: r1d(cby + riseDD + cbh / 2 - (shDD[1] + shDD[3] / 2)),
+          w: r1d(cbw + 80), h: r1d(cbh + 80),
+          btn: true, nick: i === 0 ? "Claim button" : "Later button",
+        });
+      }
+      const allSeatsD = [...(phSeats ?? []), ...ctaSeatRows];
+      await addPng("dialog/base.png", baseD, {
+        component: "dialog", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+        usage: "The modal, fully wired (owner ask, round 44): the title is a LIVE seat, the body placeholder a LIVE deletable child, and CLAIM/LATER are GENUINE pressing Buttons (Sprite Swap skins) with their words riding them — nothing on this piece looks pressable without pressing.",
+        ...textSeatsOf("dialog", baseD, dOpts),
+        ...(allSeatsD.length ? { iconSeats: allSeatsD } : {}),
+      }, true);
+      for (const ov of ["cta1", "cta2"] as const) {
+        const ctaWord = ov === "cta1" ? "CLAIM" : "LATER";
+        await addPng(`dialog/${ov}.png`, shell("dialog", { ...dOpts, overlay: ov }), {
+          component: "dialog", part: ov, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+          usage: `The ${ctaWord} capsule at rest — a real Button on the Dialog prefab; its word is a live rider seat. Fixed canvas: every state pose registers exactly.`,
+        }, false);
+        for (const stName of ["hover", "pressed", "disabled"] as const)
+          await addPng(`dialog/${ov}-${stName}.png`, stateShell("dialog", stName, { ...dOpts, overlay: ov }), {
+            component: "dialog", part: `${ov}-${stName}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+            usage: `${SWAP_USAGE[stName]} capsule — Sprite Swap on the ${ctaWord} Button (same fixed canvas as the rest pose).`,
+          }, false);
+      }
+    }
     /* the count badge goes DYNAMIC: bare circle + live count text on the
        prefab (owner: "the countdown numerics should be dynamic — I'll
        want those to animate on play") */
@@ -11809,7 +11871,7 @@ namespace PatternBreak {
           ("BUTTONS", new[] { "ButtonPrimary", "ButtonSecondary", "ButtonSmall", "Iconbtn", "Chip", "Endturn", "Keycap", "KeycapSpace", "Padbtn", "PadbtnB", "PadbtnX", "PadbtnY", "Pricebtn", "Claimbtn", "Ghost" }),
           ("CHOICE CONTROLS & FIELDS", new[] { "Checkbox", "Radio", "CheckboxToggle", "RadioToggle", "Switch", "Stepper", "Input", "Dropdown", "Setrow", "Listmenu", "Joystick", "JoystickGhost", "Firebutton" }),
           ("SLIDERS & PROGRESS", new[] { "Slider", "ProgressBar", "SegmentMeter", "VsBar", "EmblemBar", "Loadbar", "HealthGlobe", "Ring", "SeasonTrack" }),
-          ("NAVIGATION & CHROME", new[] { "Tab", "TabBack", "Bottomnav", "HeaderBanner", "Panel", "DataRow", "ItemSlot", "ScrollView", "Scrollbar", "Badge", "CountBadge", "Notifydot", "Avatarframe", "Pagedots", "Steps" }),
+          ("NAVIGATION & CHROME", new[] { "Tab", "TabBack", "Bottomnav", "HeaderBanner", "Panel", "Dialog", "DataRow", "ItemSlot", "ScrollView", "Scrollbar", "Badge", "CountBadge", "Notifydot", "Avatarframe", "Pagedots", "Steps" }),
           ("HUD & DATA", new[] { "Timer", "Resource", "Currency", "Nameplate", "Movecounter", "Qtybadge", "Orb", "Achievement", "Leaderboard", "LapTimes", "Telemetry", "Minimap", "Compass" }),
           ("GAUGES", new[] { "Speedo", "SpeedoArc", "RevMeter" }),
           ("GAME SYSTEMS", new[] { "Levelnode", "Dailycell", "Boostercard", "Rewardcard", "Gifticon", "Trophyicon", "Gearicon", "LootTag", "RarityFrame", "Circuit", "Startlights" }),
@@ -16894,6 +16956,43 @@ namespace PatternBreak {
       UnityEngine.Object.DestroyImmediate(go);
       return true;
     }
+    /* ── the DIALOG, fully wired (round 44, owner: "quest complete fully
+       wired"): frame + live title, the body placeholder a live deletable
+       child, and BOTH CTAs as genuine pressing Buttons — fixed-canvas
+       Sprite Swap skins, the words riding their buttons (rider seats).
+       The generic icon-children road mounts everything; this builder
+       only upgrades the two Buttons from ColorTint to the kit's own
+       swap skins, then seats the words. ── */
+    static bool DialogPrefab(string dir, string root, int pngScale, PBManifest m) {
+      var sp = S(root + "/assets/dialog/dialog-base.png");
+      if (sp == null) return false;
+      var go = ImageObject("Dialog", sp, pngScale);
+      var row = LabelRow(m, "dialog");
+      if (row != null && row.iconSeats != null && row.iconSeats.Length > 0) WireIconChildrenRow(go, root, m, row);
+      foreach (var pairD in new string[][] { new string[] { "Claim button", "cta1" }, new string[] { "Later button", "cta2" } }) {
+        var tD = go.transform.Find(pairD[0]);
+        var btD = tD != null ? tD.GetComponent<Button>() : null;
+        var imD = tD != null ? tD.GetComponent<Image>() : null;
+        if (btD == null || imD == null) continue;
+        var hovD = S(root + "/assets/dialog/dialog-" + pairD[1] + "-hover.png");
+        var prsD = S(root + "/assets/dialog/dialog-" + pairD[1] + "-pressed.png");
+        var disD = S(root + "/assets/dialog/dialog-" + pairD[1] + "-disabled.png");
+        if (hovD == null && prsD == null && disD == null) continue;
+        btD.transition = Selectable.Transition.SpriteSwap;
+        var ssD = new SpriteState();
+        ssD.highlightedSprite = hovD;
+        ssD.selectedSprite = null; // the resting face after a click (the FamilyPrefab rule)
+        ssD.pressedSprite = prsD;
+        ssD.disabledSprite = disD;
+        btD.spriteState = ssD;
+      }
+      // the title seat + the CLAIM/LATER rider words (AdoptSeatRiders
+      // parents each word onto its Button — move or delete them as one)
+      WireTextSeats(go, root, m, pngScale);
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/Dialog.prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
     /* the dropdown's closed shell + its VALUE WORD as a live label — the
        word is the maker's own (manifest labelText), dressed and seated by
        the same machinery as every button label (owner: "a lot of text
@@ -19571,6 +19670,9 @@ namespace PatternBreak {
       if (StartLightsPrefab(dir, root, pngScale, m)) any = true;
       // round 44 (RIG-5 pilot): the carousel position becomes a dial
       if (PageDotsPrefab(dir, root, pngScale, m)) any = true;
+      // round 44 (owner: "quest complete fully wired"): the modal arrives
+      // as a real usable piece — two genuine pressing CTAs included
+      if (DialogPrefab(dir, root, pngScale, m)) any = true;
       /* the glow orb joins the shelf (slice 4b — Playground has
          EVERYTHING): it ships lit + off sprites but had no prefab and no
          catalog spot. One placeable piece, lit by default — swap the
@@ -19621,7 +19723,7 @@ namespace PatternBreak {
          but they don't make useful drag-in prefabs (owner) */
       /* firebutton joined the composed rigs: FireButtonPrefab builds the
          wired swipe carousel, so the generic base-sprite prefab bows out */
-      var skip = new HashSet<string> { "progress", "slider", "toggle", "segbar", "fx", "icons", "dropdown", "rarityframe", "loottag", "speedo", "speedo2", "circuit", "startlights", "laptimes", "leaderboard", "telemetry", "joystick", "globe", "seasontrack", "extras", "firebutton", "pagedots" };
+      var skip = new HashSet<string> { "progress", "slider", "toggle", "segbar", "fx", "icons", "dropdown", "rarityframe", "loottag", "speedo", "speedo2", "circuit", "startlights", "laptimes", "leaderboard", "telemetry", "joystick", "globe", "seasontrack", "extras", "firebutton", "pagedots", "dialog" };
       /* the GLYPH RACK gets its own shelf (owner call: ~40 Glyph* prefabs
          drowned Prefabs/) — Prefabs/Glyphs/, the BigGlyphs pattern.
          Glyphs STAY prefabs (drag-drop convenience; they'll gain states

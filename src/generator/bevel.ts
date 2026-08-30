@@ -5546,14 +5546,23 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const wellY = 33 + inset + 68 * k;
       const wellH = h - inset * 2 - 68 * k - 92 * k;
       const well = `<path d="${roundRect(42 + inset + 8 * k, wellY, w - inset * 2 - 16 * k, wellH, 14 * k)}" fill="${wellFill}" opacity="0.85"/>`;
-      const lines = [0.84, 0.62, 0.4].map((f, i) =>
-        `<rect x="${(42 + inset + 34 * k).toFixed(1)}" y="${(wellY + 26 * k + i * 30 * k).toFixed(1)}" width="${((w - inset * 2 - 68 * k) * f).toFixed(1)}" height="${(12 * k).toFixed(1)}" rx="${(6 * k).toFixed(1)}" fill="rgba(255,255,255,0.2)"/>`).join("");
+      /* round 44 (owner: "quest complete fully wired") — the placeholder
+         body rows are marked swappable ink: one live "Body placeholder"
+         child a dev deletes (or re-arts) in a single stroke, leaving the
+         clean well for their own content. */
+      const lines = `<g data-part="icon" data-icon="placeholder" data-icon-nick="Body placeholder">` + [0.84, 0.62, 0.4].map((f, i) =>
+        `<rect x="${(42 + inset + 34 * k).toFixed(1)}" y="${(wellY + 26 * k + i * 30 * k).toFixed(1)}" width="${((w - inset * 2 - 68 * k) * f).toFixed(1)}" height="${(12 * k).toFixed(1)}" rx="${(6 * k).toFixed(1)}" fill="rgba(255,255,255,0.2)"/>`).join("") + `</g>`;
       const btnH = 56 * k, btnGap = 18 * k;
       const btnW = (w - inset * 2 - 16 * k - btnGap) / 2;
       const btnY = 33 + h - inset - 8 * k - btnH;
-      const capBtn = (bx3: number, lbl3: string, primaryB: boolean) => {
+      /* the capsule ART, word-free — shared by the composed dialog and the
+         export's fixed-canvas CTA atoms (round 44: each capsule ships as
+         a genuine pressing Button with Sprite Swap skins; forceArmed
+         renders the atom as the state's own target, since in Unity each
+         button presses independently) */
+      const capArt = (bx3: number, by3: number, primaryB: boolean, forceArmed = false) => {
         const gid3 = "dg" + UID++;
-        const armed = primaryB !== armedSecondary; // the capsule the state drives
+        const armed = forceArmed || primaryB !== armedSecondary; // the capsule the state drives
         const hot = state === "hover" && armed;
         const press = state === "pressed" && armed;
         const dy3 = press ? 2 * k : 0;
@@ -5569,19 +5578,38 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const bot3 = primaryB
           ? (darkFace ? lighten(bevel, press ? 0.14 : 0.24) : darken(bevel, press ? 0.72 : 0.62))
           : (darkFace ? "rgba(255,255,255,0.5)" : "rgba(10,16,26,0.56)");
+        return { dy3, svg: `<defs><linearGradient id="${gid3}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${top3}"/><stop offset="1" stop-color="${bot3}"/></linearGradient></defs>
+          <g transform="translate(0 ${dy3.toFixed(1)})">
+          <rect x="${bx3.toFixed(1)}" y="${by3.toFixed(1)}" width="${btnW.toFixed(1)}" height="${btnH.toFixed(1)}" rx="${(btnH / 2).toFixed(1)}" fill="url(#${gid3})" stroke="${hot ? hexRgba(glow, 0.9) : darkFace ? "rgba(8,14,24,0.55)" : "rgba(255,255,255,0.35)"}" stroke-width="${hot ? 2.2 : 1.4}"${state !== "disabled" && (primaryB || hot) ? ` style="filter: drop-shadow(0 0 ${((hot ? 11 : 6) * k).toFixed(1)}px ${hexRgba(glow, hot ? 0.8 : 0.55)})"` : ""}/>
+          <rect x="${(bx3 + btnH * 0.28).toFixed(1)}" y="${(by3 + btnH * 0.14).toFixed(1)}" width="${(btnW - btnH * 0.56).toFixed(1)}" height="${(btnH * 0.24).toFixed(1)}" rx="${(btnH * 0.12).toFixed(1)}" fill="#FFFFFF" opacity="${press ? 0.06 : primaryB ? (hot ? 0.24 : 0.15) : 0.08}"/>
+          </g>` };
+      };
+      /* the CTA ATOMS (export-only): every state renders into the SAME
+         fixed canvas — press ride included — so the Button's Sprite Swap
+         registers with zero crop math; the word is live (a rider seat) */
+      if (opts.overlay === "cta1" || opts.overlay === "cta2") {
+        const padC = 40;
+        const aC = capArt(padC, padC, opts.overlay === "cta1", true);
+        const cwC = Math.ceil(btnW + padC * 2), chC = Math.ceil(btnH + padC * 2);
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${cwC}" height="${chC}" viewBox="0 0 ${cwC} ${chC}">${aC.svg}</svg>`;
+      }
+      const capBtn = (bx3: number, lbl3: string, primaryB: boolean) => {
+        const a9 = capArt(bx3, btnY, primaryB);
+        const darkFace = cfg.face.mode === "dark";
         const ink3 = darkFace ? darken(bevel, 0.66) : "#FFFFFF";
         const inkOp = primaryB ? 1 : 0.88;
-        return `<defs><linearGradient id="${gid3}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${top3}"/><stop offset="1" stop-color="${bot3}"/></linearGradient></defs>
-          <g transform="translate(0 ${dy3.toFixed(1)})">
-          <rect x="${bx3.toFixed(1)}" y="${btnY.toFixed(1)}" width="${btnW.toFixed(1)}" height="${btnH.toFixed(1)}" rx="${(btnH / 2).toFixed(1)}" fill="url(#${gid3})" stroke="${hot ? hexRgba(glow, 0.9) : darkFace ? "rgba(8,14,24,0.55)" : "rgba(255,255,255,0.35)"}" stroke-width="${hot ? 2.2 : 1.4}"${state !== "disabled" && (primaryB || hot) ? ` style="filter: drop-shadow(0 0 ${((hot ? 11 : 6) * k).toFixed(1)}px ${hexRgba(glow, hot ? 0.8 : 0.55)})"` : ""}/>
-          <rect x="${(bx3 + btnH * 0.28).toFixed(1)}" y="${(btnY + btnH * 0.14).toFixed(1)}" width="${(btnW - btnH * 0.56).toFixed(1)}" height="${(btnH * 0.24).toFixed(1)}" rx="${(btnH * 0.12).toFixed(1)}" fill="#FFFFFF" opacity="${press ? 0.06 : primaryB ? (hot ? 0.24 : 0.15) : 0.08}"/>
-          <text x="${(bx3 + btnW / 2 + (cfg.type.italic ? -23 * k * typeK * 0.07 : 0)).toFixed(1)}" y="${(btnY + btnH / 2 + 1).toFixed(1)}" font-family="'${font}', 'Inter Variable', Inter, sans-serif" font-size="${(23 * k * typeK).toFixed(1)}" font-weight="${Math.max(700, cfg.type.weight)}"${cfg.type.italic ? ' font-style="italic"' : ""} letter-spacing="0.04em" fill="${ink3}" fill-opacity="${inkOp}" text-anchor="middle" dominant-baseline="central">${esc(lbl3)}</text>
-          </g>`;
+        /* the capsule art is strip-marked (data-dialogcta — the buffsweep
+           grammar) and its WORD rides the button (data-seat-rider): the
+           export ships plate-as-Button + live word, the app look holds */
+        return `<g data-dialogcta="${primaryB ? 1 : 2}">${a9.svg}</g>
+          <g transform="translate(0 ${a9.dy3.toFixed(1)})"><text x="${(bx3 + btnW / 2 + (cfg.type.italic ? -23 * k * typeK * 0.07 : 0)).toFixed(1)}" y="${(btnY + btnH / 2 + 1).toFixed(1)}" font-family="'${font}', 'Inter Variable', Inter, sans-serif" font-size="${(23 * k * typeK).toFixed(1)}" font-weight="${Math.max(700, cfg.type.weight)}"${cfg.type.italic ? ' font-style="italic"' : ""} letter-spacing="0.04em" fill="${ink3}" fill-opacity="${inkOp}" text-anchor="middle" dominant-baseline="central" data-seat-rider="${primaryB ? "cta1" : "cta2"}">${esc(lbl3)}</text></g>`;
       };
       const bx0 = 42 + inset + 8 * k;
       // the stamped track spans the button row — in play mode the pointer's
-      // x arms whichever capsule it's over (left = CLAIM, right = LATER)
-      return stampTrack(inject(shell.replace("<svg ", '<svg data-dialog="1" '),
+      // x arms whichever capsule it's over (left = CLAIM, right = LATER).
+      // data-dialogctas: bx0 btnY btnW btnH btnGap (raw frame) — the export
+      // seats the two Buttons from it.
+      return stampTrack(inject(shell.replace("<svg ", `<svg data-dialog="1" data-dialogctas="${bx0.toFixed(1)} ${btnY.toFixed(1)} ${btnW.toFixed(1)} ${btnH.toFixed(1)} ${btnGap.toFixed(1)}" `),
         title + well + lines + capBtn(bx0, (opts.slots?.cta1 ?? "CLAIM").slice(0, 12), true) + capBtn(bx0 + btnW + btnGap, (opts.slots?.cta2 ?? "LATER").slice(0, 12), false)), bx0, btnW * 2 + btnGap);
     }
     case "toast": {
