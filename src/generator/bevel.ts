@@ -42,11 +42,105 @@ function measureLive(label: string, font: string, weight: number, italic: boolea
     if (_measureCtx === undefined) _measureCtx = document.createElement("canvas").getContext("2d");
     if (!_measureCtx) return null;
     _measureCtx.font = spec;
+    /* measure UNKERNED, like the baked table sums — reservations follow one
+       philosophy (kerning only tightens, so unkerned is the generous, safe
+       direction), and a kern-guarded label (kernCollides) renders at
+       exactly this width */
+    try { (_measureCtx as CanvasRenderingContext2D & { fontKerning: string }).fontKerning = "none"; } catch { /* older engines */ }
     const em = _measureCtx.measureText(label).width / 100;
     if (_measureCache.size > 800) _measureCache.clear();
     _measureCache.set(key, em);
     return em;
   } catch { return null; }
+}
+
+/* ── toxic kern-pair guard (round 48, owner: the I and the V in
+   OBJECTIVE "are smashing into each other") ─────────────────────────
+   Some faces ship kern pairs that COLLIDE at display weights — Google's
+   variable Fredoka kerns I·V a huge −0.15em at wght 600, fusing the
+   stem into the diagonal in every engine that honors the pair (browser
+   <text>, canvas, TMP alike). The app composes labels as single shaped
+   runs, so the fix is not more math but a guard: measure each adjacent
+   pair of the actual label in the actual face, and when the FONT's own
+   kern drives the glyph INK into contact, render that label with
+   kerning off — its width then equals the metrics-table sum the layout
+   already reserves. Design-tight faces (script connectors, zero-kern
+   touching) never trip it: the guard requires a large negative kern AND
+   resulting ink contact. Cached; false before the face is ready (and
+   never cached then), like every live measurement here. */
+const _kernGuardCache = new Map<string, boolean>();
+const _kernPairCache = new Map<string, boolean>();
+/* the box screen alone over-fires: a designed AV/TA tuck overlaps BOXES
+   while the diagonal strokes stay apart. Rasterize the suspicious pair at
+   its kerned offset and require actual STROKE contact (ink pixels of the
+   two glyphs touching within a 1px dilation) — what the eye calls a fuse. */
+function strokeContact(a: string, b: string, offset: number, spec: string): boolean {
+  const key = `${spec}|${a}${b}|${offset.toFixed(1)}`;
+  const hit = _kernPairCache.get(key);
+  if (hit !== undefined) return hit;
+  let touch = false;
+  try {
+    const cv = document.createElement("canvas");
+    cv.width = 320; cv.height = 190;
+    const cx = cv.getContext("2d", { willReadFrequently: true });
+    if (!cx) return false;
+    const draw = (ch: string, x: number) => {
+      cx.clearRect(0, 0, cv.width, cv.height);
+      cx.font = spec;
+      cx.textBaseline = "alphabetic";
+      cx.fillStyle = "#fff";
+      cx.fillText(ch, x, 140);
+      return cx.getImageData(0, 0, cv.width, cv.height).data;
+    };
+    const A = draw(a, 60);
+    const B = draw(b, 60 + offset);
+    const W = cv.width, H = cv.height;
+    outer: for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
+      if (A[(y * W + x) * 4 + 3] <= 100) continue;
+      for (let dy = -1; dy <= 1 && !touch; dy++) for (let dx = -1; dx <= 1; dx++) {
+        if (B[((y + dy) * W + x + dx) * 4 + 3] > 100) { touch = true; break; }
+      }
+      if (touch) break outer;
+    }
+  } catch { touch = false; }
+  if (_kernPairCache.size > 400) _kernPairCache.clear();
+  _kernPairCache.set(key, touch);
+  return touch;
+}
+export function kernCollides(label: string, font: string, weight: number, italic: boolean, spacingEm: number): boolean {
+  try {
+    if (typeof document === "undefined" || !label || label.length < 2) return false;
+    const spec = `${italic ? "italic " : ""}${weight || 400} 100px "${font}"`;
+    if (!document.fonts?.check?.(spec)) return false;
+    const key = `${spec}|${spacingEm.toFixed(3)}|${label}`;
+    const hit = _kernGuardCache.get(key);
+    if (hit !== undefined) return hit;
+    if (_measureCtx === undefined) _measureCtx = document.createElement("canvas").getContext("2d");
+    if (!_measureCtx) return false;
+    const cx = _measureCtx;
+    cx.font = spec;
+    try { (cx as CanvasRenderingContext2D & { fontKerning: string }).fontKerning = "normal"; } catch { /* older engines */ }
+    let bad = false;
+    const seen = new Set<string>();
+    for (let i = 0; i + 1 < label.length && !bad; i++) {
+      const a = label[i], b = label[i + 1];
+      if (a === " " || b === " ") continue;
+      const pk = a + b;
+      if (seen.has(pk)) continue;
+      seen.add(pk);
+      const ma = cx.measureText(a), mb = cx.measureText(b);
+      const kern = cx.measureText(pk).width - ma.width - mb.width;
+      if (kern >= -4) continue; // ≥ −0.04em: healthy tightening, not a defect
+      // cheap box screen first: b's left ink edge minus a's right ink edge
+      const inkGap = ma.width + kern - mb.actualBoundingBoxLeft - ma.actualBoundingBoxRight + spacingEm * 100;
+      if (inkGap >= 0.5) continue;
+      // ...then the pixels decide — only real stroke contact is a defect
+      if (strokeContact(a, b, ma.width + kern + spacingEm * 100, spec)) bad = true;
+    }
+    if (_kernGuardCache.size > 800) _kernGuardCache.clear();
+    _kernGuardCache.set(key, bad);
+    return bad;
+  } catch { return false; }
 }
 
 /* ── glyph-ink map for glint stars ────────────────────────────────────
@@ -61,8 +155,8 @@ function measureLive(label: string, font: string, weight: number, italic: boolea
    sample units. */
 const INK_FS = 72;
 const _inkCache = new Map<string, { pts: [number, number][]; w: number } | null>();
-function glyphInkMap(raw: string, font: string, weight: number, italic: boolean, spacingEm: number): { pts: [number, number][]; w: number } | null {
-  const key = `${raw}|${font}|${weight}|${italic}|${spacingEm.toFixed(3)}`;
+function glyphInkMap(raw: string, font: string, weight: number, italic: boolean, spacingEm: number, kernOff = false): { pts: [number, number][]; w: number } | null {
+  const key = `${raw}|${font}|${weight}|${italic}|${spacingEm.toFixed(3)}|${kernOff ? "k0" : "k1"}`;
   const hit = _inkCache.get(key);
   if (hit !== undefined) return hit;
   let out: { pts: [number, number][]; w: number } | null = null;
@@ -78,6 +172,8 @@ function glyphInkMap(raw: string, font: string, weight: number, italic: boolean,
         const ctx = cv.getContext("2d", { willReadFrequently: true })!;
         ctx.font = spec; // canvas resize resets state
         try { (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = `${spacingEm}em`; } catch { /* older engines */ }
+        // a kern-guarded label renders unkerned — the ink map must match
+        if (kernOff) try { (ctx as CanvasRenderingContext2D & { fontKerning: string }).fontKerning = "none"; } catch { /* older engines */ }
         ctx.textBaseline = "middle";
         ctx.fillStyle = "#fff";
         ctx.fillText(raw, INK_FS / 2, INK_FS);
@@ -3669,9 +3765,14 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   const realItal = !!capsF?.italic && !!fontDef.css?.includes("ital");
   const synthItal = !!T2.italic && !realItal;
   const fontStyle = T2.italic && !synthItal ? ` font-style="italic"` : "";
+  /* toxic kern pairs (kernCollides): when this face's own kerning fuses a
+     pair of THIS label's glyphs, the whole label renders unkerned — every
+     layer copy (fill, outline, stripes, shine, glint clip, highlight)
+     carries the same flag so they stay in register */
+  const kernOff = showText && kernCollides(cased, T2.font, T2.weight, !!T2.italic && realItal, spacingEm) ? "font-kerning:none;" : "";
   // style attr builder — carries the width axis plus any per-layer extras
-  const tStyle = (extra = "") => (wdthV !== undefined || extra)
-    ? ` style="${wdthV !== undefined ? `font-stretch:${wdthV}%;` : ""}${extra}"` : "";
+  const tStyle = (extra = "") => (wdthV !== undefined || extra || kernOff)
+    ? ` style="${wdthV !== undefined ? `font-stretch:${wdthV}%;` : ""}${kernOff}${extra}"` : "";
 
   /* partial phrase highlight — the first match renders as a brighter,
      illuminated portion of the same material: same font, metrics, outline
@@ -3809,7 +3910,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
                between the two shears (owner: "stars are drifting"; worst
                measured 0.126em off-ink). A real italic face still samples
                italic — canvas selects the same registered face. */
-            const ink = glyphInkMap(cased, T2.font, T2.weight, synthItal ? false : !!T2.italic, spacingEm);
+            const ink = glyphInkMap(cased, T2.font, T2.weight, synthItal ? false : !!T2.italic, spacingEm, kernOff !== "");
             if (ink) {
               /* work in TRUE ink space: the layout's textW is an estimate
                  padded wider than the real glyph run, so mapping through
@@ -4645,9 +4746,14 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     // BOTH nudges ride inside the helper so every self-drawn text (counters,
     // rows, segments, flip digits) shifts with the same controls as built
     // labels — vertical used to be per-callsite and read as dead elsewhere
+    // the toxic kern-pair guard covers self-drawn text too (kernCollides —
+    // rows, counters, segments fuse the same way built labels do)
+    const fam4 = (o2.list && (T4.listFont ?? cfg.type.listFont)) || T4.font;
+    const sp4 = ((o2.track ?? 0) + T4.spacing) / 100;
+    const kern4 = kernCollides(cased4, fam4, Math.max(700, T4.weight), !!T4.italic, sp4) ? ' style="font-kerning:none"' : "";
     return (defs4 ? `<defs>${defs4}</defs>` : "") +
       (prims4.length ? `<g filter="url(#${gid4}f)">` : "") +
-      `<text x="${(x2 + typeOxK * k + italNudge).toFixed(1)}" y="${(y2 + typeOyK * k).toFixed(1)}" font-family="'${(o2.list && (T4.listFont ?? cfg.type.listFont)) || T4.font}', 'Inter Variable', Inter, sans-serif" font-size="${fs2.toFixed(1)}" font-weight="${Math.max(700, T4.weight)}"${T4.italic ? ' font-style="italic"' : ""} letter-spacing="${(((o2.track ?? 0) + T4.spacing) / 100).toFixed(3)}em" fill="${fill4}"${(T4.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T4.fillOpacity / 100).toFixed(2)}"` : ""}${outline4}${o2.anchor ? ` text-anchor="${o2.anchor}"` : ""} dominant-baseline="central" opacity="${(o2.opacity ?? 1).toFixed(2)}"${o2.rider ? ` data-seat-rider="${o2.rider}"` : ""}>${esc(cased4)}</text>` +
+      `<text x="${(x2 + typeOxK * k + italNudge).toFixed(1)}" y="${(y2 + typeOyK * k).toFixed(1)}" font-family="'${fam4}', 'Inter Variable', Inter, sans-serif" font-size="${fs2.toFixed(1)}" font-weight="${Math.max(700, T4.weight)}"${T4.italic ? ' font-style="italic"' : ""} letter-spacing="${sp4.toFixed(3)}em"${kern4} fill="${fill4}"${(T4.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T4.fillOpacity / 100).toFixed(2)}"` : ""}${outline4}${o2.anchor ? ` text-anchor="${o2.anchor}"` : ""} dominant-baseline="central" opacity="${(o2.opacity ?? 1).toFixed(2)}"${o2.rider ? ` data-seat-rider="${o2.rider}"` : ""}>${esc(cased4)}</text>` +
       (prims4.length ? `</g>` : "");
   };
   /* fit-down (the unitplate precedent; owner round: type never crops or
