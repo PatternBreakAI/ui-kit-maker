@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceBetween, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceBetween, ArrowDown, ArrowUp, BookmarkPlus, BringToFront, Copy, Download, Grid3x3, ImagePlus, LayoutTemplate, Lock, Monitor, Plus, Search, SendToBack, Shield, Smartphone, SquarePen, Trash2, Type, X } from "lucide-react";
 import { useGen, rehydrateBoardBgs, boardBgFilter, boardScaleMin, drawBoardNoise, drawBoardOverlays, stampFilter, stampSvg, warpStampRaster, importUserAssetFile, kitShadowFilter, suppressCastShadow } from "@/generator/store";
 import type { UserAsset, UserLogoFx } from "@/generator/store";
@@ -874,7 +874,7 @@ export function BoardView({ playing }: { playing: boolean }) {
   const {
     cfg, boards, activeBoard, library, kitClones, kitShapes, kitSizes, kitTextFill, kitDesigns, kitIcons, kitLabels, kitNoText, kitVals, kitRow, kitBar, kitTextOy, kitTextOx, kitSlotVals, kitSubs,
     setActiveBoard, addBoard, addBoardAfter, removeBoard, duplicateBoard, renameBoard, moveBoard, clearBoard, setBoardBg,
-    setBoardAspect, boardSnap, setBoardSnap, boardSafe, setBoardSafe, boardSel, setBoardSel, zoom,
+    setBoardAspect, boardSnap, setBoardSnap, boardSafe, setBoardSafe, boardSel, setBoardSel, zoom, panMode,
     addToBoard, addKitToBoard, moveBoardItem, scaleBoardItem, rotateBoardItem, removeBoardItem,
     duplicateBoardItem, componentReleases, isAdmin, tier,
     applyBoardItemPatches, removeBoardItems, transformBoardItems,
@@ -1251,15 +1251,75 @@ export function BoardView({ playing }: { playing: boolean }) {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+  /* ── the desk pans like a canvas (owner, round-48: "I can scroll
+     vertically, but not horizontally. I also need to be able to scroll a
+     little bit beyond the canvas bounds") ── the frame scrolls BOTH axes
+     natively (two-finger pan, shift+wheel), .bd-desk carries the
+     viewport-sized overscroll pad, and the toolbar hand tool drags the
+     frame's own scroll position — it used to drag the outer .canvas
+     scroller, which has no range on this page, so the hand was dead here. */
+  const panDrag = useRef<{ x: number; y: number; sl: number; st: number } | null>(null);
+  const panDown = (e: React.PointerEvent) => {
+    const el = frameRef.current;
+    if (!el || !panMode || e.button !== 0) return;
+    // chrome still clicks in hand mode — only the desk itself grabs
+    if ((e.target as HTMLElement).closest("button, input, select, textarea, .bd-rszwrap")) return;
+    e.preventDefault();
+    panDrag.current = { x: e.clientX, y: e.clientY, sl: el.scrollLeft, st: el.scrollTop };
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+  };
+  const panMove = (e: React.PointerEvent) => {
+    const el = frameRef.current;
+    if (!el || !panDrag.current) return;
+    el.scrollLeft = panDrag.current.sl - (e.clientX - panDrag.current.x);
+    el.scrollTop = panDrag.current.st - (e.clientY - panDrag.current.y);
+  };
+  const panUp = () => { panDrag.current = null; };
+  /* entry seat: the overscroll pad must not read as a blank desk — land
+     with the first board just under the header, horizontally centered.
+     Waits for the REAL frame measure (the 900 seed mis-centers), and
+     yields entirely to the return-leg seek when a selection is parked. */
+  const seated = useRef(false);
+  useLayoutEffect(() => {
+    const el = frameRef.current;
+    if (!el || seated.current) return;
+    if (Math.abs(el.getBoundingClientRect().width - frameW) > 3) return;
+    const desk = el.querySelector<HTMLElement>(".bd-desk");
+    if (!desk) return;
+    seated.current = true;
+    if (useGen.getState().boardSel) return; // the seek owns this entry
+    el.scrollLeft = (el.scrollWidth - el.clientWidth) / 2;
+    el.scrollTop = Math.max(0, (parseFloat(getComputedStyle(desk).paddingTop) || 0) - 30);
+  }, [frameW]);
+  /* zoom anchors the view's CENTER, like the master canvas — only the art
+     scales (the overscroll pad is constant screen px), so the anchor maps
+     the content point under the center, not the raw scroll offset. The
+     row sizes are live W*fit styles, so layout is already the new scale
+     when this runs. */
+  const lastZoom = useRef(zoom);
+  useLayoutEffect(() => {
+    const el = frameRef.current;
+    const prev = lastZoom.current;
+    if (!el || prev === zoom) return;
+    const k = zoom / prev;
+    lastZoom.current = zoom;
+    const desk = el.querySelector<HTMLElement>(".bd-desk");
+    const cs = desk ? getComputedStyle(desk) : null;
+    const padX = cs ? parseFloat(cs.paddingLeft) || 0 : 0;
+    const padY = cs ? parseFloat(cs.paddingTop) || 0 : 0;
+    el.scrollLeft = (el.scrollLeft + el.clientWidth / 2 - padX) * k + padX - el.clientWidth / 2;
+    el.scrollTop = (el.scrollTop + el.clientHeight / 2 - padY) * k + padY - el.clientHeight / 2;
+  }, [zoom]);
   /* ── rows: the desk is a stack of explicit rows. THE rule (owner:
      "let's just do 1 board per row unless it's mobile then we can do 3 —
      I can't have two big boards side by side"): a 16:9 board always
      stands alone at full size; only mobiles share a row, three at most.
      rowsOf NORMALIZES — a doc that carries an illegal mix (legacy data,
      an aspect flip mid-row) simply splits, so the desk can never show
-     it. nl still forces a break. A row never scrolls sideways: its
-     boards share the frame at one true scale, and the shared canvas
-     zoom rides every gesture via the fit factor. */
+     it. nl still forces a break. A row shares the frame at one true
+     scale, and the shared canvas zoom rides every gesture via the fit
+     factor — past 100% the row outgrows the frame and the desk pans to
+     reach it (round-48; horizontal used to be clipped). */
   const rowsOf = (bs: BoardDef[]) => {
     const rows: BoardDef[][] = [];
     for (const b2 of bs) {
@@ -1715,7 +1775,7 @@ export function BoardView({ playing }: { playing: boolean }) {
   }, []);
 
   return (
-    <div className={`board2${playing ? " playing" : ""}`} style={{ "--trayl": `${trayW.l}px`, "--trayr": `${trayW.r}px` } as React.CSSProperties}>
+    <div className={`board2${playing ? " playing" : ""}${panMode ? " pan" : ""}`} style={{ "--trayl": `${trayW.l}px`, "--trayr": `${trayW.r}px` } as React.CSSProperties}>
       <BoardCurtain />
       {/* ── assets ── */}
       <aside className="bd-assets">
@@ -2027,9 +2087,15 @@ export function BoardView({ playing }: { playing: boolean }) {
              go of this one. The per-stage handlers below stay for the fast
              path; this one catches the void between and around boards. */
           onPointerDown={(e) => {
+            panDown(e);
             const t = e.target as HTMLElement;
             if (!t.closest(".board-item, .bd-rszwrap, .bd-abhead")) setBoardSel(null);
-          }}>
+          }}
+          onPointerMove={panMove} onPointerUp={panUp} onPointerCancel={panUp}>
+          {/* .bd-desk is the scrollable content — it wears the overscroll
+              pad (all four sides, ~45% of the window) and sizes to its
+              widest row so the trailing pad survives the scroller */}
+          <div className="bd-desk">
           {rowsOf(boards).map((row) => {
             const fit = rowFit(row);
             return (
@@ -2271,6 +2337,7 @@ export function BoardView({ playing }: { playing: boolean }) {
             );
           })}
           <button className="bd-addboard-inline" onClick={addBoard}><Plus size={14} strokeWidth={2.2} /> Add board</button>
+          </div>
         </div>
       </div>
 

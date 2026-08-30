@@ -2349,20 +2349,36 @@ button.inv2-slot:hover { border-color: var(--inv-acc); color: var(--st-ink); }
 @media (prefers-reduced-motion: reduce) { .rh-soft, .rh-mark, .rh-bolt, .rh-wash { animation: none !important; } }
 
 /* ── v57: The Board — a vertical stack of named artboards ───────── */
-/* overflow-x carries zoomed-in boards; safe-center keeps a wide stage
-   reachable instead of clipping both edges */
 /* boards FLOW — a duplicate lands beside its source and rows wrap like
    pages on a desk, never more than three across even at the widest
    Pro Display XDR breakpoint (owner). The cap is structural: every cell
    claims at least a third of the row, so a fourth board must wrap;
    narrow mobile stages simply center inside their cell. */
 /* the desk is a stack of EXPLICIT rows — each row shares the frame at one
-   true scale and never scrolls sideways (owner: "it doesn't have to be
-   scrollable horizontally — for each row you can have this combination at
+   true scale (owner: "for each row you can have this combination at
    maximum size - 1 landscape and 1 portrait, 3 portraits"). Rows sit
    closer than before (owner: "the boards should be closer together"). */
-.bd-boards { flex-direction: column; align-items: safe center; justify-content: flex-start; gap: 26px; overflow-y: auto; overflow-x: hidden; padding: 18px 16px 90px; }
-.bd-row { display: flex; flex-wrap: nowrap; align-items: flex-start; gap: 20px; max-width: 100%; }
+/* the desk PANS like a canvas (owner, round-48: "I can scroll vertically,
+   but not horizontally. I also need to be able to scroll a little bit
+   beyond the canvas bounds") — the frame scrolls BOTH axes (two-finger
+   pan, shift+wheel, the toolbar hand tool), and overscroll-behavior stops
+   the browser's history-swipe from stealing a leftward pan at the rail. */
+.bd-boards { display: block; overflow: auto; overscroll-behavior: contain; padding: 0; }
+/* .bd-desk carries viewport-sized overscroll on all FOUR sides (~45% of
+   the window) so edge boards pull toward center for editing at any zoom.
+   width:max-content is load-bearing: right/bottom padding inside a scroll
+   container only survives on a content-sized wrapper — pad the scroller
+   itself and the trailing pad collapses the moment a row overflows.
+   PNG export composes from board data on an offscreen canvas, never this
+   DOM, so the overscroll can't leak into exports. */
+.bd-desk { display: flex; flex-direction: column; align-items: center; gap: 26px; width: max-content; min-width: 100%; box-sizing: border-box; padding: max(110px, 44vh) max(140px, 44vw) max(140px, 46vh); }
+.bd-row { display: flex; flex-wrap: nowrap; align-items: flex-start; gap: 20px; }
+/* hand tool on the desk: the frame grabs, pieces and their handles go
+   pointer-inert so the pan can start anywhere — chrome (buttons, inputs,
+   board headers) still clicks */
+.board2.pan .bd-frame { cursor: grab; }
+.board2.pan .bd-frame:active { cursor: grabbing; }
+.board2.pan .board-item, .board2.pan .bd-rszwrap { pointer-events: none; }
 .bd-artboard { display: flex; flex-direction: column; align-items: center; gap: 8px; flex: none; }
 /* the ACTIVE board announces itself — the old ring silently died when the
    stagewrap arrived (a > child selector), which is why "I'm not quite
