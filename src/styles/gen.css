@@ -1160,7 +1160,13 @@ svg:hover .kit-shine--armed, svg:hover .kit-edgeshine--armed { animation-play-st
    WebGL schematic (no CSS shine to run), so the shines live on the
    editor, the Board and every Play surface instead. */
 .kitpage .mo-pulse, .kitpage .mo-glow, .kitpage .kp-ringpulse { animation-play-state: paused; }
-.kitpage .kp-mostage:hover .mo-pulse, .kitpage .kp-mostage:hover .mo-glow { animation-play-state: running; }
+/* …and wake under the pointer. The looping demos (attention pulse, glow
+   cycle) run while the pointer is on their CARD — the resume selector used
+   to expect .mo-* nested inside .kp-mostage, but MotionDemo puts both
+   classes on one element, so the rule never matched and the two cards sat
+   dead through hover AND click (owner, round 46: "attention pulse doesn't
+   seem to do anything · glow cycle didn't do anything"). */
+.kitpage .kp-mo:hover .mo-pulse, .kitpage .kp-mo:hover .mo-glow { animation-play-state: running; }
 .kitpage :hover > .kp-ringpulse { animation-play-state: running; }
 /* dormant chapter placeholder — honest scroll room, no paint */
 .kp-ghost { contain: strict; }
