@@ -3175,6 +3175,38 @@ function ScaleEntry({ id, pct, min }: { id: string; pct: number; min: number }) 
   );
 }
 
+/* the BODY-BOX discriminator (owner class rule, round 49: glows must fall
+   off naturally "without increasing the hit area (and thereby boards
+   selection area)"; the Unity export applies the same rule to raycast
+   boxes). The old scans took ANY alpha > 8 as ink, so a glow-dressed
+   stamp's selection box inflated with its halo. Solid ink and haze are
+   separable by construction: a gaussian glow/shadow tail peaks at about
+   HALF its pass's opacity just outside the ink edge (a blurred step) and
+   decays from there — one pass ≲128, stacked passes stay under ~200 —
+   while letterform and outline ink sit at 255 behind a one-pixel AA
+   fringe. Scanning solid (≥232) therefore keeps every drawn body and
+   sheds every halo, at full designed glow extent on screen. A render
+   with no solid ink at all (hairline strokes swallowed by AA at scan
+   scale) falls back to the any-alpha box — never no box. */
+function scanInkBody(d: Uint8ClampedArray, w: number, h: number): [number, number, number, number] | null {
+  let sx0 = w, sy0 = h, sx1 = -1, sy1 = -1; // solid ink body
+  let ax0 = w, ay0 = h, ax1 = -1, ay1 = -1; // any alpha — the fallback
+  for (let py = 0; py < h; py += 2) for (let px = 0; px < w; px += 2) {
+    const a = d[(py * w + px) * 4 + 3];
+    if (a > 8) {
+      if (px < ax0) ax0 = px; if (px > ax1) ax1 = px;
+      if (py < ay0) ay0 = py; if (py > ay1) ay1 = py;
+      if (a >= 232) {
+        if (px < sx0) sx0 = px; if (px > sx1) sx1 = px;
+        if (py < sy0) sy0 = py; if (py > sy1) sy1 = py;
+      }
+    }
+  }
+  if (sx1 > sx0 && sy1 >= sy0) return [sx0, sy0, sx1 - sx0, sy1 - sy0];
+  if (ax1 > ax0 && ay1 >= ay0) return [ax0, ay0, ax1 - ax0, ay1 - ay0];
+  return null;
+}
+
 function StampArt({ cfg, stamp }: { cfg: GenConfig; stamp: NonNullable<BoardItem["stamp"]> }) {
   /* glint stars snap to REAL letterform ink — a stamp rendered before its
      face finished loading snapped to the fallback font's run (the drifting
@@ -3224,15 +3256,11 @@ function StampArt({ cfg, stamp }: { cfg: GenConfig; stamp: NonNullable<BoardItem
           const ctx = cv.getContext("2d", { willReadFrequently: true })!;
           ctx.drawImage(img, 0, 0, cv.width, cv.height);
           try {
+            // body-box rule: the shell pins to SOLID ink — glow halos render
+            // full-size but never widen the selection/grab box (scanInkBody)
             const d = ctx.getImageData(0, 0, cv.width, cv.height).data;
-            let x0 = cv.width, y0 = cv.height, x1 = 0, y1 = 0;
-            for (let py = 0; py < cv.height; py += 2) for (let px = 0; px < cv.width; px += 2) {
-              if (d[(py * cv.width + px) * 4 + 3] > 8) {
-                if (px < x0) x0 = px; if (px > x1) x1 = px;
-                if (py < y0) y0 = py; if (py > y1) y1 = py;
-              }
-            }
-            if (x1 > x0 && on) setTightShell([x0 / k, y0 / k, (x1 - x0) / k, (y1 - y0) / k].map((n) => n.toFixed(1)).join(" "));
+            const bb = scanInkBody(d, cv.width, cv.height);
+            if (bb && on) setTightShell([bb[0] / k, bb[1] / k, bb[2] / k, bb[3] / k].map((n) => n.toFixed(1)).join(" "));
           } catch { /* tainted or empty — the specimen shell stands */ }
         };
         img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgF)));
@@ -3281,15 +3309,11 @@ function StampArt({ cfg, stamp }: { cfg: GenConfig; stamp: NonNullable<BoardItem
              adhere "to the actual type stamp area") */
           let shell: [number, number, number, number] | null = null;
           try {
+            // same body-box rule as the unwarped scan: solid ink bounds the
+            // box, the bent glow haze stays drawn but un-grabbable
             const d = wc.getContext("2d")!.getImageData(0, 0, wc.width, wc.height).data;
-            let x0 = wc.width, y0 = wc.height, x1 = 0, y1 = 0;
-            for (let py = 0; py < wc.height; py += 2) for (let px = 0; px < wc.width; px += 2) {
-              if (d[(py * wc.width + px) * 4 + 3] > 8) {
-                if (px < x0) x0 = px; if (px > x1) x1 = px;
-                if (py < y0) y0 = py; if (py > y1) y1 = py;
-              }
-            }
-            if (x1 > x0) shell = [x0 / k, y0 / k, (x1 - x0) / k, (y1 - y0) / k];
+            const bb = scanInkBody(d, wc.width, wc.height);
+            if (bb) shell = [bb[0] / k, bb[1] / k, bb[2] / k, bb[3] / k];
           } catch { /* tainted or empty — the full frame remains the box */ }
           wc.toBlob((bl) => {
             if (!on || !bl) return;
