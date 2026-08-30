@@ -2860,8 +2860,8 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
       || !/return PicturePrefab\(dir, root, pngScale, m, "pagedots\/pagedots-base\.png", "Pagedots", false\);/.test(cs)
       || !/return PicturePrefab\(dir, root, pngScale, m, "startlights\/startlights-base\.png", "Startlights", false\);/.test(cs))
     errors.push("a RIG-5 prefab road (or its old-zip picture fallback) left the importer (round 44)");
-  if (!/"firebutton", "pagedots", "dialog", "scrollbar" \}/.test(cs))
-    errors.push("pagedots/dialog left the family-road skip set — FamilyPrefab would double-own their prefabs (round 44)");
+  if (!/"firebutton", "pagedots", "dialog", "scrollbar", "pathconnector" \}/.test(cs))
+    errors.push("pagedots/dialog/pathconnector left the family-road skip set — FamilyPrefab would double-own their prefabs (round 44)");
   if (!/var pdS = inst\.GetComponent<PatternBreakPageDots>\(\);/.test(cs) || !/var slgS = inst\.GetComponent<PatternBreakStartLights>\(\);/.test(cs))
     errors.push("the RIG-5 board-pose strikes left the importer (round 44)");
   if (!/rig\.litCount = 0;/.test(cs))
@@ -3226,6 +3226,43 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the Stopwatch prefab wiring (or its readout join) left the importer (round 44, item 39)");
   if (!/var pswS = inst\.GetComponent<PatternBreakStopwatch>\(\);/.test(cs))
     errors.push("stopwatch left the board value strike (round 44, item 39)");
+}
+
+/* ── ROUND 44 · S27 (items 38 + 26 — steps + pathconnector, RIG-5): the
+   step lane wears a still plate (every digit a live seat, the '1'
+   included) with KitSteps swapping pip looks and lighting rails; the
+   saga trail deals nine live beads at the stamped bezier centers. Both
+   base sheets stay byte-identical. ── */
+{
+  if (!/data-steppips="\$\{\(padS \+ sR\)\.toFixed\(1\)\}/.test(bevelSrc)
+      || !/opts\.part === "pip-done" \|\| opts\.part === "pip-current" \|\| opts\.part === "pip-upcoming"/.test(bevelSrc)
+      || !/const plateS9 = opts\.part === "plate";/.test(bevelSrc))
+    errors.push("the step-lane stamp or part renders left bevel (round 44, item 38)");
+  if (!/data-pathgeo="\$\{ptsP9\.join\(" "\)\}"/.test(bevelSrc)
+      || !/opts\.part === "bead" \|\| opts\.part === "bead-lit"/.test(bevelSrc))
+    errors.push("the saga-trail stamp or bead renders left bevel (round 44, item 26)");
+  if (!/steps: stepsGeo,/.test(src) || !/pathConnector: pathGeo,/.test(src))
+    errors.push("the RIG-5 geo blocks left the manifest emission (round 44, items 38 + 26)");
+  if (!/const KIT_STEPS_RUNTIME = `using UnityEngine;/.test(src)
+      || !/files\.push\(\{ path: "Runtime\/PatternBreakKitSteps\.cs", data: KIT_STEPS_RUNTIME \}\);/.test(src)
+      || !/"Runtime\/PatternBreakKitSteps\.cs",/.test(src))
+    errors.push("KitSteps' runtime or its registration (files + sharedScripts BOTH — the law) left the exporter (round 44, item 38)");
+  if (!/const PATH_CONNECTOR_RUNTIME = `using UnityEngine;/.test(src)
+      || !/files\.push\(\{ path: "Runtime\/PatternBreakPathConnector\.cs", data: PATH_CONNECTOR_RUNTIME \}\);/.test(src)
+      || !/"Runtime\/PatternBreakPathConnector\.cs",/.test(src))
+    errors.push("PathConnector's runtime or its registration (files + sharedScripts BOTH — the law) left the exporter (round 44, item 26)");
+  if (!/public PBDotsGeo steps; public PBPathGeo pathConnector;/.test(cs)
+      || !/class PBPathGeo \{ public float w; public float h; public int n; public float staged; public float\[\] pts; \}/.test(cs))
+    errors.push("the RIG-5 geo classes left the importer's manifest schema (round 44, items 38 + 26)");
+  if (!/if \(baseAsset\.component == "steps"\) \{/.test(cs) || !/rigST\.step = Mathf\.Clamp\(geoST\.staged \+ 1, 1, geoST\.n\);/.test(cs)
+      || !/rigST2\.digits = digST;/.test(cs))
+    errors.push("the KitSteps prefab wiring (or its digit join) left the importer (round 44, item 38)");
+  if (!/static bool PathConnectorPrefab\(string dir, string root, int pngScale, PBManifest m\) \{/.test(cs)
+      || !/if \(PathConnectorPrefab\(dir, root, pngScale, m\)\) any = true;/.test(cs)
+      || !/"pathconnector" \}/.test(cs))
+    errors.push("PathConnectorPrefab (its call, or its generic-road skip) left the importer (round 44, item 26)");
+  if (!/var kstS = inst\.GetComponent<KitSteps>\(\);/.test(cs) || !/var pcS = inst\.GetComponent<PatternBreakPathConnector>\(\);/.test(cs))
+    errors.push("steps/pathconnector left the board value strike (round 44, items 38 + 26)");
 }
 
 if (errors.length) {

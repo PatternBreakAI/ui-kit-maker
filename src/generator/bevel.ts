@@ -5799,13 +5799,50 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const WS = nS * sR * 2 + (nS - 1) * railG + padS * 2;
       const HS = sR * 2 + padS * 2;
       const cyS = HS / 2;
+      /* ── ENGINE ATOMS (round 44, item 38 — RIG-5): the three pip LOOKS
+         and the lit rail on their own shared canvases; the PLATE is the
+         rig's ground — dim rails as anatomy, NO pips, and EVERY digit
+         rendered (the missing "1" included — ghost-inked where the app
+         would hide it under a done pip; the rig hides those TMPs). The
+         KitSteps rig swaps looks, lights rails and repaints digits.
+         base.png keeps the baked pose byte-identical (legacy sheet). */
+      if (opts.part === "pip-done" || opts.part === "pip-current" || opts.part === "pip-upcoming") {
+        const sideS9 = Math.ceil((sR * 1.38 + 12 * k) * 2);
+        const cS9 = sideS9 / 2;
+        const innerS9 = opts.part === "pip-done"
+          ? `<circle cx="${cS9}" cy="${cS9}" r="${sR.toFixed(1)}" fill="${hexMix(bevel, glow, 0.4)}" stroke="${darken(bevel, 0.35)}" stroke-width="1.5"/>` +
+            (STOCK_ICONS.check ? iconGroup(STOCK_ICONS.check, cS9 - sR * 0.55, cS9 - sR * 0.55, sR * 1.1, "#FFFFFF", { strokeWidth: 3 * iconWK }) : "")
+          : opts.part === "pip-current"
+            ? candyKnob(cS9, cS9, sR, knobC) + `<circle cx="${cS9}" cy="${cS9}" r="${(sR * 1.28).toFixed(1)}" fill="none" stroke="${hexRgba(glow, 0.6)}" stroke-width="2.4" style="filter: drop-shadow(0 0 5px ${hexRgba(glow, 0.65)})"/>`
+            : `<circle cx="${cS9}" cy="${cS9}" r="${sR.toFixed(1)}" fill="${wellFill}" stroke="rgba(255,255,255,0.22)" stroke-width="1.2"/>`;
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${sideS9}" height="${sideS9}" viewBox="0 0 ${sideS9} ${sideS9}" role="img" aria-label="steps ${opts.part}">${innerS9}</svg>`;
+      }
+      if (opts.part === "rail-lit") {
+        const rlW = Math.ceil(railG + 16 * k), rlH = Math.ceil(6 * k + 16 * k);
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${rlW}" height="${rlH}" viewBox="0 0 ${rlW} ${rlH}" role="img" aria-label="steps rail-lit"><rect x="${((rlW - railG) / 2).toFixed(1)}" y="${(rlH / 2 - 3 * k).toFixed(1)}" width="${railG.toFixed(1)}" height="${(6 * k).toFixed(1)}" rx="${(3 * k).toFixed(1)}" fill="${glow}" style="filter: drop-shadow(0 0 3px ${hexRgba(glow, 0.5)})"/></svg>`;
+      }
+      const plateS9 = opts.part === "plate";
       let inner0 = "";
       for (let i = 0; i < nS - 1; i++) {
         const xA = padS + sR + i * (sR * 2 + railG) + sR;
-        inner0 += `<rect x="${xA.toFixed(1)}" y="${(cyS - 3 * k).toFixed(1)}" width="${railG.toFixed(1)}" height="${(6 * k).toFixed(1)}" rx="${(3 * k).toFixed(1)}" fill="${i < cur ? glow : wellFill}"${i < cur && state !== "disabled" ? ` style="filter: drop-shadow(0 0 3px ${hexRgba(glow, 0.5)})"` : ""}/>`;
+        const litRail = !plateS9 && i < cur; // the plate's rails all rest dim — lit is the rig's overlay
+        inner0 += `<rect x="${xA.toFixed(1)}" y="${(cyS - 3 * k).toFixed(1)}" width="${railG.toFixed(1)}" height="${(6 * k).toFixed(1)}" rx="${(3 * k).toFixed(1)}" fill="${litRail ? glow : wellFill}"${litRail && state !== "disabled" ? ` style="filter: drop-shadow(0 0 3px ${hexRgba(glow, 0.5)})"` : ""}/>`;
       }
       for (let i = 0; i < nS; i++) {
         const cxS = padS + sR + i * (sR * 2 + railG);
+        /* upcoming pips live in dark wells; a solid theme ink that is
+           itself dark (Brightside navy) drowns there — those kits fall
+           back to the ghost ink the auto voice always used */
+        const upInk9 = cfg.type.fillMode === "solid" && grayOf(cfg.type.fill) < 96 ? "rgba(255,255,255,0.45)" : undefined;
+        if (plateS9) {
+          // every digit lives (the missing "1" included) — done-state
+          // digits arrive ghost; the rig hides/repaints per state
+          inner0 += contentText(String(i + 1), cxS, cyS + 1, i === cur ? sR * 0.95 : sR * 0.9,
+            i === cur
+              ? { anchor: "middle", keepCase: true, autoInk: darken(bevel, 0.55) }
+              : { anchor: "middle", keepCase: true, autoInk: "rgba(255,255,255,0.45)", ink: upInk9, opacity: 0.8 });
+          continue;
+        }
         if (i < cur) {
           inner0 += `<circle cx="${cxS.toFixed(1)}" cy="${cyS.toFixed(1)}" r="${sR.toFixed(1)}" fill="${hexMix(bevel, glow, 0.4)}" stroke="${darken(bevel, 0.35)}" stroke-width="1.5"/>`;
           if (STOCK_ICONS.check) inner0 += iconGroup(STOCK_ICONS.check, cxS - sR * 0.55, cyS - sR * 0.55, sR * 1.1, "#FFFFFF", { strokeWidth: 3 * iconWK });
@@ -5814,15 +5851,13 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
           inner0 += candyKnob(cxS, cyS, sR * (hotS ? 1.08 : 1), knobC) + (state !== "disabled" ? `<circle cx="${cxS.toFixed(1)}" cy="${cyS.toFixed(1)}" r="${(sR * (hotS ? 1.38 : 1.28)).toFixed(1)}" fill="none" stroke="${hexRgba(glow, hotS ? 0.9 : 0.6)}" stroke-width="${hotS ? 3 : 2.4}" style="filter: drop-shadow(0 0 ${hotS ? 8 : 5}px ${hexRgba(glow, 0.65)})"/>` : "");
           inner0 += contentText(String(i + 1), cxS, cyS + 1, sR * 0.95, { anchor: "middle", keepCase: true, autoInk: darken(bevel, 0.55) });
         } else {
-          /* upcoming pips live in dark wells; a solid theme ink that is
-             itself dark (Brightside navy) drowns there — those kits fall
-             back to the ghost ink the auto voice always used */
-          const upInk9 = cfg.type.fillMode === "solid" && grayOf(cfg.type.fill) < 96 ? "rgba(255,255,255,0.45)" : undefined;
           inner0 += `<circle cx="${cxS.toFixed(1)}" cy="${cyS.toFixed(1)}" r="${sR.toFixed(1)}" fill="${wellFill}" stroke="rgba(255,255,255,0.22)" stroke-width="1.2"/>` +
             contentText(String(i + 1), cxS, cyS + 1, sR * 0.9, { anchor: "middle", keepCase: true, autoInk: "rgba(255,255,255,0.45)", ink: upInk9, opacity: 0.8 });
         }
       }
-      return `<svg xmlns="http://www.w3.org/2000/svg" width="${WS.toFixed(0)}" height="${HS.toFixed(0)}" viewBox="0 0 ${WS.toFixed(0)} ${HS.toFixed(0)}" role="img" aria-label="step ${cur + 1} of ${nS}"><g opacity="${state === "disabled" ? 0.45 : 1}">${inner0}</g></svg>`;
+      // the pip lane's geometry stamp (round 44, item 38) — attributes
+      // never rasterize, so base bytes stand still
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${WS.toFixed(0)}" height="${HS.toFixed(0)}" viewBox="0 0 ${WS.toFixed(0)} ${HS.toFixed(0)}" data-steppips="${(padS + sR).toFixed(1)} ${cyS.toFixed(1)} ${(sR * 2 + railG).toFixed(1)} ${sR.toFixed(1)} ${nS} ${cur}" role="img" aria-label="step ${cur + 1} of ${nS}"><g opacity="${state === "disabled" ? 0.45 : 1}">${inner0}</g></svg>`;
     }
     case "spinner": {
       /* System chrome · loading spinner — the ring's material with a live
@@ -7604,16 +7639,35 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
           u * u * u * P0[1] + 3 * u * u * t * P1[1] + 3 * u * t * t * P2[1] + t * t * t * P3[1],
         ];
       };
+      /* ── ENGINE ATOMS (round 44, item 26 — RIG-5): one bead in each
+         LOOK on a shared square canvas; the PathConnector rig deals nine
+         of them at the stamped bezier centers and lights them by value.
+         The base sheet's DRAWING is untouched — its bytes hold still
+         (legacy sheet for old scenes and board stamps). ── */
+      if (opts.part === "bead" || opts.part === "bead-lit") {
+        const sideP9 = Math.ceil((9 * k + 10 * k) * 2);
+        const cP9 = sideP9 / 2;
+        const litP9 = opts.part === "bead-lit";
+        const r9 = (litP9 ? 9 : 7) * k;
+        const innerP9 = litP9
+          ? `<circle cx="${cP9}" cy="${cP9}" r="${r9.toFixed(1)}" fill="${glow}" stroke="${darken(glow, 0.4)}" stroke-width="1.4" style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(glow, 0.65)})"/><circle cx="${(cP9 - r9 * 0.3).toFixed(1)}" cy="${(cP9 - r9 * 0.35).toFixed(1)}" r="${(r9 * 0.3).toFixed(1)}" fill="#FFFFFF" opacity="0.8"/>`
+          : `<circle cx="${cP9}" cy="${cP9}" r="${r9.toFixed(1)}" fill="rgba(120,128,148,0.35)" stroke="rgba(255,255,255,0.25)" stroke-width="1.2"/>`;
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${sideP9}" height="${sideP9}" viewBox="0 0 ${sideP9} ${sideP9}" role="img" aria-label="path ${opts.part}">${innerP9}</svg>`;
+      }
       let beads = "";
+      const ptsP9: string[] = [];
       for (let i = 0; i < nB; i++) {
         const [bx9, by9] = bez(i / (nB - 1));
+        ptsP9.push(`${bx9.toFixed(1)} ${by9.toFixed(1)}`);
         const on = i / (nB - 1) <= vP9;
         const r9 = (on ? 9 : 7) * k;
         beads += on
           ? `<circle cx="${bx9.toFixed(1)}" cy="${by9.toFixed(1)}" r="${r9.toFixed(1)}" fill="${glow}" stroke="${darken(glow, 0.4)}" stroke-width="1.4"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(glow, 0.65)})"` : ""}/><circle cx="${(bx9 - r9 * 0.3).toFixed(1)}" cy="${(by9 - r9 * 0.35).toFixed(1)}" r="${(r9 * 0.3).toFixed(1)}" fill="#FFFFFF" opacity="0.8"/>`
           : `<circle cx="${bx9.toFixed(1)}" cy="${by9.toFixed(1)}" r="${r9.toFixed(1)}" fill="rgba(120,128,148,0.35)" stroke="rgba(255,255,255,0.25)" stroke-width="1.2"/>`;
       }
-      return `<svg xmlns="http://www.w3.org/2000/svg" width="${WP9.toFixed(0)}" height="${HP9.toFixed(0)}" viewBox="0 0 ${WP9.toFixed(0)} ${HP9.toFixed(0)}" data-pathconnector="1" role="img" aria-label="path progress"><g opacity="${state === "disabled" ? 0.45 : 1}">${beads}</g></svg>`;
+      // the nine sampled bezier centers ride an attribute (round 44,
+      // item 26) — geometry for the rig, zero raster change
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${WP9.toFixed(0)}" height="${HP9.toFixed(0)}" viewBox="0 0 ${WP9.toFixed(0)} ${HP9.toFixed(0)}" data-pathconnector="1" data-pathgeo="${ptsP9.join(" ")}" role="img" aria-label="path progress"><g opacity="${state === "disabled" ? 0.45 : 1}">${beads}</g></svg>`;
     }
     case "heartmeter": {
       /* Casual · heart meter — lives WITH the refill economy: filled candy

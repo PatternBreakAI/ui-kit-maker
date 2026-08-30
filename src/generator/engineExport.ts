@@ -3506,6 +3506,12 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      gates on pitch). staged = the index the maker's value picked. */
   let pageDotsGeo: { x0: number; cy: number; pitch: number; r: number; n: number; staged: number; w: number; h: number } | null = null;
   let startLightsGeo: { x0: number; cy: number; pitch: number; r: number; n: number; staged: number; w: number; h: number } | null = null;
+  /* round 44 tail (items 38 + 26): the step lane's geometry (pitch/r in
+     PNG px — crop-proof; the anchor rides the plate row's gauge stamp)
+     and the saga trail's nine sampled bezier centers (design px — the
+     dealt rig wears no sprite, so design units ARE its UI units) */
+  let stepsGeo: { x0: number; cy: number; pitch: number; r: number; n: number; staged: number; w: number; h: number } | null = null;
+  let pathGeo: { w: number; h: number; n: number; staged: number; pts: number[] } | null = null;
   // rarity ladder — rendered as frames only in the full kit, but declared
   // here because the manifest's rarity block (full-gated) also reads it
   const tiersR = rarityTiers(st.cfg);
@@ -4248,7 +4254,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         setrow: "Settings row — a WORKING control: the mini-slider is a real Unity Slider (drag the candy knob or set Slider.value; the Filled mercury and rounded head follow). The row label and value readout are LIVE seats — the readout is not wired to the slider, hook it to Slider.onValueChanged or retype it.",
         listmenu: "List menu — four rows: every row glyph is a LIVE Image child, every word a LIVE seat, and the Row highlight is a LIVE child too (slide it one row pitch to move the selection, or delete it). Wire per-row buttons over it.",
         scrollbar: "LEGACY SHEET (kept projects) — the flat strip with the thumb baked. The REAL road is the wired Scrollbar prefab: scrollbar-track.9 + scrollbar-thumb.9 with a genuine UnityEngine.UI.Scrollbar (drive Scrollbar.value; pair with your ScrollRect).",
-        steps: "Step indicator — wizard pips; the step numbers are LIVE seats. Display piece.",
+        steps: "Step indicator — DRIVABLE (round 44): the generated prefab wears the still plate and KitSteps makes the position a dial (SetStep 1..4, or SetValue 0..1) — pip looks swap (done/current/upcoming), rails light behind the current step, and ALL FOUR digits are LIVE seats repainted per state. This baked sheet stays for older scenes.",
         pagedots: "Page dots — DRIVABLE (round 44): the PageDots prefab deals the strip live from pagedots-dot/knob at the kit's own pitch (PatternBreakPageDots — SetPage/SetCount, or SetValue 0..1). This baked sheet stays for older scenes and board stamps.",
         questpanel: "Quest tracker — eyebrow, title, objectives and counts are LIVE seats (title is the live Label, pinned left like the app draws it). Every objective pip is a LIVE Image child — swap it between the shipped pip-done / pip-active / pip-empty looks to toggle a row. The footer mercury is a Filled fill that snaps to WHOLE objectives (drive Fill's fillAmount or KitBarFill.SetValue; snapSteps 3). The 1/3 and 2/3 count words are seats, not wired to the bar — retype them to match your value. Display piece.",
         dialoguebox: "Dialogue box — both lines are LIVE seats, the speaker plate a live child whose NAME rides it (move or delete plate + name as one), and the continue caret its OWN live child (owner ruling, round 44 — blink it, bob it or swap it; icons/* fit the seat). Display piece.",
@@ -4279,7 +4285,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         heartmeter: "Heart meter — every pip is a LIVE Image child answering the app's icon picker (swap any sprite in the Inspector); the timer is a LIVE seat and the add cap ITSELF a REAL small-button child with its + mark riding it (move, restyle or delete cap + mark as one). Display piece with one pressable corner.",
         energymeter: "Energy meter — LIVE: the ten cells snap whole (KitCellMeter — drive Value or SetValue), the Energy badge is a LIVE Image child (the app's icon picker steers it) and the count is a LIVE seat. Display piece.",
         starrating: "Star rating — DRIVABLE (round 44): the three Stars, the Celebration flare and the Replay button are LIVE children, and PatternBreakStarRating makes the score a dial (SetStars 0..3, or drive Value — earned/unearned looks swap on one shared frame; celebration + replay appear only at full marks, the app's own rule). The Replay button is a REAL Button. Display piece.",
-        pathconnector: "Saga path connector — the dotted trail between level nodes; progress bakes at the staged value. Display piece.",
+        pathconnector: "Saga path connector — DRIVABLE (round 44): the Pathconnector prefab deals nine live beads along the kit's own S-curve and PatternBreakPathConnector lights them by value (SetProgress / SetValue 0..1). This baked sheet stays for older scenes and board stamps.",
         combo: "Combo burst — CLICK IT IN PLAY: the ComboPop rig replays the app's exact celebration (squash, overshoot, settle) and ClaimBurst throws the sparks; call ComboPop.Pop() on every multiplier tick. The tilted numeral is art by the warped-stamp contract (per-copy words ride posed skins).",
         booster: "Booster button — a REAL button (Sprite Swap states); the booster glyph is a LIVE Image child and the count badge a live plate child with its count RIDING it (the ×0 FREE ribbon ships the same way).",
         flipclock: "Flip countdown — the tile digits and caption are LIVE seats; drive them from your own clock. Display piece.",
@@ -4680,7 +4686,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           ...(uWord !== undefined ? { labelText: uWord } : {}),
           ...(ringRig || buffRig ? {} : seatsU),
           ...(iconSeatsU ? { iconSeats: iconSeatsU } : stepperSeats ? { iconSeats: stepperSeats } : {}),
-        }, true, interactive || buffRig || cellRig || stepperOut || livesOut ? uid : undefined);
+        /* the worn-ground rigs (buff plate, stopwatch face, step plate)
+           must share the base's crop frame — the union IS the base's own
+           box (their ink is a subset), so base bytes stand still */
+        }, true, interactive || buffRig || cellRig || stepperOut || livesOut || uid === "stopwatch" || uid === "steps" ? uid : undefined);
         if (livesOut) {
           await addPng(`${uid}/lit.png`, livesOut.lit, {
             component: uid, part: "lit", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
@@ -4997,6 +5006,68 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
                 component: uid, part: "hub-alarm", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
                 usage: "The pivot knob in the ALARM mood — the rig swaps it in below 25% (a candy gradient can't tint).",
               }, false);
+            }
+          } catch { /* base.png still ships — the static road stands */ }
+        }
+        /* ── the STEP LANE ATOMS (round 44, item 38 — RIG-5): the PLATE
+           is the rig's ground — dim rails as anatomy, no pips, EVERY
+           digit a live seat (the missing "1" included); the three pip
+           LOOKS + the lit rail ship on shared canvases and KitSteps
+           swaps them. base.png keeps the baked pose byte-identical
+           (legacy sheet). The lane anchor rides the plate row's gauge
+           stamp (crop-corrected); pitch/r travel in PNG px. ── */
+        if (uid === "steps") {
+          try {
+            const plateRaw = stripLoopsU(shell(uid, { ...uOpts, part: "plate" }, undefined, uVal));
+            const gmST = /data-steppips="([-\d. ]+)"/.exec(plateRaw);
+            const vbST = /viewBox="0 0 ([\d.]+) ([\d.]+)"/.exec(plateRaw);
+            if (gmST && vbST) {
+              const [sx0, scy, spitch, sr9, sn, scur] = gmST[1].split(" ").map(Number);
+              const rd9 = (v: number) => Math.round(v * 10) / 10;
+              stepsGeo = { x0: 0, cy: 0, pitch: rd9(spitch * PNG_SCALE), r: rd9(sr9 * PNG_SCALE), n: sn, staged: scur, w: rd9(+vbST[1]), h: rd9(+vbST[2]) };
+              const plateStripped = stripWordInk(plateRaw);
+              await addPng(`${uid}/plate.png`, plateStripped.svg, {
+                component: uid, part: "plate", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+                usage: "Step lane, still — the LIVE rig's ground (dim rails only; the generated prefab wears it and KitSteps deals the pips). Every digit is a LIVE seat riding this row — the '1' included.",
+                ...textSeatsOf(uid, plateStripped.svg, { part: "plate", icon: resolveKitIcon(st.kitIcons?.[uid], undefined) }, undefined, uVal),
+                gauge: { x: 0, y: 0, fs: 0, unitY: 0, unitFs: 0, dialX: sx0 * PNG_SCALE, dialY: scy * PNG_SCALE },
+              }, true, uid);
+              const lookST: [string, string][] = [
+                ["pip-done", "A step DONE — filled disc + check (the app's own ink); KitSteps swaps it in behind the current one."],
+                ["pip-current", "The CURRENT step — candy knob + glow ring; KitSteps parks it on the live step."],
+                ["pip-upcoming", "An UPCOMING step — the resting well; its digit stays a live seat above."],
+                ["rail-lit", "A lit connector segment — KitSteps lights the rails behind the current step (the dim rail is the plate's own anatomy)."],
+              ];
+              for (const [partST, useST] of lookST)
+                await addPng(`${uid}/${partST}.png`, shell(uid, { ...uOpts, part: partST }, undefined, uVal), {
+                  component: uid, part: partST, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: useST,
+                }, false);
+            }
+          } catch { /* base.png still ships — the static road stands */ }
+        }
+        /* ── the SAGA TRAIL ATOMS (round 44, item 26 — RIG-5): one bead
+           in each look; the PathConnector rig deals nine at the stamped
+           bezier centers and lights them by value. The base sheet stays
+           BYTE-IDENTICAL (the dossier's own gate) — the geometry rides
+           an attribute. ── */
+        if (uid === "pathconnector") {
+          try {
+            const gmPC = /data-pathgeo="([-\d. ]+)"/.exec(fullU);
+            const vbPC = /viewBox="0 0 ([\d.]+) ([\d.]+)"/.exec(fullU);
+            if (gmPC && vbPC) {
+              const ptsPC = gmPC[1].split(" ").map(Number);
+              if (ptsPC.length >= 6 && ptsPC.every(Number.isFinite)) {
+                const rd8 = (v: number) => Math.round(v * 10) / 10;
+                pathGeo = { w: rd8(+vbPC[1]), h: rd8(+vbPC[2]), n: ptsPC.length / 2, staged: Math.max(0.005, Math.min(1, uVal ?? 0.6)), pts: ptsPC.map(rd8) };
+                await addPng(`${uid}/bead.png`, shell(uid, { ...uOpts, part: "bead" }, undefined, uVal), {
+                  component: uid, part: "bead", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+                  usage: "One resting bead — PathConnector deals nine of these along the kit's own S-curve.",
+                }, false);
+                await addPng(`${uid}/bead-lit.png`, shell(uid, { ...uOpts, part: "bead-lit" }, undefined, uVal), {
+                  component: uid, part: "bead-lit", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+                  usage: "One LIT bead — glow + specular, the app's exact ink; PathConnector lights beads up to the live value.",
+                }, false);
+              }
             }
           } catch { /* base.png still ships — the static road stands */ }
         }
@@ -6035,6 +6106,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       // RIG-5 geometry (round 44): absent in old zips by design
       pageDots: pageDotsGeo,
       startLights: startLightsGeo,
+      steps: stepsGeo,
+      pathConnector: pathGeo,
       rules: [
         "Nothing replaceable is baked: labels, numbers, values, avatars and swappable icons are live engine content.",
         "Nine-slice assets stretch only their center region; margins below are in PNG pixels at pngScale.",
@@ -6418,6 +6491,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Runtime/PatternBreakStarRating.cs", data: STAR_RATING_RUNTIME });
   files.push({ path: "Runtime/PatternBreakEmoteWheel.cs", data: EMOTE_WHEEL_RUNTIME });
   files.push({ path: "Runtime/PatternBreakStopwatch.cs", data: STOPWATCH_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakKitSteps.cs", data: KIT_STEPS_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakPathConnector.cs", data: PATH_CONNECTOR_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitTrace.cs", data: KIT_TRACE_RUNTIME });
   files.push({ path: "Runtime/PatternBreakSafeArea.cs", data: SAFE_AREA_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitPiece.cs", data: KIT_PIECE_RUNTIME });
@@ -6499,6 +6574,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     "Runtime/PatternBreakStarRating.cs",
     "Runtime/PatternBreakEmoteWheel.cs",
     "Runtime/PatternBreakStopwatch.cs",
+    "Runtime/PatternBreakKitSteps.cs",
+    "Runtime/PatternBreakPathConnector.cs",
     "Runtime/PatternBreakKitTrace.cs",
     "Runtime/PatternBreakSafeArea.cs",
     "Runtime/PatternBreakKitPiece.cs",
@@ -7156,6 +7233,104 @@ namespace PatternBreak {
       bool fullS = stars >= 3;
       if (celebration != null && celebration.activeSelf != fullS) celebration.SetActive(fullS);
       if (replay != null && replay.activeSelf != fullS) replay.SetActive(fullS);
+    }
+    void OnEnable() { Apply(); }
+#if UNITY_EDITOR
+    void OnValidate() { UnityEditor.EditorApplication.delayCall += () => { if (this != null) Apply(); }; }
+#endif
+  }
+}
+`;
+
+/* the STEP LANE rig (round 44, item 38 — RIG-5): the wizard's position
+   is a DIAL. The plate carries dim rails + live digits; the rig swaps
+   each pip's look (done / current / upcoming), lights the rails behind
+   the current step, and repaints/hides the digits the way the app does
+   (done pips wear the check, not a number). */
+const KIT_STEPS_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+#if UNITY_2023_2_OR_NEWER
+using TMPro;
+#endif
+
+namespace PatternBreak {
+  [AddComponentMenu("UI Kit Maker/Kit Steps")]
+  [ExecuteAlways]
+  public class KitSteps : MonoBehaviour {
+    [Tooltip("The current step, 1-based — swaps pip looks, lights the rails behind it and repaints the digits (done pips hide theirs under the check, the app's own rule).")]
+    public int step = 1;
+    [Tooltip("The pip children, left to right (generated wiring).")]
+    public Image[] pips = new Image[0];
+    [Tooltip("The lit rail overlays between pips (generated) — enabled behind the current step; the dim rail is the plate's own anatomy.")]
+    public Image[] rails = new Image[0];
+    public Sprite done;
+    public Sprite current;
+    public Sprite upcoming;
+#if UNITY_2023_2_OR_NEWER
+    [Tooltip("The digit seats, step order (generated wiring) — repainted per state; retype one and it stays yours (only color/visibility are driven).")]
+    public TMP_Text[] digits = new TMP_Text[0];
+#endif
+    [Tooltip("The current digit's ink (captured from the kit's own seat).")]
+    public Color currentInk = Color.black;
+    [Tooltip("The upcoming digits' ghost ink (captured from the kit's own seat).")]
+    public Color ghostInk = new Color(1f, 1f, 1f, 0.45f);
+    public void SetStep(int i) { step = Mathf.Clamp(i, 1, Mathf.Max(1, pips.Length)); Apply(); }
+    public void SetValue(float v) { int n = Mathf.Max(1, pips.Length); SetStep(Mathf.Clamp(Mathf.FloorToInt(Mathf.Clamp01(v) * n), 0, n - 1) + 1); }
+    public void Apply() {
+      int cur = Mathf.Clamp(step - 1, 0, Mathf.Max(0, pips.Length - 1));
+      for (int i = 0; i < pips.Length; i++) {
+        var im = pips[i]; if (im == null) continue;
+        var want = i < cur ? done : i == cur ? current : upcoming;
+        if (want != null && im.sprite != want) im.sprite = want;
+      }
+      for (int i = 0; i < rails.Length; i++)
+        if (rails[i] != null && rails[i].enabled != (i < cur)) rails[i].enabled = i < cur;
+#if UNITY_2023_2_OR_NEWER
+      for (int i = 0; i < digits.Length; i++) {
+        var t9 = digits[i]; if (t9 == null) continue;
+        bool show = i >= cur;
+        if (t9.enabled != show) t9.enabled = show;
+        var ink = i == cur ? currentInk : ghostInk;
+        if (show && t9.color != ink) t9.color = ink;
+      }
+#endif
+    }
+    void OnEnable() { Apply(); }
+#if UNITY_EDITOR
+    void OnValidate() { UnityEditor.EditorApplication.delayCall += () => { if (this != null) Apply(); }; }
+#endif
+  }
+}
+`;
+
+/* the SAGA TRAIL rig (round 44, item 26 — RIG-5): progress is a DIAL.
+   The rig deals nine beads at the app's own sampled bezier centers and
+   lights them up to the value — the base sheet stays aboard untouched as
+   the legacy picture. */
+const PATH_CONNECTOR_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+
+namespace PatternBreak {
+  [AddComponentMenu("UI Kit Maker/Path Connector")]
+  [ExecuteAlways]
+  public class PatternBreakPathConnector : MonoBehaviour {
+    [Tooltip("Progress along the trail 0..1 — beads light left to right (SetProgress / SetValue).")]
+    [Range(0f, 1f)] public float value = 0.6f;
+    [Tooltip("The bead children, trail order (generated wiring).")]
+    public Image[] beads = new Image[0];
+    [Tooltip("The resting look (generated).")]
+    public Sprite bead;
+    [Tooltip("The lit look — glow + specular, the app's exact ink (generated).")]
+    public Sprite lit;
+    public void SetProgress(float v) { value = Mathf.Clamp01(v); Apply(); }
+    public void SetValue(float v) { SetProgress(v); }
+    public void Apply() {
+      int n = Mathf.Max(2, beads.Length);
+      for (int i = 0; i < beads.Length; i++) {
+        var im = beads[i]; if (im == null) continue;
+        var want = i / (float)(n - 1) <= value ? lit : bead;
+        if (want != null && im.sprite != want) im.sprite = want;
+      }
     }
     void OnEnable() { Apply(); }
 #if UNITY_EDITOR
@@ -11038,6 +11213,9 @@ namespace PatternBreak {
      frame (both bases ship uncropped). Old zips lack the block entirely:
      JsonUtility leaves every field 0 and pitch gates the rig road off. */
   [Serializable] class PBDotsGeo { public float x0; public float cy; public float pitch; public float r; public int n; public int staged; public float w; public float h; }
+  // round 44 (item 26): the saga trail's sampled centers — x1 y1 x2 y2 …
+  // in design px; absent in old zips by design (JsonUtility zero-gates)
+  [Serializable] class PBPathGeo { public float w; public float h; public int n; public float staged; public float[] pts; }
   // ── Boards→Scenes: the maker's artboards, one ready scene each ──
   /* a BIG GLYPH row (the owner's board-art drop): id/name key prefab
      convergence — every instance of one asset resolves to
@@ -11049,7 +11227,7 @@ namespace PatternBreak {
   [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float artW; public float artH; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string stampMask; public bool bakedFallback; public int stampLive; public float stampFs; public string stampInk; public string stampSplashInk; public string stampCase; public float stampDx; public float stampDy; public float stampW; public float stampH; public string posed; public float posedW; public float posedH; public float posedDx; public float posedDy; public string posedHover; public string posedPressed; public string posedDisabled; public float posedLabelDx; public float posedLabelDy; public string shadow; public float shadowW; public float shadowH; public float shadowDx; public float shadowDy; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; public PBBig big; public PBIconChild[] posedIcons; }
   [Serializable] class PBBoardBg { public string file; public float opacity; public float blur; public float saturation; public float hue; public float brightness; public float contrast; public float noise; public string overlay; public float overlayStrength; public string overlayBlend; public bool original; }
   [Serializable] class PBBoard { public string name; public int w; public int h; public PBBoardBg bg; public PBBoardItem[] items; }
-  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public string seatSpace; public string[] stagedFamilies; public PBWell globeWell; public PBSeasonGeo seasonTrack; public PBDotsGeo pageDots; public PBDotsGeo startLights; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBTimerBlock timer; public PBMenu menu; public PBRarity rarity; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; }
+  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public string seatSpace; public string[] stagedFamilies; public PBWell globeWell; public PBSeasonGeo seasonTrack; public PBDotsGeo pageDots; public PBDotsGeo startLights; public PBDotsGeo steps; public PBPathGeo pathConnector; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBTimerBlock timer; public PBMenu menu; public PBRarity rarity; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; }
   [Serializable] class PBLockEntry { public string file; public string sha256; }
   /* the word each labeled family's prefab was last SEEDED with — the
      ownership ledger: a re-import re-seeds only a label still equal to
@@ -14485,6 +14663,10 @@ namespace PatternBreak {
             if (ewS != null && it.value > 0f) ewS.SetValue(Mathf.Clamp01(it.value));
             var pswS = inst.GetComponent<PatternBreakStopwatch>();
             if (pswS != null && it.value > 0f) pswS.SetValue(Mathf.Clamp01(it.value));
+            var kstS = inst.GetComponent<KitSteps>();
+            if (kstS != null && it.value > 0f) kstS.SetValue(Mathf.Clamp01(it.value));
+            var pcS = inst.GetComponent<PatternBreakPathConnector>();
+            if (pcS != null && it.value > 0f) pcS.SetValue(Mathf.Clamp01(it.value));
             var gdS = inst.GetComponent<GaugeDial>();
             if (gdS != null && it.value > 0f) { gdS.value = Mathf.Clamp01(it.value); gdS.Apply(); }
             var ktS = inst.GetComponent<KitTimer>();
@@ -16933,6 +17115,55 @@ namespace PatternBreak {
           rigSW.Apply();
         }
       }
+      /* ── the STEP LANE goes LIVE (round 44, item 38 — RIG-5): the root
+         wears the still PLATE (dim rails + live digits; base.png keeps
+         the baked pose for old zips), KitSteps deals the pips and the
+         lit rails at the stamped lane geometry, and the digits repaint
+         per state after the words seed. ── */
+      if (baseAsset.component == "steps") {
+        var plateST = S(root + "/assets/steps/steps-plate.png");
+        var doneST = S(root + "/assets/steps/steps-pip-done.png");
+        var curST = S(root + "/assets/steps/steps-pip-current.png");
+        var upST = S(root + "/assets/steps/steps-pip-upcoming.png");
+        var railST = S(root + "/assets/steps/steps-rail-lit.png");
+        var geoST = m != null ? m.steps : null;
+        PBAsset plateRowST = null;
+        foreach (var aST in m.assets) if (aST != null && aST.component == "steps" && aST.part == "plate") { plateRowST = aST; break; }
+        if (plateST != null && doneST != null && curST != null && upST != null && geoST != null && geoST.n >= 2 && geoST.pitch > 1f
+            && plateRowST != null && plateRowST.gauge != null && plateST.rect.width > 2f) {
+          var bodyST = BodyImage(go);
+          if (bodyST != null) bodyST.sprite = plateST;
+          float psST = pngScale > 0 ? pngScale : 2f;
+          System.Func<float, float, Sprite, Image> laneChild = (pxST, pyST, spST) => {
+            var cGo = new GameObject("x", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            cGo.transform.SetParent(go.transform, false);
+            var cRt = cGo.GetComponent<RectTransform>();
+            cRt.anchorMin = cRt.anchorMax = new Vector2(Mathf.Clamp01(pxST / plateST.rect.width), 1f - Mathf.Clamp01(pyST / plateST.rect.height));
+            cRt.pivot = new Vector2(0.5f, 0.5f);
+            cRt.anchoredPosition = Vector2.zero;
+            cRt.sizeDelta = new Vector2(spST.rect.width / psST, spST.rect.height / psST);
+            var cIm = cGo.GetComponent<Image>();
+            cIm.sprite = spST; cIm.raycastTarget = false; cIm.preserveAspect = false;
+            return cIm;
+          };
+          var rigST = go.AddComponent<KitSteps>();
+          var pipsST = new List<Image>(); var railsST = new List<Image>();
+          for (int iST = 0; iST < geoST.n; iST++) {
+            if (iST < geoST.n - 1 && railST != null) {
+              var rIm = laneChild(plateRowST.gauge.dialX + geoST.pitch * iST + geoST.pitch / 2f, plateRowST.gauge.dialY, railST);
+              rIm.gameObject.name = "Rail " + (iST + 1) + " (auto)";
+              railsST.Add(rIm);
+            }
+            var pIm = laneChild(plateRowST.gauge.dialX + geoST.pitch * iST, plateRowST.gauge.dialY, iST < geoST.staged ? doneST : iST == geoST.staged ? curST : upST);
+            pIm.gameObject.name = "Pip " + (iST + 1) + " (auto)";
+            pipsST.Add(pIm);
+          }
+          rigST.pips = pipsST.ToArray();
+          rigST.rails = railsST.ToArray();
+          rigST.done = doneST; rigST.current = curST; rigST.upcoming = upST;
+          rigST.step = Mathf.Clamp(geoST.staged + 1, 1, geoST.n); // rest = the app's staged pose
+        }
+      }
       if (baseAsset.component == "badge" && label == null) {
         var glyph = S(root + "/assets/icons/star.png");
         if (glyph == null) glyph = S(root + "/assets/icons/gem.png");
@@ -16983,6 +17214,29 @@ namespace PatternBreak {
           }
 #endif
           rigSW2.Apply();
+        }
+      }
+      /* the step digits join their rig AFTER the words seed (round 44,
+         item 38): matched by their own text — a digit the dev retypes to
+         something else simply drops out of the drive */
+      if (baseAsset.component == "steps") {
+        var rigST2 = go.GetComponent<KitSteps>();
+        if (rigST2 != null) {
+#if UNITY_2023_2_OR_NEWER
+          int nST2 = rigST2.pips != null ? rigST2.pips.Length : 0;
+          var digST = new TMPro.TMP_Text[nST2];
+          foreach (var tST in go.GetComponentsInChildren<TMPro.TMP_Text>(true)) {
+            int dST;
+            if (tST != null && int.TryParse(tST.text, out dST) && dST >= 1 && dST <= nST2 && digST[dST - 1] == null) digST[dST - 1] = tST;
+          }
+          rigST2.digits = digST;
+          // the kit's own inks, captured from the seeded seats: the staged
+          // current digit carries the dark ink, any other the ghost
+          int curST2 = Mathf.Clamp(rigST2.step - 1, 0, Mathf.Max(0, nST2 - 1));
+          if (curST2 < nST2 && digST[curST2] != null) rigST2.currentInk = digST[curST2].color;
+          for (int iST2 = 0; iST2 < nST2; iST2++) if (iST2 != curST2 && digST[iST2] != null) { rigST2.ghostInk = digST[iST2].color; break; }
+#endif
+          rigST2.Apply();
         }
       }
 #if UNITY_2023_2_OR_NEWER
@@ -18028,6 +18282,39 @@ namespace PatternBreak {
       rig.currentPage = Mathf.Clamp(geo.staged, 0, Mathf.Max(0, rig.pageCount - 1)); // the maker's staged pick, not a guess
       rig.Rebuild();
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/Pagedots.prefab");
+      UnityEngine.Object.DestroyImmediate(go);
+      return true;
+    }
+    static bool PathConnectorPrefab(string dir, string root, int pngScale, PBManifest m) {
+      var geo = m != null ? m.pathConnector : null;
+      var beadSp = S(root + "/assets/pathconnector/pathconnector-bead.png");
+      var litSp = S(root + "/assets/pathconnector/pathconnector-bead-lit.png");
+      // old zips (no geo block, no atoms) keep yesterday's picture road
+      if (geo == null || geo.pts == null || geo.pts.Length < 6 || geo.w < 4f || geo.h < 4f || beadSp == null || litSp == null)
+        return PicturePrefab(dir, root, pngScale, m, "pathconnector/pathconnector-base.png", "Pathconnector", false);
+      var go = new GameObject("Pathconnector", typeof(RectTransform));
+      var rt = go.GetComponent<RectTransform>();
+      rt.sizeDelta = new Vector2(geo.w, geo.h); // canvas design px = UI units
+      var rig = go.AddComponent<PatternBreakPathConnector>();
+      rig.bead = beadSp; rig.lit = litSp;
+      int nPC = geo.pts.Length / 2;
+      var beadsPC = new Image[nPC];
+      for (int iPC = 0; iPC < nPC; iPC++) {
+        var bGo = new GameObject("Bead " + (iPC + 1) + " (auto)", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        bGo.transform.SetParent(go.transform, false);
+        var bIm = bGo.GetComponent<Image>();
+        bIm.sprite = beadSp; bIm.raycastTarget = false;
+        var bRt = (RectTransform)bGo.transform;
+        bRt.anchorMin = bRt.anchorMax = new Vector2(geo.pts[iPC * 2] / geo.w, 1f - geo.pts[iPC * 2 + 1] / geo.h);
+        bRt.pivot = new Vector2(0.5f, 0.5f);
+        bRt.anchoredPosition = Vector2.zero;
+        bRt.sizeDelta = new Vector2(beadSp.rect.width / (pngScale > 0 ? pngScale : 2), beadSp.rect.height / (pngScale > 0 ? pngScale : 2));
+        beadsPC[iPC] = bIm;
+      }
+      rig.beads = beadsPC;
+      rig.value = geo.staged > 0f ? Mathf.Clamp01(geo.staged) : 0.6f; // the app's staged pose, not a guess
+      rig.Apply();
+      PrefabUtility.SaveAsPrefabAsset(go, dir + "/Pathconnector.prefab");
       UnityEngine.Object.DestroyImmediate(go);
       return true;
     }
@@ -20861,6 +21148,9 @@ namespace PatternBreak {
       if (StartLightsPrefab(dir, root, pngScale, m)) any = true;
       // round 44 (RIG-5 pilot): the carousel position becomes a dial
       if (PageDotsPrefab(dir, root, pngScale, m)) any = true;
+      // round 44 (item 26): the saga trail deals its beads and lights
+      // them by value — old zips fall back to the picture road inside
+      if (PathConnectorPrefab(dir, root, pngScale, m)) any = true;
       // round 44 (owner: "quest complete fully wired"): the modal arrives
       // as a real usable piece — two genuine pressing CTAs included
       if (DialogPrefab(dir, root, pngScale, m)) any = true;
@@ -20914,7 +21204,7 @@ namespace PatternBreak {
          but they don't make useful drag-in prefabs (owner) */
       /* firebutton joined the composed rigs: FireButtonPrefab builds the
          wired swipe carousel, so the generic base-sprite prefab bows out */
-      var skip = new HashSet<string> { "progress", "slider", "toggle", "segbar", "fx", "icons", "dropdown", "rarityframe", "loottag", "speedo", "speedo2", "circuit", "startlights", "laptimes", "leaderboard", "telemetry", "joystick", "globe", "seasontrack", "extras", "firebutton", "pagedots", "dialog", "scrollbar" };
+      var skip = new HashSet<string> { "progress", "slider", "toggle", "segbar", "fx", "icons", "dropdown", "rarityframe", "loottag", "speedo", "speedo2", "circuit", "startlights", "laptimes", "leaderboard", "telemetry", "joystick", "globe", "seasontrack", "extras", "firebutton", "pagedots", "dialog", "scrollbar", "pathconnector" };
       /* the GLYPH RACK gets its own shelf (owner call: ~40 Glyph* prefabs
          drowned Prefabs/) — Prefabs/Glyphs/, the BigGlyphs pattern.
          Glyphs STAY prefabs (drag-drop convenience; they'll gain states
