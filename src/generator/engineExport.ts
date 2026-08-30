@@ -4304,7 +4304,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         starrating: "Star rating — DRIVABLE (round 44): the three Stars, the Celebration flare and the Replay button are LIVE children, and PatternBreakStarRating makes the score a dial (SetStars 0..3, or drive Value — earned/unearned looks swap on one shared frame; celebration + replay appear only at full marks, the app's own rule). The Replay button is a REAL Button. Display piece.",
         vitalbar: "Vital bar — LIVE: the mercury is a Filled atom with a rounded head (drive fillAmount or KitBarFill.SetValue); the readout is a LIVE seat — drive both from your resource. Display piece.",
         pathconnector: "Saga path connector — DRIVABLE (round 44): the Pathconnector prefab deals nine live beads along the kit's own S-curve and PatternBreakPathConnector lights them by value (SetProgress / SetValue 0..1). This baked sheet stays for older scenes and board stamps.",
-        combo: "Combo burst — CLICK IT IN PLAY: the ComboPop rig replays the app's exact celebration (squash, overshoot, settle) and ClaimBurst throws the sparks; call ComboPop.Pop() on every multiplier tick. The tilted numeral is art by the warped-stamp contract (per-copy words ride posed skins).",
+        combo: "Combo burst — DYNAMIC (round 47): ComboPop.SetCount(n) deals the ×N numeral from the kit's own celebration digits at the authored seat (the Multiplier child holds the app-staged pose at rest; the Combo plaque is its own live child); Pop() replays the app's exact squash-overshoot-settle on whatever count is set, and ClaimBurst throws the sparks. CLICK IT IN PLAY.",
         booster: "Booster button — a REAL button (Sprite Swap states); the booster glyph is a LIVE Image child and the count badge a live plate child with its count RIDING it (the ×0 FREE ribbon ships the same way).",
         flipclock: "Flip countdown — the tile digits and caption are LIVE seats; drive them from your own clock. Display piece.",
         stopwatch: "Stopwatch — the dial FUNCTIONS (round 44): PatternBreakStopwatch drives the remaining-time arc (Radial360 + rotating round head), the sweep hand, the alarm mood below 25% and the m:ss readout from ONE value (SetValue 0..1, or SetSeconds on the 90s dial). The readout stays a LIVE seat — retype it and it is yours. Display piece.",
@@ -4348,6 +4348,16 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           .replace(/<animate(?:Transform|Motion)?\b[^>]*>[\s\S]*?<\/animate(?:Transform|Motion)?>/g, "");
         let fullU: string;
         try { fullU = stripLoopsU(shell(uid, uOpts, undefined, uVal)); } catch { continue; }
+        /* round 47 (item 3): the combo is a shell-free celebration — the
+           marked-icon road needs a reference frame, so the EXPORT injects
+           the canvas as the shell (the lives trackAttr precedent: an
+           export-side attribute, the app render untouched). Seats then
+           speak canvas-center offsets; the importer's child math follows
+           the row's shell like any family. */
+        if (uid === "combo" && !/data-shell=/.test(fullU)) {
+          const vbC9 = /viewBox="0 0 ([\d.]+) ([\d.]+)"/.exec(fullU);
+          if (vbC9) fullU = fullU.replace("<svg ", `<svg data-shell="0 0 ${vbC9[1]} ${vbC9[2]}" `);
+        }
         /* label metrics off the PRE-strip render — the NINE road's own
            discipline (offsets from the shell0 center, frame-invariant);
            the RENDERED word ships as labelText (levelnode's number ignores
@@ -4698,6 +4708,18 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
             }
           } catch { livesOut = null; }
         }
+        /* round 47 (item 3): the combo base row carries the authored
+           numeral anchor on the crop-corrected gauge road (dialX/dialY —
+           the stopwatch/steps precedent), so ComboPop composes the
+           digits at the exact seat */
+        let comboSeatG: { gauge: NonNullable<AssetMeta["gauge"]> } | null = null;
+        if (uid === "combo") {
+          const seatC9 = /data-comboseat="([-\d. ]+)"/.exec(fullU);
+          if (seatC9) {
+            const [scx9, scy9] = seatC9[1].split(" ").map(Number);
+            comboSeatG = { gauge: { x: 0, y: 0, fs: 0, unitY: 0, unitFs: 0, dialX: scx9 * PNG_SCALE, dialY: scy9 * PNG_SCALE } };
+          }
+        }
         await addPng(`${uid}/base.png`, baseSvgU, {
           component: uid, part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
           usage: UNIVERSAL_USAGE[uid] ?? (GLYPH_BUTTONS.has(uid)
@@ -4708,6 +4730,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           ...(uWord !== undefined ? { labelText: uWord } : {}),
           ...(ringRig || buffRig ? {} : seatsU),
           ...(iconSeatsU ? { iconSeats: iconSeatsU } : stepperSeats ? { iconSeats: stepperSeats } : {}),
+          ...(comboSeatG ?? {}),
         /* the worn-ground rigs (buff plate, stopwatch face, step plate)
            must share the base's crop frame — the union IS the base's own
            box (their ink is a subset), so base bytes stand still */
@@ -5033,6 +5056,29 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
               }, false);
             }
           } catch { /* base.png still ships — the static road stands */ }
+        }
+        /* ── the COMBO DIGIT SET (round 47, item 3 — the digit road):
+           0-9 + × in the FULL celebration dress (extrusion layers, armor
+           stroke, gradient face, halo), unrotated, one glyph per canvas;
+           each row's railW carries the glyph's advance in PNG px.
+           ComboPop.SetCount composes ×N from these at the authored seat
+           — full candy fidelity AND runtime-dynamic. ── */
+        if (uid === "combo") {
+          try {
+            for (const g9 of ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "×"]) {
+              const dSvg = shell(uid, { ...uOpts, part: "digit", label: g9 }, undefined, uVal);
+              const advD = +(/data-adv="([\d.]+)"/.exec(dSvg)?.[1] ?? "0");
+              if (!(advD > 1)) continue;
+              const dName = g9 === "×" ? "x" : g9;
+              await addPng(`${uid}/digit-${dName}.png`, dSvg, {
+                component: uid, part: `digit-${dName}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+                usage: g9 === "×"
+                  ? "The multiplier's × glyph in the kit's own celebration dress — ComboPop.SetCount composes the numeral from these (or swap any composed glyph by hand)."
+                  : `The celebration digit ${g9} — ComboPop.SetCount composes ×N from the digit set at the authored seat.`,
+                railW: Math.round(advD * PNG_SCALE * 10) / 10,
+              }, false);
+            }
+          } catch { /* the resting Multiplier child still ships */ }
         }
         /* ── the CHAMBER LOOKS (round 44, item 44 — RIG-7): every
            chamber's glyph ships BOTH looks on its fixed frame — armed
@@ -7995,6 +8041,7 @@ namespace PatternBreak {
    call Pop() on every multiplier tick; ClaimBurst rides beside it for
    the spark throw. */
 const COMBO_POP_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
 using UnityEngine.EventSystems;
 
 namespace PatternBreak {
@@ -8004,6 +8051,73 @@ namespace PatternBreak {
     public float seconds = 0.55f;
     [Tooltip("Fire the pop on pointer click, the kit page's own behavior.")]
     public bool popOnClick = true;
+    [Header("The multiplier — the digit road (round 47)")]
+    [Tooltip("The multiplier count: 0 keeps the kit's authored numeral sprite; 2+ composes ×N from the kit's own celebration digits at the authored seat. Pop() plays on whatever is set.")]
+    public int count = 0;
+    [Tooltip("The resting Multiplier child (generated wiring) — hidden while a composed count shows.")]
+    public Image numeralSeat;
+    [Tooltip("The celebration digits 0-9, the kit's own dress (generated).")]
+    public Sprite[] digitSprites = new Sprite[0];
+    [Tooltip("The × glyph (generated).")]
+    public Sprite timesSprite;
+    [Tooltip("Per-digit advance in UI units, matched to digitSprites (generated).")]
+    public float[] digitAdvance = new float[0];
+    public float timesAdvance;
+    [Tooltip("UI units per sprite px — 1 / the export's pngScale (generated).")]
+    public float glyphScale = 0.5f;
+    [Tooltip("The numeral's authored tilt — the app's own −4° (Unity CCW).")]
+    public float numeralTilt = 4f;
+    [Tooltip("The authored anchor minus the resting child's center, UI units (generated).")]
+    public Vector2 seatOffset = Vector2.zero;
+    const string MOUNT = "Numeral (auto)";
+    public void SetCount(int n) { count = Mathf.Max(0, n); Apply(); }
+    public void Apply() {
+      if (numeralSeat == null) return;
+      var seatRt = numeralSeat.rectTransform;
+      var mountT = seatRt.Find(MOUNT);
+      bool compose = count >= 2 && timesSprite != null && digitSprites.Length >= 10 && digitAdvance.Length >= 10;
+      if (!compose) {
+        // 0 (or missing atoms) = the authored numeral, exactly as shipped
+        if (!numeralSeat.enabled) numeralSeat.enabled = true;
+        if (mountT != null) mountT.gameObject.SetActive(false);
+        return;
+      }
+      var mount = mountT as RectTransform;
+      if (mount == null) {
+        var g = new GameObject(MOUNT, typeof(RectTransform));
+        g.transform.SetParent(seatRt, false);
+        mount = (RectTransform)g.transform;
+        mount.anchorMin = mount.anchorMax = new Vector2(0.5f, 0.5f);
+        mount.pivot = new Vector2(0.5f, 0.5f);
+        mount.sizeDelta = Vector2.zero;
+      }
+      mount.gameObject.SetActive(true);
+      mount.anchoredPosition = seatOffset;
+      mount.localRotation = Quaternion.Euler(0f, 0f, numeralTilt);
+      numeralSeat.enabled = false;
+      for (int i = mount.childCount - 1; i >= 0; i--) { var ch = mount.GetChild(i).gameObject; if (Application.isPlaying) Destroy(ch); else DestroyImmediate(ch); }
+      string s9 = Mathf.Min(count, 999).ToString();
+      float total = timesAdvance;
+      foreach (var c9 in s9) total += digitAdvance[c9 - '0'];
+      float x9 = -total / 2f;
+      System.Action<Sprite, float> deal = (sp9, adv9) => {
+        var g9 = new GameObject("Glyph", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        g9.transform.SetParent(mount, false);
+        var im9 = g9.GetComponent<Image>(); im9.sprite = sp9; im9.raycastTarget = false;
+        var rt9 = (RectTransform)g9.transform;
+        rt9.anchorMin = rt9.anchorMax = new Vector2(0.5f, 0.5f);
+        rt9.pivot = new Vector2(0.5f, 0.5f);
+        rt9.anchoredPosition = new Vector2(x9 + adv9 / 2f, 0f);
+        rt9.sizeDelta = new Vector2(sp9.rect.width * glyphScale, sp9.rect.height * glyphScale);
+        x9 += adv9;
+      };
+      deal(timesSprite, timesAdvance);
+      foreach (var c9 in s9) deal(digitSprites[c9 - '0'], digitAdvance[c9 - '0']);
+    }
+    void OnEnable() { Apply(); }
+#if UNITY_EDITOR
+    void OnValidate() { UnityEditor.EditorApplication.delayCall += () => { if (this != null) Apply(); }; }
+#endif
     RectTransform rt; Vector3 s0; Quaternion r0; float t = -1f;
     void Awake() { rt = (RectTransform)transform; s0 = rt.localScale; r0 = rt.localRotation; }
     public void OnPointerClick(PointerEventData e) { if (popOnClick) Pop(); }
@@ -10704,8 +10818,10 @@ poses.
 
 **3 · On-demand celebrations and loops — one call.**
 
-- **ComboPop** — \`Pop()\` on every multiplier tick (clicking the piece
-  in Play mode fires it too). The app's exact squash-overshoot-settle.
+- **ComboPop** — \`SetCount(n)\` deals the ×N numeral from the kit's own
+  celebration digits at the authored seat, then \`Pop()\` on every
+  multiplier tick (clicking the piece in Play mode fires it too). The
+  app's exact squash-overshoot-settle.
 - **ClaimBurst** — \`Fire()\` throws the themed spark celebration
   (claim-worded pieces arrive with it wired to the click).
 - **PatternBreakSpinner** — spins by itself in Play mode;
@@ -21851,10 +21967,56 @@ namespace PatternBreak {
         if (contents.GetComponent<ComboPop>() != null) return false; // wired — and thereafter yours
         var imgCP = contents.GetComponent<Image>();
         if (imgCP != null) imgCP.raycastTarget = true; // the pop fires on click, the kit page's own behavior
-        contents.AddComponent<ComboPop>();
+        var popC = contents.AddComponent<ComboPop>();
+        /* ── the multiplier goes DYNAMIC (round 47, item 3 — the digit
+           road): the digit set + advances + the authored seat wire in;
+           count rests 0 (the shipped ×N sprite — pixel parity), and
+           SetCount(n) composes the kit's own celebration digits at the
+           exact seat. Old zips (no digit atoms) keep the static child. ── */
+        var seatTC = contents.transform.Find("Multiplier");
+        var seatImgC = seatTC != null ? seatTC.GetComponent<Image>() : null;
+        var timesC = S(root + "/assets/combo/combo-digit-x.png");
+        if (popC != null && seatImgC != null && timesC != null && m != null && m.assets != null) {
+          float psC = m.pngScale > 0 ? m.pngScale : 2f;
+          var digitsC = new Sprite[10]; var advC = new float[10];
+          bool allC = true;
+          for (int iC = 0; iC < 10; iC++) {
+            digitsC[iC] = S(root + "/assets/combo/combo-digit-" + iC + ".png");
+            PBAsset rowC = null;
+            foreach (var aC in m.assets) if (aC != null && aC.component == "combo" && aC.part == "digit-" + iC) { rowC = aC; break; }
+            if (digitsC[iC] == null || rowC == null || rowC.railW < 1f) { allC = false; break; }
+            advC[iC] = rowC.railW / psC;
+          }
+          PBAsset rowXC = null, baseCC = null;
+          foreach (var aC in m.assets) if (aC != null && aC.component == "combo") { if (aC.part == "digit-x") rowXC = aC; else if (aC.part == "base") baseCC = aC; }
+          var bsCC = contents.GetComponent<Image>() != null ? contents.GetComponent<Image>().sprite : null;
+          if (allC && rowXC != null && rowXC.railW > 1f && baseCC != null && baseCC.gauge != null && baseCC.shell != null && bsCC != null && bsCC.rect.width > 2f) {
+            popC.numeralSeat = seatImgC;
+            popC.timesSprite = timesC;
+            popC.digitSprites = digitsC;
+            popC.digitAdvance = advC;
+            popC.timesAdvance = rowXC.railW / psC;
+            popC.glyphScale = 1f / psC;
+            /* the authored anchor vs the resting child's cut-box center,
+               in ROOT UI units — the compose lands on the app's own
+               text anchor, not the glow-padded crop's middle */
+            PBIconChild seatRowC = null;
+            if (baseCC.iconSeats != null) foreach (var icC in baseCC.iconSeats) if (icC != null && icC.name == "numeral") { seatRowC = icC; break; }
+            if (seatRowC != null) {
+              var rootRtC = (RectTransform)contents.transform;
+              float fxSeat = (baseCC.shell.x + baseCC.shell.w / 2f + seatRowC.dx * psC) / bsCC.rect.width;
+              float fySeat = 1f - (baseCC.shell.y + baseCC.shell.h / 2f + seatRowC.dy * psC) / bsCC.rect.height;
+              float axF = baseCC.gauge.dialX / bsCC.rect.width;
+              float ayF = 1f - baseCC.gauge.dialY / bsCC.rect.height;
+              popC.seatOffset = new Vector2((axF - fxSeat) * rootRtC.sizeDelta.x, (ayF - fySeat) * rootRtC.sizeDelta.y);
+            }
+            popC.count = 0; // rest = the authored numeral, byte-for-byte
+            popC.Apply();
+          }
+        }
         if (contents.GetComponent<ClaimBurst>() == null) AddClaimBurst(contents, root, "combo", m);
         PrefabUtility.SaveAsPrefabAsset(contents, pathCP);
-        if (!quiet) Debug.Log("UI Kit Maker: the Combo prefab celebrates — click it in Play (or call ComboPop.Pop() / ClaimBurst.Fire() from your game) and it pops exactly like the app.");
+        if (!quiet) Debug.Log("UI Kit Maker: the Combo prefab celebrates — click it in Play (or call ComboPop.Pop() / ClaimBurst.Fire() from your game) and it pops exactly like the app; round 47: SetCount(n) deals the multiplier from the kit's own digits.");
         return true;
       } finally { PrefabUtility.UnloadPrefabContents(contents); }
     }

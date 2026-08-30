@@ -3380,6 +3380,30 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the lives glow-pad crop margin left the exporter — the lit hearts clip to a hard rectangle again (round 47, item 2)");
 }
 
+/* ── ROUND 47 · S34 (item 3 — the combo digit road): the numeral and
+   plaque un-burn to live children, the celebration digit set (0-9 + ×)
+   ships with advances, and ComboPop.SetCount composes ×N at the
+   authored seat while Pop() stays untouched. ── */
+{
+  if (!/data-icon="numeral" data-icon-nick="Multiplier"/.test(bevelSrc)
+      || !/data-icon="plaque" data-icon-nick="Combo plaque"/.test(bevelSrc)
+      || !/data-comboseat="\$\{cxC0\.toFixed\(1\)\} \$\{cyC0\.toFixed\(1\)\}"/.test(bevelSrc)
+      || !/if \(opts\.part === "digit"\) \{/.test(bevelSrc)
+      || !/data-adv="\$\{advG\.toFixed\(1\)\}"/.test(bevelSrc))
+    errors.push("the combo marks / seat stamp / digit part render left bevel (round 47, item 3)");
+  if (!/const mG = measureLive\(g9, cfg\.type\.font, TWc, itG\) \?\? measureLabel\(g9, cfg\.type\.font, TWc, itG\);/.test(bevelSrc))
+    errors.push("the digit advance stopped being measured LIVE at the rendered weight/italic — the baked table's ×-ceiling (0.661em vs Fredoka's real 0.474em) would drift every composed digit by half the miss again (round 47, item 3)");
+  if (!/`\$\{uid\}\/digit-\$\{dName\}\.png`/.test(src) || !/comboSeatG = \{ gauge: \{ x: 0, y: 0, fs: 0, unitY: 0, unitFs: 0, dialX: scx9 \* PNG_SCALE, dialY: scy9 \* PNG_SCALE \} \};/.test(src))
+    errors.push("the combo digit atoms or the seat gauge left the exporter (round 47, item 3)");
+  if (!/public void SetCount\(int n\) \{ count = Mathf\.Max\(0, n\); Apply\(\); \}/.test(src)
+      || !/deal\(timesSprite, timesAdvance\);/.test(src)
+      || !/public void Pop\(\) \{ if \(rt == null\) rt = \(RectTransform\)transform; t = 0f; \}/.test(src))
+    errors.push("ComboPop lost SetCount, the compose, or Pop's untouched body (round 47, item 3)");
+  if (!/popC\.seatOffset = new Vector2\(\(axF - fxSeat\) \* rootRtC\.sizeDelta\.x, \(ayF - fySeat\) \* rootRtC\.sizeDelta\.y\);/.test(cs)
+      || !/popC\.count = 0; \/\/ rest = the authored numeral, byte-for-byte/.test(cs))
+    errors.push("ComboPopWire lost the digit wiring or its rest-parity count (round 47, item 3)");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);

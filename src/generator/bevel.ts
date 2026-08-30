@@ -8003,26 +8003,60 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const TWc = Math.max(400, cfg.type.weight || 900);
       const numAttrs = `font-family="'${font}', 'Inter Variable', Inter, sans-serif" font-size="${fsC.toFixed(1)}" font-weight="${TWc}"${cfg.type.italic === false ? "" : ' font-style="italic"'} text-anchor="middle" dominant-baseline="central"`;
       const numBase = cfg.type.fillMode === "solid" ? cfg.type.fill : cfg.type.fillMode === "gradient" ? cfg.type.fill2 : glow;
-      const numeral = `<g transform="rotate(-4 ${cxC0.toFixed(1)} ${cyC0.toFixed(1)})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(9 * k).toFixed(1)}px ${hexRgba(glow, 0.7)})"` : ""}>
-  <text x="${(cxC0 + 5 * k).toFixed(1)}" y="${(cyC0 + 6 * k).toFixed(1)}" ${numAttrs} fill="${darken(numBase, 0.55)}" style="paint-order: stroke; stroke: ${armorC}; stroke-width: ${(4 * k).toFixed(1)}px; stroke-linejoin: round">${esc(mult)}</text>
-  <text x="${(cxC0 + 2.5 * k).toFixed(1)}" y="${(cyC0 + 3 * k).toFixed(1)}" ${numAttrs} fill="${darken(numBase, 0.3)}">${esc(mult)}</text>
-  <text x="${cxC0.toFixed(1)}" y="${cyC0.toFixed(1)}" ${numAttrs} fill="url(#${gidC9})" style="paint-order: stroke; stroke: ${armorC}; stroke-width: ${(2 * k).toFixed(1)}px; stroke-linejoin: round">${esc(mult)}</text>
-</g>`;
-      // the COMBO! plate — chamfered corners, dark well fill, glow trim
+      const gradStops = cfg.type.fillMode === "solid"
+        ? `<stop offset="0" stop-color="${lighten(cfg.type.fill, 0.55)}"/><stop offset="0.45" stop-color="${lighten(cfg.type.fill, 0.2)}"/><stop offset="1" stop-color="${cfg.type.fill}"/>`
+        : cfg.type.fillMode === "gradient"
+          ? `<stop offset="0" stop-color="${lighten(cfg.type.fill, 0.35)}"/><stop offset="0.5" stop-color="${cfg.type.fill}"/><stop offset="1" stop-color="${cfg.type.fill2}"/>`
+          : `<stop offset="0" stop-color="${hexMix(glow, "#FFFFFF", 0.92)}"/><stop offset="0.45" stop-color="${liteC}"/><stop offset="1" stop-color="${glow}"/>`;
+      // the celebration treatment for ONE anchor point — shared by the
+      // whole numeral and the per-glyph digit atoms (round 47, item 3)
+      const numLayers = (txt: string, ax: number, ay: number) =>
+        `<text x="${(ax + 5 * k).toFixed(1)}" y="${(ay + 6 * k).toFixed(1)}" ${numAttrs} fill="${darken(numBase, 0.55)}" style="paint-order: stroke; stroke: ${armorC}; stroke-width: ${(4 * k).toFixed(1)}px; stroke-linejoin: round">${esc(txt)}</text>
+  <text x="${(ax + 2.5 * k).toFixed(1)}" y="${(ay + 3 * k).toFixed(1)}" ${numAttrs} fill="${darken(numBase, 0.3)}">${esc(txt)}</text>
+  <text x="${ax.toFixed(1)}" y="${ay.toFixed(1)}" ${numAttrs} fill="url(#${gidC9})" style="paint-order: stroke; stroke: ${armorC}; stroke-width: ${(2 * k).toFixed(1)}px; stroke-linejoin: round">${esc(txt)}</text>`;
+      /* ── ENGINE ATOM (round 47, item 3 — the digit road): ONE glyph in
+         the full celebration dress, UNROTATED, centered on its own
+         canvas; ComboPop composes ×N from these at the authored seat
+         (the −4° tilt returns as the mount's rotation). data-adv carries
+         the glyph's advance in design px. ── */
+      if (opts.part === "digit") {
+        const g9 = opts.label ?? "0";
+        /* the advance must be the RENDERED face's own shaping — measured
+           LIVE at the numeral's actual weight/italic. The baked metrics
+           table is a layout CEILING with no U+00D7 aboard (it returned
+           0.661em for "×" where Fredoka's real advance is 0.474em, and
+           every composed digit then drifted by half that error — the
+           center-anchored line halves an advance miss). The baked road
+           stays as the no-document fallback only. */
+        const itG = cfg.type.italic !== false;
+        const mG = measureLive(g9, cfg.type.font, TWc, itG) ?? measureLabel(g9, cfg.type.font, TWc, itG);
+        const advG = (mG !== null ? mG : 0.62) * fsC;
+        const Wd = Math.ceil(advG + fsC * 1.4), Hd = Math.ceil(fsC * 2.2);
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${Wd}" height="${Hd}" viewBox="0 0 ${Wd} ${Hd}" data-adv="${advG.toFixed(1)}" role="img" aria-label="combo digit ${g9}">
+<defs><linearGradient id="${gidC9}" x1="0" y1="0" x2="0" y2="1">${gradStops}</linearGradient></defs>
+<g style="filter: drop-shadow(0 0 ${(9 * k).toFixed(1)}px ${hexRgba(glow, 0.7)})">${numLayers(g9, Wd / 2, Hd / 2)}</g>
+</svg>`;
+      }
+      /* round 47 (item 3): the numeral is MARKED swappable ink — the
+         export strips it to a live Multiplier child, and ComboPop's
+         SetCount swaps in composed digits at this exact seat */
+      const numeral = `<g data-part="icon" data-icon="numeral" data-icon-nick="Multiplier"><g transform="rotate(-4 ${cxC0.toFixed(1)} ${cyC0.toFixed(1)})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(9 * k).toFixed(1)}px ${hexRgba(glow, 0.7)})"` : ""}>
+  ${numLayers(mult, cxC0, cyC0)}
+</g></g>`;
+      // the COMBO! plate — chamfered corners, dark well fill, glow trim.
+      // Round 47 (item 3): MARKED as one live child (the AD-ribbon
+      // precedent — the rotated word stays in the plate's pixels by the
+      // warped-stamp contract; the app's word slot re-bakes it)
       const pW = (96 + plateWord.length * 15) * k, pH = 46 * k, ch9 = 9 * k;
       const pcy = cyC0 + fsC * 0.72 + 30 * k;
-      const plate = `<g transform="rotate(-3 ${cxC0.toFixed(1)} ${pcy.toFixed(1)})"${state !== "disabled" ? ` style="filter: drop-shadow(0 2px 4px rgba(6,10,18,0.5))"` : ""}>
+      const plate = `<g data-part="icon" data-icon="plaque" data-icon-nick="Combo plaque"><g transform="rotate(-3 ${cxC0.toFixed(1)} ${pcy.toFixed(1)})"${state !== "disabled" ? ` style="filter: drop-shadow(0 2px 4px rgba(6,10,18,0.5))"` : ""}>
   <path d="M ${(cxC0 - pW / 2 + ch9).toFixed(1)} ${(pcy - pH / 2).toFixed(1)} h ${(pW - ch9 * 2).toFixed(1)} l ${ch9.toFixed(1)} ${ch9.toFixed(1)} v ${(pH - ch9 * 2).toFixed(1)} l ${(-ch9).toFixed(1)} ${ch9.toFixed(1)} h ${(-(pW - ch9 * 2)).toFixed(1)} l ${(-ch9).toFixed(1)} ${(-ch9).toFixed(1)} v ${(-(pH - ch9 * 2)).toFixed(1)} Z" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.78)}" stroke="${hexMix(glow, "#FFFFFF", 0.4)}" stroke-width="${(2 * k).toFixed(1)}" stroke-linejoin="round"/>
   <text x="${cxC0.toFixed(1)}" y="${(pcy + 0.5).toFixed(1)}" font-family="'${font}', 'Inter Variable', Inter, sans-serif" font-size="${(21 * k).toFixed(1)}" font-weight="900" font-style="italic" letter-spacing="0.1em" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central" style="paint-order: stroke; stroke: rgba(8,12,22,0.55); stroke-width: ${(2.4 * k).toFixed(1)}px; stroke-linejoin: round">${esc(plateWord)}</text>
-</g>`;
-      return `<svg xmlns="http://www.w3.org/2000/svg" width="${WC.toFixed(0)}" height="${HC.toFixed(0)}" viewBox="0 0 ${WC.toFixed(0)} ${HC.toFixed(0)}" data-combo="1" role="img" aria-label="combo ${mult}">
-<defs><linearGradient id="${gidC9}" x1="0" y1="0" x2="0" y2="1">${
-        cfg.type.fillMode === "solid"
-          ? `<stop offset="0" stop-color="${lighten(cfg.type.fill, 0.55)}"/><stop offset="0.45" stop-color="${lighten(cfg.type.fill, 0.2)}"/><stop offset="1" stop-color="${cfg.type.fill}"/>`
-          : cfg.type.fillMode === "gradient"
-            ? `<stop offset="0" stop-color="${lighten(cfg.type.fill, 0.35)}"/><stop offset="0.5" stop-color="${cfg.type.fill}"/><stop offset="1" stop-color="${cfg.type.fill2}"/>`
-            : `<stop offset="0" stop-color="${hexMix(glow, "#FFFFFF", 0.92)}"/><stop offset="0.45" stop-color="${liteC}"/><stop offset="1" stop-color="${glow}"/>`
-      }</linearGradient></defs>
+</g></g>`;
+      // the authored numeral anchor rides an attribute (round 47, item 3)
+      // — geometry for the digit compose, zero raster change
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${WC.toFixed(0)}" height="${HC.toFixed(0)}" viewBox="0 0 ${WC.toFixed(0)} ${HC.toFixed(0)}" data-combo="1" data-comboseat="${cxC0.toFixed(1)} ${cyC0.toFixed(1)}" role="img" aria-label="combo ${mult}">
+<defs><linearGradient id="${gidC9}" x1="0" y1="0" x2="0" y2="1">${gradStops}</linearGradient></defs>
 <g opacity="${state === "disabled" ? 0.45 : 1}">
   <g>${shimmer}${burst}</g>
   ${numeral}
