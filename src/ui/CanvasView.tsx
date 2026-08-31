@@ -12,7 +12,7 @@ import { renderBevel, renderKit, padSvg, addShine } from "@/generator/bevel";
 import { KIT_COMPONENTS, CANVAS_BGS, STATE_NAMES , applyKitDesign, applyKitTextFill, isDarkBg, resolveKitIcon, baseOf } from "@/generator/model";
 import type { GenStateName, KitComponentId } from "@/generator/model";
 import { KitPage } from "./KitPage";
-import { LiveArt, shellHit, shellRectHit } from "./LiveArt";
+import { LiveArt, shellHit, shellRectHit, detachBBoxNoise } from "./LiveArt";
 import { BoardView } from "./Board";
 import { SliceStage } from "./SliceStage";
 import { FirstVisitHints } from "./FirstVisit";
@@ -20,6 +20,59 @@ import { FirstVisitHints } from "./FirstVisit";
 /* state names resolve per render so the homepage's language choice wins */
 const capOf = (s: GenStateName) =>
   s === "default" ? t("stDefault") : s === "hover" ? t("stHover") : s === "pressed" ? t("stPressed") : t("stDisabled");
+
+/** A state card's art, centered on its MEASURED ink — not its canvas box.
+ *  The render's canvas reserves the sliders' full travel BELOW the shell
+ *  (extrusion cap + four-sigma shadow room), so tall pieces carry far more
+ *  air under the ink than over it; the card's plain CSS fit then hangs the
+ *  visible asset at the card's bottom edge (owner, round 52: "the tray on
+ *  the right is misaligned... the asset doesn't appear in the middle of
+ *  the container" — an icon button sat 25px low in a 56px card). This
+ *  measures the drawn ink (getBBox with the hit/focus/shine helpers
+ *  detached — the board's body-box discipline) and translates the svg so
+ *  the INK centers in the card, scaling down only when the ink itself
+ *  outgrows the card. The glow air is never cropped — it keeps drawing
+ *  past the card edges (overflow: visible), now spilling evenly. */
+function ScardBody({ html }: { html: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const box = ref.current;
+    const svg = box?.querySelector("svg");
+    if (!box || !svg) return;
+    const center = () => {
+      // re-measure from a clean slate — a stale correction skews the rects
+      svg.style.transform = "";
+      const restore = detachBBoxNoise(svg);
+      let bb: DOMRect;
+      try { bb = svg.getBBox(); } catch { return; } finally { restore(); }
+      const vb = svg.viewBox?.baseVal;
+      if (!vb?.width || !vb.height || !bb.width || !bb.height) return;
+      const sr = svg.getBoundingClientRect();
+      const br = box.getBoundingClientRect();
+      if (!sr.width || !br.width) return;
+      const kx = sr.width / vb.width, ky = sr.height / vb.height;
+      const ix = sr.x + (bb.x - vb.x) * kx, iy = sr.y + (bb.y - vb.y) * ky;
+      const iw = bb.width * kx, ih = bb.height * ky;
+      // shrink only if the ink itself outgrows the card space (tall pieces
+      // whose width-fit size overshoots); never grow — the familiar sizes hold
+      const fit = Math.min(1, (br.width - 4) / iw, (br.height - 4) / ih);
+      const dx = (br.x + br.width / 2) - (ix + iw / 2);
+      const dy = (br.y + br.height / 2) - (iy + ih / 2);
+      if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5 && fit === 1) return;
+      svg.style.transformOrigin = `${(ix + iw / 2 - sr.x).toFixed(1)}px ${(iy + ih / 2 - sr.y).toFixed(1)}px`;
+      svg.style.transform = `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px)${fit < 1 ? ` scale(${fit.toFixed(3)})` : ""}`;
+    };
+    center();
+    // fonts land after first paint and can move the measured ink; the card
+    // box can also resize with the layout — both re-center, cheaply (4 cards)
+    const ro = new ResizeObserver(center);
+    ro.observe(box);
+    let dead = false;
+    document.fonts?.ready?.then(() => { if (!dead) center(); }).catch(() => {});
+    return () => { dead = true; ro.disconnect(); };
+  }, [html]);
+  return <div className="scard-body" ref={ref} dangerouslySetInnerHTML={{ __html: html }} />;
+}
 
 export function CanvasView() {
   const { cfg, update, zoom, setZoom, panMode, setPanMode, gridStyle, setGridStyle, phase, selectedState, setSelectedState, canvasMode, setCanvasMode, bgImage, setBgImage, focus, setFocus, parentId, kitShapes, kitSizes, kitTextOy, kitTextOx, kitTextFill, kitIcons, kitLabels, kitNoText, kitSubs, kitSlotVals, kitVals, kitDesigns, kitRow, kitKind, kitOverlay, kitBar, boards, activeBoard, setBoardBg, sliceStage, kitClones } = useGen();
@@ -482,7 +535,7 @@ export function CanvasView() {
                   only the hero pays per frame — three extra engine renders per
                   tick were most of the drag's main-thread bill, and the cards
                   catch up the instant the pointer rests */}
-              <div className="scard-body" dangerouslySetInnerHTML={{ __html: ((sv: string) => (fWipe && s !== "disabled" ? addShine(sv, { dur: cfg.idle?.freq, sweep: cfg.idle?.wipeDur, width: cfg.idle?.wipeWidth, armed: cfg.idle?.trigger === "hover", blend: cfg.idle?.blend }) : sv))(padSvg(focus ? renderKit(applyKitTextFill(applyKitDesign(scardCfg, kitDesigns[focus]), kitTextFill[focus]), baseOf(focus), fSize, s, v ?? kitVals[focus], kitShapes[focus], { textOy: fOy, textOx: fOx, icon: resolveKitIcon(kitIcons[focus], undefined), label: kitNoText[focus] ? "" : kitLabels[focus], slots: kitSlotVals[focus], dock: fDock, bar: fBar, row: baseOf(focus) === "datarow" ? kitRow : undefined, overlay: fOv, themedText: !!kitDesigns[focus]?.type || !!kitTextFill[focus] }) : parentId !== "button" ? renderKit(scardCfg, parentId, "l", s, v ?? kitVals[parentId], kitShapes[parentId], { label: kitNoText[parentId] ? "" : kitLabels[parentId], icon: resolveKitIcon(kitIcons[parentId], undefined) }) : renderBevel(scardCfg, s))) }} />
+              <ScardBody html={((sv: string) => (fWipe && s !== "disabled" ? addShine(sv, { dur: cfg.idle?.freq, sweep: cfg.idle?.wipeDur, width: cfg.idle?.wipeWidth, armed: cfg.idle?.trigger === "hover", blend: cfg.idle?.blend }) : sv))(padSvg(focus ? renderKit(applyKitTextFill(applyKitDesign(scardCfg, kitDesigns[focus]), kitTextFill[focus]), baseOf(focus), fSize, s, v ?? kitVals[focus], kitShapes[focus], { textOy: fOy, textOx: fOx, icon: resolveKitIcon(kitIcons[focus], undefined), label: kitNoText[focus] ? "" : kitLabels[focus], slots: kitSlotVals[focus], dock: fDock, bar: fBar, row: baseOf(focus) === "datarow" ? kitRow : undefined, overlay: fOv, themedText: !!kitDesigns[focus]?.type || !!kitTextFill[focus] }) : parentId !== "button" ? renderKit(scardCfg, parentId, "l", s, v ?? kitVals[parentId], kitShapes[parentId], { label: kitNoText[parentId] ? "" : kitLabels[parentId], icon: resolveKitIcon(kitIcons[parentId], undefined) }) : renderBevel(scardCfg, s))) } />
             </button>
           ))}
         </div>

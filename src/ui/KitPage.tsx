@@ -383,9 +383,13 @@ interface PieceOpts {
   bayHome?: boolean;
   icon?: IconDef | null; value?: number; baseState?: GenStateName; scale?: number;
   sub?: string; max?: string; addBtn?: boolean; overlay?: string; iconScale?: number; trim?: boolean; tight?: boolean;
-  /** Measured crop to the rendered art (LiveArt hug) — the Fields
-   *  specimens: their canvases' full-travel reserves ran far past the art
-   *  and the section read as dead space + cut-off pieces (owner). */
+  /** Measured crop to the rendered art (LiveArt hug) — born for the Fields
+   *  specimens (canvases' full-travel reserves ran far past the art: dead
+   *  space + cut-off pieces), now the DEFAULT for every catalog Piece card
+   *  and state-strip cell (owner, round 52: "the asset doesn't appear in
+   *  the middle of the container... across the board" — measured, every
+   *  body card floated its ink ~45px above the frame middle with the whole
+   *  reserve hanging below). Pass false to keep the raw canvas box. */
   hug?: boolean;
   /** render this instance FLAT — no extrusion, contact or cast shadow.
       Screen patterns that butt tiles edge-to-edge (the match-3 board)
@@ -671,7 +675,7 @@ function PieceInner(p: PieceOpts & { caption: string; ambient?: boolean }) {
   return (
     <figure className="kp-piece" style={shineVars} data-kp={p.id}>
       <LiveArt cfg={cfg} playing stillLoops scale={p.scale ?? PIECE_SCALE} className="kp-live"
-        kit={kit} title={p.caption} ambient={p.ambient} shine={shine} hug={p.hug} />
+        kit={kit} title={p.caption} ambient={p.ambient} shine={shine} hug={p.hug ?? true} />
       <figcaption className="kp-cap">
         {locked && <Lock className="kp-lockic" size={11} strokeWidth={2.4} aria-label="Locked — finished" />}
         {!locked && pinned && <Pin className="kp-lockic" size={11} strokeWidth={2.4} aria-label="Pinned to its own look" />}
@@ -1390,8 +1394,10 @@ function assess(cfg: GenConfig): { level: "Strong" | "Fair" | "Risky"; notes: st
 
 /** A live piece row shown at several states, tiny captions underneath.
  *  `hug` crops each cell to its measured art so the specimens sit with
- *  their captions instead of floating high over reserve canvas. */
-function StateStrip({ variants, hug, bay }: {
+ *  their captions instead of floating high over reserve canvas — the
+ *  default for every strip since round 52 (the owner's class report:
+ *  assets hanging far above their captions in every state row). */
+function StateStrip({ variants, hug = true, bay }: {
   variants: { cap: string; piece: PieceOpts }[];
   hug?: boolean;
   /** Bay-hosted strip: renders staged pieces (the admin review surface —
