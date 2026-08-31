@@ -3707,8 +3707,8 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
    with the frame skins — never baked (maximum-editability law). Thin
    fleet variants retarget any inherited swap to their own glyph. ── */
 {
-  if (!/if \(iconSeatsU && pieceCfg\(uid\)\.stateDesigns\?\.\[stName\]\?\.icon\) \{/.test(src))
-    errors.push("the per-state glyph cut lost its ICR-ladder gate (stateDesigns[state].icon) — forks ship nothing, or every state rasters needlessly (round 53, S44)");
+  if (!/const inkForks9 = !!sdG9 && \(!!sdG9\.icon/.test(src) || !/if \(iconSeatsU && inkForks9\) \{/.test(src))
+    errors.push("the per-state glyph cut lost its ICR-ladder gate (stateDesigns[state].icon arm) — forks ship nothing, or every state rasters needlessly (round 53, S44)");
   if (!/const SEAT_CUTS = new WeakMap<object, \{ spr: string; box: \[number, number, number, number\] \}>\(\);/.test(src)
       || !/SEAT_CUTS\.set\(seatRow, \{ spr, box: \[bx, by, bw9, bh9\] \}\);/.test(src))
     errors.push("iconSeatsOf no longer records the resting cut's exact window — state cuts can't share its canvas and the swap tears (round 53, S44)");
@@ -3736,6 +3736,27 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/static void RetargetGlyphSwaps\(GameObject inst, Image gImg, Sprite glyphSp\) \{/.test(cs)
       || (cs.match(/RetargetGlyphSwaps\(inst, gImg, glyphSp\);/g) ?? []).length < 2)
     errors.push("the fleet variants no longer neutralize an inherited swap — hover would paint the BASE's glyph over a variant's own (round 53, S44)");
+}
+
+/* ── ROUND 53 follow-on · S45 (the same landmine one ring out): an
+   INHERIT-mode glyph whose ink changes through a state's TYPE fork (no
+   icon fork stored) must qualify for a state cut too — the typeKT road
+   afb0457 wired app-side. A pinned icon color blocks the type's reach
+   (the app's own resolution), and the renderer's universal disabled-gray
+   repaint is deliberately NOT a gate (the disabled contract, not a
+   maker-pinned divergence — gating on it would grow every kit carrying
+   any disabled fork). The raster judge stays the final arbiter, which is
+   what keeps every default byte-identical. ── */
+{
+  if (!/\|\| \(!!sdG9\.type && !\(sdG9\.icon \?\? cfgG9\.icon\)\?\.color/.test(src))
+    errors.push("the inherit-ink arm lost its custom-color block — a pinned icon color would falsely qualify type forks (round 53 follow-on, S45)");
+  if (!/sdG9\.type\.fillMode !== cfgG9\.type\.fillMode/.test(src)
+      || !/sdG9\.type\.fill !== cfgG9\.type\.fill/.test(src)
+      || !/\(sdG9\.type\.fillMode === "gradient" && sdG9\.type\.fill2 !== cfgG9\.type\.fill2\)/.test(src)
+      || !/JSON\.stringify\(sdG9\.type\.outline\) !== JSON\.stringify\(cfgG9\.type\.outline\)/.test(src))
+    errors.push("the inherit-ink arm no longer compares the voiced ink (fillMode/fill/gradient fill2/outline) — a state's type recolor on an inheriting glyph ships no cut again (round 53 follow-on, S45)");
+  if (!/NOT a gate: the renderer's universal\s*\n\s*disabled-gray repaint/.test(src))
+    errors.push("the universal-disabled-gray exclusion lost its contract note — the next hand may gate on it and grow every kit with a disabled fork (round 53 follow-on, S45)");
 }
 
 if (errors.length) {

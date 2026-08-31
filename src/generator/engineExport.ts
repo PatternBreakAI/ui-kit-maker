@@ -5522,7 +5522,27 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
                fork) sits out quietly — the child keeps the resting
                dress (a later wave widens the seat). Buttons (btn) and
                portrait wells keep their own machinery. ── */
-            if (iconSeatsU && pieceCfg(uid).stateDesigns?.[stName]?.icon) {
+            /* the GATE (r53 + its follow-on, one ring out): a state
+               qualifies when its ICON rig forks (the ICR ladder), OR
+               when an INHERIT-mode glyph's voiced ink changes through
+               the state's TYPE fork (afb0457's typeKT road: T4 =
+               stateDesigns[state].type ?? cfg.type) — a pinned icon
+               color blocks the type's reach, exactly as the app
+               resolves it. NOT a gate: the renderer's universal
+               disabled-gray repaint (#A7AAB4 on every family, fork or
+               none) — that is the disabled contract, not a divergence
+               the maker pinned, and gating on it would grow every kit
+               with any disabled fork. The raster judge below stays the
+               final arbiter either way — byte-equal ships nothing. */
+            const cfgG9 = pieceCfg(uid);
+            const sdG9 = cfgG9.stateDesigns?.[stName];
+            const inkForks9 = !!sdG9 && (!!sdG9.icon
+              || (!!sdG9.type && !(sdG9.icon ?? cfgG9.icon)?.color
+                && (sdG9.type.fillMode !== cfgG9.type.fillMode
+                  || sdG9.type.fill !== cfgG9.type.fill
+                  || (sdG9.type.fillMode === "gradient" && sdG9.type.fill2 !== cfgG9.type.fill2)
+                  || JSON.stringify(sdG9.type.outline) !== JSON.stringify(cfgG9.type.outline))));
+            if (iconSeatsU && inkForks9) {
               try {
                 const shOf9 = (sv: string) => (/data-shell="([-\d. ]+)"/.exec(sv) ?? /data-shell0="([-\d. ]+)"/.exec(sv))?.[1].split(" ").map(Number);
                 const shR9 = shOf9(fullU), shS9 = shOf9(sSvg);
