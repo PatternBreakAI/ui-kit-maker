@@ -1069,6 +1069,8 @@ export function Panel() {
   /* the ? beside Rarity tiers — the system explained on demand, not as a
      permanent wall of helper text */
   const [rarityHelp, setRarityHelp] = useState(false);
+  // the silhouette drawing spec waits behind its ? dot (round-56 copy purge)
+  const [silRulesHelp, setSilRulesHelp] = useState(false);
   const results = useMemo(
     () => (ICONS_ENABLED || iconSwappable ? searchLib(browseLib, iconQuery, bigGrid ? 60 : 24) : []),
     // libTick re-runs the search once an async library lands
@@ -1122,7 +1124,7 @@ export function Panel() {
         <div className="sec">
           <div className="sec-head"><h3>Stage</h3></div>
           <div className="sec-body">
-            <div className="helper">Assemble mode — add components with +, drag to arrange, use the +/− on a piece to scale it, × to remove. Hit Play (canvas toolbar) to make everything live.</div>
+            <div className="helper">Add with +, drag to arrange — Play makes everything live.</div>
           </div>
         </div>
         <section className="sec">
@@ -1131,7 +1133,7 @@ export function Panel() {
             <label className="check"><input type="checkbox" checked={actBd?.bgShow ?? true} onChange={(e) => setBoardBg({ bgShow: e.target.checked })} /> Show background image</label>
             <Slider label="Opacity" value={actBd?.bgOpacity ?? 100} min={10} max={100} unit="%" onChange={(v) => setBoardBg({ bgOpacity: v })} />
             <Slider label="Blur" value={actBd?.bgBlur ?? 0} min={0} max={14} unit="px" onChange={(v) => setBoardBg({ bgBlur: v })} />
-            <div className="helper">The ACTIVE artboard's backdrop — upload it in the board's right panel; it crops to the board bounds and never ships in asset exports.</div>
+            <div className="helper">The active artboard's backdrop — it never ships in asset exports.</div>
           </div>
         </section>
         <section className="sec">
@@ -1415,7 +1417,7 @@ export function Panel() {
             as a dead control (the gallery rests by design, fcc7b6c); boards
             rest in Design too (owner, 2026-08-16: "the idle animation should
             only play when play is pressed") */}
-        <div className="helper">Shines play on the editor canvas, in a board's Play mode and in Unity. The kit page gallery and boards in Design rest on purpose — judge the motion here or press Play on a board.</div>
+        <div className="helper">Shines play on the live canvas, in Play mode and in Unity — stills rest on purpose.</div>
         {/* Per-piece override (owner: "turn the shine animations on/off per
             component") — rides the piece's design fork, so the kit page,
             Board and Unity export all follow. Absent chips = follow kit.
@@ -1491,7 +1493,6 @@ export function Panel() {
                 );
               })}
             </div>
-            <div className="helper">Frequency is the seconds from one pass to the next; each pass keeps its own duration, so a slow tempo never stretches the sweep. Width is the wipe band's footprint on the face. On hover parks the motion until the pointer lands on the piece — on the live canvas and a playing board; the Unity importer picks these dials up in its next round. Blend recolors how the light lays over the art — screen and overlay read most like light.</div>
           </>
         )}
         {selectedState !== "default" && cfg.stateDesigns?.[selectedState] && (
@@ -1680,7 +1681,7 @@ export function Panel() {
               </div>
             ))}
           </div>
-          <div className="helper">A style is the whole material recipe — colors, surface, lighting, type, state designs. Applying one restyles every component; silhouettes stay put.</div>
+          <div className="helper">A style restyles every component — silhouettes stay put.</div>
         </>)}
         {isAdmin && (
           <div className="adminlooks">
@@ -1719,7 +1720,7 @@ export function Panel() {
                   </button>
                 )}
               </div>
-              <div className="helper">Shared presets show for every visitor. Apply one, tweak it, then Overwrite to save the changes back into it.</div>
+              <div className="helper">Shared presets show for every visitor — Overwrite saves your tweaks back into one.</div>
             </>)}
           </div>
         )}
@@ -1730,43 +1731,6 @@ export function Panel() {
         {focus && (
           <div className="helper">Picking a silhouette restyles <b>{pieceLabel(focus)}</b> only — its shell, wells and fills all follow. Leave edit mode to change the whole kit.</div>
         )}
-        {/* v56: corner smoothness lives at the TOP of the section, always
-            visible — it was buried under the import notes and vanished for
-            pills, which read as "missing" */}
-        {(() => {
-          const effSil = focus ? (kitShapes[focus] ?? KIT_SHAPE[baseOf(focus)] ?? D.shape) : D.shape;
-          const baseSil = baseShape(effSil);
-          /* round 56 (owner: "smoothness doesn't seem to effect the Persian
-             Blade silhouette... I want the interface to adapt"): the dial
-             asks the GEOMETRY itself whether this silhouette consumes
-             smoothness — shapePath at 0% vs 100% — so every authored
-             outline (Persian Blade, the Blobs, the Gothic cuts, an imported
-             SVG) grays honestly, and any future silhouette classifies
-             itself with no metadata to fall stale. Making the dial WORK on
-             authored curves was weighed and declined: every stored kit
-             (Sakura Arcade ships the blade at 92%) would change bytes the
-             moment the dial started biting. Cell-grid pieces are the
-             exception: their cell corners ride Smoothness whatever the
-             shell wears (the hotbar contract, round 44), so the dial stays
-             live there. */
-          const shellSmooths = smoothConsumed(effSil);
-          const smoothLive = shellSmooths || (!!focus && SMOOTH_CELL_PIECES.has(baseOf(focus)));
-          const gothic = !!silhouetteMeta(baseSil)?.gothicCut;
-          const silName = silhouetteMeta(baseSil)?.name ?? userShapes.find((u) => u.id === baseSil)?.name ?? "This silhouette";
-          return (<>
-            <Slider label="Smoothness" value={D.bevel.softness} min={0} max={100} unit="%" disabled={!smoothLive} onChange={(v) => update((c) => { c.bevel.softness = v; })} />
-            {!smoothLive && (
-              <div className="helper">{baseSil === "pill"
-                ? "The pill's ends are already fully round — smoothness shows on cornered silhouettes (rectangles, chamfers, tags…)."
-                : gothic
-                  ? "The Gothic cuts are authored curves — smoothness doesn't apply to them."
-                  : `${silName} draws its own edges — smoothness doesn't apply to it.`}</div>
-            )}
-            {smoothLive && !shellSmooths && (
-              <div className="helper">This piece's cell corners ride Smoothness — the shell keeps its authored edge.</div>
-            )}
-          </>);
-        })()}
         <div className="silcats" role="radiogroup" aria-label="Silhouette category">
           {/* a category with nothing the viewer can see (all-preview, e.g.
               Blobs pre-release) would be an empty tab — drop its chip */}
@@ -1848,7 +1812,46 @@ export function Panel() {
             ))}
           </div>
         )}
-        <div className="helper">Silhouette is pure geometry — switching it keeps your material, lighting, colors and type exactly as they are.</div>
+        {/* round 56 regroup (owner: "remove all of this copy and combine
+            with the smoothness tool, below the silhouettes"): the fit
+            dials and the import tools live in ONE tight group under the
+            picker; the drawing spec waits behind the ? dot (the rarity
+            helpdot pattern), in designer language (owner mandate), for
+            the moment someone actually imports. */}
+        {(() => {
+          const effSil = focus ? (kitShapes[focus] ?? KIT_SHAPE[baseOf(focus)] ?? D.shape) : D.shape;
+          const baseSil = baseShape(effSil);
+          /* the dial asks the GEOMETRY itself whether this silhouette
+             consumes smoothness — shapePath at 0% vs 100% — so every
+             authored outline (Persian Blade, the Blobs, the Gothic cuts,
+             an imported SVG) grays honestly, and any future silhouette
+             classifies itself with no metadata to fall stale. Making the
+             dial WORK on authored curves was weighed and declined: every
+             stored kit (Sakura's blade at 92%) would change bytes the
+             moment it bit. Cell-grid pieces are the exception: their cell
+             corners ride Smoothness whatever the shell wears (the hotbar
+             contract), so the dial stays live there. */
+          const shellSmooths = smoothConsumed(effSil);
+          const smoothLive = shellSmooths || (!!focus && SMOOTH_CELL_PIECES.has(baseOf(focus)));
+          const gothic = !!silhouetteMeta(baseSil)?.gothicCut;
+          const silName = silhouetteMeta(baseSil)?.name ?? userShapes.find((u) => u.id === baseSil)?.name ?? "This silhouette";
+          return (<>
+            <Slider label="Smoothness" value={D.bevel.softness} min={0} max={100} unit="%" disabled={!smoothLive} onChange={(v) => update((c) => { c.bevel.softness = v; })} />
+            {!smoothLive && (
+              <div className="helper">{baseSil === "pill"
+                ? "The pill's ends are already fully round — smoothness shows on cornered silhouettes."
+                : gothic
+                  ? "The Gothic cuts are authored curves — smoothness doesn't apply to them."
+                  : `${silName} draws its own edges — smoothness doesn't apply to it.`}</div>
+            )}
+            {smoothLive && !shellSmooths && (
+              <div className="helper">This piece's cell corners ride Smoothness — the shell keeps its authored edge.</div>
+            )}
+          </>);
+        })()}
+        <Slider label="Content margin" value={cfg.contentMargin ?? 0} min={-20} max={60} unit="px"
+          onChange={(v) => update((c) => { c.contentMargin = v; })} />
+        <div className="helper">Breathing room between labels and the silhouette's ends — while a piece is focused it pins to that piece alone.</div>
         <div className="actionrow">
         <label className="fileadd">
           <Upload size={13} strokeWidth={2} /> Import silhouette (SVG)
@@ -1892,36 +1895,24 @@ export function Panel() {
           }}>
           <PenTool size={13} strokeWidth={2} /> Silhouette template (SVG)
         </button>
+        <button className={`helpdot${silRulesHelp ? " on" : ""}`} aria-label="How to draw a silhouette"
+          aria-expanded={silRulesHelp} onClick={() => setSilRulesHelp((v) => !v)}>?</button>
         </div>
         {shapeErr && <div className="helper" role="alert">{shapeErr}</div>}
-        {/* spec copy is DESIGNER language by owner mandate ("simplify this
-            spec for designer/human understandable language") — no path
-            jargon, no percentages; the engine measures the rest */}
-        <div className="helper">
-          How to draw one: <b>one filled shape</b>, flattened — no strokes,
-          groups, or images. Draw it wide, at whatever proportions look right.
-          Size never matters; only the shape itself does.
-        </div>
-        <div className="helper">
-          The ends of your drawing stay <b>exactly as drawn</b> and the middle
-          stretches to fit each piece — so keep spikes and ornaments at the
-          ends, give the middle a calm stretch of body, and let the shape touch
-          all four edges of the drawing. Holes and floating pieces (a gem over
-          a plaque) are welcome — just merge overlapping shapes into one before
-          you export.
-        </div>
-        {/* the designer's dial over the computed label safe-area (owner:
-            "let's add margin controls to make this an easy fix for any
-            situation") — kit-wide, either direction */}
-        <Slider label="Content margin" value={cfg.contentMargin ?? 0} min={-20} max={60} unit="px"
-          onChange={(v) => update((c) => { c.contentMargin = v; })} />
-        <div className="helper">
-          Breathing room between every label and its silhouette's ends.
-          Kit-wide from the master — but while a piece is focused, the change
-          saves into that piece only, so one showpiece silhouette can breathe
-          differently without moving the rest.
-          Push it up when a word crowds the decoration; pull it negative to hug tighter.
-        </div>
+        {silRulesHelp && (
+          /* spec copy is DESIGNER language by owner mandate — no path
+             jargon, no percentages; on demand since the round-56 copy
+             purge, and also drawn INTO the template file itself */
+          <div className="helper">
+            <b>How to draw one:</b> <b>one filled shape</b>, flattened — no
+            strokes, groups, or images; size never matters. The ends stay
+            <b> exactly as drawn</b> and the middle stretches to fit each
+            piece — keep spikes and ornaments at the ends, give the middle a
+            calm stretch of body, and let the shape touch all four edges.
+            Holes and floating pieces are welcome — merge overlapping shapes
+            into one before you export.
+          </div>
+        )}
       </Section>
 
       {/* ── v57/58: Component content — this piece's text and glyph.
@@ -1961,7 +1952,7 @@ export function Panel() {
                 <RotateCcw size={13} strokeWidth={2} /> Demo value
               </button>
             ) : (
-              <div className="helper">The resting pose — bars fill, needles point, rarity tiers pick, toggles flip. The kit page, the Board and exports all hold this frame.</div>
+              <div className="helper">The resting pose — the kit page, the Board and exports hold this frame.</div>
             )}
           </>)}
           {KIT_SLICEABLE[baseOf(focus)] && <SliceEditor cid={focus} />}
@@ -2080,7 +2071,7 @@ export function Panel() {
           )}
           {iconSwappable && !finLocked && (<>
           <div className="sublabel">Icon</div>
-          <div className="helper">Swap the glyph on <b>{pieceLabel(focus)}</b> — the kit page, the Board and every export follow. Remove it and the text recenters. Color is right below; size, weight & effects live under <b>Typography → Icons</b>.</div>
+          <div className="helper">Size, weight & effects live under <b>Typography → Icons</b>.</div>
           {/* the color, where a human looks for it (owner) — same state and
               routing as the Typography → Icons swatch, just surfaced here */}
           <label className="check"><input type="checkbox" checked={IC.color === null}
@@ -2162,7 +2153,7 @@ export function Panel() {
               ))}
             </div>
           )}
-          <div className="helper">A silhouette-aware mini shell riding the bar's end — the full candy stack at emblem size. Its glyph comes from <b>Component content</b> above; remove the icon there for an empty socket (drop art in-engine).</div>
+          <div className="helper">A mini shell riding the bar's end — its glyph comes from <b>Component content</b>.</div>
           {baseOf(focus) === "segbar" && (<>
             <div className="sublabel">Segments</div>
             {/* keyed by the FOCUSED piece, not the "segbar" literal — a
@@ -2385,7 +2376,7 @@ export function Panel() {
         {(cfg.knob?.color ?? null) !== null && (
           <Well label="Knob color" value={cfg.knob!.color!} onChange={(v) => update((c) => { c.knob = { color: v }; })} />
         )}
-        <div className="helper">The candy ball on sliders, toggles and joysticks. Following the Color map keeps it on the Bevel role.</div>
+        <div className="helper">The candy ball on sliders, toggles and joysticks.</div>
       </Section>
 
       <Section id="lighting" title={t("secLighting")} summary={<span>{D.lighting.angle}°</span>}>
@@ -2440,25 +2431,26 @@ export function Panel() {
           <Well label="Gloss bottom" value={C.gloss.tint2}
             onChange={(v) => update((c) => { c.candy.gloss.tint2 = v; })} />
         )}
-        <Adv label="Fine-tune gloss" active={(C.gloss.blend ?? "normal") !== "normal" || C.gloss.layer !== "below"}>
-          <label className="fieldbox" style={{ minWidth: 0 }}>
-            <span className="fl">Gloss blend mode</span>
-            <select value={C.gloss.blend ?? "normal"} aria-label="Gloss blend mode" onChange={(e) => update((c) => { c.candy.gloss.blend = e.target.value as BlendMode; })}>
-              {BLEND_MODES.map((b) => <option key={b} value={b}>{b}</option>)}
-            </select>
-            <span className="chev"><ChevronDown size={17} strokeWidth={2} /></span>
-          </label>
-          <div className="ctl">
-            <label>Layering</label>
-            <div className="segmini" role="radiogroup" aria-label="Gloss layering">
-              {([["below", "Below text"], ["above", "Above text"]] as const).map(([v, t]) => (
-                <button key={v} className={C.gloss.layer === v ? "on" : ""} role="radio" aria-checked={C.gloss.layer === v}
-                  onClick={() => update((c) => { c.candy.gloss.layer = v; })}>{t}</button>
-              ))}
-            </div>
+        {/* round 56: the gloss fine-tune came out from under the caret —
+            blend and layering sit in the open (owner: "resurface fine-tune
+            gloss from under the carat") */}
+        <label className="fieldbox" style={{ minWidth: 0 }}>
+          <span className="fl">Gloss blend mode</span>
+          <select value={C.gloss.blend ?? "normal"} aria-label="Gloss blend mode" onChange={(e) => update((c) => { c.candy.gloss.blend = e.target.value as BlendMode; })}>
+            {BLEND_MODES.map((b) => <option key={b} value={b}>{b}</option>)}
+          </select>
+          <span className="chev"><ChevronDown size={17} strokeWidth={2} /></span>
+        </label>
+        <div className="ctl">
+          <label>Layering</label>
+          <div className="segmini" role="radiogroup" aria-label="Gloss layering">
+            {([["below", "Below text"], ["above", "Above text"]] as const).map(([v, t]) => (
+              <button key={v} className={C.gloss.layer === v ? "on" : ""} role="radio" aria-checked={C.gloss.layer === v}
+                onClick={() => update((c) => { c.candy.gloss.layer = v; })}>{t}</button>
+            ))}
           </div>
-          <div className="helper">Above text seals the label under the candy shell; below keeps it crisp and UI-like.</div>
-        </Adv>
+        </div>
+        <div className="helper">Above text seals the label under the candy shell; below keeps it crisp.</div>
         </>)}
         <div className="sublabel">Specular</div>
         <label className="check"><input type="checkbox" checked={C.specular.on} onChange={(e) => update((c) => { c.candy.specular.on = e.target.checked; })} /> Specular reflections</label>
@@ -2563,7 +2555,7 @@ export function Panel() {
           {kitRow.progress && (
             <Slider label="Progress" value={kitRow.value} min={0} max={100} unit="%" onChange={(v) => setKitRow({ value: v })} />
           )}
-          <div className="helper">Long titles clip inside the row's safe text bounds — they never push the layout. Objective rows use this same model.</div>
+          <div className="helper">Long titles clip inside the safe bounds — the layout never moves.</div>
         </Section>
       )}
 
@@ -2606,7 +2598,7 @@ export function Panel() {
         })()}
         <input className="tinput" value={T2.highlight ?? ""} maxLength={32} placeholder="Highlight phrase — e.g. VICTORY" aria-label="Highlight phrase"
           onChange={(e) => update((c) => { c.type.highlight = e.target.value; })} />
-        <div className="helper">The first matching word or phrase inside the label renders as a brighter, illuminated portion of the same material. Leave empty for none.</div>
+        <div className="helper">The first matching phrase in the label lights up as brighter material.</div>
         <FontPicker value={T2.font} customFonts={T2.customFonts ?? []}
           onPick={(f) => {
             ensureFont(f);
@@ -2642,7 +2634,7 @@ export function Panel() {
           </select>
           <span className="chev"><ChevronDown size={17} strokeWidth={2} /></span>
         </label>
-        <div className="helper">Reading text — quest lists, menus, choice lists, dialogue lines, chat messages — speaks this face; titles and plates keep the display font. A loud display face is a headline voice, not a reading voice.</div>
+        <div className="helper">Reading text — lists, dialogue, chat — speaks this face; titles keep the display font.</div>
         {/* the reading voice's COLOR, one dial for every list-face surface
             (owner: "change the color of this list font and list fonts
             everywhere") — Auto keeps each surface's designed ink; a piece's
@@ -2659,7 +2651,7 @@ export function Panel() {
         {T2.listInk ? (
           <Well label="List ink" value={T2.listInk} onChange={(v) => update((c) => { c.type.listInk = v; })} />
         ) : (
-          <div className="helper">The reading text's color, everywhere the list face speaks. Auto keeps each surface's designed ink; Custom pins your color. The dialogue box's own body color still wins there.</div>
+          <div className="helper">Auto keeps each surface's designed ink; Custom pins yours.</div>
         )}
         <Slider label="Size" value={T2.size} min={28} max={140} unit="px" onChange={(v) => update((c) => { c.type.size = v; })} />
         {/* stacked labels only — the gap between lines, % of factory leading
@@ -2789,7 +2781,7 @@ export function Panel() {
         {T2.infoInk ? (
           <Well label="Readout ink" value={T2.infoInk} onChange={(v) => update((c) => { c.type.infoInk = v; })} />
         ) : (
-          <div className="helper">The small working numbers — timers, counts, stats. Auto picks a legible ink from the face; Custom pins your color. Focus a piece to change just that piece.</div>
+          <div className="helper">Timers, counts and stats — Auto picks a legible ink; Custom pins yours.</div>
         )}
 
         {/* per-piece text color — the escape hatch from "changing text color
@@ -2849,7 +2841,7 @@ export function Panel() {
           <div className="sublabel">Shadow side</div>
           <Well label="Color" value={T2.emboss.shColor ?? "#04080E"} onChange={(v) => update((c) => { c.type.emboss.shColor = v; })} />
           <Slider label="Opacity" value={T2.emboss.shOpacity ?? 60} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.type.emboss.shOpacity = v; })} />
-          <div className="helper">The relief follows the master light — spin the Lighting angle and the highlight and shade travel with it. Positive embosses, negative debosses.</div>
+          <div className="helper">Positive embosses, negative debosses — the relief follows the master light.</div>
         </FxToggle>
         <FxToggle label="Glow" on={T2.glow.on} onToggle={(v) => update((c) => { c.type.glow.on = v; })}>
           <Well label="Color" value={T2.glow.color} onChange={(v) => update((c) => { c.type.glow.color = v; })} />
@@ -2984,7 +2976,7 @@ export function Panel() {
             </button>
           ))}
         </div>
-        <div className="helper">Every glyph in the kit (buttons, counters, slots, rows) follows this one treatment — swap a specific component's glyph in <b>Component content</b>. Color inherits the type until you set your own; the effects are always the icon's own, independent of Type.</div>
+        <div className="helper">Every glyph in the kit follows this one treatment — swap a single piece's glyph in <b>Component content</b>.</div>
         </div>
       </Section>
 
@@ -3058,7 +3050,7 @@ export function Panel() {
             <Trash2 size={13} strokeWidth={2} /> Remove icon
           </button>
         </>)}
-        {(!cfg.icon.show || !cfg.icon.def) && <div className="helper">No icon — the label recenters itself. Pick one above to add it back.</div>}
+        {(!cfg.icon.show || !cfg.icon.def) && <div className="helper">No icon — the label recenters itself.</div>}
       </Section>
       )}
 
