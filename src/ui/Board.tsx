@@ -7,9 +7,8 @@ import { importBgAsset, bgAssetStatusLine, onAssetActivity, bgAssetDisplayUrl } 
 import { BACKDROP_LIBRARY, BACKDROP_CATEGORIES, backdropThumb, backdropUrl } from "@/generator/backdropLibrary";
 import type { BoardDef, BoardItem } from "@/generator/store";
 import { renderBevel, renderKit, VALUE_DRIVEN } from "@/generator/bevel";
-import { GLYPH_BUTTONS, KIT_COMPONENTS, STOCK_ICONS, SEAT_GLYPHS, applyKitDesign, applyKitTextFill, baseOf, fontByName, glyphSeatIcon, isGlyphFamily, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
-import { previewSvg } from "@/generator/icons";
-import { LIVE_GLYPHS, glyphById } from "@/generator/glyphLibrary";
+import { GLYPH_BUTTONS, KIT_COMPONENTS, applyKitDesign, applyKitTextFill, baseOf, fontByName, isGlyphFamily, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
+import { LIVE_GLYPHS } from "@/generator/glyphLibrary";
 import { BIG_GLYPHS, BIG_GLYPH_BASE, bigGlyphById, bigGlyphThumb, bigGlyphMid, bigGlyphUrl, bigGlyphFilter, type BigGlyphDef, type BigGlyphFx } from "@/generator/bigGlyphs";
 import type { GenConfig, KitComponentId } from "@/generator/model";
 import { download, downloadSvg, fontDataUri } from "@/generator/exportUtils";
@@ -144,23 +143,12 @@ for (const g of LIVE_GLYPHS) {
   SEARCH_TERMS[`glyph${g.id}` as KitComponentId] = `icon glyph treated ${g.name.toLowerCase()} ${g.category.toLowerCase().replace(/[&]/g, " ")}`;
 }
 
-/* The Inspector's per-copy glyph rack — the families whose board copies
-   seat an instance glyph through ov "icon:<stock>" (the starter deals'
-   framed-icon grammar, now hand-editable: "we'll need to be able to edit
-   these in the app", owner). The keys are STOCK_ICONS names — exactly
-   what the ov grammar resolves — curated to glyphs that read at tile
-   size. The kit-wide Icons pick still serves whole-family swaps; this
-   rack is THIS COPY only, and the copy's pick wins (instance-text rule). */
-const INSTANCE_GLYPH = new Set<KitComponentId>(["slotbtn", "slot", "iconbtn",
-  // the glyph-button fleet is slotbtn under the hood — every member takes
-  // the same per-copy rack (Factory returns the button's OWN glyph)
-  ...GLYPH_BUTTONS.map((b) => b.id)]);
-const INSTANCE_GLYPH_KEYS = [
-  "gem", "star", "heart", "zap", "sword", "shield", "skull", "trophy",
-  "gift", "key", "flask", "scroll", "leaf", "hammer", "magnet", "rocket",
-  "crosshair", "lock", "map", "clock", "bag", "helmet", "boots", "gear",
-  "play", "pause", "check", "warning",
-] as const;
+/* The per-copy glyph RACK (rounds 46-53) is retired — every glyph is a
+   real button component now, so picking a glyph is placing the right
+   piece. The ov grammar it wrote ("icon:<stock>" / "icon:glyph:<id>")
+   remains a first-class render road: starter deals, saved boards and the
+   engine export all keep consuming it byte-for-byte; the Inspector keeps
+   only the Factory reset for a copy that wears one. */
 
 /* Bundled backdrops — the owner's own scenes, served from public/. A path
    URL persists (and exports); only blob: uploads stay session-only. */
@@ -2540,50 +2528,24 @@ export function BoardView({ playing }: { playing: boolean }) {
                   onChange={(e) => useGen.getState().setBoardItemLabel(sel.id, e.target.value)} />
               </label>
             )}
-            {sel.kitId && INSTANCE_GLYPH.has(baseOf(sel.kitId)) && (!sel.ov || sel.ov.startsWith("icon:")) && (() => {
-              /* per-copy glyph — the ov "icon:<stock>" seat the starter
-                 deals pose, surfaced as a hand picker so a dealt slot
-                 button / item slot / icon button re-arms without the app's
-                 templates (max-editability; owner: "we'll need to be able
-                 to edit these in the app"). THIS copy only; a slot copy
-                 wearing a STATUS skin (locked, claimable…) keeps it — the
-                 rack only shows where an icon seat is what the ov holds. */
-              const curM = /^icon:(?:glyph:(\w+)|(\w+))$/.exec(sel.ov ?? "");
-              const curG = curM?.[2] ?? "";        // stock pick
-              const curSem = curM?.[1] ?? "";      // semantic-rack pick
-              /* the semantic shelf — the curated treated-rack glyphs, FLAT
-                 in this seat (the base silhouette, no dressing inks), and
-                 only the ones the release ledger admits (kitVisible — the
-                 same gate as every other surface; admin sees staged). */
-              const semGs = SEAT_GLYPHS.filter((gid) => kitVisible(`glyph${gid}` as KitComponentId, componentReleases, isAdmin));
-              return (
-                <div className="bd-slider" role="group" aria-label="Instance glyph"
-                  title="The glyph in this copy's well — this copy only. The ↺ tile follows the kit again: the family's stock glyph, or your kit-wide pick under Icons.">
-                  Glyph — this copy{curSem ? ` · ${glyphById(curSem)?.name ?? curSem}` : curG ? ` · ${curG}` : ""}
-                  <div className="icongrid bd-glyphgrid">
-                    <button className={curG || curSem ? "" : "on"} title="Factory — follow the kit" aria-label="Factory glyph"
-                      onClick={() => useGen.getState().setBoardItemOv(sel.id, null)}>
-                      <RotateCcw size={14} strokeWidth={2} />
-                    </button>
-                    {INSTANCE_GLYPH_KEYS.map((gk) => STOCK_ICONS[gk] ? (
-                      <button key={gk} className={curG === gk ? "on" : ""} title={gk} aria-label={`Glyph ${gk}`}
-                        onClick={() => useGen.getState().setBoardItemOv(sel.id, `icon:${gk}`)}
-                        dangerouslySetInnerHTML={{ __html: previewSvg(STOCK_ICONS[gk]) }} />
-                    ) : null)}
-                  </div>
-                  {semGs.length > 0 && (<>
-                    <div className="bd-glyphsub">Semantic rack — its art, flat in this seat</div>
-                    <div className="icongrid bd-glyphgrid">
-                      {semGs.map((gid) => { const d = glyphSeatIcon(gid); const nm = glyphById(gid)?.name ?? gid; return d ? (
-                        <button key={gid} className={curSem === gid ? "on" : ""} title={nm} aria-label={`Glyph ${nm}`}
-                          onClick={() => useGen.getState().setBoardItemOv(sel.id, `icon:glyph:${gid}`)}
-                          dangerouslySetInnerHTML={{ __html: previewSvg(d) }} />
-                      ) : null; })}
-                    </div>
-                  </>)}
-                </div>
-              );
-            })()}
+            {sel.kitId && sel.ov?.startsWith("icon:") && (
+              /* the per-copy glyph RACK is retired (owner, round 54: every
+                 glyph now has its own real button — picking a glyph is
+                 placing the right piece, or the kit-wide Icons pick), but
+                 the ov ROAD it wrote still renders every dealt and
+                 hand-set "icon:<stock>" / "icon:glyph:<id>" copy exactly
+                 as before. What remains is the honest reset: a copy that
+                 WEARS a per-copy glyph can always follow the kit again —
+                 a stored dial with no way back would break the
+                 editability law. One-way by design. */
+              <div className="bd-actions one">
+                <button aria-label="Factory glyph — follow the kit"
+                  title="This copy wears its own glyph (a starter deal, or a pick from before the per-copy rack retired). Follow the kit again: the family's stock glyph, or your kit-wide pick under Icons. To seat a different glyph, place its glyph button from the tray."
+                  onClick={() => useGen.getState().setBoardItemOv(sel.id, null)}>
+                  <RotateCcw size={12} strokeWidth={2.2} /> Factory glyph — follow the kit
+                </button>
+              </div>
+            )}
             {sel.kitId && (() => {
               /* per-copy drop shadow (owner: "you can't always tell if you
                  need a drop shadow at the editing level") — while on, it
