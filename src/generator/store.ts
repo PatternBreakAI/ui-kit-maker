@@ -256,6 +256,38 @@ export function fetchSiteDefault(): void {
     })
     .catch(() => { adoptDefaultIfUntouched(); /* bundled default stands */ });
 }
+/** The COMPLETE design one starter click lands — setPreset applies exactly
+    this document, and the Looks rack renders its thumbnails from it, so a
+    card is a promise, not an approximation (owner, round 56: "the font in
+    the thumb should match the font that you see when you click the thumb
+    to load the look"). Extracted verbatim from setPreset; the two callers
+    can never drift apart again. */
+export function presetLookConfig(id: string): GenConfig {
+  const p = presetById(id);
+  if (PRESET_DEFAULTS[id]) {
+    // an authored starter ships as a fully authored look (e.g. Chevon's
+    // bubblepopdefault) — its complete design loads as-is
+    return hydrate(structuredClone(PRESET_DEFAULTS[id]));
+  }
+  // a recipe starter lands as the blessed universal default DRESSED in the
+  // starter's recipe — deterministic, whatever came before
+  const c = getDefault();
+  c.presetId = id;
+  c.shape = p.shape; c.bevel = { ...p.bevel }; c.effects = { ...p.effects };
+  // the starter's typography voice comes with it — a preset switch that
+  // keeps the old face reads as "the fonts don't update"
+  if (p.font) { c.type.font = p.font; c.type.weight = clampWeight(fontByName(p.font).caps, p.fontWeight ?? c.type.weight); }
+  const candy = defaultCandy();
+  applyPresetCandy(candy, p);
+  c.candy = candy;
+  /* a preset is a COMPLETE style recipe — the base document's own
+     per-state forks must not survive under it, or hover/pressed
+     flash the old design (adversarial review find, 2026-07-25).
+     States mirror the new master live; re-forking is one edit away. */
+  c.stateDesigns = {};
+  retintText(c);
+  return c;
+}
 /* Anyone who has never edited (fresh visitor, or someone who only looked
    around) follows the site default — their library and board are untouched. */
 function adoptDefaultIfUntouched(): void {
@@ -3377,27 +3409,8 @@ export const useGen = create<GenStore>((set, get) => ({
        · recipe starters land as the blessed universal default DRESSED in
          the starter's recipe — deterministic, whatever came before. */
     const p = presetById(id);
-    const next = PRESET_DEFAULTS[id]
-      // Bubble Pop ships as a fully authored look (Chevon's bubblepopdefault)
-      ? hydrate(structuredClone(PRESET_DEFAULTS[id]))
-      : (() => {
-        const c = getDefault();
-        c.presetId = id;
-        c.shape = p.shape; c.bevel = { ...p.bevel }; c.effects = { ...p.effects };
-        // the starter's typography voice comes with it — a preset switch that
-        // keeps the old face reads as "the fonts don't update"
-        if (p.font) { c.type.font = p.font; c.type.weight = clampWeight(fontByName(p.font).caps, p.fontWeight ?? c.type.weight); }
-        const candy = defaultCandy();
-        applyPresetCandy(candy, p);
-        c.candy = candy;
-        /* a preset is a COMPLETE style recipe — the base document's own
-           per-state forks must not survive under it, or hover/pressed
-           flash the old design (adversarial review find, 2026-07-25).
-           States mirror the new master live; re-forking is one edit away. */
-        c.stateDesigns = {};
-        retintText(c);
-        return c;
-      })();
+    // the shared builder — the same document the Looks rack thumbnails render
+    const next = presetLookConfig(id);
     requestLook(p.name, lookFontFamilies(next as unknown as Record<string, unknown>, (PRESET_KITS[id] as Record<string, unknown>) ?? null), () => {
       set({ activeCloudPreset: null }); // a starter takes over — Overwrite retargets on next apply
       /* a preset apply REBRANDS the kit — user and cloud presets already

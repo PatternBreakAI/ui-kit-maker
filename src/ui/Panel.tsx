@@ -10,13 +10,12 @@ import { PRESETS, KIT_SLOTS, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, 
 import type { KitSlice } from "@/generator/model";
 import type { GenStateName, BlendMode, GlintStyle, PatternType, KitComponentId, KitDesign  } from "@/generator/model";
 import { ICON_LIBS, loadLib, libLoaded, searchLib, getDef, previewSvg } from "@/generator/icons";
-import { ensureFont, ensureDocFonts } from "@/generator/fonts";
+import { ensureFont, ensureDocFonts, fontReady, awaitFonts } from "@/generator/fonts";
 import { renderBevel, renderKit, shapePath, RARITY_FACTORY, VALUE_DRIVEN, effSlotColor } from "@/generator/bevel";
-import { hydrate, retintText } from "@/generator/store";
+import { hydrate, presetLookConfig } from "@/generator/store";
 import type { LibItem } from "@/generator/store";
-import { defaultConfig, defaultCandy, applyPresetCandy  } from "@/generator/model";
+import { applyPresetCandy } from "@/generator/model";
 import type { GenConfig  } from "@/generator/model";
-import { PRESET_DEFAULTS } from "@/generator/store";
 import { SILHOUETTES, SILHOUETTE_CATEGORIES, silhouetteMeta } from "@/generator/silhouettes";
 import { capsOf, UPGRADE_LINES } from "@/generator/entitlements";
 import { openAuth } from "@/shell/authOverlay";
@@ -36,19 +35,20 @@ const lookArt = (svg: string | null | undefined) => (svg ? tightenSvg(svg, 20) :
 const PACK_PITCH_GUEST = "Monthly preset packs ship with Pro — sign in free to get started.";
 
 /* Rendered mini-previews for the style presets — built once, by the same
-   renderer as everything else. */
+   renderer as everything else, from the EXACT document a click lands
+   (presetLookConfig — the setPreset road). The old recipe branch here
+   started from defaultConfig() and never copied the starter's font, so a
+   thumb promised one face and the click delivered another (owner, round
+   56: "the font in the thumb should match the font that you see when you
+   click the thumb to load the look — right now we get a different font
+   and it is jarring to designers"). Faces load lazily (the harvest pump
+   below); the inline SVG text repaints itself when each face lands, and
+   the fitted numbers are already correct pre-load — label widths come
+   from the baked metrics tables, not the live face. */
 let presetArtCache: { id: string; name: string; svg: string }[] | null = null;
 export function presetArt() {
   if (!presetArtCache) presetArtCache = PRESETS.map((p) => {
-    let pc: GenConfig;
-    if (PRESET_DEFAULTS[p.id]) {
-      pc = hydrate(structuredClone(PRESET_DEFAULTS[p.id])); // clone — hydrate keeps references
-    } else {
-      pc = defaultConfig();
-      pc.presetId = p.id; pc.shape = p.shape; pc.bevel = { ...p.bevel }; pc.effects = { ...p.effects };
-      const candy = defaultCandy(); applyPresetCandy(candy, p); pc.candy = candy;
-      retintText(pc);
-    }
+    const pc = presetLookConfig(p.id);
     pc.content.label = "PLAY";
     pc.icon.show = false;
     // thumbnails skip the glow viewport pad — the art stays tight in its card
@@ -812,6 +812,13 @@ export function Panel() {
       if (!svg) return;
       for (const m of svg.matchAll(/font-family="'([^']+)'/g)) fams.add(m[1]);
     };
+    /* a user save speaks its custom faces by name — re-register them the
+       way hydrate does (store's customFonts road), so the thumb's warm-up
+       fetches the TRUE family instead of the registry fallback */
+    for (const u of userPresets) {
+      const cf = (u.cfg as { type?: { customFonts?: unknown } } | undefined)?.type?.customFonts;
+      if (Array.isArray(cf)) for (const c of cf) if (typeof c === "string") registerCustomFont(c);
+    }
     userPresets.forEach((u) => harvest(u.thumb));
     cloudPresets.forEach((p) => harvest(p.thumb ?? cloudArt[p.id]));
     presetArt().forEach((s) => harvest(s.svg));
@@ -826,6 +833,44 @@ export function Panel() {
     pump();
     return () => { stop = true; };
   }, [userPresets, cloudPresets, cloudArt]);
+  /* honest stand-in flag: a saved look whose face genuinely can't load
+     (a deleted custom family, a dead CDN) must SAY it wears a stand-in
+     rather than silently showing the wrong letterforms. Judged only once
+     the faces have had their fair chance — after the loadingdone settle
+     and the late tick — so a merely-lazy face never flashes the flag. */
+  const [fontsTick, setFontsTick] = useState(0);
+  const fontsLate = useRef(false);
+  useEffect(() => {
+    const bump = () => setFontsTick((t) => t + 1);
+    try { document.fonts?.addEventListener?.("loadingdone", bump); } catch { /* older engines: the late tick still judges */ }
+    /* before judging, give every saved face one explicit chance through
+       the app's own road (awaitFonts ensures + loads the byte set) — a
+       registered face whose bytes simply hadn't been asked for yet must
+       not read as missing */
+    const late = window.setTimeout(() => {
+      const fams = new Set<string>();
+      for (const u of userPresets) for (const m of (u.thumb ?? "").matchAll(/font-family="'([^']+)'/g)) fams.add(m[1]);
+      void awaitFonts([...fams]).finally(() => { fontsLate.current = true; bump(); });
+    }, 4000);
+    return () => { try { document.fonts?.removeEventListener?.("loadingdone", bump); } catch { /* ignore */ } window.clearTimeout(late); };
+    // mount-only: a later save's face is already on the canvas, loaded
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const standInFonts = useMemo(() => {
+    void fontsTick; // re-judge as faces land
+    const out: Record<string, string> = {};
+    if (!fontsLate.current) return out;
+    let inFlight = false;
+    try { inFlight = document.fonts?.status === "loading"; } catch { /* judge anyway */ }
+    if (inFlight) return out;
+    for (const u of userPresets) {
+      if (!u.thumb) continue;
+      for (const m of u.thumb.matchAll(/font-family="'([^']+)'/g)) {
+        if (!fontReady(m[1])) { out[u.id] = m[1]; break; }
+      }
+    }
+    return out;
+  }, [userPresets, fontsTick]);
   /* parent eligibility: the component must expose the complete recipe —
      a full silhouette shell, an inset face, a typography label and all four
      states — otherwise other components have nothing to inherit from. */
@@ -1515,6 +1560,7 @@ export function Panel() {
             <button key={u.id} className={`presetcard user${kitName === u.name ? " on" : ""}`} title={`${u.name} — your saved kit`}
               onClick={() => applyUserPreset(u.id)}>
               {u.thumb ? <span className="presetart" dangerouslySetInnerHTML={{ __html: lookArt(u.thumb) }} /> : <span className="presetart" />}
+              {standInFonts[u.id] && <span className="presetstandin" title={`Saved with “${standInFonts[u.id]}”, which isn't available right now — the preview wears a stand-in face. Applying the look keeps its real settings.`}>stand-in face</span>}
               <span className="presetname">{u.name}</span>
               <span className="shapedel" role="button" aria-label={`Delete preset ${u.name}`} title="Delete"
                 onClick={(e) => { e.stopPropagation(); removeUserPreset(u.id); }}>×</span>
