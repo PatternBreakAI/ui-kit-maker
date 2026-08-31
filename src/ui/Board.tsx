@@ -1789,15 +1789,30 @@ export function BoardView({ playing }: { playing: boolean }) {
      the piece you left selected — the frame starts at the top on every
      mount, so a selection parked on a lower board arrived off-screen. The
      scroll runs behind the board curtain; a short seek covers the beat
-     where the stage frame commits before its items. */
+     where the stage frame commits before its items.
+     Round 53 (owner: "come back to the boards, the board's content
+     shifts"): the seek used scrollIntoView, which scrolls EVERY scrollable
+     ancestor — including the overflow:hidden .bd-stage. A piece whose
+     glow-padded box pokes past its board's edge made the browser scroll
+     the stage's hidden overflow to center it, displacing the whole board
+     canvas inside its frame with no way to scroll it back (reload had no
+     parked selection, so cold loads rendered clean — the tell). The seek
+     now steers ONLY the frame scroller, by hand. */
   useEffect(() => {
     const sel = useGen.getState().boardSel;
     if (!sel) return;
     let tries = 0;
     let t = 0;
     const seek = () => {
-      const el = frameRef.current?.querySelector(`[data-bid="${sel}"]`);
-      if (el) { el.scrollIntoView({ block: "center", inline: "center" }); return; }
+      const frame = frameRef.current;
+      const el = frame?.querySelector(`[data-bid="${sel}"]`);
+      if (frame && el) {
+        const fr = frame.getBoundingClientRect();
+        const r = el.getBoundingClientRect();
+        frame.scrollLeft += r.left + r.width / 2 - (fr.left + fr.width / 2);
+        frame.scrollTop += r.top + r.height / 2 - (fr.top + fr.height / 2);
+        return;
+      }
       if (++tries <= 20) t = window.setTimeout(seek, 120);
     };
     seek();
@@ -2180,7 +2195,16 @@ export function BoardView({ playing }: { playing: boolean }) {
                     art when narrow boards share a row */}
                 <div className="bd-stagewrap">
                 <div className="bd-stage" style={{ width: W * fit, height: H * fit }}
-                  onPointerDown={(e) => { setActiveBoard(bd.id); if (e.target === e.currentTarget) setBoardSel(null); }}>
+                  onPointerDown={(e) => { setActiveBoard(bd.id); if (e.target === e.currentTarget) setBoardSel(null); }}
+                  /* round 53, the invariant keeper: the stage clips with
+                     overflow:hidden, but hidden boxes still scroll under
+                     scrollIntoView/focus — and a scrolled stage renders the
+                     ENTIRE board displaced with no scrollbar to undo it.
+                     Any scroll that lands here is a bug; snap it back. */
+                  onScroll={(e) => {
+                    const el = e.currentTarget;
+                    if (el.scrollLeft || el.scrollTop) { el.scrollLeft = 0; el.scrollTop = 0; }
+                  }}>
                   {!live ? (
                     /* sleeping board — an exact-stage-size frame that SAYS
                        it's loading (owner bug, 2026-08-25: the old bare dim
@@ -2275,7 +2299,15 @@ export function BoardView({ playing }: { playing: boolean }) {
                       if (!isStamp && !eb.kitId) return null;
                       const val = isStamp ? eb.stamp!.text : (eb.label ?? "");
                       return (
-                        <input className="bd-inlineedit" autoFocus aria-label="Edit the words in place"
+                        <input className="bd-inlineedit" aria-label="Edit the words in place"
+                          /* focus WITHOUT scrolling (round 53): autoFocus
+                             let the browser scroll the overflow:hidden
+                             stage to reveal an edge-hugging editor —
+                             the same content-displacing class as the
+                             return-leg seek. The dblclick that opened
+                             this editor proves the piece is already on
+                             screen; no scroll is ever needed. */
+                          ref={(el) => { if (el && document.activeElement !== el) el.focus({ preventScroll: true }); }}
                           value={val}
                           maxLength={isStamp ? 40 : labelMaxOf(baseOf(eb.kitId!))}
                           placeholder={isStamp ? "Type the words…" : (eb.kitId ? kitLabels[eb.kitId] || "Text — this copy" : "")}
