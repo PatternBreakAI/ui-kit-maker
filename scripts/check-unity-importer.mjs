@@ -3697,6 +3697,47 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the scene road can no longer place a glyph button (class-name resolve via the roster + the Variants address) (round 52, S43)");
 }
 
+/* ── ROUND 53 · S44 (the per-state glyph dress — reviewer blocker: a
+   Pressed icon-color pin rendered green in the editor and navy in Unity;
+   the glyph is marked ink, stripped from every skin, and the single live
+   cut ships the resting pose). The exporter emits a DIVERGED state's
+   glyph cut on the resting cut's exact window (the raster is the judge —
+   no divergence, no file, defaults byte-identical), wires the seat row
+   (<state>File), and the StateFx rig swaps the live child in lockstep
+   with the frame skins — never baked (maximum-editability law). Thin
+   fleet variants retarget any inherited swap to their own glyph. ── */
+{
+  if (!/if \(iconSeatsU && pieceCfg\(uid\)\.stateDesigns\?\.\[stName\]\?\.icon\) \{/.test(src))
+    errors.push("the per-state glyph cut lost its ICR-ladder gate (stateDesigns[state].icon) — forks ship nothing, or every state rasters needlessly (round 53, S44)");
+  if (!/const SEAT_CUTS = new WeakMap<object, \{ spr: string; box: \[number, number, number, number\] \}>\(\);/.test(src)
+      || !/SEAT_CUTS\.set\(seatRow, \{ spr, box: \[bx, by, bw9, bh9\] \}\);/.test(src))
+    errors.push("iconSeatsOf no longer records the resting cut's exact window — state cuts can't share its canvas and the swap tears (round 53, S44)");
+  if (!/if \(aR9\.length === bR9\.length && aR9\.every\(\(v9, i9\) => v9 === bR9\[i9\]\)\) continue; \/\/ no divergence — no file/.test(src))
+    errors.push("the raster judge left the state-cut road — undiverged forks would ship files and defaults drift (round 53, S44)");
+  if (!/if \(\(await svgEdgeAlphaMax\(stSpr9, PNG_SCALE\)\.catch\(\(\) => 255\)\) > 1\) continue;/.test(src))
+    errors.push("the outgrown-window sit-out left the state-cut road — a size/rotation fork would ship clipped art (round 53, S44)");
+  if (!/seat9\[`\$\{stName\}File`\] = `assets\/\$\{famPath\(`\$\{uid\}\/\$\{partS9\}\.png`\)\}`;/.test(src))
+    errors.push("the seat row no longer wires the state file — the importer can't arm the swap (round 53, S44)");
+  if (!/public string hoverFile; public string pressedFile; public string disabledFile;/.test(cs))
+    errors.push("PBIconChild lost the per-state file fields — JsonUtility drops the swap wiring in SILENCE (round 53, S44)");
+  if (!/public class GlyphSwap \{\s*\n\s*public Image target;\s*\n\s*public Sprite rest, hover, pressed, disabled;/.test(fx)
+      || !/public GlyphSwap\[\] glyphSwaps;/.test(fx))
+    errors.push("StateFx lost the GlyphSwap rig fields — the per-state dress has nowhere to live (round 53, S44)");
+  if (!/void PushGlyphSwaps\(\) \{/.test(fx)
+      || !/PushGlyphSwaps\(\);\s*\n\s*\/\/ the live children ride/.test(fx)
+      || !/if \(cur != null && cur != gsWrote\[i\] && cur != g\.rest && cur != g\.hover && cur != g\.pressed && cur != g\.disabled\) g\.rest = cur;/.test(fx))
+    errors.push("the runtime swap (Push-driven, with the dev-re-sprite adoption rule) left StateFx — the shipped state dress never appears, or a dev's re-sprite fights the rig (round 53, S44)");
+  if (!/\(g\.target\.sprite == g\.hover \|\| g\.target\.sprite == g\.pressed \|\| g\.target\.sprite == g\.disabled\)\) g\.target\.sprite = g\.rest;/.test(fx))
+    errors.push("OnDisable no longer restores the resting dress — a disabled piece freezes a state sprite onto the child (round 53, S44)");
+  if (!/static void WireGlyphStateSwaps\(GameObject go, string root, PBManifest m, string family\) \{/.test(cs)
+      || !/WireGlyphStateSwaps\(go, root, m, baseAsset\.component\);/.test(cs)
+      || !/if \(fx\.glyphSwaps != null && fx\.glyphSwaps\.Length > 0\) return; \/\/ armed — and thereafter yours/.test(cs))
+    errors.push("the importer no longer arms the glyph swap after WireIconChildren (or lost the armed-once keep-theirs) (round 53, S44)");
+  if (!/static void RetargetGlyphSwaps\(GameObject inst, Image gImg, Sprite glyphSp\) \{/.test(cs)
+      || (cs.match(/RetargetGlyphSwaps\(inst, gImg, glyphSp\);/g) ?? []).length < 2)
+    errors.push("the fleet variants no longer neutralize an inherited swap — hover would paint the BASE's glyph over a variant's own (round 53, S44)");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);
