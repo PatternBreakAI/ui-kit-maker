@@ -319,7 +319,13 @@ interface AssetMeta {
      *  sprite is cut WHITE and the importer sets the child's Image.color
      *  to this hex, so a dev retint is one clean color edit and the
      *  app's color slots land exactly. */
-    tint?: string }[];
+    tint?: string;
+    /** the PER-STATE GLYPH DRESS (round 53): a state icon fork (the ICR
+     *  ladder — stateDesigns[state].icon) ships that state's cut on the
+     *  SAME window as the resting sprite; the StateFx rig swaps the live
+     *  child to it in lockstep with the frame skins. A state without a
+     *  file keeps the resting sprite. */
+    hoverFile?: string; pressedFile?: string; disabledFile?: string }[];
 }
 
 export interface EngineExportState {
@@ -3182,6 +3188,12 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     } catch { return { svg: svgIn, labelStripped: false, seatsStripped: 0 }; }
   };
   const stripIconInk = stripMarkedIcons;
+  /* the resting cut's EXACT shipped window per seat (full precision — the
+     manifest row rounds to 0.1): the per-state glyph road (round 53)
+     re-cuts a diverged state's dress on this same canvas so the sprite
+     swap registers 1:1, and rasters BOTH windows to judge divergence.
+     A WeakMap keyed by the seat object — nothing leaks into the manifest. */
+  const SEAT_CUTS = new WeakMap<object, { spr: string; box: [number, number, number, number] }>();
   const iconSeatsOf = async (uid: KitComponentId, fullSvg: string, spritePrefix?: string, nameOverride?: string): Promise<NonNullable<AssetMeta["iconSeats"]> | null> => {
     const cuts = markedIconOnlySvgs(fullSvg);
     if (!cuts.length) return null;
@@ -3289,7 +3301,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           ? "The frame's placeholder portrait — the prefab's masked Portrait child wears it; drop YOUR sprite on that child and the frame clips it round."
           : "This piece's swappable art, exactly as the app draws it — the prefab wears it as a live Image child; swap the sprite in the Inspector (icons/* fit the same seat).",
       }, false);
-      seats.push({
+      const seatRow: NonNullable<AssetMeta["iconSeats"]>[number] = {
         name: mk.name, file: `assets/${famPath(pathIc)}`,
         dx: r1(bx + bw9 / 2 - (s0[0] + s0[2] / 2)),
         dy: r1(by + bh9 / 2 - (s0[1] + s0[3] / 2)),
@@ -3298,7 +3310,9 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         ...(mk.well ? { wellR: r1(mk.well[2]) } : {}),
         ...(mk.nick ? { nick: mk.nick } : {}),
         ...(mk.tint ? { tint: mk.tint } : {}),
-      });
+      };
+      SEAT_CUTS.set(seatRow, { spr, box: [bx, by, bw9, bh9] });
+      seats.push(seatRow);
     }
     return seats.length ? seats : null;
   };
@@ -5491,6 +5505,75 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           for (const stName of ["hover", "pressed", "disabled"] as const) {
             let sSvg: string;
             try { sSvg = stripLoopsU(stateShell(uid, stName, uOpts, uVal)); } catch { continue; }
+            /* ── the PER-STATE GLYPH DRESS (round 53 blocker: a Pressed
+               icon-color pin rendered green in the editor and navy in
+               Unity — the glyph is marked ink, stripped from every skin
+               per the maximum-editability law, and the single live cut
+               ships the resting pose). When THIS state's icon rig forks
+               (the ICR ladder afb0457 gave the app: stateDesigns[state]
+               .icon), each plain glyph seat re-cuts from the state render
+               on the RESTING cut's exact window — shell-shift aligned,
+               same integer canvas, so the sprite swap registers 1:1 —
+               and ships beside the resting cut; the seat row wires the
+               swap (<state>File) for the StateFx rig. The RASTER is the
+               judge: a fork that leaves the glyph's pixels alone ships
+               nothing, so default kits stay byte-identical to the byte.
+               Ink that outgrows the resting window (a size/rotation
+               fork) sits out quietly — the child keeps the resting
+               dress (a later wave widens the seat). Buttons (btn) and
+               portrait wells keep their own machinery. ── */
+            /* the GATE (r53 + its follow-on, one ring out): a state
+               qualifies when its ICON rig forks (the ICR ladder), OR
+               when an INHERIT-mode glyph's voiced ink changes through
+               the state's TYPE fork (afb0457's typeKT road: T4 =
+               stateDesigns[state].type ?? cfg.type) — a pinned icon
+               color blocks the type's reach, exactly as the app
+               resolves it. NOT a gate: the renderer's universal
+               disabled-gray repaint (#A7AAB4 on every family, fork or
+               none) — that is the disabled contract, not a divergence
+               the maker pinned, and gating on it would grow every kit
+               with any disabled fork. The raster judge below stays the
+               final arbiter either way — byte-equal ships nothing. */
+            const cfgG9 = pieceCfg(uid);
+            const sdG9 = cfgG9.stateDesigns?.[stName];
+            const inkForks9 = !!sdG9 && (!!sdG9.icon
+              || (!!sdG9.type && !(sdG9.icon ?? cfgG9.icon)?.color
+                && (sdG9.type.fillMode !== cfgG9.type.fillMode
+                  || sdG9.type.fill !== cfgG9.type.fill
+                  || (sdG9.type.fillMode === "gradient" && sdG9.type.fill2 !== cfgG9.type.fill2)
+                  || JSON.stringify(sdG9.type.outline) !== JSON.stringify(cfgG9.type.outline))));
+            if (iconSeatsU && inkForks9) {
+              try {
+                const shOf9 = (sv: string) => (/data-shell="([-\d. ]+)"/.exec(sv) ?? /data-shell0="([-\d. ]+)"/.exec(sv))?.[1].split(" ").map(Number);
+                const shR9 = shOf9(fullU), shS9 = shOf9(sSvg);
+                if (shR9?.length === 4 && shS9?.length === 4) {
+                  const dxSh9 = shS9[0] + shS9[2] / 2 - (shR9[0] + shR9[2] / 2);
+                  const dySh9 = shS9[1] + shS9[3] / 2 - (shR9[1] + shR9[3] / 2);
+                  const cutsS9 = markedIconOnlySvgs(sSvg);
+                  for (const seat9 of iconSeatsU) {
+                    if (seat9.btn || (seat9.wellR ?? 0) > 0.5) continue;
+                    const rest9 = SEAT_CUTS.get(seat9);
+                    const mkS9 = cutsS9.find((c9) => c9.name === seat9.name);
+                    if (!rest9 || !mkS9) continue;
+                    const [bx9, by9, bw99, bh99] = rest9.box;
+                    const stSpr9 = mkS9.svg
+                      .replace(/viewBox="[^"]+"/, `viewBox="${(bx9 + dxSh9).toFixed(1)} ${(by9 + dySh9).toFixed(1)} ${bw99.toFixed(1)} ${bh99.toFixed(1)}"`)
+                      .replace(/ width="[\d.]+"/, ` width="${Math.ceil(bw99)}"`)
+                      .replace(/ height="[\d.]+"/, ` height="${Math.ceil(bh99)}"`);
+                    const aR9 = (await svgToPngBytes(rest9.spr, PNG_SCALE)).bytes;
+                    const bR9 = (await svgToPngBytes(stSpr9, PNG_SCALE)).bytes;
+                    if (aR9.length === bR9.length && aR9.every((v9, i9) => v9 === bR9[i9])) continue; // no divergence — no file
+                    if ((await svgEdgeAlphaMax(stSpr9, PNG_SCALE).catch(() => 255)) > 1) continue; // outgrew the resting window — the resting dress stands
+                    const partS9 = `icon-${seat9.name}-${stName}`;
+                    await addPng(`${uid}/${partS9}.png`, stSpr9, {
+                      component: uid, part: partS9, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+                      usage: `The ${seat9.name} child's ${stName.toUpperCase()} dress — this state's icon fork, cut on the resting sprite's exact canvas; the StateFx rig swaps the live child to it with the frame skins (every state field on the rig stays yours to re-sprite).`,
+                    }, false);
+                    seat9[`${stName}File`] = `assets/${famPath(`${uid}/${partS9}.png`)}`;
+                  }
+                }
+              } catch { /* the resting dress stands — the skins still ship */ }
+            }
             /* a bar-rig family's state skins strip the mercury too (round
                44, item 23): the live Fill child rides the press — a baked
                twin beneath would double-draw the bar on hover */
@@ -8933,6 +9016,20 @@ namespace PatternBreak {
     public float authoredHeight;
     [Tooltip("Seconds to cross-fade between states.")]
     public float fade = 0.11f;
+    /* the PER-STATE GLYPH DRESS (round 53): a state icon fork edited on
+       uikitmaker.com ships each diverged state's glyph as its own sprite,
+       and this rig swaps the live child to it in lockstep with the frame
+       — the child stays an ordinary, Inspector-editable Image in every
+       state (the maximum-editability law: nothing baked into the skins).
+       A state without its own sprite keeps Rest; every field is yours. */
+    [System.Serializable]
+    public class GlyphSwap {
+      public Image target;
+      public Sprite rest, hover, pressed, disabled;
+    }
+    [Tooltip("Live children whose sprite follows the state — the kit's per-state glyph dress. A state without a sprite keeps Rest. Re-sprite any field freely; a sprite set directly on the child becomes its new Rest.")]
+    public GlyphSwap[] glyphSwaps;
+    Sprite[] gsWrote;
 
     RectTransform rt, glowRt;
     Image glowImg;
@@ -9042,6 +9139,13 @@ namespace PatternBreak {
         for (int i = 0; i < riders.Length; i++)
           if (riders[i] != null && !float.IsNaN(riderWrote[i])) riders[i].anchoredPosition = riderBase[i];
       riders = null;
+      // the glyph dress returns to rest too — a disabled piece must not
+      // freeze a hover/pressed sprite onto the child
+      if (glyphSwaps != null)
+        foreach (var g in glyphSwaps)
+          if (g != null && g.target != null && g.rest != null
+            && (g.target.sprite == g.hover || g.target.sprite == g.pressed || g.target.sprite == g.disabled)) g.target.sprite = g.rest;
+      gsWrote = null;
     }
     static bool legacyGlowHinted;
     void BuildGlow() {
@@ -9257,11 +9361,34 @@ namespace PatternBreak {
           lastWroteY = baseY + liftNow;
         } else lastWroteY = rt.anchoredPosition.y; // the adoption logic stays quiet
       }
+      // the glyph dress follows the same state, instantly (a sprite has
+      // no in-between) — the frame's Sprite Swap and this stay one move
+      PushGlyphSwaps();
       // the live children ride the baked travel exactly like the halo —
       // label, icon and friends press WITH the face (the app's one group)
       PushRiders();
       // the halo follows in MirrorHost — root motion or the baked slide
       MirrorHost();
+    }
+    void PushGlyphSwaps() {
+      if (glyphSwaps == null || glyphSwaps.Length == 0) return;
+      if (gsWrote == null || gsWrote.Length != glyphSwaps.Length) gsWrote = new Sprite[glyphSwaps.Length];
+      bool dis = sel != null && !sel.IsInteractable();
+      for (int i = 0; i < glyphSwaps.Length; i++) {
+        var g = glyphSwaps[i];
+        if (g == null || g.target == null) continue;
+        var cur = g.target.sprite;
+        /* adopt outside writes (a dev re-sprites the child in the
+           Inspector or at runtime): a sprite this rig didn't set becomes
+           the new REST — the riders' write-once identity, for sprites */
+        if (cur != null && cur != gsWrote[i] && cur != g.rest && cur != g.hover && cur != g.pressed && cur != g.disabled) g.rest = cur;
+        var want = dis ? (g.disabled != null ? g.disabled : g.rest)
+          : down ? (g.pressed != null ? g.pressed : g.rest)
+          : over ? (g.hover != null ? g.hover : g.rest)
+          : g.rest;
+        if (want != null && g.target.sprite != want) g.target.sprite = want;
+        gsWrote[i] = want;
+      }
     }
   }
 }
@@ -12367,6 +12494,11 @@ namespace PatternBreak {
      box center vs the shell center (design px, y down), box size. btn =
      a REAL small-button plate; wellR > 0 = circular-masked image well. */
   [Serializable] class PBIconChild { public string name; public string file; public float dx; public float dy; public float w; public float h; public bool btn; public float wellR; public bool pinRight; public float rightGap; public string nick; public string tint;
+    /* the PER-STATE GLYPH DRESS (round 53): a state icon fork ships that
+       state's cut on the resting sprite's exact canvas — WireGlyphStateSwaps
+       arms the StateFx rig to swap the live child in lockstep with the
+       frame skins; an empty field keeps the resting sprite. */
+    public string hoverFile; public string pressedFile; public string disabledFile;
     /* posed board copies only (round 40): a rider word stripped from the
        posed pixels with its plate — rebuilt as live TMP ON the live child
        (wordDx/wordDy = word center from the CHILD center, board px). */
@@ -18079,6 +18211,8 @@ namespace PatternBreak {
       /* the UN-BURN's live picture children (iconSeats rows) — every icon
          and image the app drew, rebuilt swappable at the exact app seat */
       WireIconChildren(go, root, m, baseAsset.component);
+      // the per-state glyph dress rides the children just built (round 53)
+      WireGlyphStateSwaps(go, root, m, baseAsset.component);
       /* ── the STAR RATING goes LIVE (round 44, item 35 — RIG-5): the
          three Stars, the Celebration flare and the Replay button are the
          live seats above; PatternBreakStarRating makes the score a DIAL —
@@ -18879,6 +19013,41 @@ namespace PatternBreak {
       if (m == null || m.stateFx == null) return false;
       foreach (var f in m.stateFx) if (f != null && f.family == family) return true;
       return false;
+    }
+    /* the PER-STATE GLYPH DRESS, importer half (round 53 — the field bug:
+       a Pressed icon-color pin showed green in the editor and navy in
+       Unity): seats whose manifest rows ship state files arm the StateFx
+       rig to swap the LIVE glyph child to each state's cut in lockstep
+       with the frame skins — never baked into them (maximum-editability
+       law). Runs AFTER WireIconChildren (the children must exist) and
+       only where WireStateFx armed the rig; armed once — a prefab a dev
+       already holds keeps its own fields forever. */
+    static void WireGlyphStateSwaps(GameObject go, string root, PBManifest m, string family) {
+      var fx = go.GetComponent<StateFx>();
+      if (fx == null || m == null || m.assets == null) return;
+      if (fx.glyphSwaps != null && fx.glyphSwaps.Length > 0) return; // armed — and thereafter yours
+      var swaps = new System.Collections.Generic.List<StateFx.GlyphSwap>();
+      var seenGS = new HashSet<string>();
+      foreach (var aGS in m.assets) {
+        if (aGS == null || aGS.component != family || aGS.iconSeats == null) continue;
+        foreach (var icGS in aGS.iconSeats) {
+          if (icGS == null) continue;
+          if (string.IsNullOrEmpty(icGS.hoverFile) && string.IsNullOrEmpty(icGS.pressedFile) && string.IsNullOrEmpty(icGS.disabledFile)) continue;
+          var cnGS = IconChildName(icGS);
+          if (!seenGS.Add(cnGS)) continue;
+          var chGS = go.transform.Find(cnGS);
+          var imGS = chGS != null ? chGS.GetComponent<Image>() : null;
+          if (imGS == null || imGS.sprite == null) continue; // the dev's structure stands — no child, no swap
+          var g = new StateFx.GlyphSwap();
+          g.target = imGS;
+          g.rest = imGS.sprite;
+          g.hover = string.IsNullOrEmpty(icGS.hoverFile) ? null : S(root + "/" + icGS.hoverFile);
+          g.pressed = string.IsNullOrEmpty(icGS.pressedFile) ? null : S(root + "/" + icGS.pressedFile);
+          g.disabled = string.IsNullOrEmpty(icGS.disabledFile) ? null : S(root + "/" + icGS.disabledFile);
+          if (g.hover != null || g.pressed != null || g.disabled != null) swaps.Add(g);
+        }
+      }
+      if (swaps.Count > 0) fx.glyphSwaps = swaps.ToArray();
     }
     static string DefaultLabel(string family) {
       if (family == "chip") return "NEW";
@@ -22885,6 +23054,7 @@ namespace PatternBreak {
             if (gImg == null) continue; // no glyph child (the maker shipped an empty well) — the fleet sits out
             gImg.sprite = glyphSp;
             PrefabUtility.RecordPrefabInstancePropertyModifications(gImg);
+            RetargetGlyphSwaps(inst, gImg, glyphSp);
             var saved = PrefabUtility.SaveAsPrefabAsset(inst, path);
             if (saved == null) continue;
             made++;
@@ -22920,6 +23090,19 @@ namespace PatternBreak {
        Missing sprites wait quietly (a wave ahead of its art), an
        existing prefab is the dev's after creation, and a thin variant
        still restyles through its base. */
+    /* a thin variant wears a DIFFERENT glyph than its base — an inherited
+       per-state swap entry (the base's own state dress, round 53) must
+       never paint the base's glyph over it on hover/press: the variant's
+       entry retargets to its own sprite with the states cleared (the
+       resting dress in every state; a dev re-arms any state by hand). */
+    static void RetargetGlyphSwaps(GameObject inst, Image gImg, Sprite glyphSp) {
+      var fxSw = inst.GetComponent<StateFx>();
+      if (fxSw == null || fxSw.glyphSwaps == null) return;
+      bool retSw = false;
+      foreach (var gSw in fxSw.glyphSwaps)
+        if (gSw != null && gSw.target == gImg) { gSw.rest = glyphSp; gSw.hover = null; gSw.pressed = null; gSw.disabled = null; retSw = true; }
+      if (retSw) PrefabUtility.RecordPrefabInstancePropertyModifications(fxSw);
+    }
     static bool GlyphFleetPrefabs(string dir, string root, PBManifest m, bool quiet, int pngScale, Font kitFont) {
       if (m == null || m.glyphFleet == null || m.glyphFleet.Length == 0) return false;
       var basePf = AssetDatabase.LoadAssetAtPath<GameObject>(dir + "/Slotbtn.prefab");
@@ -22958,6 +23141,7 @@ namespace PatternBreak {
             if (gImg == null) continue; // no glyph child (the maker shipped an empty well) — the fleet sits out
             gImg.sprite = glyphSp;
             PrefabUtility.RecordPrefabInstancePropertyModifications(gImg);
+            RetargetGlyphSwaps(inst, gImg, glyphSp);
             var grt = gT as RectTransform;
             var bsGB = inst.GetComponent<Image>() != null ? inst.GetComponent<Image>().sprite : null;
             if (grt != null && fe.w > 1f && fe.h > 1f && rowGB != null && rowGB.shell != null && rowGB.shell.w > 4f && bsGB != null && bsGB.rect.width > 2f && bsGB.rect.height > 2f) {
