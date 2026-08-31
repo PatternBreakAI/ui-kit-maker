@@ -1448,15 +1448,42 @@ export function Panel() {
         {(() => {
           const cloudSorted = [...cloudPresets].sort((a, b) => String(b.publish_at ?? "").localeCompare(String(a.publish_at ?? "")));
           const LOOKS_CAP = 12;
-          const total = userPresets.length + cloudSorted.length + presetArt().filter((p) => !hiddenStarters.includes(p.id)).length;
+          /* ONE card per look name (owner: "why are there two brightsides
+             here, I only want to see one" — their saved Brightside sat next
+             to its own Spotlight tile). The rack's sources dedupe by name,
+             ownership first: your saved look beats everything, a pack row
+             beats the Spotlight tile (the row is the citizen — and carries
+             the admin schedule/delete handles), the tile beats the starters.
+             Cards HIDE here, data never dies: the promo row, the pack and
+             the starter live untouched for every visitor not carrying the
+             name (and on the home Spotlight shelf), and renaming or deleting
+             your save brings the hidden card straight back. One exception:
+             an admin always sees every pack row — the rack is the only place
+             a pack can be rescheduled or deleted. */
+          const normName = (s: string) => s.trim().toLowerCase();
+          const userNames = new Set(userPresets.map((u) => normName(u.name)));
+          const cloudVisible = cloudSorted.filter((p) => isAdmin || !userNames.has(normName(p.name)));
+          const belowSpot = new Set([...userNames, ...cloudVisible.map((p) => normName(p.name))]);
+          const spotShown = spotPromo != null && !belowSpot.has(normName(spotPromo.title));
+          /* the NEW chip survives the dedupe — a tile that yields to its
+             same-named pack row hands the chip to that row (a look you
+             saved yourself is never "NEW" to you, so no chip rides a save) */
+          const chipName = spotPromo && !spotShown && promoIsNew(spotPromo) && cloudVisible.some((p) => normName(p.name) === normName(spotPromo.title))
+            ? normName(spotPromo.title) : null;
+          const takenAbove = new Set([...belowSpot, ...(spotShown && spotPromo ? [normName(spotPromo.title)] : [])]);
+          /* starters keep their CURATED index for the tier gate even when a
+             same-named card above hides one — a hidden starter must never
+             slide a locked one into the free window */
+          const starters = presetArt().filter((p) => !hiddenStarters.includes(p.id)).map((p, pi) => ({ ...p, pi })).filter((p) => !takenAbove.has(normName(p.name)));
+          const total = userPresets.length + cloudVisible.length + starters.length;
           const capLeft = (used: number) => looksAll ? Infinity : Math.max(0, LOOKS_CAP - used);
           const userShow = userPresets.slice(0, looksAll ? undefined : LOOKS_CAP);
-          const cloudShow = cloudSorted.slice(0, capLeft(userShow.length));
+          const cloudShow = cloudVisible.slice(0, capLeft(userShow.length));
           const starterCap = capLeft(userShow.length + cloudShow.length);
           return (
             <>
         <div className="presetgrid">
-          {spotPromo && (() => {
+          {spotShown && spotPromo && (() => {
             /* the tile speaks the rack's grammar: when the promoted kit is
                a shared preset in the library, clicking APPLIES it — through
                the same tier gate as every pack tile. Otherwise it routes to
@@ -1500,6 +1527,7 @@ export function Panel() {
             <button key={p.id} className="presetcard shared lockedp"
               title={`${p.name} — from the monthly preset packs. ${tier === "guest" ? PACK_PITCH_GUEST : "A new pack drops every month with Pro."}`}
               onClick={() => { if (tier === "guest") openAuth("signin"); else window.location.hash = "#/pricing"; }}>
+              {chipName === normName(p.name) && <span className="presetnew">NEW</span>}
               <span className="presetart" dangerouslySetInnerHTML={{ __html: lookArt(p.thumb ?? cloudArt[p.id]) }} />
               <span className="presetname"><Lock size={11} strokeWidth={2.4} /> {p.name}</span>
             </button>
@@ -1507,6 +1535,7 @@ export function Panel() {
             <button key={p.id} className={`presetcard shared${kitName === p.name ? " on" : ""}${heldUntil(p.publish_at) ? " held" : ""}`}
               title={heldUntil(p.publish_at) ? `${p.name} — held until ${heldUntil(p.publish_at)}. Only you can see it.` : `${p.name} — preset pack`}
               onClick={() => applyCloudPreset(p.id)}>
+              {chipName === normName(p.name) && <span className="presetnew">NEW</span>}
               <span className="presetart" dangerouslySetInnerHTML={{ __html: lookArt(p.thumb ?? cloudArt[p.id]) }} />
               <span className="presetname">{p.name}</span>
               {/* Only an admin ever reaches this branch with a held pack —
@@ -1530,9 +1559,9 @@ export function Panel() {
               )}
             </button>
           ))}
-          {presetArt().filter((p) => !hiddenStarters.includes(p.id)).map((p, pi) => {
+          {starters.map((p) => {
             // the tier gate follows the CURATED index, not the folded view
-            const gated = pi >= capsOf(tier).presetLimit;
+            const gated = p.pi >= capsOf(tier).presetLimit;
             return gated ? (
               <button key={p.id} className="presetcard lockedp" title={UPGRADE_LINES[tier]}
                 onClick={() => { if (tier === "guest") openAuth("signin"); else window.location.hash = "#/pricing"; }}>
