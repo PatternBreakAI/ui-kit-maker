@@ -199,6 +199,68 @@ export function CanvasView() {
     () => ((sv: string) => (fWipe && displayed !== "disabled" ? addShine(sv, { dur: cfg.idle?.freq, sweep: cfg.idle?.wipeDur, width: cfg.idle?.wipeWidth, armed: cfg.idle?.trigger === "hover", blend: cfg.idle?.blend }) : sv))(padSvg(focus ? renderKit(applyKitTextFill(applyKitDesign(cfg, kitDesigns[focus]), kitTextFill[focus]), baseOf(focus), fSize, displayed, kitVals[focus] ?? (baseOf(focus) === "toggle" && displayed === "pressed" ? 0 : undefined), kitShapes[focus], { textOy: fOy, textOx: fOx, icon: resolveKitIcon(kitIcons[focus], undefined), label: kitNoText[focus] ? "" : kitLabels[focus], sub: kitSubs[focus], slots: kitSlotVals[focus], dock: fDock, bar: fBar, row: baseOf(focus) === "datarow" ? kitRow : undefined, kind: baseOf(focus) === "panel" ? (kitKind ?? undefined) : undefined, overlay: fOv, themedText: !!kitDesigns[focus]?.type || !!kitTextFill[focus] }) : parentId !== "button" ? renderKit(cfg, parentId, "l", displayed, kitVals[parentId], kitShapes[parentId], { label: kitNoText[parentId] ? "" : kitLabels[parentId], icon: resolveKitIcon(kitIcons[parentId], undefined) }) : renderBevel(cfg, displayed))),
     [cfg, displayed, focus, parentId, kitShapes, fSize, fOy, fOx, kitRow, kitKind, fOv, kitBar, kitTextFill, kitIcons, kitLabels, kitNoText, kitSubs, kitSlotVals, kitVals, kitDesigns]
   );
+  /* ── the hero finds the middle of its workspace ──────────────────────
+     The render's canvas reserves the sliders' full travel BELOW the shell
+     (extrusion cap + shadow room; padSvg's stable glow pad all around), so
+     the visible piece rides high of true center in its slot — the same
+     content-sized-not-a-card gap the state cards closed (ScardBody),
+     adapted to the workspace: measure the drawn ink (getBBox, bbox noise
+     detached) and TRANSLATE the svg so the INK centers in the hero slot.
+     Translate only, never scale — the workspace zooms and scrolls and the
+     familiar sizes are the editor's truth; and the transform never touches
+     the LAYOUT box, so the full-travel reserve keeps holding the box
+     constant through slider drags, and pan range + zoom re-anchoring
+     (which read the box) keep their math. Hit and selection geometry
+     follow for free: shellHit/shellRectHit, Dissect and Smart Help all
+     measure the svg's LIVE client rect, which carries the transform.
+     While a live pose is up (Play hover/press) the nudge FREEZES at the
+     resting measure — re-centering a lifted shell would cancel the very
+     press travel the pose exists to show. */
+  const heroBox = useRef<HTMLDivElement>(null);
+  const [heroNudge, setHeroNudge] = useState({ x: 0, y: 0 });
+  useLayoutEffect(() => {
+    const box = heroBox.current;
+    const svg = box?.querySelector("svg");
+    // no design svg (LiveArt owns the play-focus hero) or mid-pose: keep
+    // the frozen resting nudge
+    if (!box || !svg || live !== null) return;
+    const center = () => {
+      const restore = detachBBoxNoise(svg);
+      let bb: DOMRect;
+      try { bb = svg.getBBox(); } catch { return; } finally { restore(); }
+      const vb = svg.viewBox?.baseVal;
+      if (!vb?.width || !vb.height || !bb.width || !bb.height) return;
+      // measure the LAYOUT truth — the stamped correction must not skew it
+      const prev = svg.style.transform;
+      svg.style.transform = "none";
+      const sr = svg.getBoundingClientRect();
+      const br = box.getBoundingClientRect();
+      svg.style.transform = prev;
+      if (!sr.width || !br.width) return;
+      const kx = sr.width / vb.width, ky = sr.height / vb.height;
+      const ix = sr.x + (bb.x - vb.x) * kx + (bb.width * kx) / 2;
+      const iy = sr.y + (bb.y - vb.y) * ky + (bb.height * ky) / 2;
+      // client rects are screen px; the transform resolves in zoomed CSS px
+      const z = Math.max(0.05, zoom);
+      const nx = (br.x + br.width / 2 - ix) / z, ny = (br.y + br.height / 2 - iy) / z;
+      setHeroNudge((n) => (Math.abs(n.x - nx) < 0.5 && Math.abs(n.y - ny) < 0.5 ? n : { x: nx, y: ny }));
+    };
+    center();
+    // fonts land after first paint and the slot resizes with the layout
+    const ro = new ResizeObserver(center);
+    ro.observe(box);
+    let dead = false;
+    document.fonts?.ready?.then(() => { if (!dead) center(); }).catch(() => {});
+    return () => { dead = true; ro.disconnect(); };
+  }, [heroSvg, zoom, live, playing, focus]);
+  // innerHTML swaps mint a NEW svg with no inline style — restamp the nudge
+  // after every commit (pose flips included, so press travel stays true)
+  useLayoutEffect(() => {
+    const svg = heroBox.current?.querySelector("svg");
+    if (svg) svg.style.transform = heroNudge.x || heroNudge.y ? `translate(${heroNudge.x.toFixed(1)}px, ${heroNudge.y.toFixed(1)}px)` : "";
+  });
+  const heroNudgeStyle = heroNudge.x || heroNudge.y ? { transform: `translate(${heroNudge.x.toFixed(1)}px, ${heroNudge.y.toFixed(1)}px)` } : undefined;
+
   // Fixed order, selected included — the stack never reshuffles.
   const sideStates = STATE_NAMES.filter(
     (s) => s === "default" || cfg.visible[s as Exclude<GenStateName, "default">]
@@ -329,8 +391,11 @@ export function CanvasView() {
             {playing && focus ? (
               /* v62: in Play mode the hero IS the live component — sliders
                  drag, toggles flip, bars replay — the same LiveArt engine
-                 the kit page runs, at hero scale */
-              <div className="hero-slot hot" onPointerDown={(e) => e.stopPropagation()}>
+                 the kit page runs, at hero scale. It wears the same
+                 measured nudge on its WRAPPER — same box, same ink offset,
+                 so Design ↔ Play never jump; LiveArt's own hit tests read
+                 live rects. */
+              <div className="hero-slot hot" style={heroNudgeStyle} onPointerDown={(e) => e.stopPropagation()}>
                 <LiveArt playing scale={1} stablePad
                   cfg={applyKitTextFill(applyKitDesign(cfg, kitDesigns[focus]), kitTextFill[focus])}
                   kit={{ id: baseOf(focus), size: fSize, shape: kitShapes[focus], label: kitLabels[focus], sub: kitSubs[focus], slots: kitSlotVals[focus], value: kitVals[focus],
@@ -343,6 +408,7 @@ export function CanvasView() {
               </div>
             ) : (
             <div
+              ref={heroBox}
               className={`hero-slot${playing ? " hot" : ""}`}
               {...(playing ? {
                 /* the hero's hit zone is the SHELL — the reserved glow pad
