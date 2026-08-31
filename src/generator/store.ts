@@ -242,6 +242,13 @@ function migrateV8(old: Record<string, any>): GenConfig {
    always current, and ./default-settings.json — when reachable — overrides it,
    which keeps "upload one JSON" as the admin path. */
 let siteDefault: GenConfig | null = hydrate(siteDefaultJson as Record<string, any>);
+/* The base document's IDENTITY, for surfaces that cache art cut from it
+   (the Looks rack's starter thumbs). It moves only when
+   ./default-settings.json actually lands a DIFFERENT base — the every-boot
+   refetch of an unchanged file costs nothing — so a cache keyed on it
+   re-cuts at its next render instead of lying until reload. */
+let siteDefaultGen = 0;
+export function defaultGeneration(): number { return siteDefaultGen; }
 export function getDefault(): GenConfig {
   const d = siteDefault ?? defaultConfig();
   return (typeof structuredClone === "function" ? structuredClone(d) : JSON.parse(JSON.stringify(d))) as GenConfig;
@@ -251,7 +258,9 @@ export function fetchSiteDefault(): void {
     .then((r) => (r.ok ? r.json() : null))
     .then((j) => {
       if (!j || typeof j !== "object" || !j.presetId || !j.candy) return;
-      siteDefault = hydrate(j as Record<string, any>);
+      const next = hydrate(j as Record<string, any>);
+      if (JSON.stringify(next) !== JSON.stringify(siteDefault)) siteDefaultGen++;
+      siteDefault = next;
       adoptDefaultIfUntouched();
     })
     .catch(() => { adoptDefaultIfUntouched(); /* bundled default stands */ });

@@ -12,7 +12,7 @@ import type { GenStateName, BlendMode, GlintStyle, PatternType, KitComponentId, 
 import { ICON_LIBS, loadLib, libLoaded, searchLib, getDef, previewSvg } from "@/generator/icons";
 import { ensureFont, ensureDocFonts, fontReady, awaitFonts } from "@/generator/fonts";
 import { renderBevel, renderKit, shapePath, RARITY_FACTORY, VALUE_DRIVEN, effSlotColor } from "@/generator/bevel";
-import { hydrate, presetLookConfig } from "@/generator/store";
+import { hydrate, presetLookConfig, defaultGeneration } from "@/generator/store";
 import type { LibItem } from "@/generator/store";
 import { applyPresetCandy } from "@/generator/model";
 import type { GenConfig  } from "@/generator/model";
@@ -44,17 +44,26 @@ const PACK_PITCH_GUEST = "Monthly preset packs ship with Pro — sign in free to
    and it is jarring to designers"). Faces load lazily (the harvest pump
    below); the inline SVG text repaints itself when each face lands, and
    the fitted numbers are already correct pre-load — label widths come
-   from the baked metrics tables, not the live face. */
+   from the baked metrics tables, not the live face. The cache keys on the
+   base document's generation: recipe starters derive from the site
+   default, and ./default-settings.json can land AFTER the first cut — a
+   moved base re-cuts the rack at its next render instead of standing
+   stale until reload. */
 let presetArtCache: { id: string; name: string; svg: string }[] | null = null;
+let presetArtGen = -1;
 export function presetArt() {
-  if (!presetArtCache) presetArtCache = PRESETS.map((p) => {
-    const pc = presetLookConfig(p.id);
-    pc.content.label = "PLAY";
-    pc.icon.show = false;
-    // thumbnails skip the glow viewport pad — the art stays tight in its card
-    for (const s of Object.values(pc.states)) s.glow = 0;
-    return { id: p.id, name: p.name, svg: renderBevel(pc, "default") };
-  });
+  const gen = defaultGeneration();
+  if (!presetArtCache || presetArtGen !== gen) {
+    presetArtGen = gen;
+    presetArtCache = PRESETS.map((p) => {
+      const pc = presetLookConfig(p.id);
+      pc.content.label = "PLAY";
+      pc.icon.show = false;
+      // thumbnails skip the glow viewport pad — the art stays tight in its card
+      for (const s of Object.values(pc.states)) s.glow = 0;
+      return { id: p.id, name: p.name, svg: renderBevel(pc, "default") };
+    });
+  }
   return presetArtCache;
 }
 

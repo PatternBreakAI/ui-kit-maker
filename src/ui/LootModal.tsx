@@ -1,10 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Zap, X } from "lucide-react";
 import { useCloudStatus } from "@/shell/useCloudStatus";
-import { useGen, hydrate, PRESET_DEFAULTS } from "@/generator/store";
-import { PRESETS, defaultConfig, defaultCandy, applyPresetCandy } from "@/generator/model";
-import type { GenConfig } from "@/generator/model";
-import { retintText } from "@/generator/store";
+import { useGen, presetLookConfig } from "@/generator/store";
 import { renderKit } from "@/generator/bevel";
 import { presetArt } from "./Panel";
 
@@ -25,25 +22,20 @@ const RARITY = ["RARE", "EPIC"] as const;
    bursts in as the flare peaks */
 const CRACK_MS = 500;
 
-function presetCfg(id: string): GenConfig {
-  if (PRESET_DEFAULTS[id]) return hydrate(structuredClone(PRESET_DEFAULTS[id]));
-  const p = PRESETS.find((x) => x.id === id) ?? PRESETS[0];
-  const pc = defaultConfig();
-  pc.presetId = p.id; pc.shape = p.shape; pc.bevel = { ...p.bevel }; pc.effects = { ...p.effects };
-  const candy = defaultCandy(); applyPresetCandy(candy, p); pc.candy = candy;
-  retintText(pc);
-  return pc;
-}
-
 /** Presentational core — exported so it can be previewed without auth. */
 export function LootModalView({ onClose }: { onClose: () => void }) {
   // two showcase looks to crack open — celebration, not an unlock; every
   // starter is already free for every tier
   const pulls = presetArt().slice(-2);
   const packArts = useMemo(
-    // label:"" drops the pack face's "12 CARDS" caption — the reward mock
-    // wants clean faces; the rarity plate below carries the words
-    () => pulls.map((p) => renderKit(presetCfg(p.id), "pack", "m", "default", undefined, undefined, { label: "" })),
+    /* label:"" drops the pack face's "12 CARDS" caption — the reward mock
+       wants clean faces; the rarity plate below carries the words. Each
+       pack renders from the EXACT document its look lands
+       (presetLookConfig — the setPreset road); the private builder that
+       used to sit here was a fossil of the font-dropping recipe branch
+       the Looks rack already killed, so a pack could wear a different
+       face than the look inside it. */
+    () => pulls.map((p) => renderKit(presetLookConfig(p.id), "pack", "m", "default", undefined, undefined, { label: "" })),
     [pulls.map((p) => p.id).join(",")] // eslint-disable-line react-hooks/exhaustive-deps
   );
   const [opened, setOpened] = useState<boolean[]>(pulls.map(() => false));
