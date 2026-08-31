@@ -368,7 +368,12 @@ export const SILHOUETTES: SilhouetteMeta[] = [
      expects a matching rack. Caps and content measured off the outline
      as always (probe calibrated against Hellmouth's registered numbers).
      Staged until the owner releases them. ── */
-  { id: "stock:afterburner", flippable: true, name: "Afterburner", category: "Showpieces", source: "custom (owner flame button, flamebutton4)", license: "original", renderer: "path", gothicCut: true, preview: true,
+  /* RELEASED round 56 (owner: "Can all users se flame button 4? if not,
+     make it so, very important for hot rod") — the preview gate drops;
+     NOTE the production retire ledger (app_settings.hidden_silhouettes)
+     still carried this id at release time and needs the owner's one-click
+     "Restore silhouettes" to finish opening it to non-admins. */
+  { id: "stock:afterburner", flippable: true, name: "Afterburner", category: "Showpieces", source: "custom (owner flame button, flamebutton4)", license: "original", renderer: "path", gothicCut: true,
     capScale: 0.281, content: { top: 0.349, right: 0.368, bottom: 0.321, left: 0.461 }, minWidth: 96, minHeight: 40,
     supports: [...BTN, "timer"], character: "The flame button — fire tail streaming off the left of a rounded core. Built for a single hero moment: play, claim, ignite." },
 ];
