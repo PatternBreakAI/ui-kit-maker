@@ -12,7 +12,10 @@ import { stampFilter, stampFilterPad, boardBgFilter, drawBoardNoise, drawBoardOv
 /* bigGlyphById only names the excluded piece in the export-skip warn —
    the Uploads/Art drawer never ships in the Unity download (round 44) */
 import { bigGlyphById } from "./bigGlyphs";
-import { applyKitDesign, applyKitTextFill, baseOf, darken, hexMix, lighten, fontByName, isCloneId, isFlipShape, isGlyphPiece, KIT_COMPONENTS, KIT_SHAPE, KIT_SLICEABLE, SEAT_GLYPHS, STOCK_ICONS, effKitSize, glyphSeatIcon, kitVisible, resolveKitIcon, sanitizeUnitySlug } from "./model";
+import { applyKitDesign, applyKitTextFill, baseOf, darken, hexMix, lighten, fontByName, isCloneId, isFlipShape, isGlyphPiece, KIT_COMPONENTS, KIT_SHAPE, KIT_SLICEABLE, STOCK_ICONS, effKitSize, glyphSeatIcon, kitVisible, resolveKitIcon, sanitizeUnitySlug } from "./model";
+/* the glyph-button fleet's registry (round 52) — aliased: this module's own
+   GLYPH_BUTTONS is the round-40 ACTION-glyph set (pause/play/replay/home) */
+import { GLYPH_BUTTONS as GLYPH_BUTTON_FLEET, isGlyphButton } from "./model";
 import { renderKit, renderBevel, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps, padSvg, resolveMenuStyle, kernCollides } from "./bevel";
 import type { KitOpts } from "./bevel";
 import { flattenPath } from "./importedShapes";
@@ -21,8 +24,6 @@ import { download, makeZip, svgToPngBytes, svgToPngBytesTight, svgsToPngBytesTig
 import type { CropBox } from "./exportUtils";
 import { kitSpecMarkdown, fontNotesMarkdown, kitFontFamilies } from "./kitDocs";
 import { glyphAttribution } from "./glyphLibrary";
-// the semantic fleet's roster names ride the registry too (round 51)
-import { LIVE_GLYPHS } from "./glyphLibrary";
 
 const clone = (c: GenConfig) => (typeof structuredClone === "function" ? structuredClone(c) : JSON.parse(JSON.stringify(c))) as GenConfig;
 const PNG_SCALE = 2;
@@ -755,6 +756,9 @@ const PREFAB_FAMILY: Partial<Record<KitComponentId, string>> = {
 // the glyph rack: pure-art silhouettes, one Image prefab each — placeable,
 // tintable, never fake buttons (the mandate's non-interactive lane)
 for (const cGl of KIT_COMPONENTS) if (isGlyphPiece(cGl.id)) PREFAB_FAMILY[cGl.id] = cGl.id;
+// the glyph-button fleet (round 52): 47 REAL components, each its OWN family
+// — boards record it, staging declares it, the posed roads resolve it
+for (const bGF of GLYPH_BUTTON_FLEET) PREFAB_FAMILY[bGF.id] = bGF.id;
 
 /* the universal road's family lists — one source for the emission loop,
    the pose triggers and the importer-facing decisions (which families
@@ -811,6 +815,16 @@ const UNIVERSAL_DISPLAY = new Set<KitComponentId>(["qtybadge", "resource", "curr
   /* Rewards slice: the released card twins join the shelf; the staged
      tray and ceremony ride gated (stagedShips) until the owner's bless. */
   "pack", "cardback", "rewardtray", "chestpanel"]);
+/* the glyph-button fleet (round 52 — the owner: "stock the kit with the
+   entire semantic glyph set as buttons… I don't want to have to have one
+   master then go round about to save one"): 47 REAL components join the
+   pressable road. Whether one ships FULL (its own family rows, its own
+   true render) or THIN (a fleet roster entry the importer builds as a
+   Prefab Variant off the slotbtn frame) is decided per export by the
+   road split inside downloadEngineExport — membership here arms the
+   family machinery (state skins, silhouette auras, posed board copies)
+   for whichever buttons take the full road. */
+for (const bGF of GLYPH_BUTTON_FLEET) UNIVERSAL_INTERACTIVE.add(bGF.id);
 const UNIVERSAL_ROAD = new Set<KitComponentId>([...UNIVERSAL_INTERACTIVE, ...UNIVERSAL_DISPLAY]);
 /* the ACTION GLYPHS (round 40 — the owner's Gameplay pause button sat
    dead in Play): pause/play/replay/home are buttons by their own meaning
@@ -3750,13 +3764,40 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   // comparing the id silently broke the placed-piece fallback (field: the
   // owner's placed Back tab shipped nothing while still staged)
   const stagedShips = (id: KitComponentId) => kitVisible(id, st.releases ?? {}, false) || usedOnBoards0.has(PREFAB_FAMILY[id] ?? id);
-  /* the SEMANTIC GLYPH FLEET's ledger (round 51 — wave 2 of the round-49
-     slot-button commission): the emission below fills it, the manifest
-     ships it as `glyphFleet`, and the notices credit the CC-BY ids it
-     carried. Empty whenever the slot button is staged, or out of full
-     scope — no entry ever names a sprite this zip does not hold. */
-  const glyphFleetOut: { name: string; file: string; dx: number; dy: number; w: number; h: number }[] = [];
+  /* the GLYPH-BUTTON class roster (round 51 wave 2, re-anchored in round
+     52 to the REAL components): the emission fills it — one entry per
+     SHIPPED gbtn component — the manifest ships it as `glyphFleet`, and
+     the notices credit the CC-BY ids it carried. `fam` names the entry's
+     component; an entry whose family rows ship (the FULL road) is built
+     by the importer from those rows, the rest ride the THIN variant road
+     off the slotbtn frame. Empty whenever the set is staged, or out of
+     full scope — no entry ever names a sprite this zip does not hold. */
+  const glyphFleetOut: { name: string; fam: string; file: string; dx: number; dy: number; w: number; h: number }[] = [];
   const glyphFleetIds: string[] = [];
+  /* ── the fleet's ROAD SPLIT (round 52) ─────────────────────────────
+     A button whose render still equals "the kit's slotbtn frame wearing
+     my glyph" ships THIN — 47 near-identical full bakes would bloat
+     every zip for nothing. A button that DIVERGES takes the FULL family
+     road (its own true render, rows, skins, dials — never the shared
+     frame wearing the wrong dress):
+     · its own designDiff fork or any per-piece dial (the honest signal
+       the app stores on the first editor commit),
+     · a board placement (the posed/scene roads need true family rows),
+     · or a slotbtn frame it cannot inherit — slotbtn itself forked or
+       dialed (the fork would leak into every thin variant), or slotbtn
+       not shipping at all (no base prefab to be a variant of). */
+  const pieceDialed = (id: KitComponentId): boolean =>
+    !!(st.kitDesigns?.[id] && Object.keys(st.kitDesigns[id] ?? {}).length)
+    || !!st.kitTextFill?.[id]
+    || st.kitShapes?.[id] !== undefined
+    || st.kitVals?.[id] !== undefined
+    || !!(st.kitSlotVals?.[id] && Object.values(st.kitSlotVals[id] ?? {}).some((v9) => v9 != null && String(v9).trim() !== ""))
+    || Object.keys(st.kitTextOy ?? {}).some((k9) => k9.startsWith(`${id}:`))
+    || Object.keys(st.kitTextOx ?? {}).some((k9) => k9.startsWith(`${id}:`));
+  const gbtnFull = new Set<KitComponentId>(GLYPH_BUTTON_FLEET
+    .filter((b9) => stagedShips(b9.id) && (pieceDialed(b9.id) || st.kitIcons?.[b9.id] !== undefined
+      || usedOnBoards0.has(b9.id) || !stagedShips("slotbtn") || pieceDialed("slotbtn")))
+    .map((b9) => b9.id));
   for (const n of NINE) {
     if (!full && !FREE_NINE.has(n.id)) continue;
     if (n.id === "tabback" && !stagedShips("tabback")) continue;
@@ -4538,6 +4579,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       ];
       for (const uid of universalIds) {
         if (!stagedShips(uid)) continue;
+        /* round 52 — the fleet's road split: a glyph button ships THIN
+           (the class roster below; a variant off the slotbtn frame)
+           unless the split sent it FULL. This loop IS the full road. */
+        if (isGlyphButton(uid) && !gbtnFull.has(uid)) continue;
         const isArt = isGlyphPiece(uid);
         const uVal = st.kitVals?.[uid];
         const uOpts: Record<string, unknown> = isArt ? {} : {
@@ -4945,7 +4990,9 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         }
         await addPng(`${uid}/base.png`, baseSvgU, {
           component: uid, part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
-          usage: UNIVERSAL_USAGE[uid] ?? (GLYPH_BUTTONS.has(uid)
+          usage: UNIVERSAL_USAGE[uid] ?? (isGlyphButton(uid)
+            ? "Glyph button — this component's OWN look (it diverged from the shared slot-button frame, so it ships its true render): a REAL button (Sprite Swap states, glow + lift); the glyph is a LIVE Image child and a typed qty pins the corner chip as a real small-button child."
+            : GLYPH_BUTTONS.has(uid)
             ? "Kit glyph piece — a REAL button (hover/pressed/disabled ship beside it and the prefab wires Sprite Swap). Scale freely (Preserve Aspect)."
             : "Kit glyph piece — placeable art in the kit's own material. Not a button; scale freely (Preserve Aspect)."),
           ...(famFlipU ? { flip: true } : {}),
@@ -5528,34 +5575,43 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       }
     }
 
-    /* ── the SEMANTIC GLYPH FLEET (round 51 — the owner: "we need a NEW
-       CLASS of button that is the SEMANTIC GLYPHS + FRAME. we already
-       had this ICON+FRAME before"): the slot button's SECOND ready-to-
-       wear class, landing exactly as the round-49 design promised —
-       ADDITIVE: its own manifest list (glyphFleet), its own shipped
-       sprites, the stock class untouched to the byte. Each CURATED
-       semantic-rack glyph (SEAT_GLYPHS — the same 47 the app's
-       Inspector shelf offers; the three whose forms need their dressing
-       inks to read sit out here too) renders through the app's OWN seat
-       road — shell("slotbtn") wearing glyphSeatIcon(id), the exact
-       pixels a board copy picking icon:glyph:<id> wears, Icons-panel
-       dials included — and the marked-ink cut ships as its own sprite
-       beside a seat box measured like every icon child (iconSeatsOf:
-       reach-measured canvas, shell-center design px). The importer
-       builds "Glyph Button – <Name>" thin variants off Slotbtn.prefab,
-       reseating the live glyph child per entry (a semantic cut has its
-       own box — the stock class's near-square icons/* never needed
-       that). Gated stagedShips("slotbtn") like every slotbtn byte (the
-       one-component law: same frame, different dress); the CC-BY
-       silhouettes credit themselves in the notices below. ── */
-    if (stagedShips("slotbtn")) {
+    /* ── the GLYPH-BUTTON class roster (round 51 wave 2 → round 52's
+       REAL components — the owner: "stock the kit with the entire
+       semantic glyph set as buttons… one prefab button for each
+       glyph"): one roster entry per SHIPPED gbtn component, gated on
+       THAT component's own release/placement (the set releases as one
+       atomic batch in the bay, so the common poses are all-or-nothing —
+       but the gate here is honestly per-component). The road split:
+       · FULL (gbtnFull): the component's true family rows shipped
+         through the universal loop above — the entry just names it
+         (fam + its base file) and the importer builds the prefab from
+         the rows under the class name "Glyph Button – <Name>".
+       · THIN: the button still equals the slotbtn frame wearing its
+         glyph, so it ships as ONE cut — rendered through the app's own
+         seat road (shell("slotbtn") wearing glyphSeatIcon(id), the
+         exact pixels the component renders via the renderKit peel) —
+         beside a seat box measured like every icon child (iconSeatsOf:
+         reach-measured canvas, shell-center design px); the importer
+         builds a thin Prefab Variant off Slotbtn.prefab and reseats
+         the live glyph child to the cut's own box.
+       The CC-BY silhouettes credit themselves in the notices below. ── */
+    {
       const stripLoopsG = (sv: string) => sv
         .replace(/<animate(?:Transform|Motion)?\b[^>]*\/>/g, "")
         .replace(/<animate(?:Transform|Motion)?\b[^>]*>[\s\S]*?<\/animate(?:Transform|Motion)?>/g, "");
-      for (const gid of SEAT_GLYPHS) {
-        const gReg = LIVE_GLYPHS.find((g9) => g9.id === gid);
+      for (const bGF of GLYPH_BUTTON_FLEET) {
+        if (!stagedShips(bGF.id)) continue;
+        const gid = bGF.glyph;
+        if (gbtnFull.has(bGF.id)) {
+          /* the FULL road already shipped this component's own rows —
+             the roster entry names the family; geometry rides the base
+             row's iconSeats, so the entry's box is deliberately zero */
+          glyphFleetOut.push({ name: bGF.glyphName, fam: bGF.id, file: `assets/${bGF.id}/${bGF.id}-base.png`, dx: 0, dy: 0, w: 0, h: 0 });
+          glyphFleetIds.push(gid);
+          continue;
+        }
         const defG = glyphSeatIcon(gid);
-        if (!gReg || !defG) continue;
+        if (!defG) continue;
         let fullG: string;
         /* no slots on purpose: the qty chip is per-copy content — the
            render carries exactly ONE mark (the glyph), so the cut can
@@ -5566,7 +5622,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         const seatsG = await iconSeatsOf("slotbtn", fullG, undefined, `glyph-${gid}`);
         const seatG = seatsG && seatsG.length === 1 && seatsG[0].name === `glyph-${gid}` ? seatsG[0] : null;
         if (!seatG) continue; // this glyph waits for a later wave; the class ships without it
-        glyphFleetOut.push({ name: gReg.name, file: seatG.file, dx: seatG.dx, dy: seatG.dy, w: seatG.w, h: seatG.h });
+        glyphFleetOut.push({ name: bGF.glyphName, fam: bGF.id, file: seatG.file, dx: seatG.dx, dy: seatG.dy, w: seatG.w, h: seatG.h });
         glyphFleetIds.push(gid);
       }
     }
@@ -6419,16 +6475,17 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           "magnet", "rocket", "crosshair", "lock", "map", "clock", "bag", "helmet", "boots", "gear", "play", "pause", "check", "warning"] as const)
           .filter((g) => !!STOCK_ICONS[g])
           .map((g) => ({ name: g.charAt(0).toUpperCase() + g.slice(1), file: `assets/icons/${g}.png` })),
-        /* WAVE 2 — the SEMANTIC GLYPH class (round 51: "the SEMANTIC
-           GLYPHS + FRAME"): its own list, exactly the additive landing
-           the stock class's design reserved for it. One entry per
-           curated rack glyph whose cut actually shipped, each carrying
-           its app-measured seat (shell-center design px, the icon-child
-           contract) so the importer can reseat the live glyph child to
-           the semantic cut's own box. Same gate, same frame — a second
-           dress, never a second family. */
-        ...(glyphFleetOut.length ? { glyphFleet: glyphFleetOut } : {}),
       } : {}),
+      /* the GLYPH-BUTTON class roster (round 51 wave 2 → round 52's REAL
+         components): one entry per SHIPPED gbtn component, gated on the
+         SET's own release state (per-component kitVisible / placement —
+         never merely slotbtn's). `fam` names the component; an entry
+         whose family rows ship (the FULL road — it diverged from the
+         shared frame) is built from those rows, the rest are THIN
+         variants off Slotbtn.prefab reseated to their entry's measured
+         box. The emission above fills it only for shipped buttons, so
+         entries and sprites can never disagree. */
+      ...(glyphFleetOut.length ? { glyphFleet: glyphFleetOut } : {}),
       /* the text-seat unit contract version — the importer soft-gates on
          it so a future contract change can never be misread as this one */
       seatSpace: "sprite-fraction-v2",
@@ -6719,7 +6776,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
          them a Unity rollover is a quiet face swap — the piece changes but
          nothing announces it (owner: "I'm not getting the glows on hover…
          it's impossible for me to know" whether it hovered at all). */
-      stateFx: ([["primary", "button-primary"], ["secondary", "button-secondary"], ["small", "button-small"],
+      stateFx: [...([["primary", "button-primary"], ["secondary", "button-secondary"], ["small", "button-small"],
                  ["chip", "chip"], ["tab", "tab"], ["tabback", "tab-back"], ["datarow", "list-row"], ["slot", "item-slot"],
                  ["iconbtn", "iconbtn"], ["checkbox", "checkbox"], ["radio", "radio"],
                  /* the props announce their states too (owner: "settings
@@ -6767,6 +6824,19 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           lift: Math.round((ps.default.lift - ps[sn].lift) * 10) / 10,
         }));
       }),
+      /* round 52 — FULL-road glyph buttons press on their OWN dials (the
+         fork may retune glow/lift): the same four rows the base body
+         above emits, from pieceCfg(gbtnId).states. Thin variants need no
+         rows — their root wears the slotbtn frame and rides its dials. */
+      ...[...gbtnFull].flatMap((gid9) => {
+        const ps9 = pieceCfg(gid9).states;
+        return (["default", "hover", "pressed", "disabled"] as const).map((sn) => ({
+          family: gid9 as string,
+          state: sn,
+          glow: sn === "disabled" ? 0 : Math.round(ps9[sn].glow),
+          lift: Math.round((ps9.default.lift - ps9[sn].lift) * 10) / 10,
+        }));
+      })],
       labelStates: [
         ...([["primary", "button-primary"], ["secondary", "button-secondary"], ["small", "button-small"], ["chip", "chip"], ["tab", "tab"], ["tabback", "tab-back"],
              // the ghost button is a labeled button family too (universal road)
@@ -7007,9 +7077,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     for (const [pid, shp] of Object.entries(st.kitShapes ?? {}))
       if (typeof shp === "string" && shp.startsWith("glyph:") && shipsHere(pid)) tpnGlyphIds.add(`glyph${shp.slice(6)}`);
     if (full) for (const bd of st.boards ?? []) for (const it of bd.items) if (it.component.startsWith("glyph")) tpnGlyphIds.add(it.component);
-    /* the semantic glyph FLEET (round 51) bakes the curated rack's CC-BY
-       silhouettes into this zip whenever the slot button ships — the
-       credit rides with the art, exactly like a board placement */
+    /* the glyph-button class (round 51 fleet → round 52 components) bakes
+       the curated rack's CC-BY silhouettes into this zip whenever a gbtn
+       component ships (thin cut or full family alike) — the credit rides
+       with the art, exactly like a board placement */
     for (const gidF of glyphFleetIds) tpnGlyphIds.add(`glyph${gidF}`);
     /* picker icons baked into pieces: the master icon rig + per-piece
        forks + per-piece overrides (when the caller passes them) */
@@ -12372,10 +12443,15 @@ namespace PatternBreak {
   /* the slot button's glyph fleet (round 49) — name + the shipped sprite
      the variant's live glyph child wears; wave 2 entries just append */
   [Serializable] class PBFleetEntry { public string name; public string file; }
-  /* wave 2 — the SEMANTIC GLYPH class (round 51): a semantic cut brings
-     its own app-measured box, so each entry carries the seat too
-     (shell-center design px, the icon-child contract) */
-  [Serializable] class PBGlyphFleetEntry { public string name; public string file; public float dx; public float dy; public float w; public float h; }
+  /* the glyph-button class roster (round 51 wave 2 → round 52's REAL
+     components): a semantic cut brings its own app-measured box, so each
+     entry carries the seat too (shell-center design px, the icon-child
+     contract). fam names the entry's component (round 52) — when that
+     family's own rows ship (the button diverged from the shared frame),
+     the prefab builds FULL from the rows; otherwise the entry is a THIN
+     variant off the slotbtn frame. Old zips carry no fam and ride the
+     thin road exactly as before. */
+  [Serializable] class PBGlyphFleetEntry { public string name; public string file; public float dx; public float dy; public float w; public float h; public string fam; }
   /* pendingMissing rides PARALLEL to pendingScenes (same index = same
      scene): the missing count the last build ended on. Two builds in a
      row ending on the SAME count is the un-armable-forever tripwire —
@@ -15180,12 +15256,21 @@ namespace PatternBreak {
             else if (it.component == "joystick") pfName = it.ov == "ghost" ? "JoystickGhost" : "Joystick";
             else if (it.component == "seasontrack") pfName = "SeasonTrack";
             else if (it.component == "toggle") pfName = "Switch";
+            /* a placed GLYPH BUTTON (round 52) resolves its Unity class
+               name through the manifest roster — the registry's display
+               name lives there ("Prize Wheel", "Piggy Bank"), never in a
+               mechanical NiceName */
+            else if (it.component != null && it.component.StartsWith("gbtn") && m.glyphFleet != null)
+              foreach (var feSc in m.glyphFleet) if (feSc != null && feSc.fam == it.component && !string.IsNullOrEmpty(feSc.name)) { pfName = "Glyph Button – " + FileSafeWord(feSc.name); break; }
             /* the glyph rack lives on its own shelf now (Prefabs/Glyphs —
                the BigGlyphs pattern); a kept project may still hold its
                glyphs at the root, so both addresses answer */
             GameObject pf = null;
             if (it.component != null && it.component.StartsWith("glyph"))
               pf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/Glyphs/" + pfName + ".prefab");
+            // the glyph-button class lives in Variants beside its thin siblings
+            if (pf == null && it.component != null && it.component.StartsWith("gbtn"))
+              pf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/Variants/" + pfName + ".prefab");
             if (pf == null) pf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/" + pfName + ".prefab");
             // a kept project mid-heal may still hold the pre-rename file
             if (pf == null && it.component == "list-row") pf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/ListRow.prefab");
@@ -22614,6 +22699,11 @@ namespace PatternBreak {
            this hardcoded list. A deliberate blank ("" — kitNoText) builds
            wordless; the seat families carry their words as textSeats. */
         if (label == null && a.labelText != null && a.labelText.Length > 0) label = a.labelText;
+        /* the glyph-button class (round 52) builds under its Unity class
+           name ("Glyph Button – <Name>", in Variants beside its thin
+           siblings) via GlyphFleetPrefabs — the generic road would file a
+           second copy as "Gbtncoin" and split the class */
+        if (a.component.StartsWith("gbtn")) continue;
         var famDir2 = dir;
         if (a.component.StartsWith("glyph")) {
           if (!AssetDatabase.IsValidFolder(glyphDir)) AssetDatabase.CreateFolder(dir, "Glyphs");
@@ -22630,7 +22720,7 @@ namespace PatternBreak {
       if (ComboPopWire(dir, root, m, staging)) any = true;
       if (DmgNumberWire(dir, root, m, staging)) any = true;
       if (SlotFleetPrefabs(dir, root, m, staging)) any = true;
-      if (GlyphFleetPrefabs(dir, root, m, staging)) any = true;
+      if (GlyphFleetPrefabs(dir, root, m, staging, pngScale, kitFont)) any = true;
 #if UNITY_2023_2_OR_NEWER
       if (HeroLabelPrefab(dir, root)) any = true;
 #endif
@@ -22809,27 +22899,33 @@ namespace PatternBreak {
         Debug.Log("UI Kit Maker: the Slot Button fleet — " + made + " glyph variant(s) built in Prefabs/Variants" + (kept > 0 ? ", " + kept + " kept (yours after creation)" : "") + (missing > 0 ? ", " + missing + " entry(ies) waiting on their sprites (a future wave ships them)" : "") + ". Each is a thin Prefab Variant of Slotbtn — restyle the kit and the whole fleet follows; only the glyph is its own.");
       return made > 0;
     }
-    /* the SEMANTIC GLYPH FLEET (round 51 — the owner: "we need a NEW
-       CLASS of button that is the SEMANTIC GLYPHS + FRAME"): the slot
-       button's SECOND ready-to-wear class — one THIN Prefab Variant per
-       manifest glyphFleet entry, named "Glyph Button – <Name>" so the
-       two classes read apart at a glance in the Project window. The
-       same road as the stock fleet (Slotbtn.prefab carries the state
-       skins, the Button, the chip and every rig), with one addition: a
-       semantic cut brings its OWN app-measured box, so each variant
-       also reseats the live glyph child to the entry's seat (the
-       WireIconChildren math — the stock class's near-square icons/*
-       never needed it; an entry without geometry keeps the base seat).
+    /* the GLYPH BUTTONS (round 51's fleet, grown in round 52 into REAL
+       kit components — the owner: "stock the kit with the entire
+       semantic glyph set as buttons… one prefab button for each
+       glyph"): one prefab per manifest glyphFleet entry, named
+       "Glyph Button – <Name>" so the class reads apart at a glance in
+       the Project window — and reads CONTINUOUS across both roads:
+       · FULL (fe.fam names a family whose own base row shipped): the
+         button diverged from the shared frame — its own designDiff
+         fork, dials, or a board placement — and its prefab builds from
+         its OWN true rows through the generic FamilyPrefab road (state
+         skins, Button, live glyph child, chip, every rig), saved under
+         the class name in Variants beside its siblings.
+       · THIN (no fam rows aboard — every entry of an old zip too): the
+         button still equals the slotbtn frame wearing its glyph, so it
+         builds as a thin Prefab Variant off Slotbtn.prefab, the live
+         glyph child reseated to the entry's app-measured box (the
+         WireIconChildren math — the stock class's near-square icons/*
+         never needed it; an entry without geometry keeps the base seat).
        Missing sprites wait quietly (a wave ahead of its art), an
-       existing prefab is the dev's after creation, and everything else
-       stays the base's — a kit restyle flows into the whole class. */
-    static bool GlyphFleetPrefabs(string dir, string root, PBManifest m, bool quiet) {
+       existing prefab is the dev's after creation, and a thin variant
+       still restyles through its base. */
+    static bool GlyphFleetPrefabs(string dir, string root, PBManifest m, bool quiet, int pngScale, Font kitFont) {
       if (m == null || m.glyphFleet == null || m.glyphFleet.Length == 0) return false;
       var basePf = AssetDatabase.LoadAssetAtPath<GameObject>(dir + "/Slotbtn.prefab");
-      if (basePf == null) return false; // staged (or pruned) — nothing to wear the glyphs
       PBAsset rowGB = null;
       if (m.assets != null) foreach (var aGB in m.assets) if (aGB != null && aGB.component == "slotbtn" && aGB.part == "base") { rowGB = aGB; break; }
-      float psGB = m.pngScale > 0 ? m.pngScale : 2f;
+      float psGB = pngScale > 0 ? pngScale : 2f;
       var vdir = dir + "/Variants";
       if (!AssetDatabase.IsValidFolder(vdir)) AssetDatabase.CreateFolder(dir, "Variants");
       int made = 0, kept = 0, missing = 0;
@@ -22837,9 +22933,22 @@ namespace PatternBreak {
       try {
         foreach (var fe in m.glyphFleet) {
           if (fe == null || string.IsNullOrEmpty(fe.name) || string.IsNullOrEmpty(fe.file)) continue;
+          var path = vdir + "/Glyph Button – " + FileSafeWord(fe.name) + ".prefab";
+          /* the FULL road (round 52): this button's own family rows are
+             aboard — build its true prefab from them, under the class
+             name. One prefab per glyph, whichever road: the path is the
+             same, so the roads can never double-build. */
+          PBAsset famRowGF = null;
+          if (!string.IsNullOrEmpty(fe.fam) && m.assets != null)
+            foreach (var aGF in m.assets) if (aGF != null && aGF.component == fe.fam && aGF.part == "base") { famRowGF = aGF; break; }
+          if (famRowGF != null) {
+            if (AssetDatabase.LoadAssetAtPath<GameObject>(path) != null) { kept++; continue; } // theirs after creation
+            if (FamilyPrefab(vdir, root, famRowGF, "Glyph Button – " + FileSafeWord(fe.name), null, pngScale, kitFont, m)) made++;
+            continue;
+          }
+          if (basePf == null) { missing++; continue; } // thin needs the slotbtn frame — staged (or pruned), quietly ready
           var glyphSp = S(root + "/" + fe.file);
           if (glyphSp == null) { missing++; continue; } // a wave ahead of its sprites — quietly ready
-          var path = vdir + "/Glyph Button – " + FileSafeWord(fe.name) + ".prefab";
           if (AssetDatabase.LoadAssetAtPath<GameObject>(path) != null) { kept++; continue; } // theirs after creation
           var inst = (GameObject)PrefabUtility.InstantiatePrefab(basePf, pscene);
           if (inst == null) continue;
