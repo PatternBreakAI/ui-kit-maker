@@ -6,12 +6,12 @@ import { patternZones } from "./SliceStage";
 import { useGen } from "@/generator/store";
 import { t } from "@/shell/i18n";
 import { LessonBody } from "./LessonCard";
-import { PRESETS, KIT_SLOTS, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, GLINT_STYLES, defaultStates, applyKitDesign, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, presetById, designDiff, mergeKitDesign, iconRigDiff, baseShape, isFlipShape, flipShape, labelMaxOf, groupOf, ctaForFont, ctaEntry, fontLang, KIT_SLICEABLE, KIT_LABEL_EDITABLE, NO_TEXT_ELIGIBLE, EDGE_SHINE_DEAF, baseOf, isCloneId, CLONE_KINDS, CLONE_INELIGIBLE } from "@/generator/model";
+import { PRESETS, KIT_SLOTS, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, GLINT_STYLES, defaultStates, applyKitDesign, applyKitTextFill, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, presetById, designDiff, mergeKitDesign, iconRigDiff, baseShape, isFlipShape, flipShape, labelMaxOf, groupOf, ctaForFont, ctaEntry, fontLang, KIT_SLICEABLE, KIT_LABEL_EDITABLE, NO_TEXT_ELIGIBLE, EDGE_SHINE_DEAF, baseOf, isCloneId, CLONE_KINDS, CLONE_INELIGIBLE, isGlyphButton } from "@/generator/model";
 import type { KitSlice } from "@/generator/model";
 import type { GenStateName, BlendMode, GlintStyle, PatternType, KitComponentId, KitDesign  } from "@/generator/model";
 import { ICON_LIBS, loadLib, libLoaded, searchLib, getDef, previewSvg } from "@/generator/icons";
 import { ensureFont, ensureDocFonts } from "@/generator/fonts";
-import { renderBevel, renderKit, shapePath, RARITY_FACTORY, VALUE_DRIVEN } from "@/generator/bevel";
+import { renderBevel, renderKit, shapePath, RARITY_FACTORY, VALUE_DRIVEN, effSlotColor } from "@/generator/bevel";
 import { hydrate, retintText } from "@/generator/store";
 import type { LibItem } from "@/generator/store";
 import { defaultConfig, defaultCandy, applyPresetCandy  } from "@/generator/model";
@@ -981,7 +981,9 @@ export function Panel() {
 
   // v57: the component-icon swap needs the library even while the master
   // icon section stays parked — load it whenever a swappable piece is focused
-  const iconSwappable = !!focus && (["iconbtn", "chip", "resource", "slot", "datarow", "badge", "progress", "segbar", "buffframe", "notifydot", "loottag", "skillnode", "equipslot", "toast", "killfeed", "equipselector", "weaponwheel", "firebutton", "booster", "dailycell", "buildqueue", "techcard", "clancrest", "emotewheel", "cardback", "pack", "orderticket", "rewardcard", "boostercard", "achievetoast", "heartmeter", "energymeter"] as KitComponentId[]).includes(baseOf(focus));
+  // a glyph BUTTON is a slotbtn under the hood — the whole fleet takes the
+  // full icon story (swap, color, nudges); Factory returns its own glyph
+  const iconSwappable = !!focus && (isGlyphButton(baseOf(focus)) || (["iconbtn", "slotbtn", "chip", "resource", "slot", "datarow", "badge", "progress", "segbar", "buffframe", "notifydot", "loottag", "skillnode", "equipslot", "toast", "killfeed", "equipselector", "weaponwheel", "firebutton", "booster", "dailycell", "buildqueue", "techcard", "clancrest", "emotewheel", "cardback", "pack", "orderticket", "rewardcard", "boostercard", "achievetoast", "heartmeter", "energymeter"] as KitComponentId[]).includes(baseOf(focus)));
   /* the icon on/off rides every text line whose component can wear a glyph
      (owner call) — swappables plus the master-icon carriers. iconbtn is
      icon-ONLY: hiding its glyph would leave an empty tile, so no checkbox. */
@@ -1877,7 +1879,16 @@ export function Panel() {
           ) : slot.kind === "color" && !finLocked ? (
             <div key={slot.id}>
               {kitSlotVals[focus]?.[slot.id] !== "none" && (
-                <Well label={slot.name} value={kitSlotVals[focus]?.[slot.id] ?? slot.def ?? "#FFFFFF"}
+                /* the honest swatch: untouched, some wells' factory defs
+                   are sentinels the render never literally inks (the
+                   dialogue body reads the kit's type ink, not #1A2418) —
+                   show the EFFECTIVE color the piece renders right now,
+                   recomputed live as the kit's inks move; the moment a
+                   pick is stored, the pick speaks (owner: "make the
+                   swatch tell the truth") */
+                <Well label={slot.name} value={kitSlotVals[focus]?.[slot.id]
+                  ?? effSlotColor(applyKitTextFill(cfg, kitTextFill[focus]), baseOf(focus), slot.id, kitSlotVals[focus])
+                  ?? slot.def ?? "#FFFFFF"}
                   onChange={(v) => setKitSlot(focus, slot.id, v)} />
               )}
               {slot.allowNone && (

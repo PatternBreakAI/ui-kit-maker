@@ -1,5 +1,5 @@
 import type { GenConfig, GenStateName, EffectRole, Shape, KitComponentId, KitSize, IconDef, StateDesign } from "./model";
-import { lighten, darken, hexMix, desaturate, saturate, hexRgba, fontByName, DEFAULT_ICON, ICONS_ENABLED, STOCK_ICONS, KIT_SHAPE , isGlyphPiece, isDarkBg, userShapes } from "./model";
+import { lighten, darken, hexMix, desaturate, saturate, hexRgba, fontByName, DEFAULT_ICON, ICONS_ENABLED, STOCK_ICONS, KIT_SHAPE , isGlyphPiece, isDarkBg, userShapes, seatIconDef, isGlyphButton, glyphOfButton, glyphSeatIcon } from "./model";
 import { iconGroup } from "./icons";
 import { silhouetteMeta, MIRROR_SILHOUETTES } from "./silhouettes";
 import { importedShape, flattenPath, pointInPoly, selfIntersections, type Pt } from "./importedShapes";
@@ -4646,7 +4646,46 @@ export function resolveMenuStyle(cfg: GenConfig, slots?: Record<string, string>)
   return { items, plate, stroke, ink, inkDim: hexRgba(ink, 0.66), highlight: autoMenuHighlight(plate, ink), auto: true };
 }
 
+/* ── the honest swatch (owner: "make the swatch tell the truth") ──
+   A few color wells carry factory defs that are SENTINELS — hexes the
+   unset render never literally inks, because the untouched piece follows
+   a kit role instead: the dialogue body reads the kit's type ink, the
+   ghost stick wears Glow, the booster plate wears Bevel, the open menu
+   derives its whole voice. The panel asks here for the EFFECTIVE unset
+   color so the well shows what the piece actually renders — live, since
+   it recomputes from the current config. null = the slot's def is
+   already the literal truth (or the closest one hex can tell: the
+   translucent factory inks keep their base hue — alpha has no seat in a
+   hex well). Pure read — no render path touches this. */
+export function effSlotColor(cfg: GenConfig, cid: KitComponentId, slotId: string, slots?: Record<string, string>): string | null {
+  switch (`${cid}.${slotId}`) {
+    case "dialoguebox.bodyColor":
+      /* the body speaks the list voice (contentText list:true): List ink
+         first, else the type fill — a gradient shows its top stop, one
+         hex being all a well can say; fillMode "auto" leaves body text
+         the plain white contentText falls back to */
+      return cfg.type.listInk
+        ?? (cfg.type.fillMode === "auto" ? "#FFFFFF" : cfg.type.fill);
+    case "joystick.ghostink": return effect(cfg.effects, "Glow");
+    case "booster.plateColor": return effect(cfg.effects, "Bevel");
+    case "dropdown.rowplate": return resolveMenuStyle(cfg, slots).plate;
+    case "dropdown.rowtext": return resolveMenuStyle(cfg, slots).ink;
+    default: return null;
+  }
+}
+
 export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, state: GenStateName = "default", value?: number, shapeOv?: Shape, opts: KitOpts = {}): string {
+  /* ── the glyph-button fleet (round 52): identity = the slot button
+     wearing its rack glyph's treated seat art. Peeled up front, before
+     any shared setup, so the whole slotbtn road runs ONCE and the switch
+     below never meets a gbtn id. Precedence is untouched: a board copy's
+     ov "icon:…" and an explicit Icons-panel pick (opts.icon) both still
+     win inside the slotbtn case; Factory (icon undefined) returns to the
+     glyph itself — never to the slot button's stock gem. */
+  if (isGlyphButton(id)) {
+    return renderKit(cfg, "slotbtn", size, state, value, shapeOv ?? KIT_SHAPE[id],
+      opts.icon === undefined ? { ...opts, icon: glyphSeatIcon(glyphOfButton(id)) ?? null } : opts);
+  }
   if (opts.tone === "alt") {
     // muted variant — same material, drained of celebration
     cfg = JSON.parse(JSON.stringify(cfg)) as GenConfig;
@@ -5067,10 +5106,70 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       return build(cfg, state, { x: 39, y: 30, h: 100 * k, fs: 32 * k, iconSize: 26 * k }, { label: opts.label ?? "GO", iconDef: null, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx, faceLayer: opts.faceLayer });
     case "ghost":
       return build(cfg, state, { x: 39, y: 30, h: 110 * k, fs: 34 * k, iconSize: 28 * k }, { secondary: true, label: opts.label ?? "Ghost", iconDef: null, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx });
-    case "iconbtn":
+    case "iconbtn": {
       /* explicit null = removed (resolveKitIcon's "none", and the engine
-         export's bare shell — the glyph ships separately in icons/) */
-      return build(cfg, state, { x: 33, y: 27, h: 132 * k, fs: 0, iconSize: 56 * k }, { iconDef: opts.icon === undefined ? cfg.icon.def ?? DEFAULT_ICON : opts.icon, label: "", fixedW: 132 * k, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx });
+         export's bare shell — the glyph ships separately in icons/).
+         ov "icon:<stock>" = THIS INSTANCE's glyph (the starter boards'
+         framed-icon grammar, slot kin). Round 49: the instance pick WINS
+         over the kit-wide Icons pick — the Inspector's glyph rack writes
+         it per copy, and per-copy beats kit-wide (the instance-text rule);
+         untouched copies still follow the kit. "icon:glyph:<id>" reaches
+         the semantic rack's flat art (seatIconDef). */
+      const ovIcB = /^icon:([\w:]+)$/.exec(opts.overlay ?? "");
+      const ovDefB = ovIcB ? seatIconDef(ovIcB[1]) : undefined;
+      return build(cfg, state, { x: 33, y: 27, h: 132 * k, fs: 0, iconSize: 56 * k }, { iconDef: ovDefB !== undefined ? ovDefB : opts.icon === undefined ? cfg.icon.def ?? DEFAULT_ICON : opts.icon, label: "", fixedW: 132 * k, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx });
+    }
+    case "slotbtn": {
+      /* Buttons · slot button — the item slot's framed look as a REAL
+         pressing button (owner: "make these real buttons on the back
+         end and add them to the kit… each icon/glyph gets its own
+         button counterpart"). The slot's grammar verbatim — the frame
+         in the kit material, the dark well mirroring the silhouette —
+         on the button families' full state dressing: build() carries
+         hover lift, press travel, disabled dimming, and inject() seats
+         the well + glyph inside the lift group so they ride every
+         state with the shell. EDITING CONTRACT: the glyph is THE point
+         — kit-wide it follows the Icons panel (iconSwappable, full
+         library); a board copy re-picks per copy via ov "icon:<stock>"
+         (the Inspector's glyph picker) and the INSTANCE pick wins over
+         the kit-wide one, the same precedence as instance text; the
+         `qty` slot pins the optional corner count chip (the slot
+         family's ×250 contract — empty keeps the button clean). */
+      const sB = ({ s: 104, m: 128, l: 168 } as Record<KitSize, number>)[size] * k;
+      const track = build(cfg, state, { x: 33, y: 27, h: sB, fs: 0, iconSize: 0, tokenH: 132 }, { iconDef: null, label: "", fixedW: sB, shapeOverride: sov, faceLayer: opts.faceLayer });
+      // the specular-only layer must stay pure — no well, no glyph (slot rule)
+      if (opts.faceLayer === "specular") return track;
+      const insetB = bw + 5;
+      const cxB = 33 + sB / 2, cyB = 27 + sB / 2;
+      const innerB = sB - insetB * 2;
+      const dimB = state === "disabled";
+      // the well mirrors the button's own silhouette — the slot family's law
+      const wellPathB = shapePath(sov ?? cfg.shape, 33 + insetB, 27 + insetB, innerB, innerB, Math.max(0, cfg.bevel.softness - 10));
+      const partsB: string[] = [`<path d="${wellPathB}" fill="${wellFill}" opacity="0.9"/>`];
+      const ovIcSB = /^icon:([\w:]+)$/.exec(opts.overlay ?? "");
+      const icSB = ovIcSB ? seatIconDef(ovIcSB[1]) : opts.icon !== undefined ? opts.icon : STOCK_ICONS.gem;
+      // wellGlyph honors the WHOLE Icons panel — size, rotation, fx, colors —
+      // and the glyph is marked swappable ink (maximum-editability law): the
+      // engine export strips it and ships it as a live Image child. An
+      // explicit "no icon" leaves an honest empty well. A semantic-rack pick
+      // ("icon:glyph:<id>") stamps its identity on the mark so the road can
+      // name — and credit — the CC-BY art it carries.
+      if (icSB) partsB.push(`<g data-part="icon" data-icon="glyph"${icSB.lib === "glyph" ? ` data-icon-glyph="${icSB.name}"` : ""}>${wellGlyph(icSB, cxB, cyB, innerB * 0.58, hexMix(glow, "#FFFFFF", 0.3))}</g>`);
+      // the corner qty chip — the quantity badge in miniature, seated on the
+      // slot family's count corner. The PLATE is swappable ink too
+      // (data-icon-btn: a real small-button child in the engine) and the
+      // count RIDES it (data-seat-rider), the boostercard grammar verbatim.
+      const qSB = (opts.slots?.qty ?? "").trim().slice(0, 6);
+      if (qSB) {
+        const qFs = Math.min(15, (15 * 4.4) / Math.max(1, qSB.length)) * k;
+        const chH = 26 * k, chW = Math.min(innerB, 12 * k + qSB.length * qFs * 0.66);
+        const chR = 33 + sB - insetB + 4 * k, chB = 27 + sB - insetB + 4 * k;
+        const chX = chR - chW, chY = chB - chH;
+        partsB.push(`<g data-part="icon" data-icon="qtybtn" data-icon-btn="1" data-icon-nick="Qty chip"><rect x="${chX.toFixed(1)}" y="${chY.toFixed(1)}" width="${chW.toFixed(1)}" height="${chH.toFixed(1)}" rx="${(chH / 2).toFixed(1)}" fill="${bevel}" stroke="${darken(bevel, 0.4)}" stroke-width="1.4" opacity="${dimB ? 0.5 : 1}"/></g>` +
+          `<text x="${(chX + chW / 2).toFixed(1)}" y="${(chY + chH / 2 + 0.5).toFixed(1)}" font-family="Inter, sans-serif" font-size="${qFs.toFixed(1)}" font-weight="800" fill="${paleG(bevel) ? darken(bevel, 0.68) : "#FFFFFF"}" text-anchor="middle" dominant-baseline="central" opacity="${dimB ? 0.6 : 1}" data-seat-rider="qtybtn">${esc(qSB)}</text>`);
+      }
+      return inject(track.replace("<svg ", '<svg data-slotbtn="1" '), partsB.join(""));
+    }
     case "chip":
       return build(cfg, state, { x: 39, y: 30, h: 86 * k, fs: 28 * k, iconSize: 24 * k }, { label: opts.label ?? "NEW", iconDef: opts.icon === undefined ? STOCK_ICONS.star : opts.icon, shapeOverride: sov, textOy: opts.textOy, textOx: opts.textOx, faceLayer: opts.faceLayer });
     case "badge": {
@@ -9874,7 +9973,18 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       const inset = bw + 5;
       const cx2 = 33 + s2 / 2, cy2 = 27 + s2 / 2;
       const inner = s2 - inset * 2;
-      const ov = opts.overlay ?? (opts.icon === null ? "empty" : "");
+      /* ov "icon:<stock>" seats a glyph in the well as THIS INSTANCE's item
+         — the starter boards' framed-icon grammar (owner: a framed icon is
+         one real piece, "like the item slots", never a glyph stacked over a
+         frame; the fire button's glyph-… rig ovs are kin). Round 49: the
+         INSTANCE pick wins over the kit-wide Icons pick — the Inspector's
+         glyph rack writes this ov per copy, and per-copy beats kit-wide
+         everywhere else (instance text); untouched copies still follow the
+         kit. The status ovs are untouched. "icon:glyph:<id>" reaches the
+         semantic rack's flat art (seatIconDef). */
+      const ovIc = /^icon:([\w:]+)$/.exec(opts.overlay ?? "");
+      const icSeat = ovIc ? seatIconDef(ovIc[1]) : opts.icon;
+      const ov = (ovIc ? undefined : opts.overlay) ?? (icSeat === null ? "empty" : "");
       const dimmed = ov === "locked" || ov.startsWith("cooldown");
       const parts: string[] = [];
       // the well mirrors the slot's own silhouette — a round slot gets a
@@ -9883,13 +9993,17 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       parts.push(`<path d="${wellPath}" fill="${wellFill}" opacity="0.9"/>`);
       if (ov === "empty") {
         parts.push(`<path d="${shapePath(sov ?? cfg.shape, 33 + inset + 8, 27 + inset + 8, inner - 16, inner - 16, Math.max(0, cfg.bevel.softness - 10))}" fill="none" stroke="rgba(255,255,255,0.28)" stroke-width="2" stroke-dasharray="6 5"/>`);
-      } else if (opts.icon && !ov.startsWith("level")) {
+      } else if (icSeat && !ov.startsWith("level")) {
         // type treatment: the outline underlay and a lit fill, like the label
         // (level slots skip the icon — the number is the content, nothing
         // may ghost behind it). iconScale > 1 makes the icon the star of
         // the tile — match-3 boards, gem grids.
         const isc = clamp(opts.iconScale ?? 1, 0.5, 1.45);
-        parts.push(themedIcon(opts.icon, cx2 - inner * 0.3 * isc, cy2 - inner * 0.3 * isc, inner * 0.6 * isc, hexMix(glow, "#FFFFFF", 0.3), 2));
+        const seatArt = themedIcon(icSeat, cx2 - inner * 0.3 * isc, cy2 - inner * 0.3 * isc, inner * 0.6 * isc, hexMix(glow, "#FFFFFF", 0.3), 2);
+        // a semantic-rack pick rides the marked-ink road with its identity
+        // stamped (data-icon-glyph), so the export can name and credit the
+        // CC-BY art; stock picks keep their exact bytes.
+        parts.push(icSeat.lib === "glyph" ? `<g data-part="icon" data-icon="glyph" data-icon-glyph="${icSeat.name}">${seatArt}</g>` : seatArt);
       }
       if (dimmed) parts.push(`<path d="${wellPath}" fill="rgba(6,8,16,0.62)"/>`);
       if (ov === "locked") parts.push(iconGroup(STOCK_ICONS.lock, cx2 - 13, cy2 - 13, 26, "rgba(255,255,255,0.85)", { strokeWidth: 2.2 * iconWK }));

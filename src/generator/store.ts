@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, GridStyle, CandyTokens, Shape, KitDesign, KitSlice } from "./model";
-import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, rollStatement, classicRack, presetById, PRESETS, PATTERN_TYPES, GAME_FONTS, customFontNames, ctaForFont, darken, hexMix, registerCustomFont, pickDesign, designDiff, deepMergeDesign, KIT_COMPONENTS, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, clampWeight, fontByName, sanitizeUnitySlug, baseOf, mintCloneId, CLONE_INELIGIBLE, isGlyphPiece, resolveKitIcon } from "./model";
+import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, rollStatement, classicRack, presetById, PRESETS, PATTERN_TYPES, GAME_FONTS, customFontNames, ctaForFont, darken, hexMix, registerCustomFont, pickDesign, designDiff, deepMergeDesign, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, clampWeight, fontByName, sanitizeUnitySlug, baseOf, mintCloneId, CLONE_INELIGIBLE, isGlyphPiece, resolveKitIcon } from "./model";
 import type { KitClone } from "./model";
 import { ensureFont, fontReady, awaitFonts } from "./fonts";
 import { delBgOriginal, getBgOriginal, putBgOriginal } from "./bgvault";
@@ -415,6 +415,11 @@ interface GenStore {
   boardShadowLast: KitShadowFx | null;
   /** Pin THIS instance's text; null returns it to the kit-wide specimen label. */
   setBoardItemLabel: (id: string, label: string | null) => void;
+  /** Pin THIS instance's render-variant overlay — the Inspector's glyph
+   *  picker writes "icon:<stock>" (the starter deals' framed-icon grammar,
+   *  now hand-editable). null/empty returns the copy to its factory face
+   *  (or the kit-wide Icons pick). */
+  setBoardItemOv: (id: string, ov: string | null) => void;
   /** Drop a type stamp on the active board. */
   /** Drop lettering on the board — the kit's full splash treatment, or
    *  (plain = true) the PLAIN tier: kit face, flat pickable color. */
@@ -703,11 +708,6 @@ interface GenStore {
   pushRecentColor: (hex: string) => void;
   rmRecentColor: (hex: string) => void;
   setPhase: (p: "master" | "kit" | "board") => void;
-  setKitSize: (id: KitComponentId, s: KitSize) => void;
-  /** One kit-wide size — the floating nav's M/L switch (owner: per-cell
-   *  size chips were noise; size is a kit decision). Locked pieces keep
-   *  their own snapshot size. */
-  setKitSizeAll: (s: KitSize) => void;
   setZoom: (z: number) => void;
   setPanMode: (v: boolean) => void;
   setGridStyle: (v: GridStyle) => void;
@@ -1531,7 +1531,10 @@ const KIT_STORE_KEY: Record<string, string> = {
    stay ATOMIC: applying a look that carries no clones resets the registry
    together with the maps (a look arrives whole), and one that does carries
    registry + entries as one piece. */
-const WS_MAPS = ["kitClones", "kitDesigns", "kitShapes", "kitIcons", "kitLabels", "kitNoText", "kitSubs", "kitTextFill", "kitTextOy", "kitTextOx", "kitBar", "kitSlotVals", "kitVals", "kitSizes", "kitSlices"] as const;
+/* kitSizes left this list with the M/L switch's retirement — the kit is
+   documented and exported at L everywhere, so looks neither carry nor
+   apply per-piece sizes any more. */
+const WS_MAPS = ["kitClones", "kitDesigns", "kitShapes", "kitIcons", "kitLabels", "kitNoText", "kitSubs", "kitTextFill", "kitTextOy", "kitTextOx", "kitBar", "kitSlotVals", "kitVals", "kitSlices"] as const;
 
 /** The kit layer as it stands right now — what a publish attaches. */
 export function workspaceOf(s: Record<string, unknown>): Record<string, unknown> {
@@ -1637,6 +1640,14 @@ const snapOf = (s: GenStore): HistSnap => Object.fromEntries(HIST_KEYS.map((k) =
 const past: HistSnap[] = [];
 const future: HistSnap[] = [];
 let lastPush = 0;
+/* the gates' own retry lane: an UNDECIDED profile answer (parked session not
+   yet restored, or the read flaked) keeps the previous gates — correct, but
+   it must never be the FINAL word while a session exists. loadCloudPresets
+   re-runs itself with backoff until an authoritative answer lands, so the
+   staging bay and admin chrome no longer depend on the sync engine reaching
+   "synced" to trigger the one re-read (owner: desk admin, kit page guest). */
+let gateRetryT: ReturnType<typeof setTimeout> | null = null;
+let gateRetries = 0;
 /* map setters call this before mutating — same coalescing window update()
    uses, so a drag that fans out over update()+setKitDesign in one gesture
    still lands as ONE undo step */
@@ -2065,6 +2076,11 @@ export const useGen = create<GenStore>((set, get) => ({
     if (label === null || label === "") delete next.label; else next.label = label;
     return next;
   }),
+  setBoardItemOv: (id, ov) => mutateItem(get, set, `ov:${id}`, id, (b) => {
+    const next = { ...b };
+    if (ov === null || ov === "") delete next.ov; else next.ov = ov;
+    return next;
+  }),
   addStampToBoard: (plain) => {
     /* land CENTERED on the ACTIVE board's stage — a fixed 560×420 was
        tuned to the 16:9 stage and threw stamps clean off a 390-wide
@@ -2277,7 +2293,7 @@ export const useGen = create<GenStore>((set, get) => ({
     const st = get();
     return {
       v: 1, cfg: st.cfg, kitName: st.kitName, kitClones: st.kitClones, kitShapes: st.kitShapes, kitDesigns: st.kitDesigns,
-      kitTextFill: st.kitTextFill, kitLabels: st.kitLabels, kitNoText: st.kitNoText, kitSubs: st.kitSubs, kitIcons: st.kitIcons, kitSizes: st.kitSizes, kitSlotVals: st.kitSlotVals, kitVals: st.kitVals,
+      kitTextFill: st.kitTextFill, kitLabels: st.kitLabels, kitNoText: st.kitNoText, kitSubs: st.kitSubs, kitIcons: st.kitIcons, kitSlotVals: st.kitSlotVals, kitVals: st.kitVals,
       kitBar: st.kitBar, kitTextOy: st.kitTextOy, kitTextOx: st.kitTextOx, kitLocks: st.kitLocks,
       unitySlug: st.unitySlug, unityKitVer: st.unityKitVer,
       // the stage travels with the kit — only portable (data:) backdrops
@@ -2332,7 +2348,9 @@ export const useGen = create<GenStore>((set, get) => ({
       kitIcons: (p.kitIcons as GenStore["kitIcons"]) ?? {},
       kitSlotVals: (p.kitSlotVals as GenStore["kitSlotVals"]) ?? {},
       kitVals: (p.kitVals as GenStore["kitVals"]) ?? {},
-      kitSizes: (p.kitSizes as GenStore["kitSizes"]) ?? {},
+      // per-piece sizes in old payloads are ignored — the M/L switch is
+      // retired and the kit stands at L everywhere
+      kitSizes: {},
       kitBar: (p.kitBar as GenStore["kitBar"]) ?? {},
       kitTextOy: (p.kitTextOy as GenStore["kitTextOy"]) ?? {},
       kitTextOx: (p.kitTextOx as GenStore["kitTextOx"]) ?? {},
@@ -2774,8 +2792,22 @@ export const useGen = create<GenStore>((set, get) => ({
        hiding the owner's own clone chapter "sometimes". Spotlight rides
        the same contract: null = flaked, keep the live promos. */
     const rel = releases ?? prev.componentReleases;
+    if (releases === null) console.warn("[gates] release-ledger read failed — keeping the previous ledger (", Object.keys(prev.componentReleases).length, "entries )");
     let admin = prev.isAdmin;
     let tier: Tier = prev.tier;
+    if (prof.undecided) {
+      /* undecided must not be terminal: retry with backoff until the profile
+         answers (session restore usually lands within seconds; a stuck sync
+         engine no longer strands admin/tier at boot values). */
+      console.warn(`[gates] profile undecided — keeping admin=${admin} tier=${tier}; retry ${gateRetries + 1}/6`);
+      if (gateRetries < 6) {
+        if (gateRetryT) clearTimeout(gateRetryT);
+        gateRetryT = setTimeout(() => { gateRetryT = null; void get().loadCloudPresets(); }, Math.min(60_000, 4_000 * 2 ** gateRetries++));
+      }
+    } else {
+      gateRetries = 0;
+      if (gateRetryT) { clearTimeout(gateRetryT); gateRetryT = null; }
+    }
     if (!prof.undecided) {
       admin = prof.admin;
       // cloud-off (local/dev build) is not the funnel — it gets the free tier,
@@ -3496,18 +3528,10 @@ export const useGen = create<GenStore>((set, get) => ({
      we click to the board it should be sized to fit"). fitOf() multiplies
      the shared zoom, so 1 IS the fitted view. */
   setPhase: (p) => set({ phase: p, canvasMode: "design" as const, ...(p === "kit" || p === "board" ? { zoom: 1 } : {}) }),
-  setKitSize: (id, s) => { if (get().kitLocks[id]) return; pushHistory(get()); set((st) => ({ kitSizes: { ...st.kitSizes, [id]: s } })); },
-  setKitSizeAll: (s) => {
-    pushHistory(get());
-    set((st) => {
-      const sizes = { ...st.kitSizes };
-      for (const c of KIT_COMPONENTS) { if (!st.kitLocks[c.id]) sizes[c.id] = s; }
-      // clones follow the kit-wide switch too — skipping them left a
-      // duplicate stuck at a stale size (componentization survey)
-      for (const id of Object.keys(st.kitClones)) { if (!st.kitLocks[id as KitComponentId]) sizes[id as KitComponentId] = s; }
-      return { kitSizes: sizes };
-    });
-  },
+  /* setKitSize / setKitSizeAll retired with the kit page's M/L switch
+     (owner: "get rid of the ML sizing tool in the nav, just leave it on
+     L") — kitSizes now has NO writers, so every effKitSize/`?? "l"` read
+     across the app resolves to Large, permanently. */
   setZoom: (z) => set({ zoom: Math.max(0.4, Math.min(capsOf(get().tier).zoomMax, Math.round(z * 10) / 10)) }),
   setPanMode: (v) => set({ panMode: v }),
   setGridStyle: (v) => set({ gridStyle: v }),

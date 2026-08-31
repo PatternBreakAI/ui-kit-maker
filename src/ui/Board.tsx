@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceBetween, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceBetween, ArrowDown, ArrowUp, BookmarkPlus, BringToFront, Copy, Download, Grid3x3, ImagePlus, LayoutTemplate, Lock, Monitor, Plus, Search, SendToBack, Shield, Smartphone, SquarePen, Trash2, Type, X } from "lucide-react";
+import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceBetween, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceBetween, ArrowDown, ArrowUp, BookmarkPlus, BringToFront, Copy, Download, Grid3x3, ImagePlus, LayoutTemplate, Lock, Monitor, Plus, RotateCcw, Search, SendToBack, Shield, Smartphone, SquarePen, Trash2, Type, X } from "lucide-react";
 import { useGen, rehydrateBoardBgs, boardBgFilter, boardScaleMin, drawBoardNoise, drawBoardOverlays, stampFilter, stampSvg, warpStampRaster, importUserAssetFile, kitShadowFilter, suppressCastShadow } from "@/generator/store";
 import type { UserAsset, UserLogoFx } from "@/generator/store";
 import { normalizeShipCopy, captureVideoPoster } from "@/generator/bgvault";
@@ -7,8 +7,9 @@ import { importBgAsset, bgAssetStatusLine, onAssetActivity, bgAssetDisplayUrl } 
 import { BACKDROP_LIBRARY, BACKDROP_CATEGORIES, backdropThumb, backdropUrl } from "@/generator/backdropLibrary";
 import type { BoardDef, BoardItem } from "@/generator/store";
 import { renderBevel, renderKit, VALUE_DRIVEN } from "@/generator/bevel";
-import { KIT_COMPONENTS, applyKitDesign, applyKitTextFill, baseOf, fontByName, isGlyphFamily, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
-import { LIVE_GLYPHS } from "@/generator/glyphLibrary";
+import { GLYPH_BUTTONS, KIT_COMPONENTS, STOCK_ICONS, SEAT_GLYPHS, applyKitDesign, applyKitTextFill, baseOf, fontByName, glyphSeatIcon, isGlyphFamily, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
+import { previewSvg } from "@/generator/icons";
+import { LIVE_GLYPHS, glyphById } from "@/generator/glyphLibrary";
 import { BIG_GLYPHS, BIG_GLYPH_BASE, bigGlyphById, bigGlyphThumb, bigGlyphMid, bigGlyphUrl, bigGlyphFilter, type BigGlyphDef, type BigGlyphFx } from "@/generator/bigGlyphs";
 import type { GenConfig, KitComponentId } from "@/generator/model";
 import { download, downloadSvg, fontDataUri } from "@/generator/exportUtils";
@@ -69,7 +70,7 @@ async function downloadPieceRaster(pc: { svg: string; cfg: GenConfig }, name: st
    (the same suffix convention the flip shapes use): "joystick~ghost" is
    the overlay stick — one component, two placeable faces. */
 const ASSET_GROUPS: { name: string; ids: string[] }[] = [
-  { name: "Buttons", ids: ["primary", "secondary", "small", "ghost", "iconbtn", "pricebtn", "endturn", "keycap", "padbtn"] },
+  { name: "Buttons", ids: ["primary", "secondary", "small", "ghost", "iconbtn", "slotbtn", "pricebtn", "endturn", "keycap", "padbtn"] },
   { name: "Containers & overlays", ids: ["panel", "header", "tab", "tabback", "dropdown", "dialog", "toast", "tooltip", "listmenu", "choicelist", "scrollbar", "input", "searchfield", "setrow"] },
   { name: "HUD & readouts", ids: ["resource", "chip", "badge", "datarow", "slot", "orb", "ring", "bignum", "xpbar", "vitalbar", "currency", "healthglobe", "manarails", "buffframe", "cooldown", "notifydot", "countbadge", "avatarframe", "nameplate", "loadbar", "spinner", "pagedots", "steps", "stepper"] },
   { name: "Timers", ids: ["flipclock", "stopwatch", "timerdigits"] },
@@ -87,6 +88,10 @@ const ASSET_GROUPS: { name: string; ids: string[] }[] = [
      staged, then per-glyph as releases land. LIVE only — a retired glyph
      leaves the tray while its legacy placements keep rendering. */
   { name: "Semantic glyphs", ids: LIVE_GLYPHS.map((g) => `glyph${g.id}`) },
+  /* the glyph-button fleet — registry-derived like the rack above, one
+     entry per curated glyph; the kitVisible filter keeps the whole set
+     behind its single bay gate until the owner releases it */
+  { name: "Glyph buttons", ids: GLYPH_BUTTONS.map((b) => b.id) },
 ];
 
 /* Search vocabulary: teams reach for genre words the component names don't
@@ -100,6 +105,7 @@ const SEARCH_TERMS: Partial<Record<KitComponentId, string>> = {
   bignum: "score results points celebration count",
   dmgnumber: "damage floating hit crit numbers pop",
   firebutton: "fire shoot trigger pad thumb button attack weapon armed carousel",
+  slotbtn: "slot button item frame well glyph icon tile press booster power-up consumable qty count chip",
   countbadge: "notification count red badge alert number unread pip",
   levelnode: "saga map level select world stage lock",
   pathconnector: "saga map path world trail dots",
@@ -137,6 +143,24 @@ const SEARCH_TERMS: Partial<Record<KitComponentId, string>> = {
 for (const g of LIVE_GLYPHS) {
   SEARCH_TERMS[`glyph${g.id}` as KitComponentId] = `icon glyph treated ${g.name.toLowerCase()} ${g.category.toLowerCase().replace(/[&]/g, " ")}`;
 }
+
+/* The Inspector's per-copy glyph rack — the families whose board copies
+   seat an instance glyph through ov "icon:<stock>" (the starter deals'
+   framed-icon grammar, now hand-editable: "we'll need to be able to edit
+   these in the app", owner). The keys are STOCK_ICONS names — exactly
+   what the ov grammar resolves — curated to glyphs that read at tile
+   size. The kit-wide Icons pick still serves whole-family swaps; this
+   rack is THIS COPY only, and the copy's pick wins (instance-text rule). */
+const INSTANCE_GLYPH = new Set<KitComponentId>(["slotbtn", "slot", "iconbtn",
+  // the glyph-button fleet is slotbtn under the hood — every member takes
+  // the same per-copy rack (Factory returns the button's OWN glyph)
+  ...GLYPH_BUTTONS.map((b) => b.id)]);
+const INSTANCE_GLYPH_KEYS = [
+  "gem", "star", "heart", "zap", "sword", "shield", "skull", "trophy",
+  "gift", "key", "flask", "scroll", "leaf", "hammer", "magnet", "rocket",
+  "crosshair", "lock", "map", "clock", "bag", "helmet", "boots", "gear",
+  "play", "pause", "check", "warning",
+] as const;
 
 /* Bundled backdrops — the owner's own scenes, served from public/. A path
    URL persists (and exports); only blob: uploads stay session-only. */
@@ -380,16 +404,20 @@ const BOARD_TEMPLATES: Record<string, Tpl> = {
   "Match-3 (mobile)": { aspect: "mobile", bg: "/backdrops/lib/candy-river-quest.webp", items: [
     { kitId: "movecounter", x: 0, y: 0, scale: 0.34 },
     { kitId: "stopwatch", x: 229, y: 0, scale: 0.28 },
-    { kitId: "glyphpause", x: 320, y: 0, scale: 0.16 },
+    // the pause control is ONE component — an icon button wearing the
+    // pause glyph (owner: manipulate an existing component, don't cobble)
+    { kitId: "iconbtn", ov: "icon:pause", x: 312, y: 0, scale: 0.28 },
     { kitId: "segbar", x: 70, y: 99, scale: 0.28 },
     ...M3_GRID,
     { kitId: "combo", x: 191, y: 327, scale: 0.42 },
     { kitId: "booster", x: 0, y: 654, scale: 0.38 },
     { kitId: "booster", x: 84, y: 654, scale: 0.38 },
-    { kitId: "slot", x: 175, y: 663, scale: 0.34 },
-    { kitId: "slot", x: 263, y: 663, scale: 0.34 },
-    { kitId: "glyphhammer", x: 192, y: 692, scale: 0.21 },
-    { kitId: "glyphmagnet", x: 290, y: 690, scale: 0.21 },
+    /* the booster tray's items are REAL framed icons — the slot family
+       carrying its glyph as ONE piece (owner's framed-icon rule: use the
+       frame+icon components "like the item slots", never a glyph stacked
+       over a frame); the qty chip keeps its corner seat */
+    { kitId: "slot", ov: "icon:hammer", x: 175, y: 663, scale: 0.34 },
+    { kitId: "slot", ov: "icon:magnet", x: 263, y: 663, scale: 0.34 },
     { kitId: "qtybadge", x: 214, y: 676, scale: 0.18 },
     // staged: glyphaddtime — +time chip seated on the stopwatch's dark dial edge
     // staged: glyphtimer — on the segbar's dark left cap
@@ -435,8 +463,9 @@ const BOARD_TEMPLATES: Record<string, Tpl> = {
     { kitId: "invgrid", x: 1030, y: 200, scale: 0.84 },
     { kitId: "scrollbar", x: 1720, y: 205, scale: 0.9 },
     { kitId: "loottag", x: 1120, y: 590, scale: 0.85 },
-    { kitId: "slot", x: 150, y: 790, scale: 0.9 },
-    { kitId: "glyphgem", x: 211, y: 852, scale: 0.42 },
+    // one REAL framed icon — the slot carries its gem itself (owner's
+    // framed-icon rule), not a glyph posed over an empty well
+    { kitId: "slot", ov: "icon:gem", x: 150, y: 790, scale: 0.9 },
     { kitId: "rarityframe", x: 430, y: 810, scale: 0.85 },
     { kitId: "qtybadge", x: 528, y: 818, scale: 0.6 },
     { kitId: "stepper", x: 700, y: 830, scale: 0.8 },
@@ -562,10 +591,11 @@ const BOARD_TEMPLATES: Record<string, Tpl> = {
     { kitId: "weaponwheel", x: 152, y: 384, scale: 0.3 },
     { kitId: "qtybadge", x: 224, y: 563, scale: 0.3 },
     { kitId: "joystick", x: 2, y: 645, scale: 0.42 },
-    { kitId: "padbtn", x: 167, y: 728, scale: 0.42 },
-    { kitId: "glyphrocket", x: 194, y: 758, scale: 0.12 },
+    // the ability button is a REAL icon button carrying its rocket as one
+    // piece (owner's framed-icon rule) — not a glyph over a gamepad cap
+    { kitId: "iconbtn", ov: "icon:rocket", x: 167, y: 728, scale: 0.36 },
     { kitId: "firebutton", x: 222, y: 643, scale: 0.42 },
-    // NOTE: vitalbar / countbadge / firebutton / both glyphs are staged
+    // NOTE: vitalbar / countbadge / firebutton / glyphplus are staged
     // families — this key stays in STAGED_TEMPLATES until they release
   ] },
   /* Daily bonus sheet: countdown, the 7-day calendar (claimed / today /
@@ -2478,6 +2508,50 @@ export function BoardView({ playing }: { playing: boolean }) {
                   onChange={(e) => useGen.getState().setBoardItemLabel(sel.id, e.target.value)} />
               </label>
             )}
+            {sel.kitId && INSTANCE_GLYPH.has(baseOf(sel.kitId)) && (!sel.ov || sel.ov.startsWith("icon:")) && (() => {
+              /* per-copy glyph — the ov "icon:<stock>" seat the starter
+                 deals pose, surfaced as a hand picker so a dealt slot
+                 button / item slot / icon button re-arms without the app's
+                 templates (max-editability; owner: "we'll need to be able
+                 to edit these in the app"). THIS copy only; a slot copy
+                 wearing a STATUS skin (locked, claimable…) keeps it — the
+                 rack only shows where an icon seat is what the ov holds. */
+              const curM = /^icon:(?:glyph:(\w+)|(\w+))$/.exec(sel.ov ?? "");
+              const curG = curM?.[2] ?? "";        // stock pick
+              const curSem = curM?.[1] ?? "";      // semantic-rack pick
+              /* the semantic shelf — the curated treated-rack glyphs, FLAT
+                 in this seat (the base silhouette, no dressing inks), and
+                 only the ones the release ledger admits (kitVisible — the
+                 same gate as every other surface; admin sees staged). */
+              const semGs = SEAT_GLYPHS.filter((gid) => kitVisible(`glyph${gid}` as KitComponentId, componentReleases, isAdmin));
+              return (
+                <div className="bd-slider" role="group" aria-label="Instance glyph"
+                  title="The glyph in this copy's well — this copy only. The ↺ tile follows the kit again: the family's stock glyph, or your kit-wide pick under Icons.">
+                  Glyph — this copy{curSem ? ` · ${glyphById(curSem)?.name ?? curSem}` : curG ? ` · ${curG}` : ""}
+                  <div className="icongrid bd-glyphgrid">
+                    <button className={curG || curSem ? "" : "on"} title="Factory — follow the kit" aria-label="Factory glyph"
+                      onClick={() => useGen.getState().setBoardItemOv(sel.id, null)}>
+                      <RotateCcw size={14} strokeWidth={2} />
+                    </button>
+                    {INSTANCE_GLYPH_KEYS.map((gk) => STOCK_ICONS[gk] ? (
+                      <button key={gk} className={curG === gk ? "on" : ""} title={gk} aria-label={`Glyph ${gk}`}
+                        onClick={() => useGen.getState().setBoardItemOv(sel.id, `icon:${gk}`)}
+                        dangerouslySetInnerHTML={{ __html: previewSvg(STOCK_ICONS[gk]) }} />
+                    ) : null)}
+                  </div>
+                  {semGs.length > 0 && (<>
+                    <div className="bd-glyphsub">Semantic rack — its art, flat in this seat</div>
+                    <div className="icongrid bd-glyphgrid">
+                      {semGs.map((gid) => { const d = glyphSeatIcon(gid); const nm = glyphById(gid)?.name ?? gid; return d ? (
+                        <button key={gid} className={curSem === gid ? "on" : ""} title={nm} aria-label={`Glyph ${nm}`}
+                          onClick={() => useGen.getState().setBoardItemOv(sel.id, `icon:glyph:${gid}`)}
+                          dangerouslySetInnerHTML={{ __html: previewSvg(d) }} />
+                      ) : null; })}
+                    </div>
+                  </>)}
+                </div>
+              );
+            })()}
             {sel.kitId && (() => {
               /* per-copy drop shadow (owner: "you can't always tell if you
                  need a drop shadow at the editing level") — while on, it
@@ -3108,6 +3182,38 @@ function ScaleEntry({ id, pct, min }: { id: string; pct: number; min: number }) 
   );
 }
 
+/* the BODY-BOX discriminator (owner class rule, round 49: glows must fall
+   off naturally "without increasing the hit area (and thereby boards
+   selection area)"; the Unity export applies the same rule to raycast
+   boxes). The old scans took ANY alpha > 8 as ink, so a glow-dressed
+   stamp's selection box inflated with its halo. Solid ink and haze are
+   separable by construction: a gaussian glow/shadow tail peaks at about
+   HALF its pass's opacity just outside the ink edge (a blurred step) and
+   decays from there — one pass ≲128, stacked passes stay under ~200 —
+   while letterform and outline ink sit at 255 behind a one-pixel AA
+   fringe. Scanning solid (≥232) therefore keeps every drawn body and
+   sheds every halo, at full designed glow extent on screen. A render
+   with no solid ink at all (hairline strokes swallowed by AA at scan
+   scale) falls back to the any-alpha box — never no box. */
+function scanInkBody(d: Uint8ClampedArray, w: number, h: number): [number, number, number, number] | null {
+  let sx0 = w, sy0 = h, sx1 = -1, sy1 = -1; // solid ink body
+  let ax0 = w, ay0 = h, ax1 = -1, ay1 = -1; // any alpha — the fallback
+  for (let py = 0; py < h; py += 2) for (let px = 0; px < w; px += 2) {
+    const a = d[(py * w + px) * 4 + 3];
+    if (a > 8) {
+      if (px < ax0) ax0 = px; if (px > ax1) ax1 = px;
+      if (py < ay0) ay0 = py; if (py > ay1) ay1 = py;
+      if (a >= 232) {
+        if (px < sx0) sx0 = px; if (px > sx1) sx1 = px;
+        if (py < sy0) sy0 = py; if (py > sy1) sy1 = py;
+      }
+    }
+  }
+  if (sx1 > sx0 && sy1 >= sy0) return [sx0, sy0, sx1 - sx0, sy1 - sy0];
+  if (ax1 > ax0 && ay1 >= ay0) return [ax0, ay0, ax1 - ax0, ay1 - ay0];
+  return null;
+}
+
 function StampArt({ cfg, stamp }: { cfg: GenConfig; stamp: NonNullable<BoardItem["stamp"]> }) {
   /* glint stars snap to REAL letterform ink — a stamp rendered before its
      face finished loading snapped to the fallback font's run (the drifting
@@ -3157,15 +3263,11 @@ function StampArt({ cfg, stamp }: { cfg: GenConfig; stamp: NonNullable<BoardItem
           const ctx = cv.getContext("2d", { willReadFrequently: true })!;
           ctx.drawImage(img, 0, 0, cv.width, cv.height);
           try {
+            // body-box rule: the shell pins to SOLID ink — glow halos render
+            // full-size but never widen the selection/grab box (scanInkBody)
             const d = ctx.getImageData(0, 0, cv.width, cv.height).data;
-            let x0 = cv.width, y0 = cv.height, x1 = 0, y1 = 0;
-            for (let py = 0; py < cv.height; py += 2) for (let px = 0; px < cv.width; px += 2) {
-              if (d[(py * cv.width + px) * 4 + 3] > 8) {
-                if (px < x0) x0 = px; if (px > x1) x1 = px;
-                if (py < y0) y0 = py; if (py > y1) y1 = py;
-              }
-            }
-            if (x1 > x0 && on) setTightShell([x0 / k, y0 / k, (x1 - x0) / k, (y1 - y0) / k].map((n) => n.toFixed(1)).join(" "));
+            const bb = scanInkBody(d, cv.width, cv.height);
+            if (bb && on) setTightShell([bb[0] / k, bb[1] / k, bb[2] / k, bb[3] / k].map((n) => n.toFixed(1)).join(" "));
           } catch { /* tainted or empty — the specimen shell stands */ }
         };
         img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgF)));
@@ -3214,15 +3316,11 @@ function StampArt({ cfg, stamp }: { cfg: GenConfig; stamp: NonNullable<BoardItem
              adhere "to the actual type stamp area") */
           let shell: [number, number, number, number] | null = null;
           try {
+            // same body-box rule as the unwarped scan: solid ink bounds the
+            // box, the bent glow haze stays drawn but un-grabbable
             const d = wc.getContext("2d")!.getImageData(0, 0, wc.width, wc.height).data;
-            let x0 = wc.width, y0 = wc.height, x1 = 0, y1 = 0;
-            for (let py = 0; py < wc.height; py += 2) for (let px = 0; px < wc.width; px += 2) {
-              if (d[(py * wc.width + px) * 4 + 3] > 8) {
-                if (px < x0) x0 = px; if (px > x1) x1 = px;
-                if (py < y0) y0 = py; if (py > y1) y1 = py;
-              }
-            }
-            if (x1 > x0) shell = [x0 / k, y0 / k, (x1 - x0) / k, (y1 - y0) / k];
+            const bb = scanInkBody(d, wc.width, wc.height);
+            if (bb) shell = [bb[0] / k, bb[1] / k, bb[2] / k, bb[3] / k];
           } catch { /* tainted or empty — the full frame remains the box */ }
           wc.toBlob((bl) => {
             if (!on || !bl) return;

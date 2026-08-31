@@ -837,7 +837,11 @@ export async function myProfileTier(): Promise<{ plan: string | null; admin: boo
   if (!client) return { plan: null, admin: false };
   if (!session) return hasStoredSession() ? { plan: null, admin: false, undecided: true } : { plan: null, admin: false };
   const { data, error } = await client.from("profiles").select("plan_id, is_admin").eq("id", session.user.id).maybeSingle();
-  if (error) return { plan: null, admin: false, undecided: true };
+  // the one diagnostic surface for the flake-guard: when this read fails the
+  // gates silently keep their previous answer, so say WHY in the console —
+  // a session where the admin desk works but the kit page shows no staged
+  // chrome should explain itself on the owner's own machine.
+  if (error) { console.warn("[gates] profile read failed — keeping the previous visibility gates:", error.message); return { plan: null, admin: false, undecided: true }; }
   if (!data) return { plan: null, admin: false };
   return { plan: (data.plan_id as string) ?? "free", admin: !!data.is_admin };
 }

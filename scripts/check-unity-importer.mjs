@@ -1547,7 +1547,9 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     }
   };
   literalParity(/labelSizes: \(\[\[[\s\S]{0,3000}?\n      \}\),/, ["family", "size", "scene"], "PBLabelSize", "labelSizes");
-  literalParity(/stateFx: \(\[\[[\s\S]{0,4500}?\n      \}\),/, ["family", "state", "glow", "lift"], "PBStateFx", "stateFx");
+  // round 52: the block head grew a spread — the literal pairs plus the
+  // FULL-road glyph buttons' own dial rows ride one array
+  literalParity(/stateFx: \[\.\.\.\(\[\[[\s\S]{0,4500}?\n      \}\),/, ["family", "state", "glow", "lift"], "PBStateFx", "stateFx");
   // two passes since the bespoke-pose round: labeled ink+dy rows, then
   // measured dy-only rows for the other stateFx families
   literalParity(/labelStates: \[\n[\s\S]{0,8000}?\n      \],/, ["family", "state", "fillMode", "fill", "fill2", "dy"], "PBLabelState", "labelStates");
@@ -3543,6 +3545,156 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
       || !/&& \(!seat\.unkern \|\| SeatKernIsOff\(t\)\)/.test(cs)
       || !/if \(seat\.unkern\) SeatKernOff\(tL\); \/\/ the smashed-pair guard rides the LTS rung too/.test(src))
     errors.push("the TMP seat kern-off consumption left the importer (round 48, S39 — DressSeatText probe+apply and the LTS road)");
+}
+
+/* ── ROUND 49 · S40 (the slot button fleet, exporter half of d7c83a2):
+   slotbtn rides the universal interactive road (skins + Button + live
+   glyph + chip), staged-gated like the family; the manifest ships the
+   curated fleet list ONLY when released; and the importer builds one
+   thin Prefab Variant per entry — manifest-driven so wave 2 (the glyph
+   rack) is additive with zero importer change. ── */
+{
+  if (!/"orderticket", "chest", "giftbox",[\s\S]{0,500}"slotbtn"\]\);/.test(src))
+    errors.push("slotbtn left the UNIVERSAL_INTERACTIVE road — no skins, no Button, no fleet (round 49, S40)");
+  if (!/\["slotbtn", "slotbtn"\],/.test(src))
+    errors.push("slotbtn lost its stateFx dials row — the prefab presses without the kit's glow/lift (round 49, S40)");
+  if (!/\.\.\.\(stagedShips\("slotbtn"\) \? \{\s*slotFleet:/.test(src)
+      || !/\.map\(\(g\) => \(\{ name: g\.charAt\(0\)\.toUpperCase\(\) \+ g\.slice\(1\), file: `assets\/icons\/\$\{g\}\.png` \}\)\),/.test(src))
+    errors.push("the slot fleet list lost its staged gate or its shipped-sprite shape (round 49, S40)");
+  if (!/public PBFleetEntry\[\] slotFleet;/.test(src) || !/class PBFleetEntry \{ public string name; public string file; \}/.test(src))
+    errors.push("PBManifest lost the fleet entries (round 49, S40)");
+  if (!/static bool SlotFleetPrefabs\(string dir, string root, PBManifest m, bool quiet\) \{/.test(cs)
+      || !/SlotFleetPrefabs\(dir, root, m, staging\)/.test(cs)
+      || !/var gT = inst\.transform\.Find\("Icon glyph"\);/.test(cs)
+      || !/"\/Slot Button – " \+ FileSafeWord\(fe\.name\) \+ "\.prefab"/.test(cs)
+      || !/PrefabUtility\.GetPrefabAssetType\(saved\) == PrefabAssetType\.Variant\s*&& \(GameObject\)PrefabUtility\.GetCorrespondingObjectFromSource\(saved\) == basePf;[\s\S]{0,900}Slot Button fleet/.test(cs))
+    errors.push("the slot fleet builder (thin Prefab Variants off the live glyph child) left the importer (round 49, S40)");
+  if (!/"Slotbtn", "Slot Button – Gem", "Slot Button – Sword", "Slot Button – Key", "Slot Button – Hammer", "Slot Button – Gear", "Slot Button – Check"/.test(cs)
+      || !/else if \(sf == "slotbtn"\) foreach \(var fv in new\[\] \{ "Slot Button – Gem"/.test(cs))
+    errors.push("the Playground lost the slot button's representative row or its staged hiding (round 49, S40)");
+}
+
+/* ── ROUND 50 · S41 (the owner's glow class rule: "increase the space
+   around the asset so that the glow eventually falls off naturally...
+   without increasing the hit area"): (a) tight crops measure the glow's
+   REACH (alpha ≤1 at the shipped edge — dual-box scan + the widened
+   raster canvas, all-or-none per union group); (b) uncropped layered
+   rigs take the measured border probe; (c) icon-seat atoms measure
+   their tails on a widened window so the seat box grows 1:1 with the
+   sprite; (d) hit areas pin to the DRAWN piece — data-shell where
+   authored, the measured ink row where not, consumed by the importer's
+   InkBoxOf road. ── */
+{
+  const exSrc41 = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../src/generator/exportUtils.ts"), "utf8");
+  if (!/x0 = Math\.max\(0, Math\.min\(x0 - margin, rx0 - 2\)\); y0 = Math\.max\(0, Math\.min\(y0 - margin, ry0 - 2\)\);/.test(exSrc41)
+      || !/x1 = Math\.min\(cv\.width - 1, Math\.max\(x1 \+ margin, rx1 \+ 2\)\); y1 = Math\.min\(cv\.height - 1, Math\.max\(y1 \+ margin, ry1 \+ 2\)\);/.test(exSrc41)
+      || !/const X1 = Math\.min\(cv\.width - 1, Math\.max\(x1 \+ margin, rx1 \+ 2\)\), Y1 = Math\.min\(cv\.height - 1, Math\.max\(y1 \+ margin, ry1 \+ 2\)\);/.test(exSrc41))
+    errors.push("the measured-reach (dual-box) crop left the tight rasters — glow tails cut at the ink margin again (round 50, S41)");
+  if (!/export function padGlowCanvas\(svg: string, pad = 72\): string \{/.test(exSrc41)
+      || !/export async function svgEdgeAlphaMax\(svg: string, scale = 2\): Promise<number> \{/.test(exSrc41))
+    errors.push("padGlowCanvas / svgEdgeAlphaMax left exportUtils — overrunning auras can't be widened or probed (round 50, S41)");
+  if (!/ink: \{ x0: inkBox\.x0 - x0, y0: inkBox\.y0 - y0, x1: inkBox\.x1 - x0, y1: inkBox\.y1 - y0 \} \};/.test(exSrc41))
+    errors.push("svgToPngBytesTight stopped returning the measured ink box — shell-less rows lose their raycast pin (round 50, S41)");
+  if (!/const wants = q\.group \? !groupSliced\.get\(q\.group\) : \(!!q\.crop && !q\.meta\.nineSlice\);/.test(src)
+      || !/if \(wants\) q\.svg = padGlowCanvas\(q\.svg, 72\);/.test(src))
+    errors.push("the widened-canvas pre-pass lost its all-or-none group rule — union members tear their shared frame (round 50, S41)");
+  if (!/const loose = pngQueue\.filter\(\(q\) => !q\.crop && !q\.group && !q\.meta\.nineSlice && !q\.meta\.part\.startsWith\("icon-"\)\);/.test(src)
+      || !/if \(worst <= 1 \|\| worst >= 64\) continue;/.test(src))
+    errors.push("the uncropped-rig border probe lost its scope rails (icon seats / drawn-window exclusion) — cooldown truncates or windows widen (round 50, S41)");
+  if (!/const rb = await svgAlphaBox\(wide, PNG_SCALE, 1\)\.catch\(\(\) => null\);/.test(src)
+      || !/bw9 = \(Math\.max\(abW\.x1, rb\.x1\) - Math\.min\(abW\.x0, rb\.x0\) \+ 1\) \/ \(PNG_SCALE \* dscX\) \+ pad \* 2;/.test(src))
+    errors.push("iconSeatsOf lost the widened-window reach measurement — ringed marks cut their halos at ink+2 again (round 50, S41)");
+  if (!/if \(e9 < bestE\) \{ spr = cand; bestE = e9; bx = cx9; by = cy9; bw9 = cw9; bh9 = ch9; \}/.test(src)
+      || !/let bestE = await svgEdgeAlphaMax\(spr, PNG_SCALE\)\.catch\(\(\) => 0\);/.test(src))
+    errors.push("the measured seat box no longer verifies its own shipped-size raster (bounded verify-and-widen) — sub-2% tail noise ships unchecked (round 50 follow-up, S41)");
+  if (!/ink\?: \{ x: number; y: number; w: number; h: number \} \| null;/.test(src)
+      || !/\.\.\.\(inkBox \? \{ ink: inkBox \} : \{\}\),/.test(src)
+      || !/if \(slack >= 6\)/.test(src))
+    errors.push("the manifest lost the measured ink row (shell-less glow-slack sprites) — hit areas span the glow again (round 50, S41)");
+  if (!/public PBShellBox ink;/.test(cs)
+      || !/static PBShellBox InkBoxOf\(Sprite sp, string fam, PBManifest m\) \{/.test(cs)
+      || !/var box = row != null \? row\.shell : InkBoxOf\(img\.sprite, fam, m\);/.test(cs)
+      || !/\|\| InkBoxOf\(rootImg\.sprite, famName, m\) != null\);/.test(cs)
+      || !/ShellRaycastPad\(go, "cooldown", m\);/.test(cs)
+      || !/ShellRaycastPad\(go, famP, m\);/.test(cs))
+    errors.push("the importer's ink-box raycast road left — clicks land on glow padding again (round 50, S41)");
+}
+
+/* ── ROUND 51 · S42 (the semantic glyph fleet — the owner: "we need a
+   NEW CLASS of button that is the SEMANTIC GLYPHS + FRAME"): the slot
+   button's second ready-to-wear class. The exporter renders each
+   CURATED rack glyph (SEAT_GLYPHS) through the app's own seat road and
+   ships the cut + its measured seat as a glyphFleet entry — under the
+   SAME stagedShips("slotbtn") gate as the stock class, never a new
+   family; the CC-BY silhouettes credit themselves in the notices. The
+   importer builds one "Glyph Button – <Name>" thin Prefab Variant per
+   entry off Slotbtn.prefab, reseats the live glyph child to the entry's
+   app-measured box, waits quietly on missing sprites, and keeps a
+   prefab the dev already holds. ── */
+{
+  if (!/for \(const bGF of GLYPH_BUTTON_FLEET\) \{\s*\n\s*if \(!stagedShips\(bGF\.id\)\) continue;/.test(src)
+      || !/const seatsG = await iconSeatsOf\("slotbtn", fullG, undefined, `glyph-\$\{gid\}`\);/.test(src)
+      || !/if \(\(fullG\.match\(\/data-part="icon"\/g\) \?\? \[\]\)\.length !== 1\) continue;/.test(src))
+    errors.push("the glyph-button roster emission left the exporter (per-component gate / per-glyph seat cut / one-mark collision guard) — the class ships nothing, or a staged button leaks (round 51+52, S42)");
+  if (!/\.\.\.\(glyphFleetOut\.length \? \{ glyphFleet: glyphFleetOut \} : \{\}\),/.test(src))
+    errors.push("the manifest lost the glyphFleet roster — entries and sprites can disagree (round 51, S42)");
+  if (!/for \(const gidF of glyphFleetIds\) tpnGlyphIds\.add\(`glyph\$\{gidF\}`\);/.test(src))
+    errors.push("the shipped semantic cuts lost their CC-BY credit road (glyphAttribution via tpnGlyphIds) — game-icons art would ship uncredited (round 51, S42)");
+  if (!/class PBGlyphFleetEntry \{ public string name; public string file; public float dx; public float dy; public float w; public float h; public string fam; \}/.test(cs)
+      || !/public PBGlyphFleetEntry\[\] glyphFleet;/.test(cs))
+    errors.push("PBManifest lost the glyph-fleet entries (name + file + measured seat + fam) (round 51+52, S42)");
+  if (!/static bool GlyphFleetPrefabs\(string dir, string root, PBManifest m, bool quiet, int pngScale, Font kitFont\) \{/.test(cs)
+      || !/GlyphFleetPrefabs\(dir, root, m, staging, pngScale, kitFont\)/.test(cs)
+      || !/"\/Glyph Button – " \+ FileSafeWord\(fe\.name\) \+ "\.prefab"/.test(cs))
+    errors.push("the glyph fleet builder (one 'Glyph Button – <Name>' prefab per entry) left the importer (round 51+52, S42)");
+  const gfp42 = /static bool GlyphFleetPrefabs\(string dir, string root, PBManifest m, bool quiet, int pngScale, Font kitFont\) \{[\s\S]*?\n    \}/.exec(cs)?.[0] ?? "";
+  if (!/if \(glyphSp == null\) \{ missing\+\+; continue; \}/.test(gfp42)
+      || !/\{ kept\+\+; continue; \}/.test(gfp42))
+    errors.push("the glyph fleet lost its missing-sprite tolerance or its keep-theirs-after-creation rule (round 51, S42)");
+  if (!/grt\.sizeDelta = new Vector2\(fe\.w, fe\.h\);/.test(gfp42)
+      || !/float fxGB = \(rowGB\.shell\.x \+ rowGB\.shell\.w \/ 2f \+ fe\.dx \* psGB\) \/ bsGB\.rect\.width;/.test(gfp42)
+      || !/var gT = inst\.transform\.Find\("Icon glyph"\);/.test(gfp42))
+    errors.push("the glyph fleet variant no longer reseats the LIVE glyph child to the entry's app-measured box (round 51, S42)");
+  if (!/PrefabUtility\.GetPrefabAssetType\(saved\) == PrefabAssetType\.Variant/.test(gfp42))
+    errors.push("the glyph fleet lost the variant-link assert — a disconnected save would freeze silently (round 51, S42)");
+}
+
+/* ── ROUND 52 · S43 (the glyph buttons become REAL kit components — the
+   owner: "stock the kit with the entire semantic glyph set as buttons…
+   then in the editor I want all of the controls… I don't want to have
+   to have one master then go round about to save one"): each gbtn is
+   its own component whose edits must reach its prefab. The exporter
+   splits the road per button — THIN (still the shared slotbtn frame
+   wearing its glyph) vs FULL (designDiff fork / per-piece dials / board
+   placement / an uninheritable slotbtn frame → its OWN family rows,
+   skins and stateFx dials) — and the importer builds BOTH under the one
+   class name "Glyph Button – <Name>" in Variants, so exactly one prefab
+   per glyph exists in any pose. ── */
+{
+  if (!/for \(const bGF of GLYPH_BUTTON_FLEET\) PREFAB_FAMILY\[bGF\.id\] = bGF\.id;/.test(src))
+    errors.push("the glyph buttons lost their PREFAB_FAMILY rows — boards can't record them and staging can't declare them (round 52, S43)");
+  if (!/for \(const bGF of GLYPH_BUTTON_FLEET\) UNIVERSAL_INTERACTIVE\.add\(bGF\.id\);/.test(src))
+    errors.push("the glyph buttons left the universal pressable road — no full-road skins, auras or posed board copies (round 52, S43)");
+  if (!/const gbtnFull = new Set<KitComponentId>\(GLYPH_BUTTON_FLEET\s*\n\s*\.filter\(\(b9\) => stagedShips\(b9\.id\) && \(pieceDialed\(b9\.id\) \|\| st\.kitIcons\?\.\[b9\.id\] !== undefined\s*\n\s*\|\| usedOnBoards0\.has\(b9\.id\) \|\| !stagedShips\("slotbtn"\) \|\| pieceDialed\("slotbtn"\)\)\)/.test(src))
+    errors.push("the fleet's road split (fork/dial/placement/uninheritable-frame => FULL) left the exporter — a forked button would ship the shared frame wearing the wrong dress (round 52, S43)");
+  if (!/if \(isGlyphButton\(uid\) && !gbtnFull\.has\(uid\)\) continue;/.test(src))
+    errors.push("the universal loop lost the thin-road skip — every released glyph button would ship 47 full family bakes (round 52, S43)");
+  if (!/if \(gbtnFull\.has\(bGF\.id\)\) \{/.test(src)
+      || !/glyphFleetOut\.push\(\{ name: bGF\.glyphName, fam: bGF\.id, file: `assets\/\$\{bGF\.id\}\/\$\{bGF\.id\}-base\.png`, dx: 0, dy: 0, w: 0, h: 0 \}\);/.test(src))
+    errors.push("the roster no longer names FULL-road buttons (fam + their own base file) — the importer can't build their true prefabs (round 52, S43)");
+  if (!/\.\.\.\[\.\.\.gbtnFull\]\.flatMap\(\(gid9\) => \{/.test(src))
+    errors.push("FULL-road glyph buttons lost their own stateFx dial rows — a forked button would press without its glow/lift (round 52, S43)");
+  if (!/if \(a\.component\.StartsWith\("gbtn"\)\) continue;/.test(cs))
+    errors.push("the generic family loop no longer skips gbtn — a second 'Gbtncoin' copy would split the class (round 52, S43)");
+  const gfp43 = /static bool GlyphFleetPrefabs\(string dir, string root, PBManifest m, bool quiet, int pngScale, Font kitFont\) \{[\s\S]*?\n    \}/.exec(cs)?.[0] ?? "";
+  if (!/if \(famRowGF != null\) \{/.test(gfp43)
+      || !/if \(FamilyPrefab\(vdir, root, famRowGF, "Glyph Button – " \+ FileSafeWord\(fe\.name\), null, pngScale, kitFont, m\)\) made\+\+;/.test(gfp43))
+    errors.push("the importer's FULL road (family rows -> class-named prefab in Variants) left GlyphFleetPrefabs (round 52, S43)");
+  if (!/if \(basePf == null\) \{ missing\+\+; continue; \}/.test(gfp43))
+    errors.push("the thin road no longer waits on the slotbtn frame — a set released without slotbtn would throw instead of shipping full (round 52, S43)");
+  if (!/foreach \(var feSc in m\.glyphFleet\) if \(feSc != null && feSc\.fam == it\.component && !string\.IsNullOrEmpty\(feSc\.name\)\) \{ pfName = "Glyph Button – " \+ FileSafeWord\(feSc\.name\); break; \}/.test(cs)
+      || !/if \(pf == null && it\.component != null && it\.component\.StartsWith\("gbtn"\)\)\s*\n\s*pf = AssetDatabase\.LoadAssetAtPath<GameObject>\(root \+ "\/Prefabs\/Variants\/" \+ pfName \+ "\.prefab"\);/.test(cs))
+    errors.push("the scene road can no longer place a glyph button (class-name resolve via the roster + the Variants address) (round 52, S43)");
 }
 
 if (errors.length) {

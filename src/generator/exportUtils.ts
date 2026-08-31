@@ -575,7 +575,7 @@ export type CropBox = { x0: number; y0: number; x1: number; y1: number };
  *  canvas padding inside a sliced sprite becomes stretched dead air in every
  *  engine, and borders wide enough to span the pad can exceed the component's
  *  own size — Unity then draws caps of pure padding and no center at all. */
-export async function svgToPngBytesTight(svg: string, scale = 2, margin = 4): Promise<{ bytes: Uint8Array; w: number; h: number; box?: CropBox }> {
+export async function svgToPngBytesTight(svg: string, scale = 2, margin = 4): Promise<{ bytes: Uint8Array; w: number; h: number; box?: CropBox; ink?: CropBox }> {
   const full = await svgToPngBytes(svg, scale);
   const img = await createImageBitmap(new Blob([full.bytes.buffer as ArrayBuffer], { type: "image/png" }));
   const cv = document.createElement("canvas");
@@ -583,10 +583,27 @@ export async function svgToPngBytesTight(svg: string, scale = 2, margin = 4): Pr
   const ctx = cv.getContext("2d")!;
   ctx.drawImage(img, 0, 0);
   const px = ctx.getImageData(0, 0, cv.width, cv.height).data;
+  /* TWO boxes in one scan — the INK box (alpha > 8, the piece) and the
+     REACH box (alpha > 1, where a glow's tail truly ends). Round 50
+     (owner class rule: "increase the space around the asset so that the
+     glow eventually falls off naturally"): the crop keeps `margin` px
+     past the ink AND always reaches 2px past the last whisper of tail,
+     so a strong glow ships exactly as much canvas as it MEASURES —
+     never a fixed pad, never a hard cut (edge alpha ≤ 1 by
+     construction). Sprites without soft tails keep their old crops byte
+     for byte: their reach box hugs the ink box inside the margin. */
   let x0 = cv.width, y0 = cv.height, x1 = -1, y1 = -1;
+  let rx0 = cv.width, ry0 = cv.height, rx1 = -1, ry1 = -1;
   for (let yy = 0; yy < cv.height; yy++) {
     for (let xx = 0; xx < cv.width; xx++) {
-      if (px[(yy * cv.width + xx) * 4 + 3] > 8) {
+      const a = px[(yy * cv.width + xx) * 4 + 3];
+      if (a > 1) {
+        if (xx < rx0) rx0 = xx;
+        if (xx > rx1) rx1 = xx;
+        if (yy < ry0) ry0 = yy;
+        if (yy > ry1) ry1 = yy;
+      }
+      if (a > 8) {
         if (xx < x0) x0 = xx;
         if (xx > x1) x1 = xx;
         if (yy < y0) y0 = yy;
@@ -595,15 +612,19 @@ export async function svgToPngBytesTight(svg: string, scale = 2, margin = 4): Pr
     }
   }
   if (x1 < 0) return full; // nothing opaque — keep the full canvas
-  x0 = Math.max(0, x0 - margin); y0 = Math.max(0, y0 - margin);
-  x1 = Math.min(cv.width - 1, x1 + margin); y1 = Math.min(cv.height - 1, y1 + margin);
+  const inkBox = { x0, y0, x1, y1 }; // pre-margin: the drawn piece itself
+  x0 = Math.max(0, Math.min(x0 - margin, rx0 - 2)); y0 = Math.max(0, Math.min(y0 - margin, ry0 - 2));
+  x1 = Math.min(cv.width - 1, Math.max(x1 + margin, rx1 + 2)); y1 = Math.min(cv.height - 1, Math.max(y1 + margin, ry1 + 2));
   const cw = x1 - x0 + 1, ch = y1 - y0 + 1;
   const out = document.createElement("canvas");
   out.width = cw; out.height = ch;
   out.getContext("2d")!.drawImage(cv, x0, y0, cw, ch, 0, 0, cw, ch);
   // the crop re-drew through the premultiplied backing — re-dilate on encode
   const bytes = await canvasToPngBytesDilated(out);
-  return { bytes, w: cw, h: ch, box: { x0, y0, x1, y1 } };
+  /* the INK box travels in CROPPED-file coordinates (round 50 — hit areas
+     pin to the piece, not its glow): callers that ship a wider measured-
+     reach canvas can still say where the body ends inside it */
+  return { bytes, w: cw, h: ch, box: { x0, y0, x1, y1 }, ink: { x0: inkBox.x0 - x0, y0: inkBox.y0 - y0, x1: inkBox.x1 - x0, y1: inkBox.y1 - y0 } };
 }
 
 /** The alpha bounding box of an SVG's raster, in frame coordinates —
@@ -640,6 +661,9 @@ export async function svgAlphaBox(svg: string, scale = 2, threshold = 40): Promi
 export async function svgsToPngBytesTightUnion(svgs: string[], scale = 2, margin = 4): Promise<{ bytes: Uint8Array; w: number; h: number; box?: CropBox }[]> {
   const canvases: HTMLCanvasElement[] = [];
   let x0 = Infinity, y0 = Infinity, x1 = -1, y1 = -1;
+  // the glow-reach box rides the union too (round 50 — the class rule):
+  // every member's tail must complete inside the SHARED frame
+  let rx0 = Infinity, ry0 = Infinity, rx1 = -1, ry1 = -1;
   for (const svg of svgs) {
     const full = await svgToPngBytes(svg, scale);
     const img = await createImageBitmap(new Blob([full.bytes.buffer as ArrayBuffer], { type: "image/png" }));
@@ -650,11 +674,17 @@ export async function svgsToPngBytesTightUnion(svgs: string[], scale = 2, margin
     canvases.push(cv);
     const px = ctx.getImageData(0, 0, cv.width, cv.height).data;
     for (let yy = 0; yy < cv.height; yy++)
-      for (let xx = 0; xx < cv.width; xx++)
-        if (px[(yy * cv.width + xx) * 4 + 3] > 8) {
+      for (let xx = 0; xx < cv.width; xx++) {
+        const a = px[(yy * cv.width + xx) * 4 + 3];
+        if (a > 1) {
+          if (xx < rx0) rx0 = xx; if (xx > rx1) rx1 = xx;
+          if (yy < ry0) ry0 = yy; if (yy > ry1) ry1 = yy;
+        }
+        if (a > 8) {
           if (xx < x0) x0 = xx; if (xx > x1) x1 = xx;
           if (yy < y0) y0 = yy; if (yy > y1) y1 = yy;
         }
+      }
   }
   const encode = async (cv: HTMLCanvasElement, sx: number, sy: number, cw: number, ch: number): Promise<{ bytes: Uint8Array; w: number; h: number; box?: CropBox }> => {
     const out = document.createElement("canvas");
@@ -664,12 +694,53 @@ export async function svgsToPngBytesTightUnion(svgs: string[], scale = 2, margin
     return { bytes, w: cw, h: ch, box: { x0: sx, y0: sy, x1: sx + cw - 1, y1: sy + ch - 1 } };
   };
   if (x1 < 0) return Promise.all(canvases.map((cv) => encode(cv, 0, 0, cv.width, cv.height)));
-  x0 = Math.max(0, x0 - margin); y0 = Math.max(0, y0 - margin);
+  x0 = Math.max(0, Math.min(x0 - margin, rx0 - 2)); y0 = Math.max(0, Math.min(y0 - margin, ry0 - 2));
   // raster rounding can vary canvas sizes by a pixel — clamp per canvas
   return Promise.all(canvases.map((cv) => {
-    const X1 = Math.min(cv.width - 1, x1 + margin), Y1 = Math.min(cv.height - 1, y1 + margin);
+    const X1 = Math.min(cv.width - 1, Math.max(x1 + margin, rx1 + 2)), Y1 = Math.min(cv.height - 1, Math.max(y1 + margin, ry1 + 2));
     return encode(cv, x0, y0, X1 - x0 + 1, Y1 - y0 + 1);
   }));
+}
+
+/** Widen an SVG's own canvas symmetrically (round 50 — the owner's glow
+ *  class rule): a strong aura can run off the DRAWN canvas edge before
+ *  any crop gets to measure it, and no crop can restore pixels the
+ *  raster never had. The pad shifts the viewBox origin by a whole number
+ *  of units, so every drawn coordinate keeps its exact sub-pixel phase —
+ *  sprites whose tails already fit re-raster byte-identical, and the
+ *  measured-reach crop trims the rest back to their true falloff.
+ *  Scaled documents (width ≠ viewBox width) pass through untouched. */
+export function padGlowCanvas(svg: string, pad = 72): string {
+  const vbm = /viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/.exec(svg);
+  const wm = / width="([\d.]+)"/.exec(svg);
+  const hm = / height="([\d.]+)"/.exec(svg);
+  if (!vbm || !wm || !hm) return svg;
+  if (Math.abs(+wm[1] - +vbm[3]) > 0.6 || Math.abs(+hm[1] - +vbm[4]) > 0.6) return svg;
+  const p = Math.ceil(pad);
+  return svg
+    .replace(vbm[0], `viewBox="${+vbm[1] - p} ${+vbm[2] - p} ${+vbm[3] + p * 2} ${+vbm[4] + p * 2}"`)
+    .replace(wm[0], ` width="${+wm[1] + p * 2}"`)
+    .replace(hm[0], ` height="${+hm[1] + p * 2}"`);
+}
+
+/** The strongest alpha on a raster's 1px border — the truncation witness
+ *  (round 50): an UNCROPPED bake has no measured-reach crop to save it, so
+ *  the caller probes the drawn edge and widens the canvas until the tail
+ *  completes (alpha ≤ 1 all the way around). */
+export async function svgEdgeAlphaMax(svg: string, scale = 2): Promise<number> {
+  const full = await svgToPngBytes(svg, scale);
+  const img = await createImageBitmap(new Blob([full.bytes.buffer as ArrayBuffer], { type: "image/png" }));
+  const cv = document.createElement("canvas");
+  cv.width = img.width; cv.height = img.height;
+  const ctx = cv.getContext("2d")!;
+  ctx.drawImage(img, 0, 0);
+  const px = ctx.getImageData(0, 0, cv.width, cv.height).data;
+  let m = 0;
+  for (let xx = 0; xx < cv.width; xx++)
+    m = Math.max(m, px[xx * 4 + 3], px[((cv.height - 1) * cv.width + xx) * 4 + 3]);
+  for (let yy = 0; yy < cv.height; yy++)
+    m = Math.max(m, px[yy * cv.width * 4 + 3], px[(yy * cv.width + cv.width - 1) * 4 + 3]);
+  return m;
 }
 
 /** Rasterize an SVG string to a transparent PNG at the given scale. */

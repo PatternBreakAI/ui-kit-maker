@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { Component, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import "@/styles/pricing.css"; // the staging bay wears the community desk's cg-curate buttons
 import { ChevronDown, Download, Lock, PenTool, Pin, ShieldCheck, SquarePen, Trash2 } from "lucide-react";
 import { useGen } from "@/generator/store";
-import { CLONE_KINDS, EFFECT_ROLES, KIT_COMPONENTS, PRESETS, ROLE_HINT, SHAPES, STOCK_ICONS, STAGED_KIT, applyKitDesign, applyKitTextFill, baseOf, fontByName, groupOf, hexMix, isDarkBg, effKitSize, kitVisible, resolveKitIcon, sanitizeUnitySlug } from "@/generator/model";
+import { CLONE_KINDS, EFFECT_ROLES, GLYPH_BUTTONS, KIT_COMPONENTS, PRESETS, ROLE_HINT, SHAPES, STOCK_ICONS, STAGED_KIT, applyKitDesign, applyKitTextFill, baseOf, fontByName, groupOf, hexMix, isDarkBg, isGlyphButton, effKitSize, kitVisible, resolveKitIcon, sanitizeUnitySlug } from "@/generator/model";
 import { LIVE_GLYPHS } from "@/generator/glyphLibrary";
 import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, Shape } from "@/generator/model";
 import { renderBevel, renderKit, renderTypeSpecimen } from "@/generator/bevel";
@@ -67,8 +67,6 @@ function chapterNumber(id: string, hasClones: boolean): string {
    entire page — hundreds of pieces — to repaint one highlighted tab. */
 function ChapterTabs() {
   const setPhase = useGen((s) => s.setPhase);
-  const kitSizes = useGen((s) => s.kitSizes);
-  const setKitSizeAll = useGen((s) => s.setKitSizeAll);
   const releases = useGen((s) => s.componentReleases);
   const kitClones = useGen((s) => s.kitClones);
   const isAdmin = useGen((s) => s.isAdmin);
@@ -87,13 +85,19 @@ function ChapterTabs() {
     // a clone answers to its own name, its classification and its base
     // component's name; visibility follows the chapter's gate (base
     // released — or the admin, who sees staged-base clones there)
+    /* token-AND match over one hay line: every word of the query must land
+       somewhere in name/id/group, in ANY order — "coin button" finds
+       "Glyph Button · Coin" (a strict substring needed the name's own
+       word order, which no one types) */
+    const words = t.split(/\s+/).filter(Boolean);
+    const hits = (hay: string) => words.every((w) => hay.includes(w));
     const clones = Object.entries(kitClones)
       .filter(([, c]) => kitVisible(c.base, releases ?? {}, isAdmin))
-      .filter(([cid, c]) => `${c.name} ${c.kind} ${KIT_COMPONENTS.find((k) => k.id === c.base)?.name ?? c.base} ${cid}`.toLowerCase().includes(t))
+      .filter(([cid, c]) => hits(`${c.name} ${c.kind} ${KIT_COMPONENTS.find((k) => k.id === c.base)?.name ?? c.base} ${cid}`.toLowerCase()))
       .map(([cid, c]) => ({ id: cid, name: c.name, tag: c.kind }));
     const stock = KIT_COMPONENTS.filter((c) =>
       kitVisible(c.id, releases ?? {}, false) &&
-      (c.name.toLowerCase().includes(t) || c.id.includes(t) || groupName(c.id).toLowerCase().includes(t)),
+      hits(`${c.name} ${c.id} ${groupName(c.id)}`.toLowerCase()),
     ).map((c) => ({ id: c.id as string, name: c.name, tag: groupName(c.id) }));
     return [...clones, ...stock].slice(0, 9);
   }, [q, releases, kitClones, isAdmin]);
@@ -122,10 +126,6 @@ function ChapterTabs() {
     };
     seek();
   };
-  // size is a KIT decision now — one switch up here instead of chips on
-  // every cell. Mixed sizes (older saves) read as M until the next click
-  // normalizes the kit.
-  const sizeAll: KitSize = Object.values(kitSizes).some((v) => effKitSize(v) === "m") ? "m" : "l";
   // the user's clones carry their own chapter — it slots in AFTER the
   // Foundations story, leading the components zone, and its tab exists
   // only while visible clones do (owner IA round: nothing before the story)
@@ -181,14 +181,10 @@ function ChapterTabs() {
           </span>
         )}
       </span>
-      <span className="kp-tabsizes" role="group" aria-label="Kit size">
-        <span className="kp-tabsizelab">Size</span>
-        {(["m", "l"] as const).map((s) => (
-          <button key={s} className={sizeAll === s ? "on" : ""}
-            title={s === "m" ? "Medium — the whole kit" : "Large — the whole kit"}
-            onClick={() => setKitSizeAll(s)}>{s.toUpperCase()}</button>
-        ))}
-      </span>
+      {/* the SIZE M|L switch lived here — retired on the owner's order
+          ("get rid of the ML sizing tool in the nav, just leave it on L"):
+          the page documents the kit at L, full stop. Only the Primary ramp
+          still shows an explicit M for scale contrast. */}
       <button className="kp-tabedit" onClick={() => setPhase("master")} title="Back to the component editor">
         <PenTool size={13} strokeWidth={2} /> Editor
       </button>
@@ -387,9 +383,13 @@ interface PieceOpts {
   bayHome?: boolean;
   icon?: IconDef | null; value?: number; baseState?: GenStateName; scale?: number;
   sub?: string; max?: string; addBtn?: boolean; overlay?: string; iconScale?: number; trim?: boolean; tight?: boolean;
-  /** Measured crop to the rendered art (LiveArt hug) — the Fields
-   *  specimens: their canvases' full-travel reserves ran far past the art
-   *  and the section read as dead space + cut-off pieces (owner). */
+  /** Measured crop to the rendered art (LiveArt hug) — born for the Fields
+   *  specimens (canvases' full-travel reserves ran far past the art: dead
+   *  space + cut-off pieces), now the DEFAULT for every catalog Piece card
+   *  and state-strip cell (owner, round 52: "the asset doesn't appear in
+   *  the middle of the container... across the board" — measured, every
+   *  body card floated its ink ~45px above the frame middle with the whole
+   *  reserve hanging below). Pass false to keep the raw canvas box. */
   hug?: boolean;
   /** render this instance FLAT — no extrusion, contact or cast shadow.
       Screen patterns that butt tiles edge-to-edge (the match-3 board)
@@ -416,15 +416,16 @@ function flatPiece(c: GenConfig, flat?: boolean): GenConfig {
 /** Shared plumbing for every live piece on this page. The page is always
  *  alive — clicking a piece plays it; editing goes through the ✎ button. */
 function usePiece(p: PieceOpts) {
-  const { cfg, kitClones, kitShapes, kitSizes, kitDesigns, kitLocks, kitTextOy, kitTextOx, kitTextFill, kitIcons, kitLabels, kitNoText, kitSubs, kitSlotVals, kitVals, kitRow, kitBar, setFocus, setKitKind, setKitOverlay } = useGen();
+  const { cfg, kitClones, kitShapes, kitDesigns, kitLocks, kitTextOy, kitTextOx, kitTextFill, kitIcons, kitLabels, kitNoText, kitSubs, kitSlotVals, kitVals, kitRow, kitBar, setFocus, setKitKind, setKitOverlay } = useGen();
   /* clone-aware (mirrors Panel/CanvasView): a duplicated piece renders
      through its BASE component — renderKit and LiveArt refuse clone ids —
      while every per-piece map read stays keyed by the piece's own id */
   const base = baseOf(p.id);
-  // an explicit size (the Primary ramp) is fixed; everything else follows the
-  // kit-wide size from the floating nav's M/L switch
-  // the documentation shows medium and large only — a stored Small reads as Medium
-  const size = p.size ?? effKitSize(kitSizes[p.id]);
+  // an explicit size (the Primary ramp) is fixed; everything else is L —
+  // the nav's kit-wide M/L switch is retired (owner: "get rid of the ML
+  // sizing tool in the nav, just leave it on L"), and kitSizes has no
+  // writers left, so the page documents the kit at Large permanently
+  const size = p.size ?? "l";
   // a pinned component renders its own snapshot, not the master's style —
   // and a per-piece text color rides on top of either. Memoized: a fresh
   // object here on every render (this hook re-runs on ANY store change)
@@ -674,7 +675,7 @@ function PieceInner(p: PieceOpts & { caption: string; ambient?: boolean }) {
   return (
     <figure className="kp-piece" style={shineVars} data-kp={p.id}>
       <LiveArt cfg={cfg} playing stillLoops scale={p.scale ?? PIECE_SCALE} className="kp-live"
-        kit={kit} title={p.caption} ambient={p.ambient} shine={shine} hug={p.hug} />
+        kit={kit} title={p.caption} ambient={p.ambient} shine={shine} hug={p.hug ?? true} />
       <figcaption className="kp-cap">
         {locked && <Lock className="kp-lockic" size={11} strokeWidth={2.4} aria-label="Locked — finished" />}
         {!locked && pinned && <Pin className="kp-lockic" size={11} strokeWidth={2.4} aria-label="Pinned to its own look" />}
@@ -712,9 +713,13 @@ function PieceInner(p: PieceOpts & { caption: string; ambient?: boolean }) {
  *  brochure, and lock cards inside them read as wreckage (owner, logged-out
  *  Safari FTUE). The sell stays where the value is — grid teasers, exports,
  *  the editor. */
-function PPiece(p: PieceOpts & { ambient?: boolean }) {
+function PPiece(p: PieceOpts & { ambient?: boolean; bay?: boolean }) {
   const stagedHidden = useStagedHidden(p.id);
-  if (stagedHidden) return null;
+  /* the bay bypass, same as Piece's: the staging bay is the ONE surface
+     that must always render staged pieces — it exists to judge them. The
+     nulling guards every PUBLIC path only (patterns, assemblies, the
+     body's state strips); no public caller passes `bay`. */
+  if (stagedHidden && !p.bay) return null;
   return <PPieceInner {...p} />;
 }
 function PPieceInner(p: PieceOpts & { ambient?: boolean }) {
@@ -1234,9 +1239,46 @@ function Sec({ n, title, anchor, note, wide, children }: { n: string; title: str
         <span className="kp-rule" />
       </header>
       {note && <p className="kp-note">{note}</p>}
-      {children}
+      <SecGuard name={title}>{children}</SecGuard>
     </section>
   );
+}
+
+/* ── round-46 field hunt: name the dying section ──────────────────────
+   The owner's production kit page lost everything below a point inside
+   the Components chapter — no glitch card, no repro in any pose we can
+   build here (prod-mode build, admin, the real release ledger, the
+   owner's own doc, the workspace pull 500ing terminally). Two changes so
+   the page can't die silently again: (1) every section body and every
+   deferred chapter renders behind this guard, so whatever throws paints
+   a small named card and the REST of the book lives on (before this, one
+   bad specimen took the whole page to the route-level glitch card);
+   (2) the guard and the chapter mounts log "[chapters] …" lines, so the
+   owner's next console capture names the dying section outright. */
+class SecGuard extends Component<{ name: string; children: ReactNode }, { err: string | null }> {
+  state = { err: null as string | null };
+  static getDerivedStateFromError(e: unknown) { return { err: String((e as Error)?.message ?? e) }; }
+  componentDidCatch(e: unknown) { console.error(`[chapters] "${this.props.name}" crashed while rendering:`, e); }
+  render() {
+    if (this.state.err) return (
+      <p className="kp-note" role="alert">
+        This part of the page hit a rendering error on this device — everything else is unaffected.
+        <span style={{ display: "block", marginTop: 4, fontSize: 11, opacity: 0.6, fontFamily: "ui-monospace, monospace" }}>
+          [{this.props.name}] {this.state.err.slice(0, 160)}
+        </span>
+      </p>
+    );
+    return this.props.children;
+  }
+}
+/** Runs a render thunk INSIDE the guard above — the deferred chapters and
+ *  the page's inline (() => …)() blocks build their elements in a parent's
+ *  render, where a throw would sail past any boundary wrapped around the
+ *  finished elements. Handing the guard the thunk itself puts the whole
+ *  evaluation under it. */
+function Thunk({ children }: { children: () => ReactNode }) { return <>{children()}</>; }
+function Guarded({ name, body }: { name: string; body: () => ReactNode }) {
+  return <SecGuard name={name}><Thunk>{body}</Thunk></SecGuard>;
 }
 
 /** Chapter divider — a level of the system, visually senior to any section. */
@@ -1259,23 +1301,33 @@ function Chapter({ n, id, label, blurb }: { n: string; id: string; label: string
  *  as a THUNK so React never evaluates a dormant chapter's render work.
  *  The Chapter divider above each Deferred stays mounted, so tab anchors
  *  and deep links keep working; the ghost reserves honest scroll room. */
-function Deferred({ estH, eager, onLive, children }: { estH: number; eager?: boolean; onLive?: () => void; children: () => React.ReactNode }) {
+function Deferred({ tag, estH, eager, onLive, children }: { tag: string; estH: number; eager?: boolean; onLive?: () => void; children: () => React.ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   const [live, setLive] = useState(false);
   useEffect(() => { if (eager && !live) setLive(true); }, [eager, live]);
   // fires AFTER the chapter's content commits — the boot curtain sequences
   // the next chapter on it, so the bar ticks on real completions
   const announced = useRef(false);
-  useEffect(() => { if (live && !announced.current) { announced.current = true; onLive?.(); } }, [live, onLive]);
+  useEffect(() => {
+    if (live && !announced.current) {
+      announced.current = true;
+      // field-capture breadcrumb (round-46 hunt): a committed line per
+      // chapter — a capture where these stop names where the book died
+      console.info(`[chapters] ${tag} committed`);
+      onLive?.();
+    }
+  }, [live, onLive, tag]);
   useEffect(() => {
     if (live) return;
     const el = ref.current;
-    if (!el || typeof IntersectionObserver === "undefined") { setLive(true); return; }
+    if (!el || typeof IntersectionObserver === "undefined") { console.warn(`[chapters] ${tag}: no IntersectionObserver — mounting immediately`); setLive(true); return; }
     const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) setLive(true); }, { rootMargin: "1600px 0px" });
     io.observe(el);
     return () => io.disconnect();
-  }, [live]);
-  return live ? <>{children()}</> : <div ref={ref} className="kp-ghost" style={{ minHeight: estH }} aria-hidden="true" />;
+  }, [live, tag]);
+  // the guard takes the THUNK: chapter content is built inside it, so a
+  // throw mid-chapter paints a named card instead of felling the page
+  return live ? <Guarded name={tag} body={children} /> : <div ref={ref} className="kp-ghost" style={{ minHeight: estH }} aria-hidden="true" />;
 }
 
 /** Small annotation line under a Build Part — plain editorial text, not pills. */
@@ -1342,16 +1394,22 @@ function assess(cfg: GenConfig): { level: "Strong" | "Fair" | "Risky"; notes: st
 
 /** A live piece row shown at several states, tiny captions underneath.
  *  `hug` crops each cell to its measured art so the specimens sit with
- *  their captions instead of floating high over reserve canvas. */
-function StateStrip({ variants, hug }: {
+ *  their captions instead of floating high over reserve canvas — the
+ *  default for every strip since round 52 (the owner's class report:
+ *  assets hanging far above their captions in every state row). */
+function StateStrip({ variants, hug = true, bay }: {
   variants: { cap: string; piece: PieceOpts }[];
   hug?: boolean;
+  /** Bay-hosted strip: renders staged pieces (the admin review surface —
+   *  a piece under judgment must show its whole pressing story). Only the
+   *  staging bay passes this. */
+  bay?: boolean;
 }) {
   return (
     <div className="kp-states">
       {variants.map((v) => (
         <figure className="kp-state" key={v.cap}>
-          <PPiece {...v.piece} scale={v.piece.scale ?? 0.3} hug={hug} />
+          <PPiece {...v.piece} scale={v.piece.scale ?? 0.3} hug={hug} bay={bay} />
           <figcaption>{v.cap}</figcaption>
         </figure>
       ))}
@@ -1569,8 +1627,10 @@ export function KitPage() {
       const sid = bayEditReturn;
       bayEditReturn = null;
       if (!sid) return;
-      document.querySelector(`.kp-bayrow[data-bayid="${sid}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" });
-      setBayHot(sid);
+      // a glyph button lives on the SET's one card — land the flash there
+      const rowId = (isGlyphButton(sid) ? "gbtn-set" : sid) as KitComponentId;
+      document.querySelector(`.kp-bayrow[data-bayid="${rowId}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" });
+      setBayHot(rowId);
       window.setTimeout(() => setBayHot(null), 2600);
     }, 250);
     return () => window.clearTimeout(t);
@@ -1687,6 +1747,24 @@ export function KitPage() {
   // hides the work, the double-rAF keeps the bar honest and the page alive
   const bootAdvance = () => requestAnimationFrame(() => requestAnimationFrame(() => setBootN((n) => Math.min(BOOT_DONE, n + 1))));
   useEffect(() => { const t = window.setTimeout(bootAdvance, 250); return () => window.clearTimeout(t); }, []);
+  /* round-46 stall-proofing: the boot chain is SERIAL — each chapter's
+     commit advances the next — so one missed link (a throttled rAF, an
+     observer that never fires, an effect lost to a race) used to strand
+     every chapter downstream as an empty ghost forever, which is exactly
+     the shape of the owner's field report (Components stopping dead after
+     its first pieces, everything below empty). The watchdog re-arms on
+     every advance and force-marches a stage that sits silent, straight
+     through setBootN — no rAF in the path, so the thing being watched
+     can't also be the thing that's stuck. Healthy boots advance in well
+     under a second and never hear from it. */
+  useEffect(() => {
+    if (bootN >= BOOT_DONE) return;
+    const t = window.setTimeout(() => {
+      console.warn(`[chapters] boot stalled at stage ${bootN}/${BOOT_DONE} — watchdog advancing`);
+      setBootN((n) => (n === bootN ? Math.min(BOOT_DONE, n + 1) : n));
+    }, 3500);
+    return () => window.clearTimeout(t);
+  }, [bootN]);
   useEffect(() => {
     if (curtain !== "on") return;
     if (bootN >= BOOT_DONE && fontsReady) {
@@ -1697,7 +1775,7 @@ export function KitPage() {
       return () => window.clearTimeout(t);
     }
     // failsafe: a stalled stage never traps the reader behind the curtain
-    const f = window.setTimeout(() => setCurtain("leaving"), 12000);
+    const f = window.setTimeout(() => { console.warn(`[chapters] curtain failsafe lift — boot sat at stage ${bootN}/${BOOT_DONE}`); setCurtain("leaving"); }, 12000);
     return () => window.clearTimeout(f);
   }, [bootN, fontsReady, curtain]);
   useEffect(() => {
@@ -2479,6 +2557,174 @@ const kitTier = useGen((s) => s.tier);
       </header>
 
 
+      {/* ── the staging bay — new pieces wait HERE for the owner's
+          release. Admin-only, back at the HEAD of the page — its original
+          seat, restored on the owner's order ("why would you move the
+          staging area") — and for everyone else these pieces don't exist
+          anywhere on the site. ── */}
+      {isAdmin && STAGED_KIT.size > 0 && <Guarded name="The staging bay" body={() => {
+        // released pieces LEAVE the queue (owner call) — they live in the
+        // kit proper now; a quiet footer keeps the pull-back reversible.
+        // Rejects leave too (owner: "somewhere else not here in staging
+        // bay") — they wait in the trash at the page bottom.
+        const inBay = [...STAGED_KIT].filter((sid) => !releases[sid]);
+        /* the glyph-button fleet is judged as ONE SET (owner commission,
+           round 52): 47 near-identical cards would bury the bay, and the
+           set only makes sense whole — so the fleet gets a single group
+           card with one atomic Approve/Reject (setComponentReleasesBatch,
+           one ledger write), and the solo queue keeps its per-piece cards */
+        const gbtnBay = inBay.filter(isGlyphButton);
+        const inBaySolo = inBay.filter((sid) => !isGlyphButton(sid));
+        const releasedStaged = [...STAGED_KIT].filter((sid) => releases[sid] === "released");
+        const releasedSolo = releasedStaged.filter((sid) => !isGlyphButton(sid));
+        const releasedGbtn = releasedStaged.filter(isGlyphButton);
+        const act = (sid: KitComponentId, next: "released" | "rejected" | null, confirmMsg?: string) => {
+          if (confirmMsg && !window.confirm(confirmMsg)) return;
+          void setComponentRelease(sid, next).then((err) => { if (err) window.alert(err); });
+        };
+        // the set act — one confirm, one atomic ledger write for the fleet
+        const actSet = (ids: KitComponentId[], next: "released" | "rejected" | null, confirmMsg: string) => {
+          if (!window.confirm(confirmMsg)) return;
+          void setComponentReleasesBatch(Object.fromEntries(ids.map((sid) => [sid, next])))
+            .then((err) => { if (err) window.alert(err); });
+        };
+        // the fleet counts as ONE waiting entry — its card is one decision
+        const bayCount = inBaySolo.length + (gbtnBay.length ? 1 : 0);
+        if (!bayOpen) return (
+          <section className="kp-sec kp-baycollapsed">
+            <button className="kp-baytoggle" onClick={() => setBayOpen(true)}>
+              <ShieldCheck size={13} strokeWidth={2.2} /> Staging bay · {bayCount} waiting — only you see this
+            </button>
+          </section>
+        );
+        return (
+          <Sec n="00" title="The staging bay"
+            note="New pieces land here first, visible only to you. Test them across the editor, the Board and the exports, then approve — the piece leaves the bay and appears for every maker the moment you do, no deploy needed. Reject moves it to the trash at the page bottom; both are reversible.">
+            <button className="kp-baytoggle" onClick={() => setBayOpen(false)}>Collapse the bay</button>
+            {inBay.length === 0 && <p className="kp-baynote">The bay is clear — everything staged is released or waiting in the trash. New pieces will land here.</p>}
+            {/* batch lane for the GLYPH SET only (owner: 44 one-by-one approvals
+                is a chore) — one atomic ledger write; every card stays
+                individually reversible afterward */}
+            {(() => {
+              const glyphBay = inBay.filter((sid) => sid.startsWith("glyph"));
+              if (glyphBay.length < 2) return null;
+              const batch = (next: "released" | "rejected", msg: string) => {
+                if (!window.confirm(msg)) return;
+                void setComponentReleasesBatch(Object.fromEntries(glyphBay.map((sid) => [sid, next])))
+                  .then((err) => { if (err) window.alert(err); });
+              };
+              return (
+                <div className="kp-bayacts" style={{ margin: "6px 0 10px" }}>
+                  <button className="cg-curate cg-curate--add" onClick={() => batch("released",
+                    `Release all ${glyphBay.length} glyphs to every maker? The whole set leaves the bay and appears across the app the moment you approve. Any glyph can be pulled back individually afterward.`)}>
+                    <ShieldCheck size={13} strokeWidth={2.2} /> Release all {glyphBay.length} glyphs
+                  </button>
+                  <button className="cg-curate cg-curate--danger" onClick={() => batch("rejected",
+                    `Park all ${glyphBay.length} glyphs? They move to the trash at the page bottom — still admin-only; restore any of them from there.`)}>
+                    Park all glyphs
+                  </button>
+                </div>
+              );
+            })()}
+            <div className="kp-baygrid">
+              {/* ── the glyph-button set: ONE card, one gate. Reps up
+                  front (coin, bomb, and the crown — the widest cut), the
+                  press grammar on the strip, the full 47 behind a fold so
+                  the open bay stays light. Approve/Reject act on every
+                  waiting member atomically. ── */}
+              {gbtnBay.length > 0 && (() => {
+                const gbName = (sid: KitComponentId) => GLYPH_BUTTONS.find((b) => b.id === sid)?.glyphName ?? sid;
+                const baySet = new Set<KitComponentId>(gbtnBay);
+                let reps = (["gbtncoin", "gbtnbomb", "gbtncrown"] as KitComponentId[]).filter((sid) => baySet.has(sid));
+                if (!reps.length) reps = gbtnBay.slice(0, 3);
+                return (
+                  <div className={`kp-bayrow${bayHot === "gbtn-set" ? " kp-bayhot" : ""}`} key="gbtn-set" data-bayid="gbtn-set">
+                    <div className="kp-tray kp-axis">
+                      {reps.map((sid) => <Piece key={sid} id={sid} caption={gbName(sid)} scale={0.42} bay bayHome />)}
+                      {baySet.has("gbtncoin" as KitComponentId) && (
+                        <Piece id="gbtncoin" caption="Qty chip" slots={{ qty: "×250" }} scale={0.42} bay />
+                      )}
+                    </div>
+                    <StateStrip bay hug variants={[
+                      { cap: "Default", piece: { id: reps[0], scale: 0.24 } },
+                      { cap: "Hover", piece: { id: reps[0], baseState: "hover", scale: 0.24 } },
+                      { cap: "Pressed", piece: { id: reps[0], baseState: "pressed", scale: 0.24 } },
+                      { cap: "Disabled", piece: { id: reps[0], baseState: "disabled", scale: 0.24 } },
+                    ]} />
+                    <KpFold label={`See all ${gbtnBay.length} glyph buttons`}>
+                      <div className="kp-slotgrid">
+                        {gbtnBay.map((sid) => <Piece key={sid} id={sid} caption={gbName(sid)} scale={0.28} bay />)}
+                      </div>
+                    </KpFold>
+                    <div className="kp-bayside">
+                      <span className="kp-baychip">Glyph buttons · {gbtnBay.length} — one gate for the whole set</span>
+                      <div className="kp-bayacts">
+                        <button className="cg-curate cg-curate--add" onClick={() => actSet(gbtnBay, "released",
+                          `Release all ${gbtnBay.length} glyph buttons to every maker? The whole set leaves the bay and appears across the app the moment you approve — one atomic act. You can pull the set back afterward.`)}>
+                          <ShieldCheck size={13} strokeWidth={2.2} /> Approve the set — release all {gbtnBay.length}
+                        </button>
+                        <button className="cg-curate cg-curate--danger" title="Move the whole set to the trash at the page bottom — restorable from there" onClick={() => actSet(gbtnBay, "rejected",
+                          `Reject all ${gbtnBay.length} glyph buttons? The set moves to the trash at the page bottom — still admin-only, restorable as a set.`)}>Reject the set</button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+              {inBaySolo.map((sid) => {
+                const nm = pieceName(sid);
+                return (
+                  <div className={`kp-bayrow${bayHot === sid ? " kp-bayhot" : ""}`} key={sid} data-bayid={sid}>
+                    <div className="kp-tray kp-axis">
+                      <Piece id={sid} caption={nm} scale={0.5} bay bayHome />
+                    </div>
+                    {/* a PRESSING piece is judged by its whole grammar, and
+                        pre-release the bay is the only place that story can
+                        show (the body's state strip is rightly released-only;
+                        owner field report: reviewing the slot button, no
+                        states anywhere). Buttons-group pieces preview all
+                        four states right on their bay card. */}
+                    {groupOf(sid)?.id === "buttons" && (
+                      <StateStrip bay hug variants={[
+                        { cap: "Default", piece: { id: sid, scale: 0.24 } },
+                        { cap: "Hover", piece: { id: sid, baseState: "hover", scale: 0.24 } },
+                        { cap: "Pressed", piece: { id: sid, baseState: "pressed", scale: 0.24 } },
+                        { cap: "Disabled", piece: { id: sid, baseState: "disabled", scale: 0.24 } },
+                      ]} />
+                    )}
+                    <div className="kp-bayside">
+                      <span className="kp-baychip">In the bay — only you see this</span>
+                      <div className="kp-bayacts">
+                        <button className="cg-curate cg-curate--add" onClick={() => act(sid, "released", `Release ${nm} to every maker? It leaves the bay and appears across the app the moment you approve.`)}>
+                          <ShieldCheck size={13} strokeWidth={2.2} /> Approve — release to everyone
+                        </button>
+                        <button className="cg-curate cg-curate--danger" title="Move to the trash at the page bottom — restorable from there" onClick={() => act(sid, "rejected")}>Reject</button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {(releasedSolo.length > 0 || releasedGbtn.length > 0) && (
+              <p className="kp-baynote">
+                Released from this bay:{" "}
+                {releasedSolo.map((sid, i) => (
+                  <span key={sid}>{i > 0 && " · "}<b>{pieceName(sid)}</b>{" "}
+                    <button className="cg-curate" onClick={() => act(sid, null, `Pull ${pieceName(sid)} back into the bay? Makers lose it until you release again.`)}>pull back</button>
+                  </span>
+                ))}
+                {/* the fleet released as a set is pulled back as a set —
+                    the same one-gate promise in reverse */}
+                {releasedGbtn.length > 0 && (
+                  <span>{releasedSolo.length > 0 && " · "}<b>Glyph buttons · {releasedGbtn.length}</b>{" "}
+                    <button className="cg-curate" onClick={() => actSet(releasedGbtn, null, `Pull the whole glyph-button set (${releasedGbtn.length}) back into the bay? Makers lose all of them until you release again.`)}>pull the set back</button>
+                  </span>
+                )}
+              </p>
+            )}
+          </Sec>
+        );
+      }} />}
+
       <Chapter n={chapN("foundations")} id="foundations" label="Foundations" blurb="The design story every piece inherits: color roles, typography, and the material's anatomy — parts, layers and the nine-slice bones." />
 
       {/* ── 01 · style tokens ── */}
@@ -2636,7 +2882,7 @@ const kitTier = useGen((s) => s.tier);
       {/* ── anatomy — Build Parts and the nine-slice contract finish the
           Foundations story before any finished control shows (owner IA
           round: color, type, anatomy, THEN components) ── */}
-      <Deferred estH={2800} eager={bootN >= 1} onLive={bootAdvance}>{() => <>
+      <Deferred tag="Anatomy" estH={2800} eager={bootN >= 1} onLive={bootAdvance}>{() => <>
 
       {/* ── 03 · build parts — the kit's anatomy, in Foundations ── */}
       <Sec n="03" title="Build Parts" note="Everything in the kit is built from these. Each part opens the layer that produces it in the editor. Downloads are layered SVGs with named groups and nine-slice metadata.">
@@ -2784,92 +3030,6 @@ const kitTier = useGen((s) => s.tier);
 
       </>}</Deferred>
 
-      {/* ── the staging bay — new pieces wait HERE for the owner's
-          release. Admin-only, seated at the head of the components zone —
-          AFTER the Foundations story (owner IA round) — and for everyone
-          else these pieces don't exist anywhere on the site. ── */}
-      {isAdmin && STAGED_KIT.size > 0 && (() => {
-        // released pieces LEAVE the queue (owner call) — they live in the
-        // kit proper now; a quiet footer keeps the pull-back reversible.
-        // Rejects leave too (owner: "somewhere else not here in staging
-        // bay") — they wait in the trash at the page bottom.
-        const inBay = [...STAGED_KIT].filter((sid) => !releases[sid]);
-        const releasedStaged = [...STAGED_KIT].filter((sid) => releases[sid] === "released");
-        const act = (sid: KitComponentId, next: "released" | "rejected" | null, confirmMsg?: string) => {
-          if (confirmMsg && !window.confirm(confirmMsg)) return;
-          void setComponentRelease(sid, next).then((err) => { if (err) window.alert(err); });
-        };
-        if (!bayOpen) return (
-          <section className="kp-sec kp-baycollapsed">
-            <button className="kp-baytoggle" onClick={() => setBayOpen(true)}>
-              <ShieldCheck size={13} strokeWidth={2.2} /> Staging bay · {inBay.length} waiting — only you see this
-            </button>
-          </section>
-        );
-        return (
-          <Sec n="00" title="The staging bay"
-            note="New pieces land here first, visible only to you. Test them across the editor, the Board and the exports, then approve — the piece leaves the bay and appears for every maker the moment you do, no deploy needed. Reject moves it to the trash at the page bottom; both are reversible.">
-            <button className="kp-baytoggle" onClick={() => setBayOpen(false)}>Collapse the bay</button>
-            {inBay.length === 0 && <p className="kp-baynote">The bay is clear — everything staged is released or waiting in the trash. New pieces will land here.</p>}
-            {/* batch lane for the GLYPH SET only (owner: 44 one-by-one approvals
-                is a chore) — one atomic ledger write; every card stays
-                individually reversible afterward */}
-            {(() => {
-              const glyphBay = inBay.filter((sid) => sid.startsWith("glyph"));
-              if (glyphBay.length < 2) return null;
-              const batch = (next: "released" | "rejected", msg: string) => {
-                if (!window.confirm(msg)) return;
-                void setComponentReleasesBatch(Object.fromEntries(glyphBay.map((sid) => [sid, next])))
-                  .then((err) => { if (err) window.alert(err); });
-              };
-              return (
-                <div className="kp-bayacts" style={{ margin: "6px 0 10px" }}>
-                  <button className="cg-curate cg-curate--add" onClick={() => batch("released",
-                    `Release all ${glyphBay.length} glyphs to every maker? The whole set leaves the bay and appears across the app the moment you approve. Any glyph can be pulled back individually afterward.`)}>
-                    <ShieldCheck size={13} strokeWidth={2.2} /> Release all {glyphBay.length} glyphs
-                  </button>
-                  <button className="cg-curate cg-curate--danger" onClick={() => batch("rejected",
-                    `Park all ${glyphBay.length} glyphs? They move to the trash at the page bottom — still admin-only; restore any of them from there.`)}>
-                    Park all glyphs
-                  </button>
-                </div>
-              );
-            })()}
-            <div className="kp-baygrid">
-              {inBay.map((sid) => {
-                const nm = pieceName(sid);
-                return (
-                  <div className={`kp-bayrow${bayHot === sid ? " kp-bayhot" : ""}`} key={sid} data-bayid={sid}>
-                    <div className="kp-tray kp-axis">
-                      <Piece id={sid} caption={nm} scale={0.5} bay bayHome />
-                    </div>
-                    <div className="kp-bayside">
-                      <span className="kp-baychip">In the bay — only you see this</span>
-                      <div className="kp-bayacts">
-                        <button className="cg-curate cg-curate--add" onClick={() => act(sid, "released", `Release ${nm} to every maker? It leaves the bay and appears across the app the moment you approve.`)}>
-                          <ShieldCheck size={13} strokeWidth={2.2} /> Approve — release to everyone
-                        </button>
-                        <button className="cg-curate cg-curate--danger" title="Move to the trash at the page bottom — restorable from there" onClick={() => act(sid, "rejected")}>Reject</button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            {releasedStaged.length > 0 && (
-              <p className="kp-baynote">
-                Released from this bay:{" "}
-                {releasedStaged.map((sid, i) => (
-                  <span key={sid}>{i > 0 && " · "}<b>{pieceName(sid)}</b>{" "}
-                    <button className="cg-curate" onClick={() => act(sid, null, `Pull ${pieceName(sid)} back into the bay? Makers lose it until you release again.`)}>pull back</button>
-                  </span>
-                ))}
-              </p>
-            )}
-          </Sec>
-        );
-      })()}
-
       {/* ── your components — duplicated pieces, filed by the
           classification chosen at creation, leading the components zone
           now that the design story has been told. Cards run through the same
@@ -2877,7 +3037,7 @@ const kitTier = useGen((s) => s.tier);
           entries. A clone of a staged base renders for the admin alone
           (bay rules); the chapter — and its tab — exists only while
           visible clones do. ── */}
-      {(() => {
+      <Guarded name="Your components" body={() => {
         const vis = Object.entries(kitClones).filter(([, c]) => kitVisible(c.base, releases, isAdmin));
         if (!vis.length) return null;
         // an unknown classification (a hand-edited save) files under Other
@@ -2897,10 +3057,10 @@ const kitTier = useGen((s) => s.tier);
             ))}
           </>
         );
-      })()}
+      }} />
 
       <Chapter n={chapN("components")} id="components" label="Components" blurb="Finished controls, shown in true relative scale." />
-      <Deferred estH={3600} eager={bootN >= 2} onLive={bootAdvance}>{() => <>
+      <Deferred tag="Components" estH={3600} eager={bootN >= 2} onLive={bootAdvance}>{() => <>
 
       {/* ── 01 · buttons ── */}
       <Sec n="01" title="Buttons" note="Primary carries the master label. The strip below shows every state; hover, press and keyboard-focus are all real.">
@@ -2922,6 +3082,27 @@ const kitTier = useGen((s) => s.tier);
           // Button · Locked pose parked by the owner (2026-08-15) — restore by uncommenting:
           // { cap: "Locked", piece: { id: "small", label: "", icon: STOCK_ICONS.lock, baseState: "disabled" } },
         ]} />
+        {/* the slot button — the item slot's framed look as a real pressing
+            button (owner commission, round 49). Staged: this block joins the
+            body only ONCE RELEASED (the bay doctrine — an unreleased piece
+            in the real chapters reads as a leak, admin included; Piece
+            would null itself anyway). Pre-release the admin tests it from
+            the bay, the editor and the Board. */}
+        {kitVisible("slotbtn", releases, false) && (<>
+          <div className="kp-subhead">Slot button</div>
+          <p className="kp-note">The item-slot look — frame, dark well, glyph — as a real pressing button. Swap the glyph in Component content (per copy on the Board); type a count in Qty chip for the corner pill.</p>
+          <div className="kp-tray">
+            <Piece id="slotbtn" caption="Slot button" />
+            <Piece id="slotbtn" caption="Slot button · Hammer" icon={STOCK_ICONS.hammer} />
+            <Piece id="slotbtn" caption="Slot button · Qty chip" slots={{ qty: "×250" }} />
+          </div>
+          <StateStrip variants={[
+            { cap: "Default", piece: { id: "slotbtn" } },
+            { cap: "Hover / Focus", piece: { id: "slotbtn", baseState: "hover" } },
+            { cap: "Pressed", piece: { id: "slotbtn", baseState: "pressed" } },
+            { cap: "Disabled", piece: { id: "slotbtn", baseState: "disabled" } },
+          ]} />
+        </>)}
       </Sec>
 
       {/* ── 02 · choice controls ── */}
@@ -3117,9 +3298,37 @@ const kitTier = useGen((s) => s.tier);
         </div>
       </Sec>
 
+      {/* ── 09 · the glyph-button fleet (owner commission, round 52:
+          "give me all the semantic glyphs as separate editable buttons") —
+          one STOCK button per curated rack glyph, each a full editor
+          citizen. Gated as a SET: the section joins the body only once
+          the owner releases the fleet from the bay (one group act); its
+          own Sec so the section guard names it alone. Last in the
+          chapter, so the numbered sections above keep their numbers. */}
+      {GLYPH_BUTTONS.some((b) => kitVisible(b.id, releases, false)) && (
+        <Sec n="09" title="Glyph Buttons" note="The semantic glyph set as ready-made buttons — the slot button's frame wearing each glyph, one component per glyph. Every one follows the kit until you edit it; Edit opens it in the editor with the full control set (states, colors, the glyph well, nudges, the qty chip). No assembly required.">
+          <div className="kp-slotgrid">
+            {GLYPH_BUTTONS.filter((b) => kitVisible(b.id, releases, false)).map((b) => (
+              <Piece key={b.id} id={b.id} caption={b.glyphName} scale={0.34} />
+            ))}
+          </div>
+          <StateStrip variants={[
+            { cap: "Default", piece: { id: "gbtncoin", scale: 0.34 } },
+            { cap: "Hover / Focus", piece: { id: "gbtncoin", baseState: "hover", scale: 0.34 } },
+            { cap: "Pressed", piece: { id: "gbtncoin", baseState: "pressed", scale: 0.34 } },
+            { cap: "Disabled", piece: { id: "gbtncoin", baseState: "disabled", scale: 0.34 } },
+          ]} />
+          <Meta items={[
+            "Real pressing buttons — hover lift, press travel, disabled dimming, the slot button's whole grammar",
+            "The glyph stays a live swappable child: re-pick it under Icons, type ×250 in Qty chip for the corner pill",
+            "Style one alone with Edit, or restyle the whole set at once with the Glyph buttons group scope",
+          ]} />
+        </Sec>
+      )}
+
       </>}</Deferred>
       <Chapter n={chapN("genres")} id="genres" label="Game Systems" blurb="The genre vocabularies — HUD, RPG, shooter, casual, strategy and the reward economy — every piece the same material." />
-      <Deferred estH={3800} eager={bootN >= 3} onLive={bootAdvance}>{() => <>
+      <Deferred tag="Game Systems" estH={3800} eager={bootN >= 3} onLive={bootAdvance}>{() => <>
 
       {/* ── 01 · game HUD & data ── */}
       <Sec n="01" title="Game HUD & Data" note="Counters, rows, slots and rings. Every icon, portrait and value is a replaceable slot.">
@@ -3575,7 +3784,7 @@ const kitTier = useGen((s) => s.tier);
 
       </>}</Deferred>
       <Chapter n={chapN("patterns")} id="patterns" label="Screen Patterns" blurb="Complete screens and starters composed from the system — with onboarding, motion and the proof." />
-      <Deferred estH={4800} eager={bootN >= 4} onLive={bootAdvance}>{() => <>
+      <Deferred tag="Screen Patterns" estH={4800} eager={bootN >= 4} onLive={bootAdvance}>{() => <>
 
       {/* ── 01 · patterns — editorial case study, three meaningful groups ── */}
       <Sec n="01" title="Screen Patterns" wide note="Complete interface compositions built entirely from registered kit components. Every pattern remains live, editable, and connected to the same underlying design system.">
@@ -3992,7 +4201,7 @@ const kitTier = useGen((s) => s.tier);
 
       </>}</Deferred>
       <Chapter n={chapN("resources")} id="resources" label="Resources" blurb="Files, formats and integration notes." />
-      <Deferred estH={1600} eager={bootN >= 5} onLive={bootAdvance}>{() => <>
+      <Deferred tag="Resources" estH={1600} eager={bootN >= 5} onLive={bootAdvance}>{() => <>
 
       <Sec n="01" title="Export & Integration" note="Layered SVG first — Figma reads the named groups directly. Category downloads sit with Build Parts above; engine sprite kits export from the toolbar.">
         <SpecList rows={[
@@ -4022,14 +4231,24 @@ const kitTier = useGen((s) => s.tier);
       {isAdmin && (() => {
         const trashed = [...STAGED_KIT].filter((sid) => releases[sid] === "rejected");
         if (!trashed.length) return null;
+        // the glyph-button set stays grouped here too — rejected as one
+        // act, it restores (or dies) as one act
+        const trashedGbtn = trashed.filter(isGlyphButton);
+        const trashedSolo = trashed.filter((sid) => !isGlyphButton(sid));
         const act = (sid: KitComponentId, next: "deleted" | null, confirmMsg?: string) => {
           if (confirmMsg && !window.confirm(confirmMsg)) return;
           void setComponentRelease(sid, next).then((err) => { if (err) window.alert(err); });
         };
+        const actSet = (ids: KitComponentId[], next: "deleted" | null, confirmMsg: string) => {
+          if (!window.confirm(confirmMsg)) return;
+          void setComponentReleasesBatch(Object.fromEntries(ids.map((sid) => [sid, next])))
+            .then((err) => { if (err) window.alert(err); });
+        };
+        const trashCount = trashedSolo.length + (trashedGbtn.length ? 1 : 0);
         if (!trashOpen) return (
           <section className="kp-sec kp-baycollapsed">
             <button className="kp-baytoggle" onClick={() => setTrashOpen(true)}>
-              <Trash2 size={13} strokeWidth={2.2} /> Trash · {trashed.length} rejected — only you see this
+              <Trash2 size={13} strokeWidth={2.2} /> Trash · {trashCount} rejected — only you see this
             </button>
           </section>
         );
@@ -4038,7 +4257,27 @@ const kitTier = useGen((s) => s.tier);
             note="Pieces you rejected from the staging bay. Restore sends one back to the bay to be judged again. Delete forever is permanent — the piece disappears for good and cannot be brought back, even by you.">
             <button className="kp-baytoggle" onClick={() => setTrashOpen(false)}>Close the trash</button>
             <div className="kp-baygrid">
-              {trashed.map((sid) => {
+              {trashedGbtn.length > 0 && (
+                <div className="kp-bayrow" key="gbtn-set-trash">
+                  <div className="kp-tray kp-axis">
+                    {trashedGbtn.slice(0, 3).map((sid) => (
+                      <Piece key={sid} id={sid} caption={GLYPH_BUTTONS.find((b) => b.id === sid)?.glyphName ?? sid} scale={0.42} bay />
+                    ))}
+                  </div>
+                  <div className="kp-bayside">
+                    <span className="kp-baychip rej">Glyph buttons · {trashedGbtn.length} — rejected as a set</span>
+                    <div className="kp-bayacts">
+                      <button className="cg-curate" onClick={() => actSet(trashedGbtn, null,
+                        `Restore all ${trashedGbtn.length} glyph buttons to the bay to be judged again?`)}>Restore the set to the bay</button>
+                      <button className="cg-curate cg-curate--danger" onClick={() => actSet(trashedGbtn, "deleted",
+                        `Delete all ${trashedGbtn.length} glyph buttons forever? This is PERMANENT — the whole set is removed for every maker and for you, and there is no way to bring it back.`)}>
+                        <Trash2 size={13} strokeWidth={2.2} /> Delete the set forever
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {trashedSolo.map((sid) => {
                 const nm = pieceName(sid);
                 return (
                   <div className="kp-bayrow" key={sid}>

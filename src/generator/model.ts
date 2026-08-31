@@ -8,7 +8,7 @@
 import { SILHOUETTES } from "./silhouettes";
 // leaf module (no imports) — the semantic glyph registry drives the glyph
 // pieces' roster and shape map so a new glyph needs only its registry entry
-import { GLYPH_LIBRARY, LIVE_GLYPHS } from "./glyphLibrary";
+import { GLYPH_LIBRARY, LIVE_GLYPHS, glyphById } from "./glyphLibrary";
 
 export type GenStateName = "default" | "hover" | "pressed" | "disabled";
 export const STATE_NAMES: GenStateName[] = ["default", "hover", "pressed", "disabled"];
@@ -1113,6 +1113,9 @@ export type KitComponentId =
   | "bottomnav"
   // booster info card (staged) — glyph well, name, effect line, qty chip
   | "boostercard"
+  // slot button (staged) — the item slot's framed-well look as a REAL
+  // pressing button; the glyph is the point (owner commission, round 49)
+  | "slotbtn"
   // the semantic glyph rack (glyphLibrary.ts) — every glyph is a full kit
   // citizen: its own per-piece forks, sizes, board placement. All staged.
   | "glyphcoin" | "glyphgem" | "glyphheart" | "glyphenergy" | "glyphticket" | "glyphkey" | "glyphstar"
@@ -1122,7 +1125,15 @@ export type KitComponentId =
   | "glyphstreak" | "glyphtimer" | "glyphtarget"
   | "glyphcart" | "glyphsale" | "glyphplus" | "glyphpiggybank"
   | "glyphhome" | "glyphpause" | "glyphplay" | "glyphreplay" | "glyphsettings" | "glyphsound" | "glyphmusic"
-  | "glyphmail" | "glyphfriends" | "glyphleaderboard" | "glyphnotification" | "glyphquests" | "glyphprofile";
+  | "glyphmail" | "glyphfriends" | "glyphleaderboard" | "glyphnotification" | "glyphquests" | "glyphprofile"
+  // the glyph-button FLEET (owner commission, round 52: "give me all of the
+  // semantic glyphs as separate editable buttons") — "gbtn" + the rack
+  // glyph's id (gbtncoin, gbtnbomb…). A pattern member like the clone ids'
+  // peel: renderKit and every family-aware surface narrow it off through
+  // isGlyphButton, and the GLYPH_BUTTONS registry is the truth of which
+  // exist. The prefix deliberately avoids "glyph": the display pieces
+  // (glyphcoin…) and their startsWith("glyph") family checks stay theirs.
+  | `gbtn${string}`;
 export type KitSize = "s" | "m" | "l";
 /* ── Content slots — "editable within reason" ─────────────────────────
    Every piece of text a component draws is a SLOT with a kind, and the
@@ -1262,6 +1273,14 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
       note: "The notification number riding the badge plate. Factory is white; a pick here inks it alone. The 0-count FREE ribbon keeps its gold." },
     { id: "plateColor", name: "Badge plate", kind: "color", def: "#0E9CC9",
       note: "The count badge's plate (halo included). Factory follows the kit's Bevel role under Effects; a pick here forks this piece's plate alone." },
+  ],
+  slotbtn: [
+    /* the corner count chip is an OPTIONAL word (the slot family's ×250
+       contract): untouched, the button stays clean; a typed count pins
+       the quantity-badge pill to the well's corner. Kit-wide here; a
+       board copy's glyph is per-copy via the Inspector's glyph picker. */
+    { id: "qty", name: "Qty chip", kind: "free", def: "", maxLen: 6,
+      note: "The corner count chip — type ×250 (or 99+) to pin it to the well's corner. Empty keeps the button clean. It speaks the quantity-badge voice and dims with the disabled state." },
   ],
   boostercard: [
     /* name rides the main Text control (KIT_LABEL_EDITABLE); the second
@@ -1636,6 +1655,33 @@ export const KIT_LESSONS: Partial<Record<KitComponentId, KitLesson>> = {
   },
 };
 
+/* ── the glyph-button fleet (owner commission, round 52) ──────────────
+   "I think the best thing is to stock the kit with the entire semantic
+   glyph set as buttons… then in the editor I want all of the controls,
+   size, nudging, color, etc… just make a bunch of buttons." One STOCK
+   component per curated rack glyph: the slot button's frame wearing that
+   glyph's treated seat art (glyphSeatIcon — the same pixels a board copy
+   picking icon:glyph:<id> wears), full editor citizenship, no clone
+   dance and no per-copy grammar required. The curation is the seat
+   rack's own cut (SEAT_SIT_OUT, shared with SEAT_GLYPHS below): the
+   three glyphs whose forms need their dressing inks to read sit out
+   here exactly as they sit out of the icon:glyph grammar.
+   DESIGN INHERITANCE is the ordinary per-piece road, chosen over any
+   new machinery: an untouched button stores NOTHING in kitDesigns and
+   follows the kit's slotbtn look live (kit-wide design and theme moves
+   sweep it); the first editor commit stores the sparse designDiff fork
+   for that one button alone (the pickDesign/designDiff/deepMergeDesign
+   road every piece already rides). No factory seed — unlike the glyph
+   DISPLAY pieces, these are buttons and stay on the buttons' look. */
+export const SEAT_SIT_OUT = ["coinsingle", "coinpile", "starformation"];
+export const GLYPH_BUTTONS: { id: KitComponentId; glyph: string; name: string; glyphName: string }[] =
+  LIVE_GLYPHS.filter((g) => !SEAT_SIT_OUT.includes(g.id))
+    .map((g) => ({ id: `gbtn${g.id}` as KitComponentId, glyph: g.id, name: `Glyph Button · ${g.name}`, glyphName: g.name }));
+export type GlyphButtonId = Extract<KitComponentId, `gbtn${string}`>;
+export const isGlyphButton = (id: KitComponentId): id is GlyphButtonId => id.startsWith("gbtn");
+/** The rack glyph a glyph button wears — its id minus the "gbtn" stamp. */
+export const glyphOfButton = (id: KitComponentId): string => id.slice(4);
+
 /* `staged: true` = in the staging bay — bundled but admin-only until the
    owner releases it (app_settings key "component_releases"). Every public
    surface must hide staged pieces that aren't released; the landing never
@@ -1735,6 +1781,10 @@ export const KIT_COMPONENTS: { id: KitComponentId; name: string; staged?: true; 
   /* the vertical booster info card — the booster button's reading twin:
      glyph well, name, effect line, qty chip. Staged per the standing rule. */
   { id: "boostercard", name: "Booster card", staged: true },
+  /* the slot button — the item slot's framed-well look as a REAL pressing
+     button (owner: "make these real buttons on the back end and add them
+     to the kit"). Staged per the standing rule. */
+  { id: "slotbtn", name: "Slot button", staged: true },
   { id: "pricebtn", name: "Price button" },
   { id: "energymeter", name: "Energy meter" },
   { id: "buildqueue", name: "Build queue" },
@@ -1803,6 +1853,10 @@ export const KIT_COMPONENTS: { id: KitComponentId; name: string; staged?: true; 
      tray, search and every picker) while KIT_SHAPE and the fork seeding
      below keep reading the FULL registry so legacy placements render on. */
   ...LIVE_GLYPHS.map((g) => ({ id: `glyph${g.id}` as KitComponentId, name: `Glyph · ${g.name}`, staged: true as const })),
+  /* the glyph-button fleet — roster derives from GLYPH_BUTTONS (registry
+     + seat curation), staged behind ONE group gate: the bay shows a
+     single set card and releases/rejects all 47 atomically. */
+  ...GLYPH_BUTTONS.map((b) => ({ id: b.id, name: b.name, staged: true as const })),
 ];
 /** The staging bay's roster — every piece still awaiting the owner's release. */
 export const STAGED_KIT = new Set<KitComponentId>(KIT_COMPONENTS.filter((c) => c.staged).map((c) => c.id));
@@ -1815,7 +1869,7 @@ export const STAGED_KIT = new Set<KitComponentId>(KIT_COMPONENTS.filter((c) => c
    piece belongs to at most one group; anything unlisted simply has no
    group and its scope picker offers Kit and Piece only. */
 export const KIT_GROUPS: { id: string; name: string; members: KitComponentId[] }[] = [
-  { id: "buttons", name: "Buttons", members: ["primary", "secondary", "small", "ghost", "iconbtn", "pricebtn", "claimbtn", "endturn", "padbtn", "keycap"] },
+  { id: "buttons", name: "Buttons", members: ["primary", "secondary", "small", "ghost", "iconbtn", "slotbtn", "pricebtn", "claimbtn", "endturn", "padbtn", "keycap"] },
   { id: "choice", name: "Choice controls", members: ["checkbox", "radio", "toggle", "segment", "stepper"] },
   { id: "fields", name: "Fields", members: ["input", "searchfield", "dropdown", "setrow", "listmenu"] },
   { id: "bars", name: "Bars & meters", members: ["progress", "segbar", "slider", "loadbar", "xpbar", "vitalbar", "heartmeter", "energymeter", "capturemeter", "streakmeter", "vsbar", "cooldown"] },
@@ -1826,6 +1880,9 @@ export const KIT_GROUPS: { id: string; name: string; members: KitComponentId[] }
   { id: "casual", name: "Casual & mobile", members: ["combo", "movecounter", "booster", "dailycell", "spinwheel", "flipclock", "resource", "currency"] },
   { id: "rewards", name: "Rewards & chests", members: ["chest", "giftbox", "rewardcard", "rewardtray", "pack", "cardback", "qtybadge", "seasontrack"] },
   { id: "social", name: "Strategy & social", members: ["friendrow", "chatbubble", "clancrest", "emotewheel", "unitplate", "buildqueue", "techcard", "scorebug", "leaderboard", "achievetoast"] },
+  /* the glyph-button fleet is its OWN family — a group restyle sweeps the
+     47 buttons together without ever touching the stock button ladder */
+  { id: "glyphbuttons", name: "Glyph buttons", members: GLYPH_BUTTONS.map((b) => b.id) },
 ];
 const GROUP_OF = new Map<KitComponentId, { id: string; name: string; members: KitComponentId[] }>();
 for (const g of KIT_GROUPS) for (const m of g.members) if (!GROUP_OF.has(m)) GROUP_OF.set(m, g);
@@ -2219,6 +2276,7 @@ export const KIT_SHAPE: Partial<Record<KitComponentId, Shape>> = {
   resource: "pill",
   datarow: "kenneyRect",
   slot: "kenneyRect",
+  slotbtn: "kenneyRect", // the slot's silhouette — the button wears its frame
   leaderboard: "kenneyRect", // rows are rectangular content — oval shells clip them
   laptimes: "kenneyRect",    // plots are rectangular too
   telemetry: "kenneyRect",
@@ -2231,6 +2289,13 @@ export const KIT_SHAPE: Partial<Record<KitComponentId, Shape>> = {
 // every glyph piece wears its registry outline — the piece's per-piece shape
 // override (kitShapes) can still re-dress it like any other component
 for (const g of GLYPH_LIBRARY) KIT_SHAPE[`glyph${g.id}` as KitComponentId] = `glyph:${g.id}`;
+// every glyph BUTTON wears the slot button's frame — same default
+// silhouette (so the silhouette panel tells the truth) and the same
+// qty-chip word slot; per-piece overrides still win like any component
+for (const b of GLYPH_BUTTONS) {
+  KIT_SHAPE[b.id] = KIT_SHAPE.slotbtn;
+  KIT_SLOTS[b.id] = KIT_SLOTS.slotbtn!;
+}
 
 /* Stock glyphs for kit components — canonical Lucide paths, embedded so the
    renderer stays pure. */
@@ -2295,4 +2360,50 @@ export const STOCK_ICONS: Record<string, IconDef> = {
   map: { lib: "lucide", name: "Map", viewBox: "0 0 24 24", inner: '<path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z"/><path d="M15 5.764v15"/><path d="M9 3.236v15"/>', mode: "stroke" },
   // booster glyph (booster card) — same canonical-Lucide embedding rules
   hammer: { lib: "lucide", name: "Hammer", viewBox: "0 0 24 24", inner: '<path d="m15 12-8.373 8.373a1 1 0 1 1-3-3L12 9"/><path d="m18 15 4-4"/><path d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172V7l-2.26-2.26a6 6 0 0 0-4.202-1.756L9 2.96l.92.82A6.18 6.18 0 0 1 12 8.4V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5"/>', mode: "stroke" },
+  // framed-icon swap glyphs (starter boards pose REAL frame+icon pieces,
+  // never a glyph stacked over a frame) — same canonical-Lucide embedding rules
+  magnet: { lib: "lucide", name: "Magnet", viewBox: "0 0 24 24", inner: '<path d="m6 15-4-4 6.75-6.77a7.79 7.79 0 0 1 11 11L13 22l-4-4 6.39-6.36a2.14 2.14 0 0 0-3-3L6 15"/><path d="m5 8 4 4"/><path d="m12 15 4 4"/>', mode: "stroke" },
+  rocket: { lib: "lucide", name: "Rocket", viewBox: "0 0 24 24", inner: '<path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>', mode: "stroke" },
 };
+
+/* ── the seat grammar's semantic reach ──────────────────────────────────
+   The owner's field screenshots put COIN and BOMB in icon seats — but
+   both live only in the treated glyph rack, unreachable by the
+   `icon:<pick>` instance grammar (STOCK_ICONS only). `icon:glyph:<id>`
+   closes that gap: it seats a rack glyph's SILHOUETTE — the registry's
+   base outline, the glyph's pre-dressing flat art — in the standard
+   icon seat, painted in the seat's own ink like any stock icon. The
+   dressing-time furnishings (the shadow/highlight `detail` inks, the
+   glint seats) deliberately stay behind: they speak the kit's role
+   colors, and a flat seat has no roles to voice them in — three rack
+   glyphs whose forms NEED those inks to read sit out of SEAT_GLYPHS
+   below. Resolution reads the FULL registry (the glyphShape rule), so
+   a legacy-placed pick keeps rendering even if its glyph later
+   retires; what a picker OFFERS is SEAT_GLYPHS ∩ the release ledger. */
+const seatGlyphDefs = new Map<string, IconDef>();
+export function glyphSeatIcon(id: string): IconDef | undefined {
+  const hit = seatGlyphDefs.get(id);
+  if (hit) return hit;
+  const g = glyphById(id);
+  if (!g) return undefined;
+  const def: IconDef = { lib: "glyph", name: g.id, viewBox: g.vb.join(" "), inner: `<path d="${g.d}"/>`, mode: "fill" };
+  seatGlyphDefs.set(id, def);
+  return def;
+}
+/** The `icon:<pick>` seat grammar's one resolver — a stock name hits
+ *  STOCK_ICONS; `glyph:<id>` reaches the semantic rack's flat art. An
+ *  unknown pick returns undefined and each seat keeps its own fallback. */
+export function seatIconDef(pick: string): IconDef | undefined {
+  return pick.startsWith("glyph:") ? glyphSeatIcon(pick.slice(6)) : STOCK_ICONS[pick];
+}
+/** The CURATED seat rack — every live glyph whose bare silhouette still
+ *  reads at seat scale (60px wells down to the 17px picker tile),
+ *  verified against a rendered probe sheet. Sitting out: `coinsingle`
+ *  (a bare ellipse without its rim detail inks), `coinpile` (an
+ *  unreadable swoosh mass flat) and `starformation` (the cluster muddies
+ *  below 40px — `star` carries the idea). Order mirrors the registry. */
+export const SEAT_GLYPHS: string[] = LIVE_GLYPHS
+  // ONE curation list — the glyph-button fleet (GLYPH_BUTTONS) shares it,
+  // so the seat rack and the fleet can never disagree about the cut
+  .filter((g) => !SEAT_SIT_OUT.includes(g.id))
+  .map((g) => g.id);
