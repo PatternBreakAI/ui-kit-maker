@@ -5026,7 +5026,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
        at the shell frame — the glyph family renders flat by default, where
        shell and face coincide; walled interplay is deliberate follow-on. */
     const glEntry = sov ? glyphShape(sov) : undefined;
-    if (glEntry?.detail || glEntry?.detailLight) {
+    if (glEntry?.detail || glEntry?.detailLight || glEntry?.relief) {
       const sil = shapePath(sov as Shape, 39, 30, dGl, dGl, 0);
       const D2 = designFor(cfg, state);
       const cid = "gd" + UID++;
@@ -5084,6 +5084,38 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          kit's HIGHLIGHT role over the shadow pass — the recessed coin
          face's lower lip is the first tenant. */
       if (glEntry.detailLight) bands += `<path d="${bake(glEntry.detailLight)}" fill="${effect(D2.effects, "Highlight")}" opacity="0.55"/>`;
+      /* authored RELIEF masks (registry `relief` — the crown-coin ingest):
+         an embossed motif's four zones painted over the furnishing passes
+         in KIT roles, in the authored stack order — cast shadow (Shadow
+         ink), raised bevel ring (the buttons' bevel-band gradient recipe
+         on the kit's Bevel role, lit on the kit's own light axis), raised
+         face (the face-gradient recipe lifted a step lighter — a proud
+         surface under the fixed top-left light), light catches (Highlight
+         ink). Geometry is the artist's; every ink is a kit role — no
+         per-glyph paint (the render-capabilities line). evenodd fill so
+         the authored ring masks (outer minus inner subpath) cut true;
+         the relief's disjoint zones read identically under either rule. */
+      if (glEntry.relief) {
+        const RL = glEntry.relief;
+        const rA = (((D2.lighting.angle % 360) + 360) % 360) * Math.PI / 180;
+        const rlx = Math.cos(rA), rly = -Math.sin(rA);
+        const rgp = (v: number) => (0.5 + clamp(v, -1, 1) * 0.5).toFixed(3);
+        const rAxis = `x1="${rgp(-rlx)}" y1="${rgp(-rly)}" x2="${rgp(rlx)}" y2="${rgp(rly)}"`;
+        const rHiK = (state === "disabled" ? 0.35 : 1) * (D2.lighting.highlight / 78);
+        const rLowK = Math.max(0.1, D2.lighting.lowlight / 46);
+        const rBev = effect(D2.effects, "Bevel");
+        const rFace0 = D2.face.mode === "dark" ? hexMix(rBev, "#0B0714", 0.72) : effect(D2.effects, "Inner Fill");
+        const rid = "grl" + UID++;
+        if (RL.shadow) bands += `<path d="${bake(RL.shadow)}" fill="${effect(D2.effects, "Shadow")}" fill-rule="evenodd" opacity="0.94"/>`;
+        if (RL.bevel) bands += `<linearGradient id="${rid}b" ${rAxis}><stop offset="0" stop-color="${darken(rBev, clamp(0.3 * rLowK, 0, 0.7))}"/><stop offset=".5" stop-color="${rBev}"/><stop offset="1" stop-color="${lighten(rBev, clamp(0.45 * rHiK, 0, 0.75))}"/></linearGradient>` +
+          `<path d="${bake(RL.bevel)}" fill="url(#${rid}b)" fill-rule="evenodd"/>`;
+        if (RL.face) {
+          const rf = lighten(rFace0, 0.09);
+          bands += `<linearGradient id="${rid}f" ${rAxis}><stop offset="0" stop-color="${darken(rf, clamp(0.24 * (D2.face.contrast / 50) * rLowK, 0, 0.6))}"/><stop offset="${clamp(1 - D2.face.midpoint / 100, 0.08, 0.92).toFixed(2)}" stop-color="${rf}"/><stop offset="1" stop-color="${lighten(rf, clamp(0.3 * (D2.face.contrast / 50) * rHiK, 0, 0.7))}"/></linearGradient>` +
+            `<path d="${bake(RL.face)}" fill="url(#${rid}f)" fill-rule="evenodd"/>`;
+        }
+        if (RL.highlight) bands += `<path d="${bake(RL.highlight)}" fill="${effect(D2.effects, "Highlight")}" fill-rule="evenodd" opacity="0.72"/>`;
+      }
       outGl = inject(outGl, `<clipPath id="${cid}"><path d="${sil}"/></clipPath><g data-part="glyph-detail" clip-path="url(#${cid})">${bands}</g>`);
     }
     /* authored sparkle seats (registry `glints`): the kit's glint star

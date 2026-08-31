@@ -16,6 +16,112 @@ type Release = { date: string; title: string; items: RelItem[]; lab?: RelItem[] 
 const RELEASES: Release[] = [
   {
     date: "August 2026",
+    title: "Play first, and a button for every glyph",
+    items: [
+      {
+        h: "Play free — sign up when it's worth saving",
+        p: "The doors are open: without an account you now get unlimited boards, the full component catalog, every starter screen and 150% zoom. Signing up is for keeping things — saving kits and boards. Exporting stays part of the paid plans, unchanged.",
+      },
+      {
+        h: "A button for every glyph",
+        p: "Every glyph in the treated set now has its own real button — the coin, the bomb, the heart, all of them — wearing the item slot's framed look with a dark well, hover lift, press travel and a disabled state, restyling live with your kit. The framed look itself joins the family as the Slot button, and an icon-button fleet covers the stock glyphs. A framed icon stopped being something you composite; you place the one you mean.",
+      },
+      {
+        h: "Pin an icon color per state",
+        p: "Give a glyph a different ink on hover, press or disabled and it holds everywhere: the editor shows it, the download carries it, and Unity swaps it live as a real child object — never baked into the art.",
+      },
+      {
+        h: "The whole catalog goes to Unity alive",
+        p: "Dozens more families joined the live export road, and every bar, dial, wheel and meter now lands as a working value rig — drag one value in the Inspector and the mercury fills, rounded ends and all. Damage numbers and the combo counter ship as instruments a developer can fire from code.",
+      },
+      {
+        h: "How do developers trigger the animations? Answered.",
+        p: "Every motion the kit ships — presses, shines, pulses, fills — now has one documented access pattern: some play by themselves, some ride a value, some are one call. The same story is told on the kit page and in the QuickStart inside every export, with the exact component names to look for.",
+      },
+      {
+        h: "Saved components are first-class",
+        p: "A piece you saved to your assets now lands on boards and opens in the editor like anything born in the kit — same dials, same states, same export.",
+      },
+      {
+        h: "Nothing burned in — the whole way down",
+        p: "The editability pass reached the last corners of the export: every prefab is live, icons and words arrive as their own Inspector children a developer can swap or retype, and the pieces meant to be edited are exactly the ones that come apart in their hands.",
+      },
+      {
+        h: "A steadier editor, honest to the pixel",
+        p: "Glow gets its full room without shifting what your pointer hits, the state cards center each piece on its actual ink, color wells show the ink a piece really renders even before you set them, and stepping from a board into the editor and back returns you to the exact spot you left.",
+      },
+    ],
+  },
+  {
+    date: "August 2026",
+    title: "Production-hardened, field-tested",
+    items: [
+      {
+        h: "Kits open clean in Unity 2022.3",
+        p: "The long-term-support build most studios still run gets first-class treatment: exports compile clean the moment they land, on a fresh project or over an old import.",
+      },
+      {
+        h: "Real scrolling lists and typing fields",
+        p: "The scroll view and the input field arrive as working Unity widgets — your styled track and thumb actually scroll, your field takes a cursor and text — not dressed stand-ins.",
+      },
+      {
+        h: "Safe areas and screens that flex",
+        p: "Exported screens respect the notch and the home bar, and pieces anchor responsively, so a scene composed on one phone holds together on another.",
+      },
+      {
+        h: "Drop shadows, per copy, sticky",
+        p: "Any board copy can take its own drop shadow — strength and pose — replacing the kit's cast shadow just there. The dials remember your last recipe, so shadowing a whole screen is dial once, click through; it rides PNG exports and Unity scenes alike.",
+      },
+      {
+        h: "Starters that ask first",
+        p: "Dealing a starter screen onto a board that already has work on it now asks where things should land instead of piling on. And the idle-motion dials — duration, wipe width, hover arming — finally travel everywhere the shine plays.",
+      },
+      {
+        h: "A QuickStart in every box",
+        p: "Every export now ships a QuickStart that walks a developer from unzip to a living screen — and your kit-wide icon choices now reach the export exactly as picked.",
+      },
+      {
+        h: "Boards draw themselves politely",
+        p: "Opening the Boards shows your active board first and fills the rest in quietly behind it — first paint dropped from over seven seconds to about one and a half on a slow machine — with skeleton loaders standing in only when loading genuinely takes time.",
+      },
+    ],
+  },
+  {
+    date: "August 2026",
+    title: "The glyph age",
+    items: [
+      {
+        h: "A treated glyph set joins the kit",
+        p: "Coins, hearts, gems, boosters, locks, trophies and their kin — a set of semantic glyphs, each one a full kit citizen: it wears your face, pattern, bevel, extrusion and glow, sits on boards at any size down to a 5% chip, and ships like any component.",
+      },
+      {
+        h: "Big art for the Board",
+        p: "A 71-piece drop of the studio's own painted game pieces lives in the Boards tray: scale them, shadow them, glow them — the effects ride the PNG export and into Unity as one prefab per piece you used.",
+      },
+      {
+        h: "Match-3, dealt for a phone",
+        p: "The Match-3 (mobile) starter deals a full fruit-grid puzzle screen onto the portrait stage — move counter, timer, score bar, boosters and the bomb — every piece a live kit asset you can restyle.",
+      },
+      {
+        h: "Edit the words where you look",
+        p: "Every word-bearing board piece now has a proper text field in the side rail — and double-clicking the piece edits it in place, right on the stage.",
+      },
+      {
+        h: "Tiny pieces, honest pixels",
+        p: "Board pieces scale down to 5% with a typed Scale entry and halos that stay proportionate at any size. The stage shows fast preview rasters while it works; your exports keep reading the full-resolution originals, byte-identical.",
+      },
+      {
+        h: "An edit pins only what you touched",
+        p: "Editing one dial on a focused glyph no longer freezes its whole look — kit-wide restyles keep flowing through everything you didn't explicitly fork, and thumbnails stay fresh after kit-wide changes.",
+      },
+      {
+        h: "A free Unity taste",
+        p: "Registered makers can download a stock Unity evaluation kit at no cost — a real import to test the whole pipeline end to end before paying for your own.",
+      },
+    ],
+  },
+  {
+    date: "August 2026",
     title: "Your kit arrives in Unity speaking your words",
     items: [
       {
@@ -300,7 +406,7 @@ export function ReleasesPage() {
         </p>
 
         {RELEASES.map((r) => (
-          <section key={r.date} className="rel-entry">
+          <section key={`${r.date} · ${r.title}`} className="rel-entry">
             <div className="rel-datebar">
               <span className="rel-date">{r.date}</span>
               <span className="rel-title">{r.title}</span>

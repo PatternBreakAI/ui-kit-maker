@@ -1665,7 +1665,9 @@ export const KIT_LESSONS: Partial<Record<KitComponentId, KitLesson>> = {
    dance and no per-copy grammar required. The curation is the seat
    rack's own cut (SEAT_SIT_OUT, shared with SEAT_GLYPHS below): the
    three glyphs whose forms need their dressing inks to read sit out
-   here exactly as they sit out of the icon:glyph grammar.
+   here exactly as they sit out of the icon:glyph grammar — plus the
+   staged crowncoin, whose dressed art (the relief road) awaits the
+   owner's bless before it earns any public seat.
    DESIGN INHERITANCE is the ordinary per-piece road, chosen over any
    new machinery: an untouched button stores NOTHING in kitDesigns and
    follows the kit's slotbtn look live (kit-wide design and theme moves
@@ -1673,7 +1675,7 @@ export const KIT_LESSONS: Partial<Record<KitComponentId, KitLesson>> = {
    for that one button alone (the pickDesign/designDiff/deepMergeDesign
    road every piece already rides). No factory seed — unlike the glyph
    DISPLAY pieces, these are buttons and stay on the buttons' look. */
-export const SEAT_SIT_OUT = ["coinsingle", "coinpile", "starformation"];
+export const SEAT_SIT_OUT = ["coinsingle", "coinpile", "starformation", "crowncoin"];
 export const GLYPH_BUTTONS: { id: KitComponentId; glyph: string; name: string; glyphName: string }[] =
   LIVE_GLYPHS.filter((g) => !SEAT_SIT_OUT.includes(g.id))
     .map((g) => ({ id: `gbtn${g.id}` as KitComponentId, glyph: g.id, name: `Glyph Button · ${g.name}`, glyphName: g.name }));

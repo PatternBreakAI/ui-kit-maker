@@ -3759,6 +3759,46 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the universal-disabled-gray exclusion lost its contract note — the next hand may gate on it and grow every kit with a disabled fork (round 53 follow-on, S45)");
 }
 
+/* ── ROUND 54 · S46 (the owner: "definitely want Unity to gray the glyph
+   on disabled buttons"): the app's universal disabled contract — a SOLID
+   #A7AAB4 silhouette on every family's glyph — travels as ONE class-wide
+   runtime mechanism: the shipped UIKitMaker/DisabledInk shader (solid
+   ink, sprite coverage), one material minted per kit at import, worn by
+   every glyph swap target on disable and removed EXACTLY on enable.
+   Never per-glyph baked grays — the S45 note now points here. ── */
+{
+  if (!/const DISABLED_INK_SHADER = `Shader "UIKitMaker\/DisabledInk" \{/.test(src)
+      || !/return fixed4\(_Color\.rgb, a \* _Color\.a\);/.test(src))
+    errors.push("the DisabledInk shader left the exporter (or lost its solid-silhouette contract: rgb = ink, alpha = coverage) (round 54, S46)");
+  if (!/files\.push\(\{ path: "Runtime\/UIKitDisabledInk\.shader", data: DISABLED_INK_SHADER \}\);/.test(src)
+      || !/"Runtime\/UIKitGlintInk\.shader", "Runtime\/UIKitDisabledInk\.shader",/.test(src))
+    errors.push("Runtime/UIKitDisabledInk.shader no longer ships (or left the shared-scripts set — per-slug copies would collide) (round 54, S46)");
+  if (!/travels CLASS-WIDE at runtime/.test(src))
+    errors.push("the S45 contract note no longer points at the runtime mechanism — the next hand may re-bake per-glyph grays (round 54, S46)");
+  if (!/console\.warn\(`engine export: \$\{uid\}'s \$\{stName\} state failed to render/.test(src)
+      || !/console\.warn\(`engine export: \$\{famV\}'s \$\{stName\} state failed to render/.test(src))
+    errors.push("the stateShell catches went quiet again — silent skin-dropping deserves an alarm (r53 reviewer rider) (round 54, S46)");
+  if (!/public Material disabledInkMaterial;/.test(fx))
+    errors.push("StateFx lost the disabled-ink material field — no gray on disable (round 54, S46)");
+  if (!/gsPrevMat\[i\] = m0 == g\.target\.defaultMaterial \? null : m0;/.test(fx)
+      || !/g\.target\.material = disabledInkMaterial;/.test(fx)
+      || !/if \(g\.target\.material == disabledInkMaterial\) g\.target\.material = gsPrevMat\[i\];/.test(fx))
+    errors.push("the ink apply/exact-restore left StateFx — a dev's own material would be lost, or the gray never lands (round 54, S46)");
+  if (!/void OnCanvasGroupChanged\(\) \{ if \(rt == null\) return; Retarget\(\); Push\(false\); \}/.test(fx))
+    errors.push("the CanvasGroup-disable hook left StateFx — a group-disabled button keeps its resting colors (round 54, S46)");
+  if (!/glyphSwaps\[i\]\.target\.material == disabledInkMaterial\)\s*\n\s*glyphSwaps\[i\]\.target\.material = gsPrevMat\[i\];/.test(fx))
+    errors.push("OnDisable no longer takes the ink off — a pooled piece would wake gray (round 54, S46)");
+  if (!/static Material EnsureDisabledInkMaterial\(string root\) \{/.test(cs)
+      || !/var path = root \+ "\/fonts\/Disabled Ink\.mat";/.test(cs)
+      || !/if \(want != null && mat\.shader != want\) \{ mat\.shader = want; EditorUtility\.SetDirty\(mat\); \}/.test(cs)
+      || !/if \(fx\.disabledInkMaterial == null\) fx\.disabledInkMaterial = EnsureDisabledInkMaterial\(root\);/.test(cs))
+    errors.push("the one-material-per-kit Ensure road (mint, upgrade-in-place, arm) left the importer (round 54, S46)");
+  if (!/if \(icGS\.btn \|\| icGS\.wellR > 0\.5f \|\| !string\.IsNullOrEmpty\(icGS\.tint\)\) continue;/.test(cs))
+    errors.push("the plain-seat filter left WireGlyphStateSwaps — buttons, wells or tinted marks would gray against the app (round 54, S46)");
+  if (!/a rest-only entry rides too now/.test(cs) || /if \(g\.hover != null \|\| g\.pressed != null \|\| g\.disabled != null\) swaps\.Add\(g\);/.test(cs))
+    errors.push("rest-only glyph seats left the swap roster — the disabled ink reaches only forked buttons (round 54, S46)");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);
