@@ -1,5 +1,5 @@
 import type { GenConfig, GenStateName, EffectRole, Shape, KitComponentId, KitSize, IconDef, StateDesign } from "./model";
-import { lighten, darken, hexMix, desaturate, saturate, hexRgba, fontByName, DEFAULT_ICON, ICONS_ENABLED, STOCK_ICONS, KIT_SHAPE , isGlyphPiece, isDarkBg, userShapes, seatIconDef } from "./model";
+import { lighten, darken, hexMix, desaturate, saturate, hexRgba, fontByName, DEFAULT_ICON, ICONS_ENABLED, STOCK_ICONS, KIT_SHAPE , isGlyphPiece, isDarkBg, userShapes, seatIconDef, isGlyphButton, glyphOfButton, glyphSeatIcon } from "./model";
 import { iconGroup } from "./icons";
 import { silhouetteMeta, MIRROR_SILHOUETTES } from "./silhouettes";
 import { importedShape, flattenPath, pointInPoly, selfIntersections, type Pt } from "./importedShapes";
@@ -4675,6 +4675,17 @@ export function effSlotColor(cfg: GenConfig, cid: KitComponentId, slotId: string
 }
 
 export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, state: GenStateName = "default", value?: number, shapeOv?: Shape, opts: KitOpts = {}): string {
+  /* ── the glyph-button fleet (round 52): identity = the slot button
+     wearing its rack glyph's treated seat art. Peeled up front, before
+     any shared setup, so the whole slotbtn road runs ONCE and the switch
+     below never meets a gbtn id. Precedence is untouched: a board copy's
+     ov "icon:…" and an explicit Icons-panel pick (opts.icon) both still
+     win inside the slotbtn case; Factory (icon undefined) returns to the
+     glyph itself — never to the slot button's stock gem. */
+  if (isGlyphButton(id)) {
+    return renderKit(cfg, "slotbtn", size, state, value, shapeOv ?? KIT_SHAPE[id],
+      opts.icon === undefined ? { ...opts, icon: glyphSeatIcon(glyphOfButton(id)) ?? null } : opts);
+  }
   if (opts.tone === "alt") {
     // muted variant — same material, drained of celebration
     cfg = JSON.parse(JSON.stringify(cfg)) as GenConfig;

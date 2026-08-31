@@ -2,7 +2,7 @@ import { Component, useEffect, useMemo, useRef, useState, type CSSProperties, ty
 import "@/styles/pricing.css"; // the staging bay wears the community desk's cg-curate buttons
 import { ChevronDown, Download, Lock, PenTool, Pin, ShieldCheck, SquarePen, Trash2 } from "lucide-react";
 import { useGen } from "@/generator/store";
-import { CLONE_KINDS, EFFECT_ROLES, KIT_COMPONENTS, PRESETS, ROLE_HINT, SHAPES, STOCK_ICONS, STAGED_KIT, applyKitDesign, applyKitTextFill, baseOf, fontByName, groupOf, hexMix, isDarkBg, effKitSize, kitVisible, resolveKitIcon, sanitizeUnitySlug } from "@/generator/model";
+import { CLONE_KINDS, EFFECT_ROLES, GLYPH_BUTTONS, KIT_COMPONENTS, PRESETS, ROLE_HINT, SHAPES, STOCK_ICONS, STAGED_KIT, applyKitDesign, applyKitTextFill, baseOf, fontByName, groupOf, hexMix, isDarkBg, isGlyphButton, effKitSize, kitVisible, resolveKitIcon, sanitizeUnitySlug } from "@/generator/model";
 import { LIVE_GLYPHS } from "@/generator/glyphLibrary";
 import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, Shape } from "@/generator/model";
 import { renderBevel, renderKit, renderTypeSpecimen } from "@/generator/bevel";
@@ -85,13 +85,19 @@ function ChapterTabs() {
     // a clone answers to its own name, its classification and its base
     // component's name; visibility follows the chapter's gate (base
     // released — or the admin, who sees staged-base clones there)
+    /* token-AND match over one hay line: every word of the query must land
+       somewhere in name/id/group, in ANY order — "coin button" finds
+       "Glyph Button · Coin" (a strict substring needed the name's own
+       word order, which no one types) */
+    const words = t.split(/\s+/).filter(Boolean);
+    const hits = (hay: string) => words.every((w) => hay.includes(w));
     const clones = Object.entries(kitClones)
       .filter(([, c]) => kitVisible(c.base, releases ?? {}, isAdmin))
-      .filter(([cid, c]) => `${c.name} ${c.kind} ${KIT_COMPONENTS.find((k) => k.id === c.base)?.name ?? c.base} ${cid}`.toLowerCase().includes(t))
+      .filter(([cid, c]) => hits(`${c.name} ${c.kind} ${KIT_COMPONENTS.find((k) => k.id === c.base)?.name ?? c.base} ${cid}`.toLowerCase()))
       .map(([cid, c]) => ({ id: cid, name: c.name, tag: c.kind }));
     const stock = KIT_COMPONENTS.filter((c) =>
       kitVisible(c.id, releases ?? {}, false) &&
-      (c.name.toLowerCase().includes(t) || c.id.includes(t) || groupName(c.id).toLowerCase().includes(t)),
+      hits(`${c.name} ${c.id} ${groupName(c.id)}`.toLowerCase()),
     ).map((c) => ({ id: c.id as string, name: c.name, tag: groupName(c.id) }));
     return [...clones, ...stock].slice(0, 9);
   }, [q, releases, kitClones, isAdmin]);
@@ -1615,8 +1621,10 @@ export function KitPage() {
       const sid = bayEditReturn;
       bayEditReturn = null;
       if (!sid) return;
-      document.querySelector(`.kp-bayrow[data-bayid="${sid}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" });
-      setBayHot(sid);
+      // a glyph button lives on the SET's one card — land the flash there
+      const rowId = (isGlyphButton(sid) ? "gbtn-set" : sid) as KitComponentId;
+      document.querySelector(`.kp-bayrow[data-bayid="${rowId}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" });
+      setBayHot(rowId);
       window.setTimeout(() => setBayHot(null), 2600);
     }, 250);
     return () => window.clearTimeout(t);
@@ -2554,15 +2562,32 @@ const kitTier = useGen((s) => s.tier);
         // Rejects leave too (owner: "somewhere else not here in staging
         // bay") — they wait in the trash at the page bottom.
         const inBay = [...STAGED_KIT].filter((sid) => !releases[sid]);
+        /* the glyph-button fleet is judged as ONE SET (owner commission,
+           round 52): 47 near-identical cards would bury the bay, and the
+           set only makes sense whole — so the fleet gets a single group
+           card with one atomic Approve/Reject (setComponentReleasesBatch,
+           one ledger write), and the solo queue keeps its per-piece cards */
+        const gbtnBay = inBay.filter(isGlyphButton);
+        const inBaySolo = inBay.filter((sid) => !isGlyphButton(sid));
         const releasedStaged = [...STAGED_KIT].filter((sid) => releases[sid] === "released");
+        const releasedSolo = releasedStaged.filter((sid) => !isGlyphButton(sid));
+        const releasedGbtn = releasedStaged.filter(isGlyphButton);
         const act = (sid: KitComponentId, next: "released" | "rejected" | null, confirmMsg?: string) => {
           if (confirmMsg && !window.confirm(confirmMsg)) return;
           void setComponentRelease(sid, next).then((err) => { if (err) window.alert(err); });
         };
+        // the set act — one confirm, one atomic ledger write for the fleet
+        const actSet = (ids: KitComponentId[], next: "released" | "rejected" | null, confirmMsg: string) => {
+          if (!window.confirm(confirmMsg)) return;
+          void setComponentReleasesBatch(Object.fromEntries(ids.map((sid) => [sid, next])))
+            .then((err) => { if (err) window.alert(err); });
+        };
+        // the fleet counts as ONE waiting entry — its card is one decision
+        const bayCount = inBaySolo.length + (gbtnBay.length ? 1 : 0);
         if (!bayOpen) return (
           <section className="kp-sec kp-baycollapsed">
             <button className="kp-baytoggle" onClick={() => setBayOpen(true)}>
-              <ShieldCheck size={13} strokeWidth={2.2} /> Staging bay · {inBay.length} waiting — only you see this
+              <ShieldCheck size={13} strokeWidth={2.2} /> Staging bay · {bayCount} waiting — only you see this
             </button>
           </section>
         );
@@ -2596,7 +2621,50 @@ const kitTier = useGen((s) => s.tier);
               );
             })()}
             <div className="kp-baygrid">
-              {inBay.map((sid) => {
+              {/* ── the glyph-button set: ONE card, one gate. Reps up
+                  front (coin, bomb, and the crown — the widest cut), the
+                  press grammar on the strip, the full 47 behind a fold so
+                  the open bay stays light. Approve/Reject act on every
+                  waiting member atomically. ── */}
+              {gbtnBay.length > 0 && (() => {
+                const gbName = (sid: KitComponentId) => GLYPH_BUTTONS.find((b) => b.id === sid)?.glyphName ?? sid;
+                const baySet = new Set<KitComponentId>(gbtnBay);
+                let reps = (["gbtncoin", "gbtnbomb", "gbtncrown"] as KitComponentId[]).filter((sid) => baySet.has(sid));
+                if (!reps.length) reps = gbtnBay.slice(0, 3);
+                return (
+                  <div className={`kp-bayrow${bayHot === "gbtn-set" ? " kp-bayhot" : ""}`} key="gbtn-set" data-bayid="gbtn-set">
+                    <div className="kp-tray kp-axis">
+                      {reps.map((sid) => <Piece key={sid} id={sid} caption={gbName(sid)} scale={0.42} bay bayHome />)}
+                      {baySet.has("gbtncoin" as KitComponentId) && (
+                        <Piece id="gbtncoin" caption="Qty chip" slots={{ qty: "×250" }} scale={0.42} bay />
+                      )}
+                    </div>
+                    <StateStrip bay hug variants={[
+                      { cap: "Default", piece: { id: reps[0], scale: 0.24 } },
+                      { cap: "Hover", piece: { id: reps[0], baseState: "hover", scale: 0.24 } },
+                      { cap: "Pressed", piece: { id: reps[0], baseState: "pressed", scale: 0.24 } },
+                      { cap: "Disabled", piece: { id: reps[0], baseState: "disabled", scale: 0.24 } },
+                    ]} />
+                    <KpFold label={`See all ${gbtnBay.length} glyph buttons`}>
+                      <div className="kp-slotgrid">
+                        {gbtnBay.map((sid) => <Piece key={sid} id={sid} caption={gbName(sid)} scale={0.28} bay />)}
+                      </div>
+                    </KpFold>
+                    <div className="kp-bayside">
+                      <span className="kp-baychip">Glyph buttons · {gbtnBay.length} — one gate for the whole set</span>
+                      <div className="kp-bayacts">
+                        <button className="cg-curate cg-curate--add" onClick={() => actSet(gbtnBay, "released",
+                          `Release all ${gbtnBay.length} glyph buttons to every maker? The whole set leaves the bay and appears across the app the moment you approve — one atomic act. You can pull the set back afterward.`)}>
+                          <ShieldCheck size={13} strokeWidth={2.2} /> Approve the set — release all {gbtnBay.length}
+                        </button>
+                        <button className="cg-curate cg-curate--danger" title="Move the whole set to the trash at the page bottom — restorable from there" onClick={() => actSet(gbtnBay, "rejected",
+                          `Reject all ${gbtnBay.length} glyph buttons? The set moves to the trash at the page bottom — still admin-only, restorable as a set.`)}>Reject the set</button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+              {inBaySolo.map((sid) => {
                 const nm = pieceName(sid);
                 return (
                   <div className={`kp-bayrow${bayHot === sid ? " kp-bayhot" : ""}`} key={sid} data-bayid={sid}>
@@ -2630,14 +2698,21 @@ const kitTier = useGen((s) => s.tier);
                 );
               })}
             </div>
-            {releasedStaged.length > 0 && (
+            {(releasedSolo.length > 0 || releasedGbtn.length > 0) && (
               <p className="kp-baynote">
                 Released from this bay:{" "}
-                {releasedStaged.map((sid, i) => (
+                {releasedSolo.map((sid, i) => (
                   <span key={sid}>{i > 0 && " · "}<b>{pieceName(sid)}</b>{" "}
                     <button className="cg-curate" onClick={() => act(sid, null, `Pull ${pieceName(sid)} back into the bay? Makers lose it until you release again.`)}>pull back</button>
                   </span>
                 ))}
+                {/* the fleet released as a set is pulled back as a set —
+                    the same one-gate promise in reverse */}
+                {releasedGbtn.length > 0 && (
+                  <span>{releasedSolo.length > 0 && " · "}<b>Glyph buttons · {releasedGbtn.length}</b>{" "}
+                    <button className="cg-curate" onClick={() => actSet(releasedGbtn, null, `Pull the whole glyph-button set (${releasedGbtn.length}) back into the bay? Makers lose all of them until you release again.`)}>pull the set back</button>
+                  </span>
+                )}
               </p>
             )}
           </Sec>
@@ -3216,6 +3291,34 @@ const kitTier = useGen((s) => s.tier);
           <Piece id="panel" size="m" caption="Panel · M" />
         </div>
       </Sec>
+
+      {/* ── 09 · the glyph-button fleet (owner commission, round 52:
+          "give me all the semantic glyphs as separate editable buttons") —
+          one STOCK button per curated rack glyph, each a full editor
+          citizen. Gated as a SET: the section joins the body only once
+          the owner releases the fleet from the bay (one group act); its
+          own Sec so the section guard names it alone. Last in the
+          chapter, so the numbered sections above keep their numbers. */}
+      {GLYPH_BUTTONS.some((b) => kitVisible(b.id, releases, false)) && (
+        <Sec n="09" title="Glyph Buttons" note="The semantic glyph set as ready-made buttons — the slot button's frame wearing each glyph, one component per glyph. Every one follows the kit until you edit it; Edit opens it in the editor with the full control set (states, colors, the glyph well, nudges, the qty chip). No assembly required.">
+          <div className="kp-slotgrid">
+            {GLYPH_BUTTONS.filter((b) => kitVisible(b.id, releases, false)).map((b) => (
+              <Piece key={b.id} id={b.id} caption={b.glyphName} scale={0.34} />
+            ))}
+          </div>
+          <StateStrip variants={[
+            { cap: "Default", piece: { id: "gbtncoin", scale: 0.34 } },
+            { cap: "Hover / Focus", piece: { id: "gbtncoin", baseState: "hover", scale: 0.34 } },
+            { cap: "Pressed", piece: { id: "gbtncoin", baseState: "pressed", scale: 0.34 } },
+            { cap: "Disabled", piece: { id: "gbtncoin", baseState: "disabled", scale: 0.34 } },
+          ]} />
+          <Meta items={[
+            "Real pressing buttons — hover lift, press travel, disabled dimming, the slot button's whole grammar",
+            "The glyph stays a live swappable child: re-pick it under Icons, type ×250 in Qty chip for the corner pill",
+            "Style one alone with Edit, or restyle the whole set at once with the Glyph buttons group scope",
+          ]} />
+        </Sec>
+      )}
 
       </>}</Deferred>
       <Chapter n={chapN("genres")} id="genres" label="Game Systems" blurb="The genre vocabularies — HUD, RPG, shooter, casual, strategy and the reward economy — every piece the same material." />
@@ -4122,14 +4225,24 @@ const kitTier = useGen((s) => s.tier);
       {isAdmin && (() => {
         const trashed = [...STAGED_KIT].filter((sid) => releases[sid] === "rejected");
         if (!trashed.length) return null;
+        // the glyph-button set stays grouped here too — rejected as one
+        // act, it restores (or dies) as one act
+        const trashedGbtn = trashed.filter(isGlyphButton);
+        const trashedSolo = trashed.filter((sid) => !isGlyphButton(sid));
         const act = (sid: KitComponentId, next: "deleted" | null, confirmMsg?: string) => {
           if (confirmMsg && !window.confirm(confirmMsg)) return;
           void setComponentRelease(sid, next).then((err) => { if (err) window.alert(err); });
         };
+        const actSet = (ids: KitComponentId[], next: "deleted" | null, confirmMsg: string) => {
+          if (!window.confirm(confirmMsg)) return;
+          void setComponentReleasesBatch(Object.fromEntries(ids.map((sid) => [sid, next])))
+            .then((err) => { if (err) window.alert(err); });
+        };
+        const trashCount = trashedSolo.length + (trashedGbtn.length ? 1 : 0);
         if (!trashOpen) return (
           <section className="kp-sec kp-baycollapsed">
             <button className="kp-baytoggle" onClick={() => setTrashOpen(true)}>
-              <Trash2 size={13} strokeWidth={2.2} /> Trash · {trashed.length} rejected — only you see this
+              <Trash2 size={13} strokeWidth={2.2} /> Trash · {trashCount} rejected — only you see this
             </button>
           </section>
         );
@@ -4138,7 +4251,27 @@ const kitTier = useGen((s) => s.tier);
             note="Pieces you rejected from the staging bay. Restore sends one back to the bay to be judged again. Delete forever is permanent — the piece disappears for good and cannot be brought back, even by you.">
             <button className="kp-baytoggle" onClick={() => setTrashOpen(false)}>Close the trash</button>
             <div className="kp-baygrid">
-              {trashed.map((sid) => {
+              {trashedGbtn.length > 0 && (
+                <div className="kp-bayrow" key="gbtn-set-trash">
+                  <div className="kp-tray kp-axis">
+                    {trashedGbtn.slice(0, 3).map((sid) => (
+                      <Piece key={sid} id={sid} caption={GLYPH_BUTTONS.find((b) => b.id === sid)?.glyphName ?? sid} scale={0.42} bay />
+                    ))}
+                  </div>
+                  <div className="kp-bayside">
+                    <span className="kp-baychip rej">Glyph buttons · {trashedGbtn.length} — rejected as a set</span>
+                    <div className="kp-bayacts">
+                      <button className="cg-curate" onClick={() => actSet(trashedGbtn, null,
+                        `Restore all ${trashedGbtn.length} glyph buttons to the bay to be judged again?`)}>Restore the set to the bay</button>
+                      <button className="cg-curate cg-curate--danger" onClick={() => actSet(trashedGbtn, "deleted",
+                        `Delete all ${trashedGbtn.length} glyph buttons forever? This is PERMANENT — the whole set is removed for every maker and for you, and there is no way to bring it back.`)}>
+                        <Trash2 size={13} strokeWidth={2.2} /> Delete the set forever
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {trashedSolo.map((sid) => {
                 const nm = pieceName(sid);
                 return (
                   <div className="kp-bayrow" key={sid}>

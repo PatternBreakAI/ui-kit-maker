@@ -7,7 +7,7 @@ import { importBgAsset, bgAssetStatusLine, onAssetActivity, bgAssetDisplayUrl } 
 import { BACKDROP_LIBRARY, BACKDROP_CATEGORIES, backdropThumb, backdropUrl } from "@/generator/backdropLibrary";
 import type { BoardDef, BoardItem } from "@/generator/store";
 import { renderBevel, renderKit, VALUE_DRIVEN } from "@/generator/bevel";
-import { KIT_COMPONENTS, STOCK_ICONS, SEAT_GLYPHS, applyKitDesign, applyKitTextFill, baseOf, fontByName, glyphSeatIcon, isGlyphFamily, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
+import { GLYPH_BUTTONS, KIT_COMPONENTS, STOCK_ICONS, SEAT_GLYPHS, applyKitDesign, applyKitTextFill, baseOf, fontByName, glyphSeatIcon, isGlyphFamily, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
 import { previewSvg } from "@/generator/icons";
 import { LIVE_GLYPHS, glyphById } from "@/generator/glyphLibrary";
 import { BIG_GLYPHS, BIG_GLYPH_BASE, bigGlyphById, bigGlyphThumb, bigGlyphMid, bigGlyphUrl, bigGlyphFilter, type BigGlyphDef, type BigGlyphFx } from "@/generator/bigGlyphs";
@@ -88,6 +88,10 @@ const ASSET_GROUPS: { name: string; ids: string[] }[] = [
      staged, then per-glyph as releases land. LIVE only — a retired glyph
      leaves the tray while its legacy placements keep rendering. */
   { name: "Semantic glyphs", ids: LIVE_GLYPHS.map((g) => `glyph${g.id}`) },
+  /* the glyph-button fleet — registry-derived like the rack above, one
+     entry per curated glyph; the kitVisible filter keeps the whole set
+     behind its single bay gate until the owner releases it */
+  { name: "Glyph buttons", ids: GLYPH_BUTTONS.map((b) => b.id) },
 ];
 
 /* Search vocabulary: teams reach for genre words the component names don't
@@ -147,7 +151,10 @@ for (const g of LIVE_GLYPHS) {
    what the ov grammar resolves — curated to glyphs that read at tile
    size. The kit-wide Icons pick still serves whole-family swaps; this
    rack is THIS COPY only, and the copy's pick wins (instance-text rule). */
-const INSTANCE_GLYPH = new Set<KitComponentId>(["slotbtn", "slot", "iconbtn"]);
+const INSTANCE_GLYPH = new Set<KitComponentId>(["slotbtn", "slot", "iconbtn",
+  // the glyph-button fleet is slotbtn under the hood — every member takes
+  // the same per-copy rack (Factory returns the button's OWN glyph)
+  ...GLYPH_BUTTONS.map((b) => b.id)]);
 const INSTANCE_GLYPH_KEYS = [
   "gem", "star", "heart", "zap", "sword", "shield", "skull", "trophy",
   "gift", "key", "flask", "scroll", "leaf", "hammer", "magnet", "rocket",
