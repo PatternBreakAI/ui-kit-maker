@@ -3799,6 +3799,28 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("rest-only glyph seats left the swap roster — the disabled ink reaches only forked buttons (round 54, S46)");
 }
 
+/* ── ROUND 55 · S47 (the Crown Coin joins the rack and the fleet — the
+   owner's bay bless: "coin looks amazing, I approved it in staging"):
+   crowncoin leaves SEAT_SIT_OUT, so the shared list gives it the
+   icon:glyph seat AND generates gbtncrowncoin (auto-staged — its own bay
+   act before anything ships). Its flat d is deliberately a plain disc,
+   so the seat is the COUNTER-RELIEF cut: glyphSeatIcon knocks the
+   registry's relief face mask out of the silhouette (evenodd) — one
+   ink, readable at every seat size; glyphs without a relief seat byte-
+   identically as before. Fleet counts are registry-derived everywhere —
+   no pin here or in the fences may hard-code the roster size. ── */
+{
+  const mdSrc47 = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../src/generator/model.ts"), "utf8");
+  if (!/export const SEAT_SIT_OUT = \["coinsingle", "coinpile", "starformation"\];/.test(mdSrc47))
+    errors.push("SEAT_SIT_OUT no longer matches the owner's ledger — crowncoin was blessed OUT of it (or a new sit-out landed unpinned) (round 55, S47)");
+  if (!/const dSeat = g\.relief\?\.face \? `\$\{g\.d\} \$\{g\.relief\.face\}` : g\.d;/.test(mdSrc47)
+      || !/fill-rule="evenodd"/.test(mdSrc47))
+    errors.push("glyphSeatIcon lost the counter-relief seat (relief face knocked out of the flat disc, evenodd) — the Crown Coin's seat reads as a featureless circle again (round 55, S47)");
+  if (!/\{ id: "crowncoin", name: "Crown Coin"/.test(glyphLibSrc)
+      || !/relief: \{/.test(glyphLibSrc))
+    errors.push("the Crown Coin's registry entry (or its relief masks) left glyphLibrary — the released glyph loses its art (round 55, S47)");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);
