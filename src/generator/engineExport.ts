@@ -2513,6 +2513,47 @@ const svgWrap = (w: number, h: number, inner: string) =>
    A tint darker than 50% gray cannot darken (the gain floor); glints ship
    white so this stays theoretical. Kit-independent, so it ships as a
    shared script beside the importer. */
+/* the DISABLED INK (round 54 — the owner: "definitely want Unity to gray
+   the glyph on disabled buttons"): the app repaints every family's
+   disabled glyph a SOLID #A7AAB4 silhouette — the sprite's colors leave,
+   its coverage stays. A plain Image tint MULTIPLIES and cannot say that
+   on multi-color semantic art, so this one shared shader does: rgb = the
+   disabled ink, alpha = the sprite's own coverage times the vertex fade
+   (Image.color.a / CanvasGroup still work). One shared file for every
+   kit, one material minted per kit at import (the glints' Ensure road) —
+   never a per-glyph baked gray (the S45 contract). Same LTS surface as
+   UIKitGlintInk.shader, which already ships this way. */
+const DISABLED_INK_SHADER = `Shader "UIKitMaker/DisabledInk" {
+  Properties {
+    _MainTex ("Sprite", 2D) = "white" {}
+    _Color ("Disabled ink", Color) = (0.6549,0.6667,0.7059,1)
+  }
+  SubShader {
+    Tags { "Queue"="Transparent" "RenderType"="Transparent" "IgnoreProjector"="True" "PreviewType"="Plane" "CanUseSpriteAtlas"="True" }
+    Cull Off Lighting Off ZWrite Off ZTest [unity_GUIZTestMode]
+    Blend SrcAlpha OneMinusSrcAlpha
+    Pass {
+      CGPROGRAM
+      #pragma vertex vert
+      #pragma fragment frag
+      #pragma target 2.0
+      #include "UnityCG.cginc"
+      struct appdata_t { float4 vertex : POSITION; float4 color : COLOR; float2 texcoord : TEXCOORD0; };
+      struct v2f { float4 vertex : SV_POSITION; fixed4 color : COLOR; float2 texcoord : TEXCOORD0; };
+      sampler2D _MainTex; fixed4 _Color;
+      v2f vert (appdata_t v) { v2f o; o.vertex = UnityObjectToClipPos(v.vertex); o.texcoord = v.texcoord; o.color = v.color; return o; }
+      fixed4 frag (v2f i) : SV_Target {
+        // the app's disabled contract: a SOLID silhouette in the disabled
+        // ink — never a darkened multiply of the resting colors
+        fixed a = tex2D(_MainTex, i.texcoord).a * i.color.a;
+        return fixed4(_Color.rgb, a * _Color.a);
+      }
+      ENDCG
+    }
+  }
+}
+`;
+
 const GLINT_INK_SHADER = `Shader "UIKitMaker/GlintInk" {
   Properties {
     _MainTex ("Glints Atlas", 2D) = "white" {}
@@ -5504,7 +5545,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         if (interactive) {
           for (const stName of ["hover", "pressed", "disabled"] as const) {
             let sSvg: string;
-            try { sSvg = stripLoopsU(stateShell(uid, stName, uOpts, uVal)); } catch { continue; }
+            /* the r53 reviewer's rider: a state render the app cannot pose
+               is an input this road can't store — but SILENT skin-dropping
+               is an alarm-worthy event, never a shrug */
+            try { sSvg = stripLoopsU(stateShell(uid, stName, uOpts, uVal)); } catch (eSk) { console.warn(`engine export: ${uid}'s ${stName} state failed to render — the piece ships WITHOUT this skin (Sprite Swap keeps the resting face for it)`, eSk); continue; }
             /* ── the PER-STATE GLYPH DRESS (round 53 blocker: a Pressed
                icon-color pin rendered green in the editor and navy in
                Unity — the glyph is marked ink, stripped from every skin
@@ -5531,9 +5575,12 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
                resolves it. NOT a gate: the renderer's universal
                disabled-gray repaint (#A7AAB4 on every family, fork or
                none) — that is the disabled contract, not a divergence
-               the maker pinned, and gating on it would grow every kit
-               with any disabled fork. The raster judge below stays the
-               final arbiter either way — byte-equal ships nothing. */
+               the maker pinned, and it travels CLASS-WIDE at runtime
+               instead (round 54: StateFx.disabledInkMaterial — the one
+               shared UIKitMaker/DisabledInk silhouette material every
+               glyph child wears on disable), never as per-glyph baked
+               cuts here. The raster judge below stays the final arbiter
+               either way — byte-equal ships nothing. */
             const cfgG9 = pieceCfg(uid);
             const sdG9 = cfgG9.stateDesigns?.[stName];
             const inkForks9 = !!sdG9 && (!!sdG9.icon
@@ -5648,7 +5695,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         if (v.interactive) {
           for (const stName of ["hover", "pressed", "disabled"] as const) {
             let sSvgV: string;
-            try { sSvgV = stripLoopsV(stateShell(v.uid, stName, vOpts, vVal)); } catch { continue; }
+            // the same alarm as the universal loop's — silent skin-dropping never
+            try { sSvgV = stripLoopsV(stateShell(v.uid, stName, vOpts, vVal)); } catch (eSkV) { console.warn(`engine export: ${famV}'s ${stName} state failed to render — the variant ships WITHOUT this skin`, eSkV); continue; }
             await addPng(`${famV}/base-${stName}.png`, stripIconInk(stripWordInk(sSvgV).svg).svg, {
               component: famV, part: `base-${stName}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
               usage: `${SWAP_USAGE[stName]} state — Sprite Swap beside base.png (the generated prefab wires it). Union-cropped with base, so the press pose stays registered.`,
@@ -7127,6 +7175,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Runtime/PatternBreakPortraitStage.cs", data: PORTRAIT_STAGE_RUNTIME });
   files.push({ path: "Runtime/PatternBreakCatalogEditView.cs", data: CATALOG_EDIT_VIEW_RUNTIME });
   files.push({ path: "Runtime/UIKitGlintInk.shader", data: GLINT_INK_SHADER });
+  files.push({ path: "Runtime/UIKitDisabledInk.shader", data: DISABLED_INK_SHADER });
 
   /* ── OPTIONAL packed atlas — produced last, catalog only ──────── */
   if (full && catalog) {
@@ -7198,7 +7247,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     "Runtime/PatternBreakClaimBurst.cs", "Runtime/PatternBreakInvGrid.cs",
     "Runtime/PatternBreakStreakIgnite.cs", "Runtime/PatternBreakComboPop.cs",
     "Runtime/PatternBreakDmgNumber.cs",
-    "Runtime/PatternBreakStateFx.cs", "Runtime/UIKitGlintInk.shader",
+    "Runtime/PatternBreakStateFx.cs", "Runtime/UIKitGlintInk.shader", "Runtime/UIKitDisabledInk.shader",
     "Runtime/PatternBreakRingFill.cs",
     "Runtime/PatternBreakBuffSweep.cs",
     "Runtime/PatternBreakKitBarFill.cs",
@@ -9029,7 +9078,18 @@ namespace PatternBreak {
     }
     [Tooltip("Live children whose sprite follows the state — the kit's per-state glyph dress. A state without a sprite keeps Rest. Re-sprite any field freely; a sprite set directly on the child becomes its new Rest.")]
     public GlyphSwap[] glyphSwaps;
+    /* the DISABLED INK (round 54 — the owner: "definitely want Unity to
+       gray the glyph on disabled buttons"): the app repaints every
+       disabled glyph a SOLID #A7AAB4 silhouette. A plain tint multiplies
+       and cannot say that on multi-color art, so on disable every swap
+       target wears this shared material (rgb = the ink, alpha = the
+       sprite's own coverage); re-enable restores the child's own material
+       EXACTLY — a dev's custom material, tint or sprite is never lost,
+       and a material the dev sets mid-disable wins (the adoption law). */
+    [Tooltip("The kit's disabled ink — one shared material (UIKitMaker/DisabledInk, minted at import). On disable every glyph swap target wears it; re-enable restores the child's own material exactly. Clear it to opt the piece out of the gray.")]
+    public Material disabledInkMaterial;
     Sprite[] gsWrote;
+    Material[] gsPrevMat; bool[] gsInked;
 
     RectTransform rt, glowRt;
     Image glowImg;
@@ -9146,6 +9206,13 @@ namespace PatternBreak {
           if (g != null && g.target != null && g.rest != null
             && (g.target.sprite == g.hover || g.target.sprite == g.pressed || g.target.sprite == g.disabled)) g.target.sprite = g.rest;
       gsWrote = null;
+      // and the disabled ink comes off — the child's own material restored
+      // exactly (write-once identity, for materials)
+      if (glyphSwaps != null && gsInked != null)
+        for (int i = 0; i < glyphSwaps.Length && i < gsInked.Length; i++)
+          if (gsInked[i] && glyphSwaps[i] != null && glyphSwaps[i].target != null && glyphSwaps[i].target.material == disabledInkMaterial)
+            glyphSwaps[i].target.material = gsPrevMat[i];
+      gsPrevMat = null; gsInked = null;
     }
     static bool legacyGlowHinted;
     void BuildGlow() {
@@ -9373,6 +9440,7 @@ namespace PatternBreak {
     void PushGlyphSwaps() {
       if (glyphSwaps == null || glyphSwaps.Length == 0) return;
       if (gsWrote == null || gsWrote.Length != glyphSwaps.Length) gsWrote = new Sprite[glyphSwaps.Length];
+      if (gsPrevMat == null || gsPrevMat.Length != glyphSwaps.Length) { gsPrevMat = new Material[glyphSwaps.Length]; gsInked = new bool[glyphSwaps.Length]; }
       bool dis = sel != null && !sel.IsInteractable();
       for (int i = 0; i < glyphSwaps.Length; i++) {
         var g = glyphSwaps[i];
@@ -9388,8 +9456,29 @@ namespace PatternBreak {
           : g.rest;
         if (want != null && g.target.sprite != want) g.target.sprite = want;
         gsWrote[i] = want;
+        /* the DISABLED INK — applied over WHATEVER sprite the state chose
+           (a disabled cut included: the app's gray outranks every fork),
+           the child's own material saved and restored exactly */
+        if (dis && disabledInkMaterial != null) {
+          if (!gsInked[i]) {
+            var m0 = g.target.material;
+            gsPrevMat[i] = m0 == g.target.defaultMaterial ? null : m0;
+            g.target.material = disabledInkMaterial;
+            gsInked[i] = true;
+          }
+        } else if (gsInked[i]) {
+          // only un-ink what is still OURS — a material the dev set while
+          // disabled is theirs and stands (the adoption discipline)
+          if (g.target.material == disabledInkMaterial) g.target.material = gsPrevMat[i];
+          gsInked[i] = false; gsPrevMat[i] = null;
+        }
       }
     }
+    /* a parent CanvasGroup flipping interactable is a DISABLE the pointer
+       never announces — Unity delivers this message for exactly that;
+       direct Selectable.interactable writes answer at the same moments
+       the disabled glow/lift dials always have (the next Push). */
+    void OnCanvasGroupChanged() { if (rt == null) return; Retarget(); Push(false); }
   }
 }
 `;
@@ -19025,6 +19114,10 @@ namespace PatternBreak {
     static void WireGlyphStateSwaps(GameObject go, string root, PBManifest m, string family) {
       var fx = go.GetComponent<StateFx>();
       if (fx == null || m == null || m.assets == null) return;
+      /* the DISABLED INK arms even where the swaps already stand — an
+         additive field (the sink-convergence rule): one shared material,
+         minted per kit, referencing the shipped DisabledInk shader */
+      if (fx.disabledInkMaterial == null) fx.disabledInkMaterial = EnsureDisabledInkMaterial(root);
       if (fx.glyphSwaps != null && fx.glyphSwaps.Length > 0) return; // armed — and thereafter yours
       var swaps = new System.Collections.Generic.List<StateFx.GlyphSwap>();
       var seenGS = new HashSet<string>();
@@ -19032,7 +19125,13 @@ namespace PatternBreak {
         if (aGS == null || aGS.component != family || aGS.iconSeats == null) continue;
         foreach (var icGS in aGS.iconSeats) {
           if (icGS == null) continue;
-          if (string.IsNullOrEmpty(icGS.hoverFile) && string.IsNullOrEmpty(icGS.pressedFile) && string.IsNullOrEmpty(icGS.disabledFile)) continue;
+          /* PLAIN glyph seats only (round 54 widens the roster from
+             state-file seats to ALL of them, so the disabled ink reaches
+             every glyph): buttons press for themselves, portrait wells
+             hold the dev's own art, and tinted marks (white sprites the
+             app colors via Image.color) are not themedIcon glyphs — the
+             app grays none of those. */
+          if (icGS.btn || icGS.wellR > 0.5f || !string.IsNullOrEmpty(icGS.tint)) continue;
           var cnGS = IconChildName(icGS);
           if (!seenGS.Add(cnGS)) continue;
           var chGS = go.transform.Find(cnGS);
@@ -19044,10 +19143,37 @@ namespace PatternBreak {
           g.hover = string.IsNullOrEmpty(icGS.hoverFile) ? null : S(root + "/" + icGS.hoverFile);
           g.pressed = string.IsNullOrEmpty(icGS.pressedFile) ? null : S(root + "/" + icGS.pressedFile);
           g.disabled = string.IsNullOrEmpty(icGS.disabledFile) ? null : S(root + "/" + icGS.disabledFile);
-          if (g.hover != null || g.pressed != null || g.disabled != null) swaps.Add(g);
+          /* a rest-only entry rides too now: no state sprite ever swaps
+             on it, but the disabled ink needs the target */
+          swaps.Add(g);
         }
       }
       if (swaps.Count > 0) fx.glyphSwaps = swaps.ToArray();
+    }
+    /* ONE disabled-ink material per kit (the glints' Ensure road): minted
+       beside the fonts, wearing the shipped UIKitMaker/DisabledInk shader
+       — UI/Default stands in until the shader compiles and the next pass
+       upgrades in place. The material asset also anchors the shader into
+       player builds (a Shader.Find alone would strip). */
+    static Material EnsureDisabledInkMaterial(string root) {
+      var path = root + "/fonts/Disabled Ink.mat";
+      var want = Shader.Find("UIKitMaker/DisabledInk");
+      var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
+      if (mat == null) {
+        var use = want != null ? want : Shader.Find("UI/Default");
+        if (use == null) return null;
+        if (!AssetDatabase.IsValidFolder(root + "/fonts")) AssetDatabase.CreateFolder(root, "fonts");
+        mat = new Material(use);
+        Color inkD;
+        if (!ColorUtility.TryParseHtmlString("#A7AAB4", out inkD)) inkD = new Color(0.6549f, 0.6667f, 0.7059f, 1f);
+        mat.color = inkD; // the app's universal disabled ink — retune here and every piece follows
+        AssetDatabase.CreateAsset(mat, path);
+        return AssetDatabase.LoadAssetAtPath<Material>(path);
+      }
+      // the SHADER re-applies on sight (the glints rule) — the color is the
+      // dev's after creation: one edit retunes the whole kit's disabled ink
+      if (want != null && mat.shader != want) { mat.shader = want; EditorUtility.SetDirty(mat); }
+      return mat;
     }
     static string DefaultLabel(string family) {
       if (family == "chip") return "NEW";
