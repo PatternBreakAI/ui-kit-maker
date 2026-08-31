@@ -8,7 +8,7 @@ import { t } from "@/shell/i18n";
 import { LessonBody } from "./LessonCard";
 import { PRESETS, KIT_SLOTS, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, GLINT_STYLES, defaultStates, applyKitDesign, applyKitTextFill, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, presetById, designDiff, mergeKitDesign, iconRigDiff, baseShape, isFlipShape, flipShape, labelMaxOf, groupOf, ctaForFont, ctaEntry, fontLang, KIT_SLICEABLE, KIT_LABEL_EDITABLE, NO_TEXT_ELIGIBLE, EDGE_SHINE_DEAF, baseOf, isCloneId, CLONE_KINDS, CLONE_INELIGIBLE, isGlyphButton } from "@/generator/model";
 import type { KitSlice } from "@/generator/model";
-import type { GenStateName, BlendMode, GlintStyle, PatternType, KitComponentId, KitDesign  } from "@/generator/model";
+import type { GenStateName, BlendMode, GlintStyle, PatternType, KitComponentId, KitDesign, Shape  } from "@/generator/model";
 import { ICON_LIBS, loadLib, libLoaded, searchLib, getDef, previewSvg } from "@/generator/icons";
 import { ensureFont, ensureDocFonts, fontReady, awaitFonts } from "@/generator/fonts";
 import { renderBevel, renderKit, shapePath, RARITY_FACTORY, VALUE_DRIVEN, effSlotColor } from "@/generator/bevel";
@@ -57,6 +57,24 @@ export function presetArt() {
   });
   return presetArtCache;
 }
+
+/* Does this silhouette's geometry consume the Smoothness dial at all?
+   Asked of shapePath itself (0% vs 100%) and cached — the honest source;
+   there is no metadata here to fall stale when a silhouette joins. An id
+   the probe can't draw keeps the dial live (never gray on a guess). */
+const smoothCache = new Map<string, boolean>();
+function smoothConsumed(sid: string): boolean {
+  const hit = smoothCache.get(sid);
+  if (hit !== undefined) return hit;
+  let v = true;
+  try { v = shapePath(sid as Shape, 8, 8, 104, 40, 0) !== shapePath(sid as Shape, 8, 8, 104, 40, 100); } catch { /* unknown: keep the dial live */ }
+  smoothCache.set(sid, v);
+  return v;
+}
+/* cell-grid pieces whose cell corners ride Smoothness regardless of the
+   shell's own edge (the hotbar contract — on a pill shell the silhouette
+   can't round further, so the cells are where the control visibly lives) */
+const SMOOTH_CELL_PIECES = new Set<KitComponentId>(["hotbar", "bottomnav"]);
 
 /* A saved component's thumbnail renders as the piece it actually is — a saved
    slider previews as a slider, not the master button. */
@@ -1717,14 +1735,35 @@ export function Panel() {
             pills, which read as "missing" */}
         {(() => {
           const effSil = focus ? (kitShapes[focus] ?? KIT_SHAPE[baseOf(focus)] ?? D.shape) : D.shape;
-          const isGothicSil = !!silhouetteMeta(effSil)?.gothicCut;
+          const baseSil = baseShape(effSil);
+          /* round 56 (owner: "smoothness doesn't seem to effect the Persian
+             Blade silhouette... I want the interface to adapt"): the dial
+             asks the GEOMETRY itself whether this silhouette consumes
+             smoothness — shapePath at 0% vs 100% — so every authored
+             outline (Persian Blade, the Blobs, the Gothic cuts, an imported
+             SVG) grays honestly, and any future silhouette classifies
+             itself with no metadata to fall stale. Making the dial WORK on
+             authored curves was weighed and declined: every stored kit
+             (Sakura Arcade ships the blade at 92%) would change bytes the
+             moment the dial started biting. Cell-grid pieces are the
+             exception: their cell corners ride Smoothness whatever the
+             shell wears (the hotbar contract, round 44), so the dial stays
+             live there. */
+          const shellSmooths = smoothConsumed(effSil);
+          const smoothLive = shellSmooths || (!!focus && SMOOTH_CELL_PIECES.has(baseOf(focus)));
+          const gothic = !!silhouetteMeta(baseSil)?.gothicCut;
+          const silName = silhouetteMeta(baseSil)?.name ?? userShapes.find((u) => u.id === baseSil)?.name ?? "This silhouette";
           return (<>
-            <Slider label="Smoothness" value={D.bevel.softness} min={0} max={100} unit="%" disabled={isGothicSil} onChange={(v) => update((c) => { c.bevel.softness = v; })} />
-            {isGothicSil && (
-              <div className="helper">The Gothic cuts are authored curves — smoothness doesn't apply to them.</div>
+            <Slider label="Smoothness" value={D.bevel.softness} min={0} max={100} unit="%" disabled={!smoothLive} onChange={(v) => update((c) => { c.bevel.softness = v; })} />
+            {!smoothLive && (
+              <div className="helper">{baseSil === "pill"
+                ? "The pill's ends are already fully round — smoothness shows on cornered silhouettes (rectangles, chamfers, tags…)."
+                : gothic
+                  ? "The Gothic cuts are authored curves — smoothness doesn't apply to them."
+                  : `${silName} draws its own edges — smoothness doesn't apply to it.`}</div>
             )}
-            {effSil === "pill" && (
-              <div className="helper">The pill's ends are already fully round — smoothness shows on cornered silhouettes (rectangles, chamfers, tags…).</div>
+            {smoothLive && !shellSmooths && (
+              <div className="helper">This piece's cell corners ride Smoothness — the shell keeps its authored edge.</div>
             )}
           </>);
         })()}
