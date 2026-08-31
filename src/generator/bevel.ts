@@ -4089,7 +4089,11 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
       ${iconDef ? `<g data-part="icon" data-icon="glyph">` : ""}${iconDef ? (inheritTypo
         ? `<g${iconFilter ? ` style="filter:${iconFilter}"` : ""}${IC.opacity < 100 ? ` opacity="${(IC.opacity / 100).toFixed(2)}"` : ""}>${
             T2.outline.on && !disabled && (IC.outlineWidth ?? T2.outline.width) > 0.01
-              ? iconGroup(iconDef, iconX, iconY, iconSize, T2.outline.color2 ? `url(#${id}og)` : P(T2.outline.color), { strokeWidth: IC.strokeWidth / 10 + (IC.outlineWidth ?? T2.outline.width) * 0.85, rotation: IC.rotation, fillWeight: IC.strokeWidth / 24 })
+              /* fill-mode glyphs (semantic seats, Phosphor, Game Icons) take
+                 the outline as a DILATED underlay — iconGroup ignores
+                 strokeWidth there, so the copy used to hide exactly behind
+                 the fill and the border never showed (round 53 audit) */
+              ? iconGroup(iconDef, iconX, iconY, iconSize, T2.outline.color2 ? `url(#${id}og)` : P(T2.outline.color), { strokeWidth: IC.strokeWidth / 10 + (IC.outlineWidth ?? T2.outline.width) * 0.85, rotation: IC.rotation, fillWeight: IC.strokeWidth / 24 + (iconDef.mode === "fill" ? (IC.outlineWidth ?? T2.outline.width) / 3 : 0) })
               : ""
           }${iconGroup(iconDef, iconX, iconY, iconSize, !disabled && T2.fillMode === "gradient" ? `url(#${id}tg)` : iconColor, { strokeWidth: IC.strokeWidth / 10, rotation: IC.rotation, fillWeight: IC.strokeWidth / 24 })}</g>`
         : iconGroup(iconDef, iconX, iconY, iconSize, iconColor, {
@@ -4704,8 +4708,16 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
   // Pressed did nothing ("I can edit spacing but not size?", owner)
   const typeKT = (state !== "default" ? cfg.stateDesigns?.[state as Exclude<GenStateName, "default">]?.type : undefined) ?? cfg.type;
   const typeK = clamp(typeKT.size / 52, 0.5, 2.2);
+  /* the per-state ICON rig reaches the self-drawn seats too — build()
+     already forks it for built icons (IC = D.icon ?? cfg.icon), but the
+     themedIcon/wellGlyph helpers below read cfg.icon, so a state-pinned
+     icon color or dial was dead on every well seat — the whole glyph-
+     button fleet included (owner, round 53: "can't change the color of
+     the semantic icons here", editing Pressed). Same fallback ladder as
+     designFor: no fork = cfg.icon exactly, bytes unchanged. */
+  const ICR = (state !== "default" ? cfg.stateDesigns?.[state as Exclude<GenStateName, "default">]?.icon : undefined) ?? cfg.icon;
   // icon stroke weight rides the type controls — 1.0 at the default 24
-  const iconWK = clamp((cfg.icon.strokeWidth ?? 24) / 24, 0.35, 1.8);
+  const iconWK = clamp((ICR.strokeWidth ?? 24) / 24, 0.35, 1.8);
   const typeOyK = (opts.textOy ?? cfg.type.oy ?? 0);
   const typeOxK = (opts.textOx ?? cfg.type.ox ?? 0);
   const bevel = effect(cfg.effects, "Bevel"), glow = effect(cfg.effects, "Glow");
@@ -4900,21 +4912,30 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
        their placement, so only the piece's MAIN glyph rides the dials
        (owner: "the 3 orbiting icons are perfect, I only need to be able
        to edit the xy of the middle icon"). */
-    const xI = xI0 + (pin ? 0 : (cfg.icon.ox || 0) * k), yI = yI0 + (pin ? 0 : (cfg.icon.oy || 0) * k);
-    const T4 = cfg.type;
+    const xI = xI0 + (pin ? 0 : (ICR.ox || 0) * k), yI = yI0 + (pin ? 0 : (ICR.oy || 0) * k);
+    // the state's own TYPE fork voices inherit-mode ink here too — the same
+    // rule contentText and built icons already follow (a Pressed text
+    // recolor must reach a glyph that inherits the type color)
+    const T4 = typeKT;
     if (state === "disabled") return iconGroup(defI, xI, yI, sI, "#A7AAB4", { strokeWidth: swI * iconWK, fillWeight: iconWK });
     // a CUSTOM icon color (the Icon block's un-inherited well) beats the
     // type treatment in every self-drawn site — same contract as built icons
     // the icon's own outline width outranks the type's when set; 0 = no border
-    const owI = cfg.icon.outlineWidth ?? T4.outline.width;
-    if (cfg.icon.color) {
-      const outlC = T4.outline.on && owI > 0.01 ? iconGroup(defI, xI, yI, sI, T4.outline.color, { strokeWidth: swI * iconWK + owI * 0.8, fillWeight: iconWK }) : "";
-      return outlC + iconGroup(defI, xI, yI, sI, cfg.icon.color, { strokeWidth: swI * iconWK, fillWeight: iconWK });
+    const owI = ICR.outlineWidth ?? T4.outline.width;
+    /* the outline copy under a FILL-mode glyph (the semantic seats, Phosphor,
+       Game Icons) must be DILATED to peek out — iconGroup ignores strokeWidth
+       there, so the copy rendered as identical geometry hidden exactly behind
+       the fill: the Outline dial was dead on every filled glyph. owI/3 moves
+       the silhouette edge the same distance the stroke road's owI·0.8 does. */
+    const owFW = defI.mode === "fill" ? iconWK + owI / 3 : iconWK;
+    if (ICR.color) {
+      const outlC = T4.outline.on && owI > 0.01 ? iconGroup(defI, xI, yI, sI, T4.outline.color, { strokeWidth: swI * iconWK + owI * 0.8, fillWeight: owFW }) : "";
+      return outlC + iconGroup(defI, xI, yI, sI, ICR.color, { strokeWidth: swI * iconWK, fillWeight: iconWK });
     }
     const gidI = "ti" + UID++;
     const grad = T4.fillMode === "gradient" ? `<defs><linearGradient id="${gidI}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${T4.fill}"/><stop offset="1" stop-color="${T4.fill2}"/></linearGradient></defs>` : "";
     const fillI = T4.fillMode === "gradient" ? `url(#${gidI})` : T4.fillMode === "solid" ? T4.fill : tone;
-    const outl = T4.outline.on && owI > 0.01 ? iconGroup(defI, xI, yI, sI, T4.outline.color, { strokeWidth: swI * iconWK + owI * 0.8, fillWeight: iconWK }) : "";
+    const outl = T4.outline.on && owI > 0.01 ? iconGroup(defI, xI, yI, sI, T4.outline.color, { strokeWidth: swI * iconWK + owI * 0.8, fillWeight: owFW }) : "";
     return grad + outl + iconGroup(defI, xI, yI, sI, fillI, { strokeWidth: swI * iconWK, fillWeight: iconWK });
   };
 
@@ -4923,7 +4944,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
      piece's designed radius; emboss and shadow mirror the built icons'
      recipe, so what the panel toggles is exactly what emblems do. */
   const emblemFx = (glowR: number, glowTint: string): string => {
-    const ifx = cfg.icon.fx;
+    const ifx = ICR.fx;
     const f: string[] = [];
     if (ifx.emboss && state !== "disabled") f.push(`drop-shadow(0 ${(-1 * k).toFixed(1)}px ${(0.4 * k).toFixed(1)}px rgba(255,255,255,0.6)) drop-shadow(0 ${(1.6 * k).toFixed(1)}px ${(1 * k).toFixed(1)}px rgba(4,8,14,0.5))`);
     if (ifx.shadow) f.push(`drop-shadow(0 ${(2 * k).toFixed(1)}px ${(1.5 * k).toFixed(1)}px rgba(0,0,0,0.4))`);
@@ -4937,9 +4958,9 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
      what that panel promises ("every glyph in the kit follows this one
      treatment"). Center-anchored so rotation pivots in place. */
   const wellGlyph = (defI: IconDef, cxI: number, cyI: number, baseS: number, tone: string, swI = 2.2): string => {
-    const sI = baseS * clamp((cfg.icon.size ?? 100) / 100, 0.4, 2.2);
-    const op = (cfg.icon.opacity ?? 100) < 100 ? ` opacity="${(cfg.icon.opacity / 100).toFixed(2)}"` : "";
-    const rot = cfg.icon.rotation ? ` transform="rotate(${cfg.icon.rotation} ${cxI.toFixed(1)} ${cyI.toFixed(1)})"` : "";
+    const sI = baseS * clamp((ICR.size ?? 100) / 100, 0.4, 2.2);
+    const op = (ICR.opacity ?? 100) < 100 ? ` opacity="${(ICR.opacity / 100).toFixed(2)}"` : "";
+    const rot = ICR.rotation ? ` transform="rotate(${ICR.rotation} ${cxI.toFixed(1)} ${cyI.toFixed(1)})"` : "";
     return `<g${op}${rot}${emblemFx(Math.max(6, sI * 0.28), glow)}>${themedIcon(defI, cxI - sI / 2, cyI - sI / 2, sI, tone, swI)}</g>`;
   };
 

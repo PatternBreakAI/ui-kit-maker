@@ -200,8 +200,12 @@ export function iconGroup(def: IconDef, x: number, y: number, size: number, colo
      window as bevel's iconWK. The filter rides an INNER group so the erode/
      dilate radius lives in the glyph's own viewBox units (swScale applies),
      and the region is widened so a dilated glyph never clips. */
+  /* cap raised 1.8 → 4.5 for the OUTLINE underlay under filled glyphs
+     (themedIcon dilates the copy by owI/3 so the border can peek out);
+     the Weight dial itself tops out at 40/24 ≈ 1.67, so no existing
+     render ever reached the old cap — bytes hold. */
   const fw = def.mode === "fill" && opts.fillWeight !== undefined
-    ? Math.min(1.8, Math.max(0.35, opts.fillWeight)) : 1;
+    ? Math.min(4.5, Math.max(0.35, opts.fillWeight)) : 1;
   let inner = def.inner;
   if (Math.abs(fw - 1) > 0.001) {
     const shift = 1.2 * (fw - 1) * swScale;
