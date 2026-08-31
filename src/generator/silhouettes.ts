@@ -378,6 +378,20 @@ export const SILHOUETTES: SilhouetteMeta[] = [
     supports: [...BTN, "timer"], character: "The flame button — fire tail streaming off the left of a rounded core. Built for a single hero moment: play, claim, ignite." },
 ];
 
+/* ── The unpickable registry (round 56, owner: "when I delete a
+   silhouette, i.e. afterburner, just delete it forever") ──────────────
+   Geometry NEVER leaves the bundle — saved kits and boards store shape
+   ids (Sakura's blade, every look's cut) and must keep rendering — so
+   "delete forever" is a tombstone: the definition stays resolvable for
+   existing content while every pickable surface and every RANDOM POOL
+   stops offering it. The store pours the two app_settings ledgers in
+   here (legacy retires + permanent deletes) so the pure rack functions
+   (classicRack, randomizeConfig's cut roll) can answer without touching
+   store state. */
+let UNPICKABLE = new Set<string>();
+export function setUnpickableSilhouettes(ids: string[]) { UNPICKABLE = new Set(ids); }
+export function silhouetteUnpickable(id: string): boolean { return UNPICKABLE.has(id); }
+
 export function silhouetteMeta(id: Shape): SilhouetteMeta | undefined {
   // a ~flip variant reads its base's meta with the horizontal insets
   // swapped — cap zones are symmetric, text-safe areas are not

@@ -5,12 +5,12 @@ import type { KitClone } from "./model";
 import { ensureFont, fontReady, awaitFonts } from "./fonts";
 import { delBgOriginal, getBgOriginal, putBgOriginal } from "./bgvault";
 import { isAssetRef, resolveBgAsset, assetCloudBacked, bgAssetDisplayUrl } from "./assets";
-import { SILHOUETTES } from "./silhouettes";
+import { SILHOUETTES, silhouetteUnpickable, setUnpickableSilhouettes } from "./silhouettes";
 import type { UserShape } from "./model";
 import { addShine, renderBevel, renderKit, renderTypeSpecimen } from "./bevel";
 import { getDef } from "./icons";
 import { bigGlyphById, BIG_GLYPH_BASE, type BigGlyphFx } from "./bigGlyphs";
-import { listCloudPresets, publishCloudPreset, updateCloudPreset, deleteCloudPreset, setCloudPresetSchedule, listHiddenStarters, setHiddenStarters, listHiddenSilhouettes, setHiddenSilhouettes, myProfileTier, cloudStatus, listComponentReleases, saveComponentReleases, listPromos, readPromosLive, noteLocalDocReplaced, readGateSnapshot, writeGateSnapshot, hasStoredSession, type CloudPreset, type PromoDef, type ReleaseStatus } from "./cloud";
+import { listCloudPresets, publishCloudPreset, updateCloudPreset, deleteCloudPreset, setCloudPresetSchedule, listHiddenStarters, setHiddenStarters, listHiddenSilhouettes, setHiddenSilhouettes, listDeletedSilhouettes, setDeletedSilhouettes, myProfileTier, cloudStatus, listComponentReleases, saveComponentReleases, listPromos, readPromosLive, noteLocalDocReplaced, readGateSnapshot, writeGateSnapshot, hasStoredSession, type CloudPreset, type PromoDef, type ReleaseStatus } from "./cloud";
 import { capsOf, type Tier } from "./entitlements";
 import siteDefaultJson from "./site-default.json";
 import bubblePopJson from "./preset-bubble-pop.json";
@@ -693,10 +693,20 @@ interface GenStore {
   /** Starter-preset ids an admin retired for every visitor (cloud-stored). */
   hiddenStarters: string[];
   hideStarterPreset: (id: string) => Promise<string | null>;
-  /** stock silhouettes retired from the picker for everyone (admin curation) */
+  /** stock silhouettes retired from the picker for everyone (admin curation).
+   *  LEGACY ledger: still readable, still restorable in one click — new
+   *  deletes never write here (the delete-forever regime below). */
   hiddenSilhouettes: string[];
   retireSilhouette: (id: string) => Promise<string | null>;
   restoreSilhouettes: () => Promise<string | null>;
+  /** stock silhouettes DELETED FOREVER (round 56, owner mandate): gone from
+   *  every picker, showpiece tab, random pool and admin list, for everyone,
+   *  with no restore affordance. Tombstone semantics — geometry stays in
+   *  the bundle so existing kits/boards keep rendering. Separate ledger
+   *  from hiddenSilhouettes BY DESIGN: no click order can sweep a legacy
+   *  retire (the afterburner) into permanence. */
+  deletedSilhouettes: string[];
+  deleteSilhouetteForever: (id: string) => Promise<string | null>;
   restoreStarterPresets: () => Promise<string | null>;
   /** Spotlight — the ordered promo lineup (cloud-curated; order = priority)
    *  and the global gate the owner flips. Cards render on the kit-page
@@ -2826,7 +2836,7 @@ export const useGen = create<GenStore>((set, get) => ({
     return (t === "guest" || t === "free" || t === "student" || t === "pro" ? t : "guest") as Tier;
   })(),
   loadCloudPresets: async () => {
-    const [presets, hidden, prof, releases, hiddenSils, promos, promosLive] = await Promise.all([listCloudPresets(), listHiddenStarters(), myProfileTier(), listComponentReleases(), listHiddenSilhouettes(), listPromos(), readPromosLive()]);
+    const [presets, hidden, prof, releases, hiddenSils, deletedSils, promos, promosLive] = await Promise.all([listCloudPresets(), listHiddenStarters(), myProfileTier(), listComponentReleases(), listHiddenSilhouettes(), listDeletedSilhouettes(), listPromos(), readPromosLive()]);
     const prev = get();
     /* a FAILED read keeps the previous answer instead of downgrading —
        one flaked query used to de-admin (and de-tier) the whole session,
@@ -2862,7 +2872,9 @@ export const useGen = create<GenStore>((set, get) => ({
         : cloudStatus().state === "off" ? "free" : "guest";
       writeGateSnapshot({ admin, tier, releases: rel });
     }
-    set({ cloudPresets: presets, isAdmin: admin, hiddenStarters: hidden, hiddenSilhouettes: hiddenSils, tier, componentReleases: rel, promos: promos ?? prev.promos, promosLive: promosLive ?? prev.promosLive });
+    // random pools consult the module registry: retired + deleted together
+    setUnpickableSilhouettes([...hiddenSils, ...deletedSils]);
+    set({ cloudPresets: presets, isAdmin: admin, hiddenStarters: hidden, hiddenSilhouettes: hiddenSils, deletedSilhouettes: deletedSils, tier, componentReleases: rel, promos: promos ?? prev.promos, promosLive: promosLive ?? prev.promosLive });
     // a lowered zoom ceiling applies immediately, not on the next gesture
     if (get().zoom > capsOf(tier).zoomMax) set({ zoom: capsOf(tier).zoomMax });
     const act = get().activeCloudPreset;
@@ -2959,12 +2971,25 @@ export const useGen = create<GenStore>((set, get) => ({
   retireSilhouette: async (id) => {
     const next = [...new Set([...get().hiddenSilhouettes, id])];
     const err = await setHiddenSilhouettes(next);
-    if (!err) set({ hiddenSilhouettes: next });
+    if (!err) { set({ hiddenSilhouettes: next }); setUnpickableSilhouettes([...next, ...get().deletedSilhouettes]); }
     return err;
   },
   restoreSilhouettes: async () => {
+    /* empties the LEGACY retire list only — a forever-deleted id is in the
+       other ledger and stays deleted (order-proof by construction) */
     const err = await setHiddenSilhouettes([]);
-    if (!err) set({ hiddenSilhouettes: [] });
+    if (!err) { set({ hiddenSilhouettes: [] }); setUnpickableSilhouettes(get().deletedSilhouettes); }
+    return err;
+  },
+  deletedSilhouettes: [],
+  deleteSilhouetteForever: async (id) => {
+    /* appends to deleted_silhouettes ONLY — never reads or rewrites the
+       legacy hidden_silhouettes ledger, so deleting a shape before the
+       owner's "Restore silhouettes" click cannot drag the afterburner
+       (or any legacy retire) into permanence */
+    const next = [...new Set([...get().deletedSilhouettes, id])];
+    const err = await setDeletedSilhouettes(next);
+    if (!err) { set({ deletedSilhouettes: next }); setUnpickableSilhouettes([...get().hiddenSilhouettes, ...next]); }
     return err;
   },
   /* Spotlight boots empty and fills with loadCloudPresets — the shelf is
@@ -3460,9 +3485,10 @@ export const useGen = create<GenStore>((set, get) => ({
         // statements keep the cut classic so the roll makes ONE loud
         // move. Preset jumps above keep their curated theatrical cuts.
         const rack = statement === "cut"
-          ? SILHOUETTES.filter((m) => (m.category === "Buttons" || m.gothicCut) && !m.preview && m.id !== c.shape)
+          ? SILHOUETTES.filter((m) => (m.category === "Buttons" || m.gothicCut) && !m.preview && !silhouetteUnpickable(m.id) && m.id !== c.shape)
           : classicRack(c.shape);
-        c.shape = rack[roll(rack.length)].id;
+        // retired/deleted cuts never roll; an emptied rack keeps the cut
+        if (rack.length) c.shape = rack[roll(rack.length)].id;
       }
       /* the wardrobe includes the voice now — every roll picks a fresh
          face from the permanent rack plus registered customs (owner: "we

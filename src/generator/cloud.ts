@@ -1031,6 +1031,34 @@ export async function setHiddenSilhouettes(ids: string[]): Promise<string | null
   return error?.message ?? null;
 }
 
+/* DELETE FOREVER (round 56, owner: "just delete it forever") — a second,
+   SEPARATE ledger from the legacy retires above, on purpose: the two never
+   mix, so no migration and no ordering of admin clicks can sweep a legacy
+   retire (production holds exactly ["stock:afterburner"], which the owner
+   wants alive) into permanence. Deleting appends here only; "Restore
+   silhouettes" empties hidden_silhouettes only. A deleted id is a
+   TOMBSTONE: its geometry stays in the bundle so every kit and board
+   already wearing it keeps rendering — it just leaves every pickable
+   surface and random pool, for everyone, admin included, with no UI back. */
+const DELETED_SILHOUETTES_KEY = "deleted_silhouettes";
+
+export async function listDeletedSilhouettes(): Promise<string[]> {
+  const client = await getClient();
+  if (!client) return [];
+  const { data, error } = await client.from("app_settings")
+    .select("value").eq("key", DELETED_SILHOUETTES_KEY).maybeSingle();
+  if (error || !Array.isArray(data?.value)) return [];
+  return (data.value as unknown[]).filter((x): x is string => typeof x === "string");
+}
+
+export async function setDeletedSilhouettes(ids: string[]): Promise<string | null> {
+  const client = await getClient();
+  if (!client || !session) return "Sign in as an admin to curate silhouettes.";
+  const { error } = await client.from("app_settings")
+    .upsert({ key: DELETED_SILHOUETTES_KEY, value: ids, updated_at: new Date().toISOString() });
+  return error?.message ?? null;
+}
+
 /* The staging bay's ledger: which STAGED components the admin has released
    to everyone (or rejected). Components ship in the bundle marked staged;
    this key is what flips one public without a deploy. Same app_settings

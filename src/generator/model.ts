@@ -5,7 +5,7 @@
 // One config drives canvas, code copy, HTML download, and exports.
 
 // safe despite silhouettes.ts importing from here: that edge is type-only
-import { SILHOUETTES } from "./silhouettes";
+import { SILHOUETTES, silhouetteUnpickable } from "./silhouettes";
 // leaf module (no imports) — the semantic glyph registry drives the glyph
 // pieces' roster and shape map so a new glyph needs only its registry entry
 import { GLYPH_LIBRARY, LIVE_GLYPHS, glyphById } from "./glyphLibrary";
@@ -993,9 +993,11 @@ export function rollStatement(): RollStatement {
   const r0 = Math.random();
   return r0 < 0.28 ? "pattern" : r0 < 0.5 ? "cut" : r0 < 0.72 ? "font" : r0 < 0.82 ? "glass" : "quiet";
 }
-/** The classic button rack — cuts calm enough to carry any palette. */
+/** The classic button rack — cuts calm enough to carry any palette.
+ *  Retired and forever-deleted silhouettes stay out (round 56): a roll
+ *  must never wear a cut the picker can't offer back. */
 export function classicRack(exceptShape?: string) {
-  return SILHOUETTES.filter((m) => m.category === "Buttons" && !m.gothicCut && !m.preview && m.id !== exceptShape);
+  return SILHOUETTES.filter((m) => m.category === "Buttons" && !m.gothicCut && !m.preview && !silhouetteUnpickable(m.id) && m.id !== exceptShape);
 }
 
 export function randomizeConfig(c: GenConfig, excludePresetIds: string[] = [], statement: RollStatement = rollStatement()): GenConfig {
@@ -1017,9 +1019,10 @@ export function randomizeConfig(c: GenConfig, excludePresetIds: string[] = [], s
     // statement keeps the cut classic so the roll's one loud move stays
     // the only loud move. Preset jumps above keep their curated cuts.
     const rack = statement === "cut"
-      ? SILHOUETTES.filter((m) => (m.category === "Buttons" || m.gothicCut) && !m.preview && m.id !== c.shape)
+      ? SILHOUETTES.filter((m) => (m.category === "Buttons" || m.gothicCut) && !m.preview && !silhouetteUnpickable(m.id) && m.id !== c.shape)
       : classicRack(c.shape);
-    c = { ...c, shape: rack[Math.floor(Math.random() * rack.length)].id };
+    // an emptied rack (aggressive curation) keeps the current cut
+    if (rack.length) c = { ...c, shape: rack[Math.floor(Math.random() * rack.length)].id };
   }
   const h = r(0, 359);
   // contrast-first: complementary-family schemes dominate; shell sits well

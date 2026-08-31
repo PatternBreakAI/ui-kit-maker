@@ -2944,7 +2944,10 @@ const kitTier = useGen((s) => s.tier);
                     // user to slice by this file, so their own shapes must be in it
                     silhouettes: (() => {
                       const used = new Set([st.cfg.shape, ...Object.values(st.kitShapes)]);
-                      return SILHOUETTES.filter((s) => !s.preview || st.isAdmin || used.has(s.id)).map((s) => ({ id: s.id, name: s.name, capScale: s.capScale, content: s.content }));
+                      // forever-deleted shapes stay out of the metadata too —
+                      // EXCEPT ones this kit actually wears (tombstone: the
+                      // user's own content stays fully documented)
+                      return SILHOUETTES.filter((s) => (!s.preview || st.isAdmin || used.has(s.id)) && (!st.deletedSilhouettes.includes(s.id) || used.has(s.id))).map((s) => ({ id: s.id, name: s.name, capScale: s.capScale, content: s.content }));
                     })(),
                   }, null, 2),
                 });

@@ -744,7 +744,7 @@ const SIL_TEMPLATE = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" heigh
 `;
 
 export function Panel() {
-  const { cfg: cfgMaster, update: updateParent, setPreset: setPresetParent, randomize, randomizeColors, selectedState, setSelectedState, sectionFilter, phase, setPhase, inheritDefaults, makeStateDefault, library, addToLibrary, removeFromLibrary, loadFromLibrary, addToBoard, focus, setFocus, kitShapes, setKitShape, kitDesigns, setKitDesign, kitSizes, kitTextOy, setKitTextOy, kitTextOx, setKitTextOx, kitTextFill, setKitTextFill, kitLocks, toggleKitLock, kitRow, setKitRow, styleLib, saveStyle, applyStyle, removeStyle, userShapes, addUserShape, removeUserShape, userPresets, applyUserPreset, removeUserPreset, cloudPresets, isAdmin, applyCloudPreset, applyLookDoc, publishPreset, schedulePreset, removeCloudPresetById, hiddenStarters, hideStarterPreset, restoreStarterPresets, hiddenSilhouettes, retireSilhouette, restoreSilhouettes, activeCloudPreset, overwriteActivePreset, tier, kitName, canvasMode, boards, activeBoard, setBoardBg, kitIcons, setKitIcon, kitLabels, setKitLabel, kitNoText, setKitNoText, kitSubs, setKitSub, kitSlotVals, setKitSlot, kitVals, setKitVal, kitBar, setKitBar, refreshLibraryItem, replaceConfig, resetAll, panelQuery, setPanelQuery, scope, setScope, allStates, setAllStates, kitClones, duplicateKitPiece, removeKitClone, renameKitClone } = useGen();
+  const { cfg: cfgMaster, update: updateParent, setPreset: setPresetParent, randomize, randomizeColors, selectedState, setSelectedState, sectionFilter, phase, setPhase, inheritDefaults, makeStateDefault, library, addToLibrary, removeFromLibrary, loadFromLibrary, addToBoard, focus, setFocus, kitShapes, setKitShape, kitDesigns, setKitDesign, kitSizes, kitTextOy, setKitTextOy, kitTextOx, setKitTextOx, kitTextFill, setKitTextFill, kitLocks, toggleKitLock, kitRow, setKitRow, styleLib, saveStyle, applyStyle, removeStyle, userShapes, addUserShape, removeUserShape, userPresets, applyUserPreset, removeUserPreset, cloudPresets, isAdmin, applyCloudPreset, applyLookDoc, publishPreset, schedulePreset, removeCloudPresetById, hiddenStarters, hideStarterPreset, restoreStarterPresets, hiddenSilhouettes, restoreSilhouettes, deletedSilhouettes, deleteSilhouetteForever, activeCloudPreset, overwriteActivePreset, tier, kitName, canvasMode, boards, activeBoard, setBoardBg, kitIcons, setKitIcon, kitLabels, setKitLabel, kitNoText, setKitNoText, kitSubs, setKitSub, kitSlotVals, setKitSlot, kitVals, setKitVal, kitBar, setKitBar, refreshLibraryItem, replaceConfig, resetAll, panelQuery, setPanelQuery, scope, setScope, allStates, setAllStates, kitClones, duplicateKitPiece, removeKitClone, renameKitClone } = useGen();
   const actBd = boards.find((b) => b.id === activeBoard);
   const cfg = focus && kitDesigns[focus] ? applyKitDesign(cfgMaster, kitDesigns[focus]) : cfgMaster;
   const { parentId, setParent } = useGen();
@@ -1743,7 +1743,7 @@ export function Panel() {
           {/* a category with nothing the viewer can see (all-preview, e.g.
               Blobs pre-release) would be an empty tab — drop its chip */}
           {["All", ...SILHOUETTE_CATEGORIES.filter((cat) =>
-            SILHOUETTES.some((m) => m.category === cat && (!m.preview || isAdmin || (focus ? (kitShapes[focus] ?? KIT_SHAPE[baseOf(focus)] ?? D.shape) : D.shape) === m.id)),
+            SILHOUETTES.some((m) => m.category === cat && !deletedSilhouettes.includes(m.id) && (!m.preview || isAdmin || (focus ? (kitShapes[focus] ?? KIT_SHAPE[baseOf(focus)] ?? D.shape) : D.shape) === m.id)),
           )].map((cat) => (
             <button key={cat} className={silCat === cat ? "on" : ""} role="radio" aria-checked={silCat === cat}
               onClick={() => setSilCat(cat)}>{cat}</button>
@@ -1751,12 +1751,18 @@ export function Panel() {
         </div>
         <div className="shapegrid">
           {SILHOUETTES
+            /* DELETED FOREVER leaves first, for EVERYONE — admin included,
+               current shape included: no card, no way back in the UI. The
+               geometry stays in the bundle, so anything already wearing the
+               shape keeps rendering (the tombstone contract). */
+            .filter((m) => !deletedSilhouettes.includes(m.id))
             /* unlisted previews stay out of the public picker while they're
                being evaluated — admins see them to test */
             .filter((m) => !m.preview || isAdmin || (focus ? (kitShapes[focus] ?? KIT_SHAPE[baseOf(focus)] ?? D.shape) : D.shape) === m.id)
-            /* retired stock shapes leave the picker for everyone — but only
-               the picker. A kit already built on one keeps rendering, and an
-               admin still sees it (with the × lit) so it can be restored. */
+            /* LEGACY retired stock shapes leave the picker for everyone —
+               but only the picker. A kit already built on one keeps
+               rendering, and an admin still sees it (dimmed) so the
+               one-click restore below can revive it. */
             .filter((m) => !hiddenSilhouettes.includes(m.id) || isAdmin || (focus ? (kitShapes[focus] ?? KIT_SHAPE[baseOf(focus)] ?? D.shape) : D.shape) === m.id)
             .filter((m) => silCat === "All" || m.category === silCat)
             .map((m) => {
@@ -1769,14 +1775,17 @@ export function Panel() {
               <svg viewBox="0 0 120 56" aria-hidden="true"><path d={shapePath(m.id, 8, 8, 104, 40, D.bevel.softness)} /></svg>
               <span>{m.name}</span>
               {stock && isAdmin && (
+                /* DELETE FOREVER (round 56, owner: "just delete it forever")
+                   — one honest confirm sized to the finality. Works on a
+                   legacy-retired card too (that's choosing forever for it);
+                   the legacy Restore button below never touches this. */
                 <span className="shapedel" role="button"
-                  aria-label={retired ? `Restore ${m.name}` : `Retire ${m.name}`}
-                  title={retired ? "Retired — restore all below" : "Retire this silhouette for everyone"}
+                  aria-label={`Delete ${m.name} forever`}
+                  title={retired ? "Retired (restorable below) — × deletes it forever instead" : "Delete this silhouette forever"}
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (retired) return;
-                    if (window.confirm(`Retire "${m.name}" from the silhouette picker for everyone? Kits already using it keep working.`))
-                      void retireSilhouette(m.id).then((err) => { if (err) window.alert(err); });
+                    if (window.confirm(`Delete "${m.name}" forever — this cannot be undone.\n\nIt leaves the picker, the random rolls and the admin list for everyone, permanently. Kits and boards already wearing it keep rendering.`))
+                      void deleteSilhouetteForever(m.id).then((err) => { if (err) window.alert(err); });
                   }}>×</span>
               )}
             </button>
@@ -1800,13 +1809,19 @@ export function Panel() {
             </button>
           );
         })()}
-        {isAdmin && hiddenSilhouettes.length > 0 && (
-          <button className="resetstate" onClick={() => {
-            if (window.confirm(`Restore all ${hiddenSilhouettes.length} retired silhouette${hiddenSilhouettes.length === 1 ? "" : "s"} for everyone?`)) void restoreSilhouettes().then((err) => { if (err) window.alert(err); });
-          }}>
-            <RotateCcw size={14} strokeWidth={2} /> Restore silhouettes ({hiddenSilhouettes.length})
-          </button>
-        )}
+        {/* the LEGACY restore — counts only retires that are still
+            restorable (a forever-deleted id can't come back), and leaves
+            entirely once nothing restorable remains */}
+        {isAdmin && (() => {
+          const restorable = hiddenSilhouettes.filter((id) => !deletedSilhouettes.includes(id));
+          return restorable.length > 0 ? (
+            <button className="resetstate" onClick={() => {
+              if (window.confirm(`Restore all ${restorable.length} retired silhouette${restorable.length === 1 ? "" : "s"} for everyone?`)) void restoreSilhouettes().then((err) => { if (err) window.alert(err); });
+            }}>
+              <RotateCcw size={14} strokeWidth={2} /> Restore silhouettes ({restorable.length})
+            </button>
+          ) : null;
+        })()}
         {userShapes.length > 0 && (
           <div className="shapegrid">
             {userShapes.map((u) => (
