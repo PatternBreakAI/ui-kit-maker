@@ -1665,9 +1665,12 @@ export const KIT_LESSONS: Partial<Record<KitComponentId, KitLesson>> = {
    dance and no per-copy grammar required. The curation is the seat
    rack's own cut (SEAT_SIT_OUT, shared with SEAT_GLYPHS below): the
    three glyphs whose forms need their dressing inks to read sit out
-   here exactly as they sit out of the icon:glyph grammar — plus the
-   staged crowncoin, whose dressed art (the relief road) awaits the
-   owner's bless before it earns any public seat.
+   here exactly as they sit out of the icon:glyph grammar. The Crown
+   Coin left the sit-out on the owner's bay bless (round 55 — "coin
+   looks amazing, I approved it in staging"): its seat art is the
+   COUNTER-RELIEF cut glyphSeatIcon builds from the registry's relief
+   face mask, and its BUTTON (gbtncrowncoin) arrives auto-staged like
+   every new component — its own bay act, nothing ships before it.
    DESIGN INHERITANCE is the ordinary per-piece road, chosen over any
    new machinery: an untouched button stores NOTHING in kitDesigns and
    follows the kit's slotbtn look live (kit-wide design and theme moves
@@ -1675,7 +1678,7 @@ export const KIT_LESSONS: Partial<Record<KitComponentId, KitLesson>> = {
    for that one button alone (the pickDesign/designDiff/deepMergeDesign
    road every piece already rides). No factory seed — unlike the glyph
    DISPLAY pieces, these are buttons and stay on the buttons' look. */
-export const SEAT_SIT_OUT = ["coinsingle", "coinpile", "starformation", "crowncoin"];
+export const SEAT_SIT_OUT = ["coinsingle", "coinpile", "starformation"];
 export const GLYPH_BUTTONS: { id: KitComponentId; glyph: string; name: string; glyphName: string }[] =
   LIVE_GLYPHS.filter((g) => !SEAT_SIT_OUT.includes(g.id))
     .map((g) => ({ id: `gbtn${g.id}` as KitComponentId, glyph: g.id, name: `Glyph Button · ${g.name}`, glyphName: g.name }));
@@ -2388,7 +2391,16 @@ export function glyphSeatIcon(id: string): IconDef | undefined {
   if (hit) return hit;
   const g = glyphById(id);
   if (!g) return undefined;
-  const def: IconDef = { lib: "glyph", name: g.id, viewBox: g.vb.join(" "), inner: `<path d="${g.d}"/>`, mode: "fill" };
+  /* a RELIEF-bearing glyph (the Crown Coin ingest) seats as COUNTER-
+     RELIEF: its flat d is deliberately a plain disc — the motif lives in
+     the relief masks — so the seat knocks the FACE mask out of the
+     silhouette (evenodd), one ink, and the crown reads from the 60px
+     well down to the 17px picker tile (probed at 128/64/32/24, round
+     55: the bevel rings go mushy below 32 and the highlight slits add
+     nothing at seat scale — the face IS the read). Registry-driven:
+     glyphs without a relief seat exactly as before, byte for byte. */
+  const dSeat = g.relief?.face ? `${g.d} ${g.relief.face}` : g.d;
+  const def: IconDef = { lib: "glyph", name: g.id, viewBox: g.vb.join(" "), inner: `<path${g.relief?.face ? ' fill-rule="evenodd"' : ""} d="${dSeat}"/>`, mode: "fill" };
   seatGlyphDefs.set(id, def);
   return def;
 }

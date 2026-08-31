@@ -119,9 +119,11 @@ export const GLYPH_LIBRARY: EngineGlyph[] = [
        through the relief masks, four authored house-glint seats. The
        package's fixed gold palette is deliberately NOT ingested: relief
        zones read KIT roles, per the render-capabilities contract (geometry
-       is the artist's, paint is the kit's). STAGED + seat-sit-out until
-       the owner blesses the art — this entry is why coinsingle waits in
-       SEAT_SIT_OUT. */
+       is the artist's, paint is the kit's). BLESSED by the owner in the
+       bay (round 55 — "coin looks amazing, I approved it in staging"):
+       it left SEAT_SIT_OUT, its seat is the counter-relief cut (the face
+       mask knocked out of the disc — glyphSeatIcon), and its button
+       (gbtncrowncoin) arrived auto-staged for its own bay act. */
     source: "AI-assisted original vector geometry, hand-traced and authored for UI Kit Maker, 2026, by OpenAI under the creative direction of Chevon Hicks.", license: "original work",
     detail: "M 256 66 C 360.934 66 446 151.066 446 256 C 446 360.934 360.934 446 256 446 C 151.066 446 66 360.934 66 256 C 66 151.066 151.066 66 256 66 Z M 256 82 C 159.902 82 82 159.902 82 256 C 82 352.098 159.902 430 256 430 C 352.098 430 430 352.098 430 256 C 430 159.902 352.098 82 256 82 Z",
     detailLight: "M 256 85 C 352.65 85 431 163.35 431 260 C 431 356.65 352.65 435 256 435 C 159.35 435 81 356.65 81 260 C 81 163.35 159.35 85 256 85 Z M 256 94 C 164.321 94 90 168.321 90 260 C 90 351.679 164.321 426 256 426 C 347.679 426 422 351.679 422 260 C 422 168.321 347.679 94 256 94 Z",
