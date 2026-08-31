@@ -216,12 +216,16 @@ function Section({ id, title, summary, right, children }: {
   );
 }
 
-function Slider({ label, value, min, max, unit, step, onChange, disabled, def }: {
+function Slider({ label, value, min, max, unit, step, onChange, disabled, def, title }: {
   label: string; value: number; min: number; max: number; unit: string; step?: number; onChange: (v: number) => void; disabled?: boolean;
   /** The document-default for this dial — arming it makes double-click a
    *  reset (dev field report: "I'd love to be able to double click a
    *  slider or value to reset it to default"). */
   def?: number;
+  /** The dial's words live behind the pointer (round-56 affordance law:
+   *  no static explainer prose under controls) — a grayed dial carries
+   *  its why here, a live one its fine print. */
+  title?: string;
 }) {
   const clampV = (v: number) => Math.max(min, Math.min(max, v));
   /* Drags coalesce to ONE update per animation frame, latest value wins.
@@ -245,7 +249,10 @@ function Slider({ label, value, min, max, unit, step, onChange, disabled, def }:
     });
   };
   return (
-    <div className="ctl" style={disabled ? { opacity: 0.45, pointerEvents: "none" } : undefined}>
+    /* disabled dims but keeps pointer events — the tooltip IS the why
+       (gray = doesn't apply; hover says why), and both inputs are natively
+       disabled so nothing edits through the dim */
+    <div className="ctl" style={disabled ? { opacity: 0.45 } : undefined} title={title}>
       <label>{label}</label>
       <input type="range" min={min} max={max} step={step ?? 1} value={value} disabled={disabled} onChange={(e) => emit(+e.target.value)}
         onDoubleClick={def !== undefined ? () => emit(def) : undefined}
@@ -352,9 +359,9 @@ function SwatchMem({ value, onChange }: { value: string; onChange: (v: string) =
 }
 
 
-function Well({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+function Well({ label, value, onChange, title }: { label: string; value: string; onChange: (v: string) => void; title?: string }) {
   return (
-    <div className="ctl wellrow">
+    <div className="ctl wellrow" title={title}>
       <label>{label}</label>
       <span className="chipwell sm" style={{ background: value }}>
         <input type="color" value={value} aria-label={`${label} color`}
@@ -435,7 +442,7 @@ function SliceEditor({ cid }: { cid: KitComponentId }) {
   return (
     <div className="slicebox">
       <span className="fl">Unity slicing
-        <button className={`allstateschip${!on ? " on" : ""}`} title="Borders measured from this piece's rendered pixels at export — right for almost every kit."
+        <button className={`allstateschip${!on ? " on" : ""}`} title={`Borders measured from this piece's rendered pixels at export — right for almost every kit.${seed ? ` This piece measures ${seed.left} · ${seed.right} · ${seed.top} · ${seed.bottom} px (left · right · top · bottom).` : ""}`}
           onClick={() => setKitSlice(cid, null)}>Auto</button>
         <button className={`allstateschip${on ? " on" : ""}`} title="Set the nine-slice borders yourself — your numbers ship exactly."
           onClick={() => { if (!on) setKitSlice(cid, seed ?? { left: 40, right: 40, top: 36, bottom: 36 }); }}>Custom</button>
@@ -448,7 +455,7 @@ function SliceEditor({ cid }: { cid: KitComponentId }) {
           onClick={() => setSliceStage(cid)} />
       )}
       {on && vals && (
-        <div className="slotgrid slicegrid">
+        <div className="slotgrid slicegrid" title="Design px, all of this piece's sprites and states. Corners stay rigid inside the borders; only the middle stretches.">
           {(["left", "right", "top", "bottom"] as const).map((k) => (
             <label key={k} className="slotcell">
               <span>{k}</span>
@@ -458,11 +465,6 @@ function SliceEditor({ cid }: { cid: KitComponentId }) {
           ))}
         </div>
       )}
-      <div className="helper">{on
-        ? "Design px, all of this piece's sprites and states. Corners stay rigid inside the borders; only the middle stretches."
-        : seed
-          ? `Auto reads the corner curves off the real pixels — this piece measures ${seed.left} · ${seed.right} · ${seed.top} · ${seed.bottom} px (left · right · top · bottom).`
-          : "Auto reads the corner curves off the real pixels at export."}</div>
       {patOn && (
         <div className="helper slicewarn"><AlertTriangle size={11} strokeWidth={2.4} /> This piece wears a pattern — heavy Sliced stretching smears it into noise. That only bites when a prefab is hand-stretched inside Unity; board copies posed away from these proportions ship as the app&apos;s own render instead.</div>
       )}
@@ -470,8 +472,11 @@ function SliceEditor({ cid }: { cid: KitComponentId }) {
   );
 }
 
-function FxToggle({ label, on, onToggle, children }: {
+function FxToggle({ label, on, onToggle, children, title }: {
   label: string; on: boolean; onToggle: (v: boolean) => void; children?: React.ReactNode;
+  /** what the effect is + any export fine print — tooltip on the chip
+   *  (round-56 affordance law: the words wait behind the pointer) */
+  title?: string;
 }) {
   // Effects that are on show their controls; off effects can still be peeked
   // open with the caret so nothing feels hidden.
@@ -480,7 +485,7 @@ function FxToggle({ label, on, onToggle, children }: {
   return (
     <div className="fxblock">
       <span className="fxhead">
-        <button className={`fxchip${on ? " on" : ""}`} aria-pressed={on} onClick={() => onToggle(!on)}>{label}</button>
+        <button className={`fxchip${on ? " on" : ""}`} aria-pressed={on} title={title} onClick={() => onToggle(!on)}>{label}</button>
         {!on && children && (
           <button className="fxpeek" aria-label={`${peek ? "Hide" : "Show"} ${label} controls`} onClick={() => setPeek(!peek)}>
             <ChevronDown size={14} strokeWidth={2} style={{ transform: peek ? "rotate(180deg)" : undefined }} />
@@ -1130,19 +1135,14 @@ export function Panel() {
     // Assemble mode: the design controls step aside; only the Library matters.
     return (
       <aside className="panel">
-        <div className="sec">
-          <div className="sec-head"><h3>Stage</h3></div>
-          <div className="sec-body">
-            <div className="helper">Add with +, drag to arrange — Play makes everything live.</div>
-          </div>
-        </div>
+        {/* round-56 affordance purge: the Stage section was prose-only and
+            left; the backdrop's fine print rides its own controls */}
         <section className="sec">
           <div className="sec-head"><h3>Backdrop</h3></div>
           <div className="sec-body">
-            <label className="check"><input type="checkbox" checked={actBd?.bgShow ?? true} onChange={(e) => setBoardBg({ bgShow: e.target.checked })} /> Show background image</label>
+            <label className="check" title="The active artboard's backdrop — it never ships in asset exports."><input type="checkbox" checked={actBd?.bgShow ?? true} onChange={(e) => setBoardBg({ bgShow: e.target.checked })} /> Show background image</label>
             <Slider label="Opacity" value={actBd?.bgOpacity ?? 100} min={10} max={100} unit="%" onChange={(v) => setBoardBg({ bgOpacity: v })} />
             <Slider label="Blur" value={actBd?.bgBlur ?? 0} min={0} max={14} unit="px" onChange={(v) => setBoardBg({ bgBlur: v })} />
-            <div className="helper">The active artboard's backdrop — it never ships in asset exports.</div>
           </div>
         </section>
         <section className="sec">
@@ -1378,9 +1378,9 @@ export function Panel() {
             <Layers size={12} strokeWidth={2.2} /> All states
           </button>
         </div>
-        <div className="helper">{allStates
-          ? <>Hover or press the button on the canvas to feel the states live. <b>All states</b> is on — every edit becomes the value for all four states.</>
-          : <>Hover or press the button on the canvas to feel the states live. These sliders shape only <b>{STATE_LABEL[selectedState]}</b>.</>}</div>
+        {/* round-56 affordance purge: the "feel the states live" lecture is
+            gone — the lit state chip and the All-states chip's own pressed
+            state (plus its tooltip) carry the scope */}
         <Slider label="Brightness" value={adj.brightness} def={defaultStates()[selectedState].brightness} min={-30} max={30} unit="" onChange={(v) => update((c) => { c.states[selectedState].brightness = v; })} />
         <Slider label="Saturation" value={adj.saturation ?? 0} def={defaultStates()[selectedState].saturation ?? 0} min={-100} max={100} unit="" onChange={(v) => update((c) => { c.states[selectedState].saturation = v; })} />
         <Slider label="Glow" value={adj.glow} def={defaultStates()[selectedState].glow} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.states[selectedState].glow = v; })} />
@@ -1418,15 +1418,15 @@ export function Panel() {
             click with nothing moving (probe-caught) */}
         {/* spread first — rebuilding {wipe, edge} from scratch dropped the
             tuned frequency and blend (the glint-nudge reset's twin) */}
-        <label className="check"><input type="checkbox" checked={!!cfgMaster.idle?.wipe}
-          onChange={(e) => update((c) => { c.idle = { ...c.idle, wipe: e.target.checked, edge: c.idle?.edge ?? false }; })} /> Wipe shine — a glint sweeps the face, then rests</label>
-        <label className="check"><input type="checkbox" checked={!!cfgMaster.idle?.edge}
-          onChange={(e) => update((c) => { c.idle = { ...c.idle, wipe: c.idle?.wipe ?? false, edge: e.target.checked }; })} /> Edge shine — a spark runs the silhouette, shrinking and flickering</label>
         {/* where the motion actually plays — judging it on the kit page reads
             as a dead control (the gallery rests by design, fcc7b6c); boards
             rest in Design too (owner, 2026-08-16: "the idle animation should
-            only play when play is pressed") */}
-        <div className="helper">Shines play on the live canvas, in Play mode and in Unity — stills rest on purpose.</div>
+            only play when play is pressed") — that fine print rides the
+            checkboxes as tooltips (round-56 affordance purge) */}
+        <label className="check" title="Plays on the live canvas, in Play mode and in Unity — stills rest on purpose."><input type="checkbox" checked={!!cfgMaster.idle?.wipe}
+          onChange={(e) => update((c) => { c.idle = { ...c.idle, wipe: e.target.checked, edge: c.idle?.edge ?? false }; })} /> Wipe shine — a glint sweeps the face, then rests</label>
+        <label className="check" title="Plays on the live canvas, in Play mode and in Unity — stills rest on purpose."><input type="checkbox" checked={!!cfgMaster.idle?.edge}
+          onChange={(e) => update((c) => { c.idle = { ...c.idle, wipe: c.idle?.wipe ?? false, edge: e.target.checked }; })} /> Edge shine — a spark runs the silhouette, shrinking and flickering</label>
         {/* Per-piece override (owner: "turn the shine animations on/off per
             component") — rides the piece's design fork, so the kit page,
             Board and Unity export all follow. Absent chips = follow kit.
@@ -1440,7 +1440,12 @@ export function Panel() {
             {!!kitLocks[focus] && (
               <div className="helper">This piece is locked — its shine chips are on hold until you unlock it.</div>
             )}
-            {(["wipe", "edge"] as const).filter((k) => k === "wipe" || !EDGE_SHINE_DEAF.has(baseOf(focus))).map((k) => {
+            {(["wipe", "edge"] as const).map((k) => {
+              /* a deaf piece keeps its Edge row VISIBLE but gray — the
+                 control's own state says "doesn't apply", the tooltip says
+                 why (round-56 affordance law; the Smoothness-dial pattern) */
+              const deaf = k === "edge" && EDGE_SHINE_DEAF.has(baseOf(focus));
+              const dead = !!kitLocks[focus] || deaf;
               const ov = kitDesigns[focus]?.idle?.[k];
               const setOv = (v: boolean | undefined) => {
                 const cur = kitDesigns[focus] ?? {};
@@ -1451,19 +1456,17 @@ export function Panel() {
                 setKitDesign(focus, Object.keys(next).length ? next : null);
               };
               return (
-                <div className="idlerow" key={k}>
+                <div className="idlerow" key={k} style={deaf ? { opacity: 0.45 } : undefined}
+                  title={deaf ? "Edge shine doesn't apply here — this piece draws its own chrome, so there's no single silhouette for the spark to run." : undefined}>
                   <span>{k === "wipe" ? "Wipe shine" : "Edge shine"}</span>
                   <div className="idlechips">
-                    <button className={`allstateschip${ov === undefined ? " on" : ""}`} disabled={!!kitLocks[focus]} title="No opinion of its own — this piece shines whenever the kit toggle above is on." onClick={() => setOv(undefined)}>Follow kit</button>
-                    <button className={`allstateschip${ov === true ? " on" : ""}`} disabled={!!kitLocks[focus]} title="Always shine on this piece, even with the kit toggle off." onClick={() => setOv(true)}>On</button>
-                    <button className={`allstateschip${ov === false ? " on" : ""}`} disabled={!!kitLocks[focus]} title="Never shine on this piece, even with the kit toggle on." onClick={() => setOv(false)}>Off</button>
+                    <button className={`allstateschip${ov === undefined ? " on" : ""}`} disabled={dead} title={deaf ? undefined : "No opinion of its own — this piece shines whenever the kit toggle above is on."} onClick={() => setOv(undefined)}>Follow kit</button>
+                    <button className={`allstateschip${ov === true ? " on" : ""}`} disabled={dead} title={deaf ? undefined : "Always shine on this piece, even with the kit toggle off."} onClick={() => setOv(true)}>On</button>
+                    <button className={`allstateschip${ov === false ? " on" : ""}`} disabled={dead} title={deaf ? undefined : "Never shine on this piece, even with the kit toggle on."} onClick={() => setOv(false)}>Off</button>
                   </div>
                 </div>
               );
             })}
-            {EDGE_SHINE_DEAF.has(baseOf(focus)) && (
-              <div className="helper">Edge shine doesn't apply here — this piece draws its own chrome, so there's no single silhouette for the spark to run.</div>
-            )}
           </div>
         )}
         {(cfgMaster.idle?.wipe || cfgMaster.idle?.edge || Object.values(kitDesigns).some((kd) => kd?.idle?.wipe || kd?.idle?.edge)) && (
@@ -1663,7 +1666,6 @@ export function Panel() {
             </>
           );
         })()}
-        <div className="helper">Each style is a different candy construction — shell, gloss and depth, not just a palette.</div>
         <div className="actionrow">
           <button className="resetstate" onClick={randomize}>
             <Dices size={14} strokeWidth={2} /> Randomize everything
@@ -1678,10 +1680,10 @@ export function Panel() {
             {styleLib.map((st) => (
               <div key={st.id} className="stylecard">
                 {st.thumb ? (
-                  <button className="stylethumb" title={`Apply ${st.name} to the whole kit`} onClick={() => applyStyle(st.id)}
+                  <button className="stylethumb" title={`Apply ${st.name} to the whole kit — silhouettes stay put`} onClick={() => applyStyle(st.id)}
                     dangerouslySetInnerHTML={{ __html: st.thumb }} />
                 ) : (
-                  <button className="stylethumb blank" title={`Apply ${st.name} to the whole kit`} onClick={() => applyStyle(st.id)}>Aa</button>
+                  <button className="stylethumb blank" title={`Apply ${st.name} to the whole kit — silhouettes stay put`} onClick={() => applyStyle(st.id)}>Aa</button>
                 )}
                 <div className="stylecard-row">
                   <span className="stylecard-name">{st.name}</span>
@@ -1690,7 +1692,6 @@ export function Panel() {
               </div>
             ))}
           </div>
-          <div className="helper">A style restyles every component — silhouettes stay put.</div>
         </>)}
         {isAdmin && (
           <div className="adminlooks">
@@ -1715,7 +1716,7 @@ export function Panel() {
                     don't need to review student applications from the
                     generator, that can live in the admin tools") */}
                 {activeCloudPreset && (
-                  <button className="resetstate" onClick={() => {
+                  <button className="resetstate" title="Shared presets show for every visitor — Overwrite saves your tweaks back into this one." onClick={() => {
                     if (window.confirm(`Overwrite the shared preset “${activeCloudPreset.name}” with the current look — for everyone?`)) void overwriteActivePreset().then((err) => { if (err) window.alert(err); });
                   }}>
                     <Upload size={14} strokeWidth={2} /> Overwrite “{activeCloudPreset.name}”
@@ -1729,7 +1730,6 @@ export function Panel() {
                   </button>
                 )}
               </div>
-              <div className="helper">Shared presets show for every visitor — Overwrite saves your tweaks back into one.</div>
             </>)}
           </div>
         )}
@@ -1737,9 +1737,8 @@ export function Panel() {
 
       {/* ── A2 · Silhouette — pure geometry, material stays ── */}
       <Section id="silhouette" title={t("secSilhouette")} summary={<span>{SHAPES.find((sh) => sh.id === D.shape)?.name.split(" — ")[0]}</span>}>
-        {focus && (
-          <div className="helper">Picking a silhouette restyles <b>{pieceLabel(focus)}</b> only — its shell, wells and fills all follow. Leave edit mode to change the whole kit.</div>
-        )}
+        {/* round-56 affordance purge: the "restyles this piece only" scope
+            rides each shapecard's tooltip while a piece is focused */}
         <div className="silcats" role="radiogroup" aria-label="Silhouette category">
           {/* a category with nothing the viewer can see (all-preview, e.g.
               Blobs pre-release) would be an empty tab — drop its chip */}
@@ -1765,7 +1764,7 @@ export function Panel() {
               const stock = m.id.startsWith("stock:");
               return (
             <button key={m.id} className={`shapecard${baseShape(focus ? (kitShapes[focus] ?? KIT_SHAPE[baseOf(focus)] ?? D.shape) : D.shape) === m.id ? " on" : ""}${retired ? " retired" : ""}`}
-              title={retired ? `${m.name} — retired from the picker` : `${m.name} — ${m.character}${m.preview && isAdmin ? " (unlisted preview — admins only)" : ""}`}
+              title={retired ? `${m.name} — retired from the picker` : `${m.name} — ${m.character}${focus ? ` · restyles ${pieceLabel(focus)} only` : ""}${m.preview && isAdmin ? " (unlisted preview — admins only)" : ""}`}
               onClick={() => { if (focus) setKitShape(focus, m.id); else update((c) => { c.shape = m.id; }); }}>
               <svg viewBox="0 0 120 56" aria-hidden="true"><path d={shapePath(m.id, 8, 8, 104, 40, D.bevel.softness)} /></svg>
               <span>{m.name}</span>
@@ -1811,7 +1810,7 @@ export function Panel() {
         {userShapes.length > 0 && (
           <div className="shapegrid">
             {userShapes.map((u) => (
-              <button key={u.id} className={`shapecard${(focus ? (kitShapes[focus] ?? KIT_SHAPE[baseOf(focus)] ?? D.shape) : D.shape) === u.id ? " on" : ""}`} title={`${u.name} — imported silhouette`}
+              <button key={u.id} className={`shapecard${(focus ? (kitShapes[focus] ?? KIT_SHAPE[baseOf(focus)] ?? D.shape) : D.shape) === u.id ? " on" : ""}`} title={`${u.name} — imported silhouette${focus ? ` · restyles ${pieceLabel(focus)} only` : ""}`}
                 onClick={() => { if (focus) setKitShape(focus, u.id); else update((c) => { c.shape = u.id; }); }}>
                 <svg viewBox="0 0 120 56" aria-hidden="true"><path d={shapePath(u.id, 8, 8, 104, 40, D.bevel.softness)} /></svg>
                 <span>{u.name}</span>
@@ -1844,23 +1843,25 @@ export function Panel() {
           const smoothLive = shellSmooths || (!!focus && SMOOTH_CELL_PIECES.has(baseOf(focus)));
           const gothic = !!silhouetteMeta(baseSil)?.gothicCut;
           const silName = silhouetteMeta(baseSil)?.name ?? userShapes.find((u) => u.id === baseSil)?.name ?? "This silhouette";
-          return (<>
-            <Slider label="Smoothness" value={D.bevel.softness} min={0} max={100} unit="%" disabled={!smoothLive} onChange={(v) => update((c) => { c.bevel.softness = v; })} />
-            {!smoothLive && (
-              <div className="helper">{baseSil === "pill"
-                ? "The pill's ends are already fully round — smoothness shows on cornered silhouettes."
-                : gothic
-                  ? "The Gothic cuts are authored curves — smoothness doesn't apply to them."
-                  : `${silName} draws its own edges — smoothness doesn't apply to it.`}</div>
-            )}
-            {smoothLive && !shellSmooths && (
-              <div className="helper">This piece's cell corners ride Smoothness — the shell keeps its authored edge.</div>
-            )}
-          </>);
+          /* round-56 affordance purge (owner: "no explanatory text here, we
+             are going for 'affordance'"): the dial's gray IS the message —
+             the why waits behind the pointer as a tooltip, never as prose */
+          const smoothTitle = !smoothLive
+            ? (baseSil === "pill"
+              ? "The pill's ends are already fully round — smoothness shows on cornered silhouettes."
+              : gothic
+                ? "The Gothic cuts are authored curves — smoothness doesn't apply to them."
+                : `${silName} draws its own edges — smoothness doesn't apply to it.`)
+            : !shellSmooths
+              ? "This piece's cell corners ride Smoothness — the shell keeps its authored edge."
+              : undefined;
+          return (
+            <Slider label="Smoothness" value={D.bevel.softness} min={0} max={100} unit="%" disabled={!smoothLive} title={smoothTitle} onChange={(v) => update((c) => { c.bevel.softness = v; })} />
+          );
         })()}
         <Slider label="Content margin" value={cfg.contentMargin ?? 0} min={-20} max={60} unit="px"
+          title="Breathing room between labels and the silhouette's ends — while a piece is focused it pins to that piece alone."
           onChange={(v) => update((c) => { c.contentMargin = v; })} />
-        <div className="helper">Breathing room between labels and the silhouette's ends — while a piece is focused it pins to that piece alone.</div>
         <div className="actionrow">
         <label className="fileadd">
           <Upload size={13} strokeWidth={2} /> Import silhouette (SVG)
@@ -1939,7 +1940,7 @@ export function Panel() {
           {(KIT_SLOTS[baseOf(focus)] ?? []).some((sl) => sl.kind === "free") && (
             <div className="slotgrid">
               {(KIT_SLOTS[baseOf(focus)] ?? []).filter((sl) => sl.kind === "free").map((slot) => (
-                <label key={slot.id} className="slotcell">
+                <label key={slot.id} className="slotcell" title={slot.note}>
                   <span>{slot.name}</span>
                   <input className="tinput" value={kitSlotVals[focus]?.[slot.id] ?? ""}
                     placeholder={slot.def ?? ""} maxLength={slot.maxLen ?? 40} aria-label={slot.name}
@@ -1953,22 +1954,27 @@ export function Panel() {
               component's value slider anywhere"). Stages the resting
               pose; Play mode still animates on top. */}
           {VALUE_DRIVEN.has(baseOf(focus)) && (<>
+            {/* the piece's driven readout (a value-kind slot) explains
+                itself on the dial that drives it — its old prose row is
+                gone (round-56 affordance purge) */}
             <Slider label="Value" value={Math.round((kitVals[focus] ?? 0.62) * 100)} min={0} max={100} unit="%"
+              title={(() => {
+                const vs = (KIT_SLOTS[baseOf(focus)] ?? []).find((sl) => sl.kind === "value");
+                return vs ? `${vs.name} — ${vs.note ?? "driven by this slider."}` : "The resting pose — the kit page, the Board and exports hold this frame.";
+              })()}
               onChange={(v) => setKitVal(focus, v / 100)} />
-            {kitVals[focus] !== undefined ? (
+            {kitVals[focus] !== undefined && (
               <button className="resetstate" title="Back to the piece's demo value"
                 onClick={() => setKitVal(focus, null)}>
                 <RotateCcw size={13} strokeWidth={2} /> Demo value
               </button>
-            ) : (
-              <div className="helper">The resting pose — the kit page, the Board and exports hold this frame.</div>
             )}
           </>)}
           {KIT_SLICEABLE[baseOf(focus)] && <SliceEditor cid={focus} />}
           {(KIT_SLOTS[baseOf(focus)] ?? []).map((slot) => slot.kind === "choice" && (slot.choices?.length ?? 0) > 4 ? (
             /* many options wear a dropdown — a 12-way radio row per slot
                would be a wall of chips (the emote wheel has eight slots) */
-            <label key={slot.id} className="fieldbox" style={{ minWidth: 0 }}>
+            <label key={slot.id} className="fieldbox" style={{ minWidth: 0 }} title={slot.note}>
               <span className="fl">{slot.name}</span>
               <select value={kitSlotVals[focus]?.[slot.id] ?? slot.choices![0]} aria-label={slot.name}
                 onChange={(e) => setKitSlot(focus, slot.id, e.target.value === slot.choices![0] ? null : e.target.value)}>
@@ -1977,7 +1983,7 @@ export function Panel() {
               <span className="chev"><ChevronDown size={17} strokeWidth={2} /></span>
             </label>
           ) : slot.kind === "choice" ? (
-            <div key={slot.id}>
+            <div key={slot.id} title={slot.note}>
               <div className="sublabel">{slot.name}</div>
               <div className="segmini" role="radiogroup" aria-label={slot.name}>
                 {(slot.choices ?? []).map((c) => {
@@ -1988,7 +1994,6 @@ export function Panel() {
                   );
                 })}
               </div>
-              {slot.note && <div className="helper">{slot.note}</div>}
             </div>
           ) : slot.kind === "color" && !finLocked ? (
             <div key={slot.id}>
@@ -2000,7 +2005,7 @@ export function Panel() {
                    recomputed live as the kit's inks move; the moment a
                    pick is stored, the pick speaks (owner: "make the
                    swatch tell the truth") */
-                <Well label={slot.name} value={kitSlotVals[focus]?.[slot.id]
+                <Well label={slot.name} title={slot.note} value={kitSlotVals[focus]?.[slot.id]
                   ?? effSlotColor(applyKitTextFill(cfg, kitTextFill[focus]), baseOf(focus), slot.id, kitSlotVals[focus])
                   ?? slot.def ?? "#FFFFFF"}
                   onChange={(v) => setKitSlot(focus, slot.id, v)} />
@@ -2019,7 +2024,6 @@ export function Panel() {
                   <RotateCcw size={13} strokeWidth={2} /> Factory color
                 </button>
               )}
-              {slot.note && <div className="helper">{slot.note}</div>}
             </div>
           ) : slot.kind === "dial" && !finLocked ? (
             (() => {
@@ -2036,24 +2040,21 @@ export function Panel() {
               return (
                 <div key={slot.id}>
                   <Slider label={slot.name} value={own ?? Math.round(cfg.candy.extrusion.glow)} min={0} max={100} unit="%"
+                    title={[slot.note, own === undefined ? "Following the kit — mirrors Candy → Extrusion → Base glow until you set it. Setting 0 quiets this piece alone." : null].filter(Boolean).join(" ")}
                     onChange={(v) => setKitSlot(focus, slot.id, String(v))} />
-                  {own !== undefined ? (
+                  {own !== undefined && (
                     <button className="resetstate" title="Drop this piece's own strength — mirror the kit's Base glow dial again"
                       onClick={() => setKitSlot(focus, slot.id, null)}>
                       <RotateCcw size={13} strokeWidth={2} /> Follow the kit
                     </button>
-                  ) : (
-                    <div className="helper">Following the kit — this dial mirrors <b>Candy → Extrusion → Base glow</b> until you set it. Setting 0 quiets this piece alone.</div>
                   )}
-                  {slot.note && <div className="helper">{slot.note}</div>}
                 </div>
               );
             })()
-          ) : slot.kind === "value" ? (
-            /* no input on purpose — the readout is DRIVEN; say so instead of
-               offering a field that would be a lie */
-            <div key={slot.id} className="helper"><b>{slot.name}</b> — {slot.note ?? "driven by the value slider."}</div>
           ) : null)}
+          {/* value-kind slots render NO row of their own (round-56 purge) —
+              the driven readout's name and note ride the Value slider's
+              tooltip above, the control that actually drives it */}
           {labelEditable && (<>
             <div className="sublabel">Text</div>
             <input className="tinput" value={kitLabels[focus] ?? ""} maxLength={labelMaxOf(baseOf(focus))}
@@ -2079,8 +2080,7 @@ export function Panel() {
               onChange={(e) => setKitSub(focus, e.target.value)} />
           )}
           {iconSwappable && !finLocked && (<>
-          <div className="sublabel">Icon</div>
-          <div className="helper">Size, weight & effects live under <b>Typography → Icons</b>.</div>
+          <div className="sublabel" title="Size, weight & effects live under Typography → Icons.">Icon</div>
           {/* the color, where a human looks for it (owner) — same state and
               routing as the Typography → Icons swatch, just surfaced here */}
           <label className="check"><input type="checkbox" checked={IC.color === null}
@@ -2088,9 +2088,6 @@ export function Panel() {
           {IC.color !== null && (
             <Well label={selectedState !== "default" ? `Color — ${STATE_LABEL[selectedState]} only` : "Icon color"}
               value={IC.color} onChange={(v) => update((c) => { c.icon.color = v; })} />
-          )}
-          {selectedState !== "default" && (
-            <div className="helper">You're editing <b>{STATE_LABEL[selectedState]}</b> — this color pins to that state only. Pick Default in Global to set the resting color.</div>
           )}
           <div className="actionrow">
             <button className={`resetstate${kitIcons[focus] === "none" ? " on" : ""}`} onClick={() => setKitIcon(focus, kitIcons[focus] === "none" ? null : "none")}>
@@ -2139,9 +2136,8 @@ export function Panel() {
               the position holds across all four states by design. */}
           {(iconSwappable || iconTogglable) && !finLocked && (<>
             {!iconSwappable && <div className="sublabel">Icon</div>}
-            <Slider label="Icon nudge X" value={IC.ox} min={-50} max={50} unit="px" def={0} onChange={(v) => update((c) => { c.icon.ox = v; })} />
-            <Slider label="Icon nudge Y" value={IC.oy} min={-50} max={50} unit="px" def={0} onChange={(v) => update((c) => { c.icon.oy = v; })} />
-            <div className="helper">These belong to <b>{pieceLabel(focus)}</b> at every state — the rest of the kit's glyphs stay put.</div>
+            <Slider label="Icon nudge X" value={IC.ox} min={-50} max={50} unit="px" def={0} title={`Belongs to ${pieceLabel(focus)} at every state — the rest of the kit's glyphs stay put.`} onChange={(v) => update((c) => { c.icon.ox = v; })} />
+            <Slider label="Icon nudge Y" value={IC.oy} min={-50} max={50} unit="px" def={0} title={`Belongs to ${pieceLabel(focus)} at every state — the rest of the kit's glyphs stay put.`} onChange={(v) => update((c) => { c.icon.oy = v; })} />
           </>)}
         </Section>
       )}
@@ -2151,7 +2147,7 @@ export function Panel() {
         <Section id="barsec" title={t("secBar")}
           summary={<span>{(kitBar[focus]?.dock ?? false) ? "docked" : "plain"}</span>}>
           <div className="sublabel">Emblem socket</div>
-          <label className="check"><input type="checkbox" checked={kitBar[focus]?.dock ?? false}
+          <label className="check" title="A mini shell riding the bar's end — its glyph comes from Component content."><input type="checkbox" checked={kitBar[focus]?.dock ?? false}
             onChange={(e) => setKitBar(focus, { dock: e.target.checked })} /> Dock a socket on the track</label>
           {(kitBar[focus]?.dock ?? false) && (
             <div className="segmini" role="radiogroup" aria-label="Dock side">
@@ -2162,16 +2158,14 @@ export function Panel() {
               ))}
             </div>
           )}
-          <div className="helper">A mini shell riding the bar's end — its glyph comes from <b>Component content</b>.</div>
           {baseOf(focus) === "segbar" && (<>
             <div className="sublabel">Segments</div>
             {/* keyed by the FOCUSED piece, not the "segbar" literal — a
-                duplicate keeps its own cell count */}
-            <Slider label="Segments" value={kitBar[focus]?.segments ?? 5} min={2} max={12} unit="" onChange={(v) => setKitBar(focus, { segments: v })} />
+                duplicate keeps its own cell count. Smooth mode is parked
+                (owner call) — cells light one by one; the renderer snaps
+                regardless, so a toggle would lie. */}
+            <Slider label="Segments" value={kitBar[focus]?.segments ?? 5} min={2} max={12} unit="" title="Cells light one by one — stamina pips." onChange={(v) => setKitBar(focus, { segments: v })} />
             <Slider label="Gap" value={kitBar[focus]?.gap ?? 6} min={2} max={14} unit="px" onChange={(v) => setKitBar(focus, { gap: v })} />
-            {/* smooth mode is parked (owner call) — cells light one by one;
-                the renderer snaps regardless, so the toggle would lie */}
-            <div className="helper">Cells light one by one — stamina pips.</div>
           </>)}
         </Section>
       )}
@@ -2201,15 +2195,14 @@ export function Panel() {
           ))}
         </div>
         <div className="chips" style={{ gap: 8 }}>
-          <button className="chipbtn" disabled={missingRoles.length === 0} title={missingRoles.length ? `Add ${missingRoles[0]}` : "All effects present"}
+          <button className="chipbtn" disabled={missingRoles.length === 0} title={`${missingRoles.length ? `Add ${missingRoles[0]}` : "All effects present"} — effect colors are component-only, never the shell`}
             onClick={() => update((c) => { c.effects[missingRoles[0]] = PRESETS.find((p) => p.id === c.presetId)?.effects[missingRoles[0]] ?? "#888888"; })}>
             <Plus size={14} strokeWidth={2} />
           </button>
-          <button className="chipbtn" disabled={presentRoles.length <= 1} title="Remove last effect color"
+          <button className="chipbtn" disabled={presentRoles.length <= 1} title="Remove last effect color — effect colors are component-only, never the shell"
             onClick={() => update((c) => { delete c.effects[presentRoles[presentRoles.length - 1]]; })}>
             <Minus size={14} strokeWidth={2} />
           </button>
-          <span className="helper" style={{ alignSelf: "center" }}>component-only · never the shell</span>
         </div>
         {/* ── the rarity system: five tiers, the maker's own names and
             hues — kit-wide by design (owner: "developers will likely
@@ -2353,8 +2346,7 @@ export function Panel() {
 
       {/* ── E · Lighting ──────────────────────────────────── */}
       <Section id="bars" title={t("secBarsFills")} summary={<span>{cfg.barFx?.grad2.on || cfg.barFx?.glow.on || cfg.barFx?.shadow.on ? "Styled" : "Plain"}</span>}>
-        <div className="helper">Styling layers for every bar fill — progress bars, slider fills, data-row bars. One edit restyles all of them.</div>
-        <FxToggle label="Second gradient" on={cfg.barFx?.grad2.on ?? false}
+        <FxToggle label="Second gradient" title="Layers onto every bar fill — progress bars, slider fills, data-row bars. One edit restyles all of them." on={cfg.barFx?.grad2.on ?? false}
           onToggle={(v) => update((c) => { const b = c.barFx ?? (c.barFx = defaultBarFx()); b.grad2.on = v; })}>
           <Well label="From" value={cfg.barFx?.grad2.color1 ?? "#FFFFFF"} onChange={(v) => update((c) => { const b = c.barFx ?? (c.barFx = defaultBarFx()); b.grad2.color1 = v; })} />
           <Well label="To" value={cfg.barFx?.grad2.color2 ?? "#7ADCFF"} onChange={(v) => update((c) => { const b = c.barFx ?? (c.barFx = defaultBarFx()); b.grad2.color2 = v; })} />
@@ -2369,23 +2361,22 @@ export function Panel() {
           <label className="checkrow"><input type="checkbox" checked={cfg.barFx?.grad2.vertical ?? true}
             onChange={(e) => update((c) => { const b = c.barFx ?? (c.barFx = defaultBarFx()); b.grad2.vertical = e.target.checked; })} /> Vertical sweep</label>
         </FxToggle>
-        <FxToggle label="Fill glow" on={cfg.barFx?.glow.on ?? false}
+        <FxToggle label="Fill glow" title="Layers onto every bar fill — progress bars, slider fills, data-row bars. One edit restyles all of them." on={cfg.barFx?.glow.on ?? false}
           onToggle={(v) => update((c) => { const b = c.barFx ?? (c.barFx = defaultBarFx()); b.glow.on = v; })}>
           <Well label="Color" value={cfg.barFx?.glow.color ?? "#8FF0FF"} onChange={(v) => update((c) => { const b = c.barFx ?? (c.barFx = defaultBarFx()); b.glow.color = v; })} />
           <Slider label="Size" value={cfg.barFx?.glow.size ?? 7} min={2} max={18} unit="px" onChange={(v) => update((c) => { const b = c.barFx ?? (c.barFx = defaultBarFx()); b.glow.size = v; })} />
           <Slider label="Opacity" value={cfg.barFx?.glow.opacity ?? 70} min={0} max={100} unit="%" onChange={(v) => update((c) => { const b = c.barFx ?? (c.barFx = defaultBarFx()); b.glow.opacity = v; })} />
         </FxToggle>
-        <FxToggle label="Inner shadow" on={cfg.barFx?.shadow.on ?? false}
+        <FxToggle label="Inner shadow" title="Layers onto every bar fill — progress bars, slider fills, data-row bars. One edit restyles all of them." on={cfg.barFx?.shadow.on ?? false}
           onToggle={(v) => update((c) => { const b = c.barFx ?? (c.barFx = defaultBarFx()); b.shadow.on = v; })}>
           <Slider label="Opacity" value={cfg.barFx?.shadow.opacity ?? 40} min={0} max={90} unit="%" onChange={(v) => update((c) => { const b = c.barFx ?? (c.barFx = defaultBarFx()); b.shadow.opacity = v; })} />
         </FxToggle>
-        <div className="sublabel">Dragger ball</div>
+        <div className="sublabel" title="The candy ball on sliders, toggles and joysticks.">Dragger ball</div>
         <label className="check"><input type="checkbox" checked={(cfg.knob?.color ?? null) === null}
           onChange={(e) => update((c) => { c.knob = { color: e.target.checked ? null : (c.effects.Bevel ?? "#0E9CC9") }; })} /> Knob color from Color map</label>
         {(cfg.knob?.color ?? null) !== null && (
           <Well label="Knob color" value={cfg.knob!.color!} onChange={(v) => update((c) => { c.knob = { color: v }; })} />
         )}
-        <div className="helper">The candy ball on sliders, toggles and joysticks.</div>
       </Section>
 
       <Section id="lighting" title={t("secLighting")} summary={<span>{D.lighting.angle}°</span>}>
@@ -2394,15 +2385,13 @@ export function Panel() {
         {D.lighting.tint != null && (
           <Well label="Light color" value={D.lighting.tint} onChange={(v) => update((c) => { c.lighting.tint = v; })} />
         )}
-        <Slider label="Light angle" value={D.lighting.angle} min={0} max={360} unit="°" onChange={(v) => update((c) => { c.lighting.angle = ((v % 360) + 360) % 360; })} />
+        <Slider label="Light angle" value={D.lighting.angle} min={0} max={360} unit="°" title="One key light drives every layer — gradients, gloss side, specular position, extrusion flanks and the shadow direction." onChange={(v) => update((c) => { c.lighting.angle = ((v % 360) + 360) % 360; })} />
         <div className="ctl">
           <label>Direction</label>
           <AngleDial value={D.lighting.angle} onChange={(v) => update((c) => { c.lighting.angle = v; })} />
-          <span className="mr-hint">drag the dial or slide above</span>
         </div>
         <Slider label="Highlight" value={D.lighting.highlight} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.lighting.highlight = v; })} />
         <Slider label="Lowlight" value={D.lighting.lowlight} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.lighting.lowlight = v; })} />
-        <div className="helper">One key light drives every layer — gradients, gloss side, specular position, extrusion flanks and the shadow direction.</div>
       </Section>
 
       {/* ── F · Gloss & Reflections ───────────────────────── */}
@@ -2455,11 +2444,11 @@ export function Panel() {
           <div className="segmini" role="radiogroup" aria-label="Gloss layering">
             {([["below", "Below text"], ["above", "Above text"]] as const).map(([v, t]) => (
               <button key={v} className={C.gloss.layer === v ? "on" : ""} role="radio" aria-checked={C.gloss.layer === v}
+                title={v === "above" ? "Seals the label under the candy shell" : "Keeps the label crisp above the gloss"}
                 onClick={() => update((c) => { c.candy.gloss.layer = v; })}>{t}</button>
             ))}
           </div>
         </div>
-        <div className="helper">Above text seals the label under the candy shell; below keeps it crisp.</div>
         </>)}
         <div className="sublabel">Specular</div>
         <label className="check"><input type="checkbox" checked={C.specular.on} onChange={(e) => update((c) => { c.candy.specular.on = e.target.checked; })} /> Specular reflections</label>
@@ -2490,10 +2479,9 @@ export function Panel() {
               <Slider label="Spacing" value={C.specular.gap} min={50} max={300} unit="%" onChange={(v) => update((c) => { c.candy.specular.gap = v; })} />
             )}
             {C.specular.mode !== "sweep" && (<>
-              <Slider label="Angle" value={C.specular.angle} min={-80} max={80} unit="°" onChange={(v) => update((c) => { c.candy.specular.angle = v; })} />
-              <Slider label="Nudge X" value={C.specular.ox} min={-50} max={50} unit="" onChange={(v) => update((c) => { c.candy.specular.ox = v; })} />
-              <Slider label="Nudge Y" value={C.specular.oy} min={-50} max={50} unit="" onChange={(v) => update((c) => { c.candy.specular.oy = v; })} />
-              <div className="helper">The mark rides the silhouette's lit edge — Nudge X travels it edge to edge, Nudge Y sets how deep below the shell it sits, Angle tilts the cut of its ends.</div>
+              <Slider label="Angle" value={C.specular.angle} min={-80} max={80} unit="°" title="Tilts the cut of the mark's ends — it rides the silhouette's lit edge." onChange={(v) => update((c) => { c.candy.specular.angle = v; })} />
+              <Slider label="Nudge X" value={C.specular.ox} min={-50} max={50} unit="" title="Travels the mark edge to edge along the lit silhouette." onChange={(v) => update((c) => { c.candy.specular.ox = v; })} />
+              <Slider label="Nudge Y" value={C.specular.oy} min={-50} max={50} unit="" title="How deep below the shell the mark sits." onChange={(v) => update((c) => { c.candy.specular.oy = v; })} />
             </>)}
           </Adv>
         </>)}
@@ -2504,7 +2492,7 @@ export function Panel() {
 
       {/* ── F2 · Glow — light living inside the candy ─────── */}
       <Section id="glow" title={t("secGlow")} summary={<span>{C.innerGlow.opacity}%</span>}>
-        <div className="sublabel">Inner glow</div>
+        <div className="sublabel" title="Colored light inside the candy, rising from the unlit side.">Inner glow</div>
         <Slider label="Opacity" value={C.innerGlow.opacity} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.candy.innerGlow.opacity = v; })} />
         <Slider label="Spread" value={C.innerGlow.size} min={10} max={100} unit="%" onChange={(v) => update((c) => { c.candy.innerGlow.size = v; })} />
         <label className="check"><input type="checkbox" checked={C.innerGlow.color === null}
@@ -2512,10 +2500,8 @@ export function Panel() {
         {C.innerGlow.color !== null && (
           <Well label="Glow color" value={C.innerGlow.color} onChange={(v) => update((c) => { c.candy.innerGlow.color = v; })} />
         )}
-        <div className="helper">Colored light inside the candy, rising from the unlit side.</div>
         <div className="sublabel">Base glow</div>
-        <Slider label="Base glow" value={C.extrusion.glow} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.candy.extrusion.glow = v; })} />
-        <div className="helper">Light caught in the middle of the body, below the lower bloom. Uses the inner-glow color.</div>
+        <Slider label="Base glow" value={C.extrusion.glow} min={0} max={100} unit="%" title="Light caught in the middle of the body, below the lower bloom. Uses the inner-glow color." onChange={(v) => update((c) => { c.candy.extrusion.glow = v; })} />
       </Section>
 
       {/* ── G · Depth & Shadow ────────────────────────────── */}
@@ -2527,8 +2513,7 @@ export function Panel() {
         <Slider label="Blur" value={D.shadow.blur} min={0} max={60} unit="px" onChange={(v) => update((c) => { c.shadow.blur = v; })} />
         <Slider label="Opacity" value={D.shadow.opacity} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.shadow.opacity = v; })} />
         <div className="sublabel">Body shading</div>
-        <Slider label="Darkness" value={C.extrusion.darkness} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.candy.extrusion.darkness = v; })} />
-        <div className="helper">The body is lit by the key light — its flanks brighten and darken as you spin the angle. Pressing compresses it.</div>
+        <Slider label="Darkness" value={C.extrusion.darkness} min={0} max={100} unit="%" title="The body is lit by the key light — its flanks brighten and darken as you spin the angle. Pressing compresses it." onChange={(v) => update((c) => { c.candy.extrusion.darkness = v; })} />
       </Section>
 
       {/* ── Data row — its own control model: two independent text groups,
@@ -2537,6 +2522,7 @@ export function Panel() {
         <Section id="datarowsec" title={t("secDataRow")}>
           <div className="sublabel">Text group A — title</div>
           <input className="tinput" value={kitRow.title} maxLength={32} aria-label="Row title"
+            title="Long titles clip inside the safe bounds — the layout never moves."
             onChange={(e) => setKitRow({ title: e.target.value })} />
           <Slider label="Size" value={kitRow.titleSize} min={60} max={160} unit="%" onChange={(v) => setKitRow({ titleSize: v })} />
           <Slider label="Tracking" value={kitRow.titleTrack} min={-5} max={20} unit="" onChange={(v) => setKitRow({ titleTrack: v })} />
@@ -2554,9 +2540,8 @@ export function Panel() {
             <Well label="Line 2 color" value={kitRow.subColor} onChange={(v) => setKitRow({ subColor: v })} />
           )}
           <div className="sublabel">Leading</div>
-          <Slider label="Leading" value={kitRow.lineGap ?? 0} min={-30} max={80} unit="px" onChange={(v) => setKitRow({ lineGap: v })} />
-          <Slider label="Block shift" value={kitRow.blockDy ?? 0} min={-24} max={24} unit="px" onChange={(v) => setKitRow({ blockDy: v })} />
-          <div className="helper">Leading opens or closes the space between the title and subtitle; block shift rides both lines up or down together.</div>
+          <Slider label="Leading" value={kitRow.lineGap ?? 0} min={-30} max={80} unit="px" title="Opens or closes the space between the title and subtitle." onChange={(v) => setKitRow({ lineGap: v })} />
+          <Slider label="Block shift" value={kitRow.blockDy ?? 0} min={-24} max={24} unit="px" title="Rides both lines up or down together." onChange={(v) => setKitRow({ blockDy: v })} />
           <div className="sublabel">Slots</div>
           <label className="check"><input type="checkbox" checked={kitRow.avatar} onChange={(e) => setKitRow({ avatar: e.target.checked })} /> Portrait / icon slot</label>
           <label className="check"><input type="checkbox" checked={kitRow.progress} onChange={(e) => setKitRow({ progress: e.target.checked })} /> Progress bar</label>
@@ -2564,7 +2549,6 @@ export function Panel() {
           {kitRow.progress && (
             <Slider label="Progress" value={kitRow.value} min={0} max={100} unit="%" onChange={(v) => setKitRow({ value: v })} />
           )}
-          <div className="helper">Long titles clip inside the safe bounds — the layout never moves.</div>
         </Section>
       )}
 
@@ -2588,7 +2572,6 @@ export function Panel() {
                 placeholder={subFieldName[baseOf(focus)] ?? "Secondary text"}
                 onChange={(e) => setKitSub(focus, e.target.value)} />
             )}
-            <div className="helper">This text belongs to <b>{pieceLabel(focus)}</b> — the kit page, the Board and exports follow. Clear it to fall back to the default.</div>
           </>
         ) : (
           <input className="tinput" value={cfg.content.label} maxLength={32} aria-label="Label text"
@@ -2606,8 +2589,8 @@ export function Panel() {
           ) : null;
         })()}
         <input className="tinput" value={T2.highlight ?? ""} maxLength={32} placeholder="Highlight phrase — e.g. VICTORY" aria-label="Highlight phrase"
+          title="The first matching phrase in the label lights up as brighter material."
           onChange={(e) => update((c) => { c.type.highlight = e.target.value; })} />
-        <div className="helper">The first matching phrase in the label lights up as brighter material.</div>
         <FontPicker value={T2.font} customFonts={T2.customFonts ?? []}
           onPick={(f) => {
             ensureFont(f);
@@ -2627,14 +2610,14 @@ export function Panel() {
           }} />
         <div className="addfont">
           <input className="tinput" value={fontDraft} placeholder="Add Google Font — exact family name" aria-label="Add Google Font"
+            title="Paste the family name exactly as it appears on fonts.google.com (e.g. “Titan One”)."
             onChange={(e) => setFontDraft(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") addFont(); }} />
           <button className="chipbtn" title="Add font" aria-label="Add font" onClick={addFont} disabled={!fontDraft.trim()}>
             <Plus size={14} strokeWidth={2} />
           </button>
         </div>
-        <div className="helper">Paste the family name exactly as it appears on fonts.google.com (e.g. “Titan One”).</div>
-        <label className="fieldbox" style={{ minWidth: 0 }}>
+        <label className="fieldbox" style={{ minWidth: 0 }} title="Reading text — lists, dialogue, chat — speaks this face; titles keep the display font.">
           <span className="fl">List font</span>
           <select value={cfg.type.listFont ?? ""} aria-label="List font"
             onChange={(e) => { const v = e.target.value || null; if (v) ensureFont(v); update((c) => { c.type.listFont = v; }); }}>
@@ -2643,7 +2626,6 @@ export function Panel() {
           </select>
           <span className="chev"><ChevronDown size={17} strokeWidth={2} /></span>
         </label>
-        <div className="helper">Reading text — lists, dialogue, chat — speaks this face; titles keep the display font.</div>
         {/* the reading voice's COLOR, one dial for every list-face surface
             (owner: "change the color of this list font and list fonts
             everywhere") — Auto keeps each surface's designed ink; a piece's
@@ -2652,15 +2634,15 @@ export function Panel() {
           <label>List ink</label>
           <div className="segmini" role="radiogroup">
             <button className={!T2.listInk ? "on" : ""} role="radio" aria-checked={!T2.listInk}
+              title="Auto keeps each surface's designed ink."
               onClick={() => update((c) => { c.type.listInk = null; })}>Auto</button>
             <button className={T2.listInk ? "on" : ""} role="radio" aria-checked={!!T2.listInk}
+              title="Custom pins one ink on every list-face surface."
               onClick={() => update((c) => { if (!c.type.listInk) c.type.listInk = "#FFFFFF"; })}>Custom</button>
           </div>
         </div>
-        {T2.listInk ? (
+        {T2.listInk && (
           <Well label="List ink" value={T2.listInk} onChange={(v) => update((c) => { c.type.listInk = v; })} />
-        ) : (
-          <div className="helper">Auto keeps each surface's designed ink; Custom pins yours.</div>
         )}
         <Slider label="Size" value={T2.size} min={28} max={140} unit="px" onChange={(v) => update((c) => { c.type.size = v; })} />
         {/* stacked labels only — the gap between lines, % of factory leading
@@ -2675,18 +2657,17 @@ export function Panel() {
         {focus ? (
           <>
             <Slider label="Nudge Y" value={kitTextOy[`${focus}:${effKitSize(kitSizes[focus])}`] ?? T2.oy ?? 0} min={-60} max={60} unit="px"
+              title={`Belongs to ${pieceLabel(focus)} at its current size — never moves anything else.`}
               onChange={(v) => setKitTextOy(`${focus}:${effKitSize(kitSizes[focus])}`, v)} />
             <Slider label="Nudge X" value={kitTextOx[`${focus}:${effKitSize(kitSizes[focus])}`] ?? T2.ox ?? 0} min={-60} max={60} unit="px"
+              title={`Belongs to ${pieceLabel(focus)} at its current size — never moves anything else.`}
               onChange={(v) => setKitTextOx(`${focus}:${effKitSize(kitSizes[focus])}`, v)} />
-            <div className="helper">
-              Component-specific — these nudges belong to <b>{pieceLabel(focus)}</b> at its current size and never move anything else.
-              {(kitTextOy[`${focus}:${effKitSize(kitSizes[focus])}`] !== undefined || kitTextOx[`${focus}:${effKitSize(kitSizes[focus])}`] !== undefined) && (
-                <button className="chipbtn" style={{ marginLeft: 8 }} title="Clear this component's nudges — follow the theme again"
-                  onClick={() => { setKitTextOy(`${focus}:${effKitSize(kitSizes[focus])}`, null); setKitTextOx(`${focus}:${effKitSize(kitSizes[focus])}`, null); }}>
-                  <RotateCcw size={12} strokeWidth={2} />
-                </button>
-              )}
-            </div>
+            {(kitTextOy[`${focus}:${effKitSize(kitSizes[focus])}`] !== undefined || kitTextOx[`${focus}:${effKitSize(kitSizes[focus])}`] !== undefined) && (
+              <button className="resetstate" title="Clear this component's nudges — follow the theme again"
+                onClick={() => { setKitTextOy(`${focus}:${effKitSize(kitSizes[focus])}`, null); setKitTextOx(`${focus}:${effKitSize(kitSizes[focus])}`, null); }}>
+                <RotateCcw size={12} strokeWidth={2} /> Clear nudges
+              </button>
+            )}
           </>
         ) : (
           <>
@@ -2706,10 +2687,9 @@ export function Panel() {
           }
           const ws = caps?.weights ?? [T2.weight];
           if (ws.length <= 1) {
-            return (<>
-              <Slider label="Weight" value={T2.weight} min={ws[0] ?? 400} max={900} step={25} unit="" onChange={(v) => update((c) => { c.type.weight = v; })} />
-              <div className="helper">This face ships one master — heavier weights are built optically, fattening the glyphs without touching the metrics.</div>
-            </>);
+            return (
+              <Slider label="Weight" value={T2.weight} min={ws[0] ?? 400} max={900} step={25} unit="" title="This face ships one master — heavier weights are built optically, fattening the glyphs without touching the metrics." onChange={(v) => update((c) => { c.type.weight = v; })} />
+            );
           }
           return (
             <label className="fieldbox" style={{ minWidth: 0 }}>
@@ -2750,7 +2730,6 @@ export function Panel() {
               onClick={() => setKitTextFill(focus, null)}>
               <RotateCcw size={13} strokeWidth={2} /> Release — rejoin the kit's colors
             </button>
-            <div className="helper"><b>Own text color</b> is pinned, so this well drives {fname}'s text. Release it and the kit's fill controls return here.</div>
           </>);
         })() : (<>
         <div className="ctl">
@@ -2778,19 +2757,19 @@ export function Panel() {
             them legible on any face; a pinned color follows the scope bar
             like every other type control (owner: "how do I edit the black
             text?"). */}
-        <div className="ctl">
+        <div className="ctl" title="Timers, counts and stats — the utilitarian numbers on data pieces.">
           <label>Readout ink</label>
           <div className="segmini" role="radiogroup">
             <button className={!T2.infoInk ? "on" : ""} role="radio" aria-checked={!T2.infoInk}
+              title="Auto picks a legible ink for every face."
               onClick={() => update((c) => { c.type.infoInk = null; })}>Auto</button>
             <button className={T2.infoInk ? "on" : ""} role="radio" aria-checked={!!T2.infoInk}
+              title="Custom pins one ink on every readout."
               onClick={() => update((c) => { if (!c.type.infoInk) c.type.infoInk = "#FFFFFF"; })}>Custom</button>
           </div>
         </div>
-        {T2.infoInk ? (
+        {T2.infoInk && (
           <Well label="Readout ink" value={T2.infoInk} onChange={(v) => update((c) => { c.type.infoInk = v; })} />
-        ) : (
-          <div className="helper">Timers, counts and stats — Auto picks a legible ink; Custom pins yours.</div>
         )}
 
         {/* per-piece text color — the escape hatch from "changing text color
@@ -2799,16 +2778,16 @@ export function Panel() {
           const fname = pieceLabel(focus);
           return (<>
             <div className="sublabel">This piece only</div>
-            <label className="check"><input type="checkbox" checked={!!kitTextFill[focus]}
-              onChange={(e) => setKitTextFill(focus, e.target.checked ? (T2.fillMode !== "auto" ? T2.fill : "#FFFFFF") : null)} />
+            <label className="check" title={kitTextFill[focus]
+              ? `Pinned — ${fname} keeps its color no matter how the kit changes. The color well replaces Fill above; untick to rejoin the kit.`
+              : `Pins one color to ${fname}'s text — the rest of the kit keeps following the fills.`}>
+              <input type="checkbox" checked={!!kitTextFill[focus]}
+                onChange={(e) => setKitTextFill(focus, e.target.checked ? (T2.fillMode !== "auto" ? T2.fill : "#FFFFFF") : null)} />
               Own text color for <b>{fname}</b></label>
-            {kitTextFill[focus] && (
-              <div className="helper">Pinned — {fname} keeps its color no matter how the kit changes. The color well lives up in <b>Fill</b>; untick to rejoin the kit.</div>
-            )}
           </>);
         })()}
 
-        <label className="fieldbox" style={{ minWidth: 0 }}>
+        <label className="fieldbox" style={{ minWidth: 0 }} title="Presets fill the controls below — keep tweaking, nothing locks.">
           <span className="fl">Text style preset</span>
           <select value={T2.preset} aria-label="Text style preset"
             onChange={(e) => update((c) => { applyTextPreset(c.type, e.target.value, palette); })}>
@@ -2816,7 +2795,6 @@ export function Panel() {
           </select>
           <span className="chev"><ChevronDown size={17} strokeWidth={2} /></span>
         </label>
-        <div className="helper">Presets fill the controls below — keep tweaking, nothing locks.</div>
 
         <FxToggle label="Outline" on={T2.outline.on} onToggle={(v) => update((c) => { c.type.outline.on = v; })}>
           <Well label={T2.outline.color2 ? "Stroke top" : "Color"} value={T2.outline.color} onChange={(v) => update((c) => { c.type.outline.color = v; })} />
@@ -2839,7 +2817,7 @@ export function Panel() {
           <Slider label="Blur" value={T2.shadow.blur} min={0} max={12} step={0.5} unit="px" onChange={(v) => update((c) => { c.type.shadow.blur = v; })} />
           <Slider label="Opacity" value={T2.shadow.opacity} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.type.shadow.opacity = v; })} />
         </FxToggle>
-        <FxToggle label="Emboss / Deboss" on={T2.emboss.on} onToggle={(v) => update((c) => { c.type.emboss.on = v; })}>
+        <FxToggle label="Emboss / Deboss" title="Positive depth embosses, negative debosses — the relief follows the master light." on={T2.emboss.on} onToggle={(v) => update((c) => { c.type.emboss.on = v; })}>
           <Slider label="Depth" value={T2.emboss.strength} min={-100} max={100} unit="%" onChange={(v) => update((c) => { c.type.emboss.strength = v; })} />
           <Slider label="Distance" value={T2.emboss.distance ?? 2} min={0} max={8} step={0.5} unit="px" onChange={(v) => update((c) => { c.type.emboss.distance = v; })} />
           <Slider label="Hi softness" value={T2.emboss.softness ?? 30} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.type.emboss.softness = v; })} />
@@ -2850,14 +2828,13 @@ export function Panel() {
           <div className="sublabel">Shadow side</div>
           <Well label="Color" value={T2.emboss.shColor ?? "#04080E"} onChange={(v) => update((c) => { c.type.emboss.shColor = v; })} />
           <Slider label="Opacity" value={T2.emboss.shOpacity ?? 60} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.type.emboss.shOpacity = v; })} />
-          <div className="helper">Positive embosses, negative debosses — the relief follows the master light.</div>
         </FxToggle>
         <FxToggle label="Glow" on={T2.glow.on} onToggle={(v) => update((c) => { c.type.glow.on = v; })}>
           <Well label="Color" value={T2.glow.color} onChange={(v) => update((c) => { c.type.glow.color = v; })} />
           <Slider label="Size" value={T2.glow.size} min={2} max={24} unit="px" onChange={(v) => update((c) => { c.type.glow.size = v; })} />
           <Slider label="Opacity" value={T2.glow.opacity} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.type.glow.opacity = v; })} />
         </FxToggle>
-        <FxToggle label="Pattern fill" on={T2.stripes?.on ?? false}
+        <FxToggle label="Pattern fill" title="Any face pattern inside the letterforms — tone-on-tone from the shell color. Unity: live labels skip it (one shared text material can't tile every label length) — Type Stamps carry it pixel-perfect, and the seamless tile ships in fonts/." on={T2.stripes?.on ?? false}
           onToggle={(v) => update((c) => { c.type.stripes = { ...(c.type.stripes ?? {}), on: v, angle: c.type.stripes?.angle ?? 45, opacity: c.type.stripes?.opacity ?? 30, style: c.type.stripes?.style ?? "stripes" }; })}>
           <div className="ctl">
             <label>Style</label>
@@ -2873,10 +2850,8 @@ export function Panel() {
           <Slider label="Angle" value={T2.stripes?.angle ?? 45} min={0} max={180} unit="°" onChange={(v) => update((c) => { c.type.stripes = { ...(c.type.stripes ?? { on: true, opacity: 30 }), on: c.type.stripes?.on ?? true, angle: v, opacity: c.type.stripes?.opacity ?? 30 }; })} />
           <Slider label="Scale" value={T2.stripes?.scale ?? 100} min={25} max={300} unit="%" onChange={(v) => update((c) => { c.type.stripes = { ...(c.type.stripes ?? { on: true, angle: 45, opacity: 30 }), on: c.type.stripes?.on ?? true, angle: c.type.stripes?.angle ?? 45, opacity: c.type.stripes?.opacity ?? 30, scale: v }; })} />
           <Slider label="Opacity" value={T2.stripes?.opacity ?? 30} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.type.stripes = { ...(c.type.stripes ?? { on: true, angle: 45 }), on: c.type.stripes?.on ?? true, angle: c.type.stripes?.angle ?? 45, opacity: v }; })} />
-          <div className="helper">Any face pattern, inside the letterforms — tone-on-tone from the shell color.</div>
-          <div className="helper">Unity export: stays off live labels (one shared text material can't tile right for every label length) — Type Stamps carry it pixel-perfect, and the seamless tile ships in fonts/ for devs who want it anyway.</div>
         </FxToggle>
-        <FxToggle label="Highlight glints" on={T2.glints?.on ?? false}
+        <FxToggle label="Highlight glints" title="Crisp vector highlights riding the letterforms — a specular slab clipped to the glyphs plus star glints, following the master Lighting angle. Unity: per-letter painting ships baked into the sprites and Type Stamps; live labels carry the rest of the treatment." on={T2.glints?.on ?? false}
           onToggle={(v) => update((c) => { c.type.glints = { ...(c.type.glints ?? { opacity: 55 }), on: v, opacity: c.type.glints?.opacity ?? 55 }; })}>
           <label className="fieldbox" style={{ minWidth: 0 }}>
             <span className="fl">Glint style</span>
@@ -2899,16 +2874,14 @@ export function Panel() {
               nudges used to rebuild it from scratch and silently dropped
               style and blend (field notes #3: "changing the nudge values
               reset Glint style to Specular slab and stars") */}
-          <Slider label="Nudge X" value={T2.glints?.ox ?? 0} min={-60} max={60} unit="%" onChange={(v) => update((c) => { c.type.glints = { ...(c.type.glints ?? { opacity: 55 }), on: c.type.glints?.on ?? true, opacity: c.type.glints?.opacity ?? 55, ox: v }; })} />
-          <Slider label="Nudge Y" value={T2.glints?.oy ?? 0} min={-60} max={60} unit="%" onChange={(v) => update((c) => { c.type.glints = { ...(c.type.glints ?? { opacity: 55 }), on: c.type.glints?.on ?? true, opacity: c.type.glints?.opacity ?? 55, oy: v }; })} />
-          <div className="helper">Crisp vector highlights riding the letterforms — a specular slab clipped to the glyphs plus star glints. They follow the master Lighting angle; the nudges shift the whole treatment in % of the letter height.</div>
-          <div className="helper">Unity export: glints are per-letter painting no live-text engine can replay — they ship baked into the sprites and Type Stamps; live labels carry the rest of the treatment.</div>
+          <Slider label="Nudge X" value={T2.glints?.ox ?? 0} min={-60} max={60} unit="%" title="Shifts the whole treatment in % of the letter height." onChange={(v) => update((c) => { c.type.glints = { ...(c.type.glints ?? { opacity: 55 }), on: c.type.glints?.on ?? true, opacity: c.type.glints?.opacity ?? 55, ox: v }; })} />
+          <Slider label="Nudge Y" value={T2.glints?.oy ?? 0} min={-60} max={60} unit="%" title="Shifts the whole treatment in % of the letter height." onChange={(v) => update((c) => { c.type.glints = { ...(c.type.glints ?? { opacity: 55 }), on: c.type.glints?.on ?? true, opacity: c.type.glints?.opacity ?? 55, oy: v }; })} />
         </FxToggle>
-        <FxToggle label="Ink shine" on={T2.shine?.on ?? false}
+        <FxToggle label="Ink shine" title="Hand-inked light crescents hugging each letterform's lit edges — bowls get shoulder sweeps, stems get caps — following the master Lighting angle. Blend overlay or soft-light reads as glassy lift on gradient fills. Unity: ships baked into the sprites and Type Stamps; live labels carry the rest." on={T2.shine?.on ?? false}
           onToggle={(v) => update((c) => { c.type.shine = { size: 4, inset: 2, round: 2, opacity: 100, ...(c.type.shine ?? {}), on: v }; })}>
-          <Slider label="Size" value={T2.shine?.size ?? 4} min={1} max={10} step={0.5} unit="px"
+          <Slider label="Size" value={T2.shine?.size ?? 4} min={1} max={10} step={0.5} unit="px" title="How far the light reaches along each edge."
             onChange={(v) => update((c) => { c.type.shine = { on: true, inset: 2, round: 2, opacity: 100, ...(c.type.shine ?? {}), size: v }; })} />
-          <Slider label="Inset" value={T2.shine?.inset ?? 2} min={0} max={6} step={0.5} unit="px"
+          <Slider label="Inset" value={T2.shine?.inset ?? 2} min={0} max={6} step={0.5} unit="px" title="Floats the ink inside the letter."
             onChange={(v) => update((c) => { c.type.shine = { on: true, size: 4, round: 2, opacity: 100, ...(c.type.shine ?? {}), inset: v }; })} />
           <Slider label="Opacity" value={T2.shine?.opacity ?? 100} min={0} max={100} unit="%"
             onChange={(v) => update((c) => { c.type.shine = { on: true, size: 4, inset: 2, round: 2, ...(c.type.shine ?? {}), opacity: v }; })} />
@@ -2926,10 +2899,9 @@ export function Panel() {
             <Well label="Shine color" value={T2.shine?.color ?? "#FFFFFF"}
               onChange={(v) => update((c) => { c.type.shine = { on: true, size: 4, inset: 2, round: 2, opacity: 100, ...(c.type.shine ?? {}), color: v }; })} />
           </Adv>
-          <div className="helper">Hand-inked light crescents hugging each letterform's lit edges — bowls get shoulder sweeps, stems get caps, all derived from the glyph's own shape. Size is how far the light reaches; Inset floats the ink inside the letter. Follows the master Lighting angle. Blend `overlay` or `soft-light` reads as glassy lift on gradient fills.</div>
-          <div className="helper">Unity export: like glints, this is per-letter painting no live-text engine can replay — it ships baked into the sprites and Type Stamps; live labels carry the rest of the treatment.</div>
         </FxToggle>
-        <div className="helper">Some treatments read differently against light and dark grounds — a pale glint fades on a light canvas, a dark emboss sinks into a black one. Flip the canvas swatches in the stage toolbar to proof your type both ways.</div>
+        {/* round-56 affordance purge: the light/dark proofing advice left —
+            the canvas swatches in the stage toolbar ARE the affordance */}
         {/* data-anchor: Dissect's "icon" deep link lands here — the parked
             standalone Icon section never mounts, so this block is the icon's
             real home (smartHelp.ts routes to it) */}
@@ -2957,14 +2929,13 @@ export function Panel() {
             same inherit-with-escape-hatch contract as the color below */}
         {T2.outline.on && (<>
           <Slider label="Outline width" value={IC.outlineWidth ?? T2.outline.width} min={0} max={8} step={0.5} unit="px"
+            title={IC.outlineWidth == null ? "Following Type → Outline — move the slider and the icon border takes its own width. 0 removes it; the text keeps its outline." : undefined}
             onChange={(v) => update((c) => { c.icon.outlineWidth = v; })} />
-          {IC.outlineWidth != null ? (
+          {IC.outlineWidth != null && (
             <button className="resetstate" title="Drop the icon's own width — the border follows Type → Outline again"
               onClick={() => update((c) => { c.icon.outlineWidth = null; })}>
               <RotateCcw size={13} strokeWidth={2} /> Follow the type outline
             </button>
-          ) : (
-            <div className="helper">Following <b>Type → Outline</b> — move the slider and the icon border takes its own width. 0 removes it; the text keeps its outline.</div>
           )}
         </>)}
         <Slider label="Opacity" value={IC.opacity} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.icon.opacity = v; })} />
@@ -2976,7 +2947,7 @@ export function Panel() {
         <label className="check"><input type="checkbox" checked={IC.color === null}
           onChange={(e) => update((c) => { c.icon.color = e.target.checked ? null : "#FFFFFF"; })} /> Inherit type color</label>
         {IC.color !== null && <Well label="Custom color" value={IC.color} onChange={(v) => update((c) => { c.icon.color = v; })} />}
-        <div className="sublabel">Icon effects</div>
+        <div className="sublabel" title="Every glyph in the kit follows this one treatment — swap a single piece's glyph in Component content.">Icon effects</div>
         <div className="fxrow">
           {(["shadow", "glow", "emboss"] as const).map((f) => (
             <button key={f} className={`fxchip${IC.fx[f] ? " on" : ""}`} aria-pressed={IC.fx[f]}
@@ -2985,7 +2956,6 @@ export function Panel() {
             </button>
           ))}
         </div>
-        <div className="helper">Every glyph in the kit follows this one treatment — swap a single piece's glyph in <b>Component content</b>.</div>
         </div>
       </Section>
 
@@ -3083,7 +3053,6 @@ export function Panel() {
             </div>
           ))}
         </div>
-        {library.length > 0 && <div className="helper">Click a thumbnail to load it into the editor. Send to board to sketch layouts.</div>}
       </Section>
 
       {/* ── States shown ──────────────────────────────────── */}
