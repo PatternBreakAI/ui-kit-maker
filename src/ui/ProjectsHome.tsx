@@ -62,6 +62,15 @@ export function ProjectsHome() {
   const [settleBusy, setSettleBusy] = useState(false);
   const importRef = useRef<HTMLInputElement>(null);
 
+  /* house modal manners (round 56, the switch-look sweep): Escape backs
+     out of the close-settle sheet like its Cancel — never mid-save */
+  useEffect(() => {
+    if (!closing || settleBusy) return;
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setClosing(null); };
+    document.addEventListener("keydown", esc);
+    return () => document.removeEventListener("keydown", esc);
+  }, [closing, settleBusy]);
+
   const refresh = async () => {
     const { projects, error } = await listProjects();
     setItems(projects);
@@ -368,7 +377,11 @@ export function ProjectsHome() {
       {/* ── the close-settle sheet: unsaved work gets its yes, in file
            words (plan decision 3) — one question, three honest doors ── */}
       {closing && (
-        <div className="ph-veil" role="dialog" aria-modal="true" aria-label={`Close “${closing.name}”`}>
+        /* house modal manners (round 56, the switch-look sweep): the
+           backdrop dismisses like Cancel — never mid-save; Escape rides
+           the effect above */
+        <div className="ph-veil" role="dialog" aria-modal="true" aria-label={`Close “${closing.name}”`}
+          onClick={(e) => { if (e.target === e.currentTarget && !settleBusy) setClosing(null); }}>
           <div className="ph-sheet">
             <b>Update “{closing.name}” before closing?</b>
             <p>You have edits that aren't in the saved file yet.</p>

@@ -684,6 +684,14 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
   color: #fff; background: var(--accent, #6366f1);
   padding: 2px 7px; border-radius: 999px; pointer-events: none;
 }
+/* a saved look whose face genuinely can't load says so instead of
+   silently wearing the wrong letterforms (round 56 honest-thumb rule) */
+.presetstandin {
+  position: absolute; top: 6px; right: 6px; z-index: 2;
+  font-size: 8px; font-weight: 700; letter-spacing: .08em;
+  color: var(--ink3, #8b93a8); background: color-mix(in srgb, var(--ink3, #8b93a8) 14%, transparent);
+  padding: 2px 6px; border-radius: 999px;
+}
 
 /* ── held packs (admin only) ──────────────────────────────────────
    A pack with a future publish_at is invisible to everyone else — the

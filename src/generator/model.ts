@@ -5,7 +5,7 @@
 // One config drives canvas, code copy, HTML download, and exports.
 
 // safe despite silhouettes.ts importing from here: that edge is type-only
-import { SILHOUETTES } from "./silhouettes";
+import { SILHOUETTES, silhouetteUnpickable } from "./silhouettes";
 // leaf module (no imports) — the semantic glyph registry drives the glyph
 // pieces' roster and shape map so a new glyph needs only its registry entry
 import { GLYPH_LIBRARY, LIVE_GLYPHS, glyphById } from "./glyphLibrary";
@@ -993,9 +993,11 @@ export function rollStatement(): RollStatement {
   const r0 = Math.random();
   return r0 < 0.28 ? "pattern" : r0 < 0.5 ? "cut" : r0 < 0.72 ? "font" : r0 < 0.82 ? "glass" : "quiet";
 }
-/** The classic button rack — cuts calm enough to carry any palette. */
+/** The classic button rack — cuts calm enough to carry any palette.
+ *  Retired and forever-deleted silhouettes stay out (round 56): a roll
+ *  must never wear a cut the picker can't offer back. */
 export function classicRack(exceptShape?: string) {
-  return SILHOUETTES.filter((m) => m.category === "Buttons" && !m.gothicCut && !m.preview && m.id !== exceptShape);
+  return SILHOUETTES.filter((m) => m.category === "Buttons" && !m.gothicCut && !m.preview && !silhouetteUnpickable(m.id) && m.id !== exceptShape);
 }
 
 export function randomizeConfig(c: GenConfig, excludePresetIds: string[] = [], statement: RollStatement = rollStatement()): GenConfig {
@@ -1017,9 +1019,10 @@ export function randomizeConfig(c: GenConfig, excludePresetIds: string[] = [], s
     // statement keeps the cut classic so the roll's one loud move stays
     // the only loud move. Preset jumps above keep their curated cuts.
     const rack = statement === "cut"
-      ? SILHOUETTES.filter((m) => (m.category === "Buttons" || m.gothicCut) && !m.preview && m.id !== c.shape)
+      ? SILHOUETTES.filter((m) => (m.category === "Buttons" || m.gothicCut) && !m.preview && !silhouetteUnpickable(m.id) && m.id !== c.shape)
       : classicRack(c.shape);
-    c = { ...c, shape: rack[Math.floor(Math.random() * rack.length)].id };
+    // an emptied rack (aggressive curation) keeps the current cut
+    if (rack.length) c = { ...c, shape: rack[Math.floor(Math.random() * rack.length)].id };
   }
   const h = r(0, 359);
   // contrast-first: complementary-family schemes dominate; shell sits well
@@ -1679,8 +1682,18 @@ export const KIT_LESSONS: Partial<Record<KitComponentId, KitLesson>> = {
    road every piece already rides). No factory seed — unlike the glyph
    DISPLAY pieces, these are buttons and stay on the buttons' look. */
 export const SEAT_SIT_OUT = ["coinsingle", "coinpile", "starformation"];
+/* deleted BUTTONS (owner removals — "can you just delete the coin stack
+   glyph button", 2026-09-01): a button-specific exclusion, NOT a seat one —
+   the glyph itself stays a full citizen (semantic rack, icon:glyph seat
+   grammar, its display piece) while its ready-made button leaves the
+   product: roster, Sec 09, board tray, the bay's group card and the
+   export fleet all derive from GLYPH_BUTTONS and follow. Placed content
+   keeps rendering through the full-registry KIT_SHAPE/KIT_SLOTS seeding
+   below (the delete-forever tombstone pattern); an orphaned release-ledger
+   row for a deleted button is inert (nothing iterates ledger keys). */
+export const GBTN_DELETED = ["coinstack"];
 export const GLYPH_BUTTONS: { id: KitComponentId; glyph: string; name: string; glyphName: string }[] =
-  LIVE_GLYPHS.filter((g) => !SEAT_SIT_OUT.includes(g.id))
+  LIVE_GLYPHS.filter((g) => !SEAT_SIT_OUT.includes(g.id) && !GBTN_DELETED.includes(g.id))
     .map((g) => ({ id: `gbtn${g.id}` as KitComponentId, glyph: g.id, name: `Glyph Button · ${g.name}`, glyphName: g.name }));
 export type GlyphButtonId = Extract<KitComponentId, `gbtn${string}`>;
 export const isGlyphButton = (id: KitComponentId): id is GlyphButtonId => id.startsWith("gbtn");
@@ -2296,10 +2309,14 @@ export const KIT_SHAPE: Partial<Record<KitComponentId, Shape>> = {
 for (const g of GLYPH_LIBRARY) KIT_SHAPE[`glyph${g.id}` as KitComponentId] = `glyph:${g.id}`;
 // every glyph BUTTON wears the slot button's frame — same default
 // silhouette (so the silhouette panel tells the truth) and the same
-// qty-chip word slot; per-piece overrides still win like any component
-for (const b of GLYPH_BUTTONS) {
-  KIT_SHAPE[b.id] = KIT_SHAPE.slotbtn;
-  KIT_SLOTS[b.id] = KIT_SLOTS.slotbtn!;
+// qty-chip word slot; per-piece overrides still win like any component.
+// Seeded from the FULL registry, not the roster (the glyph pieces' rule
+// one loop up): a DELETED button (GBTN_DELETED) leaves every picker, but
+// content already wearing it keeps its frame default and its qty slot —
+// the render peel resolves gbtn ids straight off the registry too.
+for (const g of GLYPH_LIBRARY) {
+  KIT_SHAPE[`gbtn${g.id}` as KitComponentId] = KIT_SHAPE.slotbtn;
+  KIT_SLOTS[`gbtn${g.id}` as KitComponentId] = KIT_SLOTS.slotbtn!;
 }
 
 /* Stock glyphs for kit components — canonical Lucide paths, embedded so the

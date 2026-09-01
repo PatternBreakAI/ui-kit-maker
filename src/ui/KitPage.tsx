@@ -2,7 +2,7 @@ import { Component, useEffect, useMemo, useRef, useState, type CSSProperties, ty
 import "@/styles/pricing.css"; // the staging bay wears the community desk's cg-curate buttons
 import { ChevronDown, Download, Lock, PenTool, Pin, ShieldCheck, SquarePen, Trash2 } from "lucide-react";
 import { useGen } from "@/generator/store";
-import { CLONE_KINDS, EFFECT_ROLES, GLYPH_BUTTONS, KIT_COMPONENTS, PRESETS, ROLE_HINT, SHAPES, STOCK_ICONS, STAGED_KIT, applyKitDesign, applyKitTextFill, baseOf, fontByName, groupOf, hexMix, isDarkBg, isGlyphButton, effKitSize, kitVisible, resolveKitIcon, sanitizeUnitySlug } from "@/generator/model";
+import { CLONE_KINDS, EFFECT_ROLES, GLYPH_BUTTONS, KIT_COMPONENTS, KIT_SHAPE, PRESETS, ROLE_HINT, SHAPES, STOCK_ICONS, STAGED_KIT, applyKitDesign, applyKitTextFill, baseOf, baseShape, fontByName, groupOf, hexMix, isDarkBg, isGlyphButton, effKitSize, kitVisible, resolveKitIcon, sanitizeUnitySlug } from "@/generator/model";
 import { LIVE_GLYPHS } from "@/generator/glyphLibrary";
 import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, Shape } from "@/generator/model";
 import { renderBevel, renderKit, renderTypeSpecimen } from "@/generator/bevel";
@@ -2943,8 +2943,17 @@ const kitTier = useGen((s) => s.tier);
                     // EXCEPT ones this kit actually wears: the README tells the
                     // user to slice by this file, so their own shapes must be in it
                     silhouettes: (() => {
-                      const used = new Set([st.cfg.shape, ...Object.values(st.kitShapes)]);
-                      return SILHOUETTES.filter((s) => !s.preview || st.isAdmin || used.has(s.id)).map((s) => ({ id: s.id, name: s.name, capScale: s.capScale, content: s.content }));
+                      /* "worn" must see the whole wardrobe: baseShape() folds
+                         ~flip wearers onto their registered id, and the
+                         visible pieces' KIT_SHAPE defaults join the union —
+                         a component that never left its curated default
+                         (trophyicon on stock:trophycup) wears it just as
+                         surely as an explicit kitShapes pick */
+                      const used = new Set([st.cfg.shape, ...Object.values(st.kitShapes), ...KIT_COMPONENTS.filter((c2) => kitVisible(c2.id, st.componentReleases, st.isAdmin)).map((c2) => KIT_SHAPE[c2.id])].flatMap((s2) => (s2 ? baseShape(s2) : [])));
+                      // forever-deleted shapes stay out of the metadata too —
+                      // EXCEPT ones this kit actually wears (tombstone: the
+                      // user's own content stays fully documented)
+                      return SILHOUETTES.filter((s) => (!s.preview || st.isAdmin || used.has(s.id)) && (!st.deletedSilhouettes.includes(s.id) || used.has(s.id))).map((s) => ({ id: s.id, name: s.name, capScale: s.capScale, content: s.content }));
                     })(),
                   }, null, 2),
                 });

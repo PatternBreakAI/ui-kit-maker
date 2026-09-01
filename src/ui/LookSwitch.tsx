@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import "@/styles/pricing.css";
 import { useGen } from "@/generator/store";
@@ -19,6 +20,18 @@ export function LookSwitch() {
   const confirm = useGen((s) => s.confirmPendingLook);
   const cancel = useGen((s) => s.cancelPendingLook);
 
+  /* the standard dismissal manners (owner, round 56: "we should add a
+     'cancel' button to the switch look modal... clicking outside the modal
+     should also kill it"): Escape here, the backdrop below, the Cancel
+     button in the row — all three run the same cancel, which only clears
+     the pending look (no changes, no history entry). */
+  useEffect(() => {
+    if (!pending || busy !== null) return;
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") cancel(); };
+    document.addEventListener("keydown", esc);
+    return () => document.removeEventListener("keydown", esc);
+  }, [pending, busy, cancel]);
+
   if (busy !== null) {
     return (
       <div className="lookbusy" role="status" aria-live="polite">
@@ -31,7 +44,8 @@ export function LookSwitch() {
   }
   if (!pending) return null;
   return (
-    <div className="ph-veil" role="dialog" aria-modal="true" aria-label="Switch look">
+    <div className="ph-veil" role="dialog" aria-modal="true" aria-label="Switch look"
+      onClick={(e) => { if (e.target === e.currentTarget) cancel(); }}>
       <div className="ph-sheet">
         <b>Switch to {pending.name ? `“${pending.name}”` : "this look"}?</b>
         <p>
@@ -42,7 +56,7 @@ export function LookSwitch() {
         </p>
         <div className="ph-sheetrow">
           <button className="fd-pricing__cta" onClick={confirm}>Switch look</button>
-          <button className="cg-open" onClick={cancel}>Keep my tweaks</button>
+          <button className="cg-open" onClick={cancel} title="Nothing changes — your tweaks stay as they are">Cancel</button>
         </div>
       </div>
     </div>

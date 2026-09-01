@@ -5,12 +5,12 @@ import type { KitClone } from "./model";
 import { ensureFont, fontReady, awaitFonts } from "./fonts";
 import { delBgOriginal, getBgOriginal, putBgOriginal } from "./bgvault";
 import { isAssetRef, resolveBgAsset, assetCloudBacked, bgAssetDisplayUrl } from "./assets";
-import { SILHOUETTES } from "./silhouettes";
+import { SILHOUETTES, silhouetteUnpickable, setUnpickableSilhouettes } from "./silhouettes";
 import type { UserShape } from "./model";
 import { addShine, renderBevel, renderKit, renderTypeSpecimen } from "./bevel";
 import { getDef } from "./icons";
 import { bigGlyphById, BIG_GLYPH_BASE, type BigGlyphFx } from "./bigGlyphs";
-import { listCloudPresets, publishCloudPreset, updateCloudPreset, deleteCloudPreset, setCloudPresetSchedule, listHiddenStarters, setHiddenStarters, listHiddenSilhouettes, setHiddenSilhouettes, myProfileTier, cloudStatus, listComponentReleases, saveComponentReleases, listPromos, readPromosLive, noteLocalDocReplaced, readGateSnapshot, writeGateSnapshot, hasStoredSession, type CloudPreset, type PromoDef, type ReleaseStatus } from "./cloud";
+import { listCloudPresets, publishCloudPreset, updateCloudPreset, deleteCloudPreset, setCloudPresetSchedule, listHiddenStarters, setHiddenStarters, listHiddenSilhouettes, setHiddenSilhouettes, listDeletedSilhouettes, setDeletedSilhouettes, myProfileTier, cloudStatus, listComponentReleases, saveComponentReleases, listPromos, readPromosLive, noteLocalDocReplaced, readGateSnapshot, writeGateSnapshot, hasStoredSession, type CloudPreset, type PromoDef, type ReleaseStatus } from "./cloud";
 import { capsOf, type Tier } from "./entitlements";
 import siteDefaultJson from "./site-default.json";
 import bubblePopJson from "./preset-bubble-pop.json";
@@ -242,6 +242,13 @@ function migrateV8(old: Record<string, any>): GenConfig {
    always current, and ./default-settings.json — when reachable — overrides it,
    which keeps "upload one JSON" as the admin path. */
 let siteDefault: GenConfig | null = hydrate(siteDefaultJson as Record<string, any>);
+/* The base document's IDENTITY, for surfaces that cache art cut from it
+   (the Looks rack's starter thumbs). It moves only when
+   ./default-settings.json actually lands a DIFFERENT base — the every-boot
+   refetch of an unchanged file costs nothing — so a cache keyed on it
+   re-cuts at its next render instead of lying until reload. */
+let siteDefaultGen = 0;
+export function defaultGeneration(): number { return siteDefaultGen; }
 export function getDefault(): GenConfig {
   const d = siteDefault ?? defaultConfig();
   return (typeof structuredClone === "function" ? structuredClone(d) : JSON.parse(JSON.stringify(d))) as GenConfig;
@@ -251,10 +258,44 @@ export function fetchSiteDefault(): void {
     .then((r) => (r.ok ? r.json() : null))
     .then((j) => {
       if (!j || typeof j !== "object" || !j.presetId || !j.candy) return;
-      siteDefault = hydrate(j as Record<string, any>);
+      const next = hydrate(j as Record<string, any>);
+      if (JSON.stringify(next) !== JSON.stringify(siteDefault)) siteDefaultGen++;
+      siteDefault = next;
       adoptDefaultIfUntouched();
     })
     .catch(() => { adoptDefaultIfUntouched(); /* bundled default stands */ });
+}
+/** The COMPLETE design one starter click lands — setPreset applies exactly
+    this document, and the Looks rack renders its thumbnails from it, so a
+    card is a promise, not an approximation (owner, round 56: "the font in
+    the thumb should match the font that you see when you click the thumb
+    to load the look"). Extracted verbatim from setPreset; the two callers
+    can never drift apart again. */
+export function presetLookConfig(id: string): GenConfig {
+  const p = presetById(id);
+  if (PRESET_DEFAULTS[id]) {
+    // an authored starter ships as a fully authored look (e.g. Chevon's
+    // bubblepopdefault) — its complete design loads as-is
+    return hydrate(structuredClone(PRESET_DEFAULTS[id]));
+  }
+  // a recipe starter lands as the blessed universal default DRESSED in the
+  // starter's recipe — deterministic, whatever came before
+  const c = getDefault();
+  c.presetId = id;
+  c.shape = p.shape; c.bevel = { ...p.bevel }; c.effects = { ...p.effects };
+  // the starter's typography voice comes with it — a preset switch that
+  // keeps the old face reads as "the fonts don't update"
+  if (p.font) { c.type.font = p.font; c.type.weight = clampWeight(fontByName(p.font).caps, p.fontWeight ?? c.type.weight); }
+  const candy = defaultCandy();
+  applyPresetCandy(candy, p);
+  c.candy = candy;
+  /* a preset is a COMPLETE style recipe — the base document's own
+     per-state forks must not survive under it, or hover/pressed
+     flash the old design (adversarial review find, 2026-07-25).
+     States mirror the new master live; re-forking is one edit away. */
+  c.stateDesigns = {};
+  retintText(c);
+  return c;
 }
 /* Anyone who has never edited (fresh visitor, or someone who only looked
    around) follows the site default — their library and board are untouched. */
@@ -652,10 +693,20 @@ interface GenStore {
   /** Starter-preset ids an admin retired for every visitor (cloud-stored). */
   hiddenStarters: string[];
   hideStarterPreset: (id: string) => Promise<string | null>;
-  /** stock silhouettes retired from the picker for everyone (admin curation) */
+  /** stock silhouettes retired from the picker for everyone (admin curation).
+   *  LEGACY ledger: still readable, still restorable in one click — new
+   *  deletes never write here (the delete-forever regime below). */
   hiddenSilhouettes: string[];
   retireSilhouette: (id: string) => Promise<string | null>;
   restoreSilhouettes: () => Promise<string | null>;
+  /** stock silhouettes DELETED FOREVER (round 56, owner mandate): gone from
+   *  every picker, showpiece tab, random pool and admin list, for everyone,
+   *  with no restore affordance. Tombstone semantics — geometry stays in
+   *  the bundle so existing kits/boards keep rendering. Separate ledger
+   *  from hiddenSilhouettes BY DESIGN: no click order can sweep a legacy
+   *  retire (the afterburner) into permanence. */
+  deletedSilhouettes: string[];
+  deleteSilhouetteForever: (id: string) => Promise<string | null>;
   restoreStarterPresets: () => Promise<string | null>;
   /** Spotlight — the ordered promo lineup (cloud-curated; order = priority)
    *  and the global gate the owner flips. Cards render on the kit-page
@@ -1620,7 +1671,21 @@ async function landLook(name: string | null, families: string[], commit: () => v
     useGen.setState({ lookBusy: name ?? "the look" });
     try { await awaitFonts(families); } catch { /* fallback stands — land anyway */ }
   }
-  try { commit(); } finally {
+  try {
+    commit();
+    /* Round 56, owner: "when i switch looks I should be dropped off in the
+       main button." A landed look clears the editing vantage to the look's
+       own subject — the primary button (the piece the rack's thumbs render),
+       master scope, Default state — wherever the user was parked before
+       (deep in another piece, a pinned state, a group edit). The reset
+       rides the SAME landing: none of these keys live in the history
+       snapshot, so undo stays one step and restores the prior look without
+       moving the vantage back. phase stays untouched by design — the Looks
+       rack only renders in the editor, and nobody is teleported out of the
+       boards by a look that lands from elsewhere. */
+    useGen.setState({ focus: null, sectionFilter: null, scope: "piece", selectedState: "default" });
+    if (useGen.getState().parentId !== "button") useGen.getState().setParent("button");
+  } finally {
     tweakedSinceLook = false;
     if (mustWait) useGen.setState({ lookBusy: null });
   }
@@ -2785,7 +2850,7 @@ export const useGen = create<GenStore>((set, get) => ({
     return (t === "guest" || t === "free" || t === "student" || t === "pro" ? t : "guest") as Tier;
   })(),
   loadCloudPresets: async () => {
-    const [presets, hidden, prof, releases, hiddenSils, promos, promosLive] = await Promise.all([listCloudPresets(), listHiddenStarters(), myProfileTier(), listComponentReleases(), listHiddenSilhouettes(), listPromos(), readPromosLive()]);
+    const [presets, hidden, prof, releases, hiddenSils, deletedSils, promos, promosLive] = await Promise.all([listCloudPresets(), listHiddenStarters(), myProfileTier(), listComponentReleases(), listHiddenSilhouettes(), listDeletedSilhouettes(), listPromos(), readPromosLive()]);
     const prev = get();
     /* a FAILED read keeps the previous answer instead of downgrading —
        one flaked query used to de-admin (and de-tier) the whole session,
@@ -2821,7 +2886,9 @@ export const useGen = create<GenStore>((set, get) => ({
         : cloudStatus().state === "off" ? "free" : "guest";
       writeGateSnapshot({ admin, tier, releases: rel });
     }
-    set({ cloudPresets: presets, isAdmin: admin, hiddenStarters: hidden, hiddenSilhouettes: hiddenSils, tier, componentReleases: rel, promos: promos ?? prev.promos, promosLive: promosLive ?? prev.promosLive });
+    // random pools consult the module registry: retired + deleted together
+    setUnpickableSilhouettes([...hiddenSils, ...deletedSils]);
+    set({ cloudPresets: presets, isAdmin: admin, hiddenStarters: hidden, hiddenSilhouettes: hiddenSils, deletedSilhouettes: deletedSils, tier, componentReleases: rel, promos: promos ?? prev.promos, promosLive: promosLive ?? prev.promosLive });
     // a lowered zoom ceiling applies immediately, not on the next gesture
     if (get().zoom > capsOf(tier).zoomMax) set({ zoom: capsOf(tier).zoomMax });
     const act = get().activeCloudPreset;
@@ -2918,12 +2985,25 @@ export const useGen = create<GenStore>((set, get) => ({
   retireSilhouette: async (id) => {
     const next = [...new Set([...get().hiddenSilhouettes, id])];
     const err = await setHiddenSilhouettes(next);
-    if (!err) set({ hiddenSilhouettes: next });
+    if (!err) { set({ hiddenSilhouettes: next }); setUnpickableSilhouettes([...next, ...get().deletedSilhouettes]); }
     return err;
   },
   restoreSilhouettes: async () => {
+    /* empties the LEGACY retire list only — a forever-deleted id is in the
+       other ledger and stays deleted (order-proof by construction) */
     const err = await setHiddenSilhouettes([]);
-    if (!err) set({ hiddenSilhouettes: [] });
+    if (!err) { set({ hiddenSilhouettes: [] }); setUnpickableSilhouettes(get().deletedSilhouettes); }
+    return err;
+  },
+  deletedSilhouettes: [],
+  deleteSilhouetteForever: async (id) => {
+    /* appends to deleted_silhouettes ONLY — never reads or rewrites the
+       legacy hidden_silhouettes ledger, so deleting a shape before the
+       owner's "Restore silhouettes" click cannot drag the afterburner
+       (or any legacy retire) into permanence */
+    const next = [...new Set([...get().deletedSilhouettes, id])];
+    const err = await setDeletedSilhouettes(next);
+    if (!err) { set({ deletedSilhouettes: next }); setUnpickableSilhouettes([...get().hiddenSilhouettes, ...next]); }
     return err;
   },
   /* Spotlight boots empty and fills with loadCloudPresets — the shelf is
@@ -3060,6 +3140,7 @@ export const useGen = create<GenStore>((set, get) => ({
     if (focus0 && get().kitLocks[focus0]) return; // finished pieces don't move
     const kd = focus0 ? get().kitDesigns[focus0] : undefined;
     if (focus0 && kd) {
+      pushHistory(get()); // undo restores the piece's forks — same promise as the master path's replaceConfig
       const eff = kd.states ?? get().cfg.states;
       const st4 = { default: { ...eff.default }, hover: { ...eff.default }, pressed: { ...eff.default }, disabled: { ...eff.default } } as GenConfig["states"];
       const kitDesigns = { ...get().kitDesigns, [focus0]: { ...kd, stateDesigns: {}, states: st4 } };
@@ -3086,14 +3167,22 @@ export const useGen = create<GenStore>((set, get) => ({
       /* What the user SEES on a locked piece is master ⊕ lock — promote THAT
          fork into the piece's pinned design, and ITS state adjustments into
          the piece's pinned states. The master doesn't move at all. */
+      pushHistory(get()); // (round 56) undo restores a focused promote too — the master path always had this via replaceConfig
       const work = clone2(applyKitDesign(cfg, kd0));
       const d = work.stateDesigns?.[sel];
       if (d) {
         for (const key of DESIGN_KEYS) (work as any)[key] = (d as any)[key];
+        /* the fork's ICON RIG rides the promote too — the one compartment a
+           StateDesign holds beyond DESIGN_KEYS, and exactly what the owner
+           caught the promote dropping ("it didn't carry over the icon
+           color"): wholesale, the same `d.icon ?? cfg.icon` grain the
+           renderer's ICR ladder reads, so the new Default renders pixel-
+           identical to what the state showed. */
+        if (d.icon) work.icon = d.icon;
         delete work.stateDesigns![sel];
       }
       work.states.default = { ...work.states[sel] };
-      const kitDesigns = { ...get().kitDesigns, [focus0]: { ...pickDesign(work), stateDesigns: work.stateDesigns ?? {}, states: work.states, ...(kd0.icon !== undefined ? { icon: work.icon } : {}), ...(kd0.idle ? { idle: kd0.idle } : {}), ...(kd0.contentMargin !== undefined ? { contentMargin: kd0.contentMargin } : {}) } };
+      const kitDesigns = { ...get().kitDesigns, [focus0]: { ...pickDesign(work), stateDesigns: work.stateDesigns ?? {}, states: work.states, ...(kd0.icon !== undefined || d?.icon ? { icon: work.icon } : {}), ...(kd0.idle ? { idle: kd0.idle } : {}), ...(kd0.contentMargin !== undefined ? { contentMargin: kd0.contentMargin } : {}) } };
       saveJson("ui-generator-kitdesigns", kitDesigns);
       set({ kitDesigns, selectedState: "default" });
       return;
@@ -3102,6 +3191,8 @@ export const useGen = create<GenStore>((set, get) => ({
     if (d) {
       // the state's forked design becomes the root design
       for (const key of DESIGN_KEYS) (cfg as any)[key] = (d as any)[key];
+      // …icon rig included (see the focused branch's note)
+      if (d.icon) cfg.icon = d.icon;
       delete cfg.stateDesigns[sel];
     }
     // its whole-component adjustments become the default baseline too
@@ -3377,27 +3468,8 @@ export const useGen = create<GenStore>((set, get) => ({
        · recipe starters land as the blessed universal default DRESSED in
          the starter's recipe — deterministic, whatever came before. */
     const p = presetById(id);
-    const next = PRESET_DEFAULTS[id]
-      // Bubble Pop ships as a fully authored look (Chevon's bubblepopdefault)
-      ? hydrate(structuredClone(PRESET_DEFAULTS[id]))
-      : (() => {
-        const c = getDefault();
-        c.presetId = id;
-        c.shape = p.shape; c.bevel = { ...p.bevel }; c.effects = { ...p.effects };
-        // the starter's typography voice comes with it — a preset switch that
-        // keeps the old face reads as "the fonts don't update"
-        if (p.font) { c.type.font = p.font; c.type.weight = clampWeight(fontByName(p.font).caps, p.fontWeight ?? c.type.weight); }
-        const candy = defaultCandy();
-        applyPresetCandy(candy, p);
-        c.candy = candy;
-        /* a preset is a COMPLETE style recipe — the base document's own
-           per-state forks must not survive under it, or hover/pressed
-           flash the old design (adversarial review find, 2026-07-25).
-           States mirror the new master live; re-forking is one edit away. */
-        c.stateDesigns = {};
-        retintText(c);
-        return c;
-      })();
+    // the shared builder — the same document the Looks rack thumbnails render
+    const next = presetLookConfig(id);
     requestLook(p.name, lookFontFamilies(next as unknown as Record<string, unknown>, (PRESET_KITS[id] as Record<string, unknown>) ?? null), () => {
       set({ activeCloudPreset: null }); // a starter takes over — Overwrite retargets on next apply
       /* a preset apply REBRANDS the kit — user and cloud presets already
@@ -3438,9 +3510,10 @@ export const useGen = create<GenStore>((set, get) => ({
         // statements keep the cut classic so the roll makes ONE loud
         // move. Preset jumps above keep their curated theatrical cuts.
         const rack = statement === "cut"
-          ? SILHOUETTES.filter((m) => (m.category === "Buttons" || m.gothicCut) && !m.preview && m.id !== c.shape)
+          ? SILHOUETTES.filter((m) => (m.category === "Buttons" || m.gothicCut) && !m.preview && !silhouetteUnpickable(m.id) && m.id !== c.shape)
           : classicRack(c.shape);
-        c.shape = rack[roll(rack.length)].id;
+        // retired/deleted cuts never roll; an emptied rack keeps the cut
+        if (rack.length) c.shape = rack[roll(rack.length)].id;
       }
       /* the wardrobe includes the voice now — every roll picks a fresh
          face from the permanent rack plus registered customs (owner: "we

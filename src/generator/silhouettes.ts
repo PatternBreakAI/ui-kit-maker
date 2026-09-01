@@ -368,10 +368,29 @@ export const SILHOUETTES: SilhouetteMeta[] = [
      expects a matching rack. Caps and content measured off the outline
      as always (probe calibrated against Hellmouth's registered numbers).
      Staged until the owner releases them. ── */
-  { id: "stock:afterburner", flippable: true, name: "Afterburner", category: "Showpieces", source: "custom (owner flame button, flamebutton4)", license: "original", renderer: "path", gothicCut: true, preview: true,
+  /* RELEASED round 56 (owner: "Can all users se flame button 4? if not,
+     make it so, very important for hot rod") — the preview gate drops;
+     NOTE the production retire ledger (app_settings.hidden_silhouettes)
+     still carried this id at release time and needs the owner's one-click
+     "Restore silhouettes" to finish opening it to non-admins. */
+  { id: "stock:afterburner", flippable: true, name: "Afterburner", category: "Showpieces", source: "custom (owner flame button, flamebutton4)", license: "original", renderer: "path", gothicCut: true,
     capScale: 0.281, content: { top: 0.349, right: 0.368, bottom: 0.321, left: 0.461 }, minWidth: 96, minHeight: 40,
     supports: [...BTN, "timer"], character: "The flame button — fire tail streaming off the left of a rounded core. Built for a single hero moment: play, claim, ignite." },
 ];
+
+/* ── The unpickable registry (round 56, owner: "when I delete a
+   silhouette, i.e. afterburner, just delete it forever") ──────────────
+   Geometry NEVER leaves the bundle — saved kits and boards store shape
+   ids (Sakura's blade, every look's cut) and must keep rendering — so
+   "delete forever" is a tombstone: the definition stays resolvable for
+   existing content while every pickable surface and every RANDOM POOL
+   stops offering it. The store pours the two app_settings ledgers in
+   here (legacy retires + permanent deletes) so the pure rack functions
+   (classicRack, randomizeConfig's cut roll) can answer without touching
+   store state. */
+let UNPICKABLE = new Set<string>();
+export function setUnpickableSilhouettes(ids: string[]) { UNPICKABLE = new Set(ids); }
+export function silhouetteUnpickable(id: string): boolean { return UNPICKABLE.has(id); }
 
 export function silhouetteMeta(id: Shape): SilhouetteMeta | undefined {
   // a ~flip variant reads its base's meta with the horizontal insets
