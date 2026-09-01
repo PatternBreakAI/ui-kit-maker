@@ -361,6 +361,14 @@ export const SILHOUETTES: SilhouetteMeta[] = [
   { id: "stock:gift", name: "Gift box", category: "Plaques & Frames", source: "custom (computed 3/4 iso union)", license: "original", renderer: "path", preview: true,
     capScale: 0.32, content: { top: 0.35, right: 0.3, bottom: 0.3, left: 0.3 }, minWidth: 64, minHeight: 64,
     supports: ["button"], character: "A 3/4 gift box — lid slab, bow loops, receding side." },
+  /* the Ribbon banner component's own silhouette — unlisted from the public
+     picker (preview) while the piece sits in the staging bay (the gear
+     precedent). The union outline of the pack's composite construction:
+     swallow tails, fold tucks, rounded center panel. Content box = the
+     panel's reading zone (x 44-156, y 14-65 of the 200x100 art). */
+  { id: "stock:ribbonclassic", name: "Ribbon Banner", category: "Banners & Labels", source: "original vector geometry authored for UI Kit Maker, 2026 (owner ribbon commission)", license: "original", renderer: "path", preview: true,
+    capScale: 0.29, content: { top: 0.14, right: 0.22, bottom: 0.35, left: 0.22 }, minWidth: 128, minHeight: 64,
+    supports: ["button"], character: "The classic swallow-tail ribbon — tails tucked behind, message panel proud in front." },
 
   /* ── Showpieces — statement one-offs (owner, 2026-08-15). A shape here
      is built to carry ONE hero moment — a play button, a claim button —

@@ -7,6 +7,7 @@ import { glyphShape } from "./glyphLibrary";
 import { innerOffsetLoops } from "./offsetKernel";
 import { tableLabelEm } from "./fontMetrics";
 import { stockShape } from "./stockShapes";
+import { RIBBON_BANNER_CLASSIC } from "./ribbonBannerClassic";
 import rough from "roughjs";
 
 /* ── label widths come from BAKED metrics, not the browser ───────────────
@@ -10886,6 +10887,176 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
   <path d="M ${(bx + bowlW * 0.82).toFixed(1)} ${(by - d4 * 0.05).toFixed(1)} l ${(d4 * 0.025).toFixed(1)} ${(d4 * 0.05).toFixed(1)} ${(d4 * 0.05).toFixed(1)} ${(d4 * 0.025).toFixed(1)} ${(-d4 * 0.05).toFixed(1)} ${(d4 * 0.025).toFixed(1)} ${(-d4 * 0.025).toFixed(1)} ${(d4 * 0.05).toFixed(1)} ${(-d4 * 0.025).toFixed(1)} ${(-d4 * 0.05).toFixed(1)} ${(-d4 * 0.05).toFixed(1)} ${(-d4 * 0.025).toFixed(1)} ${(d4 * 0.05).toFixed(1)} ${(-d4 * 0.025).toFixed(1)} Z" fill="#FFFFFF" opacity="0.9"/>
 </g>
 </svg>`;
+    }
+    case "ribbonbanner": {
+      /* Classic Ribbon Banner — the owner's ribbon commission, sketch
+         pass. INGEST CONTRACT (the pack's README): the authored paths
+         render VERBATIM — never redrawn — and every named part maps to a
+         KIT role; the pack's purple previews are direction, not palette
+         (the crown coin's ruling: geometry is the artist's, paint is the
+         kit's). The union silhouette (stock:ribbonclassic) takes the
+         kit's whole dimensional treatment — face, pattern, bevel wall,
+         extrusion, glow, shadow — in ONE sweep, exactly the one-slab
+         depth the pack's extruded preview draws. The composite parts
+         then ride OVER the dressed face as role furnishing in the pack's
+         assembly order: tails behind (Shadow-role wash on the kit's
+         light axis, clipped OUT of the panel region so the front panel
+         never inherits the tail's darkening), tail highlight streaks
+         (Highlight role — both authored previews paint them under the
+         panel; component.json lists them z5, previews win, flagged in
+         the round report), dark fold triangles (Shadow ink, the relief
+         recipe's near-solid pass), fold light catches (Highlight wash),
+         the center panel's own lift (Highlight wash — the panel stays
+         the kit's true face, a step prouder), the panel bottom-shadow
+         and top-catch bands, and the two authored house-glint seats
+         (the crown coin's kit-following star recipe). THE WORDS ARE A
+         LIVE SEAT, never art (the pack's text-field construction + the
+         editability law): the label rides contentText — the kit's full
+         lettering, the per-piece type-size dial and both nudges —
+         measure-true fitted to the panel's reading zone. */
+      const hRb = ({ s: 104, m: 138, l: 176 } as Record<KitSize, number>)[size] * k;
+      const wRb = hRb * 2; // the pack's 200x100 box — the drawn proportion
+      /* verdict 3 (owner ribbon round: "built through the dials"): on the
+         ribbon cut the PANEL is the piece's face, so the union shell PARKS
+         its own gloss band — build's full-face sweep would smear across
+         the tails — and the panel wears the kit gloss treatment below,
+         painted by the gloss system's own shapes. State-design forks park
+         the same way (the trophy's calm lesson). An alien re-dress has no
+         panel and keeps the shell gloss exactly where every component
+         wears it. */
+      const isRibCut = sov === "stock:ribbonclassic";
+      const parkRb = <T extends { candy?: GenConfig["candy"] }>(d: T): T =>
+        ({ ...d, ...(d.candy ? { candy: { ...d.candy, gloss: { ...d.candy.gloss, on: false } } } : {}) });
+      const cfgRb: GenConfig = !isRibCut ? cfg : {
+        ...parkRb(cfg),
+        stateDesigns: cfg.stateDesigns && (Object.fromEntries(Object.entries(cfg.stateDesigns).map(([s9, d9]) => [s9, d9 && parkRb(d9)])) as GenConfig["stateDesigns"]),
+      };
+      const shellRb = build(cfgRb, state, { x: 39, y: 30, h: hRb, fs: 0, iconSize: 0, tokenH: 168 }, { iconDef: null, label: "", fixedW: wRb, shapeOverride: sov });
+      // factory words are the piece's own specimen (not the kit's master
+      // CTA — a ribbon reads as an announcement, not a button verb); the
+      // Text control re-words this copy like any labeled piece
+      const lblRb = (opts.label ?? "") || "DAILY OBJECTIVE";
+      const fsRb = fitFs(lblRb, 30 * k * typeK, wRb * 0.55);
+      const labelRb = contentText(lblRb, 39 + wRb / 2, 30 + hRb * 0.395, fsRb, { anchor: "middle" });
+      /* a per-piece re-dress (kitShapes) swaps the silhouette like any
+         component — the ribbon furnishing belongs to the ribbon cut alone,
+         so an alien cut keeps just the dressed shell + the live words */
+      if (sov !== "stock:ribbonclassic") return inject(shellRb.replace("<svg ", '<svg data-ribbonbanner="1" '), labelRb);
+      const RBP = RIBBON_BANNER_CLASSIC.parts;
+      const vbRb = RIBBON_BANNER_CLASSIC.viewBox as unknown as [number, number, number, number];
+      // the frame is authored-proportion by construction, so the uniform
+      // map and the shell's cap-aware map coincide — parts register exactly
+      const bakeRb = (d0: string) => transformPath(d0, vbRb, 39, 30, wRb, hRb);
+      const D2r = designFor(cfg, state);
+      const shInk = effect(D2r.effects, "Shadow"), hiInk = effect(D2r.effects, "Highlight");
+      // the kit's light axis + strength dials — the relief recipe's math
+      const rAr = (((D2r.lighting.angle % 360) + 360) % 360) * Math.PI / 180;
+      const rlxR = Math.cos(rAr), rlyR = -Math.sin(rAr);
+      const rgpR = (v: number) => (0.5 + clamp(v, -1, 1) * 0.5).toFixed(3);
+      const axisR = `x1="${rgpR(-rlxR)}" y1="${rgpR(-rlyR)}" x2="${rgpR(rlxR)}" y2="${rgpR(rlyR)}"`;
+      const hiKr = (state === "disabled" ? 0.35 : 1) * (D2r.lighting.highlight / 78);
+      const loKr = Math.max(0.1, D2r.lighting.lowlight / 46);
+      const ridR = "rb" + UID++;
+      const silRb = shapePath(sov as Shape, 39, 30, wRb, hRb, 0);
+      /* the behind-parts clip: everything minus the center panel, so the
+         tail washes stop dead at the panel's edge — that crisp boundary
+         IS the "panel in front" read, with no opaque repaint hiding the
+         kit's pattern and gloss anywhere on the piece */
+      const boxRb = `M ${(39 - 2).toFixed(0)} ${(30 - 2).toFixed(0)} H ${(39 + wRb + 2).toFixed(1)} V ${(30 + hRb + 2).toFixed(1)} H ${(39 - 2).toFixed(0)} Z`;
+      let defsRb = `<clipPath id="${ridR}s"><path d="${silRb}"/></clipPath>` +
+        `<clipPath id="${ridR}n"><path d="${boxRb} ${bakeRb(RBP.centerPanel)}" clip-rule="evenodd"/></clipPath>` +
+        // tails: the Shadow role graded along the light axis — deeper on the
+        // away side, lifting toward the light, texture showing through
+        `<linearGradient id="${ridR}tw" ${axisR}><stop offset="0" stop-color="${shInk}" stop-opacity="${clamp(0.46 * loKr, 0.22, 0.6).toFixed(2)}"/><stop offset="1" stop-color="${shInk}" stop-opacity="${clamp(0.26 * loKr, 0.12, 0.4).toFixed(2)}"/></linearGradient>` +
+        // the shared Highlight streak voice (tail streaks + panel top catch)
+        `<linearGradient id="${ridR}hs" ${axisR}><stop offset="0" stop-color="${hiInk}" stop-opacity="0.14"/><stop offset="1" stop-color="${hiInk}" stop-opacity="${clamp(0.62 * hiKr, 0.2, 0.8).toFixed(2)}"/></linearGradient>` +
+        // the panel's lift — a whisper of Highlight so the front surface
+        // reads a step prouder in any kit look, light or dark
+        `<linearGradient id="${ridR}pl" ${axisR}><stop offset="0" stop-color="${hiInk}" stop-opacity="0.03"/><stop offset="1" stop-color="${hiInk}" stop-opacity="${clamp(0.14 * hiKr, 0.05, 0.2).toFixed(2)}"/></linearGradient>`;
+      let furnRb = "";
+      // z0 · tails behind (clipped to the panel's complement)
+      furnRb += `<g clip-path="url(#${ridR}n)"><path d="${bakeRb(RBP.leftTail)} ${bakeRb(RBP.rightTail)}" fill="url(#${ridR}tw)"/>` +
+        // tail highlight streaks — under the panel per both authored previews
+        `<path d="${bakeRb(RBP.leftTailHighlight)} ${bakeRb(RBP.rightTailHighlight)}" fill="url(#${ridR}hs)" opacity="0.72"/></g>`;
+      // z1 · the dark fold triangles — the tuck that sells the overlap
+      furnRb += `<path d="${bakeRb(RBP.leftFold)} ${bakeRb(RBP.rightFold)}" fill="${shInk}" opacity="0.94"/>`;
+      // z2 · fold light catches — the fold's inner face finds the light
+      furnRb += `<path d="${bakeRb(RBP.leftFoldLight)} ${bakeRb(RBP.rightFoldLight)}" fill="${hiInk}" opacity="0.34"/>`;
+      // z3 · the center panel's lift wash (the kit face stays the face)
+      furnRb += `<path d="${bakeRb(RBP.centerPanel)}" fill="url(#${ridR}pl)"/>`;
+      // z4 · panel bottom shadow · z5 · panel top catch (the pack's bands)
+      furnRb += `<path d="${bakeRb(RBP.panelBottomShadow)}" fill="${shInk}" opacity="0.74"/>`;
+      furnRb += `<path d="${bakeRb(RBP.panelTopCatch)}" fill="url(#${ridR}hs)" opacity="0.9"/>`;
+      /* z6 · THE GLOSS SWOOSH (verdict 3) — the kit gloss treatment on the
+         panel, build()'s layer-8 recipe verbatim fitted to the panel box
+         (pack art 200x100: panel x 40-160, y 0-74): the same signed-curve
+         quadratic (bow = Curvature x the shell's token scale, 1 here), the
+         same light-keyed apex and lit-from-below flip, the same 3-stop
+         softness fade, fill modes and state adjust, the same disabled
+         dimming — the sweep geometry is the gloss SYSTEM's own shape,
+         never a baked path (keep in lockstep with build's layer 8). The
+         factory fork seeds Curvature -26 (RIBBON_GLOSS_DESIGN) so the
+         default bows upward like the pack's gameart sweep; every dial
+         stays live — kit-following, per-piece adjustable, off-able.
+         Layering: below = under the words at the top of the panel dress
+         (the gameart's own z); above = over words and glints, build's
+         above-content rule. */
+      const GLS = D2r.candy.gloss;
+      const adjRb = cfg.states[state];
+      const PRb = (c: string) => {
+        if (state === "disabled") return lighten(desaturate(c, 0.82), 0.1);
+        const satRb = clamp(adjRb?.saturation ?? 0, -100, 100);
+        return bright(satRb ? saturate(c, satRb / 100) : c, adjRb?.brightness ?? 0);
+      };
+      let glossAboveRb = "";
+      const gOpRb = (GLS.opacity / 100) * (state === "disabled" ? 0.35 : 1);
+      if (GLS.on && gOpRb > 0.01) {
+        const pxRb = 39 + wRb * (40 / vbRb[2]), pwRb = wRb * (120 / vbRb[2]);
+        const pyRb = 30, phRb = hRb * (74 / vbRb[3]);
+        const flipRb = rlyR > 0.25; // lit from below — the sweep flips down
+        const gHRb = phRb * clamp(GLS.height / 100, 0.08, 0.92);
+        const bowRb = GLS.curve * (flipRb ? -1 : 1);
+        const apexRb = pxRb + pwRb / 2 + rlxR * pwRb * 0.12;
+        const gyRb = flipRb ? pyRb + phRb - gHRb : pyRb + gHRb;
+        const gPathRb = flipRb
+          ? `M ${pxRb - 2} ${pyRb + phRb + 2} H ${pxRb + pwRb + 2} V ${gyRb.toFixed(1)} Q ${apexRb.toFixed(1)} ${(gyRb + bowRb * 1.8).toFixed(1)} ${pxRb - 2} ${gyRb.toFixed(1)} Z`
+          : `M ${pxRb - 2} ${pyRb - 2} H ${pxRb + pwRb + 2} V ${gyRb.toFixed(1)} Q ${apexRb.toFixed(1)} ${(gyRb + bowRb * 1.8).toFixed(1)} ${pxRb - 2} ${gyRb.toFixed(1)} Z`;
+        const softRb = clamp(GLS.softness / 100, 0, 1);
+        const hiCRb = PRb(D2r.lighting.tint ?? hiInk);
+        const gC1Rb = GLS.fill === "highlight" ? hiCRb : PRb(GLS.tint);
+        const gC2Rb = GLS.fill === "gradient" ? PRb(GLS.tint2) : gC1Rb;
+        defsRb += `<clipPath id="${ridR}p"><path d="${bakeRb(RBP.centerPanel)}"/></clipPath>` +
+          `<linearGradient id="${ridR}gl" x1="0" y1="${flipRb ? 1 : 0}" x2="0" y2="${flipRb ? 0 : 1}">` +
+          `<stop offset="0" stop-color="${gC1Rb}" stop-opacity="${gOpRb.toFixed(2)}"/>` +
+          `<stop offset="${(1 - softRb * 0.55).toFixed(2)}" stop-color="${hexMix(gC1Rb, gC2Rb, 0.6)}" stop-opacity="${(gOpRb * (1 - 0.3 * softRb)).toFixed(2)}"/>` +
+          `<stop offset="1" stop-color="${gC2Rb}" stop-opacity="${(gOpRb * (1 - softRb)).toFixed(2)}"/></linearGradient>`;
+        let gArtRb = `<g data-part="gloss" clip-path="url(#${ridR}p)"><path d="${gPathRb}" fill="url(#${ridR}gl)"/></g>`;
+        if (GLS.blend && GLS.blend !== "normal") gArtRb = `<g style="mix-blend-mode:${GLS.blend}">${gArtRb}</g>`;
+        if (GLS.layer === "above") glossAboveRb = gArtRb; else furnRb += gArtRb;
+      }
+      let outRb = inject(shellRb.replace("<svg ", '<svg data-ribbonbanner="1" '),
+        `<defs>${defsRb}</defs><g data-part="ribbon-dress" clip-path="url(#${ridR}s)">${furnRb}</g>`);
+      /* authored house-glint seats — kit-following exactly like the crown
+         coin: opacity/blend ride Typography → Glints while that treatment
+         is on; with kit glints off the seats still shine at their authored
+         strength. Unclipped on purpose, like every glint star. */
+      if (state !== "disabled") {
+        const GLR = D2r.type.glints;
+        const opR = clamp((GLR?.on ? (GLR.opacity ?? 55) : 70) / 100, 0, 1);
+        if (opR > 0.01) {
+          const scR = wRb / vbRb[2];
+          const starsRb = RIBBON_BANNER_CLASSIC.glints.map((g) =>
+            `<path d="M0 ${(-g.s * scR).toFixed(1)} L${(g.s * scR * 0.22).toFixed(1)} ${(-g.s * scR * 0.22).toFixed(1)} L${(g.s * scR).toFixed(1)} 0 L${(g.s * scR * 0.22).toFixed(1)} ${(g.s * scR * 0.22).toFixed(1)} L0 ${(g.s * scR).toFixed(1)} L${(-g.s * scR * 0.22).toFixed(1)} ${(g.s * scR * 0.22).toFixed(1)} L${(-g.s * scR).toFixed(1)} 0 L${(-g.s * scR * 0.22).toFixed(1)} ${(-g.s * scR * 0.22).toFixed(1)} Z" transform="translate(${(39 + g.x * scR).toFixed(1)} ${(30 + g.y * scR).toFixed(1)}) rotate(${g.r ?? 0})" fill="#FFFFFF"/>`).join("");
+          let glintRb = `<g data-part="ribbon-glint" opacity="${opR.toFixed(2)}">${starsRb}</g>`;
+          if (GLR?.on && GLR.blend && GLR.blend !== "normal") glintRb = `<g style="mix-blend-mode:${GLR.blend}">${glintRb}</g>`;
+          outRb = inject(outRb, glintRb);
+        }
+      }
+      outRb = inject(outRb, labelRb);
+      // gloss layered "above" seals words and glints under the candy shell
+      // — build's above-content rule, spoken by the same Layering dial
+      if (glossAboveRb) outRb = inject(outRb, glossAboveRb);
+      return outRb;
     }
     case "gearicon": {
       /* Settings gear — the illustrated cog itself IS the component: the
