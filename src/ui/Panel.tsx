@@ -6,7 +6,7 @@ import { patternZones } from "./SliceStage";
 import { useGen } from "@/generator/store";
 import { t } from "@/shell/i18n";
 import { LessonBody } from "./LessonCard";
-import { PRESETS, KIT_SLOTS, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, GLINT_STYLES, defaultStates, applyKitDesign, applyKitTextFill, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, presetById, designDiff, mergeKitDesign, iconRigDiff, baseShape, isFlipShape, flipShape, labelMaxOf, groupOf, ctaForFont, ctaEntry, fontLang, KIT_SLICEABLE, KIT_LABEL_EDITABLE, NO_TEXT_ELIGIBLE, EDGE_SHINE_DEAF, baseOf, isCloneId, CLONE_KINDS, CLONE_INELIGIBLE, isGlyphButton } from "@/generator/model";
+import { PRESETS, KIT_SLOTS, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, GLINT_STYLES, defaultStates, applyKitDesign, applyKitTextFill, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, designDiff, mergeKitDesign, iconRigDiff, baseShape, isFlipShape, flipShape, labelMaxOf, groupOf, ctaForFont, ctaEntry, fontLang, KIT_SLICEABLE, KIT_LABEL_EDITABLE, NO_TEXT_ELIGIBLE, EDGE_SHINE_DEAF, baseOf, isCloneId, CLONE_KINDS, CLONE_INELIGIBLE, isGlyphButton } from "@/generator/model";
 import type { KitSlice } from "@/generator/model";
 import type { GenStateName, BlendMode, GlintStyle, PatternType, KitComponentId, KitDesign, Shape  } from "@/generator/model";
 import { ICON_LIBS, loadLib, libLoaded, searchLib, getDef, previewSvg } from "@/generator/icons";
@@ -14,7 +14,6 @@ import { ensureFont, ensureDocFonts, fontReady, awaitFonts } from "@/generator/f
 import { renderBevel, renderKit, shapePath, RARITY_FACTORY, VALUE_DRIVEN, effSlotColor } from "@/generator/bevel";
 import { hydrate, presetLookConfig, defaultGeneration } from "@/generator/store";
 import type { LibItem } from "@/generator/store";
-import { applyPresetCandy } from "@/generator/model";
 import type { GenConfig  } from "@/generator/model";
 import { SILHOUETTES, SILHOUETTE_CATEGORIES, silhouetteMeta } from "@/generator/silhouettes";
 import { capsOf, UPGRADE_LINES } from "@/generator/entitlements";
@@ -1031,22 +1030,15 @@ export function Panel() {
     const scrub = (c: GenConfig) => { const p = JSON.parse(JSON.stringify(c)) as Record<string, unknown>; for (const k2 of DESIGN_KEYS) delete p[k2]; delete p.states; delete p.icon; delete p.contentMargin; return JSON.stringify(p); };
     if (scrub(mClone) !== scrub(cfgMaster)) updateParent((c) => { const keep = pickDesign(c); const keepStates = c.states; const keepIcon = c.icon; const keepCm = c.contentMargin; fn(c); Object.assign(c, keep); c.states = keepStates; c.icon = keepIcon; c.contentMargin = keepCm; });
   };
-  const setPreset = (id: string) => {
-    if (!focus) { setPresetParent(id); return; }
-    // a preset click while editing restyles ONLY the focused component
-    const p = presetById(id);
-    const before = applyKitDesign(cfgMaster, kitDesigns[focus]);
-    const merged = JSON.parse(JSON.stringify(before)) as GenConfig;
-    merged.effects = { ...p.effects };
-    merged.bevel = { ...p.bevel };
-    merged.shape = p.shape;
-    // the starter's face restyles this piece too — same voice as a master apply
-    if (p.font) { merged.type.font = p.font; merged.type.weight = clampWeight(fontByName(p.font).caps, p.fontWeight ?? merged.type.weight); }
-    applyPresetCandy(merged.candy, p);
-    const d = designDiff(pickDesign(before), pickDesign(merged));
-    if (d) setKitDesign(focus, mergeKitDesign(kitDesigns[focus], d));
-    setKitShape(focus, p.shape);
-  };
+  /* Round 56, owner: "when i switch looks I should be dropped off in the
+     main button." A rack card is a LOOK — clicking one now lands the whole
+     look through the store door whatever was focused, and the landing
+     itself clears the vantage to the main button (see landLook). The old
+     focused fork — a starter click restyling only the focused piece — is
+     retired from the rack: it read as a broken look switch, not a feature
+     (per-piece restyling still lives in the Styles rack and the piece's
+     own dials). */
+  const setPreset = setPresetParent;
   const [iconQuery, setIconQuery] = useState("");
   const [libTick, setLibTick] = useState(0);
   const [justAdded, setJustAdded] = useState(false);

@@ -1671,7 +1671,21 @@ async function landLook(name: string | null, families: string[], commit: () => v
     useGen.setState({ lookBusy: name ?? "the look" });
     try { await awaitFonts(families); } catch { /* fallback stands — land anyway */ }
   }
-  try { commit(); } finally {
+  try {
+    commit();
+    /* Round 56, owner: "when i switch looks I should be dropped off in the
+       main button." A landed look clears the editing vantage to the look's
+       own subject — the primary button (the piece the rack's thumbs render),
+       master scope, Default state — wherever the user was parked before
+       (deep in another piece, a pinned state, a group edit). The reset
+       rides the SAME landing: none of these keys live in the history
+       snapshot, so undo stays one step and restores the prior look without
+       moving the vantage back. phase stays untouched by design — the Looks
+       rack only renders in the editor, and nobody is teleported out of the
+       boards by a look that lands from elsewhere. */
+    useGen.setState({ focus: null, sectionFilter: null, scope: "piece", selectedState: "default" });
+    if (useGen.getState().parentId !== "button") useGen.getState().setParent("button");
+  } finally {
     tweakedSinceLook = false;
     if (mustWait) useGen.setState({ lookBusy: null });
   }
