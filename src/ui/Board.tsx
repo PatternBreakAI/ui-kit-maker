@@ -1161,7 +1161,19 @@ export function BoardView({ playing }: { playing: boolean }) {
   const uaInput = useRef<HTMLInputElement>(null);
   const [uaErr, setUaErr] = useState<string | null>(null);
   const [uaBusy, setUaBusy] = useState(false);
-  const dragRef = useRef<{ list: { id: string; ox: number; oy: number; cox: number; coy: number }[]; dx: number; dy: number; fit: number } | null>(null);
+  /* one live drag gesture (round 56, the owner's field pair):
+     · `press` remembers what was grabbed and HOW — selection changes on a
+       selected member or under shift are DEFERRED to release-without-
+       movement, so the first grab of any member carries the whole group
+       (the old press-time collapse was the "they don't all move" bug)
+     · `committed` flips once the pointer travels past the 3px slop —
+       before that the gesture is still a click and no patch lands
+     · `axis` is the shift axis lock (Photoshop convention): chosen by the
+       dominant delta when the lock engages, held while shift stays down,
+       freed the moment it lifts, re-chosen if it returns */
+  const dragRef = useRef<{ list: { id: string; ox: number; oy: number; cox: number; coy: number }[]; dx: number; dy: number; fit: number;
+    press: { id: string; bd: string; shift: boolean; member: boolean; multi: boolean };
+    committed: boolean; axis: "x" | "y" | null } | null>(null);
   const [frameW, setFrameW] = useState(900);
 
   /* multi-select (owner): shift-click extends within ONE board. boardSel
@@ -1184,6 +1196,13 @@ export function BoardView({ playing }: { playing: boolean }) {
   }, [boardSel, boards]);
   const pickPiece = (bdId: string, id: string, shift: boolean) => {
     setActiveBoard(bdId);
+    if (shift && boardSel === id) {
+      /* shift+click toggles membership — the PRIMARY included: the next
+         extra takes over as primary, or the selection clears entirely */
+      setBoardSel(selExtra[0] ?? null);
+      setSelExtra(selExtra.slice(1));
+      return;
+    }
     if (shift && boardSel && boardSel !== id) {
       const primaryBd = boards.find((x) => x.items.some((b) => b.id === boardSel));
       if (primaryBd?.id === bdId) {
@@ -2255,26 +2274,79 @@ export function BoardView({ playing }: { playing: boolean }) {
                       <StagePiece key={b.id} b={b} playing={playing}
                         selected={selIdsAll.includes(b.id)} solo={boardSel === b.id && selIdsAll.length === 1} fit={fit}
                         onTextEdit={b.stamp || (b.kitId && KIT_LABEL_EDITABLE.has(baseOf(b.kitId))) ? () => { pickPiece(bd.id, b.id, false); setTextEdit(b.id); } : undefined}
-                        onSelect={(e) => pickPiece(bd.id, b.id, !!e?.shiftKey)}
+                        onSelect={(e) => {
+                          /* press-time selection (round 56, the Figma/Photoshop
+                             contract): a plain grab of an UNSELECTED piece selects
+                             it alone right away; a grab of a selected member
+                             changes NOTHING yet — the group must survive the grab
+                             (the old press-time collapse was the owner's "they
+                             don't all move" bug) — and a shift press defers whole:
+                             release-without-movement toggles membership, movement
+                             instead becomes a drag under the axis lock. */
+                          if (playing) { pickPiece(bd.id, b.id, !!e?.shiftKey); return; }
+                          setActiveBoard(bd.id);
+                          if (!e?.shiftKey && !selIdsAll.includes(b.id)) { setBoardSel(b.id); setSelExtra([]); }
+                        }}
                         onDragStart={(e) => {
-                          // dragging any selected piece carries the whole selection
-                          const group = selIdsAll.includes(b.id) && selIdsAll.length > 1
+                          const member = selIdsAll.includes(b.id);
+                          /* the dragged set: any selected member carries the whole
+                             selection from the FIRST grab; a shift grab of an
+                             outsider stages selection+piece — it only engages if
+                             movement commits, and the piece then joins the set */
+                          const group = member && selIdsAll.length > 1
                             ? bd.items.filter((it) => selIdsAll.includes(it.id))
-                            : [b];
+                            : e.shiftKey && !member && boardSel && bd.items.some((it) => it.id === boardSel)
+                              ? [...bd.items.filter((it) => selIdsAll.includes(it.id)), b]
+                              : [b];
                           // center offsets captured at grab time — grid snap
                           // lands each piece's visible CENTER on the grid
-                          dragRef.current = { list: group.map((it) => ({ id: it.id, ox: it.x, oy: it.y, ...(() => { const c = artCenterOffsetOf(bd.id, it); return { cox: c.cx, coy: c.cy }; })() })), dx: e.clientX, dy: e.clientY, fit };
+                          dragRef.current = { list: group.map((it) => ({ id: it.id, ox: it.x, oy: it.y, ...(() => { const c = artCenterOffsetOf(bd.id, it); return { cox: c.cx, coy: c.cy }; })() })), dx: e.clientX, dy: e.clientY, fit,
+                            press: { id: b.id, bd: bd.id, shift: !!e.shiftKey, member, multi: selIdsAll.length > 1 }, committed: false, axis: null };
                         }}
                         onDragMove={(e) => {
                           const d = dragRef.current;
+                          /* any MEMBER's handler may drive the gesture — when
+                             capture doesn't stick (the pointer-honesty relay,
+                             overlapping pieces) the moves arrive via whichever
+                             member sits under the pointer */
                           if (!d || !d.list.some((g) => g.id === b.id)) return;
                           // same dead-man rule as the resize handles: no button, no gesture
                           if (!(e.buttons & 1)) { dragRef.current = null; return; }
-                          const mdx = (e.clientX - d.dx) / d.fit, mdy = (e.clientY - d.dy) / d.fit;
+                          const sdx = e.clientX - d.dx, sdy = e.clientY - d.dy;
+                          if (!d.committed) {
+                            // under the 3px slop the press is still a click
+                            if (Math.hypot(sdx, sdy) < 3) return;
+                            d.committed = true;
+                            // a shift grab of an outsider joins it to the set as it drags
+                            if (d.press.shift && !d.press.member && d.list.length > 1) {
+                              const add = d.press.id;
+                              setSelExtra((xs) => (xs.includes(add) ? xs : [...xs, add]));
+                            }
+                          }
+                          /* SHIFT+DRAG AXIS LOCK (owner: "constrain the items to
+                             vertical or horizontal movement (like photoshop)").
+                             The locked axis pins each piece to its grab position —
+                             no sideways snap-jump — while the free axis still
+                             answers snap-to-grid like any drag. */
+                          if (e.shiftKey) { if (!d.axis) d.axis = Math.abs(sdx) >= Math.abs(sdy) ? "x" : "y"; }
+                          else d.axis = null;
+                          const mdx = sdx / d.fit, mdy = sdy / d.fit;
                           applyBoardItemPatches(`grpmove:${d.list.map((g) => g.id).join(",")}`,
-                            d.list.map((g) => ({ id: g.id, x: snapPos(g.ox + mdx, g.cox), y: snapPos(g.oy + mdy, g.coy) })));
+                            d.list.map((g) => ({
+                              id: g.id,
+                              x: d.axis === "y" ? Math.round(g.ox) : snapPos(g.ox + mdx, g.cox),
+                              y: d.axis === "x" ? Math.round(g.oy) : snapPos(g.oy + mdy, g.coy),
+                            })));
                         }}
-                        onDragEnd={() => { dragRef.current = null; }} />
+                        onDragEnd={(e) => {
+                          const d = dragRef.current;
+                          dragRef.current = null;
+                          if (!d || !d.list.some((g) => g.id === b.id) || d.committed || e?.type !== "pointerup") return;
+                          // released without movement — the deferred click lands
+                          // now, always on the piece that was PRESSED
+                          if (d.press.shift) pickPiece(d.press.bd, d.press.id, true); // toggle membership
+                          else if (d.press.member && d.press.multi) { setBoardSel(d.press.id); setSelExtra([]); } // collapse to the grabbed piece
+                        }} />
                     ))}
                     {/* the in-place words editor — floats just above the
                         piece, counter-scaled so type stays readable inside
@@ -3352,7 +3424,9 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
   onSelect: (e?: React.PointerEvent) => void;
   onDragStart: (e: React.PointerEvent) => void;
   onDragMove: (e: React.PointerEvent) => void;
-  onDragEnd: () => void;
+  /** pointerup carries the deferred click semantics (collapse/toggle);
+   *  pointercancel must NOT — a cancelled gesture is not a click */
+  onDragEnd: (e?: React.PointerEvent) => void;
   /** word-bearing pieces only (stamps, label-editable kit copies):
    *  double-click opens the in-place words editor. Selection, drag and
    *  the marquee are untouched — dblclick is two stationary clicks. */
