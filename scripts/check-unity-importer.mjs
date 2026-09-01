@@ -2747,7 +2747,8 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/public class KitBarFill : MonoBehaviour \{/.test(src)
       || !/float capW = areaH \* \(capImg\.sprite\.rect\.width \/ Mathf\.Max\(1f, capImg\.sprite\.rect\.height\)\);/.test(src)
       || !/fill\.fillAmount = Mathf\.Max\(0f, v - capFrac \* 0\.5f\);/.test(src)
-      || !/if \(!Mathf\.Approximately\(fill\.fillAmount, wroteFill\)\) \{ value = Snap\(fill\.fillAmount\); Apply\(\); \}/.test(src))
+      // round 57: the follow also records the clip road's staged pose
+      || !/if \(!Mathf\.Approximately\(fill\.fillAmount, wroteFill\)\) \{ value = Snap\(fill\.fillAmount\); if \(clipMaterial != null\) clipValue = value; Apply\(\); \}/.test(src))
     errors.push("KitBarFill lost its rig semantics (height-ratio cap, crop retreat under the bead, change-guarded fillAmount follow — the SHIPPED dev contract)");
   if (!/files\.push\(\{ path: "Runtime\/PatternBreakKitBarFill\.cs", data: KIT_BAR_FILL_RUNTIME \}\);/.test(src)
       || !/"Runtime\/PatternBreakKitBarFill\.cs",/.test(src))
@@ -3507,9 +3508,9 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
       || (src.match(/data-fillbody="\$\{/g) ?? []).length < 4)
     errors.push("the fill/cap atoms lost their data-fillbody stamps (round 48, S38: progress+cap, slider+cap, vsbar overlays in bevel; display bars + rails in the exporter)");
   if (!/const fbm = \/data-fillbody="\(\[-\\d\. \]\+\)"\/\.exec\(q\.svg\);/.test(src)
-      || !/body\?: \{ x: number; w: number \} \| null;/.test(src)
+      || !/body\?: \{ x: number; w: number; y\?: number; h\?: number \} \| null;/.test(src) // round 57: the band's y/h ride the same row
       || !/\.\.\.\(fillBody \? \{ body: fillBody \} : \{\}\)/.test(src))
-    errors.push("addPng lost the body-box parse or its manifest emission (round 48, S38)");
+    errors.push("addPng lost the body-box parse or its manifest emission (round 48, S38; round 57 widened the row with the band's y/h)");
   if (!/public PBTrack body;/.test(src))
     errors.push("PBAsset lost the body field — the importer can no longer read the true ink spans (round 48, S38)");
   if (!/public float bodyU0 = 0f;/.test(src) || !/public float capU0 = 0f;/.test(src)
@@ -3819,6 +3820,62 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/\{ id: "crowncoin", name: "Crown Coin"/.test(glyphLibSrc)
       || !/relief: \{/.test(glyphLibSrc))
     errors.push("the Crown Coin's registry entry (or its relief masks) left glyphLibrary — the released glyph loses its art (round 55, S47)");
+}
+
+/* ── ROUND 57 · S48 (the owner's revocation of the cap composite — a 10x
+   zoom showed the seam: "we have to drop the 'add a cap' approach and
+   maybe consider masking or mathing"): the rounded growing end STAYS
+   (the round-44 mandate) but the mechanism is seam-impossible now — the
+   mercury is ONE continuous sprite and the leading curve is an
+   antialiased SDF capsule cut (UIKitMaker/BarClip, the GlintInk lpos
+   trick), radius min(h/2, run/2) exactly like the app, the sub-diameter
+   tail degenerating into the app's stadium and the vsbar ramp staying
+   continuous by construction. One material per kit anchors the shader;
+   KitBarFill instances it per bar; old zips and kept prefabs (material
+   absent) keep the cap road byte-for-byte. ── */
+{
+  if (!/const BAR_CLIP_SHADER = `Shader "UIKitMaker\/BarClip" \{/.test(src)
+      || !/float r = min\(_Rad, min\(hb, max\(_Win\.z - _Win\.x, 2\.0\) \* 0\.5\)\);/.test(src)
+      || !/float dye = max\(abs\(i\.lpos\.y - cy\) - \(hb - r\), 0\.0\);/.test(src)
+      || !/float sL = dxL > 0\.0 \? length\(float2\(dxL, dye\)\) - r : -1\.0;/.test(src)
+      || !/float sR = dxR > 0\.0 \? length\(float2\(dxR, dye\)\) - r : -1\.0;/.test(src)
+      || !/c\.a \*= 1\.0 - smoothstep\(-aa, aa, sdf\);/.test(src))
+    errors.push("the BarClip shader left the exporter (or lost the per-end disc cuts / the bead-wrap on the glow bleed / the app's min-radius rule / the antialiased cut) — the seam road is back, the halo gets a straight slice, or the edge aliases (round 57, S48)");
+  if (!/files\.push\(\{ path: "Runtime\/UIKitBarClip\.shader", data: BAR_CLIP_SHADER \}\);/.test(src)
+      || !/"Runtime\/UIKitDisabledInk\.shader", "Runtime\/UIKitBarClip\.shader",/.test(src))
+    errors.push("Runtime/UIKitBarClip.shader no longer ships (or left the shared-scripts set) (round 57, S48)");
+  if (!/public Material clipMaterial;/.test(src) || !/public float clipValue = -1f;/.test(src))
+    errors.push("KitBarFill lost the clip road's fields — bars fall silently back to the seam composite (round 57, S48)");
+  if (!/if \(clipMaterial != null\) \{\s*\n[\s\S]{0,400}ApplyClip\(value\);\s*\n\s*return;/.test(src))
+    errors.push("Apply no longer routes armed rigs onto the clip road (round 57, S48)");
+  if (!/if \(fill\.fillAmount != 1f\) fill\.fillAmount = 1f; \/\/ the geometry stays whole — the capsule does the cutting/.test(src))
+    errors.push("the clip road no longer holds the geometry whole — a Filled scissor would double-cut the capsule (round 57, S48)");
+  if (!/bool tailOpen = runPx >= bandH;/.test(src))
+    errors.push("the low-fill story left ApplyClip — the sub-BAND-diameter tail must close both ends into the app's stadium (round 57, S48)");
+  if (!/public float bandV0 = 0f;/.test(src) || !/public float bandV1 = 1f;/.test(src)
+      || !/float bTop = rct\.yMax - bandV0 \* rct\.height;/.test(src)
+      || !/mat\.SetVector\("_Win", new Vector4\(x0, bBot, x1, bTop\)\);/.test(src)
+      || !/mat\.SetFloat\("_Rad", bandH \* 0\.5f\);/.test(src))
+    errors.push("the capsule lost the mercury BAND — a bleed-padded rect radius runs ~45% wide of the app's bead (the r57 curvature audit) (round 57, S48)");
+  if (!/data-fillbody="\$\{fo\.box\[0\]\.toFixed\(1\)\} \$\{fo\.box\[2\]\.toFixed\(1\)\} \$\{\(fo\.box\[1\] \+ riseU\)\.toFixed\(1\)\} \$\{fo\.box\[3\]\.toFixed\(1\)\}"/.test(src)
+      || !/data-fillbody="\$\{gx\.toFixed\(1\)\} \$\{gw\.toFixed\(1\)\} \$\{\(gy \+ riseMR\)\.toFixed\(1\)\} \$\{gh\.toFixed\(1\)\}"/.test(src)
+      || !/Number\.isFinite\(fby\) && Number\.isFinite\(fbh\) && fbh > 1/.test(src))
+    errors.push("the four-number data-fillbody stamp (universal riseU / rails riseMR — the stamps speak the PRE-SHIFT frame) or its y/h parse left the exporter — bands go missing or seat a rise too high (round 57, S48)");
+  if (!/kbf\.bandV0 = Mathf\.Clamp01\(rowF\.body\.y \/ kbf\.fill\.sprite\.rect\.height\);/.test(cs)
+      || !/kbf\.bandV1 = Mathf\.Clamp01\(\(rowF\.body\.y \+ rowF\.body\.h\) \/ kbf\.fill\.sprite\.rect\.height\);/.test(cs))
+    errors.push("WireBarBodies no longer arms the band fractions from the manifest body row (round 57, S48)");
+  if (!/if \(matInst == null\) \{ matInst = new Material\(clipMaterial\); matInst\.hideFlags = HideFlags\.HideAndDontSave; \}/.test(src)
+      || !/if \(fill != null && fill\.material == matInst\) fill\.material = clipMaterial;/.test(src))
+    errors.push("the per-bar material instance (or its OnDisable restore) left KitBarFill — shared params would tear multi-bar scenes, or instances leak (round 57, S48)");
+  if (!/static Material EnsureBarClipMaterial\(string root\) \{/.test(cs)
+      || !/var path = root \+ "\/fonts\/Bar Clip\.mat";/.test(cs)
+      || !/kbf\.clipMaterial = EnsureBarClipMaterial\(root\);/.test(cs))
+    errors.push("the one-material-per-kit anchor (mint + arm in WireBarCap) left the importer — the shader strips from builds or bars never clip (round 57, S48)");
+  if (!/if \(kbf\.clipMaterial == null && capSp != null\) \{/.test(cs)
+      || !/if \(kbf\.clipMaterial == null\) \{\s*\n\s*var nubGo = new GameObject\("Nub"/.test(cs))
+    errors.push("the legacy cap/nub rungs lost their material gate — fresh builds would composite the seam again beside the clip (round 57, S48)");
+  if ((cs.match(/kbf\.fill\.material = kbf\.clipMaterial;/g) ?? []).length < 2)
+    errors.push("a saved prefab would carry the transient clip instance — the WireBarCap/WireBarBodies re-point to the shared asset is gone (round 57, S48)");
 }
 
 if (errors.length) {

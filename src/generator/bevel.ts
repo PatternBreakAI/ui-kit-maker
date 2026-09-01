@@ -5382,7 +5382,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
            (mazepill's ellipse, any ornate shell) the highlight ends where
            the mercury ends instead of hanging past the curve. Unity's
            scissor then cuts fill and baked highlight together. */
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="${cw9}" height="${ch9}" viewBox="0 0 ${cw9} ${ch9}" data-fillbody="${bx.toFixed(1)} ${trackW.toFixed(1)}">
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${cw9}" height="${ch9}" viewBox="0 0 ${cw9} ${ch9}" data-fillbody="${bx.toFixed(1)} ${trackW.toFixed(1)} ${by.toFixed(1)} ${bh.toFixed(1)}">
           <defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient>${sfxF.defs}<clipPath id="${gid}m"><path d="${clipF}"/></clipPath></defs>
           ${sfxF.open}<path d="${clipF}" fill="url(#${gid})" opacity="0.95"/>${sfxF.close}
           <g clip-path="url(#${gid}m)"><path d="${roundRect(bx - 2, by + bh * 0.08, Math.max(0, trackW + 2 - 4 * k), bh * 0.34, bh * 0.17)}" fill="#FFFFFF" opacity="0.3"/>${sfxF.over}</g></svg>`;
@@ -5474,7 +5474,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
            BarFx overlays clip to the mercury silhouette, so the baked
            highlight ends where the mercury ends on shaped caps; Unity's
            Filled scissor cuts fill and highlight together. */
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="${cw9}" height="${ch9}" viewBox="0 0 ${cw9} ${ch9}" data-fillbody="${bx.toFixed(1)} ${trackW.toFixed(1)}">
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${cw9}" height="${ch9}" viewBox="0 0 ${cw9} ${ch9}" data-fillbody="${bx.toFixed(1)} ${trackW.toFixed(1)} ${by.toFixed(1)} ${bh.toFixed(1)}">
           <defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient>${sfxF.defs}<clipPath id="${gid}m"><path d="${clipF}"/></clipPath></defs>
           ${sfxF.open}<path d="${clipF}" fill="url(#${gid})" opacity="0.95"/>${sfxF.close}
           <g clip-path="url(#${gid}m)"><path d="${roundRect(bx - 2, by + bh * 0.08, Math.max(0, trackW + 2 - bh * 0.1), bh * 0.34, bh * 0.17)}" fill="#FFFFFF" opacity="0.3"/>${sfxF.over}</g></svg>`;
@@ -5770,7 +5770,8 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
            fills/nubs, the bead's span on caps — viewBox units */
         const bodyAttrF = capF
           ? (rightF ? `${x0R9.toFixed(1)} ${(bh + 8).toFixed(1)}` : `${(fxL9 - bh - 8).toFixed(1)} ${(bh + 8).toFixed(1)}`)
-          : (rightF ? `${x0R9.toFixed(1)} ${runF.toFixed(1)}` : `${bx.toFixed(1)} ${runF.toFixed(1)}`);
+          // round 57: fills carry the band (y/h) too — the BarClip capsule speaks it
+          : (rightF ? `${x0R9.toFixed(1)} ${runF.toFixed(1)} ${by.toFixed(1)} ${bh.toFixed(1)}` : `${bx.toFixed(1)} ${runF.toFixed(1)} ${by.toFixed(1)} ${bh.toFixed(1)}`);
         const openF = capF || nubF
           ? `width="${wwF}" height="${ch9}" viewBox="${wx0F.toFixed(1)} 0 ${wwF} ${ch9}" data-fillbody="${bodyAttrF}"`
           : `width="${cw9}" height="${ch9}" viewBox="0 0 ${cw9} ${ch9}" data-fillbody="${bodyAttrF}"`;
