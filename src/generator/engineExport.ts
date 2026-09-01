@@ -112,6 +112,18 @@ interface AssetMeta {
    *  KitBarFill maps its value space through these; absent = the whole
    *  sprite, so old zips keep today's behavior byte for byte. */
   body?: { x: number; w: number; y?: number; h?: number } | null;
+  /** ROUND 58 (the owner, after real Unity showed the r57 shader road's
+   *  flat cut: "with 9 slice we won't need the mask"): a windowed bar
+   *  fill row carrying this rides the WIDTH ROAD — the mercury is a
+   *  bordered stadium sprite (nineSlice holds the band-true cap borders)
+   *  and KitBarFill drives the fill RECT's width, no shader, no cap
+   *  child, no Filled scissor. "tiled" = the center repeats at natural
+   *  density (the sprite is cut so the center is a whole number of
+   *  measured pattern periods); "sliced" = the center stretches (chosen
+   *  when the center is flat/gradient art where stretch is invisible, or
+   *  when no clean period exists — measured, per family). Absent = the
+   *  legacy roads, byte for byte. */
+  barMode?: "tiled" | "sliced";
   /** The MEASURED ink box inside the shipped sprite (file px at pngScale):
    *  where the drawn piece itself ends, glow tails excluded — the crop's
    *  own alpha>8 box (round 50, the owner's class rule: canvases widened
@@ -2523,82 +2535,6 @@ const svgWrap = (w: number, h: number, inner: string) =>
    kit, one material minted per kit at import (the glints' Ensure road) —
    never a per-glyph baked gray (the S45 contract). Same LTS surface as
    UIKitGlintInk.shader, which already ships this way. */
-/* the BAR CLIP (round 57 — the owner's revocation of the cap composite:
-   a 10x zoom showed a visible seam at the cap/body boundary, "we have to
-   drop the 'add a cap' approach and maybe consider masking or mathing").
-   The ROUNDED growing end stays (the owner's own round-44 mandate) — the
-   MECHANISM changes to seam-impossible-by-construction: the mercury is
-   ONE continuous sprite and the leading curve is CUT by this shader — an
-   antialiased SDF capsule window in the fill rect's own local space
-   (the GlintInk lpos trick), so pattern and gradient can never break
-   (same pixels, alpha-windowed) and the curvature is exact at ANY value:
-   radius clamps to min(half-height, half-run), which IS the app's own
-   r = min(h/2, run/2) rule — the sub-cap-radius tail degenerates into
-   the app's shrinking stadium with no cap sprite, no nub pill, and no
-   stencil. Chosen over a Mask-component capsule (road A) because UI
-   stencil masking is BINARY per texel — an aliased leading curve at 10x
-   is the same class of complaint — and a 9-slice capsule degenerates
-   below 2r exactly where the app needs the stadium. Same LTS surface as
-   UIKitGlintInk/DisabledInk; anchored by a per-kit material, never
-   Shader.Find at runtime. */
-const BAR_CLIP_SHADER = `Shader "UIKitMaker/BarClip" {
-  Properties {
-    _MainTex ("Mercury sprite", 2D) = "white" {}
-    _Color ("Tint", Color) = (1,1,1,1)
-    _Win ("Capsule window x0,y0,x1,y1 (rect-local px)", Vector) = (0,0,0,0)
-    _Rad ("Corner radius px", Float) = 0
-  }
-  SubShader {
-    Tags { "Queue"="Transparent" "RenderType"="Transparent" "IgnoreProjector"="True" "PreviewType"="Plane" "CanUseSpriteAtlas"="True" }
-    Cull Off Lighting Off ZWrite Off ZTest [unity_GUIZTestMode]
-    Blend SrcAlpha OneMinusSrcAlpha
-    Pass {
-      CGPROGRAM
-      #pragma vertex vert
-      #pragma fragment frag
-      #pragma target 2.5
-      #include "UnityCG.cginc"
-      struct appdata_t { float4 vertex : POSITION; float4 color : COLOR; float2 texcoord : TEXCOORD0; };
-      struct v2f { float4 vertex : SV_POSITION; fixed4 color : COLOR; float2 texcoord : TEXCOORD0; float2 lpos : TEXCOORD1; };
-      sampler2D _MainTex; fixed4 _Color; float4 _Win; float _Rad;
-      v2f vert (appdata_t v) {
-        v2f o;
-        o.vertex = UnityObjectToClipPos(v.vertex);
-        o.texcoord = v.texcoord;
-        o.color = v.color * _Color;
-        o.lpos = v.vertex.xy; // rect-local px — sliced and simple images alike
-        return o;
-      }
-      fixed4 frag (v2f i) : SV_Target {
-        fixed4 c = tex2D(_MainTex, i.texcoord) * i.color;
-        /* _Win = x0, bandBottom, x1, bandTop (rect-local px). Each END is
-           a disc-capped cut on the BAND: rows inside the band round with
-           r, the glow bleed above/below WRAPS the bead (never a straight
-           slice through the halo), and the run interior — bleed included
-           — is untouched. r clamps to min(halfBand, halfRun): the app's
-           own r = min(h/2, run/2), so the short tail degenerates into
-           its shrinking stadium with no cap sprite and no nub pill. */
-        float hb = max((_Win.w - _Win.y) * 0.5, 1.0);
-        float cy = (_Win.y + _Win.w) * 0.5;
-        float r = min(_Rad, min(hb, max(_Win.z - _Win.x, 2.0) * 0.5));
-        float dye = max(abs(i.lpos.y - cy) - (hb - r), 0.0);
-        float dxL = (_Win.x + r) - i.lpos.x;   // trailing end (left of x0+r cuts)
-        float dxR = i.lpos.x - (_Win.z - r);   // leading end (right of x1-r cuts)
-        float sL = dxL > 0.0 ? length(float2(dxL, dye)) - r : -1.0;
-        float sR = dxR > 0.0 ? length(float2(dxR, dye)) - r : -1.0;
-        float sdf = max(sL, sR);
-        // screen-true antialiasing on the cut — the seam road died for a
-        // hard boundary; this edge must never alias into a new one
-        float aa = max(fwidth(sdf), 1e-4);
-        c.a *= 1.0 - smoothstep(-aa, aa, sdf);
-        return c;
-      }
-      ENDCG
-    }
-  }
-}
-`;
-
 const DISABLED_INK_SHADER = `Shader "UIKitMaker/DisabledInk" {
   Properties {
     _MainTex ("Sprite", 2D) = "white" {}
@@ -3504,6 +3440,74 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       return measureSliceRGBA(cx.getImageData(0, 0, w, h).data, w, h, PNG_SCALE);
     } catch { return null; }
   };
+  /* ── ROUND 58, the WIDTH ROAD's border cutter (the owner, after real
+     Unity rendered the r57 shader road as a flat squared cut: "with 9
+     slice we won't need the mask"): a windowed mercury becomes a bordered
+     stadium — left/right borders cover the glow margin + the cap curve
+     (r = bandH/2) so resizing never distorts the bead, top/bottom carry
+     the bleed + a quarter-curve as the tall-stretch seatbelt (the owner:
+     height is anatomy, not a supported stretch axis). The CENTER mode is
+     MEASURED from the pixels we just rasterized: a flat/gradient center
+     (vertical dressing constant along the run) ships "sliced" — stretch
+     is invisible on it; a patterned center ships "tiled" — repeats at
+     natural density, the app's own reveal truth (Unity's tile is the
+     whole center region; the wrap phase past native width is the art's
+     own property, measured per family in the fence — the borders stay
+     EXACT for the owner's floor circle, so no snap may widen them). ── */
+  const analyzeBarCenter = async (
+    bytes: Uint8Array, w: number, h: number,
+    body: { x: number; w: number; y?: number; h?: number },
+  ): Promise<{ nineSlice: { left: number; right: number; top: number; bottom: number }; mode: "tiled" | "sliced" } | null> => {
+    try {
+      if (body.y === undefined || body.h === undefined || body.h < 8 || body.w < 32) return null;
+      const bmp = await createImageBitmap(new Blob([new Uint8Array(bytes)], { type: "image/png" }));
+      const cv = document.createElement("canvas");
+      cv.width = w; cv.height = h;
+      const cx = cv.getContext("2d")!;
+      cx.drawImage(bmp, 0, 0);
+      const d = cx.getImageData(0, 0, w, h).data;
+      /* the borders land EXACTLY at bleed + r on each side (the owner's
+         floor pin: "its zero point is a perfect circle") — at the floor
+         the two cap borders meet with NO center sliver, so the composed
+         minimum is two true semicircles: one circle. No pad (a 9-slice
+         never blends across zone boundaries, and the tangent column is
+         already straight art); nearest-rounding balances the sum to
+         ±0.5px of 2r. */
+      const r = body.h / 2;
+      const left = Math.round(body.x + r);
+      const right = Math.round((w - body.x - body.w) + r);
+      const top = Math.min(Math.round(body.y + body.h * 0.25), Math.floor((h - 12) / 2));
+      const bottom = Math.min(Math.round((h - body.y - body.h) + body.h * 0.25), Math.floor((h - 12) / 2));
+      if (w - left - right < 24) {
+        // a short mercury has no analyzable center — borders still guard
+        // the caps; the stretch zone is a sliver so the mode barely acts
+        const lr = Math.max(1, Math.floor((w - 12) / 2));
+        return { nineSlice: { left: Math.min(left, lr), right: Math.min(right, lr), top, bottom }, mode: "sliced" };
+      }
+      // the band's column profile (premultiplied luminance) across the center
+      const y0 = Math.max(0, Math.round(body.y)), y1 = Math.min(h, Math.round(body.y + body.h));
+      const prof: number[] = [];
+      for (let x = left; x < w - right; x++) {
+        let s9 = 0;
+        for (let y = y0; y < y1; y++) {
+          const i9 = (y * w + x) * 4;
+          s9 += (0.299 * d[i9] + 0.587 * d[i9 + 1] + 0.114 * d[i9 + 2]) * (d[i9 + 3] / 255);
+        }
+        prof.push(s9 / Math.max(1, y1 - y0));
+      }
+      const mn = Math.min(...prof), mx = Math.max(...prof);
+      /* flat/gradient center (vertical dressing constant along the run):
+         SLICED — stretch is invisible on it, and there is nothing to
+         tile. Patterned center: TILED — the owner's density truth
+         ("the pattern reveals at natural density, never stretches");
+         Unity's tile is the whole center region, so repeats beyond the
+         native width wrap on the art's own phase — the fence measures
+         that wrap per family (the borders stay EXACT for the floor
+         circle; no snap may widen them). */
+      const mode: "tiled" | "sliced" = mx - mn < 2.5 ? "sliced" : "tiled";
+      return { nineSlice: { left, right, top, bottom }, mode };
+    } catch { return null; }
+  };
   const rasterQueue = async () => {
     const total = pngQueue.length + (catalog ? 1 : 0);
     /* entries sharing a group (a family's rest + swap states) rasterize
@@ -3672,7 +3676,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
             fillBody = {
               x: Math.round(((fbx - +vbm2[1]) * PNG_SCALE - (raster.box?.x0 ?? 0)) * 10) / 10,
               w: Math.round(fbw * PNG_SCALE * 10) / 10,
-              /* round 57 (the BarClip capsule): the VERTICAL band rides
+              /* round 57-58 (the band-true borders): the VERTICAL band rides
                  wherever a producer stamps it — the capsule's Y window
                  and radius must speak the mercury band, never the
                  bleed-padded crop (the r57 curvature audit: rect-height
@@ -3821,6 +3825,20 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         const fx = (w - 12) / (s.left + s.right), fy = (h - 12) / (s.top + s.bottom);
         if (fx < 1) { s.left = Math.max(1, Math.floor(s.left * fx)); s.right = Math.max(1, Math.floor(s.right * fx)); }
         if (fy < 1) { s.top = Math.max(1, Math.floor(s.top * fy)); s.bottom = Math.max(1, Math.floor(s.bottom * fy)); }
+      }
+      /* ── ROUND 58, the WIDTH ROAD (the owner: "with 9 slice we won't
+         need the mask"): every WINDOWED mercury row — the band-stamped
+         fill atoms, rails included — ships band-true cap borders and a
+         measured center mode, and KitBarFill drives the rect's WIDTH.
+         The band-true numbers OVERRULE the generic curvature measurement
+         and its 25% caps above: a stadium's whole height IS cap, and the
+         mercury's authored band already names the curve exactly. The
+         ramped class (vsbar — the app squeezes its whole gradient into
+         the run) keeps the proven r47 stretch road: no borders, no mode. */
+      if (fillBody && fillBody.y !== undefined && q.meta.component !== "vsbar"
+          && (q.meta.part === "fill" || q.meta.part.startsWith("fill-"))) {
+        const bar58 = await analyzeBarCenter(bytes, w, h, fillBody);
+        if (bar58) { q.meta.nineSlice = bar58.nineSlice; q.meta.barMode = bar58.mode; }
       }
       files.push({ path: `assets/${q.path}`, data: bytes });
       // per-piece forks can arm the edge shine even when the kit default is
@@ -4171,13 +4189,13 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      capsule and gradient pill are gone; SAME FILENAMES, so existing
      projects upgrade in place and the maintenance pass reseats the rig. */
   await addPng("progress/track.9.png", shell("progress", { overlay: "track" }, slim), { component: "progress", part: "track", nineSlice: sliceOf("progress", 64), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Progress track — the real component's shell + well, no fill. The wired ProgressBar prefab stretches it." }, true);
-  await addPng("progress/fill.9.png", shell("progress", { overlay: "fill" }, slim, 1), { component: "progress", part: "fill", nineSlice: sliceOf("progress", 44), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Progress mercury at 100% — the wired prefab reveals it through KitBarFill's seam-proof capsule cut (the BarClip material) — drive fillAmount or SetValue and the rounded end follows exactly, pattern unbroken at any value." }, true);
+  await addPng("progress/fill.9.png", shell("progress", { overlay: "fill" }, slim, 1), { component: "progress", part: "fill", nineSlice: sliceOf("progress", 44), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Progress mercury — a bordered stadium: the cap curves live in the sprite's own 9-slice borders and KitBarFill drives the rect's WIDTH (SetValue, or write fillAmount and the rig adopts it) — the rounded end arrives with the sprite, seam-impossible, pattern at natural density. Longer bar = widen the rect; bigger bar = uniform scale (height is the design's anatomy, not a stretch axis)." }, true);
   /* the ROUNDED HEAD atoms (round 44, owner kit-wide ruling: "the right
      side of the mercury here is rounded, that's what I'm talking about
      kit-wide") — the mercury's bead windowed from the app's own partial
      drawing; KitBarFill parks it at the value line while the Filled crop
      hides under its body, so the growing end rounds at ANY value. */
-  await addPng("progress/cap.png", shell("progress", { overlay: "cap" }, slim, 1), { component: "progress", part: "cap", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "LEGACY head (older importers park it on the growing end) — current importers cut the rounded end with the BarClip capsule instead: seam-impossible, so this sprite goes unused on fresh builds." }, true);
+  await addPng("progress/cap.png", shell("progress", { overlay: "cap" }, slim, 1), { component: "progress", part: "cap", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "LEGACY head (older importers park it on the growing end) — the width road's bordered stadium rounds its own end now, so fresh builds never mount this sprite." }, true);
   if (full) {
   // segmented meter — empty well plus one lit cell; the engine tiles cells
   // into the well at its own count/gap. The docked emblem socket ships as
@@ -4190,17 +4208,17 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      layers and place as wired prefabs, like the slider and the progress
      bar before them. */
   await addPng("vsbar/track.9.png", shell("vsbar", { overlay: "track" }, slim), { component: "vsbar", part: "track", nineSlice: sliceOf("vsbar", 96), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "VS health bar track — the real component's shell + well, no fills, no medallion. The wired VsBar prefab stretches it." }, true);
-  await addPng("vsbar/fill-l.png", shell("vsbar", { overlay: "fill" }, slim, 1), { component: "vsbar", part: "fill-l", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Left fighter's mercury at 100% — KitBarFill COMPRESSES it into the live run (the app squeezes its ramp the same way) and rounds the drain edge with the seam-proof BarClip capsule. Drive SetValue or write fillAmount." }, true);
-  await addPng("vsbar/fill-r.png", shell("vsbar", { overlay: "fill-right" }, slim, 1), { component: "vsbar", part: "fill-r", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Right fighter's mercury at 100%, mirrored — KitBarFill compresses it into the live run toward center and rounds the drain edge with the seam-proof BarClip capsule. Drive SetValue or write fillAmount." }, true);
-  await addPng("vsbar/cap-l.png", shell("vsbar", { overlay: "cap-l" }, slim, 1), { component: "vsbar", part: "cap-l", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "LEGACY drain bead — current importers round the drain edge with the BarClip capsule (seam-impossible); older importers still park this at the health line." }, true);
-  await addPng("vsbar/cap-r.png", shell("vsbar", { overlay: "cap-r" }, slim, 1), { component: "vsbar", part: "cap-r", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "LEGACY drain bead, PRE-MIRRORED — current importers round the drain edge with the BarClip capsule; older importers still seat this pivot-first into the run." }, true);
+  await addPng("vsbar/fill-l.png", shell("vsbar", { overlay: "fill" }, slim, 1), { component: "vsbar", part: "fill-l", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Left fighter's mercury at 100% — KitBarFill COMPRESSES it into the live run (the app squeezes its whole ramp the same way) while the drain bead parks its true edge on the health line. Drive SetValue or write fillAmount." }, true);
+  await addPng("vsbar/fill-r.png", shell("vsbar", { overlay: "fill-right" }, slim, 1), { component: "vsbar", part: "fill-r", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Right fighter's mercury at 100%, mirrored — KitBarFill compresses it into the live run toward center while the pre-mirrored drain bead parks on the health line. Drive SetValue or write fillAmount." }, true);
+  await addPng("vsbar/cap-l.png", shell("vsbar", { overlay: "cap-l" }, slim, 1), { component: "vsbar", part: "cap-l", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The drain bead — its true edge parks on the health line while the ramp compresses (the round-48 body map keeps it seated through the glow bleed)." }, true);
+  await addPng("vsbar/cap-r.png", shell("vsbar", { overlay: "cap-r" }, slim, 1), { component: "vsbar", part: "cap-r", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The drain bead, PRE-MIRRORED — seats pivot-first INTO the run on the right bar, its true edge on the health line." }, true);
   /* round 47 (owner field: the VS caps clashed with the ramp): the NUB
      atoms — the live draw at run = one bar height, the whole ramp
      squeezed into a stadium. Below one head-width KitBarFill squashes
      the nub over the run (the app's short-tail shape and ink exactly)
      and cross-fades it out as the bar grows. */
-  await addPng("vsbar/nub-l.png", shell("vsbar", { overlay: "nub-l" }, slim, 1), { component: "vsbar", part: "nub-l", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "LEGACY short-run pill — the BarClip capsule degenerates into the app's stadium below one head-width on its own now; older importers still squash this to the run." }, true);
-  await addPng("vsbar/nub-r.png", shell("vsbar", { overlay: "nub-r" }, slim, 1), { component: "vsbar", part: "nub-r", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "LEGACY short-run pill, mirrored — the BarClip capsule owns the short tail on current importers; older ones still squash this to the run." }, true);
+  await addPng("vsbar/nub-l.png", shell("vsbar", { overlay: "nub-l" }, slim, 1), { component: "vsbar", part: "nub-l", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The short-run pill — below one head-width the app squeezes the whole ramp into a stadium no static head can fake; this atom squashes to the run and cross-fades out as the bar grows." }, true);
+  await addPng("vsbar/nub-r.png", shell("vsbar", { overlay: "nub-r" }, slim, 1), { component: "vsbar", part: "nub-r", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The short-run pill, mirrored — owns the right bar's short tail; squashes to the run and cross-fades out as the bar grows." }, true);
   /* round 44 (dossier R1 — words-are-live law): the medal's "VS" leaves
      the pixels. The word parses as a text seat off the medal's OWN canvas
      (the raster queue normalizes fx/fy/ffs to the cropped sprite; the ink
@@ -4213,8 +4231,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     await addPng("vsbar/medal.png", stripWordInk(vsMedalFull).svg, { component: "vsbar", part: "medal", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The candy VS medallion — rides the axis over both fills and holds its size when the bar stretches; the VS word is a LIVE seat on the Medal child (retype it in the Inspector).", ...(vsMedalSeats ? { textSeats: vsMedalSeats } : {}) }, true);
   }
   await addPng("emblembar/track.9.png", shell("emblembar", { overlay: "track" }, slim), { component: "emblembar", part: "track", nineSlice: sliceOf("emblembar", 64), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Emblem bar track — the real component's shell + well, no fill, no socket. The wired EmblemBar prefab stretches it." }, true);
-  await addPng("emblembar/fill.9.png", shell("emblembar", { overlay: "fill" }, slim, 1), { component: "emblembar", part: "fill", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Emblem bar mercury at 100% — the wired prefab reveals it through KitBarFill's seam-proof capsule cut (the BarClip material) — drive fillAmount or SetValue and the rounded end follows exactly." }, true);
-  await addPng("emblembar/cap.png", shell("emblembar", { overlay: "cap" }, slim, 1), { component: "emblembar", part: "cap", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "LEGACY head — current importers cut the rounded end with the BarClip capsule (seam-impossible); older importers still park this sprite." }, true);
+  await addPng("emblembar/fill.9.png", shell("emblembar", { overlay: "fill" }, slim, 1), { component: "emblembar", part: "fill", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Emblem bar mercury — a bordered stadium: the sprite's own 9-slice caps round the ends and KitBarFill drives the rect's WIDTH (SetValue, or write fillAmount and the rig adopts it). Longer bar = widen the rect; bigger bar = uniform scale (height is the design's anatomy, not a stretch axis)." }, true);
+  await addPng("emblembar/cap.png", shell("emblembar", { overlay: "cap" }, slim, 1), { component: "emblembar", part: "cap", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "LEGACY head — the width road's bordered stadium rounds its own end now; older importers still park this sprite." }, true);
   // icon undefined = the app's own default for a stock board copy (the
   // clock emblem); a dev drops their art in the socket's well in-engine
   /* the socket's canvas must hold the ICON-FX HALO (round 27 — owner,
@@ -4249,8 +4267,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      capsule approximation. Same filenames as the old synthesized strips —
      existing projects upgrade in place. */
   await addPng("slider/track.9.png", shell("slider", { overlay: "track" }, slim), { component: "slider", part: "track", nineSlice: sliceOf("slider", 64), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Slider track — the real component's shell + well, no fill, no knob. The wired Slider prefab stretches it." }, true);
-  await addPng("slider/fill.9.png", shell("slider", { overlay: "fill" }, slim, 1), { component: "slider", part: "fill", nineSlice: sliceOf("slider", 44), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Slider mercury at 100% — the wired prefab's Fill Rect scissors it to the live value; KitBarFill rounds the growing end with the seam-proof BarClip capsule where thumb and fill separate." }, true);
-  await addPng("slider/cap.png", shell("slider", { overlay: "cap" }, slim, 1), { component: "slider", part: "cap", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "LEGACY slider head — current importers cut the rounded end with the BarClip capsule; older importers still park this under the thumb." }, true);
+  await addPng("slider/fill.9.png", shell("slider", { overlay: "fill" }, slim, 1), { component: "slider", part: "fill", nineSlice: sliceOf("slider", 44), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Slider mercury — a bordered stadium driven by WIDTH: the Slider's onValueChanged feeds KitBarFill.SetValue (a persistent listener, visible in the Inspector) and the sprite's own 9-slice caps round the growing end under the thumb. Longer bar = widen the rect; bigger bar = uniform scale (height is the design's anatomy, not a stretch axis)." }, true);
+  await addPng("slider/cap.png", shell("slider", { overlay: "cap" }, slim, 1), { component: "slider", part: "cap", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "LEGACY slider head — the width road's bordered stadium rounds its own end now; older importers still park this under the thumb." }, true);
   await addPng("slider/thumb.png", shell("slider", { overlay: "knob" }, slim), { component: "slider", part: "thumb", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Slider knob — the kit's candy ball; the wired prefab drags it." }, true);
   await addPng("toggle/track.9.png", shell("toggle", { overlay: "track" }, slim, 1), { component: "toggle", part: "track", nineSlice: sliceOf("toggle", 102), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Switch track — the real component's shell + well. The wired Switch prefab slides the knob across it." }, true);
   await addPng("toggle/thumb.png", shell("toggle", { overlay: "knob" }, slim, 1), { component: "toggle", part: "thumb", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Switch knob, ON dot — the wired prefab slides it and swaps the OFF twin in." }, true);
@@ -4654,19 +4672,19 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         nameplate: "Nameplate — the name is a LIVE seat, the rank star a LIVE Image child, and the title ribbon a live plate child whose word RIDES it (move, restyle or delete plate + word as one). Display piece.",
         stepper: "Stepper — a WORKING control: both caps are REAL Buttons (the + cap arms with the app's own hover ring) that step the cell strip by whole cells (KitStepper.StepUp/StepDown/SetValue; KitCellMeter snaps the cut into the gaps). The +/− glyphs ride their caps as live words. Two hits, never one.",
         notifydot: "Notification badge — the bell/scroll glyph is a LIVE Image child and the red counter a live plate child whose count RIDES it (delete the pair as one, or drive the count). Display piece.",
-        loadbar: "Loading bar — LIVE: caption and percent are seats and the mercury is a Filled fill with the rounded head riding the value line (drive Fill's fillAmount or KitBarFill.SetValue). Display piece.",
+        loadbar: "Loading bar — LIVE: caption and percent are seats and the mercury is a bordered-stadium fill driven by KitBarFill — drag its Value slider or call SetValue(0..1); a raw fillAmount write still adopts. Display piece.",
         setrow: "Settings row — a WORKING control: the mini-slider is a real Unity Slider (drag the candy knob or set Slider.value; the Filled mercury and rounded head follow). The row label and value readout are LIVE seats — the readout is not wired to the slider, hook it to Slider.onValueChanged or retype it.",
         listmenu: "List menu — four rows: every row glyph is a LIVE Image child, every word a LIVE seat, and the Row highlight is a LIVE child too (slide it one row pitch to move the selection, or delete it). Wire per-row buttons over it.",
         scrollbar: "LEGACY SHEET (kept projects) — the flat strip with the thumb baked. The REAL road is the wired Scrollbar prefab: scrollbar-track.9 + scrollbar-thumb.9 with a genuine UnityEngine.UI.Scrollbar (drive Scrollbar.value; pair with your ScrollRect).",
         steps: "Step indicator — DRIVABLE (round 44): the generated prefab wears the still plate and KitSteps makes the position a dial (SetStep 1..4, or SetValue 0..1) — pip looks swap (done/current/upcoming), rails light behind the current step, and ALL FOUR digits are LIVE seats repainted per state. This baked sheet stays for older scenes.",
         pagedots: "Page dots — DRIVABLE (round 44): the PageDots prefab deals the strip live from pagedots-dot/knob at the kit's own pitch (PatternBreakPageDots — SetPage/SetCount, or SetValue 0..1). This baked sheet stays for older scenes and board stamps.",
-        questpanel: "Quest tracker — eyebrow, title, objectives and counts are LIVE seats (title is the live Label, pinned left like the app draws it). Every objective pip is a LIVE Image child — swap it between the shipped pip-done / pip-active / pip-empty looks to toggle a row. The footer mercury is a Filled fill that snaps to WHOLE objectives (drive Fill's fillAmount or KitBarFill.SetValue; snapSteps 3). The 1/3 and 2/3 count words are seats, not wired to the bar — retype them to match your value. Display piece.",
+        questpanel: "Quest tracker — eyebrow, title, objectives and counts are LIVE seats (title is the live Label, pinned left like the app draws it). Every objective pip is a LIVE Image child — swap it between the shipped pip-done / pip-active / pip-empty looks to toggle a row. The footer mercury is a KitBarFill bar that snaps to WHOLE objectives (the Value slider or SetValue; snapSteps 3). The 1/3 and 2/3 count words are seats, not wired to the bar — retype them to match your value. Display piece.",
         dialoguebox: "Dialogue box — both lines are LIVE seats, the speaker plate a live child whose NAME rides it (move or delete plate + name as one), and the continue caret its OWN live child (owner ruling, round 44 — blink it, bob it or swap it; icons/* fit the seat). Display piece.",
         choicelist: "Dialogue choices — all three responses and their hotkey digits are LIVE seats; the active-choice marker AND the Choice highlight are LIVE children (slide highlight + marker a row pitch to move the selection). All capsules rest uniform underneath. Wire per-choice buttons over the capsules.",
-        manarails: "Mana & stamina rails — LIVE: each rail is its own Filled fill with the rounded head (drive Mana/Stamina fillAmount or KitBarFill.SetValue) and each rail glyph a LIVE Image child. Display piece.",
-        xpbar: "XP bar — LIVE: the NEXT line and XP readout are seats, the mercury is a Filled fill with the rounded head (drive Fill's fillAmount or KitBarFill.SetValue; the milestone notch cuts ride the fill), and the level knob is a live child whose number RIDES it. Display piece.",
+        manarails: "Mana & stamina rails — LIVE: each rail is its own KitBarFill bar (each area's Value slider or SetValue) and each rail glyph a LIVE Image child. Display piece.",
+        xpbar: "XP bar — LIVE: the NEXT line and XP readout are seats, the mercury is a KitBarFill bar (the Value slider or SetValue; the milestone notch cuts ride the fill), and the level knob is a live child whose number RIDES it. Display piece.",
         invgrid: "Inventory grid — every cell glyph is a LIVE Image child (the app's cell pickers steer them) and the count chips are live plates with their numbers riding them. The selection ring is NOT baked: compose invgrid/cell-ring.png over any cell (the board scenes wire InvGridSelect for you). Display piece.",
-        partyframe: "Party frame — drop YOUR sprite on the Portrait child (the well clips it round); the name is a LIVE seat and the class glyph a LIVE Image child. HP and MP are each their own Filled fill with the rounded head (drive HP/MP fillAmount or KitBarFill.SetValue), and the level bubble is a LIVE Level knob child with the number riding it. Display piece.",
+        partyframe: "Party frame — drop YOUR sprite on the Portrait child (the well clips it round); the name is a LIVE seat and the class glyph a LIVE Image child. HP and MP are each their own KitBarFill bar (each area's Value slider or SetValue), and the level bubble is a LIVE Level knob child with the number riding it. Display piece.",
         compass: "Compass ribbon — the cardinal letters are LIVE seats and the Heading caret a LIVE child (restyle or delete it). The tick ribbon bakes at the staged heading (per-copy headings ride posed skins). Display piece.",
         dmgnumber: "Damage number — a DEV INSTRUMENT (round 47): PatternBreakDmgNumber.Show(n) composes the amount from the kit's own damage digits at the authored seat and plays the app's float-up-and-fade; Value 0 keeps the authored number byte-for-byte as a live, swappable child.",
         equipslot: "Equipment slot — the ghost silhouette showing what belongs is a LIVE Image child; the app's icon picker steers it and the Inspector swaps it. Display piece.",
@@ -4678,7 +4696,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         streakmeter: "Streak meter — LIVE, one dial (round 44): drive StreakIgnite's value and the five cells light whole (the Lit layer's snap scissor) while the Ignition glyph — a LIVE Image child — swaps to its lit pose and pulses at full streak (both poses ship). The label is a LIVE seat. Display piece.",
         waypoint: "Waypoint — the objective letter and distance are LIVE seats on the diamond. Spatial piece: it reads over live footage. Display piece.",
         capturemeter: "Capture point — LIVE: the point letter is a LIVE seat and the capture ring a Radial360 rig (drive the Fill child's fillAmount or KitRingFill.SetValue — the end caps ride the head, clean at any value). Display piece.",
-        respawn: "Respawn timer — LIVE: heading and seconds are seats and the drain bar is a Filled fill with the rounded head (drive Fill's fillAmount or KitBarFill.SetValue from the same countdown that writes the seconds). Display piece.",
+        respawn: "Respawn timer — LIVE: heading and seconds are seats and the drain bar is a KitBarFill bar (SetValue from the same countdown that writes the seconds). Display piece.",
         weaponwheel: "Weapon wheel — DRIVABLE (round 44): PatternBreakWeaponWheel makes the rotation a dial (SetValue 0..1 spins the cylinder; ArmChamber(i) parks a chamber at the hammer; ArmedChamber() reads the pick). The Cylinder is a LIVE rotating child, all six glyphs orbit upright as swappable Image children with armed/quiet looks, the Armed chamber ring and Name tag are nick'd children, and the hub/tag words are LIVE seats — drive them from ArmedChamber(). Display piece.",
         crosshair: "Crosshair — shell-free spatial art with the dark understroke; scale freely (Preserve Aspect). Display piece.",
         hitmarker: "Hit marker — shell-free spatial art; flash it from your own hit events. Display piece.",
@@ -4689,7 +4707,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         heartmeter: "Heart meter — every pip is a LIVE Image child answering the app's icon picker (swap any sprite in the Inspector); the timer is a LIVE seat and the add cap ITSELF a REAL small-button child with its + mark riding it (move, restyle or delete cap + mark as one). Display piece with one pressable corner.",
         energymeter: "Energy meter — LIVE: the ten cells snap whole (KitCellMeter — drive Value or SetValue), the Energy badge is a LIVE Image child (the app's icon picker steers it) and the count is a LIVE seat. Display piece.",
         starrating: "Star rating — DRIVABLE (round 44): the three Stars, the Celebration flare and the Replay button are LIVE children, and PatternBreakStarRating makes the score a dial (SetStars 0..3, or drive Value — earned/unearned looks swap on one shared frame; celebration + replay appear only at full marks, the app's own rule). The Replay button is a REAL Button. Display piece.",
-        vitalbar: "Vital bar — LIVE: the mercury is a Filled atom with a rounded head (drive fillAmount or KitBarFill.SetValue); the readout is a LIVE seat — drive both from your resource. Display piece.",
+        vitalbar: "Vital bar — LIVE: the mercury is a KitBarFill bar (the Value slider or SetValue); the readout is a LIVE seat — drive both from your resource. Display piece.",
         pathconnector: "Saga path connector — DRIVABLE (round 44): the Pathconnector prefab deals nine live beads along the kit's own S-curve and PatternBreakPathConnector lights them by value (SetProgress / SetValue 0..1). This baked sheet stays for older scenes and board stamps.",
         combo: "Combo burst — DYNAMIC (round 47): ComboPop.SetCount(n) deals the ×N numeral from the kit's own celebration digits at the authored seat (the Multiplier child holds the app-staged pose at rest; the Combo plaque is its own live child); Pop() replays the app's exact squash-overshoot-settle on whatever count is set, and ClaimBurst throws the sparks. CLICK IT IN PLAY.",
         booster: "Booster button — a REAL button (Sprite Swap states); the booster glyph is a LIVE Image child and the count badge a live plate child with its count RIDING it (the ×0 FREE ribbon ships the same way).",
@@ -4700,13 +4718,13 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         clancrest: "Clan crest — the emblem is a LIVE Image child and the tag ribbon a live plate whose tag RIDES it. Display piece.",
         chatbubble: "Chat bubble — sender, timestamp and every message line are LIVE seats on the speech silhouette. Display piece.",
         emotewheel: "Emote wheel — DRIVABLE (round 44): the pick is a dial (PatternBreakEmoteWheel — SetSector, or SetValue 0..1, the app's own mapping). The Armed highlight is a LIVE full-disc wedge the rig parks by rotation, every sector's emote swaps ghost/armed on one fixed frame, and the hub mirrors the pick. All emotes stay swappable Inspector children. Display piece.",
-        buildqueue: "Build queue — LIVE: the unit glyph is a LIVE Image child (editable down to the icon, as asked), name and queue line are seats, and the progress bar is a Filled fill with the rounded head (drive Fill's fillAmount or KitBarFill.SetValue). Display piece.",
-        unitplate: "Unit plate — drop YOUR sprite on the Portrait child; the name and stat numbers are LIVE seats and the attack/defense glyphs LIVE Image children. The HP mercury is a Filled fill with the rounded head (drive Fill's fillAmount or KitBarFill.SetValue). Display piece.",
+        buildqueue: "Build queue — LIVE: the unit glyph is a LIVE Image child (editable down to the icon, as asked), name and queue line are seats, and the progress bar is a KitBarFill bar (the Value slider or SetValue). Display piece.",
+        unitplate: "Unit plate — drop YOUR sprite on the Portrait child; the name and stat numbers are LIVE seats and the attack/defense glyphs LIVE Image children. The HP mercury is a KitBarFill bar (the Value slider or SetValue). Display piece.",
         techcard: "Tech card (researchable) — the tech glyph is a LIVE Image child (editable down to the icon); the name and cost are LIVE seats and the cost gem its own LIVE Image child beside the number. Researched/locked poses ride per-copy posed skins. Display piece.",
-        popmeter: "Population meter — LIVE: the population glyph is a LIVE Image child, the count a seat, and the supply bar a Filled fill with the rounded head (drive Fill's fillAmount or KitBarFill.SetValue; the app's near-cap alarm red stays an app-side draw for now). Display piece.",
+        popmeter: "Population meter — LIVE: the population glyph is a LIVE Image child, the count a seat, and the supply bar a KitBarFill bar (the Value slider or SetValue; the app's near-cap alarm red stays an app-side draw for now). Display piece.",
         pack: "Card pack — the pack art with its live word; open ceremonies are your game's (ClaimBurst fires on CLAIM-labeled copies). Display piece.",
         cardback: "Card back — the deck's face-down art with its live emblem child. Display piece.",
-        orderticket: "Kitchen order ticket — a REAL button; dish name and recipe lines are LIVE seats, the dish glyph a LIVE Image child, and the countdown bar is LIVE (Filled mercury + rounded head — drive fillAmount or KitBarFill.SetValue; the ≤25% alarm recolor + pulse are the game's runtime to add). Served poses ride per-copy posed skins.",
+        orderticket: "Kitchen order ticket — a REAL button; dish name and recipe lines are LIVE seats, the dish glyph a LIVE Image child, and the countdown bar is LIVE (a KitBarFill bar — the Value slider or SetValue; the ≤25% alarm recolor + pulse are the game's runtime to add). Served poses ride per-copy posed skins.",
         chest: "Treasure chest — a REAL button; tier and gate poses ride per-copy posed skins.",
         giftbox: "Gift box — a REAL button; tag and readiness poses ride per-copy posed skins.",
         rewardtray: "Reward tray — the multi-reward strip; title and quantities are LIVE seats and every revealed slot glyph is a LIVE Image child (swap any sprite in the Inspector; icons/* fit the seats). Reveal states ride posed skins. Display piece.",
@@ -4926,10 +4944,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
                 .replace(/ width="[\d.]+"/, ` width="${ww}"`)
                 .replace(/ height="[\d.]+"/, ` height="${Math.ceil(capH9)}"`)
                 .replace("<svg ", `<svg data-fillbody="${wx0.toFixed(1)} ${(cgh + 8).toFixed(1)}" `);
-              /* round 57: y/h ride too — the BarClip capsule needs the
-                 BAND, not the bleed-padded rect. The data-barfill stamp
-                 speaks the PRE-SHIFT frame (the data-track lesson, and
-                 the rails' own riseMR term): y alone shifts by the
+              /* round 57-58: y/h ride too — the band-true BORDERS need
+                 the BAND, not the bleed-padded rect. The data-barfill
+                 stamp speaks the PRE-SHIFT frame (the data-track lesson,
+                 and the rails' own riseMR term): y alone shifts by the
                  drawn-vs-raw shell delta; x needs no correction */
               const shDu = /data-shell="([-\d. ]+)"/.exec(fo.svg)?.[1].split(" ").map(Number);
               const sh0u = /data-shell0="([-\d. ]+)"/.exec(fo.svg)?.[1].split(" ").map(Number);
@@ -5167,12 +5185,12 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           for (const rl of railsOut) {
             await addPng(`${uid}/fill-${rl.name}.png`, rl.fill, {
               component: uid, part: `fill-${rl.name}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
-              usage: `The ${rl.name} rail's mercury at 100% — the app's own dressing; the prefab reveals it through KitBarFill's seam-proof capsule cut (drive fillAmount or SetValue).`,
+              usage: `The ${rl.name} rail's mercury — a bordered stadium: the sprite's own 9-slice caps round the ends and KitBarFill drives the rect's WIDTH (SetValue, or write fillAmount and the rig adopts it). Longer bar = widen the rect; bigger bar = uniform scale (height is the design's anatomy, not a stretch axis).`,
               ringV: rl.staged, railDx: rl.dx, railDy: rl.dy, railW: rl.w9, railH: rl.h9,
             }, true);
             await addPng(`${uid}/cap-${rl.name}.png`, rl.cap, {
               component: uid, part: `cap-${rl.name}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
-              usage: `The ${rl.name} rail's LEGACY head — current importers cut the rounded end with the BarClip capsule; older importers still park this sprite.`,
+              usage: `The ${rl.name} rail's LEGACY head — the width road's bordered stadium rounds its own end now; older importers still park this sprite.`,
             }, true);
           }
         }
@@ -5180,12 +5198,12 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           const stagedBar = Math.max(0, Math.min(1, uVal ?? ({ loadbar: 0.62, popmeter: 0.84, respawn: 0.6, buildqueue: 0.55, xpbar: 0.45, unitplate: 0.82, questpanel: 2 / 3, setrow: 0.7, orderticket: 0.62, vitalbar: 0.72 } as Record<string, number>)[uid] ?? 0.62));
           await addPng(`${uid}/fill.png`, barFillSvgU, {
             component: uid, part: "fill", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
-            usage: "The mercury at 100% — the app's own dressing (gradient, gloss, glow) alone on the canvas; the prefab reveals it through KitBarFill's seam-proof capsule cut (drive fillAmount or SetValue — the rounded end follows exactly, pattern unbroken).",
+            usage: "The mercury — the app's own dressing (gradient, gloss, glow) as a bordered stadium: the sprite's 9-slice caps round the ends and KitBarFill drives the rect's WIDTH (SetValue, or write fillAmount and the rig adopts it) — seam-impossible, pattern at natural density. Longer bar = widen the rect; bigger bar = uniform scale (height is the design's anatomy, not a stretch axis).",
             ringV: stagedBar,
           }, true);
           await addPng(`${uid}/cap.png`, barCapSvgU, {
             component: uid, part: "cap", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
-            usage: "LEGACY head — current importers cut the rounded end with the BarClip capsule instead (seam-impossible); older importers still park this sprite on the value line.",
+            usage: "LEGACY head — the width road's bordered stadium rounds its own end now; older importers still park this sprite on the value line.",
           }, true);
         }
         if (knobSvgSR) {
@@ -7269,7 +7287,6 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Runtime/PatternBreakCatalogEditView.cs", data: CATALOG_EDIT_VIEW_RUNTIME });
   files.push({ path: "Runtime/UIKitGlintInk.shader", data: GLINT_INK_SHADER });
   files.push({ path: "Runtime/UIKitDisabledInk.shader", data: DISABLED_INK_SHADER });
-  files.push({ path: "Runtime/UIKitBarClip.shader", data: BAR_CLIP_SHADER });
 
   /* ── OPTIONAL packed atlas — produced last, catalog only ──────── */
   if (full && catalog) {
@@ -7341,7 +7358,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     "Runtime/PatternBreakClaimBurst.cs", "Runtime/PatternBreakInvGrid.cs",
     "Runtime/PatternBreakStreakIgnite.cs", "Runtime/PatternBreakComboPop.cs",
     "Runtime/PatternBreakDmgNumber.cs",
-    "Runtime/PatternBreakStateFx.cs", "Runtime/UIKitGlintInk.shader", "Runtime/UIKitDisabledInk.shader", "Runtime/UIKitBarClip.shader",
+    "Runtime/PatternBreakStateFx.cs", "Runtime/UIKitGlintInk.shader", "Runtime/UIKitDisabledInk.shader",
     "Runtime/PatternBreakRingFill.cs",
     "Runtime/PatternBreakBuffSweep.cs",
     "Runtime/PatternBreakKitBarFill.cs",
@@ -7881,36 +7898,45 @@ namespace PatternBreak {
     [Tooltip("The bead BODY inside the cap sprite (width fractions, generated) — the bead's true edge parks on the value line, not the glow bleed's.")]
     public float capU0 = 0f;
     public float capU1 = 1f;
-    /* the SEAM-IMPOSSIBLE road (round 57 — the owner, on a 10x zoom of the
-       cap/body boundary: "we have to drop the 'add a cap' approach"): with
-       this material armed the mercury stays ONE continuous sprite and the
-       rounded growing end is CUT by an antialiased SDF capsule
-       (UIKitMaker/BarClip) in the fill rect's own space — pattern and
-       gradient can never break (same pixels, alpha-windowed), the radius
-       clamps to min(half-height, half-run) exactly like the app, and the
-       sub-cap-radius tail degenerates into the app's shrinking stadium.
-       No cap sprite, no nub, no stencil. The dev contract is unchanged:
-       drive fillAmount or SetValue. Old zips and kept prefabs (material
-       absent) keep the cap road byte-for-byte. */
-    [Tooltip("The kit's BarClip material (generated). Set: the rounded end is an antialiased capsule cut — the seam-proof road. Clear it to fall back to the legacy cap-sprite road.")]
-    public Material clipMaterial;
-    [Tooltip("The mercury BAND inside the fill sprite as HEIGHT fractions from the sprite's top (generated from the manifest's band box) — the capsule's rounding radius and Y seat speak the band, never the bleed-padded rect. 0/1 = the whole rect (older zips).")]
-    public float bandV0 = 0f;
-    public float bandV1 = 1f;
-    [Tooltip("The staged value for the clip road (generated) — the cap road recovers its pose from fillAmount, the clip road from here.")]
-    public float clipValue = -1f;
-    Material matInst;
-    float value = -1f; float wroteFill = float.NaN;
+    /* the WIDTH ROAD (round 58 — the owner, after real Unity rendered the
+       round-57 shader road as a flat squared cut and a mask that stayed
+       put while the sprite dragged: "with 9 slice we won't need the
+       mask"): the mercury is a BORDERED STADIUM sprite — both cap curves
+       live in the sprite's own 9-slice borders — and this rig drives the
+       fill RECT'S WIDTH: width = value × the well run, with the glow
+       margins overhanging so the ink lands zone-true (the round-48 body
+       map). No shader, no material instance, no cap child, no Filled
+       scissor — position, resize and edit-mode honesty are native to the
+       RectTransform. The resize story (the owner's ruling): a LONGER bar
+       is a wider rect; a BIGGER bar is a uniform scale; height is design
+       anatomy, not a stretch axis — the four borders are the seatbelt if
+       someone drags it tall anyway. Dev contract unchanged: SetValue, or
+       write fillAmount and the rig adopts it as the value. barMode 0
+       keeps every older prefab on its shipped road, byte for byte. */
+    [Tooltip("The width road (generated, round 58): 0 = the legacy cap/scissor roads (older zips); 1 = bordered stadium, SLICED center (flat/gradient art — stretch is invisible on it); 2 = bordered stadium, TILED center (patterned art repeats at natural density; the sprite is cut to whole pattern periods).")]
+    public int barMode = 0;
+    /* the DEV CONTRACT (round 58, the owner: bars "wired in a way that a
+       dev expects"): the Inspector slider IS the bar — drag it and the
+       mercury follows live, edit mode included (ExecuteAlways +
+       OnValidate); code drives the same field through SetValue, and a
+       raw fillAmount write still adopts (the shipped compat rule, the
+       KitCellMeter lesson). Per-frame driving is alloc-free — every
+       write below is change-guarded, and the one honest cost is Unity's
+       own: a bar under a LayoutGroup re-runs that group's layout on any
+       rect change. Serialized -1 = an OLDER import's prefab: the pose
+       recovers from the serialized rig state exactly as those rounds
+       shipped it, then lives in this field. */
+    [Range(0f, 1f)]
+    [Tooltip("The bar's value — drag to preview, live in edit mode too. Code: SetValue(0..1). (-1 on a prefab from an older kit import means 'recover the pose from the serialized rig'.)")]
+    public float value = -1f;
+    float wroteFill = float.NaN;
     float Snap(float v) { v = Mathf.Clamp01(v); return snapSteps > 0 ? Mathf.Round(v * snapSteps) / snapSteps : v; }
-    public void SetValue(float v) { value = Snap(v); if (clipMaterial != null) clipValue = value; Apply(); }
+    public void SetValue(float v) { value = Snap(v); Apply(); }
     public void Apply() {
       if (fill == null) return;
-      if (clipMaterial != null) {
-        // the clip road's staged pose rides its own field — fillAmount is
-        // pinned to 1 here (the capsule does the cutting), so the cap
-        // road's cold-read would always say "full"
-        if (value < 0f) value = Snap(clipValue >= 0f ? clipValue : 1f);
-        ApplyClip(value);
+      if (barMode != 0 && !stretchRun && fill.sprite != null) {
+        if (value < 0f) value = Snap(1f); // width-road prefabs always ship the pose; a hand-built rig starts full
+        ApplyWidth(value);
         return;
       }
       // a cold load reads the serialized cut back through the body map,
@@ -8023,104 +8049,79 @@ namespace PatternBreak {
         if (nubImg.color != nc) nubImg.color = nc;
       }
     }
-    /* the CLIP road (round 57): one sprite, one antialiased capsule cut.
-       Windowed bars keep the round-48 overhang rect (the body lands
-       zone-true) and the capsule's leading edge parks on the value line;
-       the trailing edge stays OPEN while the run is at least one
-       diameter — the sprite's own authored start art (bleed included)
-       carries that end, exactly like the cap road did — and CLOSES on
-       the sub-diameter tail so both ends round with r = run/2, the
-       app's shrinking stadium. Ramped bars (stretchRun) compress the
-       whole body into the run — the rect carries the value, the ramp
-       stays continuous by construction, and the capsule re-rounds both
-       compressed ends; no cap bead, no nub pill. At full, every edge
-       opens and the sprite's authored ends show verbatim. */
-    void ApplyClip(float v) {
+    /* the WIDTH road (round 58): the Fill Area IS the well run (the
+       round-44 seating), so the rect width = value × run + the sprite's
+       own glow margins, overhung exactly like the round-48 body map —
+       the ink starts on the well line and its leading curve is the
+       sprite's own bordered cap. THE FLOOR: below one cap-diameter of
+       run a bordered sprite would SQUASH its bead (the owner's field
+       screenshots: fat/squashed stadium ends), so the ink width clamps
+       at the borders' own span — the bead never deforms, and the app's
+       own visible floor (~3%, one band-diameter) is the same little
+       stadium. Zero still hides the mercury like every road before. */
+    void ApplyWidth(float v) {
       var frt = fill.rectTransform;
-      float span = bodyU1 - bodyU0 > 0.05f ? bodyU1 - bodyU0 : 1f;
-      float u0b = bodyU1 - bodyU0 > 0.05f ? bodyU0 : 0f;
-      float u1b = bodyU1 - bodyU0 > 0.05f ? bodyU1 : 1f;
+      var area = transform as RectTransform;
+      if (area == null) return;
       bool showFill = v > 0.005f;
       if (fill.enabled != showFill) fill.enabled = showFill;
-      bool full = v >= 0.995f;
-      if (stretchRun) {
-        if (full) v = 1f;
-        var a0 = frt.anchorMin; var a1 = frt.anchorMax;
-        a0.x = fromRight ? 1f - u1b * v / span : -u0b * v / span;
-        a1.x = fromRight ? 1f + (1f - u1b) * v / span : (1f - u0b) * v / span;
-        if (frt.anchorMin != a0) frt.anchorMin = a0;
-        if (frt.anchorMax != a1) frt.anchorMax = a1;
-      } else {
-        float exMin = -u0b / span, exMax = 1f + (1f - u1b) / span;
-        if (frt.anchorMin.x != exMin || frt.anchorMax.x != exMax) { var w0 = frt.anchorMin; w0.x = exMin; frt.anchorMin = w0; var w1 = frt.anchorMax; w1.x = exMax; frt.anchorMax = w1; }
-      }
-      if (frt.offsetMin != Vector2.zero) frt.offsetMin = Vector2.zero;
-      if (frt.offsetMax != Vector2.zero) frt.offsetMax = Vector2.zero;
-      if (fill.fillAmount != 1f) fill.fillAmount = 1f; // the geometry stays whole — the capsule does the cutting
-      wroteFill = 1f;
-      var mat = EnsureMat();
-      if (mat != null) {
-        var rct = frt.rect;
-        /* the BAND in rect space (file y runs down, rect y runs up) —
-           radius and rounding seat on the mercury itself; 0/1 fields
-           keep the whole rect (older zips' bodies carry no band) */
-        float bTop = rct.yMax - bandV0 * rct.height;
-        float bBot = rct.yMax - bandV1 * rct.height;
-        float bandH = Mathf.Max(1f, bTop - bBot);
-        float open = bandH * 4f + 64f;
-        float x0, x1;
-        if (stretchRun) {
-          /* the sprite (pre-mirrored art on right bars) maps 1:1 onto the
-             stretched rect — its body fractions ARE the window, both ends
-             re-rounded at the compressed run; full shows the authored
-             ends verbatim */
-          x0 = full ? rct.xMin - open : rct.xMin + u0b * rct.width;
-          x1 = full ? rct.xMax + open : rct.xMin + u1b * rct.width;
-        } else {
-          float uLead = fromRight ? u1b - v * span : u0b + v * span;
-          float uTail = fromRight ? u1b : u0b;
-          float leadX = rct.xMin + uLead * rct.width;
-          float tailX = rct.xMin + uTail * rct.width;
-          float runPx = Mathf.Abs(leadX - tailX);
-          // one BAND-diameter of run: the sprite's own start art carries
-          // the trailing curve (bleed included); below it, both ends
-          // close into the app's stadium
-          bool tailOpen = runPx >= bandH;
-          if (fromRight) { x1 = full ? rct.xMax + open : (tailOpen ? rct.xMax + open : tailX); x0 = leadX; }
-          else { x0 = tailOpen ? rct.xMin - open : tailX; x1 = full ? rct.xMax + open : leadX; }
-        }
-        mat.SetVector("_Win", new Vector4(x0, bBot, x1, bTop));
-        mat.SetFloat("_Rad", bandH * 0.5f);
-      }
+      float areaW = area.rect.width, areaH = area.rect.height;
+      float texW = Mathf.Max(1f, fill.sprite.rect.width), texH = Mathf.Max(1f, fill.sprite.rect.height);
+      float u0b = bodyU1 - bodyU0 > 0.05f ? bodyU0 : 0f;
+      float u1b = bodyU1 - bodyU0 > 0.05f ? bodyU1 : 1f;
+      // display px per texture px — the fill spans the area's height, so
+      // margins and the floor stay true under uniform scaling
+      float sScale = areaH / texH;
+      float mL = u0b * texW * sScale;
+      float mR = (1f - u1b) * texW * sScale;
+      var bd = fill.sprite.border; // texture px: x = left, z = right
+      float minInk = Mathf.Max(2f, (bd.x + bd.z) * sScale - mL - mR);
+      float w = Mathf.Max(v * areaW, minInk) + mL + mR;
+      /* the sanctioned center behavior rides the type: SLICED stretches a
+         flat center invisibly; TILED repeats a patterned one at natural
+         density. Near the FLOOR the center is a sub-pixel sliver, and
+         the owner's zero-point contract is a PERFECT circle (two cap
+         borders meeting) — Sliced renders the degenerate width exactly,
+         so the last pixel of drain rides it; the flip point has no
+         visible center, so nothing pops. */
+      var wantType = barMode == 2 && v * areaW > minInk + 1f ? Image.Type.Tiled : Image.Type.Sliced;
+      if (fill.type != wantType) fill.type = wantType;
+      var aMin = new Vector2(fromRight ? 1f : 0f, 0f);
+      var aMax = new Vector2(fromRight ? 1f : 0f, 1f);
+      var piv = new Vector2(fromRight ? 1f : 0f, 0.5f);
+      if (frt.anchorMin != aMin) frt.anchorMin = aMin;
+      if (frt.anchorMax != aMax) frt.anchorMax = aMax;
+      if (frt.pivot != piv) frt.pivot = piv;
+      if (frt.sizeDelta.x != w || frt.sizeDelta.y != 0f) frt.sizeDelta = new Vector2(w, 0f);
+      var ap = new Vector2(fromRight ? mR : -mL, 0f);
+      if (frt.anchoredPosition != ap) frt.anchoredPosition = ap;
+      // the contract input stays watchable — a raw fillAmount write still
+      // adopts as the value (the KitCellMeter rule); the width road just
+      // never DRAWS through it
+      wroteFill = fill.fillAmount;
       // the legacy children never draw on this road — a healed prefab
       // could carry both generations
       if (capHead != null && capHead.gameObject.activeSelf) capHead.gameObject.SetActive(false);
       if (nub != null && nub.gameObject.activeSelf) nub.gameObject.SetActive(false);
     }
-    Material EnsureMat() {
-      if (clipMaterial == null || fill == null) return null;
-      /* a per-bar instance carries this bar's own window — UI graphics
-         cannot ride property blocks. HideAndDontSave: a serialized ref
-         nulls harmlessly and OnEnable re-arms; the importer re-points the
-         saved prefab at the SHARED asset so nothing dangles on disk. */
-      if (matInst == null) { matInst = new Material(clipMaterial); matInst.hideFlags = HideFlags.HideAndDontSave; }
-      if (fill.material != matInst) fill.material = matInst;
-      return matInst;
-    }
     void OnEnable() { Apply(); }
-    void OnDisable() {
-      if (matInst != null) {
-        if (fill != null && fill.material == matInst) fill.material = clipMaterial;
-        if (Application.isPlaying) Destroy(matInst); else DestroyImmediate(matInst);
-        matInst = null;
-      }
+    /* the Inspector slider previews LIVE in edit mode — deferred a tick
+       (delayCall) so the rect writes never run inside OnValidate, where
+       Unity forbids SendMessage */
+    void OnValidate() {
+#if UNITY_EDITOR
+      if (fill == null) return;
+      UnityEditor.EditorApplication.delayCall += () => { if (this != null && isActiveAndEnabled) Apply(); };
+#endif
     }
-    void OnRectTransformDimensionsChange() { if (clipMaterial != null && fill != null && isActiveAndEnabled) Apply(); }
-    // the shipped contract stands: write fillAmount and the head follows
+    // a resized area re-seats the width road (the value is a fraction of
+    // the run, and the run just changed)
+    void OnRectTransformDimensionsChange() { if (barMode != 0 && fill != null && isActiveAndEnabled) Apply(); }
+    // the shipped contract stands: write fillAmount and the bar follows
     // (a raw write re-snaps too, the KitCellMeter rule)
     void LateUpdate() {
       if (fill == null) return;
-      if (!Mathf.Approximately(fill.fillAmount, wroteFill)) { value = Snap(fill.fillAmount); if (clipMaterial != null) clipValue = value; Apply(); }
+      if (!Mathf.Approximately(fill.fillAmount, wroteFill)) { value = Snap(fill.fillAmount); Apply(); }
     }
   }
 }
@@ -11838,15 +11839,23 @@ generated prefabs per your kit's own dials; there is nothing to call.
 
 **2 · Value-driven rigs — the motion IS the value.** Drive ONE number
 (tween it, lerp it, set it every frame) and the piece animates exactly
-like the app: fills scissor, caps ride the value line, cells snap whole,
+like the app: bars grow their stadium, arcs sweep, cells snap whole,
 looks swap. All of them expose \`SetValue(float 0..1)\` (plus their own
 richer verbs) and work in the Inspector, from code, and under board
-poses.
+poses. Every KitBarFill carries a Value slider in the Inspector — drag
+it and the mercury follows live, edit mode included. Per-frame driving
+is alloc-free (a guarded rect write); the one honest cost: a bar parked
+under a LayoutGroup re-runs that group's layout on every change, so
+keep tweened bars outside layout groups.
 
 - Bars & rings: **KitRingFill**, **KitBarFill**, **KitCellMeter**,
   **KitBuffSweep** (time remaining), **PatternBreakStopwatch**
   (\`SetSeconds\` on the 90s dial, alarm mood under 25%),
   **PatternBreakCooldown** (\`SetSeconds\` on the 6s dial).
+  Linear bars are bordered stadiums driven by rect WIDTH — resize a bar
+  LONGER by widening its rect (the caps never distort; patterned
+  mercury repeats at natural density), make it BIGGER with a uniform
+  scale; height is the design's anatomy, not a stretch axis.
 - Counts & picks: **KitStepper** (\`StepUp/StepDown\`), **KitSteps**
   (\`SetStep\`), **PatternBreakPageDots** (\`SetPage/SetCount\`),
   **PatternBreakStartLights** (\`SetCount\` — count 5 down to 0),
@@ -12805,7 +12814,7 @@ namespace PatternBreak {
        posed pixels with its plate — rebuilt as live TMP ON the live child
        (wordDx/wordDy = word center from the CHILD center, board px). */
     public string word; public float wordFs; public float wordDx; public float wordDy; public string wordInk; public int wordW; }
-  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public PBTrack track; public PBTrack body; public PBShellBox ink; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelInk; public string labelInk2; public float leading; public string labelText; public PBIconSeat icon; public PBGauge gauge; public PBChart chart; public PBLoot loot; public PBSeat[] textSeats; public PBStyle seatInk; public float ringV; public PBIconChild[] iconSeats; public float fireDx; public float fireDy; public float fireW; public float railDx; public float railDy; public float railW; public float railH; public string labelAnchor; }
+  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public PBTrack track; public PBTrack body; public PBShellBox ink; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelInk; public string labelInk2; public float leading; public string labelText; public PBIconSeat icon; public PBGauge gauge; public PBChart chart; public PBLoot loot; public PBSeat[] textSeats; public PBStyle seatInk; public float ringV; public PBIconChild[] iconSeats; public float fireDx; public float fireDy; public float fireW; public float railDx; public float railDy; public float railW; public float railH; public string labelAnchor; public string barMode; }
   [Serializable] class PBStyleOutline { public string color; public string color2; public float width; }
   [Serializable] class PBStyleGlow { public string color; public float size; public float opacity; }
   [Serializable] class PBStyleShadow { public string color; public float x; public float y; public float blur; public float opacity; }
@@ -13575,6 +13584,7 @@ namespace PatternBreak {
         AssetDatabase.DeleteAsset(root + "/Runtime/PatternBreakIdleShine.cs");
         Debug.Log("UI Kit Maker: removed a stray per-kit PatternBreakIdleShine.cs — the shared Runtime copy owns those types now.");
       }
+      HealBarClipRelics(root);
       /* ── I3: anything the last receipt knew that this manifest dropped
          stays on disk and gets named — deletion is a human's click. ONE
          exception: the great renaming (dev field report: sixteen identical
@@ -16383,10 +16393,13 @@ namespace PatternBreak {
               }
             }
             if (it.component == "setrow" && it.value > 0f) {
-              // the board's value poses the REAL control — the Slider
-              // writes fillAmount and the rig's follow re-parks the bead
+              // the board's value poses the REAL control — and seats the
+              // mercury directly too (the Slider's persistent listener
+              // is an event, not a guarantee, at import time)
               var slS9 = inst.GetComponentInChildren<Slider>(true);
               if (slS9 != null) slS9.value = Mathf.Clamp01(it.value);
+              var kbS9 = inst.GetComponentInChildren<KitBarFill>(true);
+              if (kbS9 != null) kbS9.SetValue(Mathf.Clamp01(it.value));
             }
             if (it.component == "scrollbar" && it.value > 0f) {
               // the app measures the thumb from the top; BottomToTop
@@ -19368,25 +19381,58 @@ namespace PatternBreak {
        — UI/Default stands in until the shader compiles and the next pass
        upgrades in place. The material asset also anchors the shader into
        player builds (a Shader.Find alone would strip). */
-    /* ONE bar-clip material per kit (round 57 — the seam-impossible
-       mercury): minted beside the fonts on the shipped UIKitMaker/BarClip
-       shader — UI/Default stands in until it compiles and the next pass
-       upgrades in place (the glints rule). The asset anchors the shader
-       into player builds; KitBarFill instances it per bar at runtime. */
-    static Material EnsureBarClipMaterial(string root) {
-      var path = root + "/fonts/Bar Clip.mat";
-      var want = Shader.Find("UIKitMaker/BarClip");
-      var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
-      if (mat == null) {
-        var use = want != null ? want : Shader.Find("UI/Default");
-        if (use == null) return null;
-        if (!AssetDatabase.IsValidFolder(root + "/fonts")) AssetDatabase.CreateFolder(root, "fonts");
-        mat = new Material(use);
-        AssetDatabase.CreateAsset(mat, path);
-        return AssetDatabase.LoadAssetAtPath<Material>(path);
+    /* ── ROUND 58 relic heal (the r57 shader road, revoked in the field):
+       an r57-era import saved every linear fill pointing at the minted
+       fonts/Bar Clip.mat, and a re-import of THIS kit leaves that stray
+       material and Runtime/UIKitBarClip.shader compiling on disk while
+       the width-road runtime never drives materials — the .mat's default
+       window (0,0,0,0) then cuts the mercury to an invisible razor
+       sliver (the r58 GPU harness's R3 exhibit, live in a project). The
+       IdleShine rule applies: the strays delete themselves, and first —
+       while the shader name can still be read — every KitBarFill fill
+       wearing a material that is PROVABLY OURS (the minted asset itself,
+       or any material on the UIKitMaker/BarClip shader) heals onto the
+       plain UI material, so relic bars render the honest flat Filled
+       pose until their prefabs regenerate on the width road. SCOPE
+       DISCIPLINE: a dev's own custom fill material never matches either
+       test and is never touched. ── */
+    static void HealBarClipRelics(string root) {
+      var matBC = AssetDatabase.LoadAssetAtPath<Material>(root + "/fonts/Bar Clip.mat");
+      bool strayShader = File.Exists(root + "/Runtime/UIKitBarClip.shader");
+      int healed = 0;
+      var pdirBC = root + "/Prefabs";
+      if (AssetDatabase.IsValidFolder(pdirBC)) {
+        foreach (var guidBC in AssetDatabase.FindAssets("t:Prefab", new string[] { pdirBC })) {
+          var pathBC = AssetDatabase.GUIDToAssetPath(guidBC);
+          var assetBC = AssetDatabase.LoadAssetAtPath<GameObject>(pathBC);
+          if (assetBC == null) continue;
+          bool wantBC = false;
+          foreach (var kbBC in assetBC.GetComponentsInChildren<KitBarFill>(true)) {
+            var imBC = kbBC != null ? kbBC.fill : null;
+            var m9BC = imBC != null ? imBC.material : null;
+            if (m9BC != null && ((matBC != null && m9BC == matBC) || (m9BC.shader != null && m9BC.shader.name == "UIKitMaker/BarClip"))) { wantBC = true; break; }
+          }
+          if (!wantBC) continue;
+          var contentsBC9 = PrefabUtility.LoadPrefabContents(pathBC);
+          try {
+            bool changedBC = false;
+            foreach (var kbBC in contentsBC9.GetComponentsInChildren<KitBarFill>(true)) {
+              var imBC = kbBC != null ? kbBC.fill : null;
+              var m9BC = imBC != null ? imBC.material : null;
+              if (m9BC != null && ((matBC != null && m9BC == matBC) || (m9BC.shader != null && m9BC.shader.name == "UIKitMaker/BarClip"))) {
+                imBC.material = null; // back to the Default UI material — visible, honest, flat
+                changedBC = true; healed++;
+              }
+            }
+            if (changedBC) PrefabUtility.SaveAsPrefabAsset(contentsBC9, pathBC);
+          } finally { PrefabUtility.UnloadPrefabContents(contentsBC9); }
+        }
       }
-      if (want != null && mat.shader != want) { mat.shader = want; EditorUtility.SetDirty(mat); }
-      return mat;
+      // the strays go LAST — the shader-name test above needed them alive
+      if (matBC != null) AssetDatabase.DeleteAsset(root + "/fonts/Bar Clip.mat");
+      if (strayShader) AssetDatabase.DeleteAsset(root + "/Runtime/UIKitBarClip.shader");
+      if (matBC != null || strayShader || healed > 0)
+        Debug.Log("UI Kit Maker: retired the round-57 BarClip road (stray shader/material removed)" + (healed > 0 ? " and healed " + healed + " bar fill(s) onto the plain UI material — they draw the honest flat pose; delete a prefab to regenerate it on the width road" : "") + ".");
     }
     static Material EnsureDisabledInkMaterial(string root) {
       var path = root + "/fonts/Disabled Ink.mat";
@@ -19514,14 +19560,14 @@ namespace PatternBreak {
         if (rowF != null && rowF.body != null && rowF.body.w > 2f && kbf.fill.sprite.rect.width > 2f) {
           kbf.bodyU0 = Mathf.Clamp01(rowF.body.x / kbf.fill.sprite.rect.width);
           kbf.bodyU1 = Mathf.Clamp01((rowF.body.x + rowF.body.w) / kbf.fill.sprite.rect.width);
-          /* round 57: the BAND rides where the manifest carries it — the
-             clip capsule's radius must be the mercury's half-height, not
-             the bleed-padded rect's (the curvature audit ran ~45% wide) */
-          if (rowF.body.h > 2f && kbf.fill.sprite.rect.height > 2f) {
-            kbf.bandV0 = Mathf.Clamp01(rowF.body.y / kbf.fill.sprite.rect.height);
-            kbf.bandV1 = Mathf.Clamp01((rowF.body.y + rowF.body.h) / kbf.fill.sprite.rect.height);
-          }
         }
+        /* the WIDTH ROAD's arming (round 58 — the owner: "with 9 slice we
+           won't need the mask"): the manifest names the measured center
+           mode; the sprite's own imported borders carry the caps. Rows
+           without the field (older zips, the ramped vsbar) stay 0 and
+           keep their shipped roads byte for byte. */
+        if (rowF != null && rowF.barMode != null && kbf.fill.sprite.border.x + kbf.fill.sprite.border.z > 1f)
+          kbf.barMode = rowF.barMode == "tiled" ? 2 : (rowF.barMode == "sliced" ? 1 : 0);
       }
       var capImgW = kbf.capHead != null ? kbf.capHead.GetComponent<Image>() : null;
       if (capImgW != null && capImgW.sprite != null) {
@@ -19532,10 +19578,6 @@ namespace PatternBreak {
         }
       }
       kbf.Apply();
-      /* the LAST Apply before a save re-arms the transient per-bar clip
-         instance — re-point the saved object at the SHARED asset (round
-         57); OnEnable re-instances wherever the prefab actually lives */
-      if (kbf.clipMaterial != null && kbf.fill != null) kbf.fill.material = kbf.clipMaterial;
     }
     static PBAsset RowOfSprite(PBManifest m, Sprite sp) {
       if (m == null || m.assets == null || sp == null) return null;
@@ -19547,18 +19589,20 @@ namespace PatternBreak {
       var kbf = area.AddComponent<KitBarFill>();
       kbf.fill = fImg;
       kbf.fromRight = fromRight;
-      /* the SEAM-IMPOSSIBLE mercury (round 57 — the owner's 10x zoom
-         caught the cap composite mis-phasing at the boundary: "we have to
-         drop the 'add a cap' approach"): every NEW rig arms the BarClip
-         road — one continuous sprite, the rounded end cut by the
-         antialiased SDF capsule, r = min(h/2, run/2) exactly like the
-         app. The cap/nub atoms stay shipped and the legacy rungs below
-         stand for kits whose material cannot mint — and for every
-         already-imported prefab, which keeps its cap road untouched. */
-      kbf.clipMaterial = EnsureBarClipMaterial(root);
+      /* the WIDTH ROAD (round 58 — the owner, after real Unity rendered
+         the round-57 shader road flat and stationary: "with 9 slice we
+         won't need the mask"): a windowed mercury whose sprite carries
+         BORDERS is a bordered stadium — the rig drives the rect's width
+         and the sprite's own caps round the ends; no cap child, no nub,
+         no shader. WireBarBodies arms the measured center mode right
+         after this. The RAMPED class (a nub atom ships) and border-less
+         sprites (older zips) keep the proven cap/nub rungs below —
+         byte-for-byte what round 47/48 shipped. */
       string capName = capNameOverride != null ? capNameOverride : (fam == "vsbar" ? (fromRight ? "cap-r" : "cap-l") : "cap");
       var capSp = S(root + "/assets/" + fam + "/" + fam + "-" + capName + ".png");
-      if (kbf.clipMaterial == null && capSp != null) {
+      var nubSp = S(root + "/assets/" + fam + "/" + fam + "-nub-" + (fromRight ? "r" : "l") + ".png");
+      bool widthRoad = nubSp == null && fImg.sprite != null && (fImg.sprite.border.x + fImg.sprite.border.z) > 1f;
+      if (!widthRoad && capSp != null) {
         var capGo = new GameObject("Cap", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
         capGo.transform.SetParent(area.transform, false);
         var cImg = capGo.GetComponent<Image>();
@@ -19567,25 +19611,20 @@ namespace PatternBreak {
       }
       /* round 47 (owner field: the VS caps clashed with the ramp): a bar
          that ships a NUB atom is a ramped mercury — the rig compresses
-         the fill into the run like the app compresses its gradient. On
-         the clip road the capsule re-rounds the compressed ends itself
-         (the nub pill's whole job); the legacy rung still builds the
-         pill where the material cannot mint. */
-      var nubSp = S(root + "/assets/" + fam + "/" + fam + "-nub-" + (fromRight ? "r" : "l") + ".png");
+         the fill into the run like the app compresses its gradient, the
+         faded-lead bead parks on the drain edge, and the nub pill owns
+         the short tail. The width road never applies here: a ramp's ink
+         must SQUEEZE with the value, which is the one thing a bordered
+         reveal cannot say. */
       if (nubSp != null && capSp != null) {
         kbf.stretchRun = true;
-        if (kbf.clipMaterial == null) {
-          var nubGo = new GameObject("Nub", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-          nubGo.transform.SetParent(area.transform, false);
-          var nImg = nubGo.GetComponent<Image>();
-          nImg.sprite = nubSp; nImg.raycastTarget = false; nImg.type = Image.Type.Simple; nImg.preserveAspect = false;
-          kbf.nub = (RectTransform)nubGo.transform;
-        }
+        var nubGo = new GameObject("Nub", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        nubGo.transform.SetParent(area.transform, false);
+        var nImg = nubGo.GetComponent<Image>();
+        nImg.sprite = nubSp; nImg.raycastTarget = false; nImg.type = Image.Type.Simple; nImg.preserveAspect = false;
+        kbf.nub = (RectTransform)nubGo.transform;
       }
       kbf.SetValue(staged);
-      /* the transient per-bar material instance must never reach the saved
-         prefab — re-point at the SHARED asset; OnEnable re-instances */
-      if (kbf.clipMaterial != null && kbf.fill != null) kbf.fill.material = kbf.clipMaterial;
     }
     /* ── the TWIN RAILS (round 44, item 21): mana and stamina each ride
        their own Filled atom + rounded bead, seated SHELL-CENTER relative
@@ -19682,14 +19721,26 @@ namespace PatternBreak {
       var hrtSR = handleSR.GetComponent<RectTransform>();
       hrtSR.sizeDelta = new Vector2(thW, thH);
       var slSR = go.AddComponent<Slider>();
-      slSR.fillRect = fillSR as RectTransform;
       slSR.handleRect = hrtSR;
       slSR.targetGraphic = hiSR;
       float v0SR = 0.7f;
       foreach (var aS in m.assets) if (aS != null && aS.component == "setrow" && aS.part == "fill" && aS.ringV > 0f) { v0SR = Mathf.Clamp01(aS.ringV); break; }
       slSR.value = v0SR;
       var kbSR = areaSR.GetComponent<KitBarFill>();
-      if (kbSR != null) kbSR.SetValue(v0SR);
+      /* round 58 (the width road): the mercury is width-driven now, and a
+         Slider handed a non-Filled fillRect drives its ANCHORS — the two
+         writers would fight. The Slider talks to the rig like any dev
+         does instead: a persistent onValueChanged → SetValue listener,
+         visible in the Inspector. Old prefabs keep their fillRect wire. */
+      if (kbSR != null) {
+        UnityEditor.Events.UnityEventTools.AddPersistentListener(slSR.onValueChanged, kbSR.SetValue);
+        // Editor+Runtime: a dev dragging the Slider in EDIT mode sees the
+        // mercury follow too (RuntimeOnly is the silent default)
+        slSR.onValueChanged.SetPersistentListenerState(slSR.onValueChanged.GetPersistentEventCount() - 1, UnityEngine.Events.UnityEventCallState.EditorAndRuntime);
+        kbSR.SetValue(v0SR);
+      } else {
+        slSR.fillRect = fillSR as RectTransform;
+      }
     }
     static void WireNamedRails(GameObject go, Sprite baseSp, PBAsset baseRow, string root, int pngScale, PBManifest m, string fam, string[] rails, string[] nices) {
       if (baseSp == null || baseRow == null || baseRow.shell == null || baseRow.shell.w < 4f || baseSp.rect.width < 2f) return;

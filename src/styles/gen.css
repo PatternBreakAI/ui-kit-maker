@@ -1028,9 +1028,21 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
    ink no matter which theme the page is in */
 .kp-coach .gp-label, .kp-dim .gp-label { color: rgba(235,238,255,.86); }
 .kp-step { font-size: 12px; font-weight: 800; letter-spacing: .12em; color: rgba(235,238,255,.55); }
-.kp-dim { position: relative; width: 94%; border-radius: 14px; background: rgba(4,6,12,.78); display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 28px 14px 18px; }
+/* Round 58, owner (light mode): "what is going on with lightmode here" —
+   the spotlight demo's dim-the-world wash (the 2000px box-shadow spread, a
+   scrim by trade) was written on .kp-spot bare, and nothing between it and
+   the page clipped (.kp-dim and .gp-card are overflow-visible on purpose),
+   so it painted a ~2000px gray dome across neighboring chapters — invisible
+   on the dark grounds it was authored against (#223), a page-wide overpaint
+   the moment the kit canvas went light. Containment by construction, both
+   halves: the demo surface CLIPS (overflow hidden — the .bd-stage rule the
+   board's safe-area scrim already lives under), and the scrim rule only
+   exists INSIDE that clipped surface, so no future reuse of .kp-spot can
+   size the wash against anything but its own demo card. */
+.kp-dim { position: relative; width: 94%; border-radius: 14px; background: rgba(4,6,12,.78); display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 28px 14px 18px; overflow: hidden; }
 .kp-dim + .kp-dim { margin-top: 12px; }
-.kp-spot { position: relative; display: inline-flex; border-radius: 999px; box-shadow: 0 0 0 6px rgba(235,238,255,.1), 0 0 0 2000px rgba(0,0,0,.25); }
+.kp-spot { position: relative; display: inline-flex; border-radius: 999px; box-shadow: 0 0 0 6px rgba(235,238,255,.1); }
+.kp-dim .kp-spot { box-shadow: 0 0 0 6px rgba(235,238,255,.1), 0 0 0 2000px rgba(0,0,0,.25); }
 .kp-ringpulse { position: absolute; inset: -8px; border: 2px solid rgba(160,240,255,.85); border-radius: 999px; animation: kp-pulse 1.6s ease-out infinite; pointer-events: none; }
 .kp-pointer { color: rgba(235,238,255,.8); font-size: 13px; margin-top: -4px; }
 
