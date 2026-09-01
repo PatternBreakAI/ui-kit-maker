@@ -10890,32 +10890,33 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
     }
     case "ribbonbanner": {
       /* Classic Ribbon Banner — the owner's ribbon commission, sketch
-         pass. INGEST CONTRACT (the pack's README): the authored paths
-         render VERBATIM — never redrawn — and every named part maps to a
-         KIT role; the pack's purple previews are direction, not palette
-         (the crown coin's ruling: geometry is the artist's, paint is the
-         kit's). The union silhouette (stock:ribbonclassic) takes the
-         kit's whole dimensional treatment — face, pattern, bevel wall,
-         extrusion, glow, shadow — in ONE sweep, exactly the one-slab
-         depth the pack's extruded preview draws. The composite parts
-         then ride OVER the dressed face as role furnishing in the pack's
-         assembly order: tails behind (Shadow-role wash on the kit's
-         light axis, clipped OUT of the panel region so the front panel
-         never inherits the tail's darkening), tail highlight streaks
-         (Highlight role — both authored previews paint them under the
-         panel; component.json lists them z5, previews win, flagged in
-         the round report), dark fold triangles (Shadow ink, the relief
-         recipe's near-solid pass), fold light catches (Highlight wash),
-         the center panel's own lift (Highlight wash — the panel stays
-         the kit's true face, a step prouder), the panel bottom-shadow
-         and top-catch bands, and the two authored house-glint seats
-         (the crown coin's kit-following star recipe). THE WORDS ARE A
-         LIVE SEAT, never art (the pack's text-field construction + the
-         editability law): the label rides contentText — the kit's full
-         lettering, the per-piece type-size dial and both nudges —
-         measure-true fitted to the panel's reading zone. */
+         pass. GEOMETRY: re-authored 2026-09-01 to the owner's direct
+         reference (the panoramic sharp-cornered panel over a horizontal
+         swallow-tail band — see ribbonBannerClassic.ts; the pack's paths
+         are superseded by the owner's explicit new reference, its
+         CONSTRUCTION kept). Every named part maps to a KIT role; the
+         references' colors are direction, not palette (the crown coin's
+         ruling: geometry is the reference's, paint is the kit's). The
+         union silhouette (stock:ribbonclassic) takes the kit's whole
+         dimensional treatment — face, pattern, bevel wall, extrusion,
+         glow, shadow — in ONE sweep, the one-slab depth as before. The
+         composite parts then ride OVER the dressed face as role
+         furnishing in the assembly order: tails behind (Shadow-role
+         wash on the kit's light axis, clipped OUT of the panel region
+         so the front panel never inherits the tail's darkening), tail
+         highlight streaks (Highlight role, under the panel), dark fold
+         triangles (Shadow ink, the relief recipe's near-solid pass),
+         fold light catches (Highlight wash), the sharp-cornered center
+         panel's own lift (Highlight wash — the panel stays the kit's
+         true face, a step prouder), the panel bottom-shadow and
+         top-catch bands, and the two authored house-glint seats (the
+         crown coin's kit-following star recipe). THE WORDS ARE A LIVE
+         SEAT, never art (the text-field construction + the editability
+         law): the label rides contentText — the kit's full lettering,
+         the per-piece type-size dial and both nudges — measure-true
+         fitted to the panel's reading zone. */
       const hRb = ({ s: 104, m: 138, l: 176 } as Record<KitSize, number>)[size] * k;
-      const wRb = hRb * 2; // the pack's 200x100 box — the drawn proportion
+      const wRb = hRb * 3.2; // the re-authored 320x100 box — the reference's panoramic proportion
       /* verdict 3 (owner ribbon round: "built through the dials"): on the
          ribbon cut the PANEL is the piece's face, so the union shell PARKS
          its own gloss band — build's full-face sweep would smear across
@@ -10936,8 +10937,11 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       // CTA — a ribbon reads as an announcement, not a button verb); the
       // Text control re-words this copy like any labeled piece
       const lblRb = (opts.label ?? "") || "DAILY OBJECTIVE";
-      const fsRb = fitFs(lblRb, 30 * k * typeK, wRb * 0.55);
-      const labelRb = contentText(lblRb, 39 + wRb / 2, 30 + hRb * 0.395, fsRb, { anchor: "middle" });
+      /* the reading seat re-derived for the re-authored panel (x 75-245,
+         y 0-50 of 320x100): the cap and the fit run both scale to the
+         shorter, wider panel — same panel-relative presence as before */
+      const fsRb = fitFs(lblRb, 20 * k * typeK, wRb * 0.49);
+      const labelRb = contentText(lblRb, 39 + wRb / 2, 30 + hRb * 0.267, fsRb, { anchor: "middle" });
       /* a per-piece re-dress (kitShapes) swaps the silhouette like any
          component — the ribbon furnishing belongs to the ribbon cut alone,
          so an alien cut keeps just the dressed shell + the live words */
@@ -10989,7 +10993,7 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       furnRb += `<path d="${bakeRb(RBP.panelTopCatch)}" fill="url(#${ridR}hs)" opacity="0.9"/>`;
       /* z6 · THE GLOSS SWOOSH (verdict 3) — the kit gloss treatment on the
          panel, build()'s layer-8 recipe verbatim fitted to the panel box
-         (pack art 200x100: panel x 40-160, y 0-74): the same signed-curve
+         (re-authored art 320x100: panel x 75-245, y 0-50): the same signed-curve
          quadratic (bow = Curvature x the shell's token scale, 1 here), the
          same light-keyed apex and lit-from-below flip, the same 3-stop
          softness fade, fill modes and state adjust, the same disabled
@@ -11011,8 +11015,8 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       let glossAboveRb = "";
       const gOpRb = (GLS.opacity / 100) * (state === "disabled" ? 0.35 : 1);
       if (GLS.on && gOpRb > 0.01) {
-        const pxRb = 39 + wRb * (40 / vbRb[2]), pwRb = wRb * (120 / vbRb[2]);
-        const pyRb = 30, phRb = hRb * (74 / vbRb[3]);
+        const pxRb = 39 + wRb * (75 / vbRb[2]), pwRb = wRb * (170 / vbRb[2]);
+        const pyRb = 30, phRb = hRb * (50 / vbRb[3]);
         const flipRb = rlyR > 0.25; // lit from below — the sweep flips down
         const gHRb = phRb * clamp(GLS.height / 100, 0.08, 0.92);
         const bowRb = GLS.curve * (flipRb ? -1 : 1);

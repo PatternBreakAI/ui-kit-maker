@@ -409,15 +409,18 @@ export const STOCK_SHAPES: Record<string, StockSilhouette> = {
   },
   ribbonclassic: {
     /* Classic Ribbon Banner (owner ribbon commission — sketch pass): the
-       ingest pack's strict single-path union, VERBATIM — the swallow
-       tails and rounded center panel as ONE closed loop, so bevel wall,
+       strict single-path union of the geometry RE-AUTHORED to the
+       owner's direct reference (2026-09-01 — the pack's paths
+       superseded): the horizontal-band swallow tails and the
+       sharp-cornered panoramic panel as ONE closed loop, so bevel wall,
        extrusion and shadow sweep the whole ribbon in one pass (the
-       pack's extruded preview draws exactly this one-slab depth). The
-       overlapping construction (tails behind, folds, panel in front,
-       glint seats) rides the component case as kit-role furnishing —
-       see ribbonBannerClassic.ts, the source of these bytes. capAware:
-       the tails are the caps, the panel's straight run is the middle,
-       so a stretched frame keeps the swallow cuts rigid. */
+       one-slab depth as before). The overlapping construction (tails
+       behind, folds, panel in front, glint seats) rides the component
+       case as kit-role furnishing — see ribbonBannerClassic.ts, the
+       source of these bytes. capAware: the tails are the caps, the
+       panel's straight run is the middle, and the near-horizontal band
+       keeps a stretched frame's ends clean — the swallow cuts stay
+       rigid. */
     id: "ribbonclassic", name: "Classic Ribbon Banner", capAware: true,
     vb: [...RIBBON_BANNER_CLASSIC.viewBox],
     d: RIBBON_BANNER_CLASSIC.strictSilhouette.d,
