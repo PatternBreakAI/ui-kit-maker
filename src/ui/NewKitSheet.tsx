@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import "@/styles/pricing.css";
 import { useGen, isTouched } from "@/generator/store";
@@ -50,6 +50,14 @@ export function NewKitSheet() {
   const openProjectId = useGen((s) => s.openProjectId);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  /* house modal manners (round 56, the switch-look sweep): Escape and the
+     backdrop dismiss like the Cancel button — never mid-save */
+  useEffect(() => {
+    if (!open || busy) return;
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") { setNote(null); closeNewKitSheet(); } };
+    document.addEventListener("keydown", esc);
+    return () => document.removeEventListener("keydown", esc);
+  }, [open, busy]);
   if (!open) return null;
 
   // "error" still counts as signed in — RLS writes keep working while the
@@ -95,7 +103,8 @@ export function NewKitSheet() {
   };
 
   return (
-    <div className="ph-veil" role="dialog" aria-modal="true" aria-label="Start a new kit">
+    <div className="ph-veil" role="dialog" aria-modal="true" aria-label="Start a new kit"
+      onClick={(e) => { if (e.target === e.currentTarget && !busy) done(); }}>
       {!signedIn ? (
         /* ── guests: no save exists, so the goodbye is said plainly ── */
         <div className="ph-sheet">
