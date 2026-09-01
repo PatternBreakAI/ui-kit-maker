@@ -2660,8 +2660,8 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the bare dome render no longer stamps data-fireseat (center + padded glyph-sprite box) — the exact armed seat can't reach the manifest (round 44, item 15)");
   if (!/fireDx: r1\(fsM\[0\] - \(shM\[0\] \+ shM\[2\] \/ 2\)\), fireDy: r1\(fsM\[1\] - \(shM\[1\] \+ shM\[3\] \/ 2\)\), fireW: r1\(fsM\[2\]\)/.test(src))
     errors.push("the emission no longer re-speaks data-fireseat shell-center relative onto the dome row (fireDx/fireDy/fireW)");
-  if (!/public PBIconChild\[\] iconSeats; public float fireDx; public float fireDy; public float fireW; public float railDx; public float railDy; public float railW; public float railH; public string labelAnchor; \}/.test(cs))
-    errors.push("PBAsset lost the fireDx/fireDy/fireW (or S15 rail / S17 labelAnchor) fields — JsonUtility drops them silently");
+  if (!/public PBIconChild\[\] iconSeats; public float fireDx; public float fireDy; public float fireW; public float railDx; public float railDy; public float railW; public float railH; public string labelAnchor; public string barMode; \}/.test(cs)) // round 58: barMode rides the same row
+    errors.push("PBAsset lost the fireDx/fireDy/fireW (or S15 rail / S17 labelAnchor / S48 barMode) fields — JsonUtility drops them silently");
   if (!/if \(themed && rowFS != null && rowFS\.fireW > 1f\) \{/.test(cs)
       || !/wRt\.sizeDelta = new Vector2\(rowFS\.fireW, rowFS\.fireW\);/.test(cs)
       || !/wRt\.anchoredPosition \+= new Vector2\(rowFS\.fireDx, -rowFS\.fireDy\);/.test(cs))
@@ -2747,8 +2747,8 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/public class KitBarFill : MonoBehaviour \{/.test(src)
       || !/float capW = areaH \* \(capImg\.sprite\.rect\.width \/ Mathf\.Max\(1f, capImg\.sprite\.rect\.height\)\);/.test(src)
       || !/fill\.fillAmount = Mathf\.Max\(0f, v - capFrac \* 0\.5f\);/.test(src)
-      // round 57: the follow also records the clip road's staged pose
-      || !/if \(!Mathf\.Approximately\(fill\.fillAmount, wroteFill\)\) \{ value = Snap\(fill\.fillAmount\); if \(clipMaterial != null\) clipValue = value; Apply\(\); \}/.test(src))
+      // round 58: the follow also records the width road's staged pose
+      || !/if \(!Mathf\.Approximately\(fill\.fillAmount, wroteFill\)\) \{ value = Snap\(fill\.fillAmount\); Apply\(\); \}/.test(src))
     errors.push("KitBarFill lost its rig semantics (height-ratio cap, crop retreat under the bead, change-guarded fillAmount follow — the SHIPPED dev contract)");
   if (!/files\.push\(\{ path: "Runtime\/PatternBreakKitBarFill\.cs", data: KIT_BAR_FILL_RUNTIME \}\);/.test(src)
       || !/"Runtime\/PatternBreakKitBarFill\.cs",/.test(src))
@@ -3822,60 +3822,76 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the Crown Coin's registry entry (or its relief masks) left glyphLibrary — the released glyph loses its art (round 55, S47)");
 }
 
-/* ── ROUND 57 · S48 (the owner's revocation of the cap composite — a 10x
-   zoom showed the seam: "we have to drop the 'add a cap' approach and
-   maybe consider masking or mathing"): the rounded growing end STAYS
-   (the round-44 mandate) but the mechanism is seam-impossible now — the
-   mercury is ONE continuous sprite and the leading curve is an
-   antialiased SDF capsule cut (UIKitMaker/BarClip, the GlintInk lpos
-   trick), radius min(h/2, run/2) exactly like the app, the sub-diameter
-   tail degenerating into the app's stadium and the vsbar ramp staying
-   continuous by construction. One material per kit anchors the shader;
-   KitBarFill instances it per bar; old zips and kept prefabs (material
-   absent) keep the cap road byte-for-byte. ── */
+/* ── ROUND 57-58 · S48 (the bar seam saga, ended by the owner's pivot):
+   round 57's cap-composite seam ("we have to drop the 'add a cap'
+   approach and maybe consider masking or mathing") begat a shader
+   capsule — which REAL Unity then rendered as a FLAT SQUARED cut with a
+   stationary mask (UGUI's canvas batcher rebases v.vertex into CANVAS
+   space, so rect-local window params resolve at the canvas origin; the
+   r58 GPU harness reproduced every field artifact). The owner ended the
+   class: "with 9 slice we won't need the mask." ROUND 58, the WIDTH
+   ROAD: the windowed mercury ships as a BORDERED STADIUM — band-true
+   9-slice caps cut from the body/band stamps, a MEASURED center mode
+   (sliced where the center is flat/gradient art, tiled to WHOLE
+   measured pattern periods where it patterns) — and KitBarFill drives
+   the fill RECT'S WIDTH with the bead-safe floor clamp; the vsbar ramp
+   keeps the proven r47 stretch road (cap bead + nub pill, un-gated
+   again), and older zips keep their shipped roads byte for byte. The
+   shader apparatus must STAY dead. ── */
 {
-  if (!/const BAR_CLIP_SHADER = `Shader "UIKitMaker\/BarClip" \{/.test(src)
-      || !/float r = min\(_Rad, min\(hb, max\(_Win\.z - _Win\.x, 2\.0\) \* 0\.5\)\);/.test(src)
-      || !/float dye = max\(abs\(i\.lpos\.y - cy\) - \(hb - r\), 0\.0\);/.test(src)
-      || !/float sL = dxL > 0\.0 \? length\(float2\(dxL, dye\)\) - r : -1\.0;/.test(src)
-      || !/float sR = dxR > 0\.0 \? length\(float2\(dxR, dye\)\) - r : -1\.0;/.test(src)
-      || !/c\.a \*= 1\.0 - smoothstep\(-aa, aa, sdf\);/.test(src))
-    errors.push("the BarClip shader left the exporter (or lost the per-end disc cuts / the bead-wrap on the glow bleed / the app's min-radius rule / the antialiased cut) — the seam road is back, the halo gets a straight slice, or the edge aliases (round 57, S48)");
-  if (!/files\.push\(\{ path: "Runtime\/UIKitBarClip\.shader", data: BAR_CLIP_SHADER \}\);/.test(src)
-      || !/"Runtime\/UIKitDisabledInk\.shader", "Runtime\/UIKitBarClip\.shader",/.test(src))
-    errors.push("Runtime/UIKitBarClip.shader no longer ships (or left the shared-scripts set) (round 57, S48)");
-  if (!/public Material clipMaterial;/.test(src) || !/public float clipValue = -1f;/.test(src))
-    errors.push("KitBarFill lost the clip road's fields — bars fall silently back to the seam composite (round 57, S48)");
-  if (!/if \(clipMaterial != null\) \{\s*\n[\s\S]{0,400}ApplyClip\(value\);\s*\n\s*return;/.test(src))
-    errors.push("Apply no longer routes armed rigs onto the clip road (round 57, S48)");
-  if (!/if \(fill\.fillAmount != 1f\) fill\.fillAmount = 1f; \/\/ the geometry stays whole — the capsule does the cutting/.test(src))
-    errors.push("the clip road no longer holds the geometry whole — a Filled scissor would double-cut the capsule (round 57, S48)");
-  if (!/bool tailOpen = runPx >= bandH;/.test(src))
-    errors.push("the low-fill story left ApplyClip — the sub-BAND-diameter tail must close both ends into the app's stadium (round 57, S48)");
-  if (!/public float bandV0 = 0f;/.test(src) || !/public float bandV1 = 1f;/.test(src)
-      || !/float bTop = rct\.yMax - bandV0 \* rct\.height;/.test(src)
-      || !/mat\.SetVector\("_Win", new Vector4\(x0, bBot, x1, bTop\)\);/.test(src)
-      || !/mat\.SetFloat\("_Rad", bandH \* 0\.5f\);/.test(src))
-    errors.push("the capsule lost the mercury BAND — a bleed-padded rect radius runs ~45% wide of the app's bead (the r57 curvature audit) (round 57, S48)");
+  if (/BarClip|BAR_CLIP|clipMaterial|bandV0|ApplyClip\(/.test(src) || /BarClip|clipMaterial/.test(cs))
+    errors.push("the dead shader road came back — BarClip/clipMaterial must not exist anywhere (round 58, S48: real Unity drew it as a flat squared cut; the canvas batcher owns v.vertex)");
+  if (!/barMode\?: "tiled" \| "sliced";/.test(src)
+      || !/const analyzeBarCenter = async \(/.test(src)
+      || !/q\.meta\.nineSlice = bar58\.nineSlice; q\.meta\.barMode = bar58\.mode;/.test(src))
+    errors.push("the width road's border cutter left the exporter — fills stop shipping band-true 9-slice caps and a measured center mode (round 58, S48)");
+  if (!/const left = Math\.round\(body\.x \+ r\);/.test(src)
+      || !/const right = Math\.round\(\(w - body\.x - body\.w\) \+ r\);/.test(src))
+    errors.push("the borders drifted off bleed + r EXACTLY — the owner's zero point stops being a perfect circle (pads and snaps may never widen a cap border) (round 58, S48)");
+  if (!/q\.meta\.component !== "vsbar"/.test(src))
+    errors.push("the ramped class lost its exclusion — a vsbar ramp cannot ride a bordered reveal: its ink must SQUEEZE with the value (round 58, S48)");
+  if (!/public int barMode = 0;/.test(src) || !/\[Range\(0f, 1f\)\]\n\s*\[Tooltip[^\n]*\n\s*public float value = -1f;/.test(src)
+      || !/void ApplyWidth\(float v\) \{/.test(src)
+      || !/var wantType = barMode == 2 && v \* areaW > minInk \+ 1f \? Image\.Type\.Tiled : Image\.Type\.Sliced;/.test(src))
+    errors.push("KitBarFill lost the width road — barMode / the [Range] value slider / ApplyWidth / the measured center type with its degenerate-floor Sliced rung (the owner's perfect circle) (round 58, S48)");
+  if (!/float minInk = Mathf\.Max\(2f, \(bd\.x \+ bd\.z\) \* sScale - mL - mR\);/.test(src)
+      || !/float w = Mathf\.Max\(v \* areaW, minInk\) \+ mL \+ mR;/.test(src))
+    errors.push("the width road lost its FLOOR — below one cap-diameter of run a bordered sprite squashes its bead (the owner's field screenshots: fat stadium ends) (round 58, S48)");
+  if (!/if \(barMode != 0 && !stretchRun && fill\.sprite != null\) \{/.test(src)
+      || !/public void SetValue\(float v\) \{ value = Snap\(v\); Apply\(\); \}/.test(src)
+      || !/void OnValidate\(\) \{/.test(src)
+      || !/UnityEditor\.EditorApplication\.delayCall \+= \(\) => \{ if \(this != null && isActiveAndEnabled\) Apply\(\); \};/.test(src)
+      || !/if \(!Mathf\.Approximately\(fill\.fillAmount, wroteFill\)\) \{ value = Snap\(fill\.fillAmount\); Apply\(\); \}/.test(src))
+    errors.push("Apply/SetValue/LateUpdate no longer route the width road (or lost its staged pose / the fillAmount adoption contract) (round 58, S48)");
   if (!/data-fillbody="\$\{fo\.box\[0\]\.toFixed\(1\)\} \$\{fo\.box\[2\]\.toFixed\(1\)\} \$\{\(fo\.box\[1\] \+ riseU\)\.toFixed\(1\)\} \$\{fo\.box\[3\]\.toFixed\(1\)\}"/.test(src)
       || !/data-fillbody="\$\{gx\.toFixed\(1\)\} \$\{gw\.toFixed\(1\)\} \$\{\(gy \+ riseMR\)\.toFixed\(1\)\} \$\{gh\.toFixed\(1\)\}"/.test(src)
       || !/Number\.isFinite\(fby\) && Number\.isFinite\(fbh\) && fbh > 1/.test(src))
-    errors.push("the four-number data-fillbody stamp (universal riseU / rails riseMR — the stamps speak the PRE-SHIFT frame) or its y/h parse left the exporter — bands go missing or seat a rise too high (round 57, S48)");
-  if (!/kbf\.bandV0 = Mathf\.Clamp01\(rowF\.body\.y \/ kbf\.fill\.sprite\.rect\.height\);/.test(cs)
-      || !/kbf\.bandV1 = Mathf\.Clamp01\(\(rowF\.body\.y \+ rowF\.body\.h\) \/ kbf\.fill\.sprite\.rect\.height\);/.test(cs))
-    errors.push("WireBarBodies no longer arms the band fractions from the manifest body row (round 57, S48)");
-  if (!/if \(matInst == null\) \{ matInst = new Material\(clipMaterial\); matInst\.hideFlags = HideFlags\.HideAndDontSave; \}/.test(src)
-      || !/if \(fill != null && fill\.material == matInst\) fill\.material = clipMaterial;/.test(src))
-    errors.push("the per-bar material instance (or its OnDisable restore) left KitBarFill — shared params would tear multi-bar scenes, or instances leak (round 57, S48)");
-  if (!/static Material EnsureBarClipMaterial\(string root\) \{/.test(cs)
-      || !/var path = root \+ "\/fonts\/Bar Clip\.mat";/.test(cs)
-      || !/kbf\.clipMaterial = EnsureBarClipMaterial\(root\);/.test(cs))
-    errors.push("the one-material-per-kit anchor (mint + arm in WireBarCap) left the importer — the shader strips from builds or bars never clip (round 57, S48)");
-  if (!/if \(kbf\.clipMaterial == null && capSp != null\) \{/.test(cs)
-      || !/if \(kbf\.clipMaterial == null\) \{\s*\n\s*var nubGo = new GameObject\("Nub"/.test(cs))
-    errors.push("the legacy cap/nub rungs lost their material gate — fresh builds would composite the seam again beside the clip (round 57, S48)");
-  if ((cs.match(/kbf\.fill\.material = kbf\.clipMaterial;/g) ?? []).length < 2)
-    errors.push("a saved prefab would carry the transient clip instance — the WireBarCap/WireBarBodies re-point to the shared asset is gone (round 57, S48)");
+    errors.push("the four-number data-fillbody stamp (universal riseU / rails riseMR — the stamps speak the PRE-SHIFT frame) or its y/h parse left the exporter — the band truth feeding the border cutter dies (round 57-58, S48)");
+  if (!/bool widthRoad = nubSp == null && fImg\.sprite != null && \(fImg\.sprite\.border\.x \+ fImg\.sprite\.border\.z\) > 1f;/.test(cs)
+      || !/if \(!widthRoad && capSp != null\) \{/.test(cs))
+    errors.push("WireBarCap lost the width-road fork — bordered stadiums would mount a cap child again, or border-less legacy zips would lose theirs (round 58, S48)");
+  if (!/kbf\.barMode = rowF\.barMode == "tiled" \? 2 : \(rowF\.barMode == "sliced" \? 1 : 0\);/.test(cs))
+    errors.push("WireBarBodies no longer arms the measured center mode from the manifest (round 58, S48)");
+  if (!/public string barMode; \}/.test(cs))
+    errors.push("PBAsset lost the barMode field — JsonUtility drops the mode and every bar falls back sliced (round 58, S48)");
+  if (!/UnityEditor\.Events\.UnityEventTools\.AddPersistentListener\(slSR\.onValueChanged, kbSR\.SetValue\);/.test(cs))
+    errors.push("the setrow Slider lost its onValueChanged → SetValue wire — a non-Filled fillRect drives ANCHORS and fights the width road (round 58, S48)");
+  if (!/var nubGo = new GameObject\("Nub"/.test(cs) || !/kbf\.stretchRun = true;/.test(cs))
+    errors.push("the vsbar ramp lost its r47 rungs — the cap bead + nub pill are LIVE again on the ramped class (round 58, S48)");
+  /* the DEV CONTRACT (the owner: bars "wired in a way that a dev
+     expects"): the slider previews in edit mode, the Slider control
+     drives the rig visibly, the API surface holds across import eras,
+     and no shipped sentence describes the dead Filled-scissor road. */
+  if (!/SetPersistentListenerState\(slSR\.onValueChanged\.GetPersistentEventCount\(\) - 1, UnityEngine\.Events\.UnityEventCallState\.EditorAndRuntime\);/.test(cs))
+    errors.push("the setrow Slider's listener fell back to RuntimeOnly — a dev dragging it in EDIT mode sees a dead mercury (round 58, S48)");
+  for (const api of ["public Image fill;", "public bool fromRight;", "public int snapSteps = 0;", "public bool stretchRun;", "public float bodyU0 = 0f;", "public float capU0 = 0f;", "public void SetValue(float v)", "public void Apply()"])
+    if (!src.includes(api))
+      errors.push(`KitBarFill's public API lost "${api}" — a dev's script written against an older import must run unchanged (round 58, S48)`);
+  if (/drive fillAmount or KitBarFill\.SetValue|drive Fill's fillAmount|Filled fill with the rounded head/.test(src))
+    errors.push("a shipped sentence still teaches the dead Filled-scissor road — the doc sweep regressed (round 58, S48)");
+  if (!/Every KitBarFill carries a Value slider in the Inspector/.test(src)
+      || !/a bar parked\nunder a LayoutGroup re-runs that group's layout on every change/.test(src))
+    errors.push("the QuickStart lost the slider-first contract or the honest LayoutGroup cost note (round 58, S48)");
 }
 
 if (errors.length) {
