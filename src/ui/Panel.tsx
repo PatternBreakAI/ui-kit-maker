@@ -1030,6 +1030,23 @@ export function Panel() {
     const scrub = (c: GenConfig) => { const p = JSON.parse(JSON.stringify(c)) as Record<string, unknown>; for (const k2 of DESIGN_KEYS) delete p[k2]; delete p.states; delete p.icon; delete p.contentMargin; return JSON.stringify(p); };
     if (scrub(mClone) !== scrub(cfgMaster)) updateParent((c) => { const keep = pickDesign(c); const keepStates = c.states; const keepIcon = c.icon; const keepCm = c.contentMargin; fn(c); Object.assign(c, keep); c.states = keepStates; c.icon = keepIcon; c.contentMargin = keepCm; });
   };
+  /* Round 56 (owner, editing the glyph buttons at Group scope: "I just
+     tried changing the silhouette for the group and it didn't work"):
+     the silhouette pick writes the kitShapes store road, which the design
+     fan-out above never carries — so Group scope silently dropped every
+     shape pick, for every family, while the dials around it fanned fine.
+     The pick (and the flip, and imported cuts) now honors the scope bar
+     like any design dial: group = every unlocked member wears the cut
+     (locked stay put — the scope's own promise), piece = the focused one
+     alone. One coalesced history push = one undo step. */
+  const setShapeScoped = (shape: Shape) => {
+    if (!focus) { update((c) => { c.shape = shape; }); return; }
+    const grp = scope === "group" ? groupOf(focus) : null;
+    for (const t of grp ? grp.members.filter((m) => !kitLocks[m]) : [focus]) setKitShape(t, shape);
+  };
+  const shapeScopeNote = focus
+    ? (scope === "group" && groupOf(focus) ? ` · restyles the whole ${groupOf(focus)!.name} group` : ` · restyles ${pieceLabel(focus)} only`)
+    : "";
   /* Round 56, owner: "when i switch looks I should be dropped off in the
      main button." A rack card is a LOOK — clicking one now lands the whole
      look through the store door whatever was focused, and the landing
@@ -1762,8 +1779,8 @@ export function Panel() {
               const stock = m.id.startsWith("stock:");
               return (
             <button key={m.id} className={`shapecard${baseShape(focus ? (kitShapes[focus] ?? KIT_SHAPE[baseOf(focus)] ?? D.shape) : D.shape) === m.id ? " on" : ""}${retired ? " retired" : ""}`}
-              title={retired ? `${m.name} — retired from the picker` : `${m.name} — ${m.character}${focus ? ` · restyles ${pieceLabel(focus)} only` : ""}${m.preview && isAdmin ? " (unlisted preview — admins only)" : ""}`}
-              onClick={() => { if (focus) setKitShape(focus, m.id); else update((c) => { c.shape = m.id; }); }}>
+              title={retired ? `${m.name} — retired from the picker` : `${m.name} — ${m.character}${shapeScopeNote}${m.preview && isAdmin ? " (unlisted preview — admins only)" : ""}`}
+              onClick={() => setShapeScoped(m.id)}>
               <svg viewBox="0 0 120 56" aria-hidden="true"><path d={shapePath(m.id, 8, 8, 104, 40, D.bevel.softness)} /></svg>
               <span>{m.name}</span>
               {stock && isAdmin && (
@@ -1796,7 +1813,7 @@ export function Panel() {
               title={canFlip
                 ? "Mirror this silhouette left-to-right — asymmetric cuts point the other way; every surface and export follows"
                 : "This silhouette is symmetric left-to-right, so its mirror image is identical — there's nothing to flip"}
-              onClick={() => { if (!canFlip) return; const next = flipShape(live); if (focus) setKitShape(focus, next); else update((c) => { c.shape = next; }); }}>
+              onClick={() => { if (!canFlip) return; setShapeScoped(flipShape(live)); }}>
               <ArrowLeftRight size={13} strokeWidth={2} /> Flip horizontally{isFlipShape(live) ? " — mirrored" : canFlip ? "" : " — shape is symmetric"}
             </button>
           );
@@ -1817,8 +1834,8 @@ export function Panel() {
         {userShapes.length > 0 && (
           <div className="shapegrid">
             {userShapes.map((u) => (
-              <button key={u.id} className={`shapecard${(focus ? (kitShapes[focus] ?? KIT_SHAPE[baseOf(focus)] ?? D.shape) : D.shape) === u.id ? " on" : ""}`} title={`${u.name} — imported silhouette${focus ? ` · restyles ${pieceLabel(focus)} only` : ""}`}
-                onClick={() => { if (focus) setKitShape(focus, u.id); else update((c) => { c.shape = u.id; }); }}>
+              <button key={u.id} className={`shapecard${(focus ? (kitShapes[focus] ?? KIT_SHAPE[baseOf(focus)] ?? D.shape) : D.shape) === u.id ? " on" : ""}`} title={`${u.name} — imported silhouette${shapeScopeNote}`}
+                onClick={() => setShapeScoped(u.id)}>
                 <svg viewBox="0 0 120 56" aria-hidden="true"><path d={shapePath(u.id, 8, 8, 104, 40, D.bevel.softness)} /></svg>
                 <span>{u.name}</span>
                 <span className="shapedel" role="button" aria-label={`Remove ${u.name}`} title="Remove"
