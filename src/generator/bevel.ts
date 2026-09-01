@@ -10890,10 +10890,12 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
     }
     case "ribbonbanner": {
       /* Classic Ribbon Banner — the owner's ribbon commission, sketch
-         pass. GEOMETRY: re-authored 2026-09-01 to the owner's direct
-         reference (the panoramic sharp-cornered panel over a horizontal
-         swallow-tail band — see ribbonBannerClassic.ts; the pack's paths
-         are superseded by the owner's explicit new reference, its
+         pass. GEOMETRY: re-authored 2026-09-01 (second pass) to the
+         owner's exact-shape ruling and their own construction recipe —
+         panel and tails the SAME height, all sides vertical, tails as
+         staggered copies of the banner with the V pushed in from an
+         added outer midpoint (see ribbonBannerClassic.ts; the pack's
+         paths and the first re-authoring are superseded, the
          CONSTRUCTION kept). Every named part maps to a KIT role; the
          references' colors are direction, not palette (the crown coin's
          ruling: geometry is the reference's, paint is the kit's). The
@@ -10916,7 +10918,7 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
          the per-piece type-size dial and both nudges — measure-true
          fitted to the panel's reading zone. */
       const hRb = ({ s: 104, m: 138, l: 176 } as Record<KitSize, number>)[size] * k;
-      const wRb = hRb * 3.2; // the re-authored 320x100 box — the reference's panoramic proportion
+      const wRb = hRb * 4.6; // the re-authored 460x100 box — the exact-shape reference's proportion
       /* verdict 3 (owner ribbon round: "built through the dials"): on the
          ribbon cut the PANEL is the piece's face, so the union shell PARKS
          its own gloss band — build's full-face sweep would smear across
@@ -10937,11 +10939,14 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       // CTA — a ribbon reads as an announcement, not a button verb); the
       // Text control re-words this copy like any labeled piece
       const lblRb = (opts.label ?? "") || "DAILY OBJECTIVE";
-      /* the reading seat re-derived for the re-authored panel (x 75-245,
-         y 0-50 of 320x100): the cap and the fit run both scale to the
-         shorter, wider panel — same panel-relative presence as before */
-      const fsRb = fitFs(lblRb, 20 * k * typeK, wRb * 0.49);
-      const labelRb = contentText(lblRb, 39 + wRb / 2, 30 + hRb * 0.267, fsRb, { anchor: "middle" });
+      /* the reading seat re-derived for the re-authored panel (x 94-366,
+         y 0-72 of 460x100): the fit run spans the wider panel minus the
+         same side margins, the cap rises with the taller panel, and the
+         seat sits at the measure-true reading center — midway between
+         the top catch's underside (y 10) and the bottom shadow's crown
+         (y 65.5): y 37.75 of 100 */
+      const fsRb = fitFs(lblRb, 24 * k * typeK, wRb * 0.55);
+      const labelRb = contentText(lblRb, 39 + wRb / 2, 30 + hRb * 0.3775, fsRb, { anchor: "middle" });
       /* a per-piece re-dress (kitShapes) swaps the silhouette like any
          component — the ribbon furnishing belongs to the ribbon cut alone,
          so an alien cut keeps just the dressed shell + the live words */
@@ -10993,7 +10998,7 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       furnRb += `<path d="${bakeRb(RBP.panelTopCatch)}" fill="url(#${ridR}hs)" opacity="0.9"/>`;
       /* z6 · THE GLOSS SWOOSH (verdict 3) — the kit gloss treatment on the
          panel, build()'s layer-8 recipe verbatim fitted to the panel box
-         (re-authored art 320x100: panel x 75-245, y 0-50): the same signed-curve
+         (re-authored art 460x100: panel x 94-366, y 0-72): the same signed-curve
          quadratic (bow = Curvature x the shell's token scale, 1 here), the
          same light-keyed apex and lit-from-below flip, the same 3-stop
          softness fade, fill modes and state adjust, the same disabled
@@ -11015,8 +11020,8 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       let glossAboveRb = "";
       const gOpRb = (GLS.opacity / 100) * (state === "disabled" ? 0.35 : 1);
       if (GLS.on && gOpRb > 0.01) {
-        const pxRb = 39 + wRb * (75 / vbRb[2]), pwRb = wRb * (170 / vbRb[2]);
-        const pyRb = 30, phRb = hRb * (50 / vbRb[3]);
+        const pxRb = 39 + wRb * (94 / vbRb[2]), pwRb = wRb * (272 / vbRb[2]);
+        const pyRb = 30, phRb = hRb * (72 / vbRb[3]);
         const flipRb = rlyR > 0.25; // lit from below — the sweep flips down
         const gHRb = phRb * clamp(GLS.height / 100, 0.08, 0.92);
         const bowRb = GLS.curve * (flipRb ? -1 : 1);

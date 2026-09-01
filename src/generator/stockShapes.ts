@@ -410,8 +410,9 @@ export const STOCK_SHAPES: Record<string, StockSilhouette> = {
   ribbonclassic: {
     /* Classic Ribbon Banner (owner ribbon commission — sketch pass): the
        strict single-path union of the geometry RE-AUTHORED to the
-       owner's direct reference (2026-09-01 — the pack's paths
-       superseded): the horizontal-band swallow tails and the
+       owner's exact-shape ruling and construction recipe (2026-09-01
+       second pass — the pack's paths and the first re-authoring
+       superseded): the same-height staggered swallow tails and the
        sharp-cornered panoramic panel as ONE closed loop, so bevel wall,
        extrusion and shadow sweep the whole ribbon in one pass (the
        one-slab depth as before). The overlapping construction (tails
