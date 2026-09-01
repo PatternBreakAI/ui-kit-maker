@@ -13584,6 +13584,7 @@ namespace PatternBreak {
         AssetDatabase.DeleteAsset(root + "/Runtime/PatternBreakIdleShine.cs");
         Debug.Log("UI Kit Maker: removed a stray per-kit PatternBreakIdleShine.cs — the shared Runtime copy owns those types now.");
       }
+      HealBarClipRelics(root);
       /* ── I3: anything the last receipt knew that this manifest dropped
          stays on disk and gets named — deletion is a human's click. ONE
          exception: the great renaming (dev field report: sixteen identical
@@ -19380,6 +19381,59 @@ namespace PatternBreak {
        — UI/Default stands in until the shader compiles and the next pass
        upgrades in place. The material asset also anchors the shader into
        player builds (a Shader.Find alone would strip). */
+    /* ── ROUND 58 relic heal (the r57 shader road, revoked in the field):
+       an r57-era import saved every linear fill pointing at the minted
+       fonts/Bar Clip.mat, and a re-import of THIS kit leaves that stray
+       material and Runtime/UIKitBarClip.shader compiling on disk while
+       the width-road runtime never drives materials — the .mat's default
+       window (0,0,0,0) then cuts the mercury to an invisible razor
+       sliver (the r58 GPU harness's R3 exhibit, live in a project). The
+       IdleShine rule applies: the strays delete themselves, and first —
+       while the shader name can still be read — every KitBarFill fill
+       wearing a material that is PROVABLY OURS (the minted asset itself,
+       or any material on the UIKitMaker/BarClip shader) heals onto the
+       plain UI material, so relic bars render the honest flat Filled
+       pose until their prefabs regenerate on the width road. SCOPE
+       DISCIPLINE: a dev's own custom fill material never matches either
+       test and is never touched. ── */
+    static void HealBarClipRelics(string root) {
+      var matBC = AssetDatabase.LoadAssetAtPath<Material>(root + "/fonts/Bar Clip.mat");
+      bool strayShader = File.Exists(root + "/Runtime/UIKitBarClip.shader");
+      int healed = 0;
+      var pdirBC = root + "/Prefabs";
+      if (AssetDatabase.IsValidFolder(pdirBC)) {
+        foreach (var guidBC in AssetDatabase.FindAssets("t:Prefab", new string[] { pdirBC })) {
+          var pathBC = AssetDatabase.GUIDToAssetPath(guidBC);
+          var assetBC = AssetDatabase.LoadAssetAtPath<GameObject>(pathBC);
+          if (assetBC == null) continue;
+          bool wantBC = false;
+          foreach (var kbBC in assetBC.GetComponentsInChildren<KitBarFill>(true)) {
+            var imBC = kbBC != null ? kbBC.fill : null;
+            var m9BC = imBC != null ? imBC.material : null;
+            if (m9BC != null && ((matBC != null && m9BC == matBC) || (m9BC.shader != null && m9BC.shader.name == "UIKitMaker/BarClip"))) { wantBC = true; break; }
+          }
+          if (!wantBC) continue;
+          var contentsBC9 = PrefabUtility.LoadPrefabContents(pathBC);
+          try {
+            bool changedBC = false;
+            foreach (var kbBC in contentsBC9.GetComponentsInChildren<KitBarFill>(true)) {
+              var imBC = kbBC != null ? kbBC.fill : null;
+              var m9BC = imBC != null ? imBC.material : null;
+              if (m9BC != null && ((matBC != null && m9BC == matBC) || (m9BC.shader != null && m9BC.shader.name == "UIKitMaker/BarClip"))) {
+                imBC.material = null; // back to the Default UI material — visible, honest, flat
+                changedBC = true; healed++;
+              }
+            }
+            if (changedBC) PrefabUtility.SaveAsPrefabAsset(contentsBC9, pathBC);
+          } finally { PrefabUtility.UnloadPrefabContents(contentsBC9); }
+        }
+      }
+      // the strays go LAST — the shader-name test above needed them alive
+      if (matBC != null) AssetDatabase.DeleteAsset(root + "/fonts/Bar Clip.mat");
+      if (strayShader) AssetDatabase.DeleteAsset(root + "/Runtime/UIKitBarClip.shader");
+      if (matBC != null || strayShader || healed > 0)
+        Debug.Log("UI Kit Maker: retired the round-57 BarClip road (stray shader/material removed)" + (healed > 0 ? " and healed " + healed + " bar fill(s) onto the plain UI material — they draw the honest flat pose; delete a prefab to regenerate it on the width road" : "") + ".");
+    }
     static Material EnsureDisabledInkMaterial(string root) {
       var path = root + "/fonts/Disabled Ink.mat";
       var want = Shader.Find("UIKitMaker/DisabledInk");

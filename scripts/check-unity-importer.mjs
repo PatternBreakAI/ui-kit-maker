@@ -3839,8 +3839,31 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
    again), and older zips keep their shipped roads byte for byte. The
    shader apparatus must STAY dead. ── */
 {
-  if (/BarClip|BAR_CLIP|clipMaterial|bandV0|ApplyClip\(/.test(src) || /BarClip|clipMaterial/.test(cs))
-    errors.push("the dead shader road came back — BarClip/clipMaterial must not exist anywhere (round 58, S48: real Unity drew it as a flat squared cut; the canvas batcher owns v.vertex)");
+  { /* the dead road stays dead — "BarClip" may appear ONLY inside the
+       relic HEAL that buries it (reviewer F1: an r57-imported project
+       re-imported under r58 kept the stray shader + the minted material
+       with its razor default window, and every linear bar vanished) */
+    const scrub = (t) => {
+      const a = t.indexOf("ROUND 58 relic heal");
+      const b = t.indexOf("static Material EnsureDisabledInkMaterial", a);
+      const out = a >= 0 && b > a ? t.slice(0, a) + t.slice(b) : t;
+      return out.split("HealBarClipRelics(root);").join(""); // the one sanctioned call site
+    };
+    if (/BarClip|BAR_CLIP|clipMaterial|bandV0|ApplyClip\(/.test(scrub(src)) || /BarClip|clipMaterial/.test(scrub(cs)))
+      errors.push("the dead shader road came back — outside the relic heal, BarClip/clipMaterial must not exist anywhere (round 58, S48: real Unity drew it as a flat squared cut; the canvas batcher owns v.vertex)");
+    if (!/static void HealBarClipRelics\(string root\) \{/.test(cs)
+        || !/HealBarClipRelics\(root\);/.test(cs)
+        || !/AssetDatabase\.DeleteAsset\(root \+ "\/fonts\/Bar Clip\.mat"\);/.test(cs)
+        || !/AssetDatabase\.DeleteAsset\(root \+ "\/Runtime\/UIKitBarClip\.shader"\);/.test(cs))
+      errors.push("the r57 relic heal (or its stray deletions) left the importer — a re-import over an r57 project keeps invisible razor bars (reviewer F1; round 58, S48)");
+    const clearAt = cs.indexOf("imBC.material = null;");
+    const gateAt = clearAt > 0 ? cs.lastIndexOf('m9BC.shader.name == "UIKitMaker/BarClip"', clearAt) : -1;
+    if (!(clearAt > 0 && gateAt > 0 && clearAt - gateAt < 240) || (cs.match(/imBC\.material = null;/g) ?? []).length !== 1)
+      errors.push("the heal's material-clear escaped its ours-only gate — a dev's own fill material could be wiped (round 58, S48 scope discipline)");
+    const delMatAt = cs.indexOf('AssetDatabase.DeleteAsset(root + "/fonts/Bar Clip.mat");');
+    if (!(delMatAt > clearAt))
+      errors.push("the heal deletes the stray material BEFORE the shader-name test — relics stop being provably ours (round 58, S48 ordering)");
+  }
   if (!/barMode\?: "tiled" \| "sliced";/.test(src)
       || !/const analyzeBarCenter = async \(/.test(src)
       || !/q\.meta\.nineSlice = bar58\.nineSlice; q\.meta\.barMode = bar58\.mode;/.test(src))
