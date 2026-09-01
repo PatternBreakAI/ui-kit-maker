@@ -3140,6 +3140,7 @@ export const useGen = create<GenStore>((set, get) => ({
     if (focus0 && get().kitLocks[focus0]) return; // finished pieces don't move
     const kd = focus0 ? get().kitDesigns[focus0] : undefined;
     if (focus0 && kd) {
+      pushHistory(get()); // undo restores the piece's forks — same promise as the master path's replaceConfig
       const eff = kd.states ?? get().cfg.states;
       const st4 = { default: { ...eff.default }, hover: { ...eff.default }, pressed: { ...eff.default }, disabled: { ...eff.default } } as GenConfig["states"];
       const kitDesigns = { ...get().kitDesigns, [focus0]: { ...kd, stateDesigns: {}, states: st4 } };
@@ -3166,14 +3167,22 @@ export const useGen = create<GenStore>((set, get) => ({
       /* What the user SEES on a locked piece is master ⊕ lock — promote THAT
          fork into the piece's pinned design, and ITS state adjustments into
          the piece's pinned states. The master doesn't move at all. */
+      pushHistory(get()); // (round 56) undo restores a focused promote too — the master path always had this via replaceConfig
       const work = clone2(applyKitDesign(cfg, kd0));
       const d = work.stateDesigns?.[sel];
       if (d) {
         for (const key of DESIGN_KEYS) (work as any)[key] = (d as any)[key];
+        /* the fork's ICON RIG rides the promote too — the one compartment a
+           StateDesign holds beyond DESIGN_KEYS, and exactly what the owner
+           caught the promote dropping ("it didn't carry over the icon
+           color"): wholesale, the same `d.icon ?? cfg.icon` grain the
+           renderer's ICR ladder reads, so the new Default renders pixel-
+           identical to what the state showed. */
+        if (d.icon) work.icon = d.icon;
         delete work.stateDesigns![sel];
       }
       work.states.default = { ...work.states[sel] };
-      const kitDesigns = { ...get().kitDesigns, [focus0]: { ...pickDesign(work), stateDesigns: work.stateDesigns ?? {}, states: work.states, ...(kd0.icon !== undefined ? { icon: work.icon } : {}), ...(kd0.idle ? { idle: kd0.idle } : {}), ...(kd0.contentMargin !== undefined ? { contentMargin: kd0.contentMargin } : {}) } };
+      const kitDesigns = { ...get().kitDesigns, [focus0]: { ...pickDesign(work), stateDesigns: work.stateDesigns ?? {}, states: work.states, ...(kd0.icon !== undefined || d?.icon ? { icon: work.icon } : {}), ...(kd0.idle ? { idle: kd0.idle } : {}), ...(kd0.contentMargin !== undefined ? { contentMargin: kd0.contentMargin } : {}) } };
       saveJson("ui-generator-kitdesigns", kitDesigns);
       set({ kitDesigns, selectedState: "default" });
       return;
@@ -3182,6 +3191,8 @@ export const useGen = create<GenStore>((set, get) => ({
     if (d) {
       // the state's forked design becomes the root design
       for (const key of DESIGN_KEYS) (cfg as any)[key] = (d as any)[key];
+      // …icon rig included (see the focused branch's note)
+      if (d.icon) cfg.icon = d.icon;
       delete cfg.stateDesigns[sel];
     }
     // its whole-component adjustments become the default baseline too
