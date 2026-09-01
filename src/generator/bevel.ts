@@ -4288,15 +4288,20 @@ const rarityOf = (cfg: GenConfig, v: number | undefined, fallback = 2) => {
   return rarityTiers(cfg)[i];
 };
 
-/** Dimensional candy ball — knobs for toggles, switches and sliders. */
-function candyKnob(cx: number, cy: number, r: number, base: string, dot?: string, shadow = true): string {
+/** Dimensional candy ball — knobs for toggles, switches and sliders.
+ *  Round 57, owner: "there's an oval circle shadow thing that we need to
+ *  get rid of universally" — the dark contact pancake the ball used to
+ *  drop (an ellipse at cy+0.82r) is DELETED, not parameterized: the same
+ *  fake-floor class the shell retired on 2026-07-30. The engine atoms
+ *  never baked it, so app and export now agree; grounding stays the cast
+ *  shadow's job. */
+function candyKnob(cx: number, cy: number, r: number, base: string, dot?: string): string {
   const kid = "kn" + UID++;
   return `<defs><radialGradient id="${kid}" cx="0.35" cy="0.3" r="0.9">
     <stop offset="0" stop-color="#FFFFFF"/>
     <stop offset="0.55" stop-color="${lighten(base, 0.78)}"/>
     <stop offset="1" stop-color="${lighten(base, 0.3)}"/>
   </radialGradient></defs>
-  ${shadow ? `<ellipse cx="${cx.toFixed(1)}" cy="${(cy + r * 0.82).toFixed(1)}" rx="${(r * 0.58).toFixed(1)}" ry="${(r * 0.18).toFixed(1)}" fill="rgba(0,0,0,0.32)"/>` : ""}
   <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r.toFixed(1)}" fill="url(#${kid})" stroke="${darken(base, 0.38)}" stroke-width="1.5"/>
   ${dot ? `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${Math.max(3, r * 0.3).toFixed(1)}" fill="${dot}"/>` : ""}
   <ellipse cx="${(cx - r * 0.3).toFixed(1)}" cy="${(cy - r * 0.44).toFixed(1)}" rx="${(r * 0.34).toFixed(1)}" ry="${(r * 0.19).toFixed(1)}" fill="#FFFFFF" opacity="0.85"/>`;
@@ -4389,9 +4394,9 @@ function chestArt(cx: number, cy: number, w: number, base: string, accent: strin
       <circle cx="${n(X(128))}" cy="${n(Y(111))}" r="${SX(2.8)}"/>
       <circle cx="${n(X(150))}" cy="${n(Y(111))}" r="${SX(2.8)}"/>
     </g>`;
-  const pool = `<ellipse cx="${n(X(118))}" cy="${n(Y(206))}" rx="${SX(74)}" ry="${SY(7)}" fill="rgba(4,7,14,0.4)"/>`;
+  // (floor pool ellipse retired — round 57, the universal fake-shadow purge)
   // open: the lid swings back on the rear-left hinge over the emptied box
-  return pool + (o.open ? lid + interior + box + latch : box + latch + lid);
+  return o.open ? lid + interior + box + latch : box + latch + lid;
 }
 
 /* Layer content BEHIND the whole piece (halo rings, auras): lands right
@@ -5006,8 +5011,8 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         .replace(/viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/, (_m, a, b, c2, d2) =>
           `viewBox="${(+a - ex).toFixed(1)} ${(+b - ex).toFixed(1)} ${(+c2 + ex * 2).toFixed(1)} ${(+d2 + ex * 2).toFixed(1)}"`);
     }
-    const shadow = `<ellipse cx="${cx.toFixed(1)}" cy="${(cy + D * 0.46).toFixed(1)}" rx="${(D * 0.44).toFixed(1)}" ry="${(D * 0.1).toFixed(1)}" fill="rgba(0,0,0,0.35)"/>`;
-    return inject(out, `<g data-dock="${dock.side ?? "left"}">${shadow}<g transform="translate(${tx.toFixed(1)} ${ty.toFixed(1)})">${innerSvg}</g></g>`);
+    // (dock floor pancake retired — round 57, the universal fake-shadow purge)
+    return inject(out, `<g data-dock="${dock.side ?? "left"}"><g transform="translate(${tx.toFixed(1)} ${ty.toFixed(1)})">${innerSvg}</g></g>`);
   };
 
   /* ── semantic glyph pieces — one shared construction for the whole rack.
@@ -5333,7 +5338,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const cpad = Math.ceil(knobR + 20);
         // shadowless: a merged cast shadow makes the standalone sprite an
         // egg and Unity centers on the egg (field: "vertically distorted")
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="${cpad * 2}" height="${cpad * 2}" viewBox="0 0 ${cpad * 2} ${cpad * 2}">${candyKnob(cpad, cpad, knobR, knobC, dotL, false)}</svg>`;
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${cpad * 2}" height="${cpad * 2}" viewBox="0 0 ${cpad * 2} ${cpad * 2}">${candyKnob(cpad, cpad, knobR, knobC, dotL)}</svg>`;
       }
       const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       if (opts.overlay === "track")
@@ -5362,7 +5367,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const cpad = Math.ceil(kr + 20);
         // shadowless: a merged cast shadow makes the standalone sprite an
         // egg and Unity centers on the egg (field: "vertically distorted")
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="${cpad * 2}" height="${cpad * 2}" viewBox="0 0 ${cpad * 2} ${cpad * 2}">${candyKnob(cpad, cpad, kr, knobC, undefined, false)}</svg>`;
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${cpad * 2}" height="${cpad * 2}" viewBox="0 0 ${cpad * 2} ${cpad * 2}">${candyKnob(cpad, cpad, kr, knobC)}</svg>`;
       }
       if (opts.overlay === "fill") {
         /* the mercury at 100% — the full silhouette-shaped run, no shell,
@@ -5377,7 +5382,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
            (mazepill's ellipse, any ornate shell) the highlight ends where
            the mercury ends instead of hanging past the curve. Unity's
            scissor then cuts fill and baked highlight together. */
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="${cw9}" height="${ch9}" viewBox="0 0 ${cw9} ${ch9}" data-fillbody="${bx.toFixed(1)} ${trackW.toFixed(1)}">
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${cw9}" height="${ch9}" viewBox="0 0 ${cw9} ${ch9}" data-fillbody="${bx.toFixed(1)} ${trackW.toFixed(1)} ${by.toFixed(1)} ${bh.toFixed(1)}">
           <defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient>${sfxF.defs}<clipPath id="${gid}m"><path d="${clipF}"/></clipPath></defs>
           ${sfxF.open}<path d="${clipF}" fill="url(#${gid})" opacity="0.95"/>${sfxF.close}
           <g clip-path="url(#${gid}m)"><path d="${roundRect(bx - 2, by + bh * 0.08, Math.max(0, trackW + 2 - 4 * k), bh * 0.34, bh * 0.17)}" fill="#FFFFFF" opacity="0.3"/>${sfxF.over}</g></svg>`;
@@ -5469,7 +5474,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
            BarFx overlays clip to the mercury silhouette, so the baked
            highlight ends where the mercury ends on shaped caps; Unity's
            Filled scissor cuts fill and highlight together. */
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="${cw9}" height="${ch9}" viewBox="0 0 ${cw9} ${ch9}" data-fillbody="${bx.toFixed(1)} ${trackW.toFixed(1)}">
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${cw9}" height="${ch9}" viewBox="0 0 ${cw9} ${ch9}" data-fillbody="${bx.toFixed(1)} ${trackW.toFixed(1)} ${by.toFixed(1)} ${bh.toFixed(1)}">
           <defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${bevel}"/><stop offset="1" stop-color="${glow}"/></linearGradient>${sfxF.defs}<clipPath id="${gid}m"><path d="${clipF}"/></clipPath></defs>
           ${sfxF.open}<path d="${clipF}" fill="url(#${gid})" opacity="0.95"/>${sfxF.close}
           <g clip-path="url(#${gid}m)"><path d="${roundRect(bx - 2, by + bh * 0.08, Math.max(0, trackW + 2 - bh * 0.1), bh * 0.34, bh * 0.17)}" fill="#FFFFFF" opacity="0.3"/>${sfxF.over}</g></svg>`;
@@ -5719,7 +5724,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const R = h * 0.46;
         const cpad = Math.ceil(R + 20);
         return `<svg xmlns="http://www.w3.org/2000/svg" width="${cpad * 2}" height="${cpad * 2}" viewBox="0 0 ${cpad * 2} ${cpad * 2}">` +
-          candyKnob(cpad, cpad, R, knobC, undefined, false) +
+          candyKnob(cpad, cpad, R, knobC) +
           `<text x="${(cpad + typeOxK * k).toFixed(1)}" y="${(cpad + 1 + typeOyK * k).toFixed(1)}" font-family="'${font}', 'Inter Variable', Inter, sans-serif" font-size="${(30 * k * typeK).toFixed(1)}" font-weight="800" font-style="italic" fill="${darken(bevel, 0.6)}" text-anchor="middle" dominant-baseline="central">VS</text></svg>`;
       }
       if (opts.overlay === "fill" || opts.overlay === "fill-right" || opts.overlay === "cap-l" || opts.overlay === "cap-r" || opts.overlay === "nub-l" || opts.overlay === "nub-r") {
@@ -5765,7 +5770,8 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
            fills/nubs, the bead's span on caps — viewBox units */
         const bodyAttrF = capF
           ? (rightF ? `${x0R9.toFixed(1)} ${(bh + 8).toFixed(1)}` : `${(fxL9 - bh - 8).toFixed(1)} ${(bh + 8).toFixed(1)}`)
-          : (rightF ? `${x0R9.toFixed(1)} ${runF.toFixed(1)}` : `${bx.toFixed(1)} ${runF.toFixed(1)}`);
+          // round 57: fills carry the band (y/h) too — the BarClip capsule speaks it
+          : (rightF ? `${x0R9.toFixed(1)} ${runF.toFixed(1)} ${by.toFixed(1)} ${bh.toFixed(1)}` : `${bx.toFixed(1)} ${runF.toFixed(1)} ${by.toFixed(1)} ${bh.toFixed(1)}`);
         const openF = capF || nubF
           ? `width="${wwF}" height="${ch9}" viewBox="${wx0F.toFixed(1)} 0 ${wwF} ${ch9}" data-fillbody="${bodyAttrF}"`
           : `width="${cw9}" height="${ch9}" viewBox="0 0 ${cw9} ${ch9}" data-fillbody="${bodyAttrF}"`;
@@ -6858,7 +6864,6 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const spoke9 = (dx: number, dy: number) =>
         `<line x1="${(ccx9 + dx * T9 * 0.28).toFixed(1)}" y1="${(ccy9 + dy * T9 * 0.28).toFixed(1)}" x2="${(ccx9 + dx * D9 * 0.72).toFixed(1)}" y2="${(ccy9 + dy * D9 * 0.72).toFixed(1)}" stroke="rgba(255,255,255,0.10)" stroke-width="${(9 * k).toFixed(1)}" stroke-linecap="round"/>`;
       const disc9 =
-        `<ellipse cx="${ccx9.toFixed(1)}" cy="${(ccy9 + R9 + 6 * k).toFixed(1)}" rx="${(R9 * 1.02).toFixed(1)}" ry="${(13 * k).toFixed(1)}" fill="rgba(8,12,20,0.28)" style="filter: blur(${(6 * k).toFixed(1)}px)"/>` +
         `<defs><radialGradient id="${gidQ}d" cx="0.5" cy="0.42" r="0.9"><stop offset="0" stop-color="${darken(effect(cfg.effects, "Inner Fill"), 0.68)}"/><stop offset="1" stop-color="${darken(effect(cfg.effects, "Inner Fill"), 0.84)}"/></radialGradient></defs>` +
         `<circle cx="${ccx9.toFixed(1)}" cy="${ccy9.toFixed(1)}" r="${R9.toFixed(1)}" fill="url(#${gidQ}d)" opacity="0.93" stroke="rgba(0,0,0,0.38)" stroke-width="1.5"/>` +
         `<circle cx="${ccx9.toFixed(1)}" cy="${ccy9.toFixed(1)}" r="${(R9 - 4 * k).toFixed(1)}" fill="none" stroke="${lighten(bevel, 0.35)}" stroke-width="1.2" opacity="0.35"/>` +
@@ -8558,7 +8563,6 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
           `<circle cx="${gcx.toFixed(1)}" cy="${gcy.toFixed(1)}" r="${rM.toFixed(1)}" fill="none" stroke="${glow}" stroke-width="${(6 * k).toFixed(1)}" stroke-linecap="round" stroke-dasharray="${(circ * vG).toFixed(1)} ${circ.toFixed(1)}" transform="rotate(-90 ${gcx.toFixed(1)} ${gcy.toFixed(1)})"${!dimG ? ` style="filter: drop-shadow(0 0 4px ${hexRgba(glow, 0.5)})"` : ""}/>`;
       }
       inner += `<defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(bevel, 0.25)}"/><stop offset="1" stop-color="${darken(bevel, 0.16)}"/></linearGradient></defs>` +
-        `<ellipse cx="${gcx.toFixed(1)}" cy="${(gcy + bh9 / 2 + 6 * k).toFixed(1)}" rx="${(bw9 * 0.6).toFixed(1)}" ry="${(7 * k).toFixed(1)}" fill="rgba(4,7,14,0.4)"/>` +
         `<rect x="${(gcx - bw9 / 2).toFixed(1)}" y="${(gcy - bh9 / 2 + 12 * k).toFixed(1)}" width="${bw9.toFixed(1)}" height="${(bh9 - 12 * k).toFixed(1)}" rx="${(9 * k).toFixed(1)}" fill="url(#${gid})" stroke="${edge}" stroke-width="1.6"/>` +
         `<rect x="${(gcx - bw9 / 2 - 5 * k).toFixed(1)}" y="${(gcy - bh9 / 2 - 6 * k).toFixed(1)}" width="${(bw9 + 10 * k).toFixed(1)}" height="${(26 * k).toFixed(1)}" rx="${(8 * k).toFixed(1)}" fill="${lighten(bevel, 0.32)}" stroke="${edge}" stroke-width="1.6"/>` +
         `<rect x="${(gcx - 9 * k).toFixed(1)}" y="${(gcy - bh9 / 2 - 6 * k).toFixed(1)}" width="${(18 * k).toFixed(1)}" height="${(bh9 + 12 * k).toFixed(1)}" fill="${dimG ? "#8B8F99" : glow}" opacity="0.9"/>` +
@@ -8786,7 +8790,6 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
         rays += `<path d="M 0 0 L ${(sw * 0.9).toFixed(1)} ${(-Math.tan((spread / 2) * Math.PI / 180) * sw * 0.9).toFixed(1)} L ${(sw * 0.9).toFixed(1)} ${(Math.tan((spread / 2) * Math.PI / 180) * sw * 0.9).toFixed(1)} Z" fill="${glow}" opacity="${dimP ? 0.04 : hotP ? 0.14 : 0.09}" transform="rotate(${a1})"/>`;
       }
       innerP += `<g transform="translate(${pcx.toFixed(1)} ${pcy.toFixed(1)})"><g>${dimP ? "" : `<animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="46s" repeatCount="indefinite"/>`}${rays}</g></g>`;
-      innerP += `<ellipse cx="${pcx.toFixed(1)}" cy="${(pcy + 58 * k).toFixed(1)}" rx="${(120 * k).toFixed(1)}" ry="${(16 * k).toFixed(1)}" fill="rgba(4,7,14,0.5)"/>`;
       innerP += chestArt(pcx, pcy + (state === "pressed" ? 12 * k : 8 * k), 128 * k, bevel, CHEST_TIERS.Gold, { dim: dimP });
       if (!dimP) for (let i = 0; i < 5; i++) {
         const ang = (i / 5) * Math.PI * 2 + 0.6;
@@ -9867,7 +9870,7 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
         const pad9 = 26, s9 = (kr2 + pad9) * 2;
         // shadowless (see the rig knobs): the merged shadow made the sprite
         // bottom-heavy and the centered rig thumb read off-center
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="${s9.toFixed(0)}" height="${s9.toFixed(0)}" viewBox="0 0 ${s9.toFixed(0)} ${s9.toFixed(0)}" role="img" aria-label="joystick thumb">${candyKnob(kr2 + pad9, kr2 + pad9, kr2, knobC, glow, false)}</svg>`;
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${s9.toFixed(0)}" height="${s9.toFixed(0)}" viewBox="0 0 ${s9.toFixed(0)} ${s9.toFixed(0)}" role="img" aria-label="joystick thumb">${candyKnob(kr2 + pad9, kr2 + pad9, kr2, knobC, glow)}</svg>`;
       }
       const track = build(cfg, state, { x: 33, y: 27, h: d2, fs: 0, iconSize: 0, tokenH: 132 }, { iconDef: null, label: "", fixedW: d2, shapeOverride: "pill" });
       const inset2 = bw + 5;
@@ -9920,7 +9923,7 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
         return `<svg xmlns="http://www.w3.org/2000/svg" width="${cpad9 * 2}" height="${cpad9 * 2}" viewBox="0 0 ${cpad9 * 2} ${cpad9 * 2}">
           <circle cx="${cpad9}" cy="${cpad9}" r="${mr9.toFixed(1)}" fill="${rimS9}" stroke="${darken(rimS9, 0.38)}" stroke-width="1.5"/>
           <circle cx="${cpad9}" cy="${cpad9}" r="${(mr9 * 0.82).toFixed(1)}" fill="${wellFill}" opacity="0.94"/>` +
-          candyKnob(cpad9, cpad9, mr9 * 0.72, knobC, undefined, false) + `</svg>`;
+          candyKnob(cpad9, cpad9, mr9 * 0.72, knobC) + `</svg>`;
       }
       // the shell's x/y margins grow to hold the carousel — satellites live
       // INSIDE the canvas so raster exports keep them (never in glow slack)
@@ -10763,7 +10766,6 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
         .join("");
       const startTick = `<line x1="${(26 * sx3 + pad2).toFixed(1)}" y1="${(110 * sy3 + pad2 - 6).toFixed(1)}" x2="${(36 * sx3 + pad2).toFixed(1)}" y2="${(114 * sy3 + pad2 + 4).toFixed(1)}" stroke="${isDarkBg(cfg.canvas) ? "#FFFFFF" : darken(bevel, 0.5)}" stroke-width="3" stroke-dasharray="3 3" opacity="0.9"/>`;
       const track =
-        `<ellipse cx="${(W2 / 2).toFixed(1)}" cy="${(H2 / 2 + 16 * k).toFixed(1)}" rx="${(w * 0.52).toFixed(1)}" ry="${(h * 0.4).toFixed(1)}" fill="${hexRgba("#04070E", 0.35)}"/>` +
         wall +
         `<path d="${d3}" fill="none" stroke="${darken(bevel, 0.45)}" stroke-width="${(9 * k).toFixed(1)}" stroke-linejoin="round" opacity="0.95"/>` +
         `<path d="${d3}" fill="none" stroke="${glow}" stroke-width="${(4 * k).toFixed(1)}" stroke-linejoin="round" filter="url(#${gid9}g)"/>` +
@@ -10871,7 +10873,6 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
   <filter id="${gid11}g" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="${(d4 * 0.05).toFixed(1)}"/></filter>
 </defs>
 <g opacity="${dim}">
-  <ellipse cx="${cx3}" cy="${(baseY + d4 * 0.15).toFixed(1)}" rx="${(bowlW * 0.55).toFixed(1)}" ry="${(d4 * 0.05).toFixed(1)}" fill="rgba(0,0,0,0.35)"/>
   <ellipse cx="${cx3}" cy="${(by + bowlH * 0.34).toFixed(1)}" rx="${(bowlW * 0.72).toFixed(1)}" ry="${(bowlH * 0.62).toFixed(1)}" fill="${gold}" filter="url(#${gid11}g)" opacity="0.3"/>
   <path d="M ${(bx - d4 * 0.14).toFixed(1)} ${(by + bowlH * 0.14).toFixed(1)} q ${(-d4 * 0.16).toFixed(1)} ${(bowlH * 0.32).toFixed(1)} ${(d4 * 0.18).toFixed(1)} ${(bowlH * 0.52).toFixed(1)}" fill="none" stroke="${gold}" stroke-width="${(d4 * 0.055).toFixed(1)}" stroke-linecap="round"/>
   <path d="M ${(bx + bowlW + d4 * 0.14).toFixed(1)} ${(by + bowlH * 0.14).toFixed(1)} q ${(d4 * 0.16).toFixed(1)} ${(bowlH * 0.32).toFixed(1)} ${(-d4 * 0.18).toFixed(1)} ${(bowlH * 0.52).toFixed(1)}" fill="none" stroke="${gold}" stroke-width="${(d4 * 0.055).toFixed(1)}" stroke-linecap="round"/>

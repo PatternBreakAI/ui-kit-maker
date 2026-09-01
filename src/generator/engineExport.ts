@@ -111,7 +111,7 @@ interface AssetMeta {
    *  field: "the fill needs to line up with the start of the well").
    *  KitBarFill maps its value space through these; absent = the whole
    *  sprite, so old zips keep today's behavior byte for byte. */
-  body?: { x: number; w: number } | null;
+  body?: { x: number; w: number; y?: number; h?: number } | null;
   /** The MEASURED ink box inside the shipped sprite (file px at pngScale):
    *  where the drawn piece itself ends, glow tails excluded — the crop's
    *  own alpha>8 box (round 50, the owner's class rule: canvases widened
@@ -2523,6 +2523,82 @@ const svgWrap = (w: number, h: number, inner: string) =>
    kit, one material minted per kit at import (the glints' Ensure road) —
    never a per-glyph baked gray (the S45 contract). Same LTS surface as
    UIKitGlintInk.shader, which already ships this way. */
+/* the BAR CLIP (round 57 — the owner's revocation of the cap composite:
+   a 10x zoom showed a visible seam at the cap/body boundary, "we have to
+   drop the 'add a cap' approach and maybe consider masking or mathing").
+   The ROUNDED growing end stays (the owner's own round-44 mandate) — the
+   MECHANISM changes to seam-impossible-by-construction: the mercury is
+   ONE continuous sprite and the leading curve is CUT by this shader — an
+   antialiased SDF capsule window in the fill rect's own local space
+   (the GlintInk lpos trick), so pattern and gradient can never break
+   (same pixels, alpha-windowed) and the curvature is exact at ANY value:
+   radius clamps to min(half-height, half-run), which IS the app's own
+   r = min(h/2, run/2) rule — the sub-cap-radius tail degenerates into
+   the app's shrinking stadium with no cap sprite, no nub pill, and no
+   stencil. Chosen over a Mask-component capsule (road A) because UI
+   stencil masking is BINARY per texel — an aliased leading curve at 10x
+   is the same class of complaint — and a 9-slice capsule degenerates
+   below 2r exactly where the app needs the stadium. Same LTS surface as
+   UIKitGlintInk/DisabledInk; anchored by a per-kit material, never
+   Shader.Find at runtime. */
+const BAR_CLIP_SHADER = `Shader "UIKitMaker/BarClip" {
+  Properties {
+    _MainTex ("Mercury sprite", 2D) = "white" {}
+    _Color ("Tint", Color) = (1,1,1,1)
+    _Win ("Capsule window x0,y0,x1,y1 (rect-local px)", Vector) = (0,0,0,0)
+    _Rad ("Corner radius px", Float) = 0
+  }
+  SubShader {
+    Tags { "Queue"="Transparent" "RenderType"="Transparent" "IgnoreProjector"="True" "PreviewType"="Plane" "CanUseSpriteAtlas"="True" }
+    Cull Off Lighting Off ZWrite Off ZTest [unity_GUIZTestMode]
+    Blend SrcAlpha OneMinusSrcAlpha
+    Pass {
+      CGPROGRAM
+      #pragma vertex vert
+      #pragma fragment frag
+      #pragma target 2.5
+      #include "UnityCG.cginc"
+      struct appdata_t { float4 vertex : POSITION; float4 color : COLOR; float2 texcoord : TEXCOORD0; };
+      struct v2f { float4 vertex : SV_POSITION; fixed4 color : COLOR; float2 texcoord : TEXCOORD0; float2 lpos : TEXCOORD1; };
+      sampler2D _MainTex; fixed4 _Color; float4 _Win; float _Rad;
+      v2f vert (appdata_t v) {
+        v2f o;
+        o.vertex = UnityObjectToClipPos(v.vertex);
+        o.texcoord = v.texcoord;
+        o.color = v.color * _Color;
+        o.lpos = v.vertex.xy; // rect-local px — sliced and simple images alike
+        return o;
+      }
+      fixed4 frag (v2f i) : SV_Target {
+        fixed4 c = tex2D(_MainTex, i.texcoord) * i.color;
+        /* _Win = x0, bandBottom, x1, bandTop (rect-local px). Each END is
+           a disc-capped cut on the BAND: rows inside the band round with
+           r, the glow bleed above/below WRAPS the bead (never a straight
+           slice through the halo), and the run interior — bleed included
+           — is untouched. r clamps to min(halfBand, halfRun): the app's
+           own r = min(h/2, run/2), so the short tail degenerates into
+           its shrinking stadium with no cap sprite and no nub pill. */
+        float hb = max((_Win.w - _Win.y) * 0.5, 1.0);
+        float cy = (_Win.y + _Win.w) * 0.5;
+        float r = min(_Rad, min(hb, max(_Win.z - _Win.x, 2.0) * 0.5));
+        float dye = max(abs(i.lpos.y - cy) - (hb - r), 0.0);
+        float dxL = (_Win.x + r) - i.lpos.x;   // trailing end (left of x0+r cuts)
+        float dxR = i.lpos.x - (_Win.z - r);   // leading end (right of x1-r cuts)
+        float sL = dxL > 0.0 ? length(float2(dxL, dye)) - r : -1.0;
+        float sR = dxR > 0.0 ? length(float2(dxR, dye)) - r : -1.0;
+        float sdf = max(sL, sR);
+        // screen-true antialiasing on the cut — the seam road died for a
+        // hard boundary; this edge must never alias into a new one
+        float aa = max(fwidth(sdf), 1e-4);
+        c.a *= 1.0 - smoothstep(-aa, aa, sdf);
+        return c;
+      }
+      ENDCG
+    }
+  }
+}
+`;
+
 const DISABLED_INK_SHADER = `Shader "UIKitMaker/DisabledInk" {
   Properties {
     _MainTex ("Sprite", 2D) = "white" {}
@@ -3591,11 +3667,20 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         const fbm = /data-fillbody="([-\d. ]+)"/.exec(q.svg);
         const vbm2 = /viewBox="(-?[\d.]+) (-?[\d.]+)/.exec(q.svg);
         if (fbm && vbm2) {
-          const [fbx, fbw] = fbm[1].split(" ").map(Number);
+          const [fbx, fbw, fby, fbh] = fbm[1].split(" ").map(Number);
           if (Number.isFinite(fbx) && Number.isFinite(fbw) && fbw > 1)
             fillBody = {
               x: Math.round(((fbx - +vbm2[1]) * PNG_SCALE - (raster.box?.x0 ?? 0)) * 10) / 10,
               w: Math.round(fbw * PNG_SCALE * 10) / 10,
+              /* round 57 (the BarClip capsule): the VERTICAL band rides
+                 wherever a producer stamps it — the capsule's Y window
+                 and radius must speak the mercury band, never the
+                 bleed-padded crop (the r57 curvature audit: rect-height
+                 radii ran ~45% wide of the app's bead) */
+              ...(Number.isFinite(fby) && Number.isFinite(fbh) && fbh > 1 ? {
+                y: Math.round(((fby - (+vbm2[2] || 0)) * PNG_SCALE - (raster.box?.y0 ?? 0)) * 10) / 10,
+                h: Math.round(fbh * PNG_SCALE * 10) / 10,
+              } : {}),
             };
         }
       }
@@ -4086,13 +4171,13 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      capsule and gradient pill are gone; SAME FILENAMES, so existing
      projects upgrade in place and the maintenance pass reseats the rig. */
   await addPng("progress/track.9.png", shell("progress", { overlay: "track" }, slim), { component: "progress", part: "track", nineSlice: sliceOf("progress", 64), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Progress track — the real component's shell + well, no fill. The wired ProgressBar prefab stretches it." }, true);
-  await addPng("progress/fill.9.png", shell("progress", { overlay: "fill" }, slim, 1), { component: "progress", part: "fill", nineSlice: sliceOf("progress", 44), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Progress mercury at 100% — the wired prefab's Filled image scissors it to the live value, and KitBarFill parks the rounded head (progress-cap.png) on the growing end." }, true);
+  await addPng("progress/fill.9.png", shell("progress", { overlay: "fill" }, slim, 1), { component: "progress", part: "fill", nineSlice: sliceOf("progress", 44), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Progress mercury at 100% — the wired prefab reveals it through KitBarFill's seam-proof capsule cut (the BarClip material) — drive fillAmount or SetValue and the rounded end follows exactly, pattern unbroken at any value." }, true);
   /* the ROUNDED HEAD atoms (round 44, owner kit-wide ruling: "the right
      side of the mercury here is rounded, that's what I'm talking about
      kit-wide") — the mercury's bead windowed from the app's own partial
      drawing; KitBarFill parks it at the value line while the Filled crop
      hides under its body, so the growing end rounds at ANY value. */
-  await addPng("progress/cap.png", shell("progress", { overlay: "cap" }, slim, 1), { component: "progress", part: "cap", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The mercury's rounded head — KitBarFill rides it on the fill's growing end (drive fillAmount or SetValue; the head follows, hides at 0, yields to the baked cap at 100%)." }, true);
+  await addPng("progress/cap.png", shell("progress", { overlay: "cap" }, slim, 1), { component: "progress", part: "cap", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "LEGACY head (older importers park it on the growing end) — current importers cut the rounded end with the BarClip capsule instead: seam-impossible, so this sprite goes unused on fresh builds." }, true);
   if (full) {
   // segmented meter — empty well plus one lit cell; the engine tiles cells
   // into the well at its own count/gap. The docked emblem socket ships as
@@ -4105,17 +4190,17 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      layers and place as wired prefabs, like the slider and the progress
      bar before them. */
   await addPng("vsbar/track.9.png", shell("vsbar", { overlay: "track" }, slim), { component: "vsbar", part: "track", nineSlice: sliceOf("vsbar", 96), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "VS health bar track — the real component's shell + well, no fills, no medallion. The wired VsBar prefab stretches it." }, true);
-  await addPng("vsbar/fill-l.png", shell("vsbar", { overlay: "fill" }, slim, 1), { component: "vsbar", part: "fill-l", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Left fighter's mercury at 100% — KitBarFill COMPRESSES it into the live run (the app squeezes its ramp the same way; a windowed crop would wear the wrong ink at every value but full). Drive SetValue or write fillAmount; the drain cap follows." }, true);
-  await addPng("vsbar/fill-r.png", shell("vsbar", { overlay: "fill-right" }, slim, 1), { component: "vsbar", part: "fill-r", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Right fighter's mercury at 100%, mirrored — KitBarFill compresses it into the live run toward center. Drive SetValue or write fillAmount; the drain cap follows." }, true);
-  await addPng("vsbar/cap-l.png", shell("vsbar", { overlay: "cap-l" }, slim, 1), { component: "vsbar", part: "cap-l", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Left fighter's drain bead — KitBarFill parks it at the health line (round 44: rounded at any value; round 47: faded lead-in blends into the compressed ramp)." }, true);
-  await addPng("vsbar/cap-r.png", shell("vsbar", { overlay: "cap-r" }, slim, 1), { component: "vsbar", part: "cap-r", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Right fighter's drain bead, PRE-MIRRORED — KitBarFill seats it pivot-first into the run at the health line (never x-flip it: the art already faces center)." }, true);
+  await addPng("vsbar/fill-l.png", shell("vsbar", { overlay: "fill" }, slim, 1), { component: "vsbar", part: "fill-l", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Left fighter's mercury at 100% — KitBarFill COMPRESSES it into the live run (the app squeezes its ramp the same way) and rounds the drain edge with the seam-proof BarClip capsule. Drive SetValue or write fillAmount." }, true);
+  await addPng("vsbar/fill-r.png", shell("vsbar", { overlay: "fill-right" }, slim, 1), { component: "vsbar", part: "fill-r", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Right fighter's mercury at 100%, mirrored — KitBarFill compresses it into the live run toward center and rounds the drain edge with the seam-proof BarClip capsule. Drive SetValue or write fillAmount." }, true);
+  await addPng("vsbar/cap-l.png", shell("vsbar", { overlay: "cap-l" }, slim, 1), { component: "vsbar", part: "cap-l", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "LEGACY drain bead — current importers round the drain edge with the BarClip capsule (seam-impossible); older importers still park this at the health line." }, true);
+  await addPng("vsbar/cap-r.png", shell("vsbar", { overlay: "cap-r" }, slim, 1), { component: "vsbar", part: "cap-r", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "LEGACY drain bead, PRE-MIRRORED — current importers round the drain edge with the BarClip capsule; older importers still seat this pivot-first into the run." }, true);
   /* round 47 (owner field: the VS caps clashed with the ramp): the NUB
      atoms — the live draw at run = one bar height, the whole ramp
      squeezed into a stadium. Below one head-width KitBarFill squashes
      the nub over the run (the app's short-tail shape and ink exactly)
      and cross-fades it out as the bar grows. */
-  await addPng("vsbar/nub-l.png", shell("vsbar", { overlay: "nub-l" }, slim, 1), { component: "vsbar", part: "nub-l", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Left fighter's short-run pill — KitBarFill squashes it to the run below one head-width (the full ramp compressed, like the app's own tail) and fades it out as the bar grows." }, true);
-  await addPng("vsbar/nub-r.png", shell("vsbar", { overlay: "nub-r" }, slim, 1), { component: "vsbar", part: "nub-r", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Right fighter's short-run pill, mirrored — the same short-tail rig from the other end." }, true);
+  await addPng("vsbar/nub-l.png", shell("vsbar", { overlay: "nub-l" }, slim, 1), { component: "vsbar", part: "nub-l", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "LEGACY short-run pill — the BarClip capsule degenerates into the app's stadium below one head-width on its own now; older importers still squash this to the run." }, true);
+  await addPng("vsbar/nub-r.png", shell("vsbar", { overlay: "nub-r" }, slim, 1), { component: "vsbar", part: "nub-r", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "LEGACY short-run pill, mirrored — the BarClip capsule owns the short tail on current importers; older ones still squash this to the run." }, true);
   /* round 44 (dossier R1 — words-are-live law): the medal's "VS" leaves
      the pixels. The word parses as a text seat off the medal's OWN canvas
      (the raster queue normalizes fx/fy/ffs to the cropped sprite; the ink
@@ -4128,8 +4213,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     await addPng("vsbar/medal.png", stripWordInk(vsMedalFull).svg, { component: "vsbar", part: "medal", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The candy VS medallion — rides the axis over both fills and holds its size when the bar stretches; the VS word is a LIVE seat on the Medal child (retype it in the Inspector).", ...(vsMedalSeats ? { textSeats: vsMedalSeats } : {}) }, true);
   }
   await addPng("emblembar/track.9.png", shell("emblembar", { overlay: "track" }, slim), { component: "emblembar", part: "track", nineSlice: sliceOf("emblembar", 64), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Emblem bar track — the real component's shell + well, no fill, no socket. The wired EmblemBar prefab stretches it." }, true);
-  await addPng("emblembar/fill.9.png", shell("emblembar", { overlay: "fill" }, slim, 1), { component: "emblembar", part: "fill", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Emblem bar mercury at 100% — the wired prefab's Filled image scissors it to the live value; KitBarFill parks the rounded head (emblembar-cap.png) on the growing end." }, true);
-  await addPng("emblembar/cap.png", shell("emblembar", { overlay: "cap" }, slim, 1), { component: "emblembar", part: "cap", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The emblem bar mercury's rounded head — KitBarFill rides it on the growing end." }, true);
+  await addPng("emblembar/fill.9.png", shell("emblembar", { overlay: "fill" }, slim, 1), { component: "emblembar", part: "fill", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Emblem bar mercury at 100% — the wired prefab reveals it through KitBarFill's seam-proof capsule cut (the BarClip material) — drive fillAmount or SetValue and the rounded end follows exactly." }, true);
+  await addPng("emblembar/cap.png", shell("emblembar", { overlay: "cap" }, slim, 1), { component: "emblembar", part: "cap", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "LEGACY head — current importers cut the rounded end with the BarClip capsule (seam-impossible); older importers still park this sprite." }, true);
   // icon undefined = the app's own default for a stock board copy (the
   // clock emblem); a dev drops their art in the socket's well in-engine
   /* the socket's canvas must hold the ICON-FX HALO (round 27 — owner,
@@ -4164,8 +4249,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      capsule approximation. Same filenames as the old synthesized strips —
      existing projects upgrade in place. */
   await addPng("slider/track.9.png", shell("slider", { overlay: "track" }, slim), { component: "slider", part: "track", nineSlice: sliceOf("slider", 64), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Slider track — the real component's shell + well, no fill, no knob. The wired Slider prefab stretches it." }, true);
-  await addPng("slider/fill.9.png", shell("slider", { overlay: "fill" }, slim, 1), { component: "slider", part: "fill", nineSlice: sliceOf("slider", 44), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Slider mercury at 100% — the wired prefab's Fill Rect scissors it to the live value; KitBarFill keeps the head rounded where thumb and fill separate." }, true);
-  await addPng("slider/cap.png", shell("slider", { overlay: "cap" }, slim, 1), { component: "slider", part: "cap", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The slider mercury's rounded head — usually under the thumb; KitBarFill keeps it honest at the extremes." }, true);
+  await addPng("slider/fill.9.png", shell("slider", { overlay: "fill" }, slim, 1), { component: "slider", part: "fill", nineSlice: sliceOf("slider", 44), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Slider mercury at 100% — the wired prefab's Fill Rect scissors it to the live value; KitBarFill rounds the growing end with the seam-proof BarClip capsule where thumb and fill separate." }, true);
+  await addPng("slider/cap.png", shell("slider", { overlay: "cap" }, slim, 1), { component: "slider", part: "cap", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "LEGACY slider head — current importers cut the rounded end with the BarClip capsule; older importers still park this under the thumb." }, true);
   await addPng("slider/thumb.png", shell("slider", { overlay: "knob" }, slim), { component: "slider", part: "thumb", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Slider knob — the kit's candy ball; the wired prefab drags it." }, true);
   await addPng("toggle/track.9.png", shell("toggle", { overlay: "track" }, slim, 1), { component: "toggle", part: "track", nineSlice: sliceOf("toggle", 102), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Switch track — the real component's shell + well. The wired Switch prefab slides the knob across it." }, true);
   await addPng("toggle/thumb.png", shell("toggle", { overlay: "knob" }, slim, 1), { component: "toggle", part: "thumb", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Switch knob, ON dot — the wired prefab slides it and swaps the OFF twin in." }, true);
@@ -4841,7 +4926,15 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
                 .replace(/ width="[\d.]+"/, ` width="${ww}"`)
                 .replace(/ height="[\d.]+"/, ` height="${Math.ceil(capH9)}"`)
                 .replace("<svg ", `<svg data-fillbody="${wx0.toFixed(1)} ${(cgh + 8).toFixed(1)}" `);
-              barFillSvgU = fo.svg.replace("<svg ", `<svg data-fillbody="${fo.box[0].toFixed(1)} ${fo.box[2].toFixed(1)}" `);
+              /* round 57: y/h ride too — the BarClip capsule needs the
+                 BAND, not the bleed-padded rect. The data-barfill stamp
+                 speaks the PRE-SHIFT frame (the data-track lesson, and
+                 the rails' own riseMR term): y alone shifts by the
+                 drawn-vs-raw shell delta; x needs no correction */
+              const shDu = /data-shell="([-\d. ]+)"/.exec(fo.svg)?.[1].split(" ").map(Number);
+              const sh0u = /data-shell0="([-\d. ]+)"/.exec(fo.svg)?.[1].split(" ").map(Number);
+              const riseU = shDu && sh0u && shDu.length === 4 && sh0u.length === 4 ? shDu[1] - sh0u[1] : 0;
+              barFillSvgU = fo.svg.replace("<svg ", `<svg data-fillbody="${fo.box[0].toFixed(1)} ${fo.box[2].toFixed(1)} ${(fo.box[1] + riseU).toFixed(1)} ${fo.box[3].toFixed(1)}" `);
               baseSvgU = stripBarFill(baseSvgU).svg;
             }
           } catch { barFillSvgU = null; barCapSvgU = null; }
@@ -4874,7 +4967,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
                 const wx0 = gx + gw - gh - 8, ww = Math.ceil(gh + 16);
                 return {
                   // round 48: the rails carry their body boxes too
-                  name: g9.name, fill: g9.svg.replace("<svg ", `<svg data-fillbody="${gx.toFixed(1)} ${gw.toFixed(1)}" `),
+                  name: g9.name, fill: g9.svg.replace("<svg ", `<svg data-fillbody="${gx.toFixed(1)} ${gw.toFixed(1)} ${(gy + riseMR).toFixed(1)} ${gh.toFixed(1)}" `), // round 57: the rail band rides for the capsule — riseMR lifts the pre-shift stamp into the drawn frame (the dy discipline)
                   cap: g9.svg
                     .replace(/viewBox="[^"]+"/, `viewBox="${wx0.toFixed(1)} 0 ${ww} ${Math.ceil(capHMR)}"`)
                     .replace(/ width="[\d.]+"/, ` width="${ww}"`)
@@ -5074,12 +5167,12 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           for (const rl of railsOut) {
             await addPng(`${uid}/fill-${rl.name}.png`, rl.fill, {
               component: uid, part: `fill-${rl.name}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
-              usage: `The ${rl.name} rail's mercury at 100% — the app's own dressing; the prefab's Filled image scissors it to the live value and KitBarFill parks the rounded head (drive fillAmount or SetValue).`,
+              usage: `The ${rl.name} rail's mercury at 100% — the app's own dressing; the prefab reveals it through KitBarFill's seam-proof capsule cut (drive fillAmount or SetValue).`,
               ringV: rl.staged, railDx: rl.dx, railDy: rl.dy, railW: rl.w9, railH: rl.h9,
             }, true);
             await addPng(`${uid}/cap-${rl.name}.png`, rl.cap, {
               component: uid, part: `cap-${rl.name}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
-              usage: `The ${rl.name} rail's rounded head — KitBarFill parks it on the value line.`,
+              usage: `The ${rl.name} rail's LEGACY head — current importers cut the rounded end with the BarClip capsule; older importers still park this sprite.`,
             }, true);
           }
         }
@@ -5087,12 +5180,12 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           const stagedBar = Math.max(0, Math.min(1, uVal ?? ({ loadbar: 0.62, popmeter: 0.84, respawn: 0.6, buildqueue: 0.55, xpbar: 0.45, unitplate: 0.82, questpanel: 2 / 3, setrow: 0.7, orderticket: 0.62, vitalbar: 0.72 } as Record<string, number>)[uid] ?? 0.62));
           await addPng(`${uid}/fill.png`, barFillSvgU, {
             component: uid, part: "fill", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
-            usage: "The mercury at 100% — the app's own dressing (gradient, gloss, glow) alone on the canvas; the prefab's Filled image scissors it to the live value and KitBarFill parks the rounded head (drive fillAmount or SetValue).",
+            usage: "The mercury at 100% — the app's own dressing (gradient, gloss, glow) alone on the canvas; the prefab reveals it through KitBarFill's seam-proof capsule cut (drive fillAmount or SetValue — the rounded end follows exactly, pattern unbroken).",
             ringV: stagedBar,
           }, true);
           await addPng(`${uid}/cap.png`, barCapSvgU, {
             component: uid, part: "cap", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
-            usage: "The mercury's rounded head — KitBarFill parks it on the value line (hides at 0, yields to the full-run bead at 100%).",
+            usage: "LEGACY head — current importers cut the rounded end with the BarClip capsule instead (seam-impossible); older importers still park this sprite on the value line.",
           }, true);
         }
         if (knobSvgSR) {
@@ -7176,6 +7269,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Runtime/PatternBreakCatalogEditView.cs", data: CATALOG_EDIT_VIEW_RUNTIME });
   files.push({ path: "Runtime/UIKitGlintInk.shader", data: GLINT_INK_SHADER });
   files.push({ path: "Runtime/UIKitDisabledInk.shader", data: DISABLED_INK_SHADER });
+  files.push({ path: "Runtime/UIKitBarClip.shader", data: BAR_CLIP_SHADER });
 
   /* ── OPTIONAL packed atlas — produced last, catalog only ──────── */
   if (full && catalog) {
@@ -7247,7 +7341,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     "Runtime/PatternBreakClaimBurst.cs", "Runtime/PatternBreakInvGrid.cs",
     "Runtime/PatternBreakStreakIgnite.cs", "Runtime/PatternBreakComboPop.cs",
     "Runtime/PatternBreakDmgNumber.cs",
-    "Runtime/PatternBreakStateFx.cs", "Runtime/UIKitGlintInk.shader", "Runtime/UIKitDisabledInk.shader",
+    "Runtime/PatternBreakStateFx.cs", "Runtime/UIKitGlintInk.shader", "Runtime/UIKitDisabledInk.shader", "Runtime/UIKitBarClip.shader",
     "Runtime/PatternBreakRingFill.cs",
     "Runtime/PatternBreakBuffSweep.cs",
     "Runtime/PatternBreakKitBarFill.cs",
@@ -7787,11 +7881,38 @@ namespace PatternBreak {
     [Tooltip("The bead BODY inside the cap sprite (width fractions, generated) — the bead's true edge parks on the value line, not the glow bleed's.")]
     public float capU0 = 0f;
     public float capU1 = 1f;
+    /* the SEAM-IMPOSSIBLE road (round 57 — the owner, on a 10x zoom of the
+       cap/body boundary: "we have to drop the 'add a cap' approach"): with
+       this material armed the mercury stays ONE continuous sprite and the
+       rounded growing end is CUT by an antialiased SDF capsule
+       (UIKitMaker/BarClip) in the fill rect's own space — pattern and
+       gradient can never break (same pixels, alpha-windowed), the radius
+       clamps to min(half-height, half-run) exactly like the app, and the
+       sub-cap-radius tail degenerates into the app's shrinking stadium.
+       No cap sprite, no nub, no stencil. The dev contract is unchanged:
+       drive fillAmount or SetValue. Old zips and kept prefabs (material
+       absent) keep the cap road byte-for-byte. */
+    [Tooltip("The kit's BarClip material (generated). Set: the rounded end is an antialiased capsule cut — the seam-proof road. Clear it to fall back to the legacy cap-sprite road.")]
+    public Material clipMaterial;
+    [Tooltip("The mercury BAND inside the fill sprite as HEIGHT fractions from the sprite's top (generated from the manifest's band box) — the capsule's rounding radius and Y seat speak the band, never the bleed-padded rect. 0/1 = the whole rect (older zips).")]
+    public float bandV0 = 0f;
+    public float bandV1 = 1f;
+    [Tooltip("The staged value for the clip road (generated) — the cap road recovers its pose from fillAmount, the clip road from here.")]
+    public float clipValue = -1f;
+    Material matInst;
     float value = -1f; float wroteFill = float.NaN;
     float Snap(float v) { v = Mathf.Clamp01(v); return snapSteps > 0 ? Mathf.Round(v * snapSteps) / snapSteps : v; }
-    public void SetValue(float v) { value = Snap(v); Apply(); }
+    public void SetValue(float v) { value = Snap(v); if (clipMaterial != null) clipValue = value; Apply(); }
     public void Apply() {
       if (fill == null) return;
+      if (clipMaterial != null) {
+        // the clip road's staged pose rides its own field — fillAmount is
+        // pinned to 1 here (the capsule does the cutting), so the cap
+        // road's cold-read would always say "full"
+        if (value < 0f) value = Snap(clipValue >= 0f ? clipValue : 1f);
+        ApplyClip(value);
+        return;
+      }
       // a cold load reads the serialized cut back through the body map,
       // so re-imports never ratchet the value by the margin (round 48)
       if (value < 0f) value = Snap(bodyU0 > 0.0005f || bodyU1 < 0.9995f ? Mathf.Clamp01((fill.fillAmount - (fromRight ? 1f - bodyU1 : bodyU0)) / Mathf.Max(0.05f, bodyU1 - bodyU0)) : fill.fillAmount);
@@ -7902,12 +8023,104 @@ namespace PatternBreak {
         if (nubImg.color != nc) nubImg.color = nc;
       }
     }
+    /* the CLIP road (round 57): one sprite, one antialiased capsule cut.
+       Windowed bars keep the round-48 overhang rect (the body lands
+       zone-true) and the capsule's leading edge parks on the value line;
+       the trailing edge stays OPEN while the run is at least one
+       diameter — the sprite's own authored start art (bleed included)
+       carries that end, exactly like the cap road did — and CLOSES on
+       the sub-diameter tail so both ends round with r = run/2, the
+       app's shrinking stadium. Ramped bars (stretchRun) compress the
+       whole body into the run — the rect carries the value, the ramp
+       stays continuous by construction, and the capsule re-rounds both
+       compressed ends; no cap bead, no nub pill. At full, every edge
+       opens and the sprite's authored ends show verbatim. */
+    void ApplyClip(float v) {
+      var frt = fill.rectTransform;
+      float span = bodyU1 - bodyU0 > 0.05f ? bodyU1 - bodyU0 : 1f;
+      float u0b = bodyU1 - bodyU0 > 0.05f ? bodyU0 : 0f;
+      float u1b = bodyU1 - bodyU0 > 0.05f ? bodyU1 : 1f;
+      bool showFill = v > 0.005f;
+      if (fill.enabled != showFill) fill.enabled = showFill;
+      bool full = v >= 0.995f;
+      if (stretchRun) {
+        if (full) v = 1f;
+        var a0 = frt.anchorMin; var a1 = frt.anchorMax;
+        a0.x = fromRight ? 1f - u1b * v / span : -u0b * v / span;
+        a1.x = fromRight ? 1f + (1f - u1b) * v / span : (1f - u0b) * v / span;
+        if (frt.anchorMin != a0) frt.anchorMin = a0;
+        if (frt.anchorMax != a1) frt.anchorMax = a1;
+      } else {
+        float exMin = -u0b / span, exMax = 1f + (1f - u1b) / span;
+        if (frt.anchorMin.x != exMin || frt.anchorMax.x != exMax) { var w0 = frt.anchorMin; w0.x = exMin; frt.anchorMin = w0; var w1 = frt.anchorMax; w1.x = exMax; frt.anchorMax = w1; }
+      }
+      if (frt.offsetMin != Vector2.zero) frt.offsetMin = Vector2.zero;
+      if (frt.offsetMax != Vector2.zero) frt.offsetMax = Vector2.zero;
+      if (fill.fillAmount != 1f) fill.fillAmount = 1f; // the geometry stays whole — the capsule does the cutting
+      wroteFill = 1f;
+      var mat = EnsureMat();
+      if (mat != null) {
+        var rct = frt.rect;
+        /* the BAND in rect space (file y runs down, rect y runs up) —
+           radius and rounding seat on the mercury itself; 0/1 fields
+           keep the whole rect (older zips' bodies carry no band) */
+        float bTop = rct.yMax - bandV0 * rct.height;
+        float bBot = rct.yMax - bandV1 * rct.height;
+        float bandH = Mathf.Max(1f, bTop - bBot);
+        float open = bandH * 4f + 64f;
+        float x0, x1;
+        if (stretchRun) {
+          /* the sprite (pre-mirrored art on right bars) maps 1:1 onto the
+             stretched rect — its body fractions ARE the window, both ends
+             re-rounded at the compressed run; full shows the authored
+             ends verbatim */
+          x0 = full ? rct.xMin - open : rct.xMin + u0b * rct.width;
+          x1 = full ? rct.xMax + open : rct.xMin + u1b * rct.width;
+        } else {
+          float uLead = fromRight ? u1b - v * span : u0b + v * span;
+          float uTail = fromRight ? u1b : u0b;
+          float leadX = rct.xMin + uLead * rct.width;
+          float tailX = rct.xMin + uTail * rct.width;
+          float runPx = Mathf.Abs(leadX - tailX);
+          // one BAND-diameter of run: the sprite's own start art carries
+          // the trailing curve (bleed included); below it, both ends
+          // close into the app's stadium
+          bool tailOpen = runPx >= bandH;
+          if (fromRight) { x1 = full ? rct.xMax + open : (tailOpen ? rct.xMax + open : tailX); x0 = leadX; }
+          else { x0 = tailOpen ? rct.xMin - open : tailX; x1 = full ? rct.xMax + open : leadX; }
+        }
+        mat.SetVector("_Win", new Vector4(x0, bBot, x1, bTop));
+        mat.SetFloat("_Rad", bandH * 0.5f);
+      }
+      // the legacy children never draw on this road — a healed prefab
+      // could carry both generations
+      if (capHead != null && capHead.gameObject.activeSelf) capHead.gameObject.SetActive(false);
+      if (nub != null && nub.gameObject.activeSelf) nub.gameObject.SetActive(false);
+    }
+    Material EnsureMat() {
+      if (clipMaterial == null || fill == null) return null;
+      /* a per-bar instance carries this bar's own window — UI graphics
+         cannot ride property blocks. HideAndDontSave: a serialized ref
+         nulls harmlessly and OnEnable re-arms; the importer re-points the
+         saved prefab at the SHARED asset so nothing dangles on disk. */
+      if (matInst == null) { matInst = new Material(clipMaterial); matInst.hideFlags = HideFlags.HideAndDontSave; }
+      if (fill.material != matInst) fill.material = matInst;
+      return matInst;
+    }
     void OnEnable() { Apply(); }
+    void OnDisable() {
+      if (matInst != null) {
+        if (fill != null && fill.material == matInst) fill.material = clipMaterial;
+        if (Application.isPlaying) Destroy(matInst); else DestroyImmediate(matInst);
+        matInst = null;
+      }
+    }
+    void OnRectTransformDimensionsChange() { if (clipMaterial != null && fill != null && isActiveAndEnabled) Apply(); }
     // the shipped contract stands: write fillAmount and the head follows
     // (a raw write re-snaps too, the KitCellMeter rule)
     void LateUpdate() {
       if (fill == null) return;
-      if (!Mathf.Approximately(fill.fillAmount, wroteFill)) { value = Snap(fill.fillAmount); Apply(); }
+      if (!Mathf.Approximately(fill.fillAmount, wroteFill)) { value = Snap(fill.fillAmount); if (clipMaterial != null) clipValue = value; Apply(); }
     }
   }
 }
@@ -19155,6 +19368,26 @@ namespace PatternBreak {
        — UI/Default stands in until the shader compiles and the next pass
        upgrades in place. The material asset also anchors the shader into
        player builds (a Shader.Find alone would strip). */
+    /* ONE bar-clip material per kit (round 57 — the seam-impossible
+       mercury): minted beside the fonts on the shipped UIKitMaker/BarClip
+       shader — UI/Default stands in until it compiles and the next pass
+       upgrades in place (the glints rule). The asset anchors the shader
+       into player builds; KitBarFill instances it per bar at runtime. */
+    static Material EnsureBarClipMaterial(string root) {
+      var path = root + "/fonts/Bar Clip.mat";
+      var want = Shader.Find("UIKitMaker/BarClip");
+      var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
+      if (mat == null) {
+        var use = want != null ? want : Shader.Find("UI/Default");
+        if (use == null) return null;
+        if (!AssetDatabase.IsValidFolder(root + "/fonts")) AssetDatabase.CreateFolder(root, "fonts");
+        mat = new Material(use);
+        AssetDatabase.CreateAsset(mat, path);
+        return AssetDatabase.LoadAssetAtPath<Material>(path);
+      }
+      if (want != null && mat.shader != want) { mat.shader = want; EditorUtility.SetDirty(mat); }
+      return mat;
+    }
     static Material EnsureDisabledInkMaterial(string root) {
       var path = root + "/fonts/Disabled Ink.mat";
       var want = Shader.Find("UIKitMaker/DisabledInk");
@@ -19281,6 +19514,13 @@ namespace PatternBreak {
         if (rowF != null && rowF.body != null && rowF.body.w > 2f && kbf.fill.sprite.rect.width > 2f) {
           kbf.bodyU0 = Mathf.Clamp01(rowF.body.x / kbf.fill.sprite.rect.width);
           kbf.bodyU1 = Mathf.Clamp01((rowF.body.x + rowF.body.w) / kbf.fill.sprite.rect.width);
+          /* round 57: the BAND rides where the manifest carries it — the
+             clip capsule's radius must be the mercury's half-height, not
+             the bleed-padded rect's (the curvature audit ran ~45% wide) */
+          if (rowF.body.h > 2f && kbf.fill.sprite.rect.height > 2f) {
+            kbf.bandV0 = Mathf.Clamp01(rowF.body.y / kbf.fill.sprite.rect.height);
+            kbf.bandV1 = Mathf.Clamp01((rowF.body.y + rowF.body.h) / kbf.fill.sprite.rect.height);
+          }
         }
       }
       var capImgW = kbf.capHead != null ? kbf.capHead.GetComponent<Image>() : null;
@@ -19292,6 +19532,10 @@ namespace PatternBreak {
         }
       }
       kbf.Apply();
+      /* the LAST Apply before a save re-arms the transient per-bar clip
+         instance — re-point the saved object at the SHARED asset (round
+         57); OnEnable re-instances wherever the prefab actually lives */
+      if (kbf.clipMaterial != null && kbf.fill != null) kbf.fill.material = kbf.clipMaterial;
     }
     static PBAsset RowOfSprite(PBManifest m, Sprite sp) {
       if (m == null || m.assets == null || sp == null) return null;
@@ -19303,9 +19547,18 @@ namespace PatternBreak {
       var kbf = area.AddComponent<KitBarFill>();
       kbf.fill = fImg;
       kbf.fromRight = fromRight;
+      /* the SEAM-IMPOSSIBLE mercury (round 57 — the owner's 10x zoom
+         caught the cap composite mis-phasing at the boundary: "we have to
+         drop the 'add a cap' approach"): every NEW rig arms the BarClip
+         road — one continuous sprite, the rounded end cut by the
+         antialiased SDF capsule, r = min(h/2, run/2) exactly like the
+         app. The cap/nub atoms stay shipped and the legacy rungs below
+         stand for kits whose material cannot mint — and for every
+         already-imported prefab, which keeps its cap road untouched. */
+      kbf.clipMaterial = EnsureBarClipMaterial(root);
       string capName = capNameOverride != null ? capNameOverride : (fam == "vsbar" ? (fromRight ? "cap-r" : "cap-l") : "cap");
       var capSp = S(root + "/assets/" + fam + "/" + fam + "-" + capName + ".png");
-      if (capSp != null) {
+      if (kbf.clipMaterial == null && capSp != null) {
         var capGo = new GameObject("Cap", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
         capGo.transform.SetParent(area.transform, false);
         var cImg = capGo.GetComponent<Image>();
@@ -19314,19 +19567,25 @@ namespace PatternBreak {
       }
       /* round 47 (owner field: the VS caps clashed with the ramp): a bar
          that ships a NUB atom is a ramped mercury — the rig compresses
-         the fill into the run like the app compresses its gradient, and
-         the nub pill owns the short tail. Zips without the atom (older
-         exports, flat bars) keep the windowed crop exactly as shipped. */
+         the fill into the run like the app compresses its gradient. On
+         the clip road the capsule re-rounds the compressed ends itself
+         (the nub pill's whole job); the legacy rung still builds the
+         pill where the material cannot mint. */
       var nubSp = S(root + "/assets/" + fam + "/" + fam + "-nub-" + (fromRight ? "r" : "l") + ".png");
       if (nubSp != null && capSp != null) {
         kbf.stretchRun = true;
-        var nubGo = new GameObject("Nub", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-        nubGo.transform.SetParent(area.transform, false);
-        var nImg = nubGo.GetComponent<Image>();
-        nImg.sprite = nubSp; nImg.raycastTarget = false; nImg.type = Image.Type.Simple; nImg.preserveAspect = false;
-        kbf.nub = (RectTransform)nubGo.transform;
+        if (kbf.clipMaterial == null) {
+          var nubGo = new GameObject("Nub", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+          nubGo.transform.SetParent(area.transform, false);
+          var nImg = nubGo.GetComponent<Image>();
+          nImg.sprite = nubSp; nImg.raycastTarget = false; nImg.type = Image.Type.Simple; nImg.preserveAspect = false;
+          kbf.nub = (RectTransform)nubGo.transform;
+        }
       }
       kbf.SetValue(staged);
+      /* the transient per-bar material instance must never reach the saved
+         prefab — re-point at the SHARED asset; OnEnable re-instances */
+      if (kbf.clipMaterial != null && kbf.fill != null) kbf.fill.material = kbf.clipMaterial;
     }
     /* ── the TWIN RAILS (round 44, item 21): mana and stamina each ride
        their own Filled atom + rounded bead, seated SHELL-CENTER relative
