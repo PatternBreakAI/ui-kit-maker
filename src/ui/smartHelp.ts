@@ -22,7 +22,6 @@ export interface PartRoute {
 
 export const PART_ROUTES: Record<string, PartRoute> = {
   "cast-shadow":    { label: "Cast shadow",    hint: "Distance, blur and opacity of the ground shadow", section: "depth" },
-  "contact-shadow": { label: "Contact shadow", hint: "The grounding occlusion where the body meets the floor", section: "depth" },
   "outer-glow":     { label: "State glow",     hint: "Per-state aura — pick the state, then set its glow", section: "state" },
   extrusion:        { label: "Extrusion",      hint: "Depth of the solid body; darkness lives in Depth & Shadow", section: "structure" },
   shell:            { label: "Shell & bevel",  hint: "Wall width, softness and rim; the silhouette has its own section", section: "structure" },

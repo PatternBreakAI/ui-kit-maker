@@ -83,7 +83,9 @@ export function kitSpecMarkdown(cfg: GenConfig, kitName: string): string {
   L.push(`| Extrusion darkness | ${pct(C.extrusion.darkness)} |`);
   L.push(`| Extrusion base glow | ${pct(C.extrusion.glow)} |`);
   L.push(`| Bloom opacity / size | ${pct(C.bloom.opacity)} · ${pct(C.bloom.size)} |`);
-  L.push(`| Contact shadow | ${pct(C.contact.opacity)} |`);
+  // (no Contact-shadow row: the layer retired 2026-07-30 and the spec
+  // sheet stopped claiming it in round 57 — the cast shadow is the one
+  // grounding layer a kit ships)
   L.push(`| Cast shadow | distance ${px(cfg.shadow.distance)} · blur ${cfg.shadow.blur} · ${pct(cfg.shadow.opacity)} |`);
   L.push(`| Inner glow | ${pct(C.innerGlow.opacity)} at size ${pct(C.innerGlow.size)}${C.innerGlow.color ? ` · \`${C.innerGlow.color}\`` : " · follows Glow"} |`);
   L.push("");
