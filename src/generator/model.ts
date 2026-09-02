@@ -1173,6 +1173,14 @@ export type SlotDef = {
       fork, "0" a deliberate off. Renderers must treat legacy two-state
       values as reads, not errors: "Off" is a 0 fork, "On"/"Follow kit"
       are the unfetched follow state. */
+  /** The semantic state this well dresses (a KIT_STATE_POSES id, e.g.
+      "learned"). A scoped well is that state's own furniture: the panel
+      shows it only while that state is pinned, and the renderer reads it
+      only in that state's pose — every other state keeps its factory
+      derivation byte-for-byte (the owner's badge-with-states ruling:
+      "instead of two separate objects we should think of this like a
+      badge with states"). Absent = the well dresses every pose. */
+  state?: string;
 };
 /* The wheels' pickable glyph set — display names that resolve to
    STOCK_ICONS keys by lowercasing (Heart → heart). "Factory" is the honest
@@ -1428,18 +1436,23 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
   skillnode: [
     /* the owner's learned commission (round 61): "I need controls for
        learned (since I'll want to make it look different and remove the
-       notification check)". The learned pose's own vocabulary opens
-       per-piece — the lit path stub, and the corner check as plate, mark
-       and glyph. Untouched, every byte of the factory derivation holds
-       (path = Glow role, plate = Bevel role with its darkened ring, white
-       check) — the booster count-well precedent. */
-    { id: "pathColor", name: "Learned path", kind: "color", def: "#0E9CC9",
-      note: "The lit connector stub — the learned path into the node. Factory follows the kit's Glow role under Effects; a pick here forks this piece's path alone." },
-    { id: "checkColor", name: "Check badge", kind: "color", def: "#0E9CC9", allowNone: true,
-      note: "The learned pose's corner badge — plate and ring together (the ring stays the plate's own darker edge). Factory follows the kit's Bevel role; a pick forks it alone. None removes the badge entirely." },
-    { id: "checkInk", name: "Check mark", kind: "color", def: "#FFFFFF",
+       notification check)" — then the round-61 correction: "instead of
+       two separate objects we should think of this like a badge with
+       states (available/learned)". The node is ONE badge with states
+       (KIT_STATE_POSES.skillnode); these wells are the LEARNED state's
+       own furniture (state: "learned") — the panel opens them while
+       Learned is pinned, the renderer reads them only in the learned
+       pose, and Available keeps its factory glow ring untouched.
+       Untouched, every byte of the factory derivation holds (path = Glow
+       role, plate = Bevel role with its darkened ring, white check) —
+       the booster count-well precedent. */
+    { id: "pathColor", name: "Learned path", kind: "color", def: "#0E9CC9", state: "learned",
+      note: "The lit connector stub — the Learned state's path into the node. Factory follows the kit's Glow role under Effects; a pick here forks this piece's Learned state alone. Available and Locked keep the factory stub." },
+    { id: "checkColor", name: "Check badge", kind: "color", def: "#0E9CC9", allowNone: true, state: "learned",
+      note: "The Learned state's corner badge — plate and ring together (the ring stays the plate's own darker edge). Factory follows the kit's Bevel role; a pick forks it alone. None removes the badge entirely." },
+    { id: "checkInk", name: "Check mark", kind: "color", def: "#FFFFFF", state: "learned",
       note: "The mark riding the badge plate. Factory is white. Reads only while the badge is on." },
-    { id: "checkGlyph", name: "Badge glyph", kind: "choice", choices: GLYPH_CHOICES,
+    { id: "checkGlyph", name: "Badge glyph", kind: "choice", choices: GLYPH_CHOICES, state: "learned",
       note: "What the badge carries — Factory is the check. Reads only while the badge is on." },
   ],
   emotewheel: [
@@ -1596,6 +1609,25 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
     { id: "w5", name: "Chamber 5", kind: "free", def: "PICK", maxLen: 10 },
     { id: "w6", name: "Chamber 6", kind: "free", def: "PRISM", maxLen: 10 },
     { id: "hint", name: "Hint line", kind: "free", def: "RELEASE TO EQUIP", maxLen: 24 },
+  ],
+};
+
+/* ── Semantic state poses — the owner's badge-with-states ruling ──────
+   (round 61 correction, on the skill node's Available/Learned cards:
+   "instead of two separate objects we should think of this like a badge
+   with states (available/learned)".) A piece listed here is ONE badge
+   whose interaction story is semantic states, not pointer states: its
+   editor state tray shows THESE faces (the toggle On/Off and badge
+   Presented/Awarded card grammar), pinning one drives the canvas pose
+   (kitOverlay), and a well scoped to a state (SlotDef.state) opens only
+   while that state is pinned. Only REAL renderer poses fold in as
+   states — never invented ones. id is the renderer overlay; null is the
+   resting build. First entry is the resting state. */
+export const KIT_STATE_POSES: Partial<Record<KitComponentId, { id: string | null; name: string }[]>> = {
+  skillnode: [
+    { id: null, name: "Available" },
+    { id: "learned", name: "Learned" },
+    { id: "locked", name: "Locked" },
   ],
 };
 

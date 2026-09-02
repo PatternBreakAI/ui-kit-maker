@@ -3540,18 +3540,27 @@ const kitTier = useGen((s) => s.tier);
           <Piece id="equipslot" caption="Offhand" icon={STOCK_ICONS.shield} scale={0.46} />
         </div>
         <div className="kp-subhead">Skill tree & combat feedback</div>
+        {/* ONE skill node wearing a states strip (owner, round 61
+            correction: "instead of two separate objects we should think
+            of this like a badge with states (available/learned)") — the
+            buttons' DEFAULT/HOVER/PRESSED/DISABLED grammar spoken in the
+            node's own vocabulary. Each state styles independently in the
+            editor (the Learned wells); Available keeps the factory glow. */}
         <div className="kp-tray kp-axis">
-          <Piece id="skillnode" caption="Available" scale={0.5} />
-          <Piece id="skillnode" caption="Learned" overlay="learned" scale={0.5} />
-          <Piece id="skillnode" caption="Locked" overlay="locked" scale={0.5} />
+          <Piece id="skillnode" caption="Skill node" scale={0.5} />
           <Piece id="dmgnumber" caption="Hit" value={0.35} scale={0.5} />
           <Piece id="dmgnumber" caption="Critical" value={0.9} scale={0.5} />
         </div>
+        <StateStrip variants={[
+          { cap: "Available", piece: { id: "skillnode" } },
+          { cap: "Learned", piece: { id: "skillnode", overlay: "learned" } },
+          { cap: "Locked", piece: { id: "skillnode", overlay: "locked" } },
+        ]} />
         <div className="kp-tray">
           <Piece id="loottag" caption="Loot tag · rare" value={0.5} scale={0.5} />
           <Piece id="loottag" caption="Loot tag · legendary" value={1} label="Dawnbreaker" scale={0.5} />
         </div>
-        <Meta items={["Liquid and fills follow the Glow role", "mana/stamina/HP hues are genre semantics", "value scrubs fill, heading, tier and selection", "the lit skill stub is the learned path", "damage numbers are shell-free spatial type"]} />
+        <Meta items={["Liquid and fills follow the Glow role", "mana/stamina/HP hues are genre semantics", "value scrubs fill, heading, tier and selection", "the lit skill stub is the Learned state's path", "damage numbers are shell-free spatial type"]} />
       </Sec>
 
       <Sec n="03" title="Shooter & Action" note="The FPS/brawler vocabulary: aim, feedback, loadout and objectives. Spatial pieces (crosshair, markers, arcs) are shell-free and carry a dark understroke so they read on live footage. The weapon wheel follows your pointer's angle — hold and point, like the real thing.">

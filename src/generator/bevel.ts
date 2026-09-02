@@ -7204,9 +7204,15 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const stubW = 9 * k;
       /* the learned controls (owner, round 61: "I need controls for
          learned") — KIT_SLOTS.skillnode wells; untouched, each read below
-         lands on the factory derivation byte-for-byte */
+         lands on the factory derivation byte-for-byte.
+         STATE ISOLATION (owner, round 61 correction: "the learned card
+         also effects the available card, which is not what I want"): the
+         wells are LEARNED-state furniture — the node is one badge with
+         states, and a state's picks dress that state alone. The path pick
+         reads ONLY in the learned pose; available and locked keep the
+         factory Glow-role stub byte-for-byte through any learned edit. */
       const slR = opts.slots ?? {};
-      const pathC = slR.pathColor ?? glow;
+      const pathC = opts.overlay === "learned" ? (slR.pathColor ?? glow) : glow;
       const stubs = `<line x1="${(sx - 24 * k).toFixed(1)}" y1="${cyK.toFixed(1)}" x2="${(sx + 6 * k).toFixed(1)}" y2="${cyK.toFixed(1)}" stroke="${pathC}" stroke-width="${stubW.toFixed(1)}" stroke-linecap="round"${state !== "disabled" && opts.overlay !== "locked" ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(pathC, 0.6)})"` : ""} opacity="${opts.overlay === "locked" ? 0.25 : 0.95}"/>
         <line x1="${(sx + sw - 6 * k).toFixed(1)}" y1="${cyK.toFixed(1)}" x2="${(sx + sw + 24 * k).toFixed(1)}" y2="${cyK.toFixed(1)}" stroke="rgba(255,255,255,0.25)" stroke-width="${stubW.toFixed(1)}" stroke-linecap="round"/>`;
       let over = "";

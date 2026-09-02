@@ -6,7 +6,7 @@ import { patternZones } from "./SliceStage";
 import { useGen } from "@/generator/store";
 import { t } from "@/shell/i18n";
 import { LessonBody } from "./LessonCard";
-import { PRESETS, KIT_SLOTS, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, GLINT_STYLES, defaultStates, applyKitDesign, applyKitTextFill, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, designDiff, mergeKitDesign, iconRigDiff, baseShape, isFlipShape, flipShape, labelMaxOf, groupOf, ctaForFont, ctaEntry, fontLang, KIT_SLICEABLE, KIT_LABEL_EDITABLE, NO_TEXT_ELIGIBLE, EDGE_SHINE_DEAF, baseOf, isCloneId, CLONE_KINDS, CLONE_INELIGIBLE, isGlyphButton } from "@/generator/model";
+import { PRESETS, KIT_SLOTS, KIT_STATE_POSES, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, GLINT_STYLES, defaultStates, applyKitDesign, applyKitTextFill, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, designDiff, mergeKitDesign, iconRigDiff, baseShape, isFlipShape, flipShape, labelMaxOf, groupOf, ctaForFont, ctaEntry, fontLang, KIT_SLICEABLE, KIT_LABEL_EDITABLE, NO_TEXT_ELIGIBLE, EDGE_SHINE_DEAF, baseOf, isCloneId, CLONE_KINDS, CLONE_INELIGIBLE, isGlyphButton } from "@/generator/model";
 import type { KitSlice } from "@/generator/model";
 import type { GenStateName, BlendMode, GlintStyle, PatternType, KitComponentId, KitDesign, Shape  } from "@/generator/model";
 import { ICON_LIBS, loadLib, libLoaded, searchLib, getDef, previewSvg } from "@/generator/icons";
@@ -743,7 +743,7 @@ const SIL_TEMPLATE = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" heigh
 `;
 
 export function Panel() {
-  const { cfg: cfgMaster, update: updateParent, setPreset: setPresetParent, randomize, randomizeColors, selectedState, setSelectedState, sectionFilter, phase, setPhase, inheritDefaults, makeStateDefault, library, addToLibrary, removeFromLibrary, loadFromLibrary, addToBoard, focus, setFocus, kitShapes, setKitShape, kitDesigns, setKitDesign, kitSizes, kitTextOy, setKitTextOy, kitTextOx, setKitTextOx, kitTextFill, setKitTextFill, kitLocks, toggleKitLock, kitRow, setKitRow, styleLib, saveStyle, applyStyle, removeStyle, userShapes, addUserShape, removeUserShape, userPresets, applyUserPreset, removeUserPreset, cloudPresets, isAdmin, applyCloudPreset, applyLookDoc, publishPreset, schedulePreset, removeCloudPresetById, hiddenStarters, hideStarterPreset, restoreStarterPresets, hiddenSilhouettes, restoreSilhouettes, deletedSilhouettes, deleteSilhouetteForever, activeCloudPreset, overwriteActivePreset, tier, kitName, canvasMode, boards, activeBoard, setBoardBg, kitIcons, setKitIcon, kitLabels, setKitLabel, kitNoText, setKitNoText, kitSubs, setKitSub, kitSlotVals, setKitSlot, kitVals, setKitVal, kitBar, setKitBar, refreshLibraryItem, replaceConfig, resetAll, panelQuery, setPanelQuery, scope, setScope, allStates, setAllStates, kitClones, duplicateKitPiece, removeKitClone, renameKitClone } = useGen();
+  const { cfg: cfgMaster, update: updateParent, setPreset: setPresetParent, randomize, randomizeColors, selectedState, setSelectedState, sectionFilter, phase, setPhase, inheritDefaults, makeStateDefault, library, addToLibrary, removeFromLibrary, loadFromLibrary, addToBoard, focus, setFocus, kitShapes, setKitShape, kitDesigns, setKitDesign, kitSizes, kitTextOy, setKitTextOy, kitTextOx, setKitTextOx, kitTextFill, setKitTextFill, kitLocks, toggleKitLock, kitRow, setKitRow, styleLib, saveStyle, applyStyle, removeStyle, userShapes, addUserShape, removeUserShape, userPresets, applyUserPreset, removeUserPreset, cloudPresets, isAdmin, applyCloudPreset, applyLookDoc, publishPreset, schedulePreset, removeCloudPresetById, hiddenStarters, hideStarterPreset, restoreStarterPresets, hiddenSilhouettes, restoreSilhouettes, deletedSilhouettes, deleteSilhouetteForever, activeCloudPreset, overwriteActivePreset, tier, kitName, canvasMode, boards, activeBoard, setBoardBg, kitIcons, setKitIcon, kitLabels, setKitLabel, kitNoText, setKitNoText, kitSubs, setKitSub, kitSlotVals, setKitSlot, kitVals, setKitVal, kitBar, setKitBar, refreshLibraryItem, replaceConfig, resetAll, panelQuery, setPanelQuery, scope, setScope, allStates, setAllStates, kitClones, duplicateKitPiece, removeKitClone, renameKitClone, kitOverlay, setKitOverlay } = useGen();
   const actBd = boards.find((b) => b.id === activeBoard);
   const cfg = focus && kitDesigns[focus] ? applyKitDesign(cfgMaster, kitDesigns[focus]) : cfgMaster;
   const { parentId, setParent } = useGen();
@@ -1961,9 +1961,26 @@ export function Panel() {
             : (VALUE_DRIVEN.has(baseOf(focus)) ? `value ${Math.round((kitVals[focus] ?? 0.62) * 100)}%` : null)}</span>}>
           {KIT_LESSONS[baseOf(focus)] && <InfoCard cid={baseOf(focus)} />}
           {finLocked && <div className="helper"><Lock size={11} strokeWidth={2.2} /> Locked — the look is frozen, but these words and data fields are yours to edit.</div>}
-          {(KIT_SLOTS[baseOf(focus)] ?? []).some((sl) => sl.kind === "free") && (
+          {KIT_STATE_POSES[baseOf(focus)] && (
+            /* the badge-with-states tray (owner, round 61 correction: "we
+               should think of this like a badge with states") — pinning a
+               state poses the canvas AND opens that state's own wells
+               below; the Global section's state picker stays the pointer
+               story, this one is the piece's semantic story. */
+            <div>
+              <div className="sublabel">State</div>
+              <div className="segmini" role="radiogroup" aria-label="State being styled">
+                {KIT_STATE_POSES[baseOf(focus)]!.map((p) => (
+                  <button key={p.name} className={(kitOverlay ?? null) === p.id ? "on" : ""} role="radio" aria-checked={(kitOverlay ?? null) === p.id}
+                    title={`Pose the canvas ${p.name} and edit that state's look — each state styles independently`}
+                    onClick={() => { setKitOverlay(p.id); setSelectedState("default"); }}>{p.name}</button>
+                ))}
+              </div>
+            </div>
+          )}
+          {(KIT_SLOTS[baseOf(focus)] ?? []).some((sl) => sl.kind === "free" && (!sl.state || (kitOverlay ?? null) === sl.state)) && (
             <div className="slotgrid">
-              {(KIT_SLOTS[baseOf(focus)] ?? []).filter((sl) => sl.kind === "free").map((slot) => (
+              {(KIT_SLOTS[baseOf(focus)] ?? []).filter((sl) => sl.kind === "free" && (!sl.state || (kitOverlay ?? null) === sl.state)).map((slot) => (
                 <label key={slot.id} className="slotcell" title={slot.note}>
                   <span>{slot.name}</span>
                   <input className="tinput" value={kitSlotVals[focus]?.[slot.id] ?? ""}
@@ -1995,7 +2012,11 @@ export function Panel() {
             )}
           </>)}
           {KIT_SLICEABLE[baseOf(focus)] && <SliceEditor cid={focus} />}
-          {(KIT_SLOTS[baseOf(focus)] ?? []).map((slot) => slot.kind === "choice" && (slot.choices?.length ?? 0) > 4 ? (
+          {/* a state-scoped well is its state's own furniture — it opens
+              only while that state is pinned on the tray above, so an
+              Available edit can never touch Learned's dress (and the
+              renderer holds the same line: SlotDef.state) */}
+          {(KIT_SLOTS[baseOf(focus)] ?? []).filter((slot) => !slot.state || (kitOverlay ?? null) === slot.state).map((slot) => slot.kind === "choice" && (slot.choices?.length ?? 0) > 4 ? (
             /* many options wear a dropdown — a 12-way radio row per slot
                would be a wall of chips (the emote wheel has eight slots) */
             <label key={slot.id} className="fieldbox" style={{ minWidth: 0 }} title={slot.note}>
@@ -2076,6 +2097,20 @@ export function Panel() {
               );
             })()
           ) : null)}
+          {(() => {
+            /* per-state factory reset (the button grammar's "Reset Hover",
+               spoken for semantic states): every well the pinned state
+               owns drops its pick in one act and follows the kit's roles
+               again — each state stays resettable on its own. */
+            const pose = KIT_STATE_POSES[baseOf(focus)]?.find((p) => p.id === (kitOverlay ?? null));
+            const owned = pose?.id ? (KIT_SLOTS[baseOf(focus)] ?? []).filter((sl) => sl.state === pose.id && kitSlotVals[focus]?.[sl.id] !== undefined) : [];
+            return pose && owned.length > 0 ? (
+              <button className="resetstate" title={`Every ${pose.name} pick back to the factory look — the wells follow the kit's roles again`}
+                onClick={() => owned.forEach((sl) => setKitSlot(focus, sl.id, null))}>
+                <RotateCcw size={13} strokeWidth={2} /> Reset {pose.name} — factory look
+              </button>
+            ) : null;
+          })()}
           {/* value-kind slots render NO row of their own (round-56 purge) —
               the driven readout's name and note ride the Value slider's
               tooltip above, the control that actually drives it */}

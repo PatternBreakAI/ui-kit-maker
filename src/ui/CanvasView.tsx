@@ -9,7 +9,7 @@ import { normalizeShipCopy } from "@/generator/bgvault";
 import { importBgAsset } from "@/generator/assets";
 import { capsOf, UPGRADE_LINES } from "@/generator/entitlements";
 import { renderBevel, renderKit, padSvg, addShine } from "@/generator/bevel";
-import { KIT_COMPONENTS, CANVAS_BGS, STATE_NAMES , applyKitDesign, applyKitTextFill, isDarkBg, resolveKitIcon, baseOf } from "@/generator/model";
+import { KIT_COMPONENTS, CANVAS_BGS, STATE_NAMES, KIT_STATE_POSES, applyKitDesign, applyKitTextFill, isDarkBg, resolveKitIcon, baseOf } from "@/generator/model";
 import type { GenStateName, KitComponentId } from "@/generator/model";
 import { KitPage } from "./KitPage";
 import { LiveArt, shellHit, shellRectHit, detachBBoxNoise } from "./LiveArt";
@@ -75,7 +75,7 @@ function ScardBody({ html }: { html: string }) {
 }
 
 export function CanvasView() {
-  const { cfg, update, zoom, setZoom, panMode, setPanMode, gridStyle, setGridStyle, phase, selectedState, setSelectedState, canvasMode, setCanvasMode, bgImage, setBgImage, focus, setFocus, parentId, kitShapes, kitSizes, kitTextOy, kitTextOx, kitTextFill, kitIcons, kitLabels, kitNoText, kitSubs, kitSlotVals, kitVals, kitDesigns, kitRow, kitKind, kitOverlay, kitBar, boards, activeBoard, setBoardBg, sliceStage, kitClones } = useGen();
+  const { cfg, update, zoom, setZoom, panMode, setPanMode, gridStyle, setGridStyle, phase, selectedState, setSelectedState, canvasMode, setCanvasMode, bgImage, setBgImage, focus, setFocus, parentId, kitShapes, kitSizes, kitTextOy, kitTextOx, kitTextFill, kitIcons, kitLabels, kitNoText, kitSubs, kitSlotVals, kitVals, kitDesigns, kitRow, kitKind, kitOverlay, setKitOverlay, kitBar, boards, activeBoard, setBoardBg, sliceStage, kitClones } = useGen();
   /* clone-aware: a duplicated piece RENDERS through its base (renderKit and
      LiveArt refuse clone ids), its name lives in the clone registry, and
      every map read stays keyed by the piece's own id */
@@ -190,9 +190,9 @@ export function CanvasView() {
      on the ghost CONSTRUCTION, not the solid pad (owner: clicking Edit
      showed "the other green joystick") — an explicit opt-in list, so a
      stale overlay can never repose another piece's specimen faces. The
-     skill node joined for its learned controls (owner, round 61): the
-     Learned card's Edit must show the learned pose, or the check wells
-     steer art the canvas never draws. */
+     skill node rides it as a badge-with-states piece (round 61): its
+     state tray pins kitOverlay, and the hero must wear the pinned state
+     or the state's wells steer art the canvas never draws. */
   const fOv = fBase === "joystick" || fBase === "skillnode" ? (kitOverlay ?? undefined) : undefined;
   const fDock = fBar?.dock ? { icon: resolveKitIcon(kitIcons[focus!], undefined), side: fBar.dockSide ?? "left" as const } : undefined;
   // padSvg: the hero's box must not change when the Glow slider leaves 0
@@ -374,6 +374,10 @@ export function CanvasView() {
                   no explanation reads as breakage, not a mode */}
               {playing && focus ? "Live — hover, press, drag"
                 : playing ? `${capOf(displayed)}${live ? " · live" : ""} · Play — the pencil brings your controls back`
+                /* a badge-with-states piece captions its SEMANTIC state —
+                   "Default" over a pinned Learned pose read as a lie */
+                : fBase && KIT_STATE_POSES[fBase]
+                ? (KIT_STATE_POSES[fBase].find((p) => p.id === (kitOverlay ?? null)) ?? KIT_STATE_POSES[fBase][0]).name
                 : capOf(displayed)}
             </div>
             {(() => {
@@ -588,7 +592,25 @@ export function CanvasView() {
 
       {phase === "master" && sideStates.length > 0 && (
         <div className="stack" aria-label="State previews">
-          {(fBase === "toggle"
+          {fBase && KIT_STATE_POSES[fBase] ? (
+            /* the badge-with-states tray (owner, round 61 correction:
+               "instead of two separate objects we should think of this
+               like a badge with states") — a semantic-state piece's stack
+               shows ITS faces (the toggle On/Off card grammar), and a
+               card pins its state: the canvas poses to it and the panel
+               opens that state's own wells. selectedState resets so a
+               stale pointer-state pin never compounds the pose. */
+            KIT_STATE_POSES[fBase].map((p) => {
+              const isSel = (kitOverlay ?? null) === p.id;
+              return (
+                <button className={`scard clickable${isSel ? " sel" : ""}`} key={p.name}
+                  onClick={() => { setKitOverlay(p.id); setSelectedState("default"); }} title={`Edit ${p.name}`} aria-pressed={isSel}>
+                  <div className="scard-title">{p.name}{isSel ? " · editing" : ""}</div>
+                  <ScardBody html={((sv: string) => (fWipe && p.id !== "locked" ? addShine(sv, { dur: cfg.idle?.freq, sweep: cfg.idle?.wipeDur, width: cfg.idle?.wipeWidth, armed: cfg.idle?.trigger === "hover", blend: cfg.idle?.blend }) : sv))(padSvg(renderKit(applyKitTextFill(applyKitDesign(scardCfg, kitDesigns[focus!]), kitTextFill[focus!]), fBase, fSize, "default", kitVals[focus!], kitShapes[focus!], { textOy: fOy, textOx: fOx, icon: resolveKitIcon(kitIcons[focus!], undefined), slots: kitSlotVals[focus!], overlay: p.id ?? undefined, themedText: !!kitDesigns[focus!]?.type || !!kitTextFill[focus!] })))} />
+                </button>
+              );
+            })
+          ) : (fBase === "toggle"
             ? ([["default", "On", 1], ["pressed", "Off", 0], ["disabled", "Disabled", 1]] as [GenStateName, string, number][])
             /* the badge's rollover shows the COUNT face wearing the kit's
                hover recipe — without this card that face is unreachable in
