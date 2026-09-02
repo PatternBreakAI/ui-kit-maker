@@ -1425,6 +1425,23 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
     { id: "cell11", name: "Cell 11 item", kind: "choice", choices: INV_GLYPHS },
     { id: "cell12", name: "Cell 12 item", kind: "choice", choices: INV_GLYPHS },
   ],
+  skillnode: [
+    /* the owner's learned commission (round 61): "I need controls for
+       learned (since I'll want to make it look different and remove the
+       notification check)". The learned pose's own vocabulary opens
+       per-piece — the lit path stub, and the corner check as plate, mark
+       and glyph. Untouched, every byte of the factory derivation holds
+       (path = Glow role, plate = Bevel role with its darkened ring, white
+       check) — the booster count-well precedent. */
+    { id: "pathColor", name: "Learned path", kind: "color", def: "#0E9CC9",
+      note: "The lit connector stub — the learned path into the node. Factory follows the kit's Glow role under Effects; a pick here forks this piece's path alone." },
+    { id: "checkColor", name: "Check badge", kind: "color", def: "#0E9CC9", allowNone: true,
+      note: "The learned pose's corner badge — plate and ring together (the ring stays the plate's own darker edge). Factory follows the kit's Bevel role; a pick forks it alone. None removes the badge entirely." },
+    { id: "checkInk", name: "Check mark", kind: "color", def: "#FFFFFF",
+      note: "The mark riding the badge plate. Factory is white. Reads only while the badge is on." },
+    { id: "checkGlyph", name: "Badge glyph", kind: "choice", choices: GLYPH_CHOICES,
+      note: "What the badge carries — Factory is the check. Reads only while the badge is on." },
+  ],
   emotewheel: [
     /* the wheel was barely editable ("this component isn't very editable",
        owner) — count and every sector emote are the wheel's real content */

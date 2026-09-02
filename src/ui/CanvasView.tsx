@@ -188,9 +188,12 @@ export function CanvasView() {
   const fWipe = (focus ? kitDesigns[focus]?.idle?.wipe : undefined) ?? cfg.idle?.wipe;
   /* variant-aware hero (kitKind's sibling): the ghost card's Edit lands
      on the ghost CONSTRUCTION, not the solid pad (owner: clicking Edit
-     showed "the other green joystick") — joystick only for now, so a
-     stale overlay can never repose another piece's specimen faces */
-  const fOv = fBase === "joystick" ? (kitOverlay ?? undefined) : undefined;
+     showed "the other green joystick") — an explicit opt-in list, so a
+     stale overlay can never repose another piece's specimen faces. The
+     skill node joined for its learned controls (owner, round 61): the
+     Learned card's Edit must show the learned pose, or the check wells
+     steer art the canvas never draws. */
+  const fOv = fBase === "joystick" || fBase === "skillnode" ? (kitOverlay ?? undefined) : undefined;
   const fDock = fBar?.dock ? { icon: resolveKitIcon(kitIcons[focus!], undefined), side: fBar.dockSide ?? "left" as const } : undefined;
   // padSvg: the hero's box must not change when the Glow slider leaves 0
   const heroSvg = useMemo(

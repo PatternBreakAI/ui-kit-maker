@@ -4678,6 +4678,8 @@ export function effSlotColor(cfg: GenConfig, cid: KitComponentId, slotId: string
         ?? (cfg.type.fillMode === "auto" ? "#FFFFFF" : cfg.type.fill);
     case "joystick.ghostink": return effect(cfg.effects, "Glow");
     case "booster.plateColor": return effect(cfg.effects, "Bevel");
+    case "skillnode.pathColor": return effect(cfg.effects, "Glow");
+    case "skillnode.checkColor": return effect(cfg.effects, "Bevel");
     case "dropdown.rowplate": return resolveMenuStyle(cfg, slots).plate;
     case "dropdown.rowtext": return resolveMenuStyle(cfg, slots).ink;
     default: return null;
@@ -7200,7 +7202,12 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const [sx, sy, sw, sh] = shellM[1].split(" ").map(Number);
       const cyK = sy + sh / 2; // the shell box excludes the extrusion
       const stubW = 9 * k;
-      const stubs = `<line x1="${(sx - 24 * k).toFixed(1)}" y1="${cyK.toFixed(1)}" x2="${(sx + 6 * k).toFixed(1)}" y2="${cyK.toFixed(1)}" stroke="${glow}" stroke-width="${stubW.toFixed(1)}" stroke-linecap="round"${state !== "disabled" && opts.overlay !== "locked" ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(glow, 0.6)})"` : ""} opacity="${opts.overlay === "locked" ? 0.25 : 0.95}"/>
+      /* the learned controls (owner, round 61: "I need controls for
+         learned") — KIT_SLOTS.skillnode wells; untouched, each read below
+         lands on the factory derivation byte-for-byte */
+      const slR = opts.slots ?? {};
+      const pathC = slR.pathColor ?? glow;
+      const stubs = `<line x1="${(sx - 24 * k).toFixed(1)}" y1="${cyK.toFixed(1)}" x2="${(sx + 6 * k).toFixed(1)}" y2="${cyK.toFixed(1)}" stroke="${pathC}" stroke-width="${stubW.toFixed(1)}" stroke-linecap="round"${state !== "disabled" && opts.overlay !== "locked" ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(pathC, 0.6)})"` : ""} opacity="${opts.overlay === "locked" ? 0.25 : 0.95}"/>
         <line x1="${(sx + sw - 6 * k).toFixed(1)}" y1="${cyK.toFixed(1)}" x2="${(sx + sw + 24 * k).toFixed(1)}" y2="${cyK.toFixed(1)}" stroke="rgba(255,255,255,0.25)" stroke-width="${stubW.toFixed(1)}" stroke-linecap="round"/>`;
       let over = "";
       if (opts.overlay === "locked") {
@@ -7209,9 +7216,15 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         // the lock IS the content on a locked node: big, face-centered, and
         // in the same deactivated gray as every disabled glyph
         over += iconGroup(STOCK_ICONS.lock, sx + sw / 2 - 27 * k, cyK - 27 * k, 54 * k, "#A7AAB4", { strokeWidth: 2 * iconWK });
-      } else if (opts.overlay === "learned") {
-        over += `<circle cx="${(sx + sw - 8 * k).toFixed(1)}" cy="${(sy + 8 * k).toFixed(1)}" r="${(15 * k).toFixed(1)}" fill="${bevel}" stroke="${darken(bevel, 0.45)}" stroke-width="1.5"/>` +
-          iconGroup(STOCK_ICONS.check, sx + sw - 17 * k, sy - 1 * k, 18 * k, "#FFFFFF", { strokeWidth: 3 * iconWK });
+      } else if (opts.overlay === "learned" && slR.checkColor !== "none") {
+        /* the corner check — plate follows Bevel until forked, the ring
+           stays the plate's own darker edge, the mark's ink and glyph are
+           wells too; "none" on the plate removes the whole badge (the
+           allowNone contract) */
+        const plateC9 = slR.checkColor ?? bevel;
+        const gph9 = STOCK_ICONS[(slR.checkGlyph ?? "check").toLowerCase()] ?? STOCK_ICONS.check;
+        over += `<circle cx="${(sx + sw - 8 * k).toFixed(1)}" cy="${(sy + 8 * k).toFixed(1)}" r="${(15 * k).toFixed(1)}" fill="${plateC9}" stroke="${darken(plateC9, 0.45)}" stroke-width="1.5"/>` +
+          iconGroup(gph9, sx + sw - 17 * k, sy - 1 * k, 18 * k, slR.checkInk ?? "#FFFFFF", { strokeWidth: 3 * iconWK });
       }
       return inject(injectUnder(shell.replace("<svg ", '<svg data-skillnode="1" '), stubs), over);
     }
