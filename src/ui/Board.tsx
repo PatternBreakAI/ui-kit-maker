@@ -70,7 +70,7 @@ async function downloadPieceRaster(pc: { svg: string; cfg: GenConfig }, name: st
    the overlay stick — one component, two placeable faces. */
 const ASSET_GROUPS: { name: string; ids: string[] }[] = [
   { name: "Buttons", ids: ["primary", "secondary", "small", "ghost", "iconbtn", "slotbtn", "pricebtn", "endturn", "keycap", "padbtn"] },
-  { name: "Containers & overlays", ids: ["panel", "header", "tab", "tabback", "dropdown", "dialog", "toast", "tooltip", "listmenu", "choicelist", "scrollbar", "input", "searchfield", "setrow"] },
+  { name: "Containers & overlays", ids: ["panel", "header", "ribbonbanner", "tab", "tabback", "dropdown", "dialog", "toast", "tooltip", "listmenu", "choicelist", "scrollbar", "input", "searchfield", "setrow"] },
   { name: "HUD & readouts", ids: ["resource", "chip", "badge", "datarow", "slot", "orb", "ring", "bignum", "xpbar", "vitalbar", "currency", "healthglobe", "manarails", "buffframe", "cooldown", "notifydot", "countbadge", "avatarframe", "nameplate", "loadbar", "spinner", "pagedots", "steps", "stepper"] },
   { name: "Timers", ids: ["flipclock", "stopwatch", "timerdigits"] },
   { name: "Controls", ids: ["toggle", "slider", "progress", "segbar", "emblembar", "vsbar", "hotbar", "segment", "checkbox", "radio", "joystick", "gearicon", "trophyicon", "trophyicon~gold", "trophyicon~silver", "trophyicon~bronze", "gifticon"] },
@@ -105,6 +105,7 @@ const SEARCH_TERMS: Partial<Record<KitComponentId, string>> = {
   dmgnumber: "damage floating hit crit numbers pop",
   firebutton: "fire shoot trigger pad thumb button attack weapon armed carousel",
   slotbtn: "slot button item frame well glyph icon tile press booster power-up consumable qty count chip",
+  ribbonbanner: "ribbon banner heading title announcement objective swallowtail swallow-tail tails classic label",
   countbadge: "notification count red badge alert number unread pip",
   levelnode: "saga map level select world stage lock",
   pathconnector: "saga map path world trail dots",
