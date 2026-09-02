@@ -20,6 +20,8 @@ import { downloadTestKit } from "@/generator/billing";
 import { canExport, UPGRADE_LINES } from "@/generator/entitlements";
 import { HeroGL } from "./HeroGL";
 import { buildUnityBriefing, type BriefCard } from "./unityBriefing";
+import { KitScreens, KitPromo } from "./KitShowcase";
+import { namedKitFromHash } from "@/generator/namedKits";
 
 /* The Kit — a living guideline sheet in five levels: Foundations (color,
    type, anatomy), Components, Game Systems, Screen Patterns, Resources.
@@ -1606,6 +1608,12 @@ function KitDebugStrip() {
 
 export function KitPage() {
   const { cfg, kitClones, kitName, setKitName, saveUserPreset, updateMaster, viewer, isAdmin, componentReleases: releases, setComponentRelease, setComponentReleasesBatch } = useGen();
+  /* Is this the public page of a kit we SHIP (`#/kit/<slug>`)? The hash
+     is the only source of truth — the route, the hydrated document and
+     this page all ask generator/namedKits the same question, so they
+     cannot disagree. A hash change swaps the whole route subtree, which
+     is why reading it at render is enough. */
+  const namedKit = namedKitFromHash(window.location.hash);
   // the staging bay opens by hand only — it must never pop up mid-demo
   // (owner: "when I'm showing off the site, I don't want that stuff to
   // immediately pop up"), so collapsed is the default every load. Within
@@ -2461,6 +2469,12 @@ const kitTier = useGen((s) => s.tier);
         <UnityBriefing cards={brief} prog={engineProg} accent={cfg.effects.Glow || cfg.effects.Bevel || "#0E9CC9"}
           kitName={kitName ?? `The ${preset?.name ?? "Custom"} Kit`} onHide={() => setBriefHidden(true)} />
       )}
+      {/* ── a SHIPPED kit's page opens on its demo screens, live ──
+          Page order is the owner's and is not negotiable: the seven
+          screens, then the kit book, then the promo block at the foot.
+          On every other route namedKit is null and this is the same Kit
+          page it has always been. */}
+      {namedKit && <SecGuard name="Demo screens"><KitScreens kit={namedKit} /></SecGuard>}
       {/* ── sticky chapter navigation — persistent orientation ── */}
       <ChapterTabs />
 
@@ -4422,6 +4436,8 @@ const kitTier = useGen((s) => s.tier);
           </Sec>
         );
       })()}
+      {/* the shipped kit's page closes on our own pitch — nothing else's */}
+      {namedKit && <SecGuard name="Promo"><KitPromo kit={namedKit} /></SecGuard>}
       <footer className="kp-foot">UI Kit Maker Design System · five levels, one material recipe, one renderer, zero mockups. <span title="Which build this page is running — compare against the latest merge before judging a change">build {__BUILD_STAMP__}</span></footer>
       <KitDebugStrip />
     </div>

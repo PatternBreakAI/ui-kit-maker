@@ -1,0 +1,3465 @@
+{
+ "v": 1,
+ "cfg": {
+  "presetId": "hard-candy",
+  "stateDesigns": {},
+  "shape": "mazepill",
+  "effects": {
+   "Bevel": "#DFD6C4",
+   "Glow": "#FFE9AE",
+   "Highlight": "#FFFFFF",
+   "Shadow": "#877E6F",
+   "Inner Fill": "#FAF6ED"
+  },
+  "face": {
+   "mode": "light",
+   "contrast": 62,
+   "midpoint": 50
+  },
+  "bevel": {
+   "width": 13,
+   "softness": 80
+  },
+  "candy": {
+   "extrusion": {
+    "depth": 11,
+    "darkness": 84,
+    "glow": 14
+   },
+   "rim": {
+    "width": 2,
+    "brightness": 68
+   },
+   "innerEdge": {
+    "strength": 30,
+    "width": 2
+   },
+   "innerGlow": {
+    "opacity": 26,
+    "size": 44,
+    "color": null
+   },
+   "aura": {
+    "color": null
+   },
+   "gloss": {
+    "on": true,
+    "height": 34,
+    "curve": 22,
+    "opacity": 26,
+    "softness": 96,
+    "layer": "below",
+    "fill": "highlight",
+    "tint": "#ffffff",
+    "tint2": "#ffffff"
+   },
+   "specular": {
+    "on": true,
+    "mode": "anime",
+    "size": 24,
+    "stretch": 10,
+    "intensity": 28,
+    "softness": 0,
+    "angle": 0,
+    "gap": 300,
+    "ox": 32,
+    "oy": -28,
+    "blend": "screen"
+   },
+   "bloom": {
+    "opacity": 26,
+    "size": 55
+   },
+   "contact": {
+    "opacity": 30
+   },
+   "texture": {
+    "amount": 12,
+    "scale": 50
+   },
+   "pattern": {
+    "type": "none",
+    "scale": 100,
+    "angle": 45,
+    "opacity": 10,
+    "color": null
+   }
+  },
+  "lighting": {
+   "angle": 90,
+   "highlight": 64,
+   "lowlight": 42
+  },
+  "shadow": {
+   "distance": 18,
+   "blur": 13,
+   "opacity": 32
+  },
+  "transparency": {
+   "frame": 100,
+   "interior": 100,
+   "content": 100
+  },
+  "content": {
+   "label": "Play Now"
+  },
+  "type": {
+   "font": "Fredoka",
+   "customFonts": [],
+   "size": 76,
+   "weight": 600,
+   "italic": false,
+   "spacing": 1,
+   "case": "title",
+   "fillMode": "solid",
+   "fill": "#22304A",
+   "fill2": "#FFFFFF",
+   "fillOpacity": 100,
+   "outline": {
+    "on": false,
+    "color": "#000000",
+    "color2": null,
+    "width": 0.5
+   },
+   "shadow": {
+    "on": true,
+    "x": 0,
+    "y": 2,
+    "blur": 2.5,
+    "color": "#8A7E64",
+    "opacity": 26
+   },
+   "emboss": {
+    "on": true,
+    "strength": 26,
+    "softness": 55,
+    "shSoftness": 60,
+    "distance": 2,
+    "hiOpacity": 34,
+    "shOpacity": 30,
+    "hiColor": "#FFFFFF",
+    "shColor": "#0A1020"
+   },
+   "glow": {
+    "on": false,
+    "size": 8,
+    "color": "#FFFFFF",
+    "opacity": 60
+   },
+   "preset": "custom",
+   "listInk": "#22304A"
+  },
+  "icon": {
+   "show": true,
+   "def": {
+    "lib": "lucide",
+    "name": "Play",
+    "viewBox": "0 0 24 24",
+    "inner": "<polygon points=\"6 3 20 12 6 21 6 3\"/>",
+    "mode": "stroke"
+   },
+   "placement": "right",
+   "only": false,
+   "size": 100,
+   "strokeWidth": 24,
+   "color": "#22304A",
+   "outlineWidth": null,
+   "opacity": 100,
+   "rotation": 0,
+   "gap": 18,
+   "ox": 0,
+   "oy": 0,
+   "fx": {
+    "shadow": false,
+    "glow": false,
+    "emboss": false
+   }
+  },
+  "states": {
+   "default": {
+    "glow": 0,
+    "lift": 0,
+    "opacity": 100,
+    "brightness": 0,
+    "saturation": 0
+   },
+   "hover": {
+    "glow": 14,
+    "lift": -2,
+    "opacity": 100,
+    "brightness": 6,
+    "saturation": 10
+   },
+   "pressed": {
+    "glow": 6,
+    "lift": 3,
+    "opacity": 100,
+    "brightness": -9,
+    "saturation": 4
+   },
+   "disabled": {
+    "glow": 0,
+    "lift": 0,
+    "opacity": 85,
+    "brightness": -5,
+    "saturation": -60
+   }
+  },
+  "visible": {
+   "hover": true,
+   "pressed": true,
+   "disabled": true
+  },
+  "canvas": "#000000",
+  "idle": {
+   "wipe": true,
+   "edge": false
+  },
+  "knob": {
+   "color": "#2AA67C"
+  }
+ },
+ "kitName": "Brightside",
+ "kitClones": {
+  "copy-um55-header": {
+   "base": "header",
+   "name": "Level Header",
+   "kind": "Decor",
+   "createdAt": "2026-08-25T17:00:38.701Z"
+  },
+  "copy-xedu-boostercard": {
+   "base": "boostercard",
+   "name": "Booster Card \u00b7 Bomb",
+   "kind": "Action",
+   "createdAt": "2026-08-25T17:00:38.997Z"
+  },
+  "copy-pnu6-boostercard": {
+   "base": "boostercard",
+   "name": "Booster Card \u00b7 Magnet",
+   "kind": "Action",
+   "createdAt": "2026-08-25T17:00:39.001Z"
+  },
+  "copy-spmm-glyphchest": {
+   "base": "glyphchest",
+   "name": "Chest \u00b7 Common",
+   "kind": "Reward",
+   "createdAt": "2026-08-25T17:00:39.001Z"
+  },
+  "copy-m5m7-glyphchest": {
+   "base": "glyphchest",
+   "name": "Chest \u00b7 Rare",
+   "kind": "Reward",
+   "createdAt": "2026-08-25T17:00:39.002Z"
+  },
+  "copy-b3n2-glyphchest": {
+   "base": "glyphchest",
+   "name": "Chest \u00b7 Epic",
+   "kind": "Reward",
+   "createdAt": "2026-08-25T17:00:39.003Z"
+  },
+  "copy-fbdb-glyphchest": {
+   "base": "glyphchest",
+   "name": "Chest \u00b7 Legendary",
+   "kind": "Reward",
+   "createdAt": "2026-08-25T17:00:39.003Z"
+  },
+  "copy-c4gz-glyphstar": {
+   "base": "glyphstar",
+   "name": "Star \u00b7 Ink",
+   "kind": "Decor",
+   "createdAt": "2026-08-25T17:00:39.003Z"
+  },
+  "copy-fwp3-glyphmusic": {
+   "base": "glyphmusic",
+   "name": "Music Note \u00b7 Ink",
+   "kind": "Decor",
+   "createdAt": "2026-08-25T17:00:39.004Z"
+  },
+  "copy-n7q6-glyphsound": {
+   "base": "glyphsound",
+   "name": "Speaker \u00b7 Ink",
+   "kind": "Decor",
+   "createdAt": "2026-08-25T17:00:39.007Z"
+  },
+  "copy-amtm-chip": {
+   "base": "chip",
+   "name": "Score Chip",
+   "kind": "HUD",
+   "createdAt": "2026-08-25T17:00:39.008Z"
+  },
+  "copy-fwud-glyphstar": {
+   "base": "glyphstar",
+   "name": "Star \u00b7 Gold",
+   "kind": "Decor",
+   "createdAt": "2026-08-25T17:43:41.679Z"
+  },
+  "copy-hxh2-iconbtn": {
+   "base": "iconbtn",
+   "name": "Icon Button \u00b7 Replay",
+   "kind": "Action",
+   "createdAt": "2026-08-25T17:43:41.681Z"
+  },
+  "copy-2cn9-header": {
+   "base": "header",
+   "name": "GO!",
+   "kind": "Other",
+   "createdAt": "2026-08-25T23:29:45.855Z"
+  }
+ },
+ "kitShapes": {
+  "header": "kenneyTag",
+  "copy-um55-header": "banner",
+  "copy-2cn9-header": "banner",
+  "checkbox": "pill",
+  "radio": "pill",
+  "toggle": "pill"
+ },
+ "kitDesigns": {
+  "resource": {
+   "effects": {
+    "Bevel": "#24324F",
+    "Glow": "#7FB2E8",
+    "Highlight": "#EAF2FF",
+    "Shadow": "#111A2E",
+    "Inner Fill": "#2B3E68"
+   },
+   "type": {
+    "fillMode": "solid",
+    "fill": "#F2F6FF",
+    "listInk": "#DFD6C4"
+   },
+   "icon": {
+    "color": "#5c5f6a"
+   },
+   "stateDesigns": {
+    "pressed": {
+     "shape": "mazepill",
+     "effects": {
+      "Bevel": "#24324F",
+      "Glow": "#7FB2E8",
+      "Highlight": "#EAF2FF",
+      "Shadow": "#111A2E",
+      "Inner Fill": "#2B3E68"
+     },
+     "face": {
+      "mode": "light",
+      "contrast": 62,
+      "midpoint": 50
+     },
+     "bevel": {
+      "width": 13,
+      "softness": 80
+     },
+     "candy": {
+      "extrusion": {
+       "depth": 11,
+       "darkness": 84,
+       "glow": 14
+      },
+      "rim": {
+       "width": 2,
+       "brightness": 68
+      },
+      "innerEdge": {
+       "strength": 30,
+       "width": 2
+      },
+      "innerGlow": {
+       "opacity": 26,
+       "size": 44,
+       "color": null
+      },
+      "aura": {
+       "color": null
+      },
+      "gloss": {
+       "on": true,
+       "height": 34,
+       "curve": 22,
+       "opacity": 26,
+       "softness": 96,
+       "layer": "below",
+       "fill": "highlight",
+       "tint": "#ffffff",
+       "tint2": "#ffffff"
+      },
+      "specular": {
+       "on": true,
+       "mode": "anime",
+       "size": 24,
+       "stretch": 10,
+       "intensity": 28,
+       "softness": 0,
+       "angle": 0,
+       "gap": 300,
+       "ox": 32,
+       "oy": -28,
+       "blend": "screen"
+      },
+      "bloom": {
+       "opacity": 26,
+       "size": 55
+      },
+      "contact": {
+       "opacity": 30
+      },
+      "texture": {
+       "amount": 12,
+       "scale": 50
+      },
+      "pattern": {
+       "type": "none",
+       "scale": 100,
+       "angle": 45,
+       "opacity": 10,
+       "color": null
+      }
+     },
+     "lighting": {
+      "angle": 90,
+      "highlight": 64,
+      "lowlight": 42
+     },
+     "shadow": {
+      "distance": 18,
+      "blur": 13,
+      "opacity": 32
+     },
+     "transparency": {
+      "frame": 100,
+      "interior": 100,
+      "content": 100
+     },
+     "type": {
+      "font": "Fredoka",
+      "customFonts": [],
+      "size": 76,
+      "weight": 600,
+      "italic": false,
+      "spacing": 1,
+      "case": "title",
+      "fillMode": "solid",
+      "fill": "#F2F6FF",
+      "fill2": "#FFFFFF",
+      "fillOpacity": 100,
+      "outline": {
+       "on": false,
+       "color": "#000000",
+       "color2": null,
+       "width": 0.5
+      },
+      "shadow": {
+       "on": true,
+       "x": 0,
+       "y": 2,
+       "blur": 2.5,
+       "color": "#8A7E64",
+       "opacity": 26
+      },
+      "emboss": {
+       "on": true,
+       "strength": 26,
+       "softness": 55,
+       "shSoftness": 60,
+       "distance": 2,
+       "hiOpacity": 34,
+       "shOpacity": 30,
+       "hiColor": "#FFFFFF",
+       "shColor": "#0A1020"
+      },
+      "glow": {
+       "on": false,
+       "size": 8,
+       "color": "#FFFFFF",
+       "opacity": 60
+      },
+      "preset": "custom",
+      "listInk": "#DFD6C4"
+     }
+    }
+   }
+  },
+  "currency": {
+   "effects": {
+    "Bevel": "#24324F",
+    "Glow": "#7FB2E8",
+    "Highlight": "#EAF2FF",
+    "Shadow": "#111A2E",
+    "Inner Fill": "#2B3E68"
+   },
+   "type": {
+    "fillMode": "solid",
+    "fill": "#F2F6FF"
+   },
+   "icon": {
+    "color": "#F2F6FF"
+   }
+  },
+  "minimap": {
+   "effects": {
+    "Bevel": "#24324F",
+    "Glow": "#7FB2E8",
+    "Highlight": "#EAF2FF",
+    "Shadow": "#111A2E",
+    "Inner Fill": "#2B3E68"
+   },
+   "type": {
+    "fillMode": "solid",
+    "fill": "#F2F6FF"
+   },
+   "icon": {
+    "color": "#F2F6FF"
+   }
+  },
+  "compass": {
+   "effects": {
+    "Bevel": "#24324F",
+    "Glow": "#7FB2E8",
+    "Highlight": "#EAF2FF",
+    "Shadow": "#111A2E",
+    "Inner Fill": "#2B3E68"
+   },
+   "type": {
+    "fillMode": "solid",
+    "fill": "#F2F6FF"
+   },
+   "icon": {
+    "color": "#F2F6FF"
+   }
+  },
+  "ammo": {
+   "effects": {
+    "Bevel": "#24324F",
+    "Glow": "#7FB2E8",
+    "Highlight": "#EAF2FF",
+    "Shadow": "#111A2E",
+    "Inner Fill": "#2B3E68"
+   },
+   "type": {
+    "fillMode": "solid",
+    "fill": "#F2F6FF",
+    "infoInk": "#DCE6F8"
+   },
+   "icon": {
+    "color": "#F2F6FF"
+   }
+  },
+  "hotbar": {
+   "effects": {
+    "Bevel": "#24324F",
+    "Glow": "#7FB2E8",
+    "Highlight": "#EAF2FF",
+    "Shadow": "#111A2E",
+    "Inner Fill": "#2B3E68"
+   },
+   "type": {
+    "fillMode": "solid",
+    "fill": "#F2F6FF"
+   },
+   "icon": {
+    "color": "#F2F6FF"
+   }
+  },
+  "scorebug": {
+   "effects": {
+    "Bevel": "#24324F",
+    "Glow": "#7FB2E8",
+    "Highlight": "#EAF2FF",
+    "Shadow": "#111A2E",
+    "Inner Fill": "#2B3E68"
+   },
+   "type": {
+    "fillMode": "solid",
+    "fill": "#F2F6FF"
+   },
+   "icon": {
+    "color": "#F2F6FF"
+   }
+  },
+  "killfeed": {
+   "effects": {
+    "Bevel": "#24324F",
+    "Glow": "#7FB2E8",
+    "Highlight": "#EAF2FF",
+    "Shadow": "#111A2E",
+    "Inner Fill": "#2B3E68"
+   },
+   "type": {
+    "fillMode": "solid",
+    "fill": "#F2F6FF"
+   },
+   "icon": {
+    "color": "#F2F6FF"
+   }
+  },
+  "nameplate": {
+   "effects": {
+    "Bevel": "#24324F",
+    "Glow": "#7FB2E8",
+    "Highlight": "#EAF2FF",
+    "Shadow": "#111A2E",
+    "Inner Fill": "#2B3E68"
+   },
+   "type": {
+    "fillMode": "solid",
+    "fill": "#F2F6FF"
+   },
+   "icon": {
+    "color": "#F2F6FF"
+   }
+  },
+  "flipclock": {
+   "effects": {
+    "Bevel": "#24324F",
+    "Glow": "#7FB2E8",
+    "Highlight": "#EAF2FF",
+    "Shadow": "#111A2E",
+    "Inner Fill": "#2B3E68"
+   },
+   "type": {
+    "fillMode": "solid",
+    "fill": "#F2F6FF"
+   },
+   "icon": {
+    "color": "#F2F6FF"
+   }
+  },
+  "stopwatch": {
+   "effects": {
+    "Bevel": "#24324F",
+    "Glow": "#7FB2E8",
+    "Highlight": "#EAF2FF",
+    "Shadow": "#111A2E",
+    "Inner Fill": "#2B3E68"
+   },
+   "type": {
+    "fillMode": "solid",
+    "fill": "#F2F6FF"
+   },
+   "icon": {
+    "color": "#F2F6FF"
+   }
+  },
+  "timerdigits": {
+   "effects": {
+    "Bevel": "#24324F",
+    "Glow": "#7FB2E8",
+    "Highlight": "#EAF2FF",
+    "Shadow": "#111A2E",
+    "Inner Fill": "#2B3E68"
+   },
+   "type": {
+    "fillMode": "solid",
+    "fill": "#F2F6FF"
+   },
+   "icon": {
+    "color": "#F2F6FF"
+   }
+  },
+  "movecounter": {
+   "effects": {
+    "Bevel": "#24324F",
+    "Glow": "#7FB2E8",
+    "Highlight": "#EAF2FF",
+    "Shadow": "#111A2E",
+    "Inner Fill": "#2B3E68"
+   },
+   "type": {
+    "fillMode": "solid",
+    "fill": "#F2F6FF",
+    "infoInk": "#DCE6F8"
+   },
+   "icon": {
+    "color": "#F2F6FF"
+   }
+  },
+  "lives": {
+   "effects": {
+    "Bevel": "#24324F",
+    "Glow": "#7FB2E8",
+    "Highlight": "#EAF2FF",
+    "Shadow": "#111A2E",
+    "Inner Fill": "#2B3E68"
+   },
+   "type": {
+    "fillMode": "solid",
+    "fill": "#F2F6FF"
+   },
+   "icon": {
+    "color": "#F2F6FF"
+   }
+  },
+  "buffframe": {
+   "effects": {
+    "Bevel": "#24324F",
+    "Glow": "#7FB2E8",
+    "Highlight": "#EAF2FF",
+    "Shadow": "#111A2E",
+    "Inner Fill": "#2B3E68"
+   },
+   "type": {
+    "fillMode": "solid",
+    "fill": "#F2F6FF"
+   },
+   "icon": {
+    "color": "#F2F6FF"
+   }
+  },
+  "waypoint": {
+   "effects": {
+    "Bevel": "#24324F",
+    "Glow": "#7FB2E8",
+    "Highlight": "#EAF2FF",
+    "Shadow": "#111A2E",
+    "Inner Fill": "#2B3E68"
+   },
+   "type": {
+    "fillMode": "solid",
+    "fill": "#F2F6FF"
+   },
+   "icon": {
+    "color": "#F2F6FF"
+   }
+  },
+  "capturemeter": {
+   "effects": {
+    "Bevel": "#24324F",
+    "Glow": "#7FB2E8",
+    "Highlight": "#EAF2FF",
+    "Shadow": "#111A2E",
+    "Inner Fill": "#2B3E68"
+   },
+   "type": {
+    "fillMode": "solid",
+    "fill": "#F2F6FF"
+   },
+   "icon": {
+    "color": "#F2F6FF"
+   }
+  },
+  "streakmeter": {
+   "effects": {
+    "Bevel": "#24324F",
+    "Glow": "#7FB2E8",
+    "Highlight": "#EAF2FF",
+    "Shadow": "#111A2E",
+    "Inner Fill": "#2B3E68"
+   },
+   "type": {
+    "fillMode": "solid",
+    "fill": "#F2F6FF"
+   },
+   "icon": {
+    "color": "#F2F6FF"
+   }
+  },
+  "vsbar": {
+   "effects": {
+    "Bevel": "#24324F",
+    "Glow": "#7FB2E8",
+    "Highlight": "#EAF2FF",
+    "Shadow": "#111A2E",
+    "Inner Fill": "#2B3E68"
+   },
+   "type": {
+    "fillMode": "solid",
+    "fill": "#F2F6FF"
+   },
+   "icon": {
+    "color": "#F2F6FF"
+   }
+  },
+  "combo": {
+   "effects": {
+    "Bevel": "#24324F",
+    "Glow": "#7FB2E8",
+    "Highlight": "#EAF2FF",
+    "Shadow": "#111A2E",
+    "Inner Fill": "#2B3E68"
+   },
+   "type": {
+    "fillMode": "solid",
+    "fill": "#F2F6FF"
+   },
+   "icon": {
+    "color": "#F2F6FF"
+   }
+  },
+  "slider": {
+   "effects": {
+    "Bevel": "#24324F",
+    "Glow": "#7FB2E8",
+    "Highlight": "#EAF2FF",
+    "Shadow": "#111A2E",
+    "Inner Fill": "#2B3E68"
+   },
+   "type": {
+    "fillMode": "solid",
+    "fill": "#F2F6FF"
+   },
+   "icon": {
+    "color": "#F2F6FF"
+   }
+  },
+  "primary": {
+   "effects": {
+    "Bevel": "#2AA67C",
+    "Glow": "#9FF4D4",
+    "Highlight": "#ECFFF7",
+    "Shadow": "#0E5C42",
+    "Inner Fill": "#41CD9E"
+   },
+   "type": {
+    "fillMode": "solid",
+    "fill": "#FFFFFF"
+   },
+   "icon": {
+    "color": "#FFFFFF"
+   }
+  },
+  "endturn": {
+   "effects": {
+    "Bevel": "#2AA67C",
+    "Glow": "#9FF4D4",
+    "Highlight": "#ECFFF7",
+    "Shadow": "#0E5C42",
+    "Inner Fill": "#41CD9E"
+   },
+   "type": {
+    "fillMode": "solid",
+    "fill": "#FFFFFF"
+   },
+   "icon": {
+    "color": "#FFFFFF"
+   }
+  },
+  "secondary": {
+   "effects": {
+    "Bevel": "#D25239",
+    "Glow": "#FFB49B",
+    "Highlight": "#FFF1EA",
+    "Shadow": "#7C2812",
+    "Inner Fill": "#F5765A"
+   },
+   "type": {
+    "fillMode": "solid",
+    "fill": "#B94832"
+   },
+   "icon": {
+    "color": "#B94832"
+   }
+  },
+  "booster": {
+   "effects": {
+    "Bevel": "#D25239",
+    "Glow": "#FFB49B",
+    "Highlight": "#FFF1EA",
+    "Shadow": "#7C2812",
+    "Inner Fill": "#F5765A"
+   },
+   "type": {
+    "fillMode": "solid",
+    "fill": "#FFFFFF"
+   },
+   "icon": {
+    "color": "#FFFFFF"
+   }
+  },
+  "progress": {
+   "effects": {
+    "Bevel": "#DFA61E",
+    "Glow": "#FFE289",
+    "Highlight": "#FFFAE6",
+    "Shadow": "#7C5A08",
+    "Inner Fill": "#FFC945"
+   }
+  },
+  "xpbar": {
+   "effects": {
+    "Bevel": "#DFA61E",
+    "Glow": "#FFE289",
+    "Highlight": "#FFFAE6",
+    "Shadow": "#7C5A08",
+    "Inner Fill": "#FFC945"
+   }
+  },
+  "loadbar": {
+   "effects": {
+    "Bevel": "#DFA61E",
+    "Glow": "#FFE289",
+    "Highlight": "#FFFAE6",
+    "Shadow": "#7C5A08",
+    "Inner Fill": "#FFC945"
+   }
+  },
+  "segbar": {
+   "effects": {
+    "Bevel": "#DFA61E",
+    "Glow": "#FFE289",
+    "Highlight": "#FFFAE6",
+    "Shadow": "#7C5A08",
+    "Inner Fill": "#FFC945"
+   }
+  },
+  "energymeter": {
+   "effects": {
+    "Bevel": "#DFA61E",
+    "Glow": "#FFE289",
+    "Highlight": "#FFFAE6",
+    "Shadow": "#7C5A08",
+    "Inner Fill": "#FFC945"
+   }
+  },
+  "dailycell": {
+   "effects": {
+    "Bevel": "#DFA61E",
+    "Glow": "#FFE289",
+    "Highlight": "#FFFAE6",
+    "Shadow": "#7C5A08",
+    "Inner Fill": "#FFC945"
+   }
+  },
+  "starrating": {
+   "effects": {
+    "Bevel": "#DFA61E",
+    "Glow": "#FFE289",
+    "Highlight": "#FFFAE6",
+    "Shadow": "#7C5A08",
+    "Inner Fill": "#FFC945"
+   }
+  },
+  "seasontrack": {
+   "effects": {
+    "Bevel": "#24324F",
+    "Glow": "#FFE289",
+    "Highlight": "#FFFAE6",
+    "Shadow": "#111A2E",
+    "Inner Fill": "#2B3E68"
+   },
+   "type": {
+    "fillMode": "solid",
+    "fill": "#F2F6FF",
+    "infoInk": "#DCE6F8"
+   },
+   "icon": {
+    "color": "#F2F6FF"
+   }
+  },
+  "rarityframe": {
+   "effects": {
+    "Bevel": "#6D49C9",
+    "Glow": "#C5ACFF",
+    "Highlight": "#F2EDFF",
+    "Shadow": "#3A2378",
+    "Inner Fill": "#8B67E9"
+   },
+   "type": {
+    "fillMode": "solid",
+    "fill": "#FFFFFF"
+   },
+   "icon": {
+    "color": "#FFFFFF"
+   }
+  },
+  "loottag": {
+   "effects": {
+    "Bevel": "#6D49C9",
+    "Glow": "#C5ACFF",
+    "Highlight": "#F2EDFF",
+    "Shadow": "#3A2378",
+    "Inner Fill": "#8B67E9"
+   },
+   "type": {
+    "fillMode": "solid",
+    "fill": "#FFFFFF"
+   },
+   "icon": {
+    "color": "#FFFFFF"
+   },
+   "face": {
+    "mode": "dark"
+   }
+  },
+  "pack": {
+   "effects": {
+    "Bevel": "#6D49C9",
+    "Glow": "#C5ACFF",
+    "Highlight": "#F2EDFF",
+    "Shadow": "#3A2378",
+    "Inner Fill": "#8B67E9"
+   },
+   "type": {
+    "fillMode": "solid",
+    "fill": "#FFFFFF"
+   },
+   "icon": {
+    "color": "#FFFFFF"
+   }
+  },
+  "pricebtn": {
+   "effects": {
+    "Bevel": "#6D49C9",
+    "Glow": "#C5ACFF",
+    "Highlight": "#F2EDFF",
+    "Shadow": "#3A2378",
+    "Inner Fill": "#8B67E9"
+   },
+   "type": {
+    "fillMode": "solid",
+    "fill": "#FFFFFF"
+   },
+   "icon": {
+    "color": "#FFFFFF"
+   }
+  },
+  "input": {
+   "effects": {
+    "Bevel": "#DFD6C4",
+    "Glow": "#FFE9AE",
+    "Highlight": "#FFFFFF",
+    "Shadow": "#877E6F",
+    "Inner Fill": "#FFFFFF"
+   },
+   "type": {
+    "fillMode": "solid",
+    "fill": "#22304A",
+    "listInk": "#22304A"
+   }
+  },
+  "dropdown": {
+   "effects": {
+    "Bevel": "#DFD6C4",
+    "Glow": "#FFE9AE",
+    "Highlight": "#FFFFFF",
+    "Shadow": "#877E6F",
+    "Inner Fill": "#FFFFFF"
+   },
+   "type": {
+    "fillMode": "solid",
+    "fill": "#22304A",
+    "listInk": "#22304A"
+   }
+  },
+  "searchfield": {
+   "effects": {
+    "Bevel": "#DFD6C4",
+    "Glow": "#FFE9AE",
+    "Highlight": "#FFFFFF",
+    "Shadow": "#877E6F",
+    "Inner Fill": "#FFFFFF"
+   },
+   "type": {
+    "fillMode": "solid",
+    "fill": "#22304A",
+    "listInk": "#22304A"
+   }
+  },
+  "checkbox": {
+   "icon": {
+    "color": "#41CD9E"
+   }
+  },
+  "radio": {
+   "icon": {
+    "color": "#41CD9E"
+   }
+  },
+  "glyphaddtime": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphbomb": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphcalendar": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphcart": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphcheckmark": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphcheckpoint": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphchest": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphclapboard": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphcoin": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphcoinpile": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphcoinsingle": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphcoinstack": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphcrown": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphenergy": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphflag": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphfriends": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphgem": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphgift": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphhammer": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphheart": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphhome": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphkey": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphleaderboard": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphlock": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphmagnet": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphmail": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphmedal": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphmusic": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphnotification": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphpause": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphpiggybank": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphplay": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphplus": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphprizewheel": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphprofile": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphquests": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphreplay": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphrocket": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphsale": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphsettings": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphshield": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphskull": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphsound": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphstar": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphstarformation": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphstreak": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphtarget": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphticket": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphtimer": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphtrophy": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "badge": {
+   "type": {
+    "size": 140,
+    "fill": "#FAF6ED"
+   },
+   "face": {
+    "mode": "dark"
+   },
+   "icon": {
+    "color": "#FAF6ED"
+   }
+  },
+  "firebutton": {
+   "icon": {
+    "oy": -10
+   }
+  },
+  "invgrid": {
+   "icon": {
+    "color": "#FFC800"
+   },
+   "type": {
+    "emboss": {
+     "on": true
+    }
+   }
+  },
+  "orderticket": {
+   "type": {
+    "size": 60
+   },
+   "stateDesigns": {},
+   "states": {
+    "default": {
+     "glow": 0,
+     "lift": 0,
+     "opacity": 100,
+     "brightness": 0,
+     "saturation": 0
+    },
+    "hover": {
+     "glow": 0,
+     "lift": 0,
+     "opacity": 100,
+     "brightness": 0,
+     "saturation": 0
+    },
+    "pressed": {
+     "glow": 0,
+     "lift": 0,
+     "opacity": 100,
+     "brightness": 0,
+     "saturation": 0
+    },
+    "disabled": {
+     "glow": 0,
+     "lift": 0,
+     "opacity": 100,
+     "brightness": 0,
+     "saturation": 0
+    }
+   }
+  },
+  "rewardcard": {
+   "icon": {
+    "color": "#FFC800"
+   }
+  },
+  "rewardtray": {
+   "icon": {
+    "color": "#FFC800"
+   }
+  },
+  "buildqueue": {
+   "icon": {
+    "color": "#FFC800"
+   }
+  },
+  "techcard": {
+   "icon": {
+    "color": "#FFC800"
+   }
+  },
+  "claimbtn": {
+   "stateDesigns": {
+    "disabled": {
+     "effects": {
+      "Bevel": "#9A948A",
+      "Glow": "#C9C4BA",
+      "Highlight": "#E8E5DF",
+      "Shadow": "#5C574E",
+      "Inner Fill": "#C7C2B8"
+     }
+    }
+   }
+  },
+  "speedo": {
+   "type": {
+    "fillMode": "solid",
+    "fill": "#F2F6FF"
+   }
+  },
+  "speedo2": {
+   "type": {
+    "fillMode": "solid",
+    "fill": "#F2F6FF"
+   }
+  },
+  "tacho": {
+   "type": {
+    "fillMode": "solid",
+    "fill": "#F2F6FF"
+   }
+  },
+  "chestpanel": {
+   "type": {
+    "fillMode": "solid",
+    "fill": "#F2F6FF"
+   }
+  },
+  "equipselector": {
+   "icon": {
+    "color": "#FFC800"
+   }
+  },
+  "levelnode": {
+   "type": {
+    "size": 140
+   }
+  },
+  "ring": {
+   "type": {
+    "listInk": "#FAF6ED",
+    "fill": "#FAF6ED"
+   }
+  },
+  "slot": {
+   "icon": {
+    "color": "#FAF6ED"
+   }
+  },
+  "keycap": {
+   "type": {
+    "size": 140
+   }
+  },
+  "padbtn": {
+   "type": {
+    "size": 140
+   }
+  },
+  "respawn": {
+   "face": {
+    "mode": "light"
+   },
+   "type": {
+    "listInk": "#FFFFFF"
+   }
+  },
+  "glyphshuffle": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "copy-spmm-glyphchest": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   },
+   "effects": {
+    "Bevel": "#24324F",
+    "Glow": "#7FB2E8",
+    "Highlight": "#EAF2FF",
+    "Shadow": "#111A2E",
+    "Inner Fill": "#2B3E68"
+   }
+  },
+  "copy-m5m7-glyphchest": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   },
+   "effects": {
+    "Bevel": "#2F66B5",
+    "Glow": "#9CCBFF",
+    "Highlight": "#EAF4FF",
+    "Shadow": "#173864",
+    "Inner Fill": "#3F7FD1"
+   }
+  },
+  "copy-b3n2-glyphchest": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   },
+   "effects": {
+    "Bevel": "#6D49C9",
+    "Glow": "#C5ACFF",
+    "Highlight": "#F2EDFF",
+    "Shadow": "#3A2378",
+    "Inner Fill": "#8B67E9"
+   }
+  },
+  "copy-fbdb-glyphchest": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   },
+   "effects": {
+    "Bevel": "#DFA61E",
+    "Glow": "#FFE289",
+    "Highlight": "#FFFAE6",
+    "Shadow": "#7C5A08",
+    "Inner Fill": "#FFC945"
+   }
+  },
+  "copy-c4gz-glyphstar": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": false,
+    "width": 16
+   },
+   "effects": {
+    "Bevel": "#24324F",
+    "Glow": "#7FB2E8",
+    "Highlight": "#EAF2FF",
+    "Shadow": "#111A2E",
+    "Inner Fill": "#2B3E68"
+   }
+  },
+  "copy-fwp3-glyphmusic": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": false,
+    "width": 11
+   },
+   "effects": {
+    "Bevel": "#24324F",
+    "Glow": "#7FB2E8",
+    "Highlight": "#EAF2FF",
+    "Shadow": "#111A2E",
+    "Inner Fill": "#2B3E68"
+   }
+  },
+  "copy-n7q6-glyphsound": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": false,
+    "width": 15
+   },
+   "effects": {
+    "Bevel": "#24324F",
+    "Glow": "#7FB2E8",
+    "Highlight": "#EAF2FF",
+    "Shadow": "#111A2E",
+    "Inner Fill": "#2B3E68"
+   }
+  },
+  "boostercard": {
+   "icon": {
+    "color": "#FAF6ED"
+   }
+  },
+  "copy-xedu-boostercard": {
+   "icon": {
+    "color": "#FAF6ED"
+   }
+  },
+  "copy-pnu6-boostercard": {
+   "icon": {
+    "color": "#FAF6ED"
+   }
+  },
+  "bottomnav": {
+   "icon": {
+    "color": "#FAF6ED"
+   }
+  },
+  "copy-fwud-glyphstar": {
+   "candy": {
+    "extrusion": {
+     "depth": 37
+    },
+    "pattern": {
+     "type": "stars",
+     "opacity": 51,
+     "scale": 10
+    }
+   },
+   "bevel": {
+    "off": false,
+    "width": 13
+   },
+   "effects": {
+    "Bevel": "#DFA61E",
+    "Glow": "#FFE289",
+    "Highlight": "#FFFAE6",
+    "Shadow": "#7C5A08",
+    "Inner Fill": "#FFC945"
+   },
+   "states": {
+    "default": {
+     "glow": 100,
+     "lift": 0,
+     "opacity": 100,
+     "brightness": 0,
+     "saturation": 100
+    },
+    "hover": {
+     "glow": 14,
+     "lift": -2,
+     "opacity": 100,
+     "brightness": 6,
+     "saturation": 10
+    },
+    "pressed": {
+     "glow": 6,
+     "lift": 3,
+     "opacity": 100,
+     "brightness": -9,
+     "saturation": 4
+    },
+    "disabled": {
+     "glow": 0,
+     "lift": 0,
+     "opacity": 85,
+     "brightness": -5,
+     "saturation": -60
+    }
+   }
+  },
+  "copy-2cn9-header": {
+   "face": {
+    "mode": "light"
+   },
+   "effects": {
+    "Inner Fill": "#b0e718",
+    "Bevel": "#8aa716",
+    "Glow": "#befdc2",
+    "Shadow": "#38430f",
+    "Highlight": "#fcfdfc"
+   },
+   "type": {
+    "outline": {
+     "color": "#45540b"
+    },
+    "shadow": {
+     "color": "#343f08"
+    },
+    "glow": {
+     "color": "#befdc2"
+    },
+    "size": 140,
+    "italic": true,
+    "shine": {
+     "size": 1.5,
+     "inset": 2,
+     "round": 2,
+     "opacity": 86,
+     "on": true
+    }
+   }
+  }
+ },
+ "kitTextFill": {},
+ "kitLabels": {
+  "copy-2cn9-header": "GO!"
+ },
+ "kitNoText": {},
+ "kitSubs": {},
+ "kitIcons": {
+  "iconbtn": {
+   "lib": "lucide",
+   "name": "Settings",
+   "viewBox": "0 0 24 24",
+   "inner": "<path d=\"M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z\"></path><circle cx=\"12\" cy=\"12\" r=\"3\"></circle>",
+   "mode": "stroke"
+  },
+  "copy-xedu-boostercard": {
+   "lib": "lucide",
+   "name": "Bomb",
+   "viewBox": "0 0 24 24",
+   "inner": "<circle cx=\"11\" cy=\"13\" r=\"9\"></circle><path d=\"M14.35 4.65 16.3 2.7a2.41 2.41 0 0 1 3.4 0l1.6 1.6a2.4 2.4 0 0 1 0 3.4l-1.95 1.95\"></path><path d=\"m22 2-1.5 1.5\"></path>",
+   "mode": "stroke"
+  },
+  "copy-pnu6-boostercard": {
+   "lib": "lucide",
+   "name": "Magnet",
+   "viewBox": "0 0 24 24",
+   "inner": "<path d=\"m6 15-4-4 6.75-6.77a7.79 7.79 0 0 1 11 11L13 22l-4-4 6.39-6.36a2.14 2.14 0 0 0-3-3L6 15\"></path><path d=\"m5 8 4 4\"></path><path d=\"m12 15 4 4\"></path>",
+   "mode": "stroke"
+  },
+  "copy-amtm-chip": "none",
+  "copy-hxh2-iconbtn": {
+   "lib": "lucide",
+   "name": "RotateCw",
+   "viewBox": "0 0 24 24",
+   "inner": "<path d=\"M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8\"/><path d=\"M21 3v5h-5\"/>",
+   "mode": "stroke"
+  }
+ },
+ "kitSlotVals": {},
+ "kitVals": {},
+ "kitBar": {},
+ "kitTextOy": {
+  "badge:l": -18,
+  "waypoint:l": -3,
+  "respawn:l": -10
+ },
+ "kitTextOx": {
+  "orderticket:l": -2,
+  "waypoint:l": 1,
+  "respawn:l": -11
+ },
+ "kitLocks": {},
+ "boards": [
+  {
+   "id": "abmt93iheg0",
+   "name": "Level Select",
+   "aspect": "mobile",
+   "items": [
+    {
+     "id": "bdmt93iheg0i0",
+     "libId": "",
+     "kitId": "header",
+     "x": 15,
+     "y": 102,
+     "scale": 0.482,
+     "label": "Level Select",
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg0i1",
+     "libId": "",
+     "kitId": "ring",
+     "x": 15,
+     "y": 13,
+     "scale": 0.3,
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg0i2",
+     "libId": "",
+     "kitId": "iconbtn",
+     "x": 322,
+     "y": 7,
+     "scale": 0.3,
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg0i3",
+     "libId": "",
+     "kitId": "seasontrack",
+     "x": 4,
+     "y": 428,
+     "scale": 0.441,
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg0i4",
+     "libId": "",
+     "kitId": "primary",
+     "x": 52,
+     "y": 645,
+     "scale": 0.473,
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg0i5",
+     "libId": "",
+     "kitId": "levelnode",
+     "x": 11,
+     "y": 273,
+     "scale": 0.35,
+     "label": "10",
+     "v": 1,
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg0i6",
+     "libId": "",
+     "kitId": "levelnode",
+     "x": 80,
+     "y": 273,
+     "scale": 0.35,
+     "label": "11",
+     "v": 1,
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg0i7",
+     "libId": "",
+     "kitId": "levelnode",
+     "x": 149,
+     "y": 273,
+     "scale": 0.35,
+     "label": "12",
+     "v": 0.66,
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg0i8",
+     "libId": "",
+     "kitId": "levelnode",
+     "x": 218,
+     "y": 273,
+     "scale": 0.35,
+     "label": "13",
+     "v": 0.33,
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg0i9",
+     "libId": "",
+     "kitId": "levelnode",
+     "x": 287,
+     "y": 273,
+     "scale": 0.35,
+     "label": "14",
+     "v": 0,
+     "shadow": {
+      "s": 100
+     }
+    }
+   ],
+   "bgShow": true,
+   "bgBright": 94,
+   "ovMode": "vignette",
+   "ovStrength": 100,
+   "bgOpacity": 77,
+   "bgBlur": 1,
+   "bgImage": "/backdrops/brightside/level-select.jpg"
+  },
+  {
+   "id": "abmt93iheg1",
+   "name": "Returning User Start Screen",
+   "aspect": "mobile",
+   "items": [
+    {
+     "id": "bdmt93iheg1i0",
+     "libId": "",
+     "kitId": "header",
+     "x": 21,
+     "y": 300,
+     "scale": 0.482,
+     "label": "Crystal Pass",
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg1i1",
+     "libId": "",
+     "kitId": "primary",
+     "x": 68,
+     "y": 473,
+     "scale": 0.473,
+     "label": "Continue",
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg1i2",
+     "libId": "",
+     "kitId": "badge",
+     "x": 250.75312598754306,
+     "y": 381.95443175216997,
+     "scale": 0.431,
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg1i3",
+     "libId": "",
+     "kitId": "ghost",
+     "x": 83,
+     "y": 608,
+     "scale": 0.4237228528537073,
+     "label": "Level Select",
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg1i4",
+     "libId": "",
+     "kitId": "resource",
+     "x": 82,
+     "y": 34,
+     "scale": 0.3,
+     "v": 0.44,
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg1i5",
+     "libId": "",
+     "kitId": "currency",
+     "x": 196.72169974861788,
+     "y": 33.30039628256826,
+     "scale": 0.3,
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg1i6",
+     "libId": "",
+     "kitId": "iconbtn",
+     "x": 317.95084986676113,
+     "y": 21.100989068691206,
+     "scale": 0.3,
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg1i7",
+     "libId": "",
+     "kitId": "avatarframe",
+     "x": 6,
+     "y": 9,
+     "scale": 0.3,
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg1i8",
+     "libId": "",
+     "x": 69,
+     "y": 234,
+     "stamp": {
+      "text": "Chapter 2",
+      "size": 25
+     }
+    },
+    {
+     "id": "bdmt93iheg1i9",
+     "libId": "",
+     "x": 16,
+     "y": 97,
+     "scale": 0.5446165676695603,
+     "logo": {
+      "aid": "uamt892wvb6agh6",
+      "shadow": 100,
+      "shadowX": 9,
+      "shadowY": 25,
+      "shadowBlur": 10,
+      "glow": 0
+     }
+    }
+   ],
+   "bgShow": true,
+   "ovMode": "vignette",
+   "bgOpacity": 65,
+   "bgSat": 85,
+   "bgBright": 98,
+   "bgBlur": 1,
+   "bgContrast": 107,
+   "bgImage": "/backdrops/brightside/returning-user-start-screen.jpg"
+  },
+  {
+   "id": "abmt93iheg2",
+   "name": "Booster Select",
+   "aspect": "mobile",
+   "items": [
+    {
+     "id": "bdmt93iheg2i0",
+     "libId": "",
+     "kitId": "tabback",
+     "x": 6,
+     "y": 1,
+     "scale": 0.35,
+     "label": "Back",
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg2i1",
+     "libId": "",
+     "kitId": "currency",
+     "x": 263,
+     "y": 7,
+     "scale": 0.3,
+     "v": 0.125,
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg2i2",
+     "libId": "",
+     "kitId": "movecounter",
+     "x": 148,
+     "y": 274,
+     "scale": 0.36,
+     "v": 0.8,
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg2i3",
+     "libId": "",
+     "kitId": "primary",
+     "x": 86,
+     "y": 691,
+     "scale": 0.473,
+     "label": "Start",
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg2i4",
+     "libId": "",
+     "kitId": "chip",
+     "x": 72,
+     "y": 180,
+     "scale": 0.36,
+     "label": "Pick Your Boosters",
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg2i5",
+     "libId": "",
+     "kitId": "copy-um55-header",
+     "x": 23,
+     "y": 69,
+     "scale": 0.482,
+     "label": "Level 12",
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg2i6",
+     "libId": "",
+     "kitId": "boostercard",
+     "x": 2,
+     "y": 358,
+     "scale": 0.459,
+     "label": "Hammer",
+     "v": 0.030303030303030304,
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg2i7",
+     "libId": "",
+     "kitId": "copy-xedu-boostercard",
+     "x": 121,
+     "y": 358,
+     "scale": 0.459,
+     "label": "Bomb",
+     "v": 0.010101010101010102,
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg2i8",
+     "libId": "",
+     "kitId": "copy-pnu6-boostercard",
+     "x": 240,
+     "y": 358,
+     "scale": 0.459,
+     "label": "Magnet",
+     "v": 0.020202020202020204,
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg2i9",
+     "libId": "",
+     "kitId": "panel",
+     "x": 2,
+     "y": 529,
+     "scale": 0.4462,
+     "stretchY": 0.7,
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg2ia",
+     "libId": "",
+     "kitId": "copy-c4gz-glyphstar",
+     "x": 40,
+     "y": 574,
+     "scale": 0.3,
+     "shadow": {
+      "s": 45,
+      "x": 0,
+      "y": 4,
+      "blur": 8
+     }
+    },
+    {
+     "id": "bdmt93iheg2ib",
+     "libId": "",
+     "x": 43,
+     "y": 503,
+     "stamp": {
+      "text": "Active Booster",
+      "size": 25,
+      "plain": {
+       "color": "#55617C"
+      }
+     },
+     "scale": 1
+    },
+    {
+     "id": "bdmt93iheg2ic",
+     "libId": "",
+     "x": 66,
+     "y": 556,
+     "stamp": {
+      "text": "Star Blitz \u00b7 +1 star per match",
+      "size": 25,
+      "plain": {
+       "color": "#22304A"
+      }
+     },
+     "scale": 0.7179990091609065
+    }
+   ],
+   "bgImage": "/backdrops/valley.jpg",
+   "bgShow": true,
+   "bgOpacity": 84,
+   "bgBright": 96,
+   "bgBlur": 2,
+   "ovMode": "vignette",
+   "ovStrength": 100
+  },
+  {
+   "id": "abmt93iheg3",
+   "name": "Gameplay HUD",
+   "aspect": "mobile",
+   "items": [
+    {
+     "id": "bdmt93iheg3i2",
+     "libId": "",
+     "kitId": "resource",
+     "x": 14,
+     "y": 4,
+     "scale": 0.34,
+     "v": 0.44,
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg3i4",
+     "libId": "",
+     "kitId": "glyphpause",
+     "x": 308,
+     "y": -16,
+     "scale": 0.3,
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg3i9",
+     "libId": "",
+     "kitId": "slot",
+     "x": 39,
+     "y": 671,
+     "scale": 0.4,
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg3ia",
+     "libId": "",
+     "kitId": "slot",
+     "x": 141,
+     "y": 671,
+     "scale": 0.4,
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg3ib",
+     "libId": "",
+     "kitId": "slot",
+     "x": 243,
+     "y": 671,
+     "scale": 0.4,
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg3ic",
+     "libId": "",
+     "kitId": "glyphhammer",
+     "x": 49,
+     "y": 679,
+     "scale": 0.3,
+     "shadow": {
+      "s": 45,
+      "x": 0,
+      "y": 4,
+      "blur": 8
+     }
+    },
+    {
+     "id": "bdmt93iheg3id",
+     "libId": "",
+     "kitId": "glyphbomb",
+     "x": 151,
+     "y": 679,
+     "scale": 0.3,
+     "shadow": {
+      "s": 45,
+      "x": 0,
+      "y": 4,
+      "blur": 8
+     }
+    },
+    {
+     "id": "bdmt93iheg3ie",
+     "libId": "",
+     "kitId": "glyphmagnet",
+     "x": 253,
+     "y": 679,
+     "scale": 0.3,
+     "shadow": {
+      "s": 45,
+      "x": 0,
+      "y": 4,
+      "blur": 8
+     }
+    },
+    {
+     "id": "bdmt93iheg3if",
+     "libId": "",
+     "kitId": "qtybadge",
+     "x": 54,
+     "y": 764,
+     "scale": 0.3,
+     "label": "\u00d72",
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg3ig",
+     "libId": "",
+     "kitId": "qtybadge",
+     "x": 157,
+     "y": 764,
+     "scale": 0.3,
+     "label": "\u00d71",
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg3ih",
+     "libId": "",
+     "kitId": "qtybadge",
+     "x": 258,
+     "y": 764,
+     "scale": 0.3,
+     "label": "\u00d72",
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt97r1zbyjgs",
+     "libId": "libmt97qoiow8yf",
+     "x": 80,
+     "y": 960
+    },
+    {
+     "id": "bdmt97sj9e27y0",
+     "libId": "libmt97qoiow8yf",
+     "x": 80,
+     "y": 960
+    },
+    {
+     "id": "bdmt97smvj3ii0",
+     "libId": "libmt97qoiow8yf",
+     "x": 420,
+     "y": 960
+    },
+    {
+     "id": "bdmt97sxp5n76u",
+     "libId": "libmt97qoiow8yf",
+     "x": 760,
+     "y": 960
+    },
+    {
+     "id": "bdmt97u55pn6pe",
+     "libId": "libmt97qoiow8yf",
+     "x": 80,
+     "y": 1180
+    },
+    {
+     "id": "bdmt97u7beiw98",
+     "libId": "libmt97qoiow8yf",
+     "x": 420,
+     "y": 1180
+    },
+    {
+     "id": "bdmt97uc6vxvqo",
+     "libId": "libmt97qoiow8yf",
+     "x": 760,
+     "y": 1180
+    },
+    {
+     "id": "bdmt98gogl5w6e",
+     "libId": "libmt97qoiow8yf",
+     "x": 80,
+     "y": 1400
+    },
+    {
+     "id": "bdmt98hby1bpr5",
+     "libId": "libmt97qoiow8yf",
+     "x": 420,
+     "y": 1400
+    },
+    {
+     "id": "bdmt98hejakomc",
+     "libId": "libmt97qoiow8yf",
+     "x": 760,
+     "y": 1400
+    },
+    {
+     "id": "bdmt9aqmtnx8dv",
+     "libId": "",
+     "kitId": "copy-2cn9-header",
+     "x": 23,
+     "y": 98,
+     "scale": 0.46504388593880586,
+     "label": "GO!"
+    }
+   ],
+   "bgImage": "/backdrops/valley.jpg",
+   "bgShow": true,
+   "bgOpacity": 90,
+   "bgBright": 98,
+   "bgBlur": 0,
+   "ovMode": "vignette",
+   "ovStrength": 62
+  },
+  {
+   "id": "abmt93iheg4",
+   "name": "Pause",
+   "aspect": "mobile",
+   "items": [
+    {
+     "id": "bdmt93iheg4i0",
+     "libId": "",
+     "kitId": "panel",
+     "x": 9,
+     "y": 141,
+     "scale": 0.4295,
+     "stretchY": 2.8,
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg4i1",
+     "libId": "",
+     "kitId": "header",
+     "x": 60,
+     "y": 96,
+     "scale": 0.44,
+     "label": "Paused",
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg4i2",
+     "libId": "",
+     "kitId": "slider",
+     "x": 143,
+     "y": 254,
+     "scale": 0.34,
+     "v": 0.72,
+     "shadow": {
+      "s": 45,
+      "x": 0,
+      "y": 4,
+      "blur": 8
+     }
+    },
+    {
+     "id": "bdmt93iheg4i3",
+     "libId": "",
+     "kitId": "slider",
+     "x": 143,
+     "y": 316,
+     "scale": 0.34,
+     "v": 0.55,
+     "shadow": {
+      "s": 45,
+      "x": 0,
+      "y": 4,
+      "blur": 8
+     }
+    },
+    {
+     "id": "bdmt93iheg4i4",
+     "libId": "",
+     "kitId": "toggle",
+     "x": 166,
+     "y": 364,
+     "scale": 0.34,
+     "v": 1,
+     "shadow": {
+      "s": 45,
+      "x": 0,
+      "y": 4,
+      "blur": 8
+     }
+    },
+    {
+     "id": "bdmt93iheg4i5",
+     "libId": "",
+     "kitId": "dropdown",
+     "x": 110,
+     "y": 428,
+     "scale": 0.35472595104903587,
+     "label": "English",
+     "shadow": {
+      "s": 45,
+      "x": 0,
+      "y": 4,
+      "blur": 8
+     }
+    },
+    {
+     "id": "bdmt93iheg4i6",
+     "libId": "",
+     "kitId": "primary",
+     "x": 90,
+     "y": 555,
+     "scale": 0.3758234237722024,
+     "label": "Resume",
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg4i7",
+     "libId": "",
+     "kitId": "secondary",
+     "x": 100,
+     "y": 650,
+     "scale": 0.3462989885164506,
+     "label": "Restart",
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg4i8",
+     "libId": "",
+     "kitId": "ghost",
+     "x": 121,
+     "y": 739,
+     "scale": 0.4,
+     "label": "Quit",
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg4i9",
+     "libId": "",
+     "x": 17,
+     "y": 161,
+     "stamp": {
+      "text": "Music",
+      "size": 26
+     },
+     "scale": 1
+    },
+    {
+     "id": "bdmt93iheg4ia",
+     "libId": "",
+     "x": 18,
+     "y": 223,
+     "stamp": {
+      "text": "SFX",
+      "size": 26
+     },
+     "scale": 1
+    },
+    {
+     "id": "bdmt93iheg4ib",
+     "libId": "",
+     "x": 16,
+     "y": 285,
+     "stamp": {
+      "text": "Haptics",
+      "size": 26
+     },
+     "scale": 1
+    },
+    {
+     "id": "bdmt93iheg4ie",
+     "libId": "",
+     "kitId": "dropdown",
+     "x": 68,
+     "y": 494,
+     "scale": 0.35683146657734394,
+     "label": "Graphics \u00b7 High",
+     "shadow": {
+      "s": 45,
+      "x": 0,
+      "y": 4,
+      "blur": 8
+     }
+    },
+    {
+     "id": "bdmt93iheg4if",
+     "libId": "",
+     "x": 127,
+     "y": 34,
+     "scale": 0.19876818563967233,
+     "logo": {
+      "aid": "uamt892wvb6agh6",
+      "shadow": 100,
+      "shadowX": 9,
+      "shadowY": 25,
+      "shadowBlur": 10,
+      "glow": 0
+     }
+    },
+    {
+     "id": "bdmt97bvke6qaa",
+     "libId": "",
+     "kitId": "copy-fwp3-glyphmusic",
+     "x": 41,
+     "y": 253,
+     "scale": 0.1683994472665347
+    },
+    {
+     "id": "bdmt97hvp7hc7z",
+     "libId": "",
+     "kitId": "copy-n7q6-glyphsound",
+     "x": 39,
+     "y": 306,
+     "scale": 0.19955875021832786
+    }
+   ],
+   "bgImage": "/backdrops/valley.jpg",
+   "bgShow": true,
+   "bgOpacity": 100,
+   "bgBright": 60,
+   "bgBlur": 5,
+   "bgSat": 80,
+   "ovMode": "vignette",
+   "ovStrength": 100
+  },
+  {
+   "id": "abmt93iheg5",
+   "name": "Shop",
+   "aspect": "mobile",
+   "items": [
+    {
+     "id": "bdmt93iheg5i0",
+     "libId": "",
+     "kitId": "resource",
+     "x": 25,
+     "y": 8,
+     "scale": 0.3,
+     "v": 0.44,
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg5i1",
+     "libId": "",
+     "kitId": "currency",
+     "x": 141,
+     "y": 7,
+     "scale": 0.3,
+     "v": 0.125,
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg5i2",
+     "libId": "",
+     "kitId": "iconbtn",
+     "x": 314,
+     "y": -5,
+     "scale": 0.3,
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg5i3",
+     "libId": "",
+     "kitId": "tab",
+     "x": 17,
+     "y": 67,
+     "scale": 0.38,
+     "label": "Shop",
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg5i4",
+     "libId": "",
+     "kitId": "tab",
+     "x": 112,
+     "y": 67,
+     "scale": 0.38,
+     "label": "Daily",
+     "opacity": 55,
+     "shadow": {
+      "s": 35,
+      "x": 0,
+      "y": 3,
+      "blur": 6
+     }
+    },
+    {
+     "id": "bdmt93iheg5i5",
+     "libId": "",
+     "kitId": "glyphgem",
+     "x": 34,
+     "y": 142,
+     "scale": 0.3,
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg5i6",
+     "libId": "",
+     "kitId": "glyphgem",
+     "x": 144,
+     "y": 129,
+     "scale": 0.35,
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg5i7",
+     "libId": "",
+     "kitId": "glyphgem",
+     "x": 251,
+     "y": 110,
+     "scale": 0.42,
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg5i8",
+     "libId": "",
+     "kitId": "qtybadge",
+     "x": 34,
+     "y": 221,
+     "scale": 0.3,
+     "label": "\u00d780",
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg5i9",
+     "libId": "",
+     "kitId": "qtybadge",
+     "x": 146,
+     "y": 221,
+     "scale": 0.3,
+     "label": "\u00d7500",
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg5ia",
+     "libId": "",
+     "kitId": "qtybadge",
+     "x": 257,
+     "y": 221,
+     "scale": 0.3,
+     "label": "\u00d71,200",
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg5ib",
+     "libId": "",
+     "kitId": "small",
+     "x": 18,
+     "y": 252,
+     "scale": 0.34,
+     "label": "$1.99",
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg5ic",
+     "libId": "",
+     "kitId": "pricebtn",
+     "x": 122,
+     "y": 251,
+     "scale": 0.33,
+     "label": "$4.99",
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg5id",
+     "libId": "",
+     "kitId": "small",
+     "x": 251,
+     "y": 252,
+     "scale": 0.34,
+     "label": "$9.99",
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg5ie",
+     "libId": "",
+     "kitId": "dailycell",
+     "x": 19,
+     "y": 398,
+     "scale": 0.38,
+     "ov": "check",
+     "label": "Day 3",
+     "shadow": {
+      "s": 45,
+      "x": 0,
+      "y": 4,
+      "blur": 8
+     }
+    },
+    {
+     "id": "bdmt93iheg5if",
+     "libId": "",
+     "kitId": "dailycell",
+     "x": 107,
+     "y": 398,
+     "scale": 0.38,
+     "label": "Day 4",
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg5ig",
+     "libId": "",
+     "kitId": "dailycell",
+     "x": 195,
+     "y": 398,
+     "scale": 0.38,
+     "ov": "locked",
+     "label": "Day 5",
+     "shadow": {
+      "s": 45,
+      "x": 0,
+      "y": 4,
+      "blur": 8
+     }
+    },
+    {
+     "id": "bdmt93iheg5ih",
+     "libId": "",
+     "kitId": "dailycell",
+     "x": 283,
+     "y": 398,
+     "scale": 0.38,
+     "ov": "locked",
+     "label": "Day 6",
+     "shadow": {
+      "s": 45,
+      "x": 0,
+      "y": 4,
+      "blur": 8
+     }
+    },
+    {
+     "id": "bdmt93iheg5ii",
+     "libId": "",
+     "x": 53,
+     "y": 28,
+     "stamp": {
+      "text": "Gem Bundles",
+      "size": 26,
+      "plain": {
+       "color": "#FAF6ED"
+      },
+      "shadow": 60
+     },
+     "scale": 1
+    },
+    {
+     "id": "bdmt93iheg5ij",
+     "libId": "",
+     "x": -30,
+     "y": 250,
+     "stamp": {
+      "text": "Daily Deals \u00b7 resets in 14h 32m",
+      "size": 25,
+      "plain": {
+       "color": "#FAF6ED"
+      },
+      "shadow": 60
+     },
+     "scale": 1
+    },
+    {
+     "id": "bdmt93iheg5ik",
+     "libId": "",
+     "kitId": "bottomnav",
+     "x": -10,
+     "y": 693,
+     "scale": 0.5176,
+     "v": 0.99,
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg5il",
+     "libId": "",
+     "kitId": "claimbtn",
+     "x": 65,
+     "y": 489,
+     "scale": 0.6095098302958969
+    }
+   ],
+   "bgImage": "/backdrops/tavern.jpg",
+   "bgShow": true,
+   "bgOpacity": 92,
+   "bgBright": 102,
+   "bgBlur": 1,
+   "ovMode": "vignette",
+   "ovStrength": 100
+  },
+  {
+   "id": "abmt93iheg6",
+   "name": "Victory",
+   "aspect": "mobile",
+   "items": [
+    {
+     "id": "bdmt93iheg6ig",
+     "libId": "",
+     "x": 128,
+     "y": 222,
+     "stamp": {
+      "text": "Best Score 18,960",
+      "size": 25,
+      "plain": {
+       "color": "#FAF6ED"
+      },
+      "shadow": 70
+     },
+     "scale": 1
+    },
+    {
+     "id": "bdmt93iheg6i0",
+     "libId": "",
+     "kitId": "rewardcard",
+     "x": 75,
+     "y": 471,
+     "scale": 0.38,
+     "label": "Sun Shard",
+     "v": 0.85,
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg6i1",
+     "libId": "",
+     "kitId": "rewardcard",
+     "x": 189,
+     "y": 472,
+     "scale": 0.38,
+     "label": "Sky Crystal",
+     "v": 0.35,
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg6i2",
+     "libId": "",
+     "kitId": "progress",
+     "x": 45,
+     "y": 646,
+     "scale": 0.42,
+     "v": 0.6,
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg6i3",
+     "libId": "",
+     "kitId": "primary",
+     "x": 51,
+     "y": 710,
+     "scale": 0.3513436035320198,
+     "label": "Next Level",
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg6i4",
+     "libId": "",
+     "x": -20,
+     "y": 223,
+     "stamp": {
+      "text": "Score 12,480",
+      "size": 26,
+      "plain": {
+       "color": "#FAF6ED"
+      },
+      "shadow": 85
+     },
+     "scale": 1
+    },
+    {
+     "id": "bdmt93iheg6i5",
+     "libId": "",
+     "x": 64,
+     "y": 525,
+     "stamp": {
+      "text": "Chapter 2",
+      "size": 25,
+      "plain": {
+       "color": "#FAF6ED"
+      },
+      "shadow": 85
+     },
+     "scale": 1
+    },
+    {
+     "id": "bdmt93iheg6i6",
+     "libId": "",
+     "kitId": "copy-um55-header",
+     "x": 23,
+     "y": 181,
+     "scale": 0.482,
+     "label": "Level 12",
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg6i7",
+     "libId": "",
+     "kitId": "slot",
+     "x": 34,
+     "y": 342,
+     "scale": 0.38,
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg6i8",
+     "libId": "",
+     "kitId": "slot",
+     "x": 144,
+     "y": 342,
+     "scale": 0.38,
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg6i9",
+     "libId": "",
+     "kitId": "slot",
+     "x": 254,
+     "y": 342,
+     "scale": 0.38,
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg6ia",
+     "libId": "",
+     "kitId": "glyphgem",
+     "x": 41,
+     "y": 341,
+     "scale": 0.3,
+     "shadow": {
+      "s": 45,
+      "x": 0,
+      "y": 4,
+      "blur": 8
+     }
+    },
+    {
+     "id": "bdmt93iheg6ib",
+     "libId": "",
+     "kitId": "glyphcoinstack",
+     "x": 151,
+     "y": 341,
+     "scale": 0.3,
+     "shadow": {
+      "s": 45,
+      "x": 0,
+      "y": 4,
+      "blur": 8
+     }
+    },
+    {
+     "id": "bdmt93iheg6ic",
+     "libId": "",
+     "kitId": "glyphstar",
+     "x": 261,
+     "y": 341,
+     "scale": 0.3,
+     "shadow": {
+      "s": 45,
+      "x": 0,
+      "y": 4,
+      "blur": 8
+     }
+    },
+    {
+     "id": "bdmt93iheg6id",
+     "libId": "",
+     "kitId": "qtybadge",
+     "x": 42,
+     "y": 435,
+     "scale": 0.3,
+     "label": "\u00d712",
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg6ie",
+     "libId": "",
+     "kitId": "qtybadge",
+     "x": 147,
+     "y": 435,
+     "scale": 0.3,
+     "label": "\u00d7120",
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg6if",
+     "libId": "",
+     "kitId": "qtybadge",
+     "x": 253,
+     "y": 435,
+     "scale": 0.3,
+     "label": "XP 50",
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg6ih",
+     "libId": "",
+     "kitId": "copy-fwud-glyphstar",
+     "x": 39,
+     "y": 83,
+     "scale": 0.42,
+     "shadow": {
+      "s": 100
+     },
+     "rot": -15
+    },
+    {
+     "id": "bdmt93iheg6ii",
+     "libId": "",
+     "kitId": "copy-fwud-glyphstar",
+     "x": 226,
+     "y": 102,
+     "scale": 0.42,
+     "shadow": {
+      "s": 100
+     },
+     "rot": 15
+    },
+    {
+     "id": "bdmt93iheg6ij",
+     "libId": "",
+     "kitId": "copy-fwud-glyphstar",
+     "x": 104,
+     "y": 19,
+     "scale": 0.6326214613130061,
+     "shadow": {
+      "s": 100
+     }
+    },
+    {
+     "id": "bdmt93iheg6ik",
+     "libId": "",
+     "kitId": "copy-hxh2-iconbtn",
+     "x": 290,
+     "y": 712,
+     "scale": 0.3478,
+     "shadow": {
+      "s": 100
+     }
+    }
+   ],
+   "bgImage": "/backdrops/valley.jpg",
+   "bgShow": true,
+   "bgOpacity": 85,
+   "bgBright": 82,
+   "bgBlur": 3,
+   "bgSat": 100,
+   "ovMode": "vignette",
+   "ovStrength": 90
+  }
+ ]
+}

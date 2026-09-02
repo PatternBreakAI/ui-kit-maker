@@ -914,6 +914,72 @@ function BoardBackdrop({ bd }: { bd: BoardDef }) {
   );
 }
 
+/* Everything between the stage floor and the pieces — backdrop, video,
+   film grain, the overlay tint and its grain, the center scrim. ONE
+   recipe, shared by the editor's desk and the read-only stage below, so
+   a screen shown on the kit's public page can't drift from the same
+   screen on the owner's desk. */
+function BoardDressing({ bd }: { bd: BoardDef }) {
+  return (<>
+    <BoardBackdrop bd={bd} />
+    {bd.bgVideo && (bd.bgShow ?? true) && (
+      <video className="bd-bg bd-bgvid" src={bd.bgVideo} autoPlay muted loop playsInline
+        style={{ opacity: (bd.bgOpacity ?? 100) / 100, filter: boardBgFilter(bd) }} />
+    )}
+    {(bd.bgNoise ?? 0) > 0 && (bd.bgShow ?? true) && (
+      <div className="bd-noise" style={{ opacity: ((bd.bgNoise ?? 0) / 100) * 0.6 }} />
+    )}
+    {/* overlay sits between the backdrop and the pieces */}
+    {(bd.ovMode ?? "none") !== "none" && (
+      <div className="bd-ov" style={{ background: ovBackground(bd.ovMode!), opacity: (bd.ovStrength ?? 45) / 100, mixBlendMode: (bd.ovBlend ?? "normal") as React.CSSProperties["mixBlendMode"] }} />
+    )}
+    {(bd.ovMode ?? "none") !== "none" && (bd.ovNoise ?? 0) > 0 && (
+      <div className="bd-noise" style={{ opacity: ((bd.ovNoise ?? 0) / 100) * 0.6 }} />
+    )}
+    {(bd.ovCenter ?? 0) > 0 && (
+      <div className="bd-ov" style={{ background: CENTER_SCRIM, opacity: (bd.ovCenter ?? 0) / 100 }} />
+    )}
+  </>);
+}
+
+const noop = () => {};
+
+/** One artboard, LIVE and read-only — the exact stage the desk draws
+ *  (same dressing, same StagePiece, same LiveArt engine), running in
+ *  PLAY mode: buttons highlight and press, toggles flip, bars fill, and
+ *  nothing can be selected, dragged or edited. This is what the shipped
+ *  kits' public pages show, so "working" means working — not a picture
+ *  of a screen. `fit` scales stage units to the frame the caller
+ *  measured; the board's own aspect is never squashed. */
+export function LiveBoardStage({ bd, fit }: { bd: BoardDef; fit: number }) {
+  const [W, H] = STAGE[bd.aspect];
+  return (
+    <div className="bd-stage bd-stage--read" style={{ width: W * fit, height: H * fit }}
+      onScroll={(e) => {
+        // the stage clips with overflow:hidden, but a hidden box still
+        // scrolls under focus/scrollIntoView — and a scrolled stage
+        // renders the whole board displaced (the desk's invariant)
+        const el = e.currentTarget;
+        if (el.scrollLeft || el.scrollTop) { el.scrollLeft = 0; el.scrollTop = 0; }
+      }}>
+      <BoardDressing bd={bd} />
+      <div className="bd-canvas" style={{ width: W, height: H, transform: `scale(${fit})` }}>
+        {bd.items.map((b) => (
+          <StagePiece key={b.id} b={b} playing selected={false} solo={false} fit={fit}
+            onSelect={noop} onDragStart={noop} onDragMove={noop} onDragEnd={noop} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** The stage's true pixel size, per aspect — callers size their frames
+ *  from this so a mobile-portrait screen keeps 390 × 844. */
+export function boardStageSize(aspect: BoardDef["aspect"]): [number, number] {
+  const [w, h] = STAGE[aspect];
+  return [w, h];
+}
+
 export function BoardView({ playing }: { playing: boolean }) {
   const {
     cfg, boards, activeBoard, library, kitClones, kitShapes, kitSizes, kitTextFill, kitDesigns, kitIcons, kitLabels, kitNoText, kitVals, kitRow, kitBar, kitTextOy, kitTextOx, kitSlotVals, kitSubs,
@@ -2258,24 +2324,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                       </div>
                     </div>
                   ) : (<>
-                  <BoardBackdrop bd={bd} />
-                  {bd.bgVideo && (bd.bgShow ?? true) && (
-                    <video className="bd-bg bd-bgvid" src={bd.bgVideo} autoPlay muted loop playsInline
-                      style={{ opacity: (bd.bgOpacity ?? 100) / 100, filter: boardBgFilter(bd) }} />
-                  )}
-                  {(bd.bgNoise ?? 0) > 0 && (bd.bgShow ?? true) && (
-                    <div className="bd-noise" style={{ opacity: ((bd.bgNoise ?? 0) / 100) * 0.6 }} />
-                  )}
-                  {/* overlay sits between the backdrop and the pieces */}
-                  {(bd.ovMode ?? "none") !== "none" && (
-                    <div className="bd-ov" style={{ background: ovBackground(bd.ovMode!), opacity: (bd.ovStrength ?? 45) / 100, mixBlendMode: (bd.ovBlend ?? "normal") as React.CSSProperties["mixBlendMode"] }} />
-                  )}
-                  {(bd.ovMode ?? "none") !== "none" && (bd.ovNoise ?? 0) > 0 && (
-                    <div className="bd-noise" style={{ opacity: ((bd.ovNoise ?? 0) / 100) * 0.6 }} />
-                  )}
-                  {(bd.ovCenter ?? 0) > 0 && (
-                    <div className="bd-ov" style={{ background: CENTER_SCRIM, opacity: (bd.ovCenter ?? 0) / 100 }} />
-                  )}
+                  <BoardDressing bd={bd} />
                   {/* safety guides (owner) — pure view layer, never exported.
                       16:9: broadcast/console action (95%) + title (90%) safe;
                       mobile: notch + home-bar insets in stage units. */}

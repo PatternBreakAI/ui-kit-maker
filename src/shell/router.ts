@@ -3,6 +3,7 @@
    shapes and defaults everything else to the landing page:
 
    · #/app              → the editor
+   · #/kit/<slug>       → a SHIPPED kit's public page (see generator/namedKits)
    · #/signin           → the sign-in page
    · #/account          → the account page (profile, plan, projects, data)
    · #/terms #/privacy  → legal pages
@@ -22,7 +23,7 @@
 import { useEffect, useState } from "react";
 
 export type RouteName =
-  | "landing" | "app" | "terms" | "privacy" | "signin" | "account" | "pricing" | "student" | "review"
+  | "landing" | "app" | "kit" | "terms" | "privacy" | "signin" | "account" | "pricing" | "student" | "review"
   | "community" | "studio" | "projects" | "user" | "admin" | "faq" | "releases" | "how" | "unity" | "typeproof" | "italicprobe";
 export type Route = { name: RouteName; viewer: boolean; param?: string };
 
@@ -38,6 +39,15 @@ export function parseHash(hash: string): Route {
   const qi = raw.indexOf("?");
   const path = qi === -1 ? raw : raw.slice(0, qi);
   if (path === "/app") return { name: "app", viewer: false };
+  /* #/kit/<slug> — a kit we ship, opened read-only on its own public page.
+     The address is a constant (the slug is code, the definition a committed
+     file), which is what makes it safe to print in an asset-store listing.
+     Matched STRUCTURALLY here, on purpose: the registry (and the kit JSON
+     it imports) must not be pulled into the shell chunk every visitor
+     downloads, so the KitViewer route resolves the slug against
+     generator/namedKits and sends an unknown one back to the landing. */
+  const nk = /^\/kit\/([a-z0-9-]{1,40})$/.exec(path);
+  if (nk) return { name: "kit", viewer: true, param: nk[1] };
   if (path === "/terms") return { name: "terms", viewer: false };
   if (path === "/privacy") return { name: "privacy", viewer: false };
   if (path === "/signin") return { name: "signin", viewer: false };

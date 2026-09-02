@@ -73,6 +73,11 @@ const HowPage = lazy(() =>
 const UnityPage = lazy(() =>
   import("@/marketing/UnityPage").then((m) => ({ default: m.UnityPage })),
 );
+/* `#/kit/<slug>` — a shipped kit's public page. Its own chunk, so the
+   committed kit definitions never ride the shell every visitor loads. */
+const KitViewer = lazy(() =>
+  import("@/ui/KitViewer").then((m) => ({ default: m.KitViewer })),
+);
 
 // `?lab=silhouettes` is a boot-time dev harness, decided once and never at
 // runtime — it bypasses routing entirely, exactly as main.tsx did before.
@@ -275,6 +280,15 @@ export function Shell() {
             <App />
           </Suspense>
         )
+      ) : route.name === "kit" && route.param ? (
+        /* NOT behind the desktop gate: this address goes into an asset
+           store listing, and a reviewer opening it on a phone must still
+           get the screens and the kit, not a wall. The editor behind it
+           is still desktop work — the page says so where it invites you
+           in — but reading the kit is reading. */
+        <Suspense fallback={<RouteLoading />}>
+          <KitViewer slug={route.param} />
+        </Suspense>
       ) : route.name === "terms" || route.name === "privacy" ? (
         <LegalPage doc={route.name} />
       ) : route.name === "signin" ? (
