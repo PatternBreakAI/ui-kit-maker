@@ -11,7 +11,7 @@ import { cloudConfig, myProfileTier, publicProjectUrl } from "@/generator/cloud"
 import { listCommunity, setLike, curateProject, rejectProject, deleteSubmission, fetchCardDoc, avatarUrl, type CommunityCard } from "@/generator/community";
 import { hydrate } from "@/generator/store";
 import { ensureDocFonts } from "@/generator/fonts";
-import { applyKitDesign, applyKitTextFill, type GenConfig, type KitComponentId } from "@/generator/model";
+import { applyKitDesign, applyKitTextFill, migrateKitSlotVals, type GenConfig, type KitComponentId } from "@/generator/model";
 import { LiveArt } from "./LiveArt";
 import { renderKit } from "@/generator/bevel";
 import { tightenSvg } from "@/marketing/engine";
@@ -120,7 +120,10 @@ export function CardArt({ card }: { card: { id: string } }) {
           const designs = (doc.kitDesigns ?? {}) as Record<string, never>;
           const fills = (doc.kitTextFill ?? {}) as Record<string, never>;
           const labels = (doc.kitLabels ?? {}) as Record<string, string>;
-          const slots = (doc.kitSlotVals ?? {}) as Record<string, Record<string, string>>;
+          // migrate-first, the kitDesigns precedent: raw docs may carry the
+          // round-61 learned picks on plain keys — unmigrated, the path pick
+          // would read as the BASE seat and light every pose
+          const slots = migrateKitSlotVals((doc.kitSlotVals ?? {}) as Record<string, Record<string, string>>).vals as Record<string, Record<string, string>>;
           const piece = (cid: KitComponentId, size: "s" | "m" | "l", v?: number) =>
             tightenSvg(renderKit(
               applyKitTextFill(applyKitDesign(cfg, designs[cid]), fills[cid]),

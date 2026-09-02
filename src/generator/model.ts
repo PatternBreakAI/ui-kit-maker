@@ -1181,6 +1181,16 @@ export type SlotDef = {
       "instead of two separate objects we should think of this like a
       badge with states"). Absent = the well dresses every pose. */
   state?: string;
+  /** STATABLE paint — the r53 button-state grammar spoken in slot keys
+      (owner escalation, round 61: "learned is still changing available").
+      The well's plain key is the BASE (the resting state's look, which
+      every unforked state follows live — exactly as Default is the base
+      for a button's hover/pressed); pinning a non-base state on the tray
+      routes the same well at that state's fork key (stateSlotKey), so a
+      pinned edit dresses that state ALONE. The fork stores on the first
+      per-state edit only; resetting it returns the state to following
+      base. Renderers resolve fork(state) ?? base ?? factory. */
+  statable?: boolean;
 };
 /* The wheels' pickable glyph set — display names that resolve to
    STOCK_ICONS keys by lowercasing (Heart → heart). "Factory" is the honest
@@ -1438,22 +1448,37 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
        learned (since I'll want to make it look different and remove the
        notification check)" — then the round-61 correction: "instead of
        two separate objects we should think of this like a badge with
-       states (available/learned)". The node is ONE badge with states
-       (KIT_STATE_POSES.skillnode); these wells are the LEARNED state's
-       own furniture (state: "learned") — the panel opens them while
-       Learned is pinned, the renderer reads them only in the learned
-       pose, and Available keeps its factory glow ring untouched.
-       Untouched, every byte of the factory derivation holds (path = Glow
-       role, plate = Bevel role with its darkened ring, white check) —
-       the booster count-well precedent. */
-    { id: "pathColor", name: "Learned path", kind: "color", def: "#0E9CC9", state: "learned",
-      note: "The lit connector stub — the Learned state's path into the node. Factory follows the kit's Glow role under Effects; a pick here forks this piece's Learned state alone. Available and Locked keep the factory stub." },
+       states (available/learned)" — then the round-61 escalation:
+       "learned is still changing available, i want whatever is best for
+       developers". The four ad-hoc learned wells grow into the FULL r53
+       button-state grammar: every statable paint token on the node
+       (face, rim, glow, glyph ink, path) is one well that edits the
+       BASE unpinned and forks PER STATE while Learned or Locked is
+       pinned (statable: true — see SlotDef). Available is the base, not
+       a fork; an unforked state follows base live; size, silhouette,
+       bevel depth, font and layout are NOT statable — all three states
+       are the same physical node: learning a skill changes its paint,
+       never its shape. Untouched, every byte of the factory derivation
+       holds (face = Inner Fill role, rim = Bevel role, glow/path = Glow
+       role, white check, half veil) — the booster count-well precedent. */
+    { id: "face", name: "Face color", kind: "color", def: "#27B0DE", statable: true,
+      note: "The node's candy face. Factory follows the kit's Inner Fill role under Effects. Unpinned, a pick is the node's BASE — every state follows it live; pin Learned or Locked on the State tray first to dress that state alone." },
+    { id: "rim", name: "Rim & wall", kind: "color", def: "#0E9CC9", statable: true,
+      note: "The shell ring and bevel wall. Factory follows the kit's Bevel role. Base and per-state picks work like the face well." },
+    { id: "glowColor", name: "Glow", kind: "color", def: "#5FD4F4", allowNone: true, statable: true,
+      note: "The node's glow — inner bloom and aura together. Factory follows the kit's Glow role. None turns the glow off for the state being edited; base and per-state picks work like the face well." },
+    { id: "glyphInk", name: "Glyph ink", kind: "color", def: "#FFFFFF", statable: true,
+      note: "The skill glyph's ink — and the padlock's, in Locked. Factory follows the kit's icon color under Typography → Icons. Base and per-state picks work like the face well." },
+    { id: "pathColor", name: "Path color", kind: "color", def: "#0E9CC9", statable: true,
+      note: "The connector stub — the path into the node. Factory follows the kit's Glow role under Effects; a base pick moves every state's stub, a pinned pick that state's alone." },
     { id: "checkColor", name: "Check badge", kind: "color", def: "#0E9CC9", allowNone: true, state: "learned",
       note: "The Learned state's corner badge — plate and ring together (the ring stays the plate's own darker edge). Factory follows the kit's Bevel role; a pick forks it alone. None removes the badge entirely." },
     { id: "checkInk", name: "Check mark", kind: "color", def: "#FFFFFF", state: "learned",
       note: "The mark riding the badge plate. Factory is white. Reads only while the badge is on." },
     { id: "checkGlyph", name: "Badge glyph", kind: "choice", choices: GLYPH_CHOICES, state: "learned",
       note: "What the badge carries — Factory is the check. Reads only while the badge is on." },
+    { id: "lockedDim", name: "Veil strength", kind: "dial", def: "50", state: "locked",
+      note: "How heavily the Locked veil dims the node. Factory is the classic half veil; 0 lifts the veil entirely." },
   ],
   emotewheel: [
     /* the wheel was barely editable ("this component isn't very editable",
@@ -1630,6 +1655,49 @@ export const KIT_STATE_POSES: Partial<Record<KitComponentId, { id: string | null
     { id: "locked", name: "Locked" },
   ],
 };
+
+/** THE fork key shape — r53's per-state fork ladder (stateDesigns[state])
+ *  spoken in kitSlotVals' flat record: a base pick lives at the slot id,
+ *  a state's fork at `<state>:<id>` (the kitTextOy `${id}:${size}`
+ *  segmenting precedent). One function so the panel, the renderer and
+ *  the migration can never disagree about the seat. null/undefined state
+ *  = the base key. */
+export const stateSlotKey = (state: string | null | undefined, slotId: string): string =>
+  state ? `${state}:${slotId}` : slotId;
+
+/* The four round-61 skill-node wells shipped their LEARNED picks on plain
+   keys (they were learned-only furniture then). Under the statable
+   grammar the plain key is the BASE seat — so an unmigrated learned pick
+   would repaint Available and Locked too, the exact leak this round
+   kills. One-time move to the learned: seat; runs at every kitSlotVals
+   door (hydrate, look apply, project/payload load). */
+const R61_LEARNED_PLAIN_KEYS = ["pathColor", "checkColor", "checkInk", "checkGlyph"] as const;
+export function migrateKitSlotVals(
+  vals: Partial<Record<KitComponentId, Record<string, string>>>,
+): { vals: Partial<Record<KitComponentId, Record<string, string>>>; changed: boolean } {
+  let out = vals;
+  let changed = false;
+  for (const id of Object.keys(vals ?? {}) as KitComponentId[]) {
+    // clones migrate too — a copy of the node carries the same seats
+    if (baseOf(id) !== "skillnode") continue;
+    const cur = vals[id];
+    if (!cur) continue;
+    let next: Record<string, string> | null = null;
+    for (const k of R61_LEARNED_PLAIN_KEYS) {
+      if (cur[k] === undefined) continue;
+      next ??= { ...cur };
+      const seat = stateSlotKey("learned", k);
+      // a stored learned: seat wins — the plain twin is stale either way
+      if (next[seat] === undefined) next[seat] = next[k];
+      delete next[k];
+    }
+    if (next) {
+      if (!changed) { out = { ...vals }; changed = true; }
+      out[id] = next;
+    }
+  }
+  return { vals: out, changed };
+}
 
 /* Glyph pieces whose registry entry carries an engraved detail layer get
    the detail dial — attached FROM the registry, so a new detailed glyph

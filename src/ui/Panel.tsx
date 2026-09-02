@@ -6,8 +6,8 @@ import { patternZones } from "./SliceStage";
 import { useGen } from "@/generator/store";
 import { t } from "@/shell/i18n";
 import { LessonBody } from "./LessonCard";
-import { PRESETS, KIT_SLOTS, KIT_STATE_POSES, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, GLINT_STYLES, defaultStates, applyKitDesign, applyKitTextFill, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, designDiff, mergeKitDesign, iconRigDiff, baseShape, isFlipShape, flipShape, labelMaxOf, groupOf, ctaForFont, ctaEntry, fontLang, KIT_SLICEABLE, KIT_LABEL_EDITABLE, NO_TEXT_ELIGIBLE, EDGE_SHINE_DEAF, baseOf, isCloneId, CLONE_KINDS, CLONE_INELIGIBLE, isGlyphButton } from "@/generator/model";
-import type { KitSlice } from "@/generator/model";
+import { PRESETS, KIT_SLOTS, KIT_STATE_POSES, stateSlotKey, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, GLINT_STYLES, defaultStates, applyKitDesign, applyKitTextFill, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, designDiff, mergeKitDesign, iconRigDiff, baseShape, isFlipShape, flipShape, labelMaxOf, groupOf, ctaForFont, ctaEntry, fontLang, KIT_SLICEABLE, KIT_LABEL_EDITABLE, NO_TEXT_ELIGIBLE, EDGE_SHINE_DEAF, baseOf, isCloneId, CLONE_KINDS, CLONE_INELIGIBLE, isGlyphButton } from "@/generator/model";
+import type { KitSlice, SlotDef } from "@/generator/model";
 import type { GenStateName, BlendMode, GlintStyle, PatternType, KitComponentId, KitDesign, Shape  } from "@/generator/model";
 import { ICON_LIBS, loadLib, libLoaded, searchLib, getDef, previewSvg } from "@/generator/icons";
 import { ensureFont, ensureDocFonts, fontReady, awaitFonts } from "@/generator/fonts";
@@ -184,8 +184,14 @@ export function Rail() {
   );
 }
 
-function Section({ id, title, summary, right, children }: {
+function Section({ id, title, summary, right, children, allStates: allTag }: {
   id: string; title: React.ReactNode; summary?: React.ReactNode; right?: React.ReactNode; children?: React.ReactNode;
+  /** The honest-panel pin treatment (round 61): while a semantic state is
+   *  pinned on the piece's State tray, sections whose controls paint the
+   *  piece GLOBALLY dim and wear the "all states" tag — so no pinned edit
+   *  ever silently repaints the resting state again. The tag/dim IS the
+   *  message (affordance law); its why rides the tooltip. */
+  allStates?: boolean;
 }) {
   const { open, toggle, panelQuery } = useGen();
   const q = (panelQuery ?? "").trim().toLowerCase();
@@ -200,10 +206,10 @@ function Section({ id, title, summary, right, children }: {
     setHit((ref.current?.textContent ?? "").toLowerCase().includes(q));
   }, [q, children]);
   return (
-    <section className="sec" data-sec={id} ref={ref} style={q && !hit ? { display: "none" } : undefined}>
+    <section className={`sec${allTag ? " allsec" : ""}`} data-sec={id} ref={ref} style={q && !hit ? { display: "none" } : undefined}>
       <div className="sec-head" onClick={() => toggle(id)} role="button" aria-expanded={isOpen} tabIndex={0}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") toggle(id); }}>
-        <h3>{title}</h3>
+        <h3>{title}{allTag && <i className="alltag" title="A state is pinned on the piece's State tray, but these controls paint ALL its states at once — use the statable wells under Component content to dress the pinned state alone.">all states</i>}</h3>
         <span className="sum">
           {right}
           {!isOpen && summary}
@@ -358,10 +364,12 @@ function SwatchMem({ value, onChange }: { value: string; onChange: (v: string) =
 }
 
 
-function Well({ label, value, onChange, title }: { label: string; value: string; onChange: (v: string) => void; title?: string }) {
+function Well({ label, value, onChange, title, dot }: { label: string; value: string; onChange: (v: string) => void; title?: string;
+  /** divergence dot — this well holds the pinned state's OWN fork */
+  dot?: boolean }) {
   return (
     <div className="ctl wellrow" title={title}>
-      <label>{label}</label>
+      <label>{dot && <i className="forkdot" aria-label="Forked for this state" />}{label}</label>
       <span className="chipwell sm" style={{ background: value }}>
         <input type="color" value={value} aria-label={`${label} color`}
           onChange={(e) => { onChange(e.target.value); recordRecent(e.target.value); }} />
@@ -1187,6 +1195,25 @@ export function Panel() {
   // a FINISHED piece pauses the whole tray the same way play mode does —
   // the focus banner (not a .sec) stays interactive for the unlock
   const finLocked = !!(focus && kitLocks[focus]);
+  /* ── the semantic-state fork grammar (round 61 escalation: "learned is
+     still changing available") — r53's per-state design ladder spoken in
+     slot seats. pinnedPose is the NON-BASE state the tray has pinned
+     (null = editing the base/Available look). A statable well routes its
+     read and write through that state's seat (stateSlotKey), reads back
+     through fork ?? base (factory-follow), and shows the divergence dot
+     while it holds a fork of its own. State furniture (SlotDef.state)
+     always lives on its own state's seat. */
+  const snPoses = focus ? KIT_STATE_POSES[baseOf(focus)] : undefined;
+  const snBaseName = snPoses?.[0]?.name ?? "base";
+  const pinnedPose = snPoses && kitOverlay && snPoses.some((p) => p.id === kitOverlay) ? kitOverlay : null;
+  const pinnedPoseName = pinnedPose ? snPoses!.find((p) => p.id === pinnedPose)!.name : null;
+  const slotSeat = (slot: SlotDef): string =>
+    slot.state ? stateSlotKey(slot.state, slot.id)
+    : slot.statable ? stateSlotKey(pinnedPose, slot.id) : slot.id;
+  const slotOwn = (slot: SlotDef): string | undefined => (focus ? kitSlotVals[focus]?.[slotSeat(slot)] : undefined);
+  const slotRead = (slot: SlotDef): string | undefined =>
+    slotOwn(slot) ?? (focus && slot.statable && pinnedPose ? kitSlotVals[focus]?.[slot.id] : undefined);
+  const slotForked = (slot: SlotDef): boolean => !!pinnedPose && !!slot.statable && slotOwn(slot) !== undefined;
   return (
     <aside className={`panel${playLocked || finLocked ? " playlock" : ""}${finLocked && !playLocked ? " finlock" : ""}`} ref={panelRef}>
       {playLocked && <div className="playnote">Play mode — controls are paused so you can feel the states. Switch back to Design (✎ in the canvas toolbar) to edit.</div>}
@@ -1371,7 +1398,7 @@ export function Panel() {
         );
       })()}
       {/* ── Global — whole-component adjustments per state ── */}
-      <Section id="state" title={t("secGlobal")} right={<span className="statebadge">{STATE_LABEL[selectedState]}</span>}>
+      <Section id="state" allStates={!!pinnedPose} title={t("secGlobal")} right={<span className="statebadge">{STATE_LABEL[selectedState]}</span>}>
         <div className="segmini" role="radiogroup" aria-label="State being edited">
           {STATE_NAMES.map((s) => (
             <button key={s} className={selectedState === s ? "on" : ""} role="radio" aria-checked={selectedState === s}
@@ -1525,7 +1552,7 @@ export function Panel() {
            your kits, your styles, and (collapsed) the admin publishing desk.
            The scattered "Publish current…" buttons live here now, behind
            one quiet admin row (owner: "we need to consolidate"). ── */}
-      <Section id="shape" title={t("secLooks")} summary={<span className="mapbar" style={{ background: mapBar }} />}>
+      <Section id="shape" allStates={!!pinnedPose} title={t("secLooks")} summary={<span className="mapbar" style={{ background: mapBar }} />}>
         {/* NEWEST FIRST, FEWEST SHOWN (owner): your latest saves lead (they
             already store newest-first), pack drops sort by release date,
             starters keep their curated order — and the rack folds to the
@@ -1745,7 +1772,7 @@ export function Panel() {
       </Section>
 
       {/* ── A2 · Silhouette — pure geometry, material stays ── */}
-      <Section id="silhouette" title={t("secSilhouette")} summary={<span>{SHAPES.find((sh) => sh.id === D.shape)?.name.split(" — ")[0]}</span>}>
+      <Section id="silhouette" allStates={!!pinnedPose} title={t("secSilhouette")} summary={<span>{SHAPES.find((sh) => sh.id === D.shape)?.name.split(" — ")[0]}</span>}>
         {/* round-56 affordance purge: the "restyles this piece only" scope
             rides each shapecard's tooltip while a piece is focused */}
         <div className="silcats" role="radiogroup" aria-label="Silhouette category">
@@ -2021,8 +2048,8 @@ export function Panel() {
                would be a wall of chips (the emote wheel has eight slots) */
             <label key={slot.id} className="fieldbox" style={{ minWidth: 0 }} title={slot.note}>
               <span className="fl">{slot.name}</span>
-              <select value={kitSlotVals[focus]?.[slot.id] ?? slot.choices![0]} aria-label={slot.name}
-                onChange={(e) => setKitSlot(focus, slot.id, e.target.value === slot.choices![0] ? null : e.target.value)}>
+              <select value={slotRead(slot) ?? slot.choices![0]} aria-label={slot.name}
+                onChange={(e) => setKitSlot(focus, slotSeat(slot), e.target.value === slot.choices![0] ? null : e.target.value)}>
                 {slot.choices!.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
               <span className="chev"><ChevronDown size={17} strokeWidth={2} /></span>
@@ -2032,44 +2059,67 @@ export function Panel() {
               <div className="sublabel">{slot.name}</div>
               <div className="segmini" role="radiogroup" aria-label={slot.name}>
                 {(slot.choices ?? []).map((c) => {
-                  const cur = kitSlotVals[focus]?.[slot.id] ?? slot.choices?.[0];
+                  const cur = slotRead(slot) ?? slot.choices?.[0];
                   return (
                     <button key={c} className={cur === c ? "on" : ""} role="radio" aria-checked={cur === c}
-                      onClick={() => setKitSlot(focus, slot.id, c === slot.choices?.[0] ? null : c)}>{c}</button>
+                      onClick={() => setKitSlot(focus, slotSeat(slot), c === slot.choices?.[0] ? null : c)}>{c}</button>
                   );
                 })}
               </div>
             </div>
           ) : slot.kind === "color" && !finLocked ? (
-            <div key={slot.id}>
-              {kitSlotVals[focus]?.[slot.id] !== "none" && (
-                /* the honest swatch: untouched, some wells' factory defs
-                   are sentinels the render never literally inks (the
-                   dialogue body reads the kit's type ink, not #1A2418) —
-                   show the EFFECTIVE color the piece renders right now,
-                   recomputed live as the kit's inks move; the moment a
-                   pick is stored, the pick speaks (owner: "make the
-                   swatch tell the truth") */
-                <Well label={slot.name} title={slot.note} value={kitSlotVals[focus]?.[slot.id]
-                  ?? effSlotColor(applyKitTextFill(cfg, kitTextFill[focus]), baseOf(focus), slot.id, kitSlotVals[focus])
-                  ?? slot.def ?? "#FFFFFF"}
-                  onChange={(v) => setKitSlot(focus, slot.id, v)} />
-              )}
-              {slot.allowNone && (
-                /* the slot's OFF switch — stores the "none" sentinel; the
-                   renderer skips the feature (owner: "should have a none
-                   option for the eyebrow stroke") */
-                <label className="check"><input type="checkbox" checked={kitSlotVals[focus]?.[slot.id] === "none"}
-                  onChange={(e) => setKitSlot(focus, slot.id, e.target.checked ? "none" : null)} />
-                  None — no {slot.name.toLowerCase()}</label>
-              )}
-              {kitSlotVals[focus]?.[slot.id] && kitSlotVals[focus]?.[slot.id] !== "none" && (
-                <button className="resetstate" title="Back to the factory color"
-                  onClick={() => setKitSlot(focus, slot.id, null)}>
-                  <RotateCcw size={13} strokeWidth={2} /> Factory color
-                </button>
-              )}
-            </div>
+            (() => {
+              /* a STATABLE well reads and writes through the pinned
+                 state's seat (fork ?? base ?? factory — the renderer's
+                 exact ladder); its label names the pinned state (the r53
+                 "Color — Hover only" grammar) and the divergence dot
+                 marks a well holding that state's own fork */
+              const seat = slotSeat(slot);
+              const own = slotOwn(slot);
+              const eff = slotRead(slot);
+              return (
+                <div key={slot.id}>
+                  {eff !== "none" && (
+                    /* the honest swatch: untouched, some wells' factory defs
+                       are sentinels the render never literally inks (the
+                       dialogue body reads the kit's type ink, not #1A2418) —
+                       show the EFFECTIVE color the piece renders right now,
+                       recomputed live as the kit's inks move; the moment a
+                       pick is stored, the pick speaks (owner: "make the
+                       swatch tell the truth") */
+                    <Well label={slot.statable && pinnedPoseName ? `${slot.name} — ${pinnedPoseName}` : slot.name}
+                      title={slot.note} dot={slotForked(slot)}
+                      value={eff
+                      ?? effSlotColor(applyKitTextFill(cfg, kitTextFill[focus]), baseOf(focus), slot.id, kitSlotVals[focus])
+                      ?? slot.def ?? "#FFFFFF"}
+                      onChange={(v) => setKitSlot(focus, seat, v)} />
+                  )}
+                  {slot.allowNone && (
+                    /* the slot's OFF switch — stores the "none" sentinel; the
+                       renderer skips the feature (owner: "should have a none
+                       option for the eyebrow stroke"). Pinned on a statable
+                       well it reads the resolved value; unchecking a "none"
+                       inherited from base forks this state back ON at the
+                       factory color (there is no "explicitly on" sentinel) */
+                    <label className="check"><input type="checkbox" checked={eff === "none"}
+                      onChange={(e) => {
+                        if (e.target.checked) setKitSlot(focus, seat, "none");
+                        else if (slot.statable && pinnedPose && own === undefined)
+                          setKitSlot(focus, seat, effSlotColor(applyKitTextFill(cfg, kitTextFill[focus]), baseOf(focus), slot.id, kitSlotVals[focus]) ?? slot.def ?? "#FFFFFF");
+                        else setKitSlot(focus, seat, null);
+                      }} />
+                      None — no {slot.name.toLowerCase()}</label>
+                  )}
+                  {own !== undefined && own !== "none" && (
+                    <button className="resetstate"
+                      title={slotForked(slot) ? `Drop this ${pinnedPoseName} fork — follow the ${snBaseName} look again` : "Back to the factory color"}
+                      onClick={() => setKitSlot(focus, seat, null)}>
+                      <RotateCcw size={13} strokeWidth={2} /> {slotForked(slot) ? `Follow ${snBaseName}` : "Factory color"}
+                    </button>
+                  )}
+                </div>
+              );
+            })()
           ) : slot.kind === "dial" && !finLocked ? (
             (() => {
               /* the kit-following strength dial (owner, on the band glow:
@@ -2078,19 +2128,22 @@ export function Panel() {
                  live (stores nothing); the first drag forks this piece onto
                  its own strength; 0 is the deliberate off. Legacy values
                  from the retired two-state slot read through: "Off" is a 0
-                 fork, "On"/"Follow kit" are the unfetched follow. */
-              const raw = kitSlotVals[focus]?.[slot.id];
+                 fork, "On"/"Follow kit" are the unfetched follow. A dial
+                 carrying its own def (the locked veil) rests there instead
+                 of mirroring the kit dial. */
+              const raw = slotRead(slot);
               const own = raw === "Off" ? 0
                 : raw !== undefined && /^\d+$/.test(raw) ? Math.min(100, +raw) : undefined;
+              const restV = slot.def !== undefined ? Math.min(100, +slot.def) : Math.round(cfg.candy.extrusion.glow);
               return (
                 <div key={slot.id}>
-                  <Slider label={slot.name} value={own ?? Math.round(cfg.candy.extrusion.glow)} min={0} max={100} unit="%"
-                    title={[slot.note, own === undefined ? "Following the kit — mirrors Candy → Extrusion → Base glow until you set it. Setting 0 quiets this piece alone." : null].filter(Boolean).join(" ")}
-                    onChange={(v) => setKitSlot(focus, slot.id, String(v))} />
+                  <Slider label={slot.name} value={own ?? restV} min={0} max={100} unit="%"
+                    title={[slot.note, own === undefined ? (slot.def !== undefined ? "At the factory strength until you set it." : "Following the kit — mirrors Candy → Extrusion → Base glow until you set it. Setting 0 quiets this piece alone.") : null].filter(Boolean).join(" ")}
+                    onChange={(v) => setKitSlot(focus, slotSeat(slot), String(v))} />
                   {own !== undefined && (
-                    <button className="resetstate" title="Drop this piece's own strength — mirror the kit's Base glow dial again"
-                      onClick={() => setKitSlot(focus, slot.id, null)}>
-                      <RotateCcw size={13} strokeWidth={2} /> Follow the kit
+                    <button className="resetstate" title={slot.def !== undefined ? "Back to the factory strength" : "Drop this piece's own strength — mirror the kit's Base glow dial again"}
+                      onClick={() => setKitSlot(focus, slotSeat(slot), null)}>
+                      <RotateCcw size={13} strokeWidth={2} /> {slot.def !== undefined ? "Factory strength" : "Follow the kit"}
                     </button>
                   )}
                 </div>
@@ -2099,17 +2152,36 @@ export function Panel() {
           ) : null)}
           {(() => {
             /* per-state factory reset (the button grammar's "Reset Hover",
-               spoken for semantic states): every well the pinned state
-               owns drops its pick in one act and follows the kit's roles
-               again — each state stays resettable on its own. */
+               spoken for semantic states): every seat the pinned state
+               owns — its furniture picks AND its statable forks — drops
+               in one act, and the state follows base/factory again. Plus
+               the r53 promote verb ("Make Hover the new Default"): the
+               pinned state's statable forks become the BASE picks and
+               clear, so every unforked state follows the promoted look;
+               state furniture (the badge, the veil) has no base seat and
+               stays that state's own. */
             const pose = KIT_STATE_POSES[baseOf(focus)]?.find((p) => p.id === (kitOverlay ?? null));
-            const owned = pose?.id ? (KIT_SLOTS[baseOf(focus)] ?? []).filter((sl) => sl.state === pose.id && kitSlotVals[focus]?.[sl.id] !== undefined) : [];
-            return pose && owned.length > 0 ? (
-              <button className="resetstate" title={`Every ${pose.name} pick back to the factory look — the wells follow the kit's roles again`}
-                onClick={() => owned.forEach((sl) => setKitSlot(focus, sl.id, null))}>
+            if (!pose?.id) return null;
+            const owned = (KIT_SLOTS[baseOf(focus)] ?? []).filter((sl) =>
+              (sl.state === pose.id || sl.statable) && kitSlotVals[focus]?.[stateSlotKey(pose.id, sl.id)] !== undefined);
+            const forks = owned.filter((sl) => sl.statable);
+            return owned.length > 0 ? (<div className="actionrow">
+              <button className="resetstate" title={`Every ${pose.name} pick back to the factory look — the wells follow ${snBaseName} and the kit's roles again`}
+                onClick={() => owned.forEach((sl) => setKitSlot(focus, stateSlotKey(pose.id, sl.id), null))}>
                 <RotateCcw size={13} strokeWidth={2} /> Reset {pose.name} — factory look
               </button>
-            ) : null;
+              {forks.length > 0 && (
+                <button className="resetstate makedefault" title={`Promote ${pose.name}'s forked paint to be the ${snBaseName} look — states without their own fork follow it. The ${pose.name}-only furniture (badge, veil) stays put.`}
+                  onClick={() => forks.forEach((sl) => {
+                    const v = kitSlotVals[focus]?.[stateSlotKey(pose.id!, sl.id)];
+                    if (v === undefined) return;
+                    setKitSlot(focus, sl.id, v);
+                    setKitSlot(focus, stateSlotKey(pose.id!, sl.id), null);
+                  })}>
+                  <Star size={13} strokeWidth={2} /> Make {pose.name} the new {snBaseName}
+                </button>
+              )}
+            </div>) : null;
           })()}
           {/* value-kind slots render NO row of their own (round-56 purge) —
               the driven readout's name and note ride the Value slider's
@@ -2139,7 +2211,13 @@ export function Panel() {
               onChange={(e) => setKitSub(focus, e.target.value)} />
           )}
           {iconSwappable && !finLocked && (<>
-          <div className="sublabel" title="Size, weight & effects live under Typography → Icons.">Icon</div>
+          {/* the pin treatment (round 61): the glyph, its color and its
+              nudges are ONE decision for the piece — while a semantic
+              state is pinned they still paint every state, so the block
+              dims under the "all states" tag (the statable Glyph-ink well
+              above is the per-state road) */}
+          <div className="sublabel" title="Size, weight & effects live under Typography → Icons.">Icon{pinnedPose && <i className="alltag" title={`Pinning ${pinnedPoseName} doesn't scope these — the glyph and this color dress ALL states. Use the Glyph ink well above to ink ${pinnedPoseName} alone.`}>all states</i>}</div>
+          <div className={pinnedPose ? "allwrap" : undefined}>
           {/* the color, where a human looks for it (owner) — same state and
               routing as the Typography → Icons swatch, just surfaced here */}
           <label className="check"><input type="checkbox" checked={IC.color === null}
@@ -2148,6 +2226,7 @@ export function Panel() {
             <Well label={selectedState !== "default" ? `Color — ${STATE_LABEL[selectedState]} only` : "Icon color"}
               value={IC.color} onChange={(v) => update((c) => { c.icon.color = v; })} />
           )}
+          </div>
           <div className="actionrow">
             <button className={`resetstate${kitIcons[focus] === "none" ? " on" : ""}`} onClick={() => setKitIcon(focus, kitIcons[focus] === "none" ? null : "none")}>
               <Trash2 size={13} strokeWidth={2} /> {kitIcons[focus] === "none" ? "Icon removed — bring it back" : "Remove the icon"}
@@ -2230,7 +2309,7 @@ export function Panel() {
       )}
 
       {/* ── B · Color — THE color editor ──────────────────── */}
-      <Section id="mapping" title={t("secColor")}
+      <Section id="mapping" allStates={!!pinnedPose} title={t("secColor")}
         right={
           <span className="inlinectl" onClick={(e) => e.stopPropagation()}>
             <button className="chipbtn" title="Randomize colors" aria-label="Randomize colors" onClick={randomizeColors}>
@@ -2306,7 +2385,7 @@ export function Panel() {
       </Section>
 
       {/* ── C · Structure — the object's build ────────────── */}
-      <Section id="structure" title={t("secStructure")}>
+      <Section id="structure" allStates={!!pinnedPose} title={t("secStructure")}>
         {(() => {
           /* the banner's tail geometry only reads clean between 13 and 33 —
              its slider is contained to that range (other shapes keep 2–34) */
@@ -2331,7 +2410,7 @@ export function Panel() {
       </Section>
 
       {/* ── D · Surface ───────────────────────────────────── */}
-      <Section id="surface" title={t("secSurface")}
+      <Section id="surface" allStates={!!pinnedPose} title={t("secSurface")}
         right={
           <span className="inlinectl" onClick={(e) => e.stopPropagation()}>
             <select className="tinysel" value={D.face.mode} aria-label="Face mode"
@@ -2404,7 +2483,7 @@ export function Panel() {
       </Section>
 
       {/* ── E · Lighting ──────────────────────────────────── */}
-      <Section id="bars" title={t("secBarsFills")} summary={<span>{cfg.barFx?.grad2.on || cfg.barFx?.glow.on || cfg.barFx?.shadow.on ? "Styled" : "Plain"}</span>}>
+      <Section id="bars" allStates={!!pinnedPose} title={t("secBarsFills")} summary={<span>{cfg.barFx?.grad2.on || cfg.barFx?.glow.on || cfg.barFx?.shadow.on ? "Styled" : "Plain"}</span>}>
         <FxToggle label="Second gradient" title="Layers onto every bar fill — progress bars, slider fills, data-row bars. One edit restyles all of them." on={cfg.barFx?.grad2.on ?? false}
           onToggle={(v) => update((c) => { const b = c.barFx ?? (c.barFx = defaultBarFx()); b.grad2.on = v; })}>
           <Well label="From" value={cfg.barFx?.grad2.color1 ?? "#FFFFFF"} onChange={(v) => update((c) => { const b = c.barFx ?? (c.barFx = defaultBarFx()); b.grad2.color1 = v; })} />
@@ -2438,7 +2517,7 @@ export function Panel() {
         )}
       </Section>
 
-      <Section id="lighting" title={t("secLighting")} summary={<span>{D.lighting.angle}°</span>}>
+      <Section id="lighting" allStates={!!pinnedPose} title={t("secLighting")} summary={<span>{D.lighting.angle}°</span>}>
         <label className="check"><input type="checkbox" checked={D.lighting.tint != null}
           onChange={(e) => update((c) => { c.lighting.tint = e.target.checked ? (c.effects.Highlight ?? "#FFFFFF") : null; })} /> Tint the key light</label>
         {D.lighting.tint != null && (
@@ -2454,7 +2533,7 @@ export function Panel() {
       </Section>
 
       {/* ── F · Gloss & Reflections ───────────────────────── */}
-      <Section id="gloss" title={t("secGloss")}
+      <Section id="gloss" allStates={!!pinnedPose} title={t("secGloss")}
         right={
           <span className="inlinectl" onClick={(e) => e.stopPropagation()}>
             <input type="checkbox" checked={C.gloss.on} aria-label="Gloss on"
@@ -2550,7 +2629,7 @@ export function Panel() {
       </Section>
 
       {/* ── F2 · Glow — light living inside the candy ─────── */}
-      <Section id="glow" title={t("secGlow")} summary={<span>{C.innerGlow.opacity}%</span>}>
+      <Section id="glow" allStates={!!pinnedPose} title={t("secGlow")} summary={<span>{C.innerGlow.opacity}%</span>}>
         <div className="sublabel" title="Colored light inside the candy, rising from the unlit side.">Inner glow</div>
         <Slider label="Opacity" value={C.innerGlow.opacity} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.candy.innerGlow.opacity = v; })} />
         <Slider label="Spread" value={C.innerGlow.size} min={10} max={100} unit="%" onChange={(v) => update((c) => { c.candy.innerGlow.size = v; })} />
@@ -2564,7 +2643,7 @@ export function Panel() {
       </Section>
 
       {/* ── G · Depth & Shadow ────────────────────────────── */}
-      <Section id="depth" title={t("secDepth")}>
+      <Section id="depth" allStates={!!pinnedPose} title={t("secDepth")}>
         {/* the contact floor ellipse is retired (owner call) — the cast
             drop shadow is the kit's one grounding layer */}
         <div className="sublabel">Cast shadow</div>
@@ -2612,7 +2691,7 @@ export function Panel() {
       )}
 
       {/* ── H · Typography (content lives here too) ───────── */}
-      <Section id="typography" title={t("secTypography")} summary={<span>{cfg.content.label || T2.font}</span>}>
+      <Section id="typography" allStates={!!pinnedPose} title={t("secTypography")} summary={<span>{cfg.content.label || T2.font}</span>}>
         {/* v60: with a text-bearing component in focus this field edits THAT
             component's label (the same override as Component content) — the
             master's specimen text only shows when nothing is focused */}
@@ -3021,7 +3100,7 @@ export function Panel() {
 
       {/* ── Icon (parked behind ICONS_ENABLED for this phase) ── */}
       {ICONS_ENABLED && (
-      <Section id="icon" title="Icon"
+      <Section id="icon" allStates={!!pinnedPose} title="Icon"
         right={
           <span className="inlinectl" onClick={(e) => e.stopPropagation()}>
             <input type="checkbox" checked={cfg.icon.show} aria-label="Show icon"
