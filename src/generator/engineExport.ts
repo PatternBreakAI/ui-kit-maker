@@ -5237,6 +5237,27 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
             component: uid, part: "fill", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
             usage: "The mercury — the app's own dressing (gradient, gloss, glow) as a bordered stadium: the sprite's 9-slice caps round the ends and KitBarFill drives the rect's WIDTH (SetValue, or write fillAmount and the rig adopts it) — seam-impossible, pattern at natural density. Longer bar = widen the rect; bigger bar = uniform scale (height is the design's anatomy, not a stretch axis).",
             ringV: stagedBar,
+            /* round 61 (owner: the setrow fill "needs to be nudged to the
+               right to keep the gap of the well even all the way around"):
+               the setrow's data-track stamp deliberately speaks the WELL
+               frame (the app's pointer scrub owns that x/w), so the rig
+               seated the mercury on the well and ate the app's own gap on
+               the left. The fill row now carries the RUN itself — the
+               data-barfill box, drawn-shell-center relative (the fireDx
+               discipline, crop-proof) — and the importer's rail-seat rung
+               rides it. Only the setrow ships these fields; every other
+               bar's stamp already speaks its run, byte-for-byte. */
+            ...(uid === "setrow" ? (() => {
+              const fb9 = /data-fillbody="([-\d. ]+)"/.exec(barFillSvgU!)?.[1].split(" ").map(Number);
+              const shF9 = /data-shell="([-\d. ]+)"/.exec(barFillSvgU!)?.[1].split(" ").map(Number);
+              if (!fb9 || fb9.length !== 4 || !fb9.every(Number.isFinite) || !shF9 || shF9.length !== 4) return {};
+              const r1f = (n: number) => Math.round(n * 10) / 10;
+              return {
+                railDx: r1f(fb9[0] + fb9[1] / 2 - (shF9[0] + shF9[2] / 2)),
+                railDy: r1f(fb9[2] + fb9[3] / 2 - (shF9[1] + shF9[3] / 2)),
+                railW: r1f(fb9[1]), railH: r1f(fb9[3]),
+              };
+            })() : {}),
           }, true);
           await addPng(`${uid}/cap.png`, barCapSvgU, {
             component: uid, part: "cap", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
@@ -5431,8 +5452,14 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
                   // lane's run, railH = the thumb's own height (design px)
                   ringV: Math.max(0.005, Math.min(1, uVal ?? 0.3)), railW: Math.round(zhB * 10) / 10, railH: Math.round(thHB * 10) / 10,
                   // the floor keeps the gloss stripe's rounded ends inside
-                  // the caps — the stretch zone stays truly uniform
-                }, false, undefined, { sliceMin: { top: capTh, bottom: capTh } });
+                  // the caps — the stretch zone stays truly uniform.
+                  // round 61 ("weird and pointy"): the LEFT/RIGHT floors
+                  // join — the measured borders landed in the transparent
+                  // pad, parking the whole drawn capsule in the stretch
+                  // zone, so any cross-axis squeeze collapsed it to a
+                  // sliver; band-true floors keep the capsule's sides in
+                  // the caps (the sanity clamp may still trim them fairly)
+                }, false, undefined, { sliceMin: { top: capTh, bottom: capTh, left: capThLR, right: capThLR } });
               }
             }
           } catch { /* the legacy sheet still ships */ }
@@ -19592,6 +19619,24 @@ namespace PatternBreak {
             if (rowT.track.h > 2f && track.rect.height > 1f)
               bandCy = (rowT.track.y + rowT.track.h / 2f) / track.rect.height * trackH;
           }
+          /* round 61 (owner: the setrow fill "needs to be nudged to the
+             right to keep the gap of the well even all the way around"):
+             a FILL row shipping rail geometry seats the area on the app's
+             own mercury RUN — drawn-shell-center relative (the fireDx
+             discipline, crop-proof) — instead of the stamped zone. Only
+             the setrow ships the fields (its stamp deliberately speaks
+             the WELL: the app's pointer scrub owns that frame); rows
+             without them keep the zone road byte-for-byte, old zips
+             included. */
+          if (rowT.shell != null && rowT.shell.w > 2f) {
+            PBAsset rowF61 = null;
+            foreach (var aF61 in m.assets) if (aF61 != null && aF61.component == fam && aF61.part == "fill" && aF61.railW > 1f) { rowF61 = aF61; break; }
+            if (rowF61 != null) {
+              float runL61 = (rowT.shell.x + rowT.shell.w / 2f) / pngScale + rowF61.railDx - rowF61.railW / 2f;
+              zoneL = runL61;
+              zoneR = trackW - (runL61 + rowF61.railW);
+            }
+          }
         }
       }
       float inXL = zoneL >= 0f ? Mathf.Max(1f, zoneL) : Mathf.Max(2f, (trackW - fillW) * 0.5f);
@@ -23006,6 +23051,20 @@ namespace PatternBreak {
       var hrtB = hdB.GetComponent<RectTransform>();
       hrtB.anchorMin = Vector2.zero; hrtB.anchorMax = Vector2.one;
       hrtB.offsetMin = Vector2.zero; hrtB.offsetMax = Vector2.zero;
+      /* round 61 (owner field: "this scrollbar handle is weird and
+         pointy"): Unity's Scrollbar forces the handle's CROSS-axis
+         anchors to full stretch, so a zero sizeDelta squeezed the padded
+         thumb canvas into the narrow lane — the drawn capsule collapsed
+         into the slice's center strip, a thin sliver with tapered ends.
+         The handle keeps the thumb sprite's own design width RELATIVE
+         to the lane (sizeDelta.x = sprite − lane): the capsule rides at
+         the app's own width at the prefab's size AND tracks a dev
+         resize (the overhang stays the bake's transparent pad), while
+         the vertical borders keep the rounded ends honest at every
+         thumb length the viewport ratio deals. */
+      float laneWB = go.GetComponent<RectTransform>().sizeDelta.x - inL - inR;
+      if (laneWB > 1f && thumbSB.rect.width > 2f)
+        hrtB.sizeDelta = new Vector2(thumbSB.rect.width / psB - laneWB, 0f);
       bar.handleRect = hrtB;
       bar.targetGraphic = hiB;
       bar.direction = Scrollbar.Direction.BottomToTop;

@@ -4055,6 +4055,33 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the skillnode usage row stopped teaching the Learned-badge child (or the badge-None contract) — the manifest would promise burned-in art (round 61, S51)");
 }
 
+/* ── ROUND 61 · S52 (two owner field finds on emitted rigs):
+   (a) the SCROLLBAR HANDLE ("weird and pointy") — Unity's Scrollbar
+   forces the handle's cross-axis anchors to full stretch, so a zero
+   sizeDelta squeezed the padded thumb canvas into the narrow lane and
+   the drawn capsule collapsed into the slice's center strip; the handle
+   keeps the sprite's design width RELATIVE to the lane, and the thumb's
+   horizontal borders get band-true floors so the capsule's sides live
+   in the caps, not the stretch zone.
+   (b) the SETROW FILL ("needs to be nudged to the right to keep the gap
+   of the well even") — the setrow's stamp deliberately speaks the WELL
+   (the app's pointer scrub owns it), so the rig seated the mercury on
+   the well and ate the app's left gap; the fill row ships the RUN as
+   rail geometry (shell-center relative) and BuildBarFill's zero-gated
+   rail-seat rung rides it. ── */
+{
+  if (!/hrtB\.sizeDelta = new Vector2\(thumbSB\.rect\.width \/ psB - laneWB, 0f\);/.test(cs)
+      || !/float laneWB = go\.GetComponent<RectTransform>\(\)\.sizeDelta\.x - inL - inR;/.test(cs))
+    errors.push("the Scrollbar handle lost its lane-relative width (sizeDelta.x = sprite − lane) — the Scrollbar's forced cross-stretch squeezes the capsule back into a pointy sliver (round 61, S52)");
+  if (!/sliceMin: \{ top: capTh, bottom: capTh, left: capThLR, right: capThLR \}/.test(src))
+    errors.push("the scrollbar thumb's LEFT/RIGHT border floors are gone — the measured borders land in the transparent pad and any cross-axis squeeze collapses the capsule (round 61, S52)");
+  if (!/uid === "setrow" \? \(\(\) => \{/.test(src) || !/railW: r1f\(fb9\[1\]\), railH: r1f\(fb9\[3\]\),/.test(src))
+    errors.push("the setrow fill row stopped shipping its run as rail geometry — the rig re-seats the mercury on the WELL and the left gap dies again (round 61, S52)");
+  if (!/aF61\.component == fam && aF61\.part == "fill" && aF61\.railW > 1f/.test(cs)
+      || !/float runL61 = \(rowT\.shell\.x \+ rowT\.shell\.w \/ 2f\) \/ pngScale \+ rowF61\.railDx - rowF61\.railW \/ 2f;/.test(cs))
+    errors.push("BuildBarFill's rail-seat rung is gone (or lost its zero-gate on railW) — the setrow's even well gap dies, or every bar suddenly re-seats (round 61, S52)");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);
