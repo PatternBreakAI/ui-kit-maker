@@ -10918,7 +10918,7 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
          the per-piece type-size dial and both nudges — measure-true
          fitted to the panel's reading zone. */
       const hRb = ({ s: 104, m: 138, l: 176 } as Record<KitSize, number>)[size] * k;
-      const wRb = hRb * 4.22; // the trimmed 422x100 box (owner: "the end flaps are a bit too wide" — visible tail reach 94 → 75, panel untouched)
+      const wRb = hRb * 3.72; // the twice-trimmed 372x100 box (owner: "the end flaps are a bit too wide", then "shorten those edges to about the width of those red boxes" — visible tail reach 94 → 75 → 50, panel untouched both times)
       /* verdict 3 (owner ribbon round: "built through the dials"): on the
          ribbon cut the PANEL is the piece's face, so the union shell PARKS
          its own gloss band — build's full-face sweep would smear across
@@ -10939,15 +10939,15 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       // CTA — a ribbon reads as an announcement, not a button verb); the
       // Text control re-words this copy like any labeled piece
       const lblRb = (opts.label ?? "") || "DAILY OBJECTIVE";
-      /* the reading seat re-derived for the re-authored panel (x 75-347,
-         y 0-72 of the trimmed 422x100): the fit run spans the same
-         ABSOLUTE panel minus the same side margins (0.6 of 422 == 0.55
-         of the old 460 — the panel didn't move, the box shrank), the cap
-         rises with the taller panel, and the seat sits at the
-         measure-true reading center — midway between the top catch's
-         underside (y 10) and the bottom shadow's crown (y 65.5):
-         y 37.75 of 100 */
-      const fsRb = fitFs(lblRb, 24 * k * typeK, wRb * 0.6);
+      /* the reading seat re-derived for the re-authored panel (x 50-322,
+         y 0-72 of the twice-trimmed 372x100): the fit run spans the same
+         ABSOLUTE panel minus the same side margins (0.6806 of 372 ==
+         0.6 of the 422 == 0.55 of the original 460 — the panel never
+         moved, only the box shrank), the cap rises with the taller
+         panel, and the seat sits at the measure-true reading center —
+         midway between the top catch's underside (y 10) and the bottom
+         shadow's crown (y 65.5): y 37.75 of 100 */
+      const fsRb = fitFs(lblRb, 24 * k * typeK, wRb * 0.6806);
       const labelRb = contentText(lblRb, 39 + wRb / 2, 30 + hRb * 0.3775, fsRb, { anchor: "middle" });
       /* a per-piece re-dress (kitShapes) swaps the silhouette like any
          component — the ribbon furnishing belongs to the ribbon cut alone,
@@ -10983,7 +10983,7 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
          half-pixel of shell face this bares outside the keyline reads as
          the front piece's own edge light, never as back ink. */
       const scK = wRb / vbRb[2], eKn = 1.25;
-      const knRb = `M ${(39 + 75 * scK - eKn).toFixed(1)} ${(30 - eKn).toFixed(1)} H ${(39 + 347 * scK + eKn).toFixed(1)} V ${(30 + 72 * scK + eKn).toFixed(1)} H ${(39 + 75 * scK - eKn).toFixed(1)} Z`;
+      const knRb = `M ${(39 + 50 * scK - eKn).toFixed(1)} ${(30 - eKn).toFixed(1)} H ${(39 + 322 * scK + eKn).toFixed(1)} V ${(30 + 72 * scK + eKn).toFixed(1)} H ${(39 + 50 * scK - eKn).toFixed(1)} Z`;
       let defsRb = `<clipPath id="${ridR}s"><path d="${silRb}"/></clipPath>` +
         `<clipPath id="${ridR}n"><path d="${boxRb} ${knRb}" clip-rule="evenodd"/></clipPath>` +
         // tails: the Shadow role graded along the light axis — deeper on the
@@ -11021,8 +11021,8 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       /* z2.5 · THE PANEL'S OWN FRONT EDGE, completed (owner, same note,
          both bottom corners circled). build() dresses only the UNION
          outline, so the panel's bottom edge wore wall, keyline, rim and
-         inner-edge ONLY over the mid-run the outline owns (x 111-311 of
-         422); along the tuck runs (x 75-111 / x 311-347) and the
+         inner-edge ONLY over the mid-run the outline owns (x 86-286 of
+         372); along the tuck runs (x 50-86 / x 286-322) and the
          under-tail side runs (y 28-72) the front piece ended in naked
          geometry — the bottom band's tone step at the tuck boundary was
          the tail literally reading through the panel, and the fold met
@@ -11051,29 +11051,29 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
         const axisE = (x0: number, y0: number, w0: number, h0: number) =>
           `gradientUnits="userSpaceOnUse" x1="${(x0 + gpE(-rlxR) * w0).toFixed(1)}" y1="${(y0 + gpE(-rlyR) * h0).toFixed(1)}" x2="${(x0 + gpE(rlxR) * w0).toFixed(1)}" y2="${(y0 + gpE(rlyR) * h0).toFixed(1)}"`;
         let d2 = "", art = "";
-        // the L-shaped runs, left then mirrored right: side x75 (y28-72)
-        // + bottom y72 (x75-111), meeting build's own dress at the face's
-        // reflex corner above and the outline's interior corner at x111
+        // the L-shaped runs, left then mirrored right: side x50 (y28-72)
+        // + bottom y72 (x50-86), meeting build's own dress at the face's
+        // reflex corner above and the outline's interior corner at x86
         if (fw > 0.15) {
           d2 += `<linearGradient id="${ridR}eb" ${axisE(39, 30, wRb, hRb)}><stop offset="0" stop-color="${darken(bevelE, clamp(0.3 * loKr, 0, 0.7))}"/><stop offset=".5" stop-color="${bevelE}"/><stop offset="1" stop-color="${lighten(bevelE, clamp(0.45 * hiKr, 0, 0.75))}"/></linearGradient>`;
-          const bandL = `M ${Xe(75).toFixed(1)} ${(Ye(28) + fw).toFixed(1)} L ${(Xe(75) + fw).toFixed(1)} ${(Ye(28) + fw).toFixed(1)} L ${(Xe(75) + fw).toFixed(1)} ${(Ye(72) - fw).toFixed(1)} L ${(Xe(111) - fw).toFixed(1)} ${(Ye(72) - fw).toFixed(1)} L ${(Xe(111) - fw).toFixed(1)} ${Ye(72).toFixed(1)} L ${Xe(75).toFixed(1)} ${Ye(72).toFixed(1)} Z`;
-          const bandR = `M ${Xe(347).toFixed(1)} ${(Ye(28) + fw).toFixed(1)} L ${(Xe(347) - fw).toFixed(1)} ${(Ye(28) + fw).toFixed(1)} L ${(Xe(347) - fw).toFixed(1)} ${(Ye(72) - fw).toFixed(1)} L ${(Xe(311) + fw).toFixed(1)} ${(Ye(72) - fw).toFixed(1)} L ${(Xe(311) + fw).toFixed(1)} ${Ye(72).toFixed(1)} L ${Xe(347).toFixed(1)} ${Ye(72).toFixed(1)} Z`;
+          const bandL = `M ${Xe(50).toFixed(1)} ${(Ye(28) + fw).toFixed(1)} L ${(Xe(50) + fw).toFixed(1)} ${(Ye(28) + fw).toFixed(1)} L ${(Xe(50) + fw).toFixed(1)} ${(Ye(72) - fw).toFixed(1)} L ${(Xe(86) - fw).toFixed(1)} ${(Ye(72) - fw).toFixed(1)} L ${(Xe(86) - fw).toFixed(1)} ${Ye(72).toFixed(1)} L ${Xe(50).toFixed(1)} ${Ye(72).toFixed(1)} Z`;
+          const bandR = `M ${Xe(322).toFixed(1)} ${(Ye(28) + fw).toFixed(1)} L ${(Xe(322) - fw).toFixed(1)} ${(Ye(28) + fw).toFixed(1)} L ${(Xe(322) - fw).toFixed(1)} ${(Ye(72) - fw).toFixed(1)} L ${(Xe(286) + fw).toFixed(1)} ${(Ye(72) - fw).toFixed(1)} L ${(Xe(286) + fw).toFixed(1)} ${Ye(72).toFixed(1)} L ${Xe(322).toFixed(1)} ${Ye(72).toFixed(1)} Z`;
           art += `<path d="${bandL} ${bandR}" fill="url(#${ridR}eb)"/>`;
         }
         // the dark outline keyline — build's own stroke, continued along
         // the panel's naked edges; opaque, centered on the true boundary
-        art += `<path d="M ${Xe(75).toFixed(1)} ${Ye(28).toFixed(1)} L ${Xe(75).toFixed(1)} ${Ye(72).toFixed(1)} L ${Xe(111).toFixed(1)} ${Ye(72).toFixed(1)} M ${Xe(347).toFixed(1)} ${Ye(28).toFixed(1)} L ${Xe(347).toFixed(1)} ${Ye(72).toFixed(1)} L ${Xe(311).toFixed(1)} ${Ye(72).toFixed(1)}" fill="none" stroke="${darken(bevelE, disE ? 0.25 : 0.5)}" stroke-width="1.5"/>`;
+        art += `<path d="M ${Xe(50).toFixed(1)} ${Ye(28).toFixed(1)} L ${Xe(50).toFixed(1)} ${Ye(72).toFixed(1)} L ${Xe(86).toFixed(1)} ${Ye(72).toFixed(1)} M ${Xe(322).toFixed(1)} ${Ye(28).toFixed(1)} L ${Xe(322).toFixed(1)} ${Ye(72).toFixed(1)} L ${Xe(286).toFixed(1)} ${Ye(72).toFixed(1)}" fill="none" stroke="${darken(bevelE, disE ? 0.25 : 0.5)}" stroke-width="1.5"/>`;
         const rimWE = CE.rim.width; // K = 1
         if (rimWE > 0.2) {
           const tE = rimWE / 2 + 0.8;
           d2 += `<linearGradient id="${ridR}er" ${axisE(39 + tE, 30 + tE, wRb - 2 * tE, hRb - 2 * tE)}><stop offset="0" stop-color="${PRb(D2r.lighting.tint ?? hiInk)}" stop-opacity="0.45"/><stop offset=".4" stop-color="${PRb(D2r.lighting.tint ?? hiInk)}" stop-opacity="0.08"/><stop offset="1" stop-color="${PRb(D2r.lighting.tint ?? hiInk)}" stop-opacity="0.95"/></linearGradient>`;
-          art += `<path d="M ${(Xe(75) + tE).toFixed(1)} ${(Ye(28) + tE).toFixed(1)} L ${(Xe(75) + tE).toFixed(1)} ${(Ye(72) - tE).toFixed(1)} L ${(Xe(111) - tE).toFixed(1)} ${(Ye(72) - tE).toFixed(1)} M ${(Xe(347) - tE).toFixed(1)} ${(Ye(28) + tE).toFixed(1)} L ${(Xe(347) - tE).toFixed(1)} ${(Ye(72) - tE).toFixed(1)} L ${(Xe(311) + tE).toFixed(1)} ${(Ye(72) - tE).toFixed(1)}" fill="none" stroke="url(#${ridR}er)" stroke-width="${rimWE.toFixed(1)}" opacity="${((CE.rim.brightness / 100) * (disE ? 0.5 : 1)).toFixed(2)}"/>`;
+          art += `<path d="M ${(Xe(50) + tE).toFixed(1)} ${(Ye(28) + tE).toFixed(1)} L ${(Xe(50) + tE).toFixed(1)} ${(Ye(72) - tE).toFixed(1)} L ${(Xe(86) - tE).toFixed(1)} ${(Ye(72) - tE).toFixed(1)} M ${(Xe(322) - tE).toFixed(1)} ${(Ye(28) + tE).toFixed(1)} L ${(Xe(322) - tE).toFixed(1)} ${(Ye(72) - tE).toFixed(1)} L ${(Xe(286) + tE).toFixed(1)} ${(Ye(72) - tE).toFixed(1)}" fill="none" stroke="url(#${ridR}er)" stroke-width="${rimWE.toFixed(1)}" opacity="${((CE.rim.brightness / 100) * (disE ? 0.5 : 1)).toFixed(2)}"/>`;
         }
         const ieOpE = CE.innerEdge.strength / 100;
         if (ieOpE > 0.01 && CE.innerEdge.width > 0.1 && fw > 0.15) {
           const faceE = D2r.face.mode === "dark" ? hexMix(bevelE, "#0B0714", 0.72) : PRb(effect(D2r.effects, "Inner Fill"));
           d2 += `<linearGradient id="${ridR}ei" ${axisE(39 + fw, 30 + fw, wRb - 2 * fw, hRb - 2 * fw)}><stop offset="0" stop-color="${hexRgba(lighten(faceE, 0.55), 0.55)}"/><stop offset=".55" stop-color="${hexRgba(darken(bevelE, 0.35), 0.35)}"/><stop offset="1" stop-color="${hexRgba(darken(bevelE, 0.58), 0.9)}"/></linearGradient>`;
-          art += `<path d="M ${(Xe(75) + fw).toFixed(1)} ${(Ye(28) + fw).toFixed(1)} L ${(Xe(75) + fw).toFixed(1)} ${(Ye(72) - fw).toFixed(1)} L ${(Xe(111) - fw).toFixed(1)} ${(Ye(72) - fw).toFixed(1)} M ${(Xe(347) - fw).toFixed(1)} ${(Ye(28) + fw).toFixed(1)} L ${(Xe(347) - fw).toFixed(1)} ${(Ye(72) - fw).toFixed(1)} L ${(Xe(311) + fw).toFixed(1)} ${(Ye(72) - fw).toFixed(1)}" fill="none" stroke="url(#${ridR}ei)" stroke-width="${CE.innerEdge.width.toFixed(1)}" opacity="${clamp(ieOpE, 0, 1).toFixed(2)}"/>`;
+          art += `<path d="M ${(Xe(50) + fw).toFixed(1)} ${(Ye(28) + fw).toFixed(1)} L ${(Xe(50) + fw).toFixed(1)} ${(Ye(72) - fw).toFixed(1)} L ${(Xe(86) - fw).toFixed(1)} ${(Ye(72) - fw).toFixed(1)} M ${(Xe(322) - fw).toFixed(1)} ${(Ye(28) + fw).toFixed(1)} L ${(Xe(322) - fw).toFixed(1)} ${(Ye(72) - fw).toFixed(1)} L ${(Xe(286) + fw).toFixed(1)} ${(Ye(72) - fw).toFixed(1)}" fill="none" stroke="url(#${ridR}ei)" stroke-width="${CE.innerEdge.width.toFixed(1)}" opacity="${clamp(ieOpE, 0, 1).toFixed(2)}"/>`;
         }
         defsRb += d2;
         return `<g data-part="ribbon-edge">${art}</g>`;
@@ -11085,7 +11085,7 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       furnRb += `<path d="${bakeRb(RBP.panelTopCatch)}" fill="url(#${ridR}hs)" opacity="0.9"/>`;
       /* z6 · THE GLOSS SWOOSH (verdict 3) — the kit gloss treatment on the
          panel, build()'s layer-8 recipe verbatim fitted to the panel box
-         (trimmed art 422x100: panel x 75-347, y 0-72): the same signed-curve
+         (twice-trimmed art 372x100: panel x 50-322, y 0-72): the same signed-curve
          quadratic (bow = Curvature x the shell's token scale, 1 here), the
          same light-keyed apex and lit-from-below flip, the same 3-stop
          softness fade, fill modes and state adjust, the same disabled
@@ -11101,7 +11101,7 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       let glossAboveRb = "";
       const gOpRb = (GLS.opacity / 100) * (state === "disabled" ? 0.35 : 1);
       if (GLS.on && gOpRb > 0.01) {
-        const pxRb = 39 + wRb * (75 / vbRb[2]), pwRb = wRb * (272 / vbRb[2]);
+        const pxRb = 39 + wRb * (50 / vbRb[2]), pwRb = wRb * (272 / vbRb[2]);
         const pyRb = 30, phRb = hRb * (72 / vbRb[3]);
         const flipRb = rlyR > 0.25; // lit from below — the sweep flips down
         const gHRb = phRb * clamp(GLS.height / 100, 0.08, 0.92);
