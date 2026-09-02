@@ -40,16 +40,20 @@ export type NamedKitDef = {
   lede: string;
   /** the engine the demo boards were composed for — shown on the header */
   platform: string;
-  /** ── OWNER: THE UNITY ASSET STORE LINK ──────────────────────────────
-   *  Paste the listing URL between the quotes once the listing is live
-   *  (it looks like https://assetstore.unity.com/packages/…). Leave it
-   *  null until then: the promo block renders a plain "coming to the
-   *  Unity Asset Store" line instead of a dead button. Nothing else in
-   *  the app needs changing. */
+  /** the kit's Unity Asset Store listing, or null while there isn't one —
+   *  see the OWNER banner above each kit's entry */
   storeUrl: string | null;
   screens: NamedKitScreen[];
   payload: Record<string, unknown>;
 };
+
+/* ══ OWNER: PASTE THE UNITY ASSET STORE LISTING URL HERE ══════════════
+   One line, one place, nothing else to change. Fill it and the kit's
+   page turns its store line into a real "View the listing" button; leave
+   it null and the page says the listing is coming rather than showing a
+   button that goes nowhere. It must be the assetstore.unity.com listing
+   itself — the page it sits on may never link to another marketplace. */
+const BRIGHTSIDE_STORE_URL: string | null = null;
 
 /* Brightside — the kit heading for the Unity Asset Store. The seven
    screens are the owner's own boards, in the order a player walks them. */
@@ -58,7 +62,7 @@ const BRIGHTSIDE: NamedKitDef = {
   name: "Brightside",
   lede: "Seven real game screens, built entirely from one kit — live on this page, not screenshots.",
   platform: "Composed for mobile portrait · 390 × 844",
-  storeUrl: null, // ← OWNER: the Unity Asset Store listing URL goes here
+  storeUrl: BRIGHTSIDE_STORE_URL, // ← the constant at the top of this file
   /* Captions describe what is ACTUALLY on each board — they were written
      against the rendered screens, piece by piece, and they must be
      re-read whenever the boards are re-captured. A caption that promises

@@ -3170,9 +3170,6 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
 }
 .kv-card { margin: 0; display: flex; flex-direction: column; gap: 9px; min-width: 0; }
 .kv-frame { position: relative; width: 100%; border-radius: 14px; }
-/* the live stage sizes itself from the measured frame — this only makes
-   the two agree while a board is still waking */
-.kv-frame .bd-stage { width: 100%; }
 .kv-wake {
   position: absolute; inset: 0; border-radius: 14px; overflow: hidden;
   background: #0D0F16; box-shadow: 0 16px 44px rgba(10,12,20,.30);
@@ -3213,3 +3210,76 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
 .kv-soon { margin-top: 4px; font-size: 12.5px; font-weight: 650; color: var(--kp-ink2); }
 .kv-fine { margin-top: 2px; font-size: 12px; color: var(--kp-ink2); text-decoration: none; }
 .kv-fine:hover { color: var(--kp-ink); text-decoration: underline; }
+/* the store line — the promo block's headline row */
+.kv-store {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 26px;
+  margin-top: 20px; padding: 20px 22px; border-radius: 16px;
+  border: 1px solid var(--kp-line); background: var(--kp-card);
+}
+.kv-storetext { min-width: 0; flex: 1 1 380px; }
+.kv-storetext h3 { margin: 0; font-size: 17px; font-weight: 750; color: var(--kp-ink); letter-spacing: -.01em; }
+.kv-storetext p { margin: 6px 0 0; max-width: 62ch; font-size: 12.5px; line-height: 1.6; color: var(--kp-ink2); }
+.kv-storeact { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.kv-btn--big { padding: 11px 20px; font-size: 13.5px; }
+
+/* ── the shipped kit's page on a narrow screen ────────────────────────
+   `#/kit/<slug>` is deliberately NOT behind the editor's desktop gate: a
+   store listing points at this address and a reviewer may well open it on
+   a phone. The kit BOOK below is a desktop reading surface and keeps its
+   own width (it scrolls sideways there, as it always has) — but the part
+   the visitor came for, the demo screens and the pitch, is pinned to the
+   viewport so it reads without a single sideways swipe. The editor rail
+   and the workspace controls step aside: nothing here is editable, and
+   the editor itself is desktop work. */
+@media (max-width: 900px) {
+  /* the rail is editor navigation — the grid template is inline on .body,
+     so this is one of the few places that must out-shout it */
+  html[data-kitpublic] .rail { display: none; }
+  html[data-kitpublic] .body { grid-template-columns: 1fr !important; }
+  html[data-kitpublic] .top { padding: 0 12px; gap: 10px; }
+  /* workspace chrome with nothing to do on a read-only public page */
+  html[data-kitpublic] .newkitbtn,
+  html[data-kitpublic] .savekitbtn,
+  html[data-kitpublic] .exportbtn { display: none; }
+  /* the bar's own min-content was the last thing dragging the shell wider
+     than the screen: the wordmark and the projects shortcut step aside on
+     a phone, the logo still walks home, the kit's name still names it */
+  html[data-kitpublic] .brand .name,
+  html[data-kitpublic] .homebtn { display: none; }
+  html[data-kitpublic] .filechip { max-width: 52vw; }
+  /* nothing is being saved on a read-only page, and the shine toggle is a
+     workshop switch — the theme and the account door stay */
+  html[data-kitpublic] .savedbtn,
+  html[data-kitpublic] .acct[data-shinebtn] { display: none; }
+  /* min-width:100% on the wrap makes the book's desktop min-content push
+     the whole SHELL wide — header included — so the document scrolled
+     sideways. Releasing it keeps the shell at the viewport and hands the
+     sideways scroll to the canvas, where it belongs. */
+  html[data-kitpublic] .kitwrap { padding: 14px 10px 120px; min-width: 0; }
+  /* pin the page box to the viewport: whatever inside the BOOK still
+     insists on desktop width now overflows into the canvas's own
+     sideways scroll instead of dragging the shell (and the header) out
+     past the screen edge */
+  html[data-kitpublic] .kitpage { padding: 10px 0 28px; width: min(100%, calc(100vw - 22px)); }
+  /* the demo screens and the promo live in the VIEWPORT's width, whatever
+     the book below insists on */
+  html[data-kitpublic] .kv-screens,
+  html[data-kitpublic] .kv-promo { width: min(100%, calc(100vw - 24px)); }
+  html[data-kitpublic] .kv-title { font-size: 20px; }
+  html[data-kitpublic] .kv-grid { gap: 16px 10px; grid-template-columns: repeat(auto-fit, minmax(min(148px, 100%), 1fr)); }
+  /* stacked, and the text's flex-basis must stop acting as a HEIGHT once
+     the row becomes a column */
+  html[data-kitpublic] .kv-store { flex-direction: column; align-items: flex-start; }
+  html[data-kitpublic] .kv-storetext { flex: 0 0 auto; }
+  /* the chapter strip is width:fit-content with seven tabs — its
+     min-content was what pushed the whole page past the viewport. It
+     scrolls inside itself here instead. */
+  html[data-kitpublic] .kp-tabsbar {
+    width: min(100%, calc(100vw - 24px)); justify-content: flex-start;
+    overflow-x: auto; scrollbar-width: none;
+  }
+  html[data-kitpublic] .kp-tabsbar::-webkit-scrollbar { display: none; }
+  /* the canvas toolbar is pan/zoom/grid for an editor — on a phone it just
+     sits on top of the screens the visitor came to look at */
+  html[data-kitpublic] .zoolbar { display: none; }
+}

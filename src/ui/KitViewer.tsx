@@ -11,7 +11,7 @@
    are left exactly where they were (loadKitPayload only imports boards
    for an OWNED open). The seven demo screens on the page come from the
    shipped definition itself, not from the workspace. */
-import { lazy, Suspense, useLayoutEffect, useState } from "react";
+import { lazy, Suspense, useLayoutEffect, useMemo, useState } from "react";
 import { namedKitFromHash } from "@/generator/namedKits";
 import { useGen } from "@/generator/store";
 import { navigate } from "@/shell/router";
@@ -22,11 +22,14 @@ import { navigate } from "@/shell/router";
 const App = lazy(() => import("../App").then((m) => ({ default: m.App })));
 
 export function KitViewer({ slug }: { slug: string }) {
-  /* resolve from the HASH, not the slug alone — namedKitFromHash is the
+  /* Resolved from the HASH, not the slug alone — namedKitFromHash is the
      one door, so route and page can never disagree about which kit this
      is (the Kit page asks the same question when it decides whether to
-     draw the demo screens and the promo block) */
-  const [kit] = useState(() => namedKitFromHash(window.location.hash));
+     draw the demo screens and the promo block). Keyed on the slug so a
+     hop from one shipped kit's page to another re-resolves instead of
+     leaving the previous kit standing: this component keeps its instance
+     across such a hop, since the route name doesn't change. */
+  const kit = useMemo(() => namedKitFromHash(window.location.hash), [slug]);
   const [ready, setReady] = useState(false);
   useLayoutEffect(() => {
     if (!kit) {
@@ -37,9 +40,17 @@ export function KitViewer({ slug }: { slug: string }) {
     /* hydrate BEFORE the editor mounts — a paint of the default kit
        followed by a flip to the real one is exactly the flicker a store
        reviewer would screenshot. phase "kit" lands them on the sheet. */
-      useGen.getState().loadKitPayload(kit.payload, { viewer: true, phase: "kit" });
+    useGen.getState().loadKitPayload(kit.payload, { viewer: true, phase: "kit" });
     setReady(true);
   }, [kit, slug]);
+  /* This route is a PUBLIC page, not the workspace — a stamp on <html>
+     says so, and the narrow-screen rules in gen.css hang off it. Nothing
+     else in the app is scoped by it, and it goes when the route does. */
+  useLayoutEffect(() => {
+    if (!kit) return;
+    document.documentElement.dataset.kitpublic = kit.slug;
+    return () => { delete document.documentElement.dataset.kitpublic; };
+  }, [kit]);
   if (!kit || !ready) {
     return (
       <div className="route-loading" role="status" aria-live="polite">

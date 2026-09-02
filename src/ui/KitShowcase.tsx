@@ -9,11 +9,11 @@
    Board stage the owner composed them on (LiveBoardStage → StagePiece →
    LiveArt, in play mode): hover a button and it lights, press it and it
    sinks, toggles flip, bars fill. Not screenshots, and never a
-   click-to-load placeholder — the boards wake themselves one idle slice
-   at a time so the page is alive at rest without a single interaction. */
+   click-to-load placeholder — the boards wake themselves one frame at a
+   time so the page is alive at rest without a single interaction. */
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { LiveBoardStage, boardStageSize } from "./Board";
-import { namedKitPieceCount, namedKitScreens, type NamedKitDef, type NamedKitScreen } from "@/generator/namedKits";
+import { NAMED_KITS, namedKitPieceCount, namedKitScreens, type NamedKitDef, type NamedKitScreen } from "@/generator/namedKits";
 import type { BoardDef } from "@/generator/store";
 import { useGen } from "@/generator/store";
 
@@ -97,7 +97,8 @@ export function KitScreens({ kit, onReady }: { kit: NamedKitDef; onReady?: () =>
         </div>
         <p className="kv-facts">
           <span><b>{screens.length}</b> screens</span>
-          <span><b>{count.placed}</b> pieces placed</span>
+          {/* both numbers are COUNTED off the shipped boards, never claimed */}
+          <span><b>{count.placed}</b> kit pieces placed</span>
           <span><b>{count.distinct}</b> distinct components</span>
           <span>{kit.platform}</span>
         </p>
@@ -123,6 +124,7 @@ export function KitScreens({ kit, onReady }: { kit: NamedKitDef; onReady?: () =>
    marketplace (itch.io, Gumroad, Fab, ArtStation, …) may EVER be added
    here. No badges, no ratings, no invented endorsements. */
 export function KitPromo({ kit }: { kit: NamedKitDef }) {
+  const others = Object.values(NAMED_KITS).filter((k) => k.slug !== kit.slug);
   const setPhase = useGen((s) => s.setPhase);
   const setParent = useGen((s) => s.setParent);
   const setFocus = useGen((s) => s.setFocus);
@@ -138,6 +140,31 @@ export function KitPromo({ kit }: { kit: NamedKitDef }) {
         <div className="kv-eyebrow">Made with UI Kit Maker</div>
         <h2 className="kv-title">{kit.name} was drawn by the generator on this page — every piece of it.</h2>
       </div>
+      {/* the store line, given the top of the block — it is the one thing
+          a visitor from the listing might be looking for */}
+      <div className="kv-store">
+        <div className="kv-storetext">
+          {/* the heading tells the truth about the listing's state: it
+              only says AVAILABLE once there is a listing to point at */}
+          <h3>{kit.storeUrl ? "Available on the Unity Asset Store" : "Coming to the Unity Asset Store"}</h3>
+          <p>{kit.name} ships as drop-in Unity assets: nine-sliced sprites, wired prefabs, live text — and the whole kit restyles in place on re-import.</p>
+        </div>
+        <div className="kv-storeact">
+          {kit.storeUrl ? (
+            <a className="kv-btn kv-btn--main kv-btn--big" href={kit.storeUrl} target="_blank" rel="noopener noreferrer">
+              View the listing
+            </a>
+          ) : (
+            /* NO INVENTED URL. The listing address is a single constant —
+               storeUrl in generator/namedKits.ts — and until the owner
+               pastes it there this stays an honest line rather than a
+               button that goes nowhere. Filling the constant turns it
+               into the link above with nothing else to change. */
+            <span className="kv-soon">The listing link lands here the day it goes live.</span>
+          )}
+          <a className="kv-fine" href="#/unity">How the Unity kit works →</a>
+        </div>
+      </div>
       <div className="kv-promogrid">
         <article className="kv-promocard">
           <h3>Make your own</h3>
@@ -149,21 +176,18 @@ export function KitPromo({ kit }: { kit: NamedKitDef }) {
           <p>{kit.name} is already loaded. Open it in the editor and push the colour, the bevel, the type — the screens above restyle with it.</p>
           <button className="kv-btn" onClick={openEditor}>Edit {kit.name} live</button>
         </article>
-        <article className="kv-promocard kv-promocard--store">
-          <h3>Available on the Unity Asset Store</h3>
-          <p>{kit.name} ships as drop-in Unity assets: nine-sliced sprites, wired prefabs, live text — and it restyles in place on re-import.</p>
-          {kit.storeUrl ? (
-            <a className="kv-btn kv-btn--main" href={kit.storeUrl} target="_blank" rel="noopener noreferrer">
-              View on the Unity Asset Store
-            </a>
-          ) : (
-            /* No invented URL: until the owner pastes the listing link
-               into namedKits.ts (storeUrl), this stays a plain line
-               rather than a dead button. */
-            <span className="kv-soon">Listing coming soon</span>
-          )}
-          <a className="kv-fine" href="#/unity">How the Unity kit works →</a>
-        </article>
+        {/* every OTHER kit we ship, if we ship any — nothing renders while
+            Brightside is the only one, and no other storefront ever
+            appears in this list (see the store-policy note above) */}
+        {others.length > 0 && (
+          <article className="kv-promocard">
+            <h3>Our other kits</h3>
+            <p>Same generator, different material — each one live on its own page.</p>
+            {others.map((o) => (
+              <a className="kv-btn" key={o.slug} href={`#/kit/${o.slug}`}>{o.name}</a>
+            ))}
+          </article>
+        )}
       </div>
     </section>
   );
