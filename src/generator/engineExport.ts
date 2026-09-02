@@ -4336,9 +4336,9 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      capsule approximation. Same filenames as the old synthesized strips —
      existing projects upgrade in place. */
   await addPng("slider/track.9.png", shell("slider", { overlay: "track" }, slim), { component: "slider", part: "track", nineSlice: sliceOf("slider", 64), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Slider track — the real component's shell + well, no fill, no knob. The wired Slider prefab stretches it." }, true);
-  await addPng("slider/fill.9.png", shell("slider", { overlay: "fill" }, slim, 1), { component: "slider", part: "fill", nineSlice: sliceOf("slider", 44), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Slider mercury — a bordered stadium driven by WIDTH: the Slider's onValueChanged feeds KitBarFill.SetValue (a persistent listener, visible in the Inspector) and the sprite's own 9-slice caps round the growing end under the thumb. Longer bar = widen the rect; bigger bar = uniform scale (height is the design's anatomy, not a stretch axis)." }, true);
+  await addPng("slider/fill.9.png", shell("slider", { overlay: "fill" }, slim, 1), { component: "slider", part: "fill", nineSlice: sliceOf("slider", 44), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Slider mercury — a bordered stadium driven by WIDTH: the Slider's onValueChanged feeds KitBarFill.SetValue (a persistent listener, visible in the Inspector) and the sprite's own 9-slice caps round the growing end under the thumb. The run is seated so the mercury's END is the knob's centre at every value — KitBarFill's Stub is the ink already showing at 0, where the knob parks inside the shell. Longer bar = widen the rect; bigger bar = uniform scale (height is the design's anatomy, not a stretch axis)." }, true);
   await addPng("slider/cap.png", shell("slider", { overlay: "cap" }, slim, 1), { component: "slider", part: "cap", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "LEGACY slider head — the width road's bordered stadium rounds its own end now; older importers still park this under the thumb." }, true);
-  await addPng("slider/thumb.png", shell("slider", { overlay: "knob" }, slim), { component: "slider", part: "thumb", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Slider knob — the kit's candy ball; the wired prefab drags it." }, true);
+  await addPng("slider/thumb.png", shell("slider", { overlay: "knob" }, slim), { component: "slider", part: "thumb", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Slider knob — the kit's candy ball; the wired prefab drags it. Its Handle Slide Area is seated so the knob's CENTRE rides the mercury's end at every value and never leaves the shell at 0 or 1 — widen the Slider and both follow." }, true);
   await addPng("toggle/track.9.png", shell("toggle", { overlay: "track" }, slim, 1), { component: "toggle", part: "track", nineSlice: sliceOf("toggle", 102), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Switch track — the real component's shell + well. The wired Switch prefab slides the knob across it." }, true);
   await addPng("toggle/thumb.png", shell("toggle", { overlay: "knob" }, slim, 1), { component: "toggle", part: "thumb", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Switch knob, ON dot — the wired prefab slides it and swaps the OFF twin in." }, true);
   await addPng("toggle/thumb-off.png", shell("toggle", { overlay: "knob-off" }, slim, 1), { component: "toggle", part: "thumb-off", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Switch knob, OFF dot — the wired prefab shows it when the switch is off." }, true);
@@ -4742,7 +4742,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         stepper: "Stepper — a WORKING control: both caps are REAL Buttons (the + cap arms with the app's own hover ring) that step the cell strip by whole cells (KitStepper.StepUp/StepDown/SetValue; KitCellMeter snaps the cut into the gaps). The +/− glyphs ride their caps as live words. Two hits, never one.",
         notifydot: "Notification badge — the bell/scroll glyph is a LIVE Image child and the red counter a live plate child whose count RIDES it (delete the pair as one, or drive the count). Display piece.",
         loadbar: "Loading bar — LIVE: caption and percent are seats and the mercury is a bordered-stadium fill driven by KitBarFill — drag its Value slider or call SetValue(0..1); a raw fillAmount write still adopts. Display piece.",
-        setrow: "Settings row — a WORKING control: the mini-slider is a real Unity Slider (drag the candy knob or set Slider.value; the Filled mercury and rounded head follow). The row label and value readout are LIVE seats — the readout is not wired to the slider, hook it to Slider.onValueChanged or retype it.",
+        setrow: "Settings row — a WORKING control: the mini-slider is a real Unity Slider (drag the candy knob or set Slider.value; the mercury follows through the Slider's own onValueChanged → KitBarFill.SetValue listener). The knob scrubs the whole well, the mercury keeps its inset run inside it — the app's own two seats. The row label and value readout are LIVE seats — the readout is not wired to the slider, hook it to Slider.onValueChanged or retype it.",
         listmenu: "List menu — four rows: every row glyph is a LIVE Image child, every word a LIVE seat, and the Row highlight is a LIVE child too (slide it one row pitch to move the selection, or delete it). Wire per-row buttons over it.",
         scrollbar: "LEGACY SHEET (kept projects) — the flat strip with the thumb baked. The REAL road is the wired Scrollbar prefab: scrollbar-track.9 + scrollbar-thumb.9 with a genuine UnityEngine.UI.Scrollbar (drive Scrollbar.value; pair with your ScrollRect).",
         steps: "Step indicator — DRIVABLE (round 44): the generated prefab wears the still plate and KitSteps makes the position a dial (SetStep 1..4, or SetValue 0..1) — pip looks swap (done/current/upcoming), rails light behind the current step, and ALL FOUR digits are LIVE seats repainted per state. This baked sheet stays for older scenes.",
@@ -8197,6 +8197,19 @@ namespace PatternBreak {
     [Range(0f, 1f)]
     [Tooltip("The bar's value — drag to preview, live in edit mode too. Code: SetValue(0..1). (-1 on a prefab from an older kit import means 'recover the pose from the serialized rig'.)")]
     public float value = -1f;
+    /* the KNOB-SEATED bars (round 62, owner field on a fresh Pause scene:
+       "these handles aren't lining up with these sliders?"): a slider's
+       mercury does NOT end at the well's end — it ends AT THE KNOB'S
+       CENTER, and the app parks that knob a knob-radius inside the shell
+       at both ends. So value 0 already shows a stub of ink and value 1
+       stops short of the well. One number carries that law: the ink the
+       bar wears at value 0, in the bar's own pixels, with the run
+       measured from there — the handle's slide area is seated on exactly
+       the same two points, so knob centre and mercury END are the same
+       line at every value. Zero (every display bar) = the plain width
+       road, byte for byte. */
+    [Tooltip("Knob-seated bars (the slider family, generated): the mercury's HEAD START at value 0, in this bar's own pixels — the app's fill ends at the knob's centre and the knob parks inside the shell, so value 0 is a stub, not empty. The run is measured from there. 0 = the plain width road (every display bar).")]
+    public float stub = 0f;
     float wroteFill = float.NaN;
     float Snap(float v) { v = Mathf.Clamp01(v); return snapSteps > 0 ? Mathf.Round(v * snapSteps) / snapSteps : v; }
     public void SetValue(float v) { value = Snap(v); Apply(); }
@@ -8349,7 +8362,12 @@ namespace PatternBreak {
       float mR = (1f - u1b) * texW * sScale;
       var bd = geoSp.border; // texture px: x = left, z = right
       float minInk = Mathf.Max(2f, (bd.x + bd.z) * sScale - mL - mR);
-      float w = Mathf.Max(v * areaW, minInk) + mL + mR;
+      /* the knob-seated run (round 62): a slider's ink starts at the well
+         but ENDS on the knob's centre, and the knob parks a knob-radius
+         inside the shell — so the value maps onto [stub, areaW], not
+         [0, areaW]. Zero-gated: every display bar keeps v x run exactly. */
+      float ink = stub > 0.001f ? stub + v * Mathf.Max(1f, areaW - stub) : v * areaW;
+      float w = Mathf.Max(ink, minInk) + mL + mR;
       /* the sanctioned center behavior rides the type: SLICED stretches a
          flat center invisibly; TILED repeats a patterned one at natural
          density. Near the FLOOR the center is a sub-pixel sliver, and
@@ -8357,7 +8375,7 @@ namespace PatternBreak {
          borders meeting) — Sliced renders the degenerate width exactly,
          so the last pixel of drain rides it; the flip point has no
          visible center, so nothing pops. */
-      var wantType = barMode == 2 && v * areaW > minInk + 1f ? Image.Type.Tiled : Image.Type.Sliced;
+      var wantType = barMode == 2 && ink > minInk + 1f ? Image.Type.Tiled : Image.Type.Sliced;
       /* the RAMP'S FLOOR (round 60): below one cap-diameter a ramp's
          degenerate Sliced center would abut the gradient's two ends in a
          hard mid-seam — the one ink a flat family never shows. The
@@ -8367,7 +8385,7 @@ namespace PatternBreak {
          same rect, no child, nothing to detach — and the bordered
          stadium comes back above. Width is clamped on both sides of the
          flip, so the geometry never pops. */
-      bool atFloor = floorSprite != null && mercurySprite != null && v * areaW < minInk - 0.5f;
+      bool atFloor = floorSprite != null && mercurySprite != null && ink < minInk - 0.5f;
       if (atFloor) wantType = Image.Type.Simple;
       if (floorSprite != null && mercurySprite != null) {
         var wear = atFloor ? floorSprite : mercurySprite;
@@ -16894,6 +16912,14 @@ namespace PatternBreak {
             if (it.component == "slider") {
               var slC = inst.GetComponent<Slider>();
               if (slC != null) slC.SetValueWithoutNotify(Mathf.Clamp01(it.value));
+              /* the mercury hears the pose TOO (round 62): a
+                 without-notify write never fires the rig's listener, so
+                 the posed board copy used to arrive with its knob on the
+                 board's value and its ink still on the prefab's staged
+                 0.62 — the setrow's own strike has read this way since
+                 round 44. */
+              var kbSl = inst.GetComponentInChildren<KitBarFill>(true);
+              if (kbSl != null) kbSl.SetValue(Mathf.Clamp01(it.value));
             }
             if (it.component == "toggle") {
               var tgC = inst.GetComponent<Toggle>();
@@ -20296,8 +20322,9 @@ namespace PatternBreak {
     /* the SETTINGS ROW's mini slider (round 44, item 34 — RIG-7): the
        rig's Fill Area is already seated on the stamped well; a REAL
        Slider rides the same zone with the un-burned candy knob as its
-       handle. The Slider writes fillAmount (the SliderPrefab lesson) and
-       KitBarFill's change-guarded follow re-parks the rounded head. */
+       handle — the knob scrubbing the well end to end (round 62) while
+       the mercury keeps its own inset run, exactly the app's two seats.
+       The Slider talks to the rig through its own onValueChanged. */
     static void WireSetrowSlider(GameObject go, string root, PBManifest m, int pngScale) {
       var knobSp = S(root + "/assets/setrow/setrow-knob.png");
       var areaSR = go.transform.Find("Fill Area") as RectTransform;
@@ -20310,17 +20337,35 @@ namespace PatternBreak {
       slideSR.transform.SetParent(go.transform, false);
       var srtSR = slideSR.GetComponent<RectTransform>();
       srtSR.anchorMin = areaSR.anchorMin; srtSR.anchorMax = areaSR.anchorMax;
-      // endpoint clamp like the slider family: the knob stays on the well
-      srtSR.offsetMin = new Vector2(areaSR.offsetMin.x + thW * 0.5f, areaSR.offsetMin.y);
-      srtSR.offsetMax = new Vector2(areaSR.offsetMax.x - thW * 0.5f, areaSR.offsetMax.y);
-      srtSR.anchoredPosition = areaSR.anchoredPosition;
+      /* the knob SCRUBS THE WELL (round 62): the app's setrow knob rides
+         the stamped well end to end — its centre reaches both lips, half
+         the grip hanging over each, and the mercury keeps its own inset
+         run inside. Insetting the travel by half a knob (the round-44
+         guess) parked it 27px short at both ends. The well is the base
+         row's own stamp, so any row geometry follows it. */
+      float rowW = go.GetComponent<RectTransform>().sizeDelta.x;
+      float wellL = areaSR.offsetMin.x + thW * 0.5f, wellR = -areaSR.offsetMax.x + thW * 0.5f;
+      if (m != null && m.assets != null) {
+        foreach (var aW in m.assets) {
+          if (aW == null || aW.component != "setrow" || aW.part != "base" || aW.track == null || aW.track.w <= 2f) continue;
+          wellL = aW.track.x / psSR;
+          wellR = rowW - (aW.track.x + aW.track.w) / psSR;
+          break;
+        }
+      }
+      srtSR.offsetMin = new Vector2(wellL, areaSR.offsetMin.y);
+      srtSR.offsetMax = new Vector2(-wellR, areaSR.offsetMax.y);
       var handleSR = ImageObject("Handle", knobSp, pngScale);
       handleSR.transform.SetParent(slideSR.transform, false);
       var hiSR = handleSR.GetComponent<Image>();
       hiSR.type = Image.Type.Simple;
       hiSR.preserveAspect = true; // the field's "eggshaped handles", never again
       var hrtSR = handleSR.GetComponent<RectTransform>();
-      hrtSR.sizeDelta = new Vector2(thW, thH);
+      // sprite − band (round 62, the scrollbar's lane lesson): the Slider
+      // stretches the handle's cross axis, so the rect lands on the grip's
+      // own box, dead centre on the mercury band
+      float bandHSR = go.GetComponent<RectTransform>().sizeDelta.y + areaSR.offsetMax.y - areaSR.offsetMin.y;
+      hrtSR.sizeDelta = new Vector2(thW, thH - bandHSR);
       var slSR = go.AddComponent<Slider>();
       slSR.handleRect = hrtSR;
       slSR.targetGraphic = hiSR;
@@ -23037,55 +23082,54 @@ namespace PatternBreak {
       var go = ImageObject("Slider", track, pngScale);
       var rt = go.GetComponent<RectTransform>();
       float trackW = rt.sizeDelta.x, trackH = rt.sizeDelta.y;
-      float fillW = fill.rect.width / pngScale, fillH = fill.rect.height / pngScale;
       float thumbW = thumb.rect.width / pngScale, thumbH = thumb.rect.height / pngScale;
-      /* the moving parts must ride the SHELL line, not the rect center —
-         the track sprite's extrusion pads its bottom, so the rect center
-         sits BELOW the visible bar and every rect-centered child landed
-         ~8-10px south of the well (owner, with the exact number). The
-         manifest's shell box says where the bar really is. */
-      float upS = 0f;
+      /* the mercury seats on the FLEET'S OWN ROAD (round 62): BuildBarFill
+         already speaks the zone stamp (the app's well run, to the pixel),
+         the shell line (the track's extrusion pads its bottom — a
+         rect-centred child lands south of the well) and the cap/body
+         wires. The slider used to seat itself by sprite difference — a
+         symmetric guess that put the ink 2.4px left of the well and, on a
+         STRETCHED rect, parked the whole mercury in the middle third
+         (owner field: "these handles aren't lining up with these
+         sliders?" on a 2x Pause row). */
+      var frt = BuildBarFill(go, "Fill", fill, track, pngScale, m, root, "slider", 0.62f, false);
+      var art = frt.parent as RectTransform;
+      var kbf = art.GetComponent<KitBarFill>();
+      /* the KNOB'S TRAVEL, off the same two boxes the art ships (never a
+         magic inset): the manifest's SHELL box says where the drawn
+         component starts and ends, the thumb sprite says how wide the
+         knob's own art is — and the app's law is that the knob never
+         leaves the shell. The mercury's run ENDS on the far seat and its
+         head start is the near one, so the knob's centre and the
+         mercury's END are the same line at every value (owner, with the
+         Board beside it: the knob sits ON the fill's end). */
+      float shellL = 0f, shellR = trackW;
       if (m != null && m.assets != null) {
         foreach (var aT in m.assets) {
           if (aT == null || aT.component != "slider" || aT.part != "track" || aT.shell == null) continue;
-          if (aT.shell.h > 2f && track.rect.height > 1f)
-            upS = (0.5f - (aT.shell.y + aT.shell.h / 2f) / track.rect.height) * trackH;
+          if (aT.shell.w > 2f && track.rect.width > 1f) {
+            shellL = aT.shell.x / pngScale;
+            shellR = trackW - (track.rect.width - aT.shell.x - aT.shell.w) / pngScale;
+          }
           break;
         }
       }
-      // the mercury's inset inside the shell, straight from the sprites
-      float inX = Mathf.Max(2f, (trackW - fillW) * 0.5f);
-      float inY = Mathf.Max(2f, (trackH - fillH) * 0.5f);
-      var area = new GameObject("Fill Area", typeof(RectTransform));
-      area.transform.SetParent(go.transform, false);
-      var art = area.GetComponent<RectTransform>();
-      art.anchorMin = Vector2.zero; art.anchorMax = Vector2.one;
-      art.offsetMin = new Vector2(inX, inY); art.offsetMax = new Vector2(-inX, -inY);
-      art.anchoredPosition += new Vector2(0f, upS);
-      var fillGo = ImageObject("Fill", fill, pngScale);
-      fillGo.transform.SetParent(area.transform, false);
-      var fImg = fillGo.GetComponent<Image>();
-      fImg.raycastTarget = false;
-      /* the app CLIPS the full-run mercury at the value line; Filled mode
-         is that exact semantic (the Slider drives fillAmount and leaves
-         the rect alone). Sliced-into-the-value-rect drew a different
-         picture: caps intact, body squashed, gradient compressed. */
-      fImg.type = Image.Type.Filled;
-      fImg.preserveAspect = false; // the mercury stretches to the fill area by design
-      fImg.fillMethod = Image.FillMethod.Horizontal;
-      fImg.fillOrigin = (int)Image.OriginHorizontal.Left;
-      fImg.fillAmount = 0.62f;
-      var frt = fillGo.GetComponent<RectTransform>();
-      frt.anchorMin = Vector2.zero; frt.anchorMax = Vector2.one;
-      frt.offsetMin = Vector2.zero; frt.offsetMax = Vector2.zero;
+      float zoneL = art.offsetMin.x, zoneR = trackW + art.offsetMax.x;
+      float seatL = shellL + thumbW * 0.5f, seatR = shellR - thumbW * 0.5f;
+      // a knob too fat for its own shell (or a shell-less row) keeps the run
+      if (seatR - seatL < 4f || seatL < zoneL || seatR > zoneR) { seatL = zoneL; seatR = zoneR; }
+      art.offsetMax = new Vector2(-(trackW - seatR), art.offsetMax.y);
+      float bandH = trackH + art.offsetMax.y - art.offsetMin.y;
+      if (kbf != null) { kbf.stub = seatL - zoneL; kbf.SetValue(0.62f); }
       var slideArea = new GameObject("Handle Slide Area", typeof(RectTransform));
       slideArea.transform.SetParent(go.transform, false);
       var srt = slideArea.GetComponent<RectTransform>();
-      srt.anchorMin = Vector2.zero; srt.anchorMax = Vector2.one;
-      // endpoint clamp like the app: the knob stays inside the shell
-      float lane = thumbW * 0.5f + 2f;
-      srt.offsetMin = new Vector2(lane, 0f); srt.offsetMax = new Vector2(-lane, 0f);
-      srt.anchoredPosition += new Vector2(0f, upS); // knob rides the bar, not the rect
+      srt.anchorMin = art.anchorMin; srt.anchorMax = art.anchorMax;
+      /* the knob rides the MERCURY'S OWN BAND — the slide area copies the
+         fill area's vertical frame, so "centred on the track" is ONE
+         seat, not two that can drift apart. */
+      srt.offsetMin = new Vector2(seatL, art.offsetMin.y);
+      srt.offsetMax = new Vector2(-(trackW - seatR), art.offsetMax.y);
       var handle = ImageObject("Handle", thumb, pngScale);
       handle.transform.SetParent(slideArea.transform, false);
       var hImg = handle.GetComponent<Image>();
@@ -23094,17 +23138,30 @@ namespace PatternBreak {
       // knob stays round (field: "eggshaped handles")
       hImg.preserveAspect = true;
       var hrt = handle.GetComponent<RectTransform>();
-      hrt.sizeDelta = new Vector2(thumbW, thumbH);
+      /* the round-61 SCROLLBAR lesson, now on the slider's handle: Unity
+         drives the handle's CROSS axis to full stretch, so sizeDelta
+         speaks RELATIVE to the lane. Sprite − band leaves the rect at the
+         knob's own box, dead centre on the band — the drawn ball no
+         longer depends on Preserve Aspect letterboxing a rect twice the
+         track's height. */
+      hrt.sizeDelta = new Vector2(thumbW, thumbH - bandH);
       var sl = go.AddComponent<Slider>();
-      sl.fillRect = frt;
       sl.handleRect = hrt;
       sl.targetGraphic = handle.GetComponent<Image>();
       sl.value = 0.62f;
-      /* the ROUNDED HEAD (round 44): usually under the thumb, honest at
-         the extremes — the Slider keeps writing fillAmount and the rig's
-         change-guarded follow re-parks the bead. */
-      WireBarCap(area, fImg, root, "slider", false, 0.62f);
-      WireBarBodies(area, m); // round 48: the body boxes seat the ink zone-true
+      /* ONE WRITER (round 58's lesson, arriving at the slider itself): a
+         width-road fill is driven by the rig's RECT, and a Slider handed
+         that same rect as its Fill Rect drives its ANCHORS — the two
+         smashed the mercury 300px past the knob on every posed board
+         copy. The Slider talks to the rig the way a dev does instead: a
+         persistent onValueChanged → SetValue listener, visible in the
+         Inspector and live in EDIT mode too. Border-less legacy fills
+         (older zips) keep the Filled fillRect wire, byte for byte. */
+      if (kbf != null && kbf.barMode != 0) {
+        UnityEditor.Events.UnityEventTools.AddPersistentListener(sl.onValueChanged, kbf.SetValue);
+        sl.onValueChanged.SetPersistentListenerState(sl.onValueChanged.GetPersistentEventCount() - 1, UnityEngine.Events.UnityEventCallState.EditorAndRuntime);
+        kbf.SetValue(0.62f);
+      } else sl.fillRect = frt;
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/Slider.prefab");
       UnityEngine.Object.DestroyImmediate(go);
       return true;

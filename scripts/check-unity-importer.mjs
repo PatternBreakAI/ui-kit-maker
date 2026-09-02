@@ -2755,7 +2755,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("PatternBreakKitBarFill.cs must ride BOTH files.push and sharedScripts (the IdleShine CS0246 lesson)");
   if (!/static void WireBarCap\(GameObject area, Image fImg, string root, string fam, bool fromRight, float staged\)/.test(cs)
       || !/WireBarCap\(area, fImg, root, fam, fromRight, staged\);/.test(cs)
-      || !/WireBarCap\(area, fImg, root, "slider", false, 0\.62f\);/.test(cs)
+      || !/var frt = BuildBarFill\(go, "Fill", fill, track, pngScale, m, root, "slider", 0\.62f, false\);/.test(cs)
       || !/WireBarCap\(area, fi, root, "vsbar", false, 0\.72f\);/.test(cs)
       || !/WireBarCap\(area, fi, root, "vsbar", true, 0\.58f\);/.test(cs))
     errors.push("the cap wiring left a bar prefab road (BuildBarFill/Slider/VsBar) — that family's mercury goes flat again");
@@ -3520,8 +3520,8 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("KitBarFill lost the body-space value map — fills seat right of the well again (round 48, S38)");
   if (!/static void WireBarBodies\(GameObject area, PBManifest m\) \{/.test(cs)
       || !/static PBAsset RowOfSprite\(PBManifest m, Sprite sp\) \{/.test(cs)
-      || (cs.match(/WireBarBodies\(/g) ?? []).length < 7)
-    errors.push("WireBarBodies (or enough of its call sites — BuildBarFill, Slider, VsBar x2, rails, graft) left the importer (round 48, S38)");
+      || (cs.match(/WireBarBodies\(/g) ?? []).length < 6)
+    errors.push("WireBarBodies (or enough of its call sites — BuildBarFill (the slider rides it since round 62), VsBar x2, rails, graft) left the importer (round 48, S38)");
   if (!/<clipPath id="\$\{gid\}g\$\{i\}">/.test(bevelSrc))
     errors.push("the segbar per-cell gloss clip is gone — highlights overrun the pills again (round 48, S38)");
 }
@@ -3876,10 +3876,10 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the vsbar exclusion came back — the ramp rides the width road now: Sliced center compression IS the app's squeeze, and the detached drain bead was the owner's round-60 field conviction (round 60, S48)");
   if (!/public int barMode = 0;/.test(src) || !/\[Range\(0f, 1f\)\]\n\s*\[Tooltip[^\n]*\n\s*public float value = -1f;/.test(src)
       || !/void ApplyWidth\(float v\) \{/.test(src)
-      || !/var wantType = barMode == 2 && v \* areaW > minInk \+ 1f \? Image\.Type\.Tiled : Image\.Type\.Sliced;/.test(src))
+      || !/var wantType = barMode == 2 && ink > minInk \+ 1f \? Image\.Type\.Tiled : Image\.Type\.Sliced;/.test(src))
     errors.push("KitBarFill lost the width road — barMode / the [Range] value slider / ApplyWidth / the measured center type with its degenerate-floor Sliced rung (the owner's perfect circle) (round 58, S48)");
   if (!/float minInk = Mathf\.Max\(2f, \(bd\.x \+ bd\.z\) \* sScale - mL - mR\);/.test(src)
-      || !/float w = Mathf\.Max\(v \* areaW, minInk\) \+ mL \+ mR;/.test(src))
+      || !/float w = Mathf\.Max\(ink, minInk\) \+ mL \+ mR;/.test(src))
     errors.push("the width road lost its FLOOR — below one cap-diameter of run a bordered sprite squashes its bead (the owner's field screenshots: fat stadium ends) (round 58, S48)");
   if (!/if \(barMode != 0 && !stretchRun && fill\.sprite != null\) \{/.test(src)
       || !/public void SetValue\(float v\) \{ value = Snap\(v\); Apply\(\); \}/.test(src)
@@ -3985,7 +3985,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
       || !/float texW = Mathf\.Max\(1f, geoSp\.rect\.width\), texH = Mathf\.Max\(1f, geoSp\.rect\.height\);/.test(src)
       || !/var bd = geoSp\.border;/.test(src))
     errors.push("ApplyWidth measures off the WORN sprite — at the floor the borderless atom would re-derive a different floor and flip-flop (round 60, S50)");
-  if (!/bool atFloor = floorSprite != null && mercurySprite != null && v \* areaW < minInk - 0\.5f;/.test(src)
+  if (!/bool atFloor = floorSprite != null && mercurySprite != null && ink < minInk - 0\.5f;/.test(src)
       || !/if \(atFloor\) wantType = Image\.Type\.Simple;/.test(src)
       || !/var wear = atFloor \? floorSprite : mercurySprite;\s*\n\s*if \(fill\.sprite != wear\) fill\.sprite = wear;/.test(src))
     errors.push("the floor swap left ApplyWidth — the ramp's sub-floor range shows the hard mid-seam the round-60 receipts named (round 60, S50)");
@@ -4168,6 +4168,71 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/files\.push\(\{ path: "Runtime\/PatternBreakSkillNode\.cs", data: SKILL_NODE_RUNTIME \}\);/.test(src)
       || !/"Runtime\/PatternBreakSkillNode\.cs",/.test(src))
     errors.push("the SkillNode runtime left the shared Runtime lists — CS0246 on import (the IdleShine lesson) (round 61e, S53)");
+}
+
+/* ── ROUND 62 · S53 (owner field, a FRESH export's Pause scene: "these
+   handles aren't lining up with these sliders?" — with the Board beside
+   it as the truth: the knob is round, centred on the track, and its
+   CENTRE sits exactly on the mercury's visual end).
+   Three faults, one law. The slider seated its own mercury by SPRITE
+   DIFFERENCE — a symmetric guess that put the ink left of the well and,
+   on a stretched board copy, parked the whole mercury in the middle
+   third of the track. Its handle rode a lane derived from nothing the
+   fill knew, so knob and ink drifted ±7px at the quarters and 15-19px at
+   the ends (hundreds of px on a 2x row). And the Slider still held the
+   width-road fill as its Fill Rect: Unity drove that rect's anchors
+   while KitBarFill drove its width, so every posed copy smashed the
+   mercury ~300px past the knob.
+   The law: ONE pair of seats. The mercury rides the fleet's own
+   BuildBarFill road (zone stamp + shell line), the knob's travel is the
+   drawn SHELL inset by half the thumb's own art at each end, the
+   mercury's run ENDS on the far seat and starts the value scale at the
+   near one (KitBarFill.stub — zero-gated, so every display bar keeps
+   v x run byte for byte). Both seats are absolute insets from the same
+   two edges, so the identity survives any width. ── */
+{
+  const slSlice = cs.slice(cs.indexOf("static bool SliderPrefab("), cs.indexOf("static bool SwitchPrefab("));
+  if (!slSlice) errors.push("SliderPrefab moved or vanished — the round-62 handle pins cannot read it");
+  // (a) the mercury rides the fleet's seat, never the sprite-difference guess
+  if (!/var frt = BuildBarFill\(go, "Fill", fill, track, pngScale, m, root, "slider", 0\.62f, false\);/.test(slSlice))
+    errors.push("the Slider prefab stopped seating its mercury through BuildBarFill — the zone stamp and shell line go back to a sprite-difference guess, and a stretched board copy parks the mercury in the middle third (round 62, S53)");
+  if (/float inX = Mathf\.Max\(2f, \(trackW - fillW\) \* 0\.5f\);/.test(slSlice))
+    errors.push("the Slider's symmetric sprite-difference fill inset is back — that is the round-62 bug, verbatim (round 62, S53)");
+  // (b) the two seats: shell ± half the thumb, shared by knob and mercury
+  if (!/float seatL = shellL \+ thumbW \* 0\.5f, seatR = shellR - thumbW \* 0\.5f;/.test(slSlice)
+      || !/art\.offsetMax = new Vector2\(-\(trackW - seatR\), art\.offsetMax\.y\);/.test(slSlice)
+      || !/srt\.offsetMin = new Vector2\(seatL, art\.offsetMin\.y\);/.test(slSlice)
+      || !/srt\.offsetMax = new Vector2\(-\(trackW - seatR\), art\.offsetMax\.y\);/.test(slSlice))
+    errors.push("the slider's knob travel and mercury run no longer share the shell-minus-thumb seats — the knob stops sitting on the fill's end (round 62, S53)");
+  if (!/float shellL = 0f, shellR = trackW;/.test(slSlice) || !/shellR = trackW - \(track\.rect\.width - aT\.shell\.x - aT\.shell\.w\) \/ pngScale;/.test(slSlice))
+    errors.push("the slider's seats stopped reading the manifest's shell box — the travel would ride a hardcoded inset instead of the drawn component (round 62, S53)");
+  // (c) the head start rides the rig, zero-gated for every other bar
+  if (!/public float stub = 0f;/.test(src)
+      || !/float ink = stub > 0\.001f \? stub \+ v \* Mathf\.Max\(1f, areaW - stub\) : v \* areaW;/.test(src))
+    errors.push("KitBarFill lost the knob-seated head start (stub) or its zero-gate — the slider's ink stops tracking its knob, or every display bar's run silently changes (round 62, S53)");
+  if (!/if \(kbf != null\) \{ kbf\.stub = seatL - zoneL; kbf\.SetValue\(0\.62f\); \}/.test(slSlice))
+    errors.push("the Slider prefab stopped handing the rig its head start — value 0 would empty the mercury while the knob parks inside the shell (round 62, S53)");
+  // (d) ONE writer on the width road
+  if (!/if \(kbf != null && kbf\.barMode != 0\) \{\s*\n\s*UnityEditor\.Events\.UnityEventTools\.AddPersistentListener\(sl\.onValueChanged, kbf\.SetValue\);/.test(slSlice)
+      || !/\} else sl\.fillRect = frt;/.test(slSlice))
+    errors.push("the Slider drives the width-road fill rect again (or lost the legacy fillRect fallback) — Unity's anchors and KitBarFill's width fight and the mercury smashes past the knob (round 62, S53)");
+  if (/sl\.fillRect = frt;\s*\n\s*sl\.handleRect/.test(slSlice))
+    errors.push("the unconditional sl.fillRect wire is back on the Slider prefab — the round-62 two-writer smash returns (round 62, S53)");
+  // (e) the handle's rect is the thumb's own box, centred on the band
+  if (!/float bandH = trackH \+ art\.offsetMax\.y - art\.offsetMin\.y;/.test(slSlice)
+      || !/hrt\.sizeDelta = new Vector2\(thumbW, thumbH - bandH\);/.test(slSlice))
+    errors.push("the slider handle lost its band-relative rect (sprite − band) — Unity's forced cross-stretch leaves the knob in a rect twice the track's height, centred only by Preserve Aspect (round 62, S53)");
+  // (f) a posed board copy poses the mercury too
+  if (!/var kbSl = inst\.GetComponentInChildren<KitBarFill>\(true\);\s*\n\s*if \(kbSl != null\) kbSl\.SetValue\(Mathf\.Clamp01\(it\.value\)\);/.test(cs))
+    errors.push("the board's slider pose no longer reaches the mercury — SetValueWithoutNotify skips the rig's listener, so posed copies ship knob and ink on different values (round 62, S53)");
+  // (g) the setrow's knob scrubs the stamped well, its handle rect too
+  const srSlice = cs.slice(cs.indexOf("static void WireSetrowSlider("), cs.indexOf("static void WireNamedRails("));
+  if (!/wellL = aW\.track\.x \/ psSR;/.test(srSlice) || !/srtSR\.offsetMin = new Vector2\(wellL, areaSR\.offsetMin\.y\);/.test(srSlice))
+    errors.push("the setrow knob stopped scrubbing the stamped well — it parks a half-knob short at both ends (round 62, S53)");
+  if (/srtSR\.offsetMin = new Vector2\(areaSR\.offsetMin\.x \+ thW \* 0\.5f, areaSR\.offsetMin\.y\);/.test(srSlice))
+    errors.push("the setrow's half-knob travel inset is back — that is the round-62 setrow bug, verbatim (round 62, S53)");
+  if (!/hrtSR\.sizeDelta = new Vector2\(thW, thH - bandHSR\);/.test(srSlice))
+    errors.push("the setrow handle lost its band-relative rect — the grip's box goes back to guessing at the cross axis (round 62, S53)");
 }
 
 if (errors.length) {
