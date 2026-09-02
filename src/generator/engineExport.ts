@@ -12,11 +12,11 @@ import { stampFilter, stampFilterPad, boardBgFilter, drawBoardNoise, drawBoardOv
 /* bigGlyphById only names the excluded piece in the export-skip warn —
    the Uploads/Art drawer never ships in the Unity download (round 44) */
 import { bigGlyphById } from "./bigGlyphs";
-import { applyKitDesign, applyKitTextFill, baseOf, darken, hexMix, lighten, fontByName, isCloneId, isFlipShape, isGlyphPiece, KIT_COMPONENTS, KIT_SHAPE, KIT_SLICEABLE, STOCK_ICONS, effKitSize, glyphSeatIcon, kitVisible, resolveKitIcon, sanitizeUnitySlug } from "./model";
+import { applyKitDesign, applyKitTextFill, baseOf, darken, hexMix, lighten, fontByName, isCloneId, isFlipShape, isGlyphPiece, KIT_COMPONENTS, KIT_SHAPE, KIT_SLICEABLE, STOCK_ICONS, effKitSize, glyphSeatIcon, kitVisible, resolveKitIcon, sanitizeUnitySlug, stateSlotKey } from "./model";
 /* the glyph-button fleet's registry (round 52) — aliased: this module's own
    GLYPH_BUTTONS is the round-40 ACTION-glyph set (pause/play/replay/home) */
 import { GLYPH_BUTTONS as GLYPH_BUTTON_FLEET, isGlyphButton } from "./model";
-import { renderKit, renderBevel, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps, padSvg, resolveMenuStyle, kernCollides } from "./bevel";
+import { renderKit, renderBevel, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps, padSvg, resolveMenuStyle, effSlotColor, kernCollides } from "./bevel";
 import type { KitOpts } from "./bevel";
 import { flattenPath } from "./importedShapes";
 import { silhouetteMeta } from "./silhouettes";
@@ -668,6 +668,38 @@ function stripBarFill(svgIn: string): { svg: string; stripped: boolean } {
     for (const g of gs) g.remove();
     return { svg: new XMLSerializer().serializeToString(dom.documentElement), stripped: true };
   } catch { return { svg: svgIn, stripped: false }; }
+}
+/* the skill node's connector stubs (round 61e): marked data-skillpath in
+   bevel so the export can un-burn them — strip for the baked skins, cut
+   for the live Path children */
+function stripSkillPath(svgIn: string): string {
+  try {
+    const dom = new DOMParser().parseFromString(svgIn, "image/svg+xml");
+    const gs = Array.from(dom.querySelectorAll("[data-skillpath]"));
+    if (!gs.length) return svgIn;
+    for (const g of gs) g.remove();
+    return new XMLSerializer().serializeToString(dom.documentElement);
+  } catch { return svgIn; }
+}
+function skillPathOnlySvg(svgIn: string, which: "in" | "out"): string | null {
+  try {
+    const dom = new DOMParser().parseFromString(svgIn, "image/svg+xml");
+    const keep = dom.querySelector(`[data-skillpath="${which}"]`);
+    if (!keep) return null;
+    for (const el of Array.from(dom.querySelectorAll(ICON_DRAWABLE_SEL)))
+      if (!el.closest("defs") && !keep.contains(el)) el.remove();
+    /* the "in" stub cuts WHITE (the score bug's tintable-ink rule): the
+       rig's absolute skin.pathColor tint reproduces the app exactly and
+       a dev retint is one clean color edit. The drawn opacity lifts to 1
+       — the state alphas ride the skin (0.95, locked 0.25). */
+    if (which === "in") for (const ln of Array.from(keep.querySelectorAll("line"))) {
+      ln.setAttribute("stroke", "#FFFFFF");
+      ln.setAttribute("opacity", "1");
+      const styl = ln.getAttribute("style");
+      if (styl) ln.setAttribute("style", styl.replace(/rgba\([^)]*\)/g, "rgba(255,255,255,0.6)"));
+    }
+    return new XMLSerializer().serializeToString(dom.documentElement);
+  } catch { return null; }
 }
 function stripMarkedIcons(svgIn: string): { svg: string; iconsStripped: number } {
   try {
@@ -4725,7 +4757,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         compass: "Compass ribbon — the cardinal letters are LIVE seats and the Heading caret a LIVE child (restyle or delete it). The tick ribbon bakes at the staged heading (per-copy headings ride posed skins). Display piece.",
         dmgnumber: "Damage number — a DEV INSTRUMENT (round 47): PatternBreakDmgNumber.Show(n) composes the amount from the kit's own damage digits at the authored seat and plays the app's float-up-and-fade; Value 0 keeps the authored number byte-for-byte as a live, swappable child.",
         equipslot: "Equipment slot — the ghost silhouette showing what belongs is a LIVE Image child; the app's icon picker steers it and the Inspector swaps it. Display piece.",
-        skillnode: "Skill-tree node — a REAL button (Sprite Swap states); the skill glyph is a LIVE Image child. Learned/locked poses ride per-copy posed skins, wearing the app's own learned picks (path, badge, mark and glyph); a LEARNED copy's corner check arrives as its OWN Learned badge child — move, restyle, swap its sprite or delete it, and a badge set to None in the app ships no badge at all.",
+        skillnode: "Skill-tree node — a REAL button (Sprite Swap states) with a STATE DROPDOWN (round 61e): the SkillNode rig's Available/Learned/Locked flips the whole look in the Inspector, driven by three COMPLETE resolved paint skins (zero inheritance to decode — SetState in code). The skill glyph, the connector Path (tinted by the skin), the Learned badge and the padlock are all LIVE children; the Locked veil dims the frame's own silhouette. Board copies stay posed snapshots wearing per-copy paint; a LEARNED copy's corner check arrives as its OWN Learned badge child — move, restyle, swap its sprite or delete it, and a badge set to None in the app ships no badge at all.",
         ammo: "Ammo counter — LIVE: the three bars are ONE thirds meter (KitCellMeter — drive Value or SetValue; bars go dark left→right as ammo depletes) and both counts are LIVE seats. Display piece.",
         killfeed: "Kill-feed row — killer and victim are LIVE seats and the weapon glyph a LIVE Image child (swap the sprite in the Inspector). Stack rows in a vertical layout. Display piece.",
         magazine: "Magazine — LIVE (round 44): the twelve round pips rest dark and the Lit layer lights whole rounds (KitCellMeter: drive Value or SetValue); the readout is a LIVE seat — drive both from your ammo count. Display piece.",
@@ -4904,6 +4936,103 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
            road's own data-invring cut): the selection is a live layer —
            invgrid/cell-ring.png — never pixels a dev can't move */
         if (uid === "invgrid") baseSvgU = baseSvgU.replace(/<rect data-invring="1"[^>]*\/?>/g, "");
+        /* ── the SKILL NODE's live state anatomy (round 61e — the owner:
+           "i want whatever is best for developers"): the connector stub
+           leaves the pixels as its OWN tintable Path child (white-cut;
+           the rig's skin.pathColor is an absolute tint), the learned
+           badge and the padlock ship family-level as their own children
+           (SetState toggles them), and every family skin bakes STUB-LESS
+           so nothing double-draws under the live path. All four atoms
+           must cut for the strip to happen — a failed cut leaves today's
+           baked art whole (the bar-rig gating rule). Kept prefabs from
+           older zips lose the baked stub on retexture until regenerated
+           — named in the PR (the r51 tightened-crop precedent). */
+        type SkillAtom = { part: string; svg: string; dx: number; dy: number; w: number; h: number; tint: boolean; usage: string };
+        let skillAtoms: SkillAtom[] | null = null;
+        if (uid === "skillnode" && !isArt) {
+          try {
+            const shSN = (/data-shell="([-\d. ]+)"/.exec(fullU) ?? /data-shell0="([-\d. ]+)"/.exec(fullU))?.[1].split(" ").map(Number);
+            const vbSN = /viewBox="(-?[\d.]+) (-?[\d.]+)/.exec(fullU);
+            if (shSN?.length === 4 && vbSN) {
+              const shCx = shSN[0] + shSN[2] / 2, shCy = shSN[1] + shSN[3] / 2;
+              const r1sn = (n: number) => Math.round(n * 10) / 10;
+              const atoms: SkillAtom[] = [];
+              /* the atom CUTS at its own shipped window (iconSeatsOf's
+                 alpha grammar: ink box ∪ reach box + 2px of AA air, the
+                 round-50 class rule for glow tails, edge-verified) and
+                 the SEAT is that window verbatim — the seat IS the
+                 sprite's box, 1:1 by construction (a measure-only seat
+                 over a margin-cropped sprite would shrink the drawn art
+                 by the margin at the prefab). Ships crop:false. */
+              const cutAtom = async (sv: string) => {
+                const vbA = /viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/.exec(sv);
+                if (!vbA) return null;
+                const [vxA, vyA, vwA, vhA] = [+vbA[1], +vbA[2], +vbA[3], +vbA[4]];
+                const wAtA = +(/ width="([\d.]+)"/.exec(sv)?.[1] ?? vbA[3]);
+                const hAtA = +(/ height="([\d.]+)"/.exec(sv)?.[1] ?? vbA[4]);
+                const dscXA = vwA > 0 ? wAtA / vwA : 1, dscYA = vhA > 0 ? hAtA / vhA : 1;
+                const p9A = 72;
+                const wideA = sv
+                  .replace(/viewBox="[^"]+"/, `viewBox="${vxA - p9A} ${vyA - p9A} ${vwA + p9A * 2} ${vhA + p9A * 2}"`)
+                  .replace(/ width="[\d.]+"/, ` width="${(vwA + p9A * 2) * dscXA}"`)
+                  .replace(/ height="[\d.]+"/, ` height="${(vhA + p9A * 2) * dscYA}"`);
+                const rbA = await svgAlphaBox(wideA, PNG_SCALE, 1).catch(() => null);
+                if (!rbA) return null;
+                const abA = await svgAlphaBox(wideA, PNG_SCALE, 8).catch(() => null) ?? rbA;
+                const padA = 2;
+                let bxA = (vxA - p9A) + Math.min(abA.x0, rbA.x0) / (PNG_SCALE * dscXA) - padA;
+                let byA = (vyA - p9A) + Math.min(abA.y0, rbA.y0) / (PNG_SCALE * dscYA) - padA;
+                let bwA = (Math.max(abA.x1, rbA.x1) - Math.min(abA.x0, rbA.x0) + 1) / (PNG_SCALE * dscXA) + padA * 2;
+                let bhA = (Math.max(abA.y1, rbA.y1) - Math.min(abA.y0, rbA.y0) + 1) / (PNG_SCALE * dscYA) + padA * 2;
+                if (!(bwA > 1) || !(bhA > 1)) return null;
+                const sprOfA = (x9: number, y9: number, w9: number, h9: number) => sv
+                  .replace(/viewBox="[^"]+"/, `viewBox="${x9.toFixed(1)} ${y9.toFixed(1)} ${w9.toFixed(1)} ${h9.toFixed(1)}"`)
+                  .replace(/ width="[\d.]+"/, ` width="${Math.ceil(w9)}"`)
+                  .replace(/ height="[\d.]+"/, ` height="${Math.ceil(h9)}"`);
+                let sprA = sprOfA(bxA, byA, bwA, bhA);
+                /* the shipped window verifies its own raster and widens
+                   (bounded, keep-the-best) until the falloff completes —
+                   iconSeatsOf's round-50 follow-up, same dials */
+                let bestEA = await svgEdgeAlphaMax(sprA, PNG_SCALE).catch(() => 0);
+                for (let t9 = 0; t9 < 3 && bestEA > 1; t9++) {
+                  const cx9 = bxA - 4, cy9 = byA - 4, cw9 = bwA + 8, ch9 = bhA + 8;
+                  const candA = sprOfA(cx9, cy9, cw9, ch9);
+                  const e9 = await svgEdgeAlphaMax(candA, PNG_SCALE).catch(() => 255);
+                  if (e9 < bestEA) { sprA = candA; bestEA = e9; bxA = cx9; byA = cy9; bwA = cw9; bhA = ch9; }
+                }
+                return { svg: sprA, dx: r1sn(bxA + bwA / 2 - shCx), dy: r1sn(byA + bhA / 2 - shCy), w: r1sn(bwA), h: r1sn(bhA) };
+              };
+              const pIn = skillPathOnlySvg(fullU, "in");
+              const pOut = skillPathOnlySvg(fullU, "out");
+              const cIn = pIn ? await cutAtom(pIn) : null;
+              const cOutP = pOut ? await cutAtom(pOut) : null;
+              if (cIn) atoms.push({ part: "path-in", ...cIn, tint: true,
+                usage: "The connector stub INTO the node — the SkillNode rig's live Path child, cut WHITE: the state skin's pathColor rides Image.color (available/learned at the app's 95% ink, locked at 25%), so retinting a state is one Inspector edit and deleting the child removes the path entirely." });
+              if (cOutP) atoms.push({ part: "path-out", ...cOutP, tint: false,
+                usage: "The connector stub OUT of the node — its own live child (the app's constant faint white; no state ever re-inks it). Move, restyle or delete it freely." });
+              /* the learned badge, FAMILY-level (the posed road already
+                 cuts per-copy badges): the app's learned overlay wears
+                 the resolved badge furniture; a checkColor of None draws
+                 no badge and ships no atom (the badge-None law). */
+              const lSvg = stripLoopsU(shell(uid, { ...uOpts, overlay: "learned" }, undefined, uVal));
+              const bCut = markedIconOnlySvgs(lSvg).find((c9) => c9.name === "learnedbadge");
+              const bSeat = bCut ? await cutAtom(bCut.svg) : null;
+              if (bSeat) atoms.push({ part: "badge", ...bSeat, tint: false,
+                usage: "The Learned badge — plate and mark as ONE live child; SetState shows it in Learned only. Move, restyle, swap its sprite or delete it; a badge set to None in the app ships no badge at all." });
+              const kSvg = stripLoopsU(shell(uid, { ...uOpts, overlay: "locked" }, undefined, uVal));
+              const kCut = markedIconOnlySvgs(kSvg).find((c9) => c9.name === "lockglyph");
+              const kSeat = kCut ? await cutAtom(kCut.svg) : null;
+              if (kSeat) atoms.push({ part: "lock", ...kSeat, tint: false,
+                usage: "The padlock — the Locked state's content, its own live child (SetState shows it in Locked only; the skill glyph stands down there, the app's rule). Baked at the Locked skin's resolved glyph ink." });
+              // the strip is gated on the PATH atoms (the badge/lock are
+              // additive children; the stubs are what the skins must shed)
+              if (cIn && cOutP) {
+                baseSvgU = stripSkillPath(baseSvgU);
+                skillAtoms = atoms;
+              }
+            }
+          } catch { skillAtoms = null; }
+        }
         // the avatar's circular mask — the masked Portrait child clips ANY
         // sprite a dev drops in to the frame's own aperture
         if (iconSeatsU?.some((s9) => (s9.wellR ?? 0) > 0.5))
@@ -5211,6 +5340,16 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
            margin (numeric crop = margin px) so its tail fades to zero
            inside the sprite — no hard rectangle on dark scenes */
         }, livesOut ? 40 : true, interactive || buffRig || cellRig || stepperOut || livesOut || uid === "stopwatch" || uid === "steps" ? uid : undefined);
+        if (skillAtoms) {
+          for (const at of skillAtoms) {
+            /* crop:false — the atom's SVG is already its shipped window
+               (cutAtom), so the seat is the sprite's box, 1:1 */
+            await addPng(`${uid}/${at.part}.png`, at.svg, {
+              component: uid, part: at.part, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: at.tint,
+              usage: at.usage, railDx: at.dx, railDy: at.dy, railW: at.w, railH: at.h,
+            }, false);
+          }
+        }
         if (livesOut) {
           await addPng(`${uid}/lit.png`, livesOut.lit, {
             component: uid, part: "lit", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
@@ -5799,7 +5938,11 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
             /* a bar-rig family's state skins strip the mercury too (round
                44, item 23): the live Fill child rides the press — a baked
                twin beneath would double-draw the bar on hover */
-            const sOut = stripIconInk(stripWordInk(sSvg).svg).svg;
+            /* the skill node's state skins shed their stubs exactly like
+               base (round 61e) — the live Path child rides the press; a
+               baked twin beneath would double-draw the connector */
+            const sOut0 = stripIconInk(stripWordInk(sSvg).svg).svg;
+            const sOut = skillAtoms ? stripSkillPath(sOut0) : sOut0;
             await addPng(`${uid}/base-${stName}.png`, barRigU ? stripBarFill(sOut).svg : sOut, {
               component: uid, part: `base-${stName}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
               usage: `${SWAP_USAGE[stName]} state — Sprite Swap beside base.png (the generated prefab wires it). Union-cropped with base, so the press pose stays registered.`,
@@ -6726,10 +6869,56 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     if (!dialDy) return 0; // no extrusion fork — nothing to measure
     return measuredStateDy(pid, sn) ?? dialDy;
   };
+  /* ── ROUND 61e: the skill node's three RESOLVED state skins ─────────
+     The app's statable grammar (61d) keeps Available as BASE with
+     per-state forks in kitSlotVals ("learned:face" — stateSlotKey); the
+     owner's ruling is "whatever is best for developers", so the Unity
+     rig hands the dev three COMPLETE flat blocks with zero inheritance
+     to decode — the fork table flattens HERE: fork(state) ?? base ??
+     factory per token (bevel's own slR ladder + effSlotColor roles),
+     with the app's literal locked rules kept exactly (the padlock's ink
+     falls to the deactivated gray, the veil to the classic 0.5, the
+     stub alphas 0.95/0.25). Field names are the RIG's serialized names
+     — stable forever (a rename resets every dev override). */
+  const resolveSkillSkins = (): { state: string; faceColor: string; glyphInk: string; rimColor: string; glowColor: string; glowEnabled: boolean; pathColor: string; dimAlpha: number }[] => {
+    const cfgS = pieceCfg("skillnode");
+    const slotsS = st.kitSlotVals?.skillnode ?? {};
+    const hexish = (v: string | null | undefined): v is string => !!v && /^#[0-9a-fA-F]{6,8}$/.test(v);
+    const pickS = (state: string | null, id: string): string | undefined =>
+      (state ? slotsS[stateSlotKey(state, id)] : undefined) ?? slotsS[id];
+    const factoryS = (id: string): string => {
+      const v = effSlotColor(cfgS, "skillnode", id, slotsS);
+      return hexish(v) ? v : "#FFFFFF";
+    };
+    const alphaHex = (hex: string, a: number): string =>
+      hex.length === 7 ? hex + Math.round(a * 255).toString(16).padStart(2, "0").toUpperCase() : hex;
+    return (["available", "learned", "locked"] as const).map((name) => {
+      const state = name === "available" ? null : name;
+      const valS = (id: string) => { const p = pickS(state, id); return hexish(p) ? p : factoryS(id); };
+      const glowRaw = pickS(state, "glowColor");
+      // "none" is the well's OFF half; unpicked follows the factory role
+      const glowEnabled = glowRaw === "none" ? false : (hexish(glowRaw) || hexish(effSlotColor(cfgS, "skillnode", "glowColor", slotsS)));
+      const glowColor = hexish(glowRaw) ? glowRaw : factoryS("glowColor");
+      /* the path falls to the POSE's Glow (bevel: pathC = slR.pathColor
+         ?? glow9 — a glow fork re-inks its own pose's unforked stub;
+         "none" leaves the role color standing, the dress9 gate) */
+      const pathBase = pickS(state, "pathColor") ?? (hexish(glowRaw) ? glowRaw : factoryS("glowColor"));
+      const pathColor = alphaHex(hexish(pathBase) ? pathBase : factoryS("glowColor"), name === "locked" ? 0.25 : 0.95);
+      /* the padlock's ink ladder is the app's literal: fork ?? base ??
+         the deactivated gray (bevel: slR.glyphInk ?? "#A7AAB4") */
+      const glyphInk = name === "locked" ? (hexish(pickS(state, "glyphInk")) ? pickS(state, "glyphInk")! : "#A7AAB4") : valS("glyphInk");
+      const dimRaw = name === "locked" ? pickS("locked", "lockedDim") : undefined;
+      const dimAlpha = name === "locked" ? (dimRaw !== undefined && /^\d+$/.test(dimRaw) ? Math.min(100, +dimRaw) / 100 : 0.5) : 0;
+      return { state: name, faceColor: valS("face"), glyphInk, rimColor: valS("rim"), glowColor, glowEnabled, pathColor, dimAlpha };
+    });
+  };
   files.push({
     path: "kit-manifest.json",
     data: JSON.stringify({
       kit: st.kitName,
+      /* the skill node's three complete state skins (round 61e) — the
+         importer's PatternBreakSkillNode consumes them verbatim */
+      ...(stagedShips("skillnode") ? { skillSkins: resolveSkillSkins() } : {}),
       // idle motion — the kit's resting-state animations (owner spec);
       // the importer wires removable rigs only when these say so
       idle: { wipe: st.cfg.idle?.wipe ? 1 : 0, edge: st.cfg.idle?.edge ? 1 : 0,
@@ -7334,6 +7523,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Runtime/PatternBreakKitStepper.cs", data: KIT_STEPPER_RUNTIME });
   files.push({ path: "Runtime/PatternBreakPageDots.cs", data: PAGE_DOTS_RUNTIME });
   files.push({ path: "Runtime/PatternBreakStartLights.cs", data: START_LIGHTS_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakSkillNode.cs", data: SKILL_NODE_RUNTIME });
   files.push({ path: "Runtime/PatternBreakStarRating.cs", data: STAR_RATING_RUNTIME });
   files.push({ path: "Runtime/PatternBreakEmoteWheel.cs", data: EMOTE_WHEEL_RUNTIME });
   files.push({ path: "Runtime/PatternBreakStopwatch.cs", data: STOPWATCH_RUNTIME });
@@ -7429,6 +7619,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     "Runtime/PatternBreakCellMeter.cs",
     "Runtime/PatternBreakKitStepper.cs",
     "Runtime/PatternBreakPageDots.cs", "Runtime/PatternBreakStartLights.cs",
+    "Runtime/PatternBreakSkillNode.cs",
     "Runtime/PatternBreakStarRating.cs",
     "Runtime/PatternBreakEmoteWheel.cs",
     "Runtime/PatternBreakStopwatch.cs",
@@ -8297,6 +8488,127 @@ namespace PatternBreak {
    only at full marks — the app's own rule. RIG-5 chassis conventions:
    [ExecuteAlways], plain SetValue for board strikes, deferred
    OnValidate. */
+/* the SKILL NODE state rig (round 61e — the owner: "i want whatever is
+   best for developers"): one Inspector dropdown drives the semantic state
+   (Available/Learned/Locked, 1:1 with the app's state tray) and three
+   COMPLETE resolved skins — zero inheritance to decode — tint the live
+   children. Paint only, never shape: a skin tints what exists (Image
+   color), the badge/lock/veil toggle, and geometry never moves. */
+const SKILL_NODE_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+
+namespace PatternBreak {
+  public enum SkillNodeState { Available, Learned, Locked }
+  [AddComponentMenu("UI Kit Maker/Skill Node")]
+  [ExecuteAlways]
+  public class PatternBreakSkillNode : MonoBehaviour {
+    /* one COMPLETE flat paint block per state — exported fully resolved
+       from the app's fork table (base fills every unforked slot), so
+       there is no inheritance to decode: what you see per state is what
+       that state wears. FIELD NAMES ARE PERMANENT — a rename would reset
+       every dev override on package update. */
+    [System.Serializable]
+    public class StateSkin {
+      [Tooltip("The node's candy face color, resolved for this state (the app's Face well). The frame art bakes the Available dress; other states tint RELATIVE to Available's face, so an unforked state changes nothing.")]
+      public Color faceColor = Color.white;
+      [Tooltip("The skill glyph's ink for this state (the padlock's, in Locked — the lock sprite already bakes it). Relative tint, like the face.")]
+      public Color glyphInk = Color.white;
+      [Tooltip("The rim & wall color, resolved for this state — reference data for your own effects: the rim lives inside the frame art, and a multiply tint cannot repaint it alone (posed board copies carry true rim forks).")]
+      public Color rimColor = Color.white;
+      [Tooltip("The glow color for this state — drives the StateFx halo's tint.")]
+      public Color glowColor = Color.white;
+      [Tooltip("Off = this state's glow is silenced entirely (the app's None pick); the rig zeroes the halo dials for it and restores them when a glowing state returns.")]
+      public bool glowEnabled = true;
+      [Tooltip("The connector stub's ink for this state — an ABSOLUTE tint on the white-cut Path child (alpha included: the app draws available/learned at 95%, locked at 25%).")]
+      public Color pathColor = Color.white;
+      [Tooltip("How heavily the veil dims the node in this state (the app's Locked veil; 0 on Available/Learned).")]
+      [Range(0f, 1f)] public float dimAlpha;
+    }
+    [Tooltip("The node's semantic state — flip it and the skin applies live, edit mode included. Code: SetState(...).")]
+    [SerializeField] SkillNodeState state = SkillNodeState.Available;
+    public SkillNodeState State { get { return state; } }
+    public StateSkin available = new StateSkin();
+    public StateSkin learned = new StateSkin();
+    public StateSkin locked = new StateSkin();
+    [Tooltip("The node's drawing Image — the Body child on a glow kit, the root otherwise (Sprite Swap keeps owning hover/pressed/disabled either way).")]
+    public Image frame;
+    [Tooltip("The live skill glyph child — hidden in Locked (the app shows only the padlock there).")]
+    public Image glyph;
+    [Tooltip("The connector stub INTO the node — white-cut, tinted by the skin's pathColor.")]
+    public Image pathIn;
+    [Tooltip("The connector stub OUT of the node — the app's constant faint white; no state re-inks it (kept here so you can restyle or delete it).")]
+    public Image pathOut;
+    [Tooltip("The veil child — wears the frame's own sprite tinted dark; alpha = the skin's dimAlpha.")]
+    public Image veil;
+    [Tooltip("The Learned badge child — SetState shows it in Learned only.")]
+    public GameObject learnedBadge;
+    [Tooltip("The padlock child — SetState shows it in Locked only.")]
+    public GameObject lockGlyph;
+    [Tooltip("The piece's StateFx (generated wiring) — the rig drives its glowColor and, for a glow-None state, its glow dials.")]
+    public StateFx fx;
+    [Tooltip("The StateFx glow dials as authored at import — the rig restores these when a glow-silenced state ends. Edit glow strength HERE, not on StateFx, for a skill node.")]
+    public float restGlow, hoverGlow, pressedGlow, disabledGlow;
+    [Tooltip("The node's Button — Locked turns interactable off (a locked skill must not press; StateFx then wears the disabled face), and leaving Locked restores it.")]
+    public Selectable selectable;
+    public void SetState(SkillNodeState s) { state = s; Apply(); }
+    public StateSkin SkinOf(SkillNodeState s) { return s == SkillNodeState.Learned ? learned : s == SkillNodeState.Locked ? locked : available; }
+    /* RELATIVE face/glyph tint: the frame art IS the Available dress, so
+       Available applies pure white (byte-zero by construction) and a
+       forked state tints by the per-channel ratio — exact on ink drawn
+       in the base color, proportional on the shading around it. */
+    static float Ch(float f, float b) { return b <= 0.004f ? 1f : Mathf.Clamp01(f / b); }
+    static Color Rel(Color f, Color b) { return new Color(Ch(f.r, b.r), Ch(f.g, b.g), Ch(f.b, b.b), 1f); }
+    public void Apply() {
+      // a stood-down rig stays inert (posed board copies are SNAPSHOTS —
+      // an OnValidate on one must never re-show the glyph over the bake);
+      // re-enable the rig and OnEnable applies fresh
+      if (!enabled) return;
+      var sk = SkinOf(state);
+      if (sk == null || available == null) return;
+      // sprite-less = a raycast body (RebodyIfGlow's root), never tint it:
+      // a color on a bare Image paints a solid rectangle over the node
+      if (frame != null && frame.sprite != null) {
+        var fc = Rel(sk.faceColor, available.faceColor);
+        if (frame.color != fc) frame.color = fc;
+      }
+      if (glyph != null) {
+        bool showG = state != SkillNodeState.Locked;
+        if (glyph.gameObject.activeSelf != showG) glyph.gameObject.SetActive(showG);
+        var gc = Rel(sk.glyphInk, available.glyphInk);
+        if (glyph.color != gc) glyph.color = gc;
+      }
+      if (pathIn != null && pathIn.color != sk.pathColor) pathIn.color = sk.pathColor;
+      if (veil != null) {
+        bool showV = sk.dimAlpha > 0.004f;
+        if (veil.gameObject.activeSelf != showV) veil.gameObject.SetActive(showV);
+        var vc = new Color(0.0235f, 0.0314f, 0.0627f, sk.dimAlpha); // the app's rgba(6,8,16,dim)
+        if (showV && veil.color != vc) veil.color = vc;
+      }
+      if (learnedBadge != null) learnedBadge.SetActive(state == SkillNodeState.Learned);
+      if (lockGlyph != null) lockGlyph.SetActive(state == SkillNodeState.Locked);
+      if (fx != null) {
+        var hc = new Color(sk.glowColor.r, sk.glowColor.g, sk.glowColor.b, 1f);
+        if (fx.glowColor != hc) fx.glowColor = hc;
+        fx.restGlow = sk.glowEnabled ? restGlow : 0f;
+        fx.hoverGlow = sk.glowEnabled ? hoverGlow : 0f;
+        fx.pressedGlow = sk.glowEnabled ? pressedGlow : 0f;
+        fx.disabledGlow = sk.glowEnabled ? disabledGlow : 0f;
+      }
+      if (selectable != null) {
+        bool wantI = state != SkillNodeState.Locked;
+        if (selectable.interactable != wantI) selectable.interactable = wantI;
+      }
+    }
+    void OnEnable() { Apply(); }
+#if UNITY_EDITOR
+    // the dropdown previews LIVE in edit mode — deferred a tick so the
+    // toggles never run inside OnValidate (the KitBarFill discipline)
+    void OnValidate() { UnityEditor.EditorApplication.delayCall += () => { if (this != null) Apply(); }; }
+#endif
+  }
+}
+`;
+
 const STAR_RATING_RUNTIME = `using UnityEngine;
 using UnityEngine.UI;
 
@@ -12987,7 +13299,8 @@ namespace PatternBreak {
   [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float artW; public float artH; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string stampMask; public bool bakedFallback; public int stampLive; public float stampFs; public string stampInk; public string stampSplashInk; public string stampCase; public float stampDx; public float stampDy; public float stampW; public float stampH; public string posed; public float posedW; public float posedH; public float posedDx; public float posedDy; public string posedHover; public string posedPressed; public string posedDisabled; public float posedLabelDx; public float posedLabelDy; public string shadow; public float shadowW; public float shadowH; public float shadowDx; public float shadowDy; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; public PBBig big; public PBIconChild[] posedIcons; }
   [Serializable] class PBBoardBg { public string file; public float opacity; public float blur; public float saturation; public float hue; public float brightness; public float contrast; public float noise; public string overlay; public float overlayStrength; public string overlayBlend; public bool original; }
   [Serializable] class PBBoard { public string name; public int w; public int h; public PBBoardBg bg; public PBBoardItem[] items; }
-  [Serializable] class PBManifest { public string kit; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public string seatSpace; public string[] stagedFamilies; public PBFleetEntry[] slotFleet; public PBGlyphFleetEntry[] glyphFleet; public PBWell globeWell; public PBSeasonGeo seasonTrack; public PBDotsGeo pageDots; public PBDotsGeo startLights; public PBDotsGeo steps; public PBPathGeo pathConnector; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBTimerBlock timer; public PBMenu menu; public PBRarity rarity; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; }
+  [Serializable] class PBSkillSkin { public string state; public string faceColor; public string glyphInk; public string rimColor; public string glowColor; public bool glowEnabled; public string pathColor; public float dimAlpha; }
+  [Serializable] class PBManifest { public string kit; public PBSkillSkin[] skillSkins; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public string seatSpace; public string[] stagedFamilies; public PBFleetEntry[] slotFleet; public PBGlyphFleetEntry[] glyphFleet; public PBWell globeWell; public PBSeasonGeo seasonTrack; public PBDotsGeo pageDots; public PBDotsGeo startLights; public PBDotsGeo steps; public PBPathGeo pathConnector; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBTimerBlock timer; public PBMenu menu; public PBRarity rarity; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; }
   [Serializable] class PBLockEntry { public string file; public string sha256; }
   /* the word each labeled family's prefab was last SEEDED with — the
      ownership ledger: a re-import re-seeds only a label still equal to
@@ -16040,6 +16353,25 @@ namespace PatternBreak {
                     var tSD = inst.transform.Find(IconChildName(icSD));
                     if (tSD != null) tSD.gameObject.SetActive(false);
                   }
+                /* a POSED skill-node copy is a SNAPSHOT (round 61e, the
+                   board-carriage decision): its Art child bakes the
+                   posed per-copy paint (stubs included — per-copy slot
+                   forks the family skins can't speak) and posedIcons
+                   rebuild its own badge/lock live. The family rig and
+                   its children stand down like Icon/Words above — no
+                   double-stub, no double-badge, no family skin fighting
+                   copy-level art. The live stateful node is the
+                   SkillNode prefab; a dev who wants this copy live
+                   re-enables the rig deliberately. */
+                var rigSNP = inst.GetComponent<PatternBreakSkillNode>();
+                if (rigSNP != null) {
+                  rigSNP.enabled = false;
+                  if (rigSNP.pathIn != null) rigSNP.pathIn.gameObject.SetActive(false);
+                  if (rigSNP.pathOut != null) rigSNP.pathOut.gameObject.SetActive(false);
+                  if (rigSNP.veil != null) rigSNP.veil.gameObject.SetActive(false);
+                  if (rigSNP.learnedBadge != null) rigSNP.learnedBadge.SetActive(false);
+                  if (rigSNP.lockGlyph != null) rigSNP.lockGlyph.SetActive(false);
+                }
                 if (it.posedIcons != null) foreach (var pIc in it.posedIcons) {
                   if (pIc == null || string.IsNullOrEmpty(pIc.file) || pIc.w < 1f || pIc.h < 1f) continue;
                   var pIcSp = S(root + "/" + pIc.file);
@@ -18437,6 +18769,39 @@ namespace PatternBreak {
       }
       return addedIC;
     }
+    /* the skill node's rail-seated live children (round 61e) — the
+       WireNamedRails seat grammar: shell-center-relative dx/dy from the
+       atom's own measured ink, size = the drawn box (glow bleed intact) */
+    static Image SkillChild(GameObject go, string root, string name, PBAsset row, PBAsset baseRow, Sprite baseSp, int pngScale) {
+      if (go == null || row == null || row.railW < 1f || baseRow == null || baseRow.shell == null || baseSp == null || baseSp.rect.width < 2f) return null;
+      if (go.transform.Find(name) != null) return null; // theirs already
+      var spC = S(root + "/assets/" + row.component + "/" + row.component + "-" + row.part + ".png");
+      if (spC == null) return null;
+      float psC = pngScale > 0 ? pngScale : 2f;
+      var cgo = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+      cgo.transform.SetParent(go.transform, false);
+      var ci = cgo.GetComponent<Image>();
+      ci.sprite = spC; ci.raycastTarget = false; ci.type = Image.Type.Simple; ci.preserveAspect = false;
+      var crt = cgo.GetComponent<RectTransform>();
+      crt.pivot = new Vector2(0.5f, 0.5f);
+      crt.anchorMin = crt.anchorMax = new Vector2(
+        (baseRow.shell.x + baseRow.shell.w / 2f + row.railDx * psC) / baseSp.rect.width,
+        1f - (baseRow.shell.y + baseRow.shell.h / 2f + row.railDy * psC) / baseSp.rect.height);
+      crt.anchoredPosition = Vector2.zero;
+      crt.sizeDelta = new Vector2(row.railW, row.railH);
+      return ci;
+    }
+    static void FillSkillSkin(PatternBreakSkillNode.StateSkin dst, PBSkillSkin src) {
+      if (dst == null || src == null) return;
+      Color c;
+      if (ColorUtility.TryParseHtmlString(src.faceColor ?? "", out c)) dst.faceColor = c;
+      if (ColorUtility.TryParseHtmlString(src.glyphInk ?? "", out c)) dst.glyphInk = c;
+      if (ColorUtility.TryParseHtmlString(src.rimColor ?? "", out c)) dst.rimColor = c;
+      if (ColorUtility.TryParseHtmlString(src.glowColor ?? "", out c)) dst.glowColor = c;
+      if (ColorUtility.TryParseHtmlString(src.pathColor ?? "", out c)) dst.pathColor = c;
+      dst.glowEnabled = src.glowEnabled;
+      dst.dimAlpha = Mathf.Clamp01(src.dimAlpha);
+    }
     static bool FamilyPrefab(string dir, string root, PBAsset baseAsset, string goName, string label, int pngScale, Font kitFont, PBManifest m) {
       var basePath = root + "/" + baseAsset.file;
       var baseSp = S(basePath);
@@ -18546,6 +18911,68 @@ namespace PatternBreak {
         btn.spriteState = ss;
         WireStateFx(go, root, m, baseAsset.component, basePath, pngScale);
       }
+      /* ── the SKILL NODE goes STATEFUL (round 61e — the owner: "i want
+         whatever is best for developers"): one Inspector dropdown
+         (Available / Learned / Locked — the app's own state tray, names
+         1:1) applies a COMPLETE resolved paint skin. The connector stub
+         is its own live tintable Path child (skin.pathColor, absolute on
+         the white cut), the Learned badge and the padlock toggle with the
+         state, the Locked veil is the frame's own silhouette dimmed by
+         the skin's dial, glow color/None rides the StateFx halo, and
+         Locked parks the Button non-interactable (the disabled face IS
+         the app's locked shell). Paint only, never shape. Old zips (no
+         skillSkins, no atoms) build exactly yesterday's prefab. ── */
+      if (baseAsset.component == "skillnode" && m != null && m.skillSkins != null && m.skillSkins.Length >= 3
+          && baseAsset.shell != null && baseAsset.shell.w > 4f && go.GetComponent<PatternBreakSkillNode>() == null) {
+        PBAsset rowInSN = null, rowOutSN = null, rowBdgSN = null, rowLockSN = null;
+        foreach (var aSN in m.assets) {
+          if (aSN == null || aSN.component != "skillnode") continue;
+          if (aSN.part == "path-in") rowInSN = aSN;
+          else if (aSN.part == "path-out") rowOutSN = aSN;
+          else if (aSN.part == "badge") rowBdgSN = aSN;
+          else if (aSN.part == "lock") rowLockSN = aSN;
+        }
+        var pInSN = SkillChild(go, root, "Path", rowInSN, baseAsset, baseSp, pngScale);
+        if (pInSN != null) {
+          var rigSN = go.AddComponent<PatternBreakSkillNode>();
+          rigSN.frame = img;
+          /* rigSN.glyph waits: the "Icon glyph" child is built by
+             WireIconChildren BELOW this block — the hookup after it
+             resolves the glyph and re-Applies (a lookup here would
+             always find nothing and leave the glyph deaf to states) */
+          rigSN.pathIn = pInSN;
+          rigSN.pathOut = SkillChild(go, root, "Path out", rowOutSN, baseAsset, baseSp, pngScale);
+          // the stubs draw UNDER the glyph and words, exactly the app's stack
+          pInSN.transform.SetSiblingIndex(0);
+          if (rigSN.pathOut != null) rigSN.pathOut.transform.SetSiblingIndex(1);
+          /* the veil: the frame's own sprite, full-rect, dark — a
+             silhouette-true dim with no extra art; the rig drives its
+             alpha from the skin and shows it only when the dial says so */
+          var veilSN = new GameObject("Locked veil", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+          veilSN.transform.SetParent(go.transform, false);
+          var vImgSN = veilSN.GetComponent<Image>();
+          vImgSN.sprite = baseSp; vImgSN.raycastTarget = false; vImgSN.type = Image.Type.Simple; vImgSN.preserveAspect = !sliced;
+          StretchFull(veilSN.GetComponent<RectTransform>());
+          veilSN.SetActive(false);
+          rigSN.veil = vImgSN;
+          var lockSN = SkillChild(go, root, "Lock", rowLockSN, baseAsset, baseSp, pngScale);
+          if (lockSN != null) { rigSN.lockGlyph = lockSN.gameObject; lockSN.gameObject.SetActive(false); }
+          var bdgSN = SkillChild(go, root, "Learned badge", rowBdgSN, baseAsset, baseSp, pngScale);
+          if (bdgSN != null) { rigSN.learnedBadge = bdgSN.gameObject; bdgSN.gameObject.SetActive(false); }
+          rigSN.fx = go.GetComponent<StateFx>();
+          if (rigSN.fx != null) {
+            rigSN.restGlow = rigSN.fx.restGlow; rigSN.hoverGlow = rigSN.fx.hoverGlow;
+            rigSN.pressedGlow = rigSN.fx.pressedGlow; rigSN.disabledGlow = rigSN.fx.disabledGlow;
+          }
+          rigSN.selectable = go.GetComponent<Selectable>();
+          foreach (var skSN in m.skillSkins) {
+            if (skSN == null) continue;
+            var dstSN = skSN.state == "learned" ? rigSN.learned : skSN.state == "locked" ? rigSN.locked : rigSN.available;
+            FillSkillSkin(dstSN, skSN);
+          }
+          rigSN.Apply(); // rests Available — the resolved base skin, badge and lock down
+        }
+      }
       /* round 13 — glow families take the Body-child structure (one move,
          shared with the migration pass): the halo attaches INSIDE the
          piece, behind the art, and tracks it for good */
@@ -18641,6 +19068,34 @@ namespace PatternBreak {
       WireIconChildren(go, root, m, baseAsset.component);
       // the per-state glyph dress rides the children just built (round 53)
       WireGlyphStateSwaps(go, root, m, baseAsset.component);
+      /* the skill-node rig's LATE hookup (round 61e) — deliberately after
+         WireIconChildren AND RebodyIfGlow, both of which ran between the
+         rig block and here:
+         - the "Icon glyph" child only exists from WireIconChildren, so
+           the glyph resolves now (a lookup in the rig block would always
+           find nothing and leave the glyph deaf to states);
+         - on a glow kit RebodyIfGlow moved the art onto the Body child
+           and left the root Image a SPRITE-LESS raycast body — a tint
+           there would paint a solid rectangle over the node, so the rig
+           re-follows the drawing image (BodyImage), wherever the
+           migration parked it;
+         - Rebody parked Body at sibling 0, over the stubs — the paths
+           re-seat UNDER it (the app injects the stubs beneath the shell).
+         The overlay pieces then re-seat above the just-built children
+         (veil under lock, the app's locked stack; badge on top), and
+         Apply() rests Available with everything wired. */
+      var rigSNg = go.GetComponent<PatternBreakSkillNode>();
+      if (rigSNg != null) {
+        var gSNt = go.transform.Find("Icon glyph");
+        rigSNg.glyph = gSNt != null ? gSNt.GetComponent<Image>() : null;
+        rigSNg.frame = BodyImage(go);
+        if (rigSNg.pathIn != null) rigSNg.pathIn.transform.SetSiblingIndex(0);
+        if (rigSNg.pathOut != null) rigSNg.pathOut.transform.SetSiblingIndex(rigSNg.pathIn != null ? 1 : 0);
+        if (rigSNg.veil != null) rigSNg.veil.transform.SetAsLastSibling();
+        if (rigSNg.lockGlyph != null) rigSNg.lockGlyph.transform.SetAsLastSibling();
+        if (rigSNg.learnedBadge != null) rigSNg.learnedBadge.transform.SetAsLastSibling();
+        rigSNg.Apply();
+      }
       /* ── the STAR RATING goes LIVE (round 44, item 35 — RIG-5): the
          three Stars, the Celebration flare and the Replay button are the
          live seats above; PatternBreakStarRating makes the score a DIAL —

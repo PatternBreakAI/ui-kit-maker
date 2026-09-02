@@ -4082,6 +4082,94 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("BuildBarFill's rail-seat rung is gone (or lost its zero-gate on railW) — the setrow's even well gap dies, or every bar suddenly re-seats (round 61, S52)");
 }
 
+/* ── ROUND 61e · S53 (the SkillNode state rig — the owner: "i want
+   whatever is best for developers"): one Inspector dropdown (enum names
+   1:1 with the app's state tray), three COMPLETE resolved skins with
+   PERMANENT field names, the badge/lock/veil toggles, the connector
+   un-burned as a live tintable Path child, posed board copies staying
+   snapshots (no double-badge, no double-stub), and NO self-heal for
+   existing projects (the standing owner cut). ── */
+{
+  // 1) the rig's public surface — names are permanent (a rename resets
+  //    every dev override on package update)
+  if (!/public enum SkillNodeState \{ Available, Learned, Locked \}/.test(src))
+    errors.push("the SkillNodeState enum moved off the app's state-tray names (Available/Learned/Locked, 1:1 with KIT_STATE_POSES.skillnode) — SetState callers and serialized states break (round 61e, S53)");
+  if (!/public void SetState\(SkillNodeState s\) \{ state = s; Apply\(\); \}/.test(src)
+      || !/\[SerializeField\] SkillNodeState state = SkillNodeState\.Available;/.test(src))
+    errors.push("the rig lost SetState or its Inspector state dropdown (round 61e, S53)");
+  if (!/\[ExecuteAlways\]\n  public class PatternBreakSkillNode : MonoBehaviour \{/.test(src)
+      || !/void OnValidate\(\) \{ UnityEditor\.EditorApplication\.delayCall \+= \(\) => \{ if \(this != null\) Apply\(\); \}; \}/.test(src))
+    errors.push("the dropdown stopped previewing in edit mode — ExecuteAlways or the deferred OnValidate Apply left the rig (round 61e, S53)");
+  for (const fld of ["public Color faceColor = Color.white;", "public Color glyphInk = Color.white;", "public Color rimColor = Color.white;", "public Color glowColor = Color.white;", "public bool glowEnabled = true;", "public Color pathColor = Color.white;", "public float dimAlpha;"])
+    if (!src.includes(fld))
+      errors.push(`StateSkin lost its permanent field "${fld}" — serialized dev overrides reset on package update (round 61e, S53)`);
+  if (!/public StateSkin available = new StateSkin\(\);/.test(src)
+      || !/public StateSkin learned = new StateSkin\(\);/.test(src)
+      || !/public StateSkin locked = new StateSkin\(\);/.test(src))
+    errors.push("the three complete skin blocks left the rig — the dev is back to decoding inheritance (round 61e, S53)");
+  // 2) the toggles and the tint law (paint only, never shape)
+  if (!/if \(learnedBadge != null\) learnedBadge\.SetActive\(state == SkillNodeState\.Learned\);/.test(src)
+      || !/if \(lockGlyph != null\) lockGlyph\.SetActive\(state == SkillNodeState\.Locked\);/.test(src))
+    errors.push("the badge/lock toggles left Apply — a Learned node keeps its check in Available again (round 61e, S53)");
+  if (!/if \(pathIn != null && pathIn\.color != sk\.pathColor\) pathIn\.color = sk\.pathColor;/.test(src))
+    errors.push("the Path child stopped wearing skin.pathColor — the connector stub stops answering the state (round 61e, S53)");
+  if (!/static Color Rel\(Color f, Color b\)/.test(src) || !/Rel\(sk\.faceColor, available\.faceColor\)/.test(src))
+    errors.push("the RELATIVE face tint left Apply — Available would double-tint its own art, or a fork would multiply raw (round 61e, S53)");
+  // 3) the resolved-skin emission: fork ?? base ?? factory, flattened at
+  //    export (the app's own ladder), with the locked literals kept
+  if (!/const resolveSkillSkins = \(\)/.test(src)
+      || !/slotsS\[stateSlotKey\(state, id\)\]/.test(src)
+      || !/effSlotColor\(cfgS, "skillnode", id, slotsS\)/.test(src))
+    errors.push("the skin resolver lost the fork ?? base ?? factory ladder (stateSlotKey + effSlotColor — bevel's own resolution) (round 61e, S53)");
+  if (!/\? \(hexish\(pickS\(state, "glyphInk"\)\) \? pickS\(state, "glyphInk"\)! : "#A7AAB4"\)/.test(src)
+      || !/Math\.min\(100, \+dimRaw\) \/ 100 : 0\.5/.test(src))
+    errors.push("the locked literals drifted — the padlock's deactivated-gray ladder or the classic half veil (bevel's own rules) left the resolver (round 61e, S53)");
+  if (!/\.\.\.\(stagedShips\("skillnode"\) \? \{ skillSkins: resolveSkillSkins\(\) \} : \{\}\),/.test(src))
+    errors.push("the manifest stopped carrying skillSkins (or lost the staged gate) — the rig has nothing to consume (round 61e, S53)");
+  if (!/class PBSkillSkin \{ public string state; public string faceColor; public string glyphInk; public string rimColor; public string glowColor; public bool glowEnabled; public string pathColor; public float dimAlpha; \}/.test(cs)
+      || !/public PBSkillSkin\[\] skillSkins;/.test(cs))
+    errors.push("the importer can no longer parse skillSkins (PBSkillSkin/PBManifest drifted) — JsonUtility drops the blocks silently (round 61e, S53)");
+  // 4) the un-burned connector: marked in bevel, stripped from every
+  //    skillnode skin, cut white for the absolute tint
+  if (!/data-skillpath="in"/.test(bevelSrc) || !/data-skillpath="out"/.test(bevelSrc))
+    errors.push("bevel's skillnode stubs lost their data-skillpath marks — the exporter can neither cut nor strip the connector (round 61e, S53)");
+  if (!/baseSvgU = stripSkillPath\(baseSvgU\);/.test(src)
+      || !/const sOut = skillAtoms \? stripSkillPath\(sOut0\) : sOut0;/.test(src))
+    errors.push("the skillnode skins stopped shedding their stubs — the live Path child double-draws over the bake (round 61e, S53)");
+  if (!/ln\.setAttribute\("stroke", "#FFFFFF"\);/.test(src) || !/rgba\(255,255,255,0\.6\)/.test(src))
+    errors.push("the Path cut is no longer WHITE — skin.pathColor stops being an absolute tint (the score bug's tintable-ink rule) (round 61e, S53)");
+  if (!/if \(cIn && cOutP\) \{/.test(src))
+    errors.push("the stub strip lost its atom gate — a failed cut would ship stub-less skins with NO live path at all (round 61e, S53)");
+  if (!/const cutAtom = async \(sv: string\)/.test(src)
+      || !src.includes("railDx: at.dx, railDy: at.dy, railW: at.w, railH: at.h,\n            }, false);"))
+    errors.push("the skill atoms left the windowed-cut grammar (cutAtom + crop:false — the seat IS the sprite's box, 1:1) — a margin-cropped sprite displayed at the measured seat shrinks the drawn art (round 61e, S53)");
+  // 5) the prefab wiring + the posed snapshot law
+  if (!/go\.AddComponent<PatternBreakSkillNode>\(\);/.test(cs)
+      || !/static Image SkillChild\(GameObject go, string root, string name, PBAsset row, PBAsset baseRow, Sprite baseSp, int pngScale\) \{/.test(cs)
+      || !/static void FillSkillSkin\(PatternBreakSkillNode\.StateSkin dst, PBSkillSkin src\) \{/.test(cs))
+    errors.push("FamilyPrefab lost the SkillNode rig block (or its SkillChild/FillSkillSkin hands) — fresh prefabs ship stateless (round 61e, S53)");
+  if (!/public void Apply\(\) \{\n(?:      \/\/[^\n]*\n)*      if \(!enabled\) return;/.test(src))
+    errors.push("Apply lost its enabled gate — an OnValidate on a stood-down posed copy would re-show the glyph over the posed bake (round 61e, S53)");
+  if (!/var rigSNg = go\.GetComponent<PatternBreakSkillNode>\(\);/.test(cs)
+      || cs.indexOf("var rigSNg = go.GetComponent<PatternBreakSkillNode>();") < cs.indexOf("WireIconChildren(go, root, m, baseAsset.component);")
+      || !/rigSNg\.glyph = gSNt != null \? gSNt\.GetComponent<Image>\(\) : null;/.test(cs))
+    errors.push("the rig's glyph hookup no longer runs AFTER WireIconChildren — the \"Icon glyph\" child doesn't exist until then, so the glyph goes deaf to states (round 61e, S53)");
+  if (!/rigSNg\.frame = BodyImage\(go\);/.test(cs)
+      || cs.indexOf("rigSNg.frame = BodyImage(go);") < cs.indexOf("RebodyIfGlow(go, m, baseAsset.component);")
+      || !/if \(frame != null && frame\.sprite != null\) \{/.test(src))
+    errors.push("the rig stopped re-following the drawing image after RebodyIfGlow (frame = BodyImage, plus Apply's sprite gate) — on a glow kit the root Image is a sprite-less raycast body and a tint there paints a SOLID RECTANGLE over the node (round 61e, S53)");
+  if (!/rigSNg\.pathIn\.transform\.SetSiblingIndex\(0\);/.test(cs))
+    errors.push("the stubs stopped re-seating under Body in the late hookup — Rebody parks Body at sibling 0 and the connector would draw OVER the node's rim (round 61e, S53)");
+  if (!/var rigSNP = inst\.GetComponent<PatternBreakSkillNode>\(\);/.test(cs)
+      || !/\n +rigSNP\.enabled = false;/.test(cs))
+    errors.push("posed skill-node copies stopped standing the rig down — double-stub/double-badge over the posed bake (the round-61e carriage decision: copies are snapshots) (round 61e, S53)");
+  if (/HealSkillNode|SkillNodeRelic/.test(cs))
+    errors.push("a skill-node self-heal appeared — the owner CUT self-heal for existing projects (round 61e, S53)");
+  if (!/files\.push\(\{ path: "Runtime\/PatternBreakSkillNode\.cs", data: SKILL_NODE_RUNTIME \}\);/.test(src)
+      || !/"Runtime\/PatternBreakSkillNode\.cs",/.test(src))
+    errors.push("the SkillNode runtime left the shared Runtime lists — CS0246 on import (the IdleShine lesson) (round 61e, S53)");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);

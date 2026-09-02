@@ -7271,8 +7271,13 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          fork re-inks its unforked path too (factory-follow inside the
          pose), while the base path pick moves every state's stub */
       const pathC = slR.pathColor ?? glow9;
-      const stubs = `<line x1="${(sx - 24 * k).toFixed(1)}" y1="${cyK.toFixed(1)}" x2="${(sx + 6 * k).toFixed(1)}" y2="${cyK.toFixed(1)}" stroke="${pathC}" stroke-width="${stubW.toFixed(1)}" stroke-linecap="round"${state !== "disabled" && opts.overlay !== "locked" ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(pathC, 0.6)})"` : ""} opacity="${opts.overlay === "locked" ? 0.25 : 0.95}"/>
-        <line x1="${(sx + sw - 6 * k).toFixed(1)}" y1="${cyK.toFixed(1)}" x2="${(sx + sw + 24 * k).toFixed(1)}" y2="${cyK.toFixed(1)}" stroke="rgba(255,255,255,0.25)" stroke-width="${stubW.toFixed(1)}" stroke-linecap="round"/>`;
+      /* round 61e (exporter handoff): the two stubs wear data-skillpath
+         marks so the Unity export can cut the connector as its OWN live
+         child (skin.pathColor tints it) and strip it from the baked
+         skins — a <g> wrapper is render-neutral, every byte of the
+         drawing itself unchanged. */
+      const stubs = `<g data-skillpath="in"><line x1="${(sx - 24 * k).toFixed(1)}" y1="${cyK.toFixed(1)}" x2="${(sx + 6 * k).toFixed(1)}" y2="${cyK.toFixed(1)}" stroke="${pathC}" stroke-width="${stubW.toFixed(1)}" stroke-linecap="round"${state !== "disabled" && opts.overlay !== "locked" ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(pathC, 0.6)})"` : ""} opacity="${opts.overlay === "locked" ? 0.25 : 0.95}"/></g>
+        <g data-skillpath="out"><line x1="${(sx + sw - 6 * k).toFixed(1)}" y1="${cyK.toFixed(1)}" x2="${(sx + sw + 24 * k).toFixed(1)}" y2="${cyK.toFixed(1)}" stroke="rgba(255,255,255,0.25)" stroke-width="${stubW.toFixed(1)}" stroke-linecap="round"/></g>`;
       let over = "";
       if (opts.overlay === "locked") {
         /* the veil's strength is the Locked state's own dial (lockedDim,
@@ -7286,7 +7291,11 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         if (fcM) over += `<g clip-path="url(#${fcM[1]}fc)"><rect x="${(sx - 4).toFixed(1)}" y="${(sy - 4).toFixed(1)}" width="${(sw + 8).toFixed(1)}" height="${(sh + 8).toFixed(1)}" fill="rgba(6,8,16,${dim9})"/></g>`;
         // the lock IS the content on a locked node: big, face-centered, and
         // in the same deactivated gray as every disabled glyph
-        over += iconGroup(STOCK_ICONS.lock, sx + sw / 2 - 27 * k, cyK - 27 * k, 54 * k, slR.glyphInk ?? "#A7AAB4", { strokeWidth: 2 * iconWK });
+        /* round 61e (exporter handoff): the padlock rides a MARKED icon
+           group (the learnedbadge grammar) so it ships as its own live
+           "Lock" child in Unity — never burned into a locked skin — while
+           the app's draw stays byte-identical (the wrapper is inert). */
+        over += `<g data-part="icon" data-icon="lockglyph" data-icon-nick="Lock">` + iconGroup(STOCK_ICONS.lock, sx + sw / 2 - 27 * k, cyK - 27 * k, 54 * k, slR.glyphInk ?? "#A7AAB4", { strokeWidth: 2 * iconWK }) + `</g>`;
       } else if (opts.overlay === "learned" && slR.checkColor !== "none") {
         /* the corner check — plate follows Bevel until forked, the ring
            stays the plate's own darker edge, the mark's ink and glyph are
