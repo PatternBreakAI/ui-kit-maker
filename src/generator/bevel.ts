@@ -10918,7 +10918,7 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
          the per-piece type-size dial and both nudges — measure-true
          fitted to the panel's reading zone. */
       const hRb = ({ s: 104, m: 138, l: 176 } as Record<KitSize, number>)[size] * k;
-      const wRb = hRb * 4.6; // the re-authored 460x100 box — the exact-shape reference's proportion
+      const wRb = hRb * 4.22; // the trimmed 422x100 box (owner: "the end flaps are a bit too wide" — visible tail reach 94 → 75, panel untouched)
       /* verdict 3 (owner ribbon round: "built through the dials"): on the
          ribbon cut the PANEL is the piece's face, so the union shell PARKS
          its own gloss band — build's full-face sweep would smear across
@@ -10939,13 +10939,15 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       // CTA — a ribbon reads as an announcement, not a button verb); the
       // Text control re-words this copy like any labeled piece
       const lblRb = (opts.label ?? "") || "DAILY OBJECTIVE";
-      /* the reading seat re-derived for the re-authored panel (x 94-366,
-         y 0-72 of 460x100): the fit run spans the wider panel minus the
-         same side margins, the cap rises with the taller panel, and the
-         seat sits at the measure-true reading center — midway between
-         the top catch's underside (y 10) and the bottom shadow's crown
-         (y 65.5): y 37.75 of 100 */
-      const fsRb = fitFs(lblRb, 24 * k * typeK, wRb * 0.55);
+      /* the reading seat re-derived for the re-authored panel (x 75-347,
+         y 0-72 of the trimmed 422x100): the fit run spans the same
+         ABSOLUTE panel minus the same side margins (0.6 of 422 == 0.55
+         of the old 460 — the panel didn't move, the box shrank), the cap
+         rises with the taller panel, and the seat sits at the
+         measure-true reading center — midway between the top catch's
+         underside (y 10) and the bottom shadow's crown (y 65.5):
+         y 37.75 of 100 */
+      const fsRb = fitFs(lblRb, 24 * k * typeK, wRb * 0.6);
       const labelRb = contentText(lblRb, 39 + wRb / 2, 30 + hRb * 0.3775, fsRb, { anchor: "middle" });
       /* a per-piece re-dress (kitShapes) swaps the silhouette like any
          component — the ribbon furnishing belongs to the ribbon cut alone,
@@ -10972,8 +10974,18 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
          IS the "panel in front" read, with no opaque repaint hiding the
          kit's pattern and gloss anywhere on the piece */
       const boxRb = `M ${(39 - 2).toFixed(0)} ${(30 - 2).toFixed(0)} H ${(39 + wRb + 2).toFixed(1)} V ${(30 + hRb + 2).toFixed(1)} H ${(39 - 2).toFixed(0)} Z`;
+      /* the knockout carves the panel GROWN by a hair (1.25px): the clip
+         edge's own anti-aliasing could otherwise land a quarter-covered
+         back pixel exactly on the rim row — measured as 1/255 residuals in
+         the corner raster proof. Grown, every back pixel dies before the
+         panel's edge, and the panel's opaque edge dress (z2.5) owns the
+         boundary row outright — the corner proof's diff is EMPTY. The
+         half-pixel of shell face this bares outside the keyline reads as
+         the front piece's own edge light, never as back ink. */
+      const scK = wRb / vbRb[2], eKn = 1.25;
+      const knRb = `M ${(39 + 75 * scK - eKn).toFixed(1)} ${(30 - eKn).toFixed(1)} H ${(39 + 347 * scK + eKn).toFixed(1)} V ${(30 + 72 * scK + eKn).toFixed(1)} H ${(39 + 75 * scK - eKn).toFixed(1)} Z`;
       let defsRb = `<clipPath id="${ridR}s"><path d="${silRb}"/></clipPath>` +
-        `<clipPath id="${ridR}n"><path d="${boxRb} ${bakeRb(RBP.centerPanel)}" clip-rule="evenodd"/></clipPath>` +
+        `<clipPath id="${ridR}n"><path d="${boxRb} ${knRb}" clip-rule="evenodd"/></clipPath>` +
         // tails: the Shadow role graded along the light axis — deeper on the
         // away side, lifting toward the light, texture showing through
         `<linearGradient id="${ridR}tw" ${axisR}><stop offset="0" stop-color="${shInk}" stop-opacity="${clamp(0.46 * loKr, 0.22, 0.6).toFixed(2)}"/><stop offset="1" stop-color="${shInk}" stop-opacity="${clamp(0.26 * loKr, 0.12, 0.4).toFixed(2)}"/></linearGradient>` +
@@ -10982,15 +10994,90 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
         // the panel's lift — a whisper of Highlight so the front surface
         // reads a step prouder in any kit look, light or dark
         `<linearGradient id="${ridR}pl" ${axisR}><stop offset="0" stop-color="${hiInk}" stop-opacity="0.03"/><stop offset="1" stop-color="${hiInk}" stop-opacity="${clamp(0.14 * hiKr, 0.05, 0.2).toFixed(2)}"/></linearGradient>`;
+      // build()'s state paint adjust, shared by the edge dress and the
+      // gloss swoosh below (both replicate shell inks state-true)
+      const adjRb = cfg.states[state];
+      const PRb = (c: string) => {
+        if (state === "disabled") return lighten(desaturate(c, 0.82), 0.1);
+        const satRb = clamp(adjRb?.saturation ?? 0, -100, 100);
+        return bright(satRb ? saturate(c, satRb / 100) : c, adjRb?.brightness ?? 0);
+      };
       let furnRb = "";
-      // z0 · tails behind (clipped to the panel's complement)
-      furnRb += `<g clip-path="url(#${ridR}n)"><path d="${bakeRb(RBP.leftTail)} ${bakeRb(RBP.rightTail)}" fill="url(#${ridR}tw)"/>` +
+      /* z0-z2 · EVERY back piece — tail washes, streaks, folds, fold
+         catches — rides ONE marked group under the panel knockout (the
+         owner's paint law, 2026-09-02: "the back shapes should NOT be
+         showing through the front shapes" — nothing painted for a back
+         piece may reach the panel's face, not even a fold's anti-aliased
+         top row; the folds were the one pass still unclipped). The
+         data-part marks the group so the corner proof can re-render the
+         piece without its back paint and pixel-diff the panel. */
+      furnRb += `<g data-part="ribbon-back" clip-path="url(#${ridR}n)"><path d="${bakeRb(RBP.leftTail)} ${bakeRb(RBP.rightTail)}" fill="url(#${ridR}tw)"/>` +
         // tail highlight streaks — under the panel per both authored previews
-        `<path d="${bakeRb(RBP.leftTailHighlight)} ${bakeRb(RBP.rightTailHighlight)}" fill="url(#${ridR}hs)" opacity="0.72"/></g>`;
-      // z1 · the dark fold triangles — the tuck that sells the overlap
-      furnRb += `<path d="${bakeRb(RBP.leftFold)} ${bakeRb(RBP.rightFold)}" fill="${shInk}" opacity="0.94"/>`;
-      // z2 · fold light catches — the fold's inner face finds the light
-      furnRb += `<path d="${bakeRb(RBP.leftFoldLight)} ${bakeRb(RBP.rightFoldLight)}" fill="${hiInk}" opacity="0.34"/>`;
+        `<path d="${bakeRb(RBP.leftTailHighlight)} ${bakeRb(RBP.rightTailHighlight)}" fill="url(#${ridR}hs)" opacity="0.72"/>` +
+        // the dark fold triangles — the tuck that sells the overlap
+        `<path d="${bakeRb(RBP.leftFold)} ${bakeRb(RBP.rightFold)}" fill="${shInk}" opacity="0.94"/>` +
+        // fold light catches — the fold's inner face finds the light
+        `<path d="${bakeRb(RBP.leftFoldLight)} ${bakeRb(RBP.rightFoldLight)}" fill="${hiInk}" opacity="0.34"/></g>`;
+      /* z2.5 · THE PANEL'S OWN FRONT EDGE, completed (owner, same note,
+         both bottom corners circled). build() dresses only the UNION
+         outline, so the panel's bottom edge wore wall, keyline, rim and
+         inner-edge ONLY over the mid-run the outline owns (x 111-311 of
+         422); along the tuck runs (x 75-111 / x 311-347) and the
+         under-tail side runs (y 28-72) the front piece ended in naked
+         geometry — the bottom band's tone step at the tuck boundary was
+         the tail literally reading through the panel, and the fold met
+         the bright face with no edge at all. The shell's recipe now
+         CONTINUES around those naked runs: the same band fill between
+         face inset and edge, the same dark outline keyline, the same rim
+         and inner-edge strokes — inks, insets and widths computed by
+         build()'s own formulas (K = 1 here: the ribbon build passes
+         tokenH 168 — keep in lockstep with build's shell layer, the
+         gloss-swoosh discipline), each segment meeting the shell's own
+         dress vertex-exact at both ends. Painted AFTER the back pieces:
+         front over back, by z-order — the opaque keyline is also what
+         buries any anti-aliased half-row at the knockout boundary. */
+      furnRb += (() => {
+        const scE = wRb / vbRb[2];
+        const Xe = (v: number) => 39 + v * scE, Ye = (v: number) => 30 + v * scE;
+        const disE = state === "disabled";
+        const bevelE = PRb(effect(D2r.effects, "Bevel"));
+        const CE = D2r.candy;
+        const fw = effectiveWall(D2r.bevel.width, sov as Shape, D2r.bevel.off);
+        const gpE = (v: number) => 0.5 + clamp(v, -1, 1) * 0.5;
+        // userSpaceOnUse replicas of the shell's own bbox gradients, each
+        // mapped over the box its build() twin resolves against, so a
+        // continuation pixel samples the identical color at the identical
+        // position — the seams cannot show a join
+        const axisE = (x0: number, y0: number, w0: number, h0: number) =>
+          `gradientUnits="userSpaceOnUse" x1="${(x0 + gpE(-rlxR) * w0).toFixed(1)}" y1="${(y0 + gpE(-rlyR) * h0).toFixed(1)}" x2="${(x0 + gpE(rlxR) * w0).toFixed(1)}" y2="${(y0 + gpE(rlyR) * h0).toFixed(1)}"`;
+        let d2 = "", art = "";
+        // the L-shaped runs, left then mirrored right: side x75 (y28-72)
+        // + bottom y72 (x75-111), meeting build's own dress at the face's
+        // reflex corner above and the outline's interior corner at x111
+        if (fw > 0.15) {
+          d2 += `<linearGradient id="${ridR}eb" ${axisE(39, 30, wRb, hRb)}><stop offset="0" stop-color="${darken(bevelE, clamp(0.3 * loKr, 0, 0.7))}"/><stop offset=".5" stop-color="${bevelE}"/><stop offset="1" stop-color="${lighten(bevelE, clamp(0.45 * hiKr, 0, 0.75))}"/></linearGradient>`;
+          const bandL = `M ${Xe(75).toFixed(1)} ${(Ye(28) + fw).toFixed(1)} L ${(Xe(75) + fw).toFixed(1)} ${(Ye(28) + fw).toFixed(1)} L ${(Xe(75) + fw).toFixed(1)} ${(Ye(72) - fw).toFixed(1)} L ${(Xe(111) - fw).toFixed(1)} ${(Ye(72) - fw).toFixed(1)} L ${(Xe(111) - fw).toFixed(1)} ${Ye(72).toFixed(1)} L ${Xe(75).toFixed(1)} ${Ye(72).toFixed(1)} Z`;
+          const bandR = `M ${Xe(347).toFixed(1)} ${(Ye(28) + fw).toFixed(1)} L ${(Xe(347) - fw).toFixed(1)} ${(Ye(28) + fw).toFixed(1)} L ${(Xe(347) - fw).toFixed(1)} ${(Ye(72) - fw).toFixed(1)} L ${(Xe(311) + fw).toFixed(1)} ${(Ye(72) - fw).toFixed(1)} L ${(Xe(311) + fw).toFixed(1)} ${Ye(72).toFixed(1)} L ${Xe(347).toFixed(1)} ${Ye(72).toFixed(1)} Z`;
+          art += `<path d="${bandL} ${bandR}" fill="url(#${ridR}eb)"/>`;
+        }
+        // the dark outline keyline — build's own stroke, continued along
+        // the panel's naked edges; opaque, centered on the true boundary
+        art += `<path d="M ${Xe(75).toFixed(1)} ${Ye(28).toFixed(1)} L ${Xe(75).toFixed(1)} ${Ye(72).toFixed(1)} L ${Xe(111).toFixed(1)} ${Ye(72).toFixed(1)} M ${Xe(347).toFixed(1)} ${Ye(28).toFixed(1)} L ${Xe(347).toFixed(1)} ${Ye(72).toFixed(1)} L ${Xe(311).toFixed(1)} ${Ye(72).toFixed(1)}" fill="none" stroke="${darken(bevelE, disE ? 0.25 : 0.5)}" stroke-width="1.5"/>`;
+        const rimWE = CE.rim.width; // K = 1
+        if (rimWE > 0.2) {
+          const tE = rimWE / 2 + 0.8;
+          d2 += `<linearGradient id="${ridR}er" ${axisE(39 + tE, 30 + tE, wRb - 2 * tE, hRb - 2 * tE)}><stop offset="0" stop-color="${PRb(D2r.lighting.tint ?? hiInk)}" stop-opacity="0.45"/><stop offset=".4" stop-color="${PRb(D2r.lighting.tint ?? hiInk)}" stop-opacity="0.08"/><stop offset="1" stop-color="${PRb(D2r.lighting.tint ?? hiInk)}" stop-opacity="0.95"/></linearGradient>`;
+          art += `<path d="M ${(Xe(75) + tE).toFixed(1)} ${(Ye(28) + tE).toFixed(1)} L ${(Xe(75) + tE).toFixed(1)} ${(Ye(72) - tE).toFixed(1)} L ${(Xe(111) - tE).toFixed(1)} ${(Ye(72) - tE).toFixed(1)} M ${(Xe(347) - tE).toFixed(1)} ${(Ye(28) + tE).toFixed(1)} L ${(Xe(347) - tE).toFixed(1)} ${(Ye(72) - tE).toFixed(1)} L ${(Xe(311) + tE).toFixed(1)} ${(Ye(72) - tE).toFixed(1)}" fill="none" stroke="url(#${ridR}er)" stroke-width="${rimWE.toFixed(1)}" opacity="${((CE.rim.brightness / 100) * (disE ? 0.5 : 1)).toFixed(2)}"/>`;
+        }
+        const ieOpE = CE.innerEdge.strength / 100;
+        if (ieOpE > 0.01 && CE.innerEdge.width > 0.1 && fw > 0.15) {
+          const faceE = D2r.face.mode === "dark" ? hexMix(bevelE, "#0B0714", 0.72) : PRb(effect(D2r.effects, "Inner Fill"));
+          d2 += `<linearGradient id="${ridR}ei" ${axisE(39 + fw, 30 + fw, wRb - 2 * fw, hRb - 2 * fw)}><stop offset="0" stop-color="${hexRgba(lighten(faceE, 0.55), 0.55)}"/><stop offset=".55" stop-color="${hexRgba(darken(bevelE, 0.35), 0.35)}"/><stop offset="1" stop-color="${hexRgba(darken(bevelE, 0.58), 0.9)}"/></linearGradient>`;
+          art += `<path d="M ${(Xe(75) + fw).toFixed(1)} ${(Ye(28) + fw).toFixed(1)} L ${(Xe(75) + fw).toFixed(1)} ${(Ye(72) - fw).toFixed(1)} L ${(Xe(111) - fw).toFixed(1)} ${(Ye(72) - fw).toFixed(1)} M ${(Xe(347) - fw).toFixed(1)} ${(Ye(28) + fw).toFixed(1)} L ${(Xe(347) - fw).toFixed(1)} ${(Ye(72) - fw).toFixed(1)} L ${(Xe(311) + fw).toFixed(1)} ${(Ye(72) - fw).toFixed(1)}" fill="none" stroke="url(#${ridR}ei)" stroke-width="${CE.innerEdge.width.toFixed(1)}" opacity="${clamp(ieOpE, 0, 1).toFixed(2)}"/>`;
+        }
+        defsRb += d2;
+        return `<g data-part="ribbon-edge">${art}</g>`;
+      })();
       // z3 · the center panel's lift wash (the kit face stays the face)
       furnRb += `<path d="${bakeRb(RBP.centerPanel)}" fill="url(#${ridR}pl)"/>`;
       // z4 · panel bottom shadow · z5 · panel top catch (the pack's bands)
@@ -10998,7 +11085,7 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       furnRb += `<path d="${bakeRb(RBP.panelTopCatch)}" fill="url(#${ridR}hs)" opacity="0.9"/>`;
       /* z6 · THE GLOSS SWOOSH (verdict 3) — the kit gloss treatment on the
          panel, build()'s layer-8 recipe verbatim fitted to the panel box
-         (re-authored art 460x100: panel x 94-366, y 0-72): the same signed-curve
+         (trimmed art 422x100: panel x 75-347, y 0-72): the same signed-curve
          quadratic (bow = Curvature x the shell's token scale, 1 here), the
          same light-keyed apex and lit-from-below flip, the same 3-stop
          softness fade, fill modes and state adjust, the same disabled
@@ -11011,16 +11098,10 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
          (the gameart's own z); above = over words and glints, build's
          above-content rule. */
       const GLS = D2r.candy.gloss;
-      const adjRb = cfg.states[state];
-      const PRb = (c: string) => {
-        if (state === "disabled") return lighten(desaturate(c, 0.82), 0.1);
-        const satRb = clamp(adjRb?.saturation ?? 0, -100, 100);
-        return bright(satRb ? saturate(c, satRb / 100) : c, adjRb?.brightness ?? 0);
-      };
       let glossAboveRb = "";
       const gOpRb = (GLS.opacity / 100) * (state === "disabled" ? 0.35 : 1);
       if (GLS.on && gOpRb > 0.01) {
-        const pxRb = 39 + wRb * (94 / vbRb[2]), pwRb = wRb * (272 / vbRb[2]);
+        const pxRb = 39 + wRb * (75 / vbRb[2]), pwRb = wRb * (272 / vbRb[2]);
         const pyRb = 30, phRb = hRb * (72 / vbRb[3]);
         const flipRb = rlyR > 0.25; // lit from below — the sweep flips down
         const gHRb = phRb * clamp(GLS.height / 100, 0.08, 0.92);

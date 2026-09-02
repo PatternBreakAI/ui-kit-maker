@@ -367,11 +367,13 @@ export const SILHOUETTES: SilhouetteMeta[] = [
      re-authored 2026-09-01 (second pass) to the owner's exact-shape
      ruling and construction recipe: same-height panel and tails (72
      each), vertical sides throughout, staggered tail band, V notches
-     pushed in from an added outer midpoint, fold connectors. Content
-     box = the panel's reading zone (x 98-362, y 10-65.5 of the 460x100
-     art); caps cover the deep V notches (apex 56 in + shoulder). */
+     pushed in from an added outer midpoint, fold connectors — then the
+     owner's 2026-09-02 flap trim (visible tail reach 94 → 75, box now
+     422x100). Content box = the panel's reading zone (x 79-343,
+     y 10-65.5 of the 422x100 art); caps cover the V notches (apex 48
+     in + shoulder). */
   { id: "stock:ribbonclassic", name: "Ribbon Banner", category: "Banners & Labels", source: "geometry authored in-house for UI Kit Maker, 2026, by the owner's construction recipe against their exact-shape reference (owner ribbon commission)", license: "original", renderer: "path", preview: true,
-    capScale: 0.62, content: { top: 0.1, right: 0.215, bottom: 0.345, left: 0.215 }, minWidth: 128, minHeight: 64,
+    capScale: 0.54, content: { top: 0.1, right: 0.187, bottom: 0.345, left: 0.187 }, minWidth: 128, minHeight: 64,
     supports: ["button"], character: "The classic swallow-tail ribbon — tails tucked behind, message panel proud in front." },
 
   /* ── Showpieces — statement one-offs (owner, 2026-08-15). A shape here
