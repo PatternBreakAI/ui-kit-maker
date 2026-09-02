@@ -2755,7 +2755,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("PatternBreakKitBarFill.cs must ride BOTH files.push and sharedScripts (the IdleShine CS0246 lesson)");
   if (!/static void WireBarCap\(GameObject area, Image fImg, string root, string fam, bool fromRight, float staged\)/.test(cs)
       || !/WireBarCap\(area, fImg, root, fam, fromRight, staged\);/.test(cs)
-      || !/WireBarCap\(area, fImg, root, "slider", false, 0\.62f\);/.test(cs)
+      || !/var frt = BuildBarFill\(go, "Fill", fill, track, pngScale, m, root, "slider", 0\.62f, false\);/.test(cs)
       || !/WireBarCap\(area, fi, root, "vsbar", false, 0\.72f\);/.test(cs)
       || !/WireBarCap\(area, fi, root, "vsbar", true, 0\.58f\);/.test(cs))
     errors.push("the cap wiring left a bar prefab road (BuildBarFill/Slider/VsBar) — that family's mercury goes flat again");
@@ -3520,8 +3520,8 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("KitBarFill lost the body-space value map — fills seat right of the well again (round 48, S38)");
   if (!/static void WireBarBodies\(GameObject area, PBManifest m\) \{/.test(cs)
       || !/static PBAsset RowOfSprite\(PBManifest m, Sprite sp\) \{/.test(cs)
-      || (cs.match(/WireBarBodies\(/g) ?? []).length < 7)
-    errors.push("WireBarBodies (or enough of its call sites — BuildBarFill, Slider, VsBar x2, rails, graft) left the importer (round 48, S38)");
+      || (cs.match(/WireBarBodies\(/g) ?? []).length < 6)
+    errors.push("WireBarBodies (or enough of its call sites — BuildBarFill (the slider rides it since round 62), VsBar x2, rails, graft) left the importer (round 48, S38)");
   if (!/<clipPath id="\$\{gid\}g\$\{i\}">/.test(bevelSrc))
     errors.push("the segbar per-cell gloss clip is gone — highlights overrun the pills again (round 48, S38)");
 }
@@ -3876,10 +3876,10 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the vsbar exclusion came back — the ramp rides the width road now: Sliced center compression IS the app's squeeze, and the detached drain bead was the owner's round-60 field conviction (round 60, S48)");
   if (!/public int barMode = 0;/.test(src) || !/\[Range\(0f, 1f\)\]\n\s*\[Tooltip[^\n]*\n\s*public float value = -1f;/.test(src)
       || !/void ApplyWidth\(float v\) \{/.test(src)
-      || !/var wantType = barMode == 2 && v \* areaW > minInk \+ 1f \? Image\.Type\.Tiled : Image\.Type\.Sliced;/.test(src))
+      || !/var wantType = barMode == 2 && ink > minInk \+ 1f \? Image\.Type\.Tiled : Image\.Type\.Sliced;/.test(src))
     errors.push("KitBarFill lost the width road — barMode / the [Range] value slider / ApplyWidth / the measured center type with its degenerate-floor Sliced rung (the owner's perfect circle) (round 58, S48)");
   if (!/float minInk = Mathf\.Max\(2f, \(bd\.x \+ bd\.z\) \* sScale - mL - mR\);/.test(src)
-      || !/float w = Mathf\.Max\(v \* areaW, minInk\) \+ mL \+ mR;/.test(src))
+      || !/float w = Mathf\.Max\(ink, minInk\) \+ mL \+ mR;/.test(src))
     errors.push("the width road lost its FLOOR — below one cap-diameter of run a bordered sprite squashes its bead (the owner's field screenshots: fat stadium ends) (round 58, S48)");
   if (!/if \(barMode != 0 && !stretchRun && fill\.sprite != null\) \{/.test(src)
       || !/public void SetValue\(float v\) \{ value = Snap\(v\); Apply\(\); \}/.test(src)
@@ -3985,7 +3985,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
       || !/float texW = Mathf\.Max\(1f, geoSp\.rect\.width\), texH = Mathf\.Max\(1f, geoSp\.rect\.height\);/.test(src)
       || !/var bd = geoSp\.border;/.test(src))
     errors.push("ApplyWidth measures off the WORN sprite — at the floor the borderless atom would re-derive a different floor and flip-flop (round 60, S50)");
-  if (!/bool atFloor = floorSprite != null && mercurySprite != null && v \* areaW < minInk - 0\.5f;/.test(src)
+  if (!/bool atFloor = floorSprite != null && mercurySprite != null && ink < minInk - 0\.5f;/.test(src)
       || !/if \(atFloor\) wantType = Image\.Type\.Simple;/.test(src)
       || !/var wear = atFloor \? floorSprite : mercurySprite;\s*\n\s*if \(fill\.sprite != wear\) fill\.sprite = wear;/.test(src))
     errors.push("the floor swap left ApplyWidth — the ramp's sub-floor range shows the hard mid-seam the round-60 receipts named (round 60, S50)");
@@ -4010,6 +4010,229 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/Left fighter's mercury — a bordered stadium driven by WIDTH/.test(src)
       || !/LEGACY drain bead/.test(src) || !/The FLOOR ink — the live draw at run = one bar height/.test(src))
     errors.push("the vsbar atoms' usage rows stopped teaching the width road (the caps' LEGACY marking or the nubs' floor-ink job) (round 60, S50)");
+}
+
+/* ── ROUND 61 · S51 (the learned skill node's export half — the app
+   lane's round-61 flag, both gaps): the maker's SLOT PICKS reach every
+   board-copy bake (the Board stage passes kitSlotVals[b.kitId]; the six
+   posed-skin renders must speak the same grammar or learned-pose picks
+   silently vanish from the zip), and the learned pose's corner check is
+   MARKED swappable ink (the dailycell claimbadge grammar) so it ships
+   as its own live Image child instead of burning into the posed skin. ── */
+{
+  // 1) the six board-copy renders (display bake, wipe companion, posed
+  //    default, posed states, kit-shadow bake, dialed-shadow art) all
+  //    carry the piece's slot picks — exactly six, one grammar
+  const slotRides = (src.match(/overlay: b\.ov, slots: st\.kitSlotVals\?\.\[id\],/g) ?? []).length;
+  if (slotRides !== 6)
+    errors.push(`the board-copy renders' slot ride moved (${slotRides} sites; the contract is exactly 6 — display bake, wipe companion, posed default, posed states, kit-shadow, dialed-shadow) — learned-pose picks (path, badge, mark, glyph) stop reaching per-copy posed skins (round 61, S51)`);
+  if (!/kitSlotVals\?: Partial<Record<KitComponentId, Record<string, string>>>;\n\}\): Promise<ExportBoardData\[\]> \{/.test(src))
+    errors.push("collectExportBoards' state no longer declares kitSlotVals — the store's slot picks can't arrive typed and every bake falls back factory (round 61, S51)");
+  // 2) the learned badge is marked swappable ink: plate + mark cut as
+  //    ONE live child, the allowNone gate intact
+  if (!/data-icon="learnedbadge" data-icon-nick="Learned badge"/.test(bevelSrc))
+    errors.push("the skillnode's learned badge lost its marked-ink wrap — the check burns back into the posed skin (round 61, S51; owner: 'remove the notification check' must stay a one-child delete in Unity too)");
+  if (!/opts\.overlay === "learned" && slR\.checkColor !== "none"/.test(bevelSrc))
+    errors.push("the learned badge's None gate is gone — the badge-removed pick would ship a badge anyway (round 61, S51)");
+  {
+    // the NEGATIVE pin: no unwrapped badge append may come back to the
+    // skillnode case — a bare `over += `<circle` is the baked-in grammar
+    const snSlice = bevelSrc.slice(bevelSrc.indexOf('case "skillnode"'), bevelSrc.indexOf('case "compass"'));
+    if (!snSlice || /over \+= `<circle/.test(snSlice))
+      errors.push("the skillnode case appends a bare badge circle again (or the case moved) — the learned check bakes into the art instead of riding the marked group (round 61, S51)");
+  }
+  // 3) the posed road's existing hands still do the rest: the cut strips
+  //    from the default skin AND the state skins, and the importer
+  //    rebuilds every posedIcons child live
+  if (!/if \(posedCuts\.length\) ps2 = stripMarkedIcons\(ps2\)\.svg;/.test(src))
+    errors.push("the posed bake no longer strips its marked icon groups — every cut child would double over its baked twin (round 61, S51)");
+  if (!/if \(posedCuts\.length\) for \(const gS of Array\.from\(domS\.querySelectorAll\('\[data-part="icon"\]'\)\)\) gS\.remove\(\);/.test(src))
+    errors.push("the posed STATE skins keep their marked icon ink — the live badge/glyph children would press over baked twins (round 61, S51)");
+  if (!/if \(it\.posedIcons != null\) foreach \(var pIc in it\.posedIcons\) \{/.test(cs))
+    errors.push("the importer's posedIcons rebuild is gone — posed copies' live icon children (the Learned badge included) never reach the scene (round 61, S51)");
+  // 4) the manifest teaches the new anatomy in the owner's language
+  if (!/its OWN Learned badge child/.test(src) || !/ships no badge at all/.test(src))
+    errors.push("the skillnode usage row stopped teaching the Learned-badge child (or the badge-None contract) — the manifest would promise burned-in art (round 61, S51)");
+}
+
+/* ── ROUND 61 · S52 (two owner field finds on emitted rigs):
+   (a) the SCROLLBAR HANDLE ("weird and pointy") — Unity's Scrollbar
+   forces the handle's cross-axis anchors to full stretch, so a zero
+   sizeDelta squeezed the padded thumb canvas into the narrow lane and
+   the drawn capsule collapsed into the slice's center strip; the handle
+   keeps the sprite's design width RELATIVE to the lane, and the thumb's
+   horizontal borders get band-true floors so the capsule's sides live
+   in the caps, not the stretch zone.
+   (b) the SETROW FILL ("needs to be nudged to the right to keep the gap
+   of the well even") — the setrow's stamp deliberately speaks the WELL
+   (the app's pointer scrub owns it), so the rig seated the mercury on
+   the well and ate the app's left gap; the fill row ships the RUN as
+   rail geometry (shell-center relative) and BuildBarFill's zero-gated
+   rail-seat rung rides it. ── */
+{
+  if (!/hrtB\.sizeDelta = new Vector2\(thumbSB\.rect\.width \/ psB - laneWB, 0f\);/.test(cs)
+      || !/float laneWB = go\.GetComponent<RectTransform>\(\)\.sizeDelta\.x - inL - inR;/.test(cs))
+    errors.push("the Scrollbar handle lost its lane-relative width (sizeDelta.x = sprite − lane) — the Scrollbar's forced cross-stretch squeezes the capsule back into a pointy sliver (round 61, S52)");
+  if (!/sliceMin: \{ top: capTh, bottom: capTh, left: capThLR, right: capThLR \}/.test(src))
+    errors.push("the scrollbar thumb's LEFT/RIGHT border floors are gone — the measured borders land in the transparent pad and any cross-axis squeeze collapses the capsule (round 61, S52)");
+  if (!/uid === "setrow" \? \(\(\) => \{/.test(src) || !/railW: r1f\(fb9\[1\]\), railH: r1f\(fb9\[3\]\),/.test(src))
+    errors.push("the setrow fill row stopped shipping its run as rail geometry — the rig re-seats the mercury on the WELL and the left gap dies again (round 61, S52)");
+  if (!/aF61\.component == fam && aF61\.part == "fill" && aF61\.railW > 1f/.test(cs)
+      || !/float runL61 = \(rowT\.shell\.x \+ rowT\.shell\.w \/ 2f\) \/ pngScale \+ rowF61\.railDx - rowF61\.railW \/ 2f;/.test(cs))
+    errors.push("BuildBarFill's rail-seat rung is gone (or lost its zero-gate on railW) — the setrow's even well gap dies, or every bar suddenly re-seats (round 61, S52)");
+}
+
+/* ── ROUND 61e · S53 (the SkillNode state rig — the owner: "i want
+   whatever is best for developers"): one Inspector dropdown (enum names
+   1:1 with the app's state tray), three COMPLETE resolved skins with
+   PERMANENT field names, the badge/lock/veil toggles, the connector
+   un-burned as a live tintable Path child, posed board copies staying
+   snapshots (no double-badge, no double-stub), and NO self-heal for
+   existing projects (the standing owner cut). ── */
+{
+  // 1) the rig's public surface — names are permanent (a rename resets
+  //    every dev override on package update)
+  if (!/public enum SkillNodeState \{ Available, Learned, Locked \}/.test(src))
+    errors.push("the SkillNodeState enum moved off the app's state-tray names (Available/Learned/Locked, 1:1 with KIT_STATE_POSES.skillnode) — SetState callers and serialized states break (round 61e, S53)");
+  if (!/public void SetState\(SkillNodeState s\) \{ state = s; Apply\(\); \}/.test(src)
+      || !/\[SerializeField\] SkillNodeState state = SkillNodeState\.Available;/.test(src))
+    errors.push("the rig lost SetState or its Inspector state dropdown (round 61e, S53)");
+  if (!/\[ExecuteAlways\]\n  public class PatternBreakSkillNode : MonoBehaviour \{/.test(src)
+      || !/void OnValidate\(\) \{ UnityEditor\.EditorApplication\.delayCall \+= \(\) => \{ if \(this != null\) Apply\(\); \}; \}/.test(src))
+    errors.push("the dropdown stopped previewing in edit mode — ExecuteAlways or the deferred OnValidate Apply left the rig (round 61e, S53)");
+  for (const fld of ["public Color faceColor = Color.white;", "public Color glyphInk = Color.white;", "public Color rimColor = Color.white;", "public Color glowColor = Color.white;", "public bool glowEnabled = true;", "public Color pathColor = Color.white;", "public float dimAlpha;"])
+    if (!src.includes(fld))
+      errors.push(`StateSkin lost its permanent field "${fld}" — serialized dev overrides reset on package update (round 61e, S53)`);
+  if (!/public StateSkin available = new StateSkin\(\);/.test(src)
+      || !/public StateSkin learned = new StateSkin\(\);/.test(src)
+      || !/public StateSkin locked = new StateSkin\(\);/.test(src))
+    errors.push("the three complete skin blocks left the rig — the dev is back to decoding inheritance (round 61e, S53)");
+  // 2) the toggles and the tint law (paint only, never shape)
+  if (!/if \(learnedBadge != null\) learnedBadge\.SetActive\(state == SkillNodeState\.Learned\);/.test(src)
+      || !/if \(lockGlyph != null\) lockGlyph\.SetActive\(state == SkillNodeState\.Locked\);/.test(src))
+    errors.push("the badge/lock toggles left Apply — a Learned node keeps its check in Available again (round 61e, S53)");
+  if (!/if \(pathIn != null && pathIn\.color != sk\.pathColor\) pathIn\.color = sk\.pathColor;/.test(src))
+    errors.push("the Path child stopped wearing skin.pathColor — the connector stub stops answering the state (round 61e, S53)");
+  if (!/static Color Rel\(Color f, Color b\)/.test(src) || !/Rel\(sk\.faceColor, available\.faceColor\)/.test(src))
+    errors.push("the RELATIVE face tint left Apply — Available would double-tint its own art, or a fork would multiply raw (round 61e, S53)");
+  // 3) the resolved-skin emission: fork ?? base ?? factory, flattened at
+  //    export (the app's own ladder), with the locked literals kept
+  if (!/const resolveSkillSkins = \(\)/.test(src)
+      || !/slotsS\[stateSlotKey\(state, id\)\]/.test(src)
+      || !/effSlotColor\(cfgS, "skillnode", id, slotsS\)/.test(src))
+    errors.push("the skin resolver lost the fork ?? base ?? factory ladder (stateSlotKey + effSlotColor — bevel's own resolution) (round 61e, S53)");
+  if (!/\? \(hexish\(pickS\(state, "glyphInk"\)\) \? pickS\(state, "glyphInk"\)! : "#A7AAB4"\)/.test(src)
+      || !/Math\.min\(100, \+dimRaw\) \/ 100 : 0\.5/.test(src))
+    errors.push("the locked literals drifted — the padlock's deactivated-gray ladder or the classic half veil (bevel's own rules) left the resolver (round 61e, S53)");
+  if (!/\.\.\.\(stagedShips\("skillnode"\) \? \{ skillSkins: resolveSkillSkins\(\) \} : \{\}\),/.test(src))
+    errors.push("the manifest stopped carrying skillSkins (or lost the staged gate) — the rig has nothing to consume (round 61e, S53)");
+  if (!/class PBSkillSkin \{ public string state; public string faceColor; public string glyphInk; public string rimColor; public string glowColor; public bool glowEnabled; public string pathColor; public float dimAlpha; \}/.test(cs)
+      || !/public PBSkillSkin\[\] skillSkins;/.test(cs))
+    errors.push("the importer can no longer parse skillSkins (PBSkillSkin/PBManifest drifted) — JsonUtility drops the blocks silently (round 61e, S53)");
+  // 4) the un-burned connector: marked in bevel, stripped from every
+  //    skillnode skin, cut white for the absolute tint
+  if (!/data-skillpath="in"/.test(bevelSrc) || !/data-skillpath="out"/.test(bevelSrc))
+    errors.push("bevel's skillnode stubs lost their data-skillpath marks — the exporter can neither cut nor strip the connector (round 61e, S53)");
+  if (!/baseSvgU = stripSkillPath\(baseSvgU\);/.test(src)
+      || !/const sOut = skillAtoms \? stripSkillPath\(sOut0\) : sOut0;/.test(src))
+    errors.push("the skillnode skins stopped shedding their stubs — the live Path child double-draws over the bake (round 61e, S53)");
+  if (!/ln\.setAttribute\("stroke", "#FFFFFF"\);/.test(src) || !/rgba\(255,255,255,0\.6\)/.test(src))
+    errors.push("the Path cut is no longer WHITE — skin.pathColor stops being an absolute tint (the score bug's tintable-ink rule) (round 61e, S53)");
+  if (!/if \(cIn && cOutP\) \{/.test(src))
+    errors.push("the stub strip lost its atom gate — a failed cut would ship stub-less skins with NO live path at all (round 61e, S53)");
+  if (!/const cutAtom = async \(sv: string\)/.test(src)
+      || !src.includes("railDx: at.dx, railDy: at.dy, railW: at.w, railH: at.h,\n            }, false);"))
+    errors.push("the skill atoms left the windowed-cut grammar (cutAtom + crop:false — the seat IS the sprite's box, 1:1) — a margin-cropped sprite displayed at the measured seat shrinks the drawn art (round 61e, S53)");
+  // 5) the prefab wiring + the posed snapshot law
+  if (!/go\.AddComponent<PatternBreakSkillNode>\(\);/.test(cs)
+      || !/static Image SkillChild\(GameObject go, string root, string name, PBAsset row, PBAsset baseRow, Sprite baseSp, int pngScale\) \{/.test(cs)
+      || !/static void FillSkillSkin\(PatternBreakSkillNode\.StateSkin dst, PBSkillSkin src\) \{/.test(cs))
+    errors.push("FamilyPrefab lost the SkillNode rig block (or its SkillChild/FillSkillSkin hands) — fresh prefabs ship stateless (round 61e, S53)");
+  if (!/public void Apply\(\) \{\n(?:      \/\/[^\n]*\n)*      if \(!enabled\) return;/.test(src))
+    errors.push("Apply lost its enabled gate — an OnValidate on a stood-down posed copy would re-show the glyph over the posed bake (round 61e, S53)");
+  if (!/var rigSNg = go\.GetComponent<PatternBreakSkillNode>\(\);/.test(cs)
+      || cs.indexOf("var rigSNg = go.GetComponent<PatternBreakSkillNode>();") < cs.indexOf("WireIconChildren(go, root, m, baseAsset.component);")
+      || !/rigSNg\.glyph = gSNt != null \? gSNt\.GetComponent<Image>\(\) : null;/.test(cs))
+    errors.push("the rig's glyph hookup no longer runs AFTER WireIconChildren — the \"Icon glyph\" child doesn't exist until then, so the glyph goes deaf to states (round 61e, S53)");
+  if (!/rigSNg\.frame = BodyImage\(go\);/.test(cs)
+      || cs.indexOf("rigSNg.frame = BodyImage(go);") < cs.indexOf("RebodyIfGlow(go, m, baseAsset.component);")
+      || !/if \(frame != null && frame\.sprite != null\) \{/.test(src))
+    errors.push("the rig stopped re-following the drawing image after RebodyIfGlow (frame = BodyImage, plus Apply's sprite gate) — on a glow kit the root Image is a sprite-less raycast body and a tint there paints a SOLID RECTANGLE over the node (round 61e, S53)");
+  if (!/rigSNg\.pathIn\.transform\.SetSiblingIndex\(0\);/.test(cs))
+    errors.push("the stubs stopped re-seating under Body in the late hookup — Rebody parks Body at sibling 0 and the connector would draw OVER the node's rim (round 61e, S53)");
+  if (!/var rigSNP = inst\.GetComponent<PatternBreakSkillNode>\(\);/.test(cs)
+      || !/\n +rigSNP\.enabled = false;/.test(cs))
+    errors.push("posed skill-node copies stopped standing the rig down — double-stub/double-badge over the posed bake (the round-61e carriage decision: copies are snapshots) (round 61e, S53)");
+  if (/HealSkillNode|SkillNodeRelic/.test(cs))
+    errors.push("a skill-node self-heal appeared — the owner CUT self-heal for existing projects (round 61e, S53)");
+  if (!/files\.push\(\{ path: "Runtime\/PatternBreakSkillNode\.cs", data: SKILL_NODE_RUNTIME \}\);/.test(src)
+      || !/"Runtime\/PatternBreakSkillNode\.cs",/.test(src))
+    errors.push("the SkillNode runtime left the shared Runtime lists — CS0246 on import (the IdleShine lesson) (round 61e, S53)");
+}
+
+/* ── ROUND 62 · S53 (owner field, a FRESH export's Pause scene: "these
+   handles aren't lining up with these sliders?" — with the Board beside
+   it as the truth: the knob is round, centred on the track, and its
+   CENTRE sits exactly on the mercury's visual end).
+   Three faults, one law. The slider seated its own mercury by SPRITE
+   DIFFERENCE — a symmetric guess that put the ink left of the well and,
+   on a stretched board copy, parked the whole mercury in the middle
+   third of the track. Its handle rode a lane derived from nothing the
+   fill knew, so knob and ink drifted ±7px at the quarters and 15-19px at
+   the ends (hundreds of px on a 2x row). And the Slider still held the
+   width-road fill as its Fill Rect: Unity drove that rect's anchors
+   while KitBarFill drove its width, so every posed copy smashed the
+   mercury ~300px past the knob.
+   The law: ONE pair of seats. The mercury rides the fleet's own
+   BuildBarFill road (zone stamp + shell line), the knob's travel is the
+   drawn SHELL inset by half the thumb's own art at each end, the
+   mercury's run ENDS on the far seat and starts the value scale at the
+   near one (KitBarFill.stub — zero-gated, so every display bar keeps
+   v x run byte for byte). Both seats are absolute insets from the same
+   two edges, so the identity survives any width. ── */
+{
+  const slSlice = cs.slice(cs.indexOf("static bool SliderPrefab("), cs.indexOf("static bool SwitchPrefab("));
+  if (!slSlice) errors.push("SliderPrefab moved or vanished — the round-62 handle pins cannot read it");
+  // (a) the mercury rides the fleet's seat, never the sprite-difference guess
+  if (!/var frt = BuildBarFill\(go, "Fill", fill, track, pngScale, m, root, "slider", 0\.62f, false\);/.test(slSlice))
+    errors.push("the Slider prefab stopped seating its mercury through BuildBarFill — the zone stamp and shell line go back to a sprite-difference guess, and a stretched board copy parks the mercury in the middle third (round 62, S53)");
+  if (/float inX = Mathf\.Max\(2f, \(trackW - fillW\) \* 0\.5f\);/.test(slSlice))
+    errors.push("the Slider's symmetric sprite-difference fill inset is back — that is the round-62 bug, verbatim (round 62, S53)");
+  // (b) the two seats: shell ± half the thumb, shared by knob and mercury
+  if (!/float seatL = shellL \+ thumbW \* 0\.5f, seatR = shellR - thumbW \* 0\.5f;/.test(slSlice)
+      || !/art\.offsetMax = new Vector2\(-\(trackW - seatR\), art\.offsetMax\.y\);/.test(slSlice)
+      || !/srt\.offsetMin = new Vector2\(seatL, art\.offsetMin\.y\);/.test(slSlice)
+      || !/srt\.offsetMax = new Vector2\(-\(trackW - seatR\), art\.offsetMax\.y\);/.test(slSlice))
+    errors.push("the slider's knob travel and mercury run no longer share the shell-minus-thumb seats — the knob stops sitting on the fill's end (round 62, S53)");
+  if (!/float shellL = 0f, shellR = trackW;/.test(slSlice) || !/shellR = trackW - \(track\.rect\.width - aT\.shell\.x - aT\.shell\.w\) \/ pngScale;/.test(slSlice))
+    errors.push("the slider's seats stopped reading the manifest's shell box — the travel would ride a hardcoded inset instead of the drawn component (round 62, S53)");
+  // (c) the head start rides the rig, zero-gated for every other bar
+  if (!/public float stub = 0f;/.test(src)
+      || !/float ink = stub > 0\.001f \? stub \+ v \* Mathf\.Max\(1f, areaW - stub\) : v \* areaW;/.test(src))
+    errors.push("KitBarFill lost the knob-seated head start (stub) or its zero-gate — the slider's ink stops tracking its knob, or every display bar's run silently changes (round 62, S53)");
+  if (!/if \(kbf != null\) \{ kbf\.stub = seatL - zoneL; kbf\.SetValue\(0\.62f\); \}/.test(slSlice))
+    errors.push("the Slider prefab stopped handing the rig its head start — value 0 would empty the mercury while the knob parks inside the shell (round 62, S53)");
+  // (d) ONE writer on the width road
+  if (!/if \(kbf != null && kbf\.barMode != 0\) \{\s*\n\s*UnityEditor\.Events\.UnityEventTools\.AddPersistentListener\(sl\.onValueChanged, kbf\.SetValue\);/.test(slSlice)
+      || !/\} else sl\.fillRect = frt;/.test(slSlice))
+    errors.push("the Slider drives the width-road fill rect again (or lost the legacy fillRect fallback) — Unity's anchors and KitBarFill's width fight and the mercury smashes past the knob (round 62, S53)");
+  if (/sl\.fillRect = frt;\s*\n\s*sl\.handleRect/.test(slSlice))
+    errors.push("the unconditional sl.fillRect wire is back on the Slider prefab — the round-62 two-writer smash returns (round 62, S53)");
+  // (e) the handle's rect is the thumb's own box, centred on the band
+  if (!/float bandH = trackH \+ art\.offsetMax\.y - art\.offsetMin\.y;/.test(slSlice)
+      || !/hrt\.sizeDelta = new Vector2\(thumbW, thumbH - bandH\);/.test(slSlice))
+    errors.push("the slider handle lost its band-relative rect (sprite − band) — Unity's forced cross-stretch leaves the knob in a rect twice the track's height, centred only by Preserve Aspect (round 62, S53)");
+  // (f) a posed board copy poses the mercury too
+  if (!/var kbSl = inst\.GetComponentInChildren<KitBarFill>\(true\);\s*\n\s*if \(kbSl != null\) kbSl\.SetValue\(Mathf\.Clamp01\(it\.value\)\);/.test(cs))
+    errors.push("the board's slider pose no longer reaches the mercury — SetValueWithoutNotify skips the rig's listener, so posed copies ship knob and ink on different values (round 62, S53)");
+  // (g) the setrow's knob scrubs the stamped well, its handle rect too
+  const srSlice = cs.slice(cs.indexOf("static void WireSetrowSlider("), cs.indexOf("static void WireNamedRails("));
+  if (!/wellL = aW\.track\.x \/ psSR;/.test(srSlice) || !/srtSR\.offsetMin = new Vector2\(wellL, areaSR\.offsetMin\.y\);/.test(srSlice))
+    errors.push("the setrow knob stopped scrubbing the stamped well — it parks a half-knob short at both ends (round 62, S53)");
+  if (/srtSR\.offsetMin = new Vector2\(areaSR\.offsetMin\.x \+ thW \* 0\.5f, areaSR\.offsetMin\.y\);/.test(srSlice))
+    errors.push("the setrow's half-knob travel inset is back — that is the round-62 setrow bug, verbatim (round 62, S53)");
+  if (!/hrtSR\.sizeDelta = new Vector2\(thW, thH - bandHSR\);/.test(srSlice))
+    errors.push("the setrow handle lost its band-relative rect — the grip's box goes back to guessing at the cross axis (round 62, S53)");
 }
 
 if (errors.length) {

@@ -7,7 +7,7 @@ import { navigate } from "@/shell/router";
 import { usePageScroll } from "@/shell/usePageScroll";
 import { hydrate, healStateIconPins, PRESET_DEFAULTS, retintText, useGen } from "@/generator/store";
 import { PromoCardView } from "@/ui/PromoShelf";
-import { applyKitDesign, applyKitTextFill, applyPresetCandy, clampWeight, defaultCandy, defaultConfig, effKitSize, fontByName, migrateKitDesigns, PRESETS, resolveKitIcon, type GenConfig, type KitComponentId, type KitDesign, type KitSize, type Shape } from "@/generator/model";
+import { applyKitDesign, applyKitTextFill, applyPresetCandy, clampWeight, defaultCandy, defaultConfig, effKitSize, fontByName, migrateKitDesigns, migrateKitSlotVals, PRESETS, resolveKitIcon, type GenConfig, type KitComponentId, type KitDesign, type KitSize, type Shape } from "@/generator/model";
 import { renderBevel, renderKit } from "@/generator/bevel";
 import { makeZip, readStoredZip } from "@/generator/exportUtils";
 import { ensureDocFonts, ensureFont } from "@/generator/fonts";
@@ -142,7 +142,9 @@ function KitPreview({ doc }: { doc: Record<string, unknown> }) {
       const designs = migrateKitDesigns(cfg, (doc.kitDesigns ?? {}) as Partial<Record<KitComponentId, KitDesign>>).forks;
       const fills = (doc.kitTextFill ?? {}) as Record<string, never>;
       const labels = (doc.kitLabels ?? {}) as Record<string, string>;
-      const slots = (doc.kitSlotVals ?? {}) as Record<string, Record<string, string>>;
+      // slot picks migrate here too (the round-61 learned seats) — same
+      // migrate-first rule as the design forks above
+      const slots = migrateKitSlotVals((doc.kitSlotVals ?? {}) as Record<string, Record<string, string>>).vals as Record<string, Record<string, string>>;
       /* the WHOLE per-piece story, not just the style forks — the bench
          used to drop kitShapes / sizes / icons / values / bar config and
          the per-size type-seat nudges, so a heavily tuned kit previewed

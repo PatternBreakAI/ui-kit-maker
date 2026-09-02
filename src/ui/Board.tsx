@@ -223,6 +223,12 @@ const BOARD_TEMPLATES: Record<string, Tpl> = {
     { kitId: "input", x: 656, y: 879, scale: 0.8 },
     { kitId: "resource", x: 5, y: 6, scale: 0.9 },
     { kitId: "currency", x: 5, y: 108, scale: 0.9, label: "8,420" },
+    /* the event rail (round 62) — the casual main menu's left-edge ladder
+       of framed glyph buttons: daily gift, prize wheel, mail. REAL buttons
+       from the released fleet, not glyphs posed over frames. */
+    { kitId: "gbtngift", x: 14, y: 232, scale: 0.55 },
+    { kitId: "gbtnprizewheel", x: 14, y: 380, scale: 0.55 },
+    { kitId: "gbtnmail", x: 14, y: 528, scale: 0.55 },
     { kitId: "notifydot", x: 1700, y: 5, scale: 0.9 },
     { kitId: "badge", x: 1643, y: 2, scale: 0.7, label: "NEW" },
     { kitId: "iconbtn", x: 1705, y: 172, scale: 0.9 },
@@ -280,6 +286,9 @@ const BOARD_TEMPLATES: Record<string, Tpl> = {
      quest rail right, dialogue at the floor. */
   "RPG quest": { bg: "/backdrops/strategy-keep.jpg", items: [
     { kitId: "emblembar", x: 50, y: 40, scale: 0.8 },
+    /* the chapter crown (round 62) — the released ribbon banner carries
+       the quest-line name over the skill web, its words a live text seat */
+    { kitId: "ribbonbanner", x: 705, y: 10, scale: 0.6, label: "EMBER PASS" },
     { kitId: "pathconnector", x: 191, y: 287, scale: 0.5 },
     { kitId: "pathconnector", x: 191, y: 452, scale: 0.5 },
     { kitId: "pathconnector", x: 453, y: 207, scale: 0.5 },
@@ -330,6 +339,12 @@ const BOARD_TEMPLATES: Record<string, Tpl> = {
     { kitId: "cardback", x: 1025, y: 150, scale: 0.42 },
     { kitId: "energymeter", x: 40, y: 420, scale: 0.85 },
     { kitId: "combo", x: 590, y: 395, scale: 0.8 },
+    /* the pot (round 62) — the Crown Coin, released, dressed in the kit's
+       own treatment, with its stake count riding beside it */
+    // registry-derived glyph id (LIVE_GLYPHS) — the union lists only the
+    // hand-carved subset, so the Crown Coin follows the tray's own pattern
+    { kitId: "glyphcrowncoin" as KitComponentId, x: 840, y: 420, scale: 0.72 },
+    { kitId: "qtybadge", x: 985, y: 640, scale: 0.6, label: "×500" },
     { kitId: "endturn", x: 1660, y: 430, scale: 0.9 },
     { kitId: "pack", x: 1400, y: 650, scale: 0.5 },
     { kitId: "cardback", x: 1630, y: 662, scale: 0.5 },
@@ -488,14 +503,16 @@ const BOARD_TEMPLATES: Record<string, Tpl> = {
     { kitId: "seasontrack", x: 14, y: 150, scale: 0.24 },
     { kitId: "bottomnav", x: 48, y: 736, scale: 0.37 },
     { kitId: "notifydot", x: 317, y: 757, scale: 0.2 },
-    // staged: glyphflag — chapter-start pennant at the trailhead
+    /* trail garnish (round 62) — the treated glyphs released; the
+       checkpoint marks the bend past level 2 and the chapter-end crown
+       waits by the castle gate. The flag's audition seat now belongs to
+       the nav dock, so the pennant stays parked. */
+    { kitId: "glyphcheckpoint", x: 291, y: 505, scale: 0.07 },
+    { kitId: "glyphcrown", x: 289, y: 168, scale: 0.08 },
+    // parked: glyphflag — its trailhead seat sits under the nav dock now
     // { kitId: "glyphflag", x: 155, y: 735, scale: 0.07 },
-    // staged: glyphcheckpoint — trail checkpoint on the bend past level 2
-    // { kitId: "glyphcheckpoint", x: 291, y: 505, scale: 0.07 },
     // staged: glyphlock — swappable lock child on the sealed level 5
     // { kitId: "glyphlock", x: 281, y: 244, scale: 0.07 },
-    // staged: glyphcrown — the chapter-end crown by the castle gate
-    // { kitId: "glyphcrown", x: 289, y: 168, scale: 0.08 },
     // staged: glyphhome — swappable icon child for the nav's MAP cell
     // { kitId: "glyphhome", x: 104, y: 758, scale: 0.07 },
     // staged: glyphprofile — swappable icon child for the nav's HEROES cell
@@ -510,13 +527,17 @@ const BOARD_TEMPLATES: Record<string, Tpl> = {
      like the owner's own Victory board (valley backdrop kin). */
   "Victory": { aspect: "mobile", bg: "/backdrops/valley.jpg", items: [
     { kitId: "currency", x: 250, y: 34, scale: 0.34 },
-    { kitId: "header", x: 18, y: 104, scale: 0.32, label: "CHEST OPENED" },
+    /* the crown (round 62) — the released ribbon banner replaces the flat
+       header: the ceremony's title on the swallow-tail, words a live seat */
+    { kitId: "ribbonbanner", x: 5, y: 92, scale: 0.42, label: "CHEST OPENED" },
     // the burst — star + coin spray around the reveal (swappable glyph children)
     { kitId: "glyphstar", x: 48, y: 246, scale: 0.2 },
     { kitId: "glyphstar", x: 300, y: 226, scale: 0.26 },
-    // registry-derived glyph id (LIVE_GLYPHS) — the union lists only the
-    // hand-carved subset, so the cast follows the tray's own pattern
-    { kitId: "glyphcoinstack" as KitComponentId, x: 34, y: 304, scale: 0.24 },
+    /* round 62 containment fix: the coin-spray glyph was glyphcoinstack,
+       which sits REJECTED in the live release ledger — a public deal must
+       never hand out a withheld piece. The released treated coin takes
+       the same seat. */
+    { kitId: "glyphcoin", x: 34, y: 304, scale: 0.24 },
     // the glow behind the legendary pull (support) — drawn first, sits behind
     { kitId: "orb", x: 90, y: 376, scale: 1.1 },
     { kitId: "rewardcard", x: 18, y: 420, scale: 0.38, v: 0.5, label: "Sky Crystal" },
@@ -526,17 +547,19 @@ const BOARD_TEMPLATES: Record<string, Tpl> = {
     { kitId: "qtybadge", x: 28, y: 520, scale: 0.3, label: "×40" },
     { kitId: "qtybadge", x: 158, y: 516, scale: 0.34, label: "×1" },
     { kitId: "qtybadge", x: 289, y: 520, scale: 0.3, label: "×?" },
+    /* the "also inside" strip (round 62) — rewardtray released, landed on
+       its audition seat (starter-boards/shots/victory-06-garnish.png) */
+    { kitId: "rewardtray", x: 40, y: 610, scale: 0.3 },
     { kitId: "claimbtn", x: 14, y: 706, scale: 0.38 },
     { kitId: "claimbtn", x: 200, y: 706, scale: 0.38, ov: "2x" },
-    /* Staged garnish — land these lines in the blessed batch that releases
-       the chest set (audition shot: starter-boards/shots/victory-06-garnish.png).
+    /* Withheld garnish — chest and chestpanel sit REJECTED in the release
+       ledger (with giftbox still in the bay); their audition lines wait
+       for an owner verdict that reverses that.
        v: 0 poses the chest READY — an opened ceremony, not a 4h58m gate. */
-    // staged: chest — { kitId: "chest", x: 138, y: 580, scale: 0.36, v: 0 },
-    // staged: chestpanel — backplate behind the fan, alternate to the orb glow:
+    // rejected: chest — { kitId: "chest", x: 138, y: 580, scale: 0.36, v: 0 },
+    // rejected: chestpanel — backplate behind the fan, alternate to the orb glow:
     //   { kitId: "chestpanel", x: 0, y: 350, scale: 0.56 },
     // staged: giftbox — { kitId: "giftbox", x: 30, y: 600, scale: 0.3 },
-    // staged: rewardtray — "also inside" strip, alternate seat to chest:
-    //   { kitId: "rewardtray", x: 40, y: 610, scale: 0.3 },
     // staged: glyphchest — { kitId: "glyphchest" as KitComponentId, x: 330, y: 320, scale: 0.26 },
     // staged: glyphgift — { kitId: "glyphgift" as KitComponentId, x: 24, y: 176, scale: 0.24 },
     // staged: glyphstarformation — { kitId: "glyphstarformation" as KitComponentId, x: 140, y: 14, scale: 0.4 },
@@ -563,7 +586,9 @@ const BOARD_TEMPLATES: Record<string, Tpl> = {
     { kitId: "radio", x: 1014, y: 715, scale: 0.62 },
     { kitId: "input", x: 320, y: 628, scale: 0.58 },
     { kitId: "small", x: 515, y: 725, scale: 0.66 },
-    // staged: gearicon — beside the TAB chip, e.g. { kitId: "gearicon", x: 500, y: 32, scale: 0.8 }
+    /* the illustrated gear (round 62) — released, landed beside the tab
+       (the audition seat, raised and trimmed clear of the list panel) */
+    { kitId: "gearicon", x: 505, y: 14, scale: 0.68 },
     // staged: glyphsettings — icon child on the tab (seats unverified — Core-only render)
   ] },
   /* ── New starters (§4B) — every key below ships in STAGED_TEMPLATES

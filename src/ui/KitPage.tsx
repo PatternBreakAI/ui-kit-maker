@@ -3540,18 +3540,27 @@ const kitTier = useGen((s) => s.tier);
           <Piece id="equipslot" caption="Offhand" icon={STOCK_ICONS.shield} scale={0.46} />
         </div>
         <div className="kp-subhead">Skill tree & combat feedback</div>
+        {/* ONE skill node wearing a states strip (owner, round 61
+            correction: "instead of two separate objects we should think
+            of this like a badge with states (available/learned)") — the
+            buttons' DEFAULT/HOVER/PRESSED/DISABLED grammar spoken in the
+            node's own vocabulary. Each state styles independently in the
+            editor (the Learned wells); Available keeps the factory glow. */}
         <div className="kp-tray kp-axis">
-          <Piece id="skillnode" caption="Available" scale={0.5} />
-          <Piece id="skillnode" caption="Learned" overlay="learned" scale={0.5} />
-          <Piece id="skillnode" caption="Locked" overlay="locked" scale={0.5} />
+          <Piece id="skillnode" caption="Skill node" scale={0.5} />
           <Piece id="dmgnumber" caption="Hit" value={0.35} scale={0.5} />
           <Piece id="dmgnumber" caption="Critical" value={0.9} scale={0.5} />
         </div>
+        <StateStrip variants={[
+          { cap: "Available", piece: { id: "skillnode" } },
+          { cap: "Learned", piece: { id: "skillnode", overlay: "learned" } },
+          { cap: "Locked", piece: { id: "skillnode", overlay: "locked" } },
+        ]} />
         <div className="kp-tray">
           <Piece id="loottag" caption="Loot tag · rare" value={0.5} scale={0.5} />
           <Piece id="loottag" caption="Loot tag · legendary" value={1} label="Dawnbreaker" scale={0.5} />
         </div>
-        <Meta items={["Liquid and fills follow the Glow role", "mana/stamina/HP hues are genre semantics", "value scrubs fill, heading, tier and selection", "the lit skill stub is the learned path", "damage numbers are shell-free spatial type"]} />
+        <Meta items={["Liquid and fills follow the Glow role", "mana/stamina/HP hues are genre semantics", "value scrubs fill, heading, tier and selection", "the lit skill stub is the Learned state's path", "damage numbers are shell-free spatial type"]} />
       </Sec>
 
       <Sec n="03" title="Shooter & Action" note="The FPS/brawler vocabulary: aim, feedback, loadout and objectives. Spatial pieces (crosshair, markers, arcs) are shell-free and carry a dark understroke so they read on live footage. The weapon wheel follows your pointer's angle — hold and point, like the real thing.">
@@ -3829,15 +3838,18 @@ const kitTier = useGen((s) => s.tier);
           <div className="pat-group">
             <div className="pat-ghead">
               <h3>Core Screens</h3>
-              <p>Primary navigation, account and system management screens.</p>
+              <p>Navigation, account, economy and social screens — the rooms a player lives in between runs.</p>
             </div>
             <div className="pat-grid">
-              <Pat n="01" name="Main Menu" cat="Core Screen" comps={7} asms={3} lead="primary">
-                {/* corner chrome first — the center column below shares ONE axis */}
+              <Pat n="01" name="Main Menu" cat="Core Screen" comps={8} asms={3} lead="primary">
+                {/* corner chrome first — the center column below shares ONE axis.
+                    The wallet is the REAL currency pill; the daily-gift corner
+                    button is a glyph button (round 62 — the fleet in action). */}
                 <div className="sc-row sc-util sc-menubar">
-                  <SPiece id="chip" label="980" icon={STOCK_ICONS.gem} scale={0.32} />
+                  <SPiece id="currency" label="12,480" scale={0.3} />
+                  <SPiece id="chip" label="980" icon={STOCK_ICONS.gem} scale={0.3} />
                   <span className="sc-spring" />
-                  <SPiece id="badge" label="3" scale={0.26} />
+                  <SPiece id="gbtngift" slots={{ qty: "1" }} scale={0.24} />
                   <SPiece id="iconbtn" icon={STOCK_ICONS.gear} scale={0.28} />
                 </div>
                 <Art svg={menuArt} scale={0.5} />
@@ -3857,48 +3869,102 @@ const kitTier = useGen((s) => s.tier);
                 <SPiece id="primary" label="SIGN IN" size="s" scale={0.4} />
                 <div className="sc-push"><SPiece id="ghost" label="Forgot password?" size="s" scale={0.32} /></div>
               </Pat>
-              <Pat n="03" name="Settings" cat="Core Screen" comps={6} asms={2} lead="slider">
+              <Pat n="03" name="Settings" cat="Core Screen" comps={6} asms={2} lead="setrow">
+                {/* round 62: the volume lines are the REAL settings rows —
+                    label, mini-slider and readout ship as one piece */}
                 <SPiece id="header" label="SETTINGS" scale={0.32} />
-                <div className="sc-form sc-push">
-                  <div className="sc-set"><span className="sc-lab">Music</span><SPiece id="slider" value={0.8} scale={0.32} /></div>
-                  <div className="sc-set"><span className="sc-lab">Sound FX</span><SPiece id="slider" value={0.55} scale={0.32} /></div>
+                <div className="sc-stack sc-push">
+                  <SPiece id="setrow" label="MUSIC" value={0.8} scale={0.4} />
+                  <SPiece id="setrow" label="SOUND FX" value={0.55} scale={0.4} />
+                </div>
+                <div className="sc-form">
                   <div className="sc-set"><span className="sc-lab">Haptics</span><SPiece id="toggle" value={1} scale={0.26} /></div>
                   <div className="sc-set"><span className="sc-lab">Notifications</span><SPiece id="toggle" value={0} scale={0.26} /></div>
                 </div>
                 <div className="sc-push"><SPiece id="small" label="DONE" scale={0.68} /></div>
               </Pat>
-              <Pat n="04" name="Profile" cat="Core Screen" comps={4} asms={3} lead="progress">
+              <Pat n="04" name="Profile" cat="Core Screen" comps={4} asms={3} lead="xpbar">
+                {/* round 62: the portrait is the avatar frame, the progress
+                    line is the XP bar — level bubble, notches and all */}
                 <div className="sc-row sc-id">
-                  <SPiece id="iconbtn" icon={STOCK_ICONS.user} scale={0.44} />
+                  <SPiece id="avatarframe" value={0.24} scale={0.32} />
                   <div className="sc-idcol">
                     <span className="sc-name">PLAYER ONE</span>
                     <SPiece id="chip" label="LV 24" icon={STOCK_ICONS.star} scale={0.3} />
                   </div>
                 </div>
+                {/* the bar reports its own numbers — no page-side double-read */}
                 <div className="sc-form sc-push">
-                  <div className="sc-between"><span className="sc-lab">XP</span><span className="sc-caption dim">3,450 / 5,000</span></div>
-                  <SPiece id="progress" value={0.69} ambient scale={0.42} />
+                  <SPiece id="xpbar" label="24" value={0.69} ambient scale={0.4} />
                 </div>
                 <div className="sc-push"><SPiece id="small" label="EDIT PROFILE" scale={0.38} /></div>
               </Pat>
-              <Pat n="05" name="Reward" cat="Core Screen" comps={4} asms={2} lead="badge">
-                <SPiece id="header" label="LEVEL UP!" scale={0.38} />
-                <div className="sc-push"><SPiece id="badge" size="l" baseState="pressed" icon={STOCK_ICONS.star} scale={0.72} /></div>
-                <SPiece id="chip" label="+250" icon={STOCK_ICONS.gem} scale={0.42} />
-                <div className="sc-push"><SPiece id="primary" label="CLAIM REWARD" size="s" scale={0.44} /></div>
-              </Pat>
-              <Pat n="06" name="Purchase" cat="Core Screen" comps={5} asms={3} lead="segment">
-                <SPiece id="header" label="STORE" scale={0.3} />
-                <div className="sc-push"><SPiece id="segment" segments={["500", "1,200", "2,500"]} value={1} scale={0.42} /></div>
-                <div className="sc-row">
-                  <SPiece id="chip" label="1,200" icon={STOCK_ICONS.gem} scale={0.34} />
-                  <span className="sc-caption dim">for</span>
-                  <SPiece id="chip" label="$4.99" icon={null} scale={0.34} />
+              <Pat n="05" name="Daily Rewards" cat="Core Screen" comps={5} asms={2} lead="dailycell">
+                {/* round 62 (owner: diversify with the fuller fleet) — the
+                    calendar row is the real dailycell family, the claim is
+                    the real claim button */}
+                <SPiece id="header" label="DAILY REWARDS" scale={0.3} />
+                <div className="sc-row sc-push">
+                  <SPiece id="dailycell" overlay="check" label="DAY 1" scale={0.3} />
+                  <SPiece id="dailycell" label="DAY 2" baseState="hover" scale={0.34} />
+                  <SPiece id="dailycell" overlay="locked" label="DAY 3" scale={0.3} />
                 </div>
-                <SPiece id="primary" label="BUY NOW" size="s" scale={0.38} />
-                <SPiece id="ghost" label="Cancel" size="s" scale={0.3} />
+                <div className="sc-push"><SPiece id="claimbtn" scale={0.42} /></div>
               </Pat>
-              <Pat n="07" name="Inventory" cat="Core Screen" comps={14} asms={6} lead="slot" wide>
+              <Pat n="06" name="Storefront" cat="Core Screen" comps={8} asms={3} lead="pricebtn">
+                {/* round 62: the purchase mock grows into a storefront —
+                    wallet up top, glyph-button SKUs and the card pack over
+                    real price buttons */}
+                <div className="sc-row sc-util sc-menubar">
+                  <SPiece id="header" label="STORE" scale={0.26} />
+                  <span className="sc-spring" />
+                  <SPiece id="currency" label="1,250" scale={0.26} />
+                </div>
+                <div className="sc-row sc-baseline sc-push">
+                  <div className="sc-cluster"><SPiece id="gbtngem" slots={{ qty: "×80" }} scale={0.48} /><SPiece id="pricebtn" label="$1.99" scale={0.28} /></div>
+                  <div className="sc-cluster"><SPiece id="gbtncrowncoin" slots={{ qty: "×500" }} scale={0.48} /><SPiece id="pricebtn" label="$4.99" scale={0.28} /></div>
+                  <div className="sc-cluster"><SPiece id="pack" scale={0.17} /><SPiece id="pricebtn" label="$9.99" scale={0.28} /></div>
+                </div>
+              </Pat>
+              <Pat n="07" name="Quest Board" cat="Core Screen" comps={4} asms={2} lead="questpanel">
+                {/* round 62: the ribbon banner crowns the quest sheet; the
+                    tracker below is the real quest panel */}
+                <SPiece id="ribbonbanner" label="NEW QUEST" scale={0.26} />
+                <div className="sc-push"><SPiece id="questpanel" scale={0.4} /></div>
+                <div className="sc-row sc-push">
+                  <SPiece id="small" label="TRACK" scale={0.36} />
+                  <SPiece id="ghost" label="Later" size="s" scale={0.32} />
+                </div>
+              </Pat>
+              <Pat n="08" name="Match Lobby" cat="Core Screen" comps={10} asms={4} lead="vsbar" wide>
+                {/* round 62 (owner: diversify) — the versus lobby: the VS
+                    medallion is the vsbar's own centerpiece overlay, emotes
+                    and the season strip dock at the ready line */}
+                <div className="sc-lobbyfill">
+                  <div className="sc-row sc-util sc-menubar">
+                    <SPiece id="chip" label="RANKED · BEST OF 3" icon={null} tone="alt" scale={0.3} />
+                    <span className="sc-spring" />
+                    <SPiece id="chip" label="0:42" icon={STOCK_ICONS.clock} scale={0.3} />
+                  </div>
+                  <div className="sc-lobby">
+                    <div className="sc-cluster">
+                      <SPiece id="avatarframe" value={0.24} scale={0.5} />
+                      <SPiece id="nameplate" label="NOVA_KNIGHT" scale={0.32} />
+                    </div>
+                    <SPiece id="vsbar" overlay="medal" scale={0.9} />
+                    <div className="sc-cluster">
+                      <SPiece id="avatarframe" value={0.19} scale={0.5} />
+                      <SPiece id="nameplate" label="KAIRO_77" scale={0.32} />
+                    </div>
+                  </div>
+                  <div className="sc-lobby">
+                    <SPiece id="emotewheel" scale={0.28} />
+                    <SPiece id="primary" label="READY" scale={0.52} />
+                    <SPiece id="seasontrack" value={0.4} scale={0.34} />
+                  </div>
+                </div>
+              </Pat>
+              <Pat n="09" name="Inventory" cat="Core Screen" comps={14} asms={6} lead="slot" wide>
                 <InventoryScreen />
               </Pat>
             </div>
@@ -3914,7 +3980,7 @@ const kitTier = useGen((s) => s.tier);
               <p>System feedback, progress and end-state compositions.</p>
             </div>
             <div className="pat-grid three">
-              <Pat n="08" name="Confirmation" cat="Outcome Screen" comps={3} asms={1} lead="small">
+              <Pat n="10" name="Confirmation" cat="Outcome Screen" comps={3} asms={1} lead="small">
                 <div className="sc-modal">
                   <SPiece id="header" label="ARE YOU SURE?" scale={0.26} />
                   <span className="sc-caption">Quitting now will forfeit the match.</span>
@@ -3924,16 +3990,21 @@ const kitTier = useGen((s) => s.tier);
                   </div>
                 </div>
               </Pat>
-              <Pat n="09" name="Loading" cat="Outcome Screen" comps={2} asms={1} lead="progress">
+              <Pat n="11" name="Loading" cat="Outcome Screen" comps={2} asms={1} lead="loadbar">
+                {/* round 62: the strip is the real loading bar — its own
+                    label seat carries the destination, the readout is live */}
                 <Art svg={loadingArt} scale={0.32} />
-                <SPiece id="progress" value={0.72} ambient scale={0.48} />
+                <SPiece id="loadbar" label="EMBER PASS" value={0.72} ambient scale={0.44} />
                 <span className="sc-caption dim sc-push">Tip: locked doors remember you.</span>
               </Pat>
-              <Pat n="10" name="Results — Victory" cat="Outcome Screen" comps={4} asms={2} lead="primary">
-                <Art svg={splashArt} scale={0.28} />
+              <Pat n="12" name="Results — Victory" cat="Outcome Screen" comps={5} asms={3} lead="ribbonbanner">
+                {/* round 62: the ribbon banner is the crown — the star fan
+                    and trophy count read under it, CTAs at the floor */}
+                <SPiece id="ribbonbanner" label="VICTORY!" scale={0.3} />
+                <SPiece id="starrating" value={0.67} scale={0.3} />
                 <div className="sc-cluster sc-push">
                   <span className="sc-caption dim">Score</span>
-                  <SPiece id="resource" label="12,450" icon={STOCK_ICONS.trophy} scale={0.46} />
+                  <SPiece id="resource" label="12,450" icon={STOCK_ICONS.trophy} scale={0.42} />
                 </div>
                 <div className="sc-row sc-push">
                   <SPiece id="primary" label="CONTINUE" size="s" scale={0.38} />
@@ -3951,10 +4022,10 @@ const kitTier = useGen((s) => s.tier);
               <p>Empty, offline and error handling — one template, two intents.</p>
             </div>
             <div className="pat-grid">
-              <Pat n="11" name="Empty State" cat="State Screen" comps={4} asms={1} lead="small">
+              <Pat n="13" name="Empty State" cat="State Screen" comps={4} asms={1} lead="small">
                 <StateScreen icon={STOCK_ICONS.search} title="NO ITEMS YET" line="Complete levels to fill your bag." action="BROWSE STORE" />
               </Pat>
-              <Pat n="12" name="Connection Error" cat="State Screen" comps={4} asms={1} lead="small">
+              <Pat n="14" name="Connection Error" cat="State Screen" comps={4} asms={1} lead="small">
                 <StateScreen icon={STOCK_ICONS.warning} title="CONNECTION LOST" line="We can’t reach the server." action="RETRY" />
               </Pat>
             </div>
@@ -4000,32 +4071,52 @@ const kitTier = useGen((s) => s.tier);
           )}
           {!hiddenLays.includes("fight") && (
             <LayoutCard id="fight" name="Fight Screen" device="Desktop 16:9" onHide={hideLay}>
+              {/* round 62: the two loose bars become the REAL vs health bar
+                  (both fighters + the medallion, value-wired); the thumb
+                  cluster speaks gamepad — stick left, face buttons right */}
               <div className="lay-row lay-bar">
-                <SPiece id="progress" value={0.82} scale={0.42} />
-                <SPiece id="resource" label="48" icon={null} scale={0.38} />
-                <SPiece id="progress" value={0.55} scale={0.42} />
+                <span className="lay-spring" />
+                <SPiece id="vsbar" value={0.82} scale={0.38} />
+                <span className="lay-spring" />
               </div>
-              <div className="lay-row lay-mid">
+              <div className="lay-row lay-mid lay-3col">
+                <SPiece id="combo" scale={0.3} />
                 <SPiece id="tab" label="ROUND 2" tone="alt" scale={0.4} />
+                <span />
               </div>
               <div className="lay-row lay-foot">
                 <SPiece id="joystick" size="s" scale={0.44} />
                 <span className="lay-spring" />
-                <SPiece id="iconbtn" icon={STOCK_ICONS.close} scale={0.4} />
-                <SPiece id="iconbtn" icon={STOCK_ICONS.play} scale={0.46} />
+                <SPiece id="padbtn" label="B" scale={0.3} />
+                <SPiece id="padbtn" label="A" scale={0.36} />
               </div>
             </LayoutCard>
           )}
           {!hiddenLays.includes("runner") && (
-            <LayoutCard id="runner" name="Endless Runner" device="Mobile landscape" onHide={hideLay}>
+            /* round 62 — OWNER RULING: "the endless runner should be
+               vertical." Portrait phone: pause and the coin count split the
+               top corners, the multiplier rides under the wallet, the run
+               meter sits just above the thumb line, and the two power-ups
+               land at the thumb corners as real glyph buttons. */
+            <LayoutCard id="runner" name="Endless Runner" device="Mobile portrait" onHide={hideLay}>
               <div className="lay-row lay-bar">
-                <SPiece id="resource" label="1,204" icon={STOCK_ICONS.gem} scale={0.38} />
+                <SPiece id="iconbtn" icon={STOCK_ICONS.pause} scale={0.3} />
                 <span className="lay-spring" />
-                <SPiece id="chip" label="×3" icon={STOCK_ICONS.star} scale={0.46} />
-                <SPiece id="iconbtn" icon={STOCK_ICONS.pause} scale={0.34} />
+                <SPiece id="resource" label="1,204" icon={STOCK_ICONS.gem} scale={0.34} />
               </div>
-              <div className="lay-row lay-mid"><span className="sc-caption dim">tap to jump · hold to glide</span></div>
-              <div className="lay-row lay-foot"><SPiece id="progress" value={0.36} ambient scale={0.42} /></div>
+              <div className="lay-row">
+                <span className="lay-spring" />
+                <SPiece id="chip" label="×3" icon={STOCK_ICONS.star} scale={0.36} />
+              </div>
+              <div className="lay-row lay-mid" />
+              <div className="lay-row">
+                <SPiece id="progress" value={0.36} ambient scale={0.38} />
+              </div>
+              <div className="lay-row lay-foot">
+                <SPiece id="gbtnmagnet" slots={{ qty: "2" }} scale={0.28} />
+                <span className="lay-spring" />
+                <SPiece id="gbtnrocket" slots={{ qty: "1" }} scale={0.28} />
+              </div>
             </LayoutCard>
           )}
           {!hiddenLays.includes("word") && (

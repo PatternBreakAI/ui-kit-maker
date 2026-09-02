@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, GridStyle, CandyTokens, Shape, KitDesign, KitSlice } from "./model";
-import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, rollStatement, classicRack, presetById, PRESETS, PATTERN_TYPES, GAME_FONTS, customFontNames, ctaForFont, darken, hexMix, registerCustomFont, pickDesign, designDiff, deepMergeDesign, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, clampWeight, fontByName, sanitizeUnitySlug, baseOf, mintCloneId, CLONE_INELIGIBLE, isGlyphPiece, resolveKitIcon } from "./model";
+import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, rollStatement, classicRack, presetById, PRESETS, PATTERN_TYPES, GAME_FONTS, customFontNames, ctaForFont, darken, hexMix, registerCustomFont, pickDesign, designDiff, deepMergeDesign, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, migrateKitSlotVals, clampWeight, fontByName, sanitizeUnitySlug, baseOf, mintCloneId, CLONE_INELIGIBLE, isGlyphPiece, resolveKitIcon } from "./model";
 import type { KitClone } from "./model";
 import { ensureFont, fontReady, awaitFonts } from "./fonts";
 import { delBgOriginal, getBgOriginal, putBgOriginal } from "./bgvault";
@@ -1616,6 +1616,9 @@ function applyWorkspace(ws: Record<string, unknown> | null): void {
   for (const k of WS_MAPS) {
     const v = ws?.[k];
     patch[k] = v && typeof v === "object" ? v : {};
+    // slot picks saved before the round-61 state grammar move to their
+    // state-segmented seats (the kitDesigns migrate-on-apply precedent)
+    if (k === "kitSlotVals") patch[k] = migrateKitSlotVals(patch[k] as GenStore["kitSlotVals"]).vals;
     const sk = KIT_STORE_KEY[k];
     if (sk) saveJson(sk, patch[k]);
   }
@@ -1759,6 +1762,7 @@ function presetKitPatch(id: string, cfg: GenConfig): Partial<GenStore> {
      token set moves on (owner, on a shared preset: "fonts, certain states"
      arrived stale) */
   patch.kitDesigns = migrateKitDesigns(cfg, patch.kitDesigns as GenStore["kitDesigns"]).forks;
+  patch.kitSlotVals = migrateKitSlotVals((patch.kitSlotVals as GenStore["kitSlotVals"]) ?? {}).vals;
   // kitSizes is session-only by design, so it lands in state but not on disk
   for (const [k, storeKey] of Object.entries(KIT_STORE_KEY)) if (k in patch) saveJson(storeKey, patch[k]);
   return patch as Partial<GenStore>;
@@ -2411,7 +2415,7 @@ export const useGen = create<GenStore>((set, get) => ({
       kitNoText: (p.kitNoText as GenStore["kitNoText"]) ?? {},
       kitSubs: (p.kitSubs as GenStore["kitSubs"]) ?? {},
       kitIcons: (p.kitIcons as GenStore["kitIcons"]) ?? {},
-      kitSlotVals: (p.kitSlotVals as GenStore["kitSlotVals"]) ?? {},
+      kitSlotVals: migrateKitSlotVals((p.kitSlotVals as GenStore["kitSlotVals"]) ?? {}).vals,
       kitVals: (p.kitVals as GenStore["kitVals"]) ?? {},
       // per-piece sizes in old payloads are ignored — the M/L switch is
       // retired and the kit stands at L everywhere
@@ -2714,7 +2718,14 @@ export const useGen = create<GenStore>((set, get) => ({
   },
   /* Chosen slot values per component (unit choices etc). Same lifecycle
      as kitLabels: local, synced with the workspace, riding kit payloads. */
-  kitSlotVals: loadJson<Partial<Record<KitComponentId, Record<string, string>>>>("ui-generator-kitslots", {}),
+  kitSlotVals: (() => {
+    /* hydrate door: the owner's round-61 learned picks stored on plain
+       keys move to their learned: seats once, then persist migrated —
+       the kitDesigns migrate-at-load precedent */
+    const m = migrateKitSlotVals(loadJson<Partial<Record<KitComponentId, Record<string, string>>>>("ui-generator-kitslots", {}));
+    if (m.changed) saveJson("ui-generator-kitslots", m.vals);
+    return m.vals;
+  })(),
   kitSlices: loadJson<Partial<Record<KitComponentId, KitSlice>>>("ui-generator-kitslices", {}),
   setKitSlice: (id, v) => {
     markTouched();
@@ -2727,8 +2738,10 @@ export const useGen = create<GenStore>((set, get) => ({
   setKitSlot: (id, slotId, val) => {
     /* a lock freezes the LOOK, not the words — slot DATA stays editable on a
        finished piece (owner: "I need to input data into the input fields").
-       Color and dial slots are look, so they stay frozen with the rest. */
-    const slotKind = KIT_SLOTS[id]?.find((s) => s.id === slotId)?.kind;
+       Color and dial slots are look, so they stay frozen with the rest.
+       A state-segmented seat ("learned:face") answers for its well. */
+    const bareSlot = slotId.includes(":") ? slotId.slice(slotId.indexOf(":") + 1) : slotId;
+    const slotKind = KIT_SLOTS[baseOf(id)]?.find((s) => s.id === bareSlot)?.kind;
     if (get().kitLocks[id] && (slotKind === "color" || slotKind === "dial")) return;
     markTouched();
     pushHistory(get());

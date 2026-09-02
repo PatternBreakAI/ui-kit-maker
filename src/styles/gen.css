@@ -442,6 +442,14 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
 
 /* ── v7: state editing, hot hero, fx chips, editable map ── */
 .statebadge { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--ink2); background: var(--soft); border: 1px solid var(--line); border-radius: 7px; padding: 3px 8px; }
+/* ── round 61: the honest panel under a pinned semantic state ──
+   the "all states" tag + dim say, without prose, that a control paints
+   every state of the pinned piece (the tag's tooltip carries the why);
+   the fork dot marks a statable well holding the pinned state's own pick */
+.alltag { font-size: 10px; font-weight: 700; font-style: normal; letter-spacing: .05em; text-transform: uppercase; color: var(--ink2); background: var(--soft); border: 1px dashed var(--line2); border-radius: 6px; padding: 2px 6px; margin-left: 7px; vertical-align: 1px; }
+.sec.allsec .sec-body { opacity: .62; }
+.allwrap { opacity: .62; }
+.forkdot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #3d8edb; margin-right: 5px; vertical-align: 1px; flex: none; }
 /* var(--card), not #fff — these pills must flip with the theme (owner:
    white pills on the dark panel were "too hard to see") */
 .resetstate { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line2); background: var(--card); border-radius: 9px; height: 30px; padding: 0 11px; font-size: 12px; font-weight: 500; color: var(--ink2); cursor: pointer; align-self: flex-start; }
@@ -1402,6 +1410,14 @@ svg:hover .kit-shine--armed, svg:hover .kit-edgeshine--armed { animation-play-st
   border: 1px solid var(--st-line); border-radius: 18px; background: var(--st-well);
   box-shadow: 0 14px 34px rgba(0,0,0,.25);
 }
+/* round 62 — the Match Lobby's mirrored rails: side columns share ONE
+   width so the centerpiece (VS medallion, READY) stays on the true axis;
+   the fill wrapper spreads the wide card's three bands over the full
+   stage instead of pooling them at the top */
+.sc-lobby { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; justify-items: center; width: 100%; }
+.sc-lobbyfill { display: flex; flex-direction: column; justify-content: space-between; align-items: center; width: 100%; height: 100%; }
+/* shop rows share a price floor line — SKU art rises from a common base */
+.sc-baseline { align-items: flex-end; }
 
 /* ── v33: editorial guidelines document ───────────────────────── */
 /* reading mode: canvas tools dock to the lower-right corner so they
@@ -1646,6 +1662,12 @@ button.kp-fact { cursor: pointer; }
 .lay-row { display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%; }
 .lay-row.lay-bar { justify-content: flex-start; }
 .lay-row.lay-mid { flex: 1; }
+/* round 62 — a true-center mid band: equal side cells keep the middle
+   piece on the axis while flanking pieces hug their edges */
+.lay-row.lay-3col { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; }
+.lay-row.lay-3col > :first-child { justify-self: start; }
+.lay-row.lay-3col > :nth-child(2) { justify-self: center; }
+.lay-row.lay-3col > :last-child { justify-self: end; }
 .lay-row.lay-foot { justify-content: flex-start; }
 /* board cells butt edge-to-edge — the tiles render FLAT (no extrusion),
    so the grid reads as one board, not a field of floating buttons */

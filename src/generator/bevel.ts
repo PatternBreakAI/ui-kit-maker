@@ -1,5 +1,5 @@
 import type { GenConfig, GenStateName, EffectRole, Shape, KitComponentId, KitSize, IconDef, StateDesign } from "./model";
-import { lighten, darken, hexMix, desaturate, saturate, hexRgba, fontByName, DEFAULT_ICON, ICONS_ENABLED, STOCK_ICONS, KIT_SHAPE , isGlyphPiece, isDarkBg, userShapes, seatIconDef, isGlyphButton, glyphOfButton, glyphSeatIcon } from "./model";
+import { lighten, darken, hexMix, desaturate, saturate, hexRgba, fontByName, DEFAULT_ICON, ICONS_ENABLED, STOCK_ICONS, KIT_SHAPE , isGlyphPiece, isDarkBg, userShapes, seatIconDef, isGlyphButton, glyphOfButton, glyphSeatIcon, KIT_SLOTS, stateSlotKey } from "./model";
 import { iconGroup } from "./icons";
 import { silhouetteMeta, MIRROR_SILHOUETTES } from "./silhouettes";
 import { importedShape, flattenPath, pointInPoly, selfIntersections, type Pt } from "./importedShapes";
@@ -4678,6 +4678,18 @@ export function effSlotColor(cfg: GenConfig, cid: KitComponentId, slotId: string
         ?? (cfg.type.fillMode === "auto" ? "#FFFFFF" : cfg.type.fill);
     case "joystick.ghostink": return effect(cfg.effects, "Glow");
     case "booster.plateColor": return effect(cfg.effects, "Bevel");
+    /* the skill node's statable wells (round 61): each follows one kit
+       role until picked — the same roles the renderer's resolver falls
+       through to, so the swatch and the pose agree */
+    case "skillnode.face": return effect(cfg.effects, "Inner Fill");
+    case "skillnode.rim": return effect(cfg.effects, "Bevel");
+    case "skillnode.glowColor": return effect(cfg.effects, "Glow");
+    case "skillnode.glyphInk":
+      // the icon-ink ladder's closest hex: custom icon color, else the
+      // type ink the glyph inherits (auto mode reads white-ish)
+      return cfg.icon.color ?? (cfg.type.fillMode === "auto" ? "#FFFFFF" : cfg.type.fill);
+    case "skillnode.pathColor": return effect(cfg.effects, "Glow");
+    case "skillnode.checkColor": return effect(cfg.effects, "Bevel");
     case "dropdown.rowplate": return resolveMenuStyle(cfg, slots).plate;
     case "dropdown.rowtext": return resolveMenuStyle(cfg, slots).ink;
     default: return null;
@@ -7192,26 +7204,110 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          hover/pressed states natively. */
       const s = 136 * k;
       const ic = opts.icon ?? STOCK_ICONS.zap ?? null;
+      /* ── ONE resolver: fork(state) ?? base — the r53 designFor ladder
+         spoken in slot keys (owner escalation, round 61: "learned is
+         still changing available"). Every statable well resolves here,
+         for THIS pose, into a flat slR the case reads exactly as before:
+         a pinned state's fork key (stateSlotKey) wins, the plain base
+         key is the Available look every unforked state follows live, and
+         a missing pick falls through to the factory derivation — so with
+         zero picks stored every byte below is today's byte. State
+         furniture (SlotDef.state — the learned badge, the locked veil)
+         resolves only in its own pose, reading the r61 plain seat as a
+         legacy fallback (the store migrates it; this keeps un-migrated
+         payloads honest too). */
+      const pose9 = opts.overlay === "learned" ? "learned" : opts.overlay === "locked" ? "locked" : null;
+      const slR: Record<string, string> = {};
+      if (opts.slots) for (const def9 of KIT_SLOTS.skillnode ?? []) {
+        const v9 = def9.state
+          ? (pose9 === def9.state ? opts.slots[stateSlotKey(def9.state, def9.id)] ?? opts.slots[def9.id] : undefined)
+          : (pose9 ? opts.slots[stateSlotKey(pose9, def9.id)] : undefined) ?? opts.slots[def9.id];
+        if (v9 !== undefined) slR[def9.id] = v9;
+      }
+      /* the statable DESIGN tokens dress the shell through a posed cfg —
+         the same clone-and-steer road the alt tone rides. No picks = the
+         very same cfg object, so the factory renders byte-identical. */
+      let cfg9 = cfg;
+      if (slR.face || slR.rim || slR.glowColor || slR.glyphInk) {
+        cfg9 = JSON.parse(JSON.stringify(cfg)) as GenConfig;
+        /* the pick dresses the master roles AND each pointer-state design
+           fork (the kit ships hover/pressed forks with their own effects
+           snapshot — a semantic state's red face must stay red under its
+           hover): the semantic pick is more specific than a pointer fork,
+           so it rides them all, exactly like the icon rig below */
+        const dress9 = (eff9: GenConfig["effects"]) => {
+          if (slR.face) eff9["Inner Fill"] = slR.face;
+          if (slR.rim) eff9.Bevel = slR.rim;
+          if (slR.glowColor && slR.glowColor !== "none") eff9.Glow = slR.glowColor;
+        };
+        dress9(cfg9.effects);
+        if (slR.glowColor === "none") {
+          // the well's OFF half: quiet every glow system for this pose
+          cfg9.candy.innerGlow.opacity = 0;
+          cfg9.candy.extrusion.glow = 0;
+          for (const st9 of Object.values(cfg9.states)) st9.glow = 0;
+        }
+        if (slR.glyphInk) cfg9.icon.color = slR.glyphInk;
+        if (cfg9.stateDesigns) for (const sd9 of Object.values(cfg9.stateDesigns)) {
+          if (!sd9) continue;
+          if (sd9.effects) dress9(sd9.effects);
+          if (slR.glowColor === "none" && sd9.candy) { sd9.candy.innerGlow.opacity = 0; sd9.candy.extrusion.glow = 0; }
+          // a pointer-state icon fork would out-rank the base icon — the
+          // semantic pick is more specific still, so it rides those too
+          if (slR.glyphInk && sd9.icon) sd9.icon.color = slR.glyphInk;
+        }
+      }
+      const glow9 = cfg9 === cfg ? glow : effect(cfg9.effects, "Glow");
+      const bevel9 = cfg9 === cfg ? bevel : effect(cfg9.effects, "Bevel");
       // a locked node shows ONLY the lock — the skill glyph would ghost
       // through the veil and fight it
-      const shell = build(cfg, opts.overlay === "locked" ? "disabled" : state, { x: 39, y: 30, h: s, fs: 0, iconSize: 58 * k }, { iconDef: opts.overlay === "locked" ? null : ic, label: "", fixedW: s, shapeOverride: sov });
+      const shell = build(cfg9, opts.overlay === "locked" ? "disabled" : state, { x: 39, y: 30, h: s, fs: 0, iconSize: 58 * k }, { iconDef: opts.overlay === "locked" ? null : ic, label: "", fixedW: s, shapeOverride: sov });
       const shellM = /data-shell0="([-\d. ]+)"/.exec(shell);
       if (!shellM) return shell;
       const [sx, sy, sw, sh] = shellM[1].split(" ").map(Number);
       const cyK = sy + sh / 2; // the shell box excludes the extrusion
       const stubW = 9 * k;
-      const stubs = `<line x1="${(sx - 24 * k).toFixed(1)}" y1="${cyK.toFixed(1)}" x2="${(sx + 6 * k).toFixed(1)}" y2="${cyK.toFixed(1)}" stroke="${glow}" stroke-width="${stubW.toFixed(1)}" stroke-linecap="round"${state !== "disabled" && opts.overlay !== "locked" ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(glow, 0.6)})"` : ""} opacity="${opts.overlay === "locked" ? 0.25 : 0.95}"/>
-        <line x1="${(sx + sw - 6 * k).toFixed(1)}" y1="${cyK.toFixed(1)}" x2="${(sx + sw + 24 * k).toFixed(1)}" y2="${cyK.toFixed(1)}" stroke="rgba(255,255,255,0.25)" stroke-width="${stubW.toFixed(1)}" stroke-linecap="round"/>`;
+      /* the stub: fork ?? base ?? the POSE's Glow role — a state's glow
+         fork re-inks its unforked path too (factory-follow inside the
+         pose), while the base path pick moves every state's stub */
+      const pathC = slR.pathColor ?? glow9;
+      /* round 61e (exporter handoff): the two stubs wear data-skillpath
+         marks so the Unity export can cut the connector as its OWN live
+         child (skin.pathColor tints it) and strip it from the baked
+         skins — a <g> wrapper is render-neutral, every byte of the
+         drawing itself unchanged. */
+      const stubs = `<g data-skillpath="in"><line x1="${(sx - 24 * k).toFixed(1)}" y1="${cyK.toFixed(1)}" x2="${(sx + 6 * k).toFixed(1)}" y2="${cyK.toFixed(1)}" stroke="${pathC}" stroke-width="${stubW.toFixed(1)}" stroke-linecap="round"${state !== "disabled" && opts.overlay !== "locked" ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(pathC, 0.6)})"` : ""} opacity="${opts.overlay === "locked" ? 0.25 : 0.95}"/></g>
+        <g data-skillpath="out"><line x1="${(sx + sw - 6 * k).toFixed(1)}" y1="${cyK.toFixed(1)}" x2="${(sx + sw + 24 * k).toFixed(1)}" y2="${cyK.toFixed(1)}" stroke="rgba(255,255,255,0.25)" stroke-width="${stubW.toFixed(1)}" stroke-linecap="round"/></g>`;
       let over = "";
       if (opts.overlay === "locked") {
+        /* the veil's strength is the Locked state's own dial (lockedDim,
+           0–100); untouched it prints the classic 0.5 exactly. The lock
+           wears the resolved glyph ink — base moves it with the other
+           states' glyphs, a locked fork re-inks it alone; unpicked it
+           keeps the deactivated gray every disabled glyph wears. */
+        const dimRaw9 = slR.lockedDim;
+        const dim9 = dimRaw9 !== undefined && /^\d+$/.test(dimRaw9) ? Math.min(100, +dimRaw9) / 100 : 0.5;
         const fcM = /url\(#([A-Za-z0-9_-]+)fc\)/.exec(shell);
-        if (fcM) over += `<g clip-path="url(#${fcM[1]}fc)"><rect x="${(sx - 4).toFixed(1)}" y="${(sy - 4).toFixed(1)}" width="${(sw + 8).toFixed(1)}" height="${(sh + 8).toFixed(1)}" fill="rgba(6,8,16,0.5)"/></g>`;
+        if (fcM) over += `<g clip-path="url(#${fcM[1]}fc)"><rect x="${(sx - 4).toFixed(1)}" y="${(sy - 4).toFixed(1)}" width="${(sw + 8).toFixed(1)}" height="${(sh + 8).toFixed(1)}" fill="rgba(6,8,16,${dim9})"/></g>`;
         // the lock IS the content on a locked node: big, face-centered, and
         // in the same deactivated gray as every disabled glyph
-        over += iconGroup(STOCK_ICONS.lock, sx + sw / 2 - 27 * k, cyK - 27 * k, 54 * k, "#A7AAB4", { strokeWidth: 2 * iconWK });
-      } else if (opts.overlay === "learned") {
-        over += `<circle cx="${(sx + sw - 8 * k).toFixed(1)}" cy="${(sy + 8 * k).toFixed(1)}" r="${(15 * k).toFixed(1)}" fill="${bevel}" stroke="${darken(bevel, 0.45)}" stroke-width="1.5"/>` +
-          iconGroup(STOCK_ICONS.check, sx + sw - 17 * k, sy - 1 * k, 18 * k, "#FFFFFF", { strokeWidth: 3 * iconWK });
+        /* round 61e (exporter handoff): the padlock rides a MARKED icon
+           group (the learnedbadge grammar) so it ships as its own live
+           "Lock" child in Unity — never burned into a locked skin — while
+           the app's draw stays byte-identical (the wrapper is inert). */
+        over += `<g data-part="icon" data-icon="lockglyph" data-icon-nick="Lock">` + iconGroup(STOCK_ICONS.lock, sx + sw / 2 - 27 * k, cyK - 27 * k, 54 * k, slR.glyphInk ?? "#A7AAB4", { strokeWidth: 2 * iconWK }) + `</g>`;
+      } else if (opts.overlay === "learned" && slR.checkColor !== "none") {
+        /* the corner check — plate follows Bevel until forked, the ring
+           stays the plate's own darker edge, the mark's ink and glyph are
+           wells too; "none" on the plate removes the whole badge (the
+           allowNone contract). Marked swappable ink (round 61b, the
+           dailycell claimbadge grammar): the engine export cuts plate +
+           mark as ONE live Image child and strips it from the posed
+           pixels — never burned into a learned copy's art (the law). */
+        const plateC9 = slR.checkColor ?? bevel9;
+        const gph9 = STOCK_ICONS[(slR.checkGlyph ?? "check").toLowerCase()] ?? STOCK_ICONS.check;
+        over += `<g data-part="icon" data-icon="learnedbadge" data-icon-nick="Learned badge"><circle cx="${(sx + sw - 8 * k).toFixed(1)}" cy="${(sy + 8 * k).toFixed(1)}" r="${(15 * k).toFixed(1)}" fill="${plateC9}" stroke="${darken(plateC9, 0.45)}" stroke-width="1.5"/>` +
+          iconGroup(gph9, sx + sw - 17 * k, sy - 1 * k, 18 * k, slR.checkInk ?? "#FFFFFF", { strokeWidth: 3 * iconWK }) + `</g>`;
       }
       return inject(injectUnder(shell.replace("<svg ", '<svg data-skillnode="1" '), stubs), over);
     }
