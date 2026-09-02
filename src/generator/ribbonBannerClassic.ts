@@ -79,8 +79,9 @@ export const RIBBON_BANNER_CLASSIC = {
     panelBottomShadow: "M 54 65.5 L 318 65.5 L 318 69.5 L 54 69.5 Z",
     leftTailHighlight: "M 5.3 32 L 84 32 L 84 38 L 13 38 Z",
     rightTailHighlight: "M 366.7 32 L 288 32 L 288 38 L 359 38 Z",
-    leftFoldLight: "M 54 74.5 L 83 96 L 83 84 Z",
-    rightFoldLight: "M 318 74.5 L 289 96 L 289 84 Z",
+    /* the fold-light wedges are GONE (owner corner mockup, 2026-09-02:
+       "fill in this corner with one color") — each fold is one flat
+       opaque dark now, painted in bevel's ribbonbanner case. */
   },
   /** authored house-glint seats — the kit's glint star at (x, y),
    *  point-radius s, rotation r°, in the same 372×100 box */

@@ -10906,9 +10906,9 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
          furnishing in the assembly order: tails behind (Shadow-role
          wash on the kit's light axis, clipped OUT of the panel region
          so the front panel never inherits the tail's darkening), tail
-         highlight streaks (Highlight role, under the panel), dark fold
-         triangles (Shadow ink, the relief recipe's near-solid pass),
-         fold light catches (Highlight wash), the sharp-cornered center
+         highlight streaks (Highlight role, under the panel), the fold
+         triangles (ONE flat opaque dark each — the owner's corner
+         mockup flattened the old facets), the sharp-cornered center
          panel's own lift (Highlight wash — the panel stays the kit's
          true face, a step prouder), the panel bottom-shadow and
          top-catch bands, and the two authored house-glint seats (the
@@ -11003,21 +11003,35 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
         return bright(satRb ? saturate(c, satRb / 100) : c, adjRb?.brightness ?? 0);
       };
       let furnRb = "";
-      /* z0-z2 · EVERY back piece — tail washes, streaks, folds, fold
-         catches — rides ONE marked group under the panel knockout (the
-         owner's paint law, 2026-09-02: "the back shapes should NOT be
-         showing through the front shapes" — nothing painted for a back
-         piece may reach the panel's face, not even a fold's anti-aliased
-         top row; the folds were the one pass still unclipped). The
-         data-part marks the group so the corner proof can re-render the
-         piece without its back paint and pixel-diff the panel. */
+      /* z0-z2 · EVERY back piece — tail washes, streaks, folds — rides
+         ONE marked group under the panel knockout (the owner's paint law,
+         2026-09-02: "the back shapes should NOT be showing through the
+         front shapes" — nothing painted for a back piece may reach the
+         panel's face, not even a fold's anti-aliased top row; the folds
+         were the one pass still unclipped). The data-part marks the group
+         so the corner proof can re-render the piece without its back
+         paint and pixel-diff the panel. */
+      /* the fold ink — ONE flat color (owner corner mockup, 2026-09-02:
+         "fill in this corner with one color… that corner piece should be
+         the darker color (shadow or frame, but it should be the darker to
+         match)"): of the two darks already living at that corner — the
+         Shadow role the folds always wore, and the keyline dark the
+         continued panel edge strokes with (same darken formula, below) —
+         take whichever is actually darker in THIS kit, measured, not
+         assumed. Fully opaque on purpose: at partial opacity the tail
+         wash and the shell's dressed face read through and re-facet the
+         corner the owner just flattened. */
+      const keyRb = darken(PRb(effect(D2r.effects, "Bevel")), state === "disabled" ? 0.25 : 0.5);
+      const foldRb = relLum(keyRb) < relLum(shInk) ? keyRb : shInk;
       furnRb += `<g data-part="ribbon-back" clip-path="url(#${ridR}n)"><path d="${bakeRb(RBP.leftTail)} ${bakeRb(RBP.rightTail)}" fill="url(#${ridR}tw)"/>` +
         // tail highlight streaks — under the panel per both authored previews
         `<path d="${bakeRb(RBP.leftTailHighlight)} ${bakeRb(RBP.rightTailHighlight)}" fill="url(#${ridR}hs)" opacity="0.72"/>` +
-        // the dark fold triangles — the tuck that sells the overlap
-        `<path d="${bakeRb(RBP.leftFold)} ${bakeRb(RBP.rightFold)}" fill="${shInk}" opacity="0.94"/>` +
-        // fold light catches — the fold's inner face finds the light
-        `<path d="${bakeRb(RBP.leftFoldLight)} ${bakeRb(RBP.rightFoldLight)}" fill="${hiInk}" opacity="0.34"/></g>`;
+        /* the fold triangles — the tuck that sells the overlap, each ONE
+           solid fill, both from the same path so left and right cannot
+           drift. The fold-light wedges died with the same owner note
+           (they were the second facet); their parts left
+           ribbonBannerClassic with them. */
+        `<path d="${bakeRb(RBP.leftFold)} ${bakeRb(RBP.rightFold)}" fill="${foldRb}"/></g>`;
       /* z2.5 · THE PANEL'S OWN FRONT EDGE, completed (owner, same note,
          both bottom corners circled). build() dresses only the UNION
          outline, so the panel's bottom edge wore wall, keyline, rim and

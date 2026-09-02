@@ -3216,6 +3216,24 @@ const kitTier = useGen((s) => s.tier);
         <div className="kp-meta">
           <span>Min width ≈ 2× cap</span><span>Recommended label ≤ 18 chars</span><span>Stretch behavior · Nine-Slice &amp; Anatomy</span>
         </div>
+        {/* the owner's ribbon commission — the classic swallow-tail ribbon,
+            the pointed banner's ceremonial sibling, so it reads with the
+            banner above (a heading announces; it is not a button). Staged:
+            this block joins the body only ONCE RELEASED (the bay doctrine —
+            an unreleased piece in the real chapters reads as a leak, admin
+            included; Piece would null itself anyway). No state strip on
+            purpose: the ribbon has no hover/press story to tell. */}
+        {kitVisible("ribbonbanner", releases, false) && (<>
+          <div className="kp-subhead">Ribbon banner</div>
+          <p className="kp-note">The classic swallow-tail ribbon — tails tucked behind, message panel proud in front, the whole cut wearing the kit's material in one sweep. The panel is a live text seat, never baked art: re-word it in Text like any labeled piece.</p>
+          <div className="kp-tray">
+            <Piece id="ribbonbanner" caption="Ribbon banner" scale={0.55} />
+            <Piece id="ribbonbanner" caption="Ribbon banner · re-worded" label="VICTORY" scale={0.55} />
+          </div>
+          <div className="kp-meta">
+            <span>Panel and tails share one height; every side runs true vertical</span><span>Words fit to the panel's reading zone — long labels shrink, they never enter the tails</span><span>Authored proportion — the ribbon keeps its cut at every size</span>
+          </div>
+        </>)}
       </Sec>
 
       {/* ── 06 · icons ── */}

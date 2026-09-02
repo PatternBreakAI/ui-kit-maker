@@ -2592,6 +2592,12 @@ const GLINT_INK_SHADER = `Shader "UIKitMaker/GlintInk" {
     _Cx ("Word center X, label space (HeroLabel)", Float) = 0
     _Cy ("Word center Y, label space (HeroLabel)", Float) = 0
     _TextW ("Word width, label space (HeroLabel)", Float) = 200
+    // the canvas→label affine (HeroLabel, per frame): the canvas batcher
+    // rebases v.vertex into CANVAS space (round 58's flat-bar lesson),
+    // so the frag transforms it BACK before any field math. Identity
+    // defaults keep the shader safe standalone.
+    _C2L0 ("Canvas to label, row 0 (HeroLabel)", Vector) = (1,0,0,0)
+    _C2L1 ("Canvas to label, row 1 (HeroLabel)", Vector) = (0,1,0,0)
   }
   SubShader {
     Tags { "Queue"="Transparent" "RenderType"="Transparent" "IgnoreProjector"="True" "PreviewType"="Plane" "CanUseSpriteAtlas"="True" }
@@ -2607,6 +2613,7 @@ const GLINT_INK_SHADER = `Shader "UIKitMaker/GlintInk" {
       struct v2f { float4 vertex : SV_POSITION; fixed4 color : COLOR; float2 texcoord : TEXCOORD0; float2 lpos : TEXCOORD1; };
       sampler2D _MainTex; fixed4 _Color; float _Pack;
       float _Style, _StarsOnly, _Op, _Lx, _Ly, _OxEm, _OyEm, _Em, _Cx, _Cy, _TextW;
+      float4 _C2L0, _C2L1;
       /* the app's own star tables (bevel.ts): x fraction across the word,
          y offset / size in em, tilt in degrees. slab rides rows 0-2,
          stars rides rows 3-8; streak and sheen stay pure bands. */
@@ -2620,7 +2627,7 @@ const GLINT_INK_SHADER = `Shader "UIKitMaker/GlintInk" {
         o.vertex = UnityObjectToClipPos(v.vertex);
         o.texcoord = v.texcoord;
         o.color = v.color * _Color;
-        o.lpos = v.vertex.xy; // the echo repaints the text's own mesh, so this IS label space
+        o.lpos = v.vertex.xy; // whatever frame the batcher delivers (CANVAS space, batched) — the frag rebuilds label space through _C2L
         return o;
       }
       // anti-aliased rounded-rect coverage in a frame rotated to 'dir' around 'c'
@@ -2699,8 +2706,15 @@ const GLINT_INK_SHADER = `Shader "UIKitMaker/GlintInk" {
       fixed4 frag (v2f i) : SV_Target {
         fixed4 c;
         if (_Style > 0.5) {
-          // app space: word center origin, y flipped DOWN — the app's frame
-          float2 p = float2(i.lpos.x - _Cx, -(i.lpos.y - _Cy));
+          /* the round-58 lesson, applied here (round 59 — the audit's five
+             exhibits): the canvas batcher rebases v.vertex into CANVAS
+             space, so lpos was label space only for a label parked on the
+             canvas origin — everywhere else the shine vanished, crawled
+             with movement, or mis-sized under scale. HeroLabel hands the
+             canvas→label affine every frame; undo the rebase FIRST, then
+             app space: word center origin, y flipped DOWN. */
+          float2 lp = float2(dot(_C2L0.xy, i.lpos) + _C2L0.z, dot(_C2L1.xy, i.lpos) + _C2L1.z);
+          float2 p = float2(lp.x - _Cx, -(lp.y - _Cy));
           float a;
           if (_StarsOnly > 0.5) {
             // HeroLabel's full-word quad: stars spill past letterforms, like the app
@@ -3827,18 +3841,28 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         if (fy < 1) { s.top = Math.max(1, Math.floor(s.top * fy)); s.bottom = Math.max(1, Math.floor(s.bottom * fy)); }
       }
       /* ── ROUND 58, the WIDTH ROAD (the owner: "with 9 slice we won't
-         need the mask"): every WINDOWED mercury row — the band-stamped
-         fill atoms, rails included — ships band-true cap borders and a
+         need the mask"): every mercury row — the band-stamped fill
+         atoms, rails included — ships band-true cap borders and a
          measured center mode, and KitBarFill drives the rect's WIDTH.
          The band-true numbers OVERRULE the generic curvature measurement
          and its 25% caps above: a stadium's whole height IS cap, and the
-         mercury's authored band already names the curve exactly. The
-         ramped class (vsbar — the app squeezes its whole gradient into
-         the run) keeps the proven r47 stretch road: no borders, no mode. */
-      if (fillBody && fillBody.y !== undefined && q.meta.component !== "vsbar"
+         mercury's authored band already names the curve exactly.
+         ROUND 60 (the owner's second field round — their zooms convicted
+         the VS bar's detached drain bead, the last cap-composite family):
+         the RAMP joins too. Its center is the gradient itself, and a
+         Sliced center COMPRESSES under a narrower rect — which is the
+         app's own squeeze — so vsbar rides "sliced" BY DESIGN (measured
+         mode would read the ramp as pattern and tile it: a repeated
+         gradient, wrong); the bleed+r caps give each side its floor
+         circle and the drain edge is the sprite's own bordered cap —
+         no bead to detach, ever. */
+      if (fillBody && fillBody.y !== undefined
           && (q.meta.part === "fill" || q.meta.part.startsWith("fill-"))) {
         const bar58 = await analyzeBarCenter(bytes, w, h, fillBody);
-        if (bar58) { q.meta.nineSlice = bar58.nineSlice; q.meta.barMode = bar58.mode; }
+        if (bar58) {
+          q.meta.nineSlice = bar58.nineSlice;
+          q.meta.barMode = q.meta.component === "vsbar" ? "sliced" : bar58.mode;
+        }
       }
       files.push({ path: `assets/${q.path}`, data: bytes });
       // per-piece forks can arm the edge shine even when the kit default is
@@ -4208,17 +4232,17 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      layers and place as wired prefabs, like the slider and the progress
      bar before them. */
   await addPng("vsbar/track.9.png", shell("vsbar", { overlay: "track" }, slim), { component: "vsbar", part: "track", nineSlice: sliceOf("vsbar", 96), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "VS health bar track — the real component's shell + well, no fills, no medallion. The wired VsBar prefab stretches it." }, true);
-  await addPng("vsbar/fill-l.png", shell("vsbar", { overlay: "fill" }, slim, 1), { component: "vsbar", part: "fill-l", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Left fighter's mercury at 100% — KitBarFill COMPRESSES it into the live run (the app squeezes its whole ramp the same way) while the drain bead parks its true edge on the health line. Drive SetValue or write fillAmount." }, true);
-  await addPng("vsbar/fill-r.png", shell("vsbar", { overlay: "fill-right" }, slim, 1), { component: "vsbar", part: "fill-r", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Right fighter's mercury at 100%, mirrored — KitBarFill compresses it into the live run toward center while the pre-mirrored drain bead parks on the health line. Drive SetValue or write fillAmount." }, true);
-  await addPng("vsbar/cap-l.png", shell("vsbar", { overlay: "cap-l" }, slim, 1), { component: "vsbar", part: "cap-l", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The drain bead — its true edge parks on the health line while the ramp compresses (the round-48 body map keeps it seated through the glow bleed)." }, true);
-  await addPng("vsbar/cap-r.png", shell("vsbar", { overlay: "cap-r" }, slim, 1), { component: "vsbar", part: "cap-r", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The drain bead, PRE-MIRRORED — seats pivot-first INTO the run on the right bar, its true edge on the health line." }, true);
+  await addPng("vsbar/fill-l.png", shell("vsbar", { overlay: "fill" }, slim, 1), { component: "vsbar", part: "fill-l", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Left fighter's mercury — a bordered stadium driven by WIDTH: the Sliced center COMPRESSES the ramp into the live run (the app squeezes its gradient the same way) and the sprite's own bordered cap rounds the drain edge — no bead to detach, ever. Drag KitBarFill's Value slider or call SetValue; a raw fillAmount write still adopts." }, true);
+  await addPng("vsbar/fill-r.png", shell("vsbar", { overlay: "fill-right" }, slim, 1), { component: "vsbar", part: "fill-r", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Right fighter's mercury, mirrored — a bordered stadium growing from its own end toward center: the Sliced center compresses the ramp into the run and the bordered cap rounds the drain edge. Drag KitBarFill's Value slider or call SetValue; a raw fillAmount write still adopts." }, true);
+  await addPng("vsbar/cap-l.png", shell("vsbar", { overlay: "cap-l" }, slim, 1), { component: "vsbar", part: "cap-l", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "LEGACY drain bead — the width road's bordered stadium rounds its own drain edge now (round 60); older importers still park this at the health line." }, true);
+  await addPng("vsbar/cap-r.png", shell("vsbar", { overlay: "cap-r" }, slim, 1), { component: "vsbar", part: "cap-r", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "LEGACY drain bead, PRE-MIRRORED — the width road rounds its own drain edge now; older importers still seat this pivot-first into the run." }, true);
   /* round 47 (owner field: the VS caps clashed with the ramp): the NUB
      atoms — the live draw at run = one bar height, the whole ramp
      squeezed into a stadium. Below one head-width KitBarFill squashes
      the nub over the run (the app's short-tail shape and ink exactly)
      and cross-fades it out as the bar grows. */
-  await addPng("vsbar/nub-l.png", shell("vsbar", { overlay: "nub-l" }, slim, 1), { component: "vsbar", part: "nub-l", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The short-run pill — below one head-width the app squeezes the whole ramp into a stadium no static head can fake; this atom squashes to the run and cross-fades out as the bar grows." }, true);
-  await addPng("vsbar/nub-r.png", shell("vsbar", { overlay: "nub-r" }, slim, 1), { component: "vsbar", part: "nub-r", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The short-run pill, mirrored — owns the right bar's short tail; squashes to the run and cross-fades out as the bar grows." }, true);
+  await addPng("vsbar/nub-l.png", shell("vsbar", { overlay: "nub-l" }, slim, 1), { component: "vsbar", part: "nub-l", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The FLOOR ink — the live draw at run = one bar height, the whole ramp squeezed smooth. Below one cap-diameter the width road's mercury Image wears this sprite (KitBarFill's Floor Sprite — same rect, no extra child); older importers squash it over the short run instead." }, true);
+  await addPng("vsbar/nub-r.png", shell("vsbar", { overlay: "nub-r" }, slim, 1), { component: "vsbar", part: "nub-r", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "The FLOOR ink, mirrored — the right mercury wears it below one cap-diameter (KitBarFill's Floor Sprite); older importers squash it over the short run instead." }, true);
   /* round 44 (dossier R1 — words-are-live law): the medal's "VS" leaves
      the pixels. The word parses as a text seat off the medal's OWN canvas
      (the raster queue normalizes fx/fy/ffs to the cropped sprite; the ink
@@ -7888,7 +7912,7 @@ namespace PatternBreak {
     public bool fromRight;
     [Tooltip("Snap the value to N whole steps — the quest tracker fills by whole objectives (round 44). 0 = continuous; old prefabs keep today's behavior.")]
     public int snapSteps = 0;
-    [Tooltip("Ramped mercuries (the VS bar): COMPRESS the sprite into the run — the app squeezes its whole gradient into the mercury at every value, so a windowed crop wears the wrong ink everywhere but full. Off = the classic windowed crop (flat-colored bars; older prefabs).")]
+    [Tooltip("LEGACY ramp road (VS bars from pre-round-60 kits): COMPRESS the sprite into the run — the app squeezes its whole gradient into the mercury at every value. Fresh VS bars ride the width road instead (the Sliced center is the squeeze); this stays for older prefabs, byte for byte.")]
     public bool stretchRun;
     [Tooltip("The whole-mercury pill for the short-run tail (generated on ramped bars): below one head-width the app draws a stadium with the full ramp squeezed in — no static head can fake that — so this atom squashes to the run and cross-fades out as the bar grows.")]
     public RectTransform nub;
@@ -7915,6 +7939,19 @@ namespace PatternBreak {
        keeps every older prefab on its shipped road, byte for byte. */
     [Tooltip("The width road (generated, round 58): 0 = the legacy cap/scissor roads (older zips); 1 = bordered stadium, SLICED center (flat/gradient art — stretch is invisible on it); 2 = bordered stadium, TILED center (patterned art repeats at natural density; the sprite is cut to whole pattern periods).")]
     public int barMode = 0;
+    /* the RAMP'S FLOOR INK (round 60): at the width clamp a ramp's
+       Sliced center is degenerate — the gradient's two END borders would
+       abut in a hard mid-seam where the app squeezes the WHOLE ramp
+       smooth. The authored answer already ships: the r47 nub atom IS the
+       live draw at run = one bar height. Below the floor the ONE mercury
+       Image simply wears it (sprite swap on the same rect — no child, so
+       nothing can detach); above, the bordered stadium comes back.
+       Geometry is continuous through the flip (both wear the clamped
+       width), and flat-centered families never set these. */
+    [Tooltip("Ramped bars only (generated): the authored one-head stadium the mercury wears below one cap-diameter of run — the app's own smooth squeeze where a sliced ramp would seam. Empty = plain width road.")]
+    public Sprite floorSprite;
+    [Tooltip("Ramped bars only (generated): the bordered stadium the mercury wears above the floor — the width road restores it after a floor visit.")]
+    public Sprite mercurySprite;
     /* the DEV CONTRACT (round 58, the owner: bars "wired in a way that a
        dev expects"): the Inspector slider IS the bar — drag it and the
        mercury follows live, edit mode included (ExecuteAlways +
@@ -8066,7 +8103,12 @@ namespace PatternBreak {
       bool showFill = v > 0.005f;
       if (fill.enabled != showFill) fill.enabled = showFill;
       float areaW = area.rect.width, areaH = area.rect.height;
-      float texW = Mathf.Max(1f, fill.sprite.rect.width), texH = Mathf.Max(1f, fill.sprite.rect.height);
+      /* the GEOMETRY sprite (round 60): a ramped bar swaps what the
+         Image WEARS at the floor, but every measurement below — margins,
+         borders, the floor itself — speaks the bordered mercury, so the
+         swap can never re-derive a different floor from the worn atom */
+      var geoSp = mercurySprite != null ? mercurySprite : fill.sprite;
+      float texW = Mathf.Max(1f, geoSp.rect.width), texH = Mathf.Max(1f, geoSp.rect.height);
       float u0b = bodyU1 - bodyU0 > 0.05f ? bodyU0 : 0f;
       float u1b = bodyU1 - bodyU0 > 0.05f ? bodyU1 : 1f;
       // display px per texture px — the fill spans the area's height, so
@@ -8074,7 +8116,7 @@ namespace PatternBreak {
       float sScale = areaH / texH;
       float mL = u0b * texW * sScale;
       float mR = (1f - u1b) * texW * sScale;
-      var bd = fill.sprite.border; // texture px: x = left, z = right
+      var bd = geoSp.border; // texture px: x = left, z = right
       float minInk = Mathf.Max(2f, (bd.x + bd.z) * sScale - mL - mR);
       float w = Mathf.Max(v * areaW, minInk) + mL + mR;
       /* the sanctioned center behavior rides the type: SLICED stretches a
@@ -8085,6 +8127,21 @@ namespace PatternBreak {
          so the last pixel of drain rides it; the flip point has no
          visible center, so nothing pops. */
       var wantType = barMode == 2 && v * areaW > minInk + 1f ? Image.Type.Tiled : Image.Type.Sliced;
+      /* the RAMP'S FLOOR (round 60): below one cap-diameter a ramp's
+         degenerate Sliced center would abut the gradient's two ends in a
+         hard mid-seam — the one ink a flat family never shows. The
+         authored floor ink already ships (the r47 nub atom: the live
+         draw at run = one bar height, the whole ramp squeezed smooth),
+         so the ONE mercury Image wears it there — a sprite swap on the
+         same rect, no child, nothing to detach — and the bordered
+         stadium comes back above. Width is clamped on both sides of the
+         flip, so the geometry never pops. */
+      bool atFloor = floorSprite != null && mercurySprite != null && v * areaW < minInk - 0.5f;
+      if (atFloor) wantType = Image.Type.Simple;
+      if (floorSprite != null && mercurySprite != null) {
+        var wear = atFloor ? floorSprite : mercurySprite;
+        if (fill.sprite != wear) fill.sprite = wear;
+      }
       if (fill.type != wantType) fill.type = wantType;
       var aMin = new Vector2(fromRight ? 1f : 0f, 0f);
       var aMax = new Vector2(fromRight ? 1f : 0f, 1f);
@@ -10091,6 +10148,18 @@ namespace PatternBreak {
         m.SetFloat("_Em", Mathf.Max(1f, t.fontSize));
         m.SetFloat("_Cx", b.center.x); m.SetFloat("_Cy", b.center.y);
         m.SetFloat("_TextW", b.size.x);
+      }
+      /* the round-58 lesson (round 59 audit): the canvas batcher rebases
+         the echo's vertices into CANVAS space before the shader sees
+         them, so the field's "label space" needs the way back — hand the
+         shader the canvas→label affine. Refreshed every frame right
+         here, so scrolls, board poses, nested scales and rotations stay
+         true; no canvas (a bare preview) keeps the identity defaults. */
+      var cvG = t.canvas;
+      if (cvG != null && m.HasProperty("_C2L0")) {
+        var miG = (cvG.transform.worldToLocalMatrix * t.rectTransform.localToWorldMatrix).inverse;
+        m.SetVector("_C2L0", new Vector4(miG.m00, miG.m01, miG.m03, 0f));
+        m.SetVector("_C2L1", new Vector4(miG.m10, miG.m11, miG.m13, 0f));
       }
     }
     void LateUpdate() {
@@ -12509,12 +12578,14 @@ a Filled image scissored to whole cells. Drive \`Lit\`'s *Fill Amount*
 (segbar/segbar-lit.png ships beside the base as always).
 
 **ProgressBar / EmblemBar / VsBar**: the real component's rig — the
-kit-dressed track with the mercury riding a Filled image exactly on
-the app's well zone. Drive *Fill Amount* on \`Fill Area > Fill\` (the
-VsBar has \`FillL\`/\`FillR\`, one per fighter, draining toward the
-center medallion; the EmblemBar's socket is yours — drop your emblem
-art in its well). Board-placed bars arrive already striking the pose
-the board showed.
+kit-dressed track with the mercury seated exactly on the app's well
+zone. Drag the *Value* slider on \`Fill Area\`'s KitBarFill (or call
+\`SetValue(0..1)\`; a raw \`fillAmount\` write still adopts). The VsBar
+carries one KitBarFill per fighter — \`FillL Area\` and \`FillR Area\`,
+each mercury growing from its own end toward the center medallion —
+and the EmblemBar's socket is yours: drop your emblem art in its
+well. Board-placed bars arrive already striking the pose the board
+showed.
 
 **Joystick / JoystickGhost**: both sticks are ALIVE — a **Touch Stick**
 component moves the thumb and reports a normalized direction: poll
@@ -16371,14 +16442,16 @@ namespace PatternBreak {
               }
             }
             if (it.component == "vsbar" && it.value > 0f) {
-              // the board's value drives the LEFT fighter (the app's rule);
-              // the right keeps its staged pose
+              /* the board's value drives the LEFT fighter (the app's rule);
+                 the right keeps its staged pose. The rig owns the pose on
+                 every road (round 60: the width road's Image is Sliced —
+                 a Filled-only gate here silently dropped board poses). */
               var vlT = inst.transform.Find("FillL Area/FillL");
               var vlI = vlT != null ? vlT.GetComponent<Image>() : null;
-              if (vlI != null && vlI.type == Image.Type.Filled) {
-                vlI.fillAmount = Mathf.Clamp01(it.value);
+              if (vlI != null) {
                 var kbV = vlT.GetComponentInParent<KitBarFill>();
                 if (kbV != null) kbV.SetValue(Mathf.Clamp01(it.value));
+                else if (vlI.type == Image.Type.Filled) vlI.fillAmount = Mathf.Clamp01(it.value);
               }
             }
             /* the RIG-1 display bars strike the board's pose too (round 44
@@ -19601,7 +19674,25 @@ namespace PatternBreak {
       string capName = capNameOverride != null ? capNameOverride : (fam == "vsbar" ? (fromRight ? "cap-r" : "cap-l") : "cap");
       var capSp = S(root + "/assets/" + fam + "/" + fam + "-" + capName + ".png");
       var nubSp = S(root + "/assets/" + fam + "/" + fam + "-nub-" + (fromRight ? "r" : "l") + ".png");
-      bool widthRoad = nubSp == null && fImg.sprite != null && (fImg.sprite.border.x + fImg.sprite.border.z) > 1f;
+      /* round 60 (the owner's second field round: "There are still yet
+         problems with the loading bars… maybe the change hasn't
+         proliferated" — their zooms convicted the VS bar's detached drain
+         bead, the exact cap-composite class): a BORDERED fill rides the
+         width road, ramp or not — the vsbar's Sliced center compression
+         IS the app's own squeeze, so the last cap-composite family joins
+         the fleet. Cap/nub rungs survive ONLY for border-less legacy
+         zips. */
+      bool widthRoad = fImg.sprite != null && (fImg.sprite.border.x + fImg.sprite.border.z) > 1f;
+      /* round 60, the ramp's floor ink: a RAMPED width-road bar (a nub
+         atom ships beside a bordered fill — the vsbar) arms the floor
+         swap: below one cap-diameter the one mercury Image wears the
+         authored one-head stadium instead of seaming the gradient's two
+         end-borders together. Flat families ship no nub and never set
+         these. */
+      if (widthRoad && nubSp != null) {
+        kbf.floorSprite = nubSp;
+        kbf.mercurySprite = fImg.sprite;
+      }
       if (!widthRoad && capSp != null) {
         var capGo = new GameObject("Cap", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
         capGo.transform.SetParent(area.transform, false);
@@ -19609,14 +19700,11 @@ namespace PatternBreak {
         cImg.sprite = capSp; cImg.raycastTarget = false; cImg.type = Image.Type.Simple; cImg.preserveAspect = false;
         kbf.capHead = (RectTransform)capGo.transform;
       }
-      /* round 47 (owner field: the VS caps clashed with the ramp): a bar
-         that ships a NUB atom is a ramped mercury — the rig compresses
-         the fill into the run like the app compresses its gradient, the
-         faded-lead bead parks on the drain edge, and the nub pill owns
-         the short tail. The width road never applies here: a ramp's ink
-         must SQUEEZE with the value, which is the one thing a bordered
-         reveal cannot say. */
-      if (nubSp != null && capSp != null) {
+      /* round 47 (owner field: the VS caps clashed with the ramp): on the
+         LEGACY road a nub atom marks a ramped mercury — the rig
+         compresses the fill into the run, the faded-lead bead parks on
+         the drain edge, and the nub pill owns the short tail. */
+      if (!widthRoad && nubSp != null && capSp != null) {
         kbf.stretchRun = true;
         var nubGo = new GameObject("Nub", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
         nubGo.transform.SetParent(area.transform, false);
@@ -19814,9 +19902,12 @@ namespace PatternBreak {
         if (aT != null && aT.component == fam && aT.track != null && aT.track.w > 2f) return aT.track;
       return null;
     }
-    /* the VS health bar, WIRED (round 21) — two Filled mercuries drain
-       toward center from the manifest's well zone, the candy medallion
-       holds the axis. Drive FillL/FillR's fillAmount for each fighter. */
+    /* the VS health bar, WIRED (round 21; round 60 — the last
+       cap-composite family joins the width road): two bordered-stadium
+       mercuries drain toward center from the manifest's well zone, each
+       a width-driven KitBarFill (Value slider / SetValue per fighter,
+       Sliced ramp squeeze, floor circle per side), the candy medallion
+       holds the axis. */
     static bool VsBarPrefab(string dir, string root, int pngScale, PBManifest m) {
       var track = S(root + "/assets/vsbar/vsbar-track.9.png");
       if (track == null) return false;
@@ -24247,6 +24338,13 @@ namespace PatternBreak {
                   var kbT = arT != null ? arT.GetComponent<KitBarFill>() : null;
                   var fiI = kbT != null ? kbT.fill : null;
                   if (kbT == null || kbT.stretchRun || kbT.nub != null || fiI == null || fiI.sprite == null) continue;
+                  /* round 60: a WIDTH-ROAD rig (bordered mercury, or the
+                     armed floor swap — a dev can save the prefab wearing
+                     the borderless floor atom) is never ramp-eligible —
+                     without this a first import (no prevLock) read the
+                     fresh Sliced VsBar as a round-44 rig awaiting its nub
+                     and re-saved it with a false "rounded head" log */
+                  if (kbT.floorSprite != null || (fiI.sprite.border.x + fiI.sprite.border.z) > 1f) continue;
                   var pSprN = AssetDatabase.GetAssetPath(fiI.sprite).Replace("\\\\", "/");
                   if (!pSprN.StartsWith(root + "/assets/")) continue; // dev art — theirs
                   if (S(root + "/assets/vsbar/vsbar-nub-" + (ln[2] == "cap-r" ? "r" : "l") + ".png") == null) continue; // old zip

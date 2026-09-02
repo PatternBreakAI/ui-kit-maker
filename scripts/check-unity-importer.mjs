@@ -3866,13 +3866,14 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   }
   if (!/barMode\?: "tiled" \| "sliced";/.test(src)
       || !/const analyzeBarCenter = async \(/.test(src)
-      || !/q\.meta\.nineSlice = bar58\.nineSlice; q\.meta\.barMode = bar58\.mode;/.test(src))
-    errors.push("the width road's border cutter left the exporter — fills stop shipping band-true 9-slice caps and a measured center mode (round 58, S48)");
+      || !/q\.meta\.nineSlice = bar58\.nineSlice;/.test(src)
+      || !/q\.meta\.barMode = q\.meta\.component === "vsbar" \? "sliced" : bar58\.mode;/.test(src))
+    errors.push("the width road's border cutter left the exporter — fills stop shipping band-true 9-slice caps and a measured center mode, or the vsbar RAMP lost its by-design Sliced squeeze (round 58+60, S48)");
   if (!/const left = Math\.round\(body\.x \+ r\);/.test(src)
       || !/const right = Math\.round\(\(w - body\.x - body\.w\) \+ r\);/.test(src))
     errors.push("the borders drifted off bleed + r EXACTLY — the owner's zero point stops being a perfect circle (pads and snaps may never widen a cap border) (round 58, S48)");
-  if (!/q\.meta\.component !== "vsbar"/.test(src))
-    errors.push("the ramped class lost its exclusion — a vsbar ramp cannot ride a bordered reveal: its ink must SQUEEZE with the value (round 58, S48)");
+  if (/q\.meta\.component !== "vsbar"/.test(src))
+    errors.push("the vsbar exclusion came back — the ramp rides the width road now: Sliced center compression IS the app's squeeze, and the detached drain bead was the owner's round-60 field conviction (round 60, S48)");
   if (!/public int barMode = 0;/.test(src) || !/\[Range\(0f, 1f\)\]\n\s*\[Tooltip[^\n]*\n\s*public float value = -1f;/.test(src)
       || !/void ApplyWidth\(float v\) \{/.test(src)
       || !/var wantType = barMode == 2 && v \* areaW > minInk \+ 1f \? Image\.Type\.Tiled : Image\.Type\.Sliced;/.test(src))
@@ -3890,9 +3891,10 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
       || !/data-fillbody="\$\{gx\.toFixed\(1\)\} \$\{gw\.toFixed\(1\)\} \$\{\(gy \+ riseMR\)\.toFixed\(1\)\} \$\{gh\.toFixed\(1\)\}"/.test(src)
       || !/Number\.isFinite\(fby\) && Number\.isFinite\(fbh\) && fbh > 1/.test(src))
     errors.push("the four-number data-fillbody stamp (universal riseU / rails riseMR — the stamps speak the PRE-SHIFT frame) or its y/h parse left the exporter — the band truth feeding the border cutter dies (round 57-58, S48)");
-  if (!/bool widthRoad = nubSp == null && fImg\.sprite != null && \(fImg\.sprite\.border\.x \+ fImg\.sprite\.border\.z\) > 1f;/.test(cs)
-      || !/if \(!widthRoad && capSp != null\) \{/.test(cs))
-    errors.push("WireBarCap lost the width-road fork — bordered stadiums would mount a cap child again, or border-less legacy zips would lose theirs (round 58, S48)");
+  if (!/bool widthRoad = fImg\.sprite != null && \(fImg\.sprite\.border\.x \+ fImg\.sprite\.border\.z\) > 1f;/.test(cs)
+      || !/if \(!widthRoad && capSp != null\) \{/.test(cs)
+      || !/if \(!widthRoad && nubSp != null && capSp != null\) \{/.test(cs))
+    errors.push("WireBarCap lost the width-road fork — bordered stadiums (the ramped vsbar included, round 60) would mount cap/nub children again, or border-less legacy zips would lose theirs (round 58+60, S48)");
   if (!/kbf\.barMode = rowF\.barMode == "tiled" \? 2 : \(rowF\.barMode == "sliced" \? 1 : 0\);/.test(cs))
     errors.push("WireBarBodies no longer arms the measured center mode from the manifest (round 58, S48)");
   if (!/public string barMode; \}/.test(cs))
@@ -3915,6 +3917,99 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/Every KitBarFill carries a Value slider in the Inspector/.test(src)
       || !/a bar parked\nunder a LayoutGroup re-runs that group's layout on every change/.test(src))
     errors.push("the QuickStart lost the slider-first contract or the honest LayoutGroup cost note (round 58, S48)");
+}
+
+/* ── ROUND 59 · S49 (the GlintInk wrong-frame audit — the BarClip
+   post-mortem's queued follow-up): the canvas batcher rebases v.vertex
+   into CANVAS space, so GlintInk's `o.lpos` is label space only for a
+   label parked on the canvas origin — off it, the wipe-shine VANISHED,
+   crawled against movement near the origin, and mis-sized under scale
+   (the r59 GPU harness, five exhibits). The contract now: the frag
+   consumes lpos ONLY through the _C2L canvas→label affine that
+   HeroLabel's DressLive refreshes every frame (identity defaults keep
+   the shader safe standalone); no shipped shader may consume a
+   positional varying raw ever again — GlintInk carries the fleet's ONE
+   lpos, reconstructed, and DisabledInk stays position-free. ── */
+{
+  if (!/_C2L0 \("Canvas to label, row 0 \(HeroLabel\)", Vector\) = \(1,0,0,0\)/.test(src)
+      || !/float4 _C2L0, _C2L1;/.test(src)
+      || !/float2 lp = float2\(dot\(_C2L0\.xy, i\.lpos\) \+ _C2L0\.z, dot\(_C2L1\.xy, i\.lpos\) \+ _C2L1\.z\);/.test(src)
+      || !/float2 p = float2\(lp\.x - _Cx, -\(lp\.y - _Cy\)\);/.test(src))
+    errors.push("GlintInk lost the canvas→label reconstruction — off-origin labels lose their wipe-shine again (round 59, S49)");
+  if (/i\.lpos\.x - _Cx/.test(src))
+    errors.push("GlintInk consumes lpos RAW again — the batcher owns v.vertex; label space must come back through _C2L (round 59, S49)");
+  if (!/var miG = \(cvG\.transform\.worldToLocalMatrix \* t\.rectTransform\.localToWorldMatrix\)\.inverse;/.test(src)
+      || !/m\.SetVector\("_C2L0", new Vector4\(miG\.m00, miG\.m01, miG\.m03, 0f\)\);/.test(src)
+      || !/m\.SetVector\("_C2L1", new Vector4\(miG\.m10, miG\.m11, miG\.m13, 0f\)\);/.test(src))
+    errors.push("DressLive no longer hands the shader the per-frame canvas→label affine — scrolls and board poses would shear the shine (round 59, S49)");
+  const lposAssigns = (src.match(/o\.lpos = v\.vertex/g) ?? []).length;
+  if (lposAssigns !== 1)
+    errors.push(`the fleet's positional-varying census moved (${lposAssigns} lpos assignments; the contract is exactly 1, GlintInk's, reconstructed) — a new shader is assuming the frame the batcher destroys (round 59, S49)`);
+  if (!/o\.vertex = UnityObjectToClipPos\(v\.vertex\); o\.texcoord = v\.texcoord; o\.color = v\.color; return o;/.test(src))
+    errors.push("DisabledInk grew beyond its position-free vert — re-audit it against the batcher frame (round 59, S49)");
+}
+
+/* ── ROUND 60 · S50 (the owner's second field round: "There are still
+   yet problems with the loading bars… maybe the change hasn't
+   proliferated" — their zooms convicted the VS bar's DETACHED drain
+   bead, the last cap-composite family on a fresh export): the vsbar
+   rides the width road (Sliced ramp squeeze, per-side floor circle,
+   no Cap/Nub children on fresh builds), cap-composite anatomy is
+   ABSENT EVERYWHERE by census — standalone bars and every embedded
+   sub-rig route through the ONE legacy-gated mount — and there is NO
+   self-heal for existing projects (the owner's explicit cut: fresh
+   exports clean is the whole bar; kept prefabs are the dev's). ── */
+{
+  /* the census: exactly ONE "Cap" mount (WireBarCap's !widthRoad legacy
+     rung) and exactly TWO "Nub" mounts (that rung + the r47 kept-prefab
+     arrival graft). Every fill emission — BuildBarFill, WireNamedRails,
+     VsBarPrefab, the slider, every graft — routes through WireBarCap,
+     so a new cap-composite mount ANYWHERE moves these counts. */
+  const capMounts = (cs.match(/new GameObject\("Cap",/g) ?? []).length;
+  const nubMounts = (cs.match(/new GameObject\("Nub",/g) ?? []).length;
+  if (capMounts !== 1)
+    errors.push(`the cap-composite census moved (${capMounts} Cap mounts; the contract is exactly 1, WireBarCap's legacy-gated rung) — some rig is mounting a detached drain bead again (round 60, S50)`);
+  if (nubMounts !== 2)
+    errors.push(`the nub census moved (${nubMounts} Nub mounts; the contract is exactly 2 — WireBarCap's legacy rung + the r47 kept-prefab graft) — some rig is mounting a squash pill again (round 60, S50)`);
+  if (/HealCapCompositeRelics/.test(cs))
+    errors.push("a cap-composite self-heal appeared in the importer — the owner CUT self-heal for existing projects (fresh exports clean is the whole bar; kept prefabs belong to the dev) (round 60, S50)");
+  if (!/if \(kbT\.floorSprite != null \|\| \(fiI\.sprite\.border\.x \+ fiI\.sprite\.border\.z\) > 1f\) continue;/.test(cs))
+    errors.push("the r47 ramp graft lost its width-road exclusion — a first import would read the fresh Sliced VsBar as a round-44 rig awaiting its nub and re-save it with a false log (round 60, S50)");
+  /* the RAMP'S FLOOR SWAP: below one cap-diameter the ONE mercury Image
+     wears the authored one-head stadium (the r47 nub atom) instead of
+     seaming the gradient's two end-borders together; geometry always
+     measures off the bordered mercury, and flat families never arm it. */
+  if (!/public Sprite floorSprite;/.test(src) || !/public Sprite mercurySprite;/.test(src))
+    errors.push("KitBarFill lost the ramp's floor-swap fields — the vsbar floor seams the gradient's two ends together again (round 60, S50)");
+  if (!/var geoSp = mercurySprite != null \? mercurySprite : fill\.sprite;/.test(src)
+      || !/float texW = Mathf\.Max\(1f, geoSp\.rect\.width\), texH = Mathf\.Max\(1f, geoSp\.rect\.height\);/.test(src)
+      || !/var bd = geoSp\.border;/.test(src))
+    errors.push("ApplyWidth measures off the WORN sprite — at the floor the borderless atom would re-derive a different floor and flip-flop (round 60, S50)");
+  if (!/bool atFloor = floorSprite != null && mercurySprite != null && v \* areaW < minInk - 0\.5f;/.test(src)
+      || !/if \(atFloor\) wantType = Image\.Type\.Simple;/.test(src)
+      || !/var wear = atFloor \? floorSprite : mercurySprite;\s*\n\s*if \(fill\.sprite != wear\) fill\.sprite = wear;/.test(src))
+    errors.push("the floor swap left ApplyWidth — the ramp's sub-floor range shows the hard mid-seam the round-60 receipts named (round 60, S50)");
+  if (!/if \(widthRoad && nubSp != null\) \{\s*\n\s*kbf\.floorSprite = nubSp;\s*\n\s*kbf\.mercurySprite = fImg\.sprite;/.test(cs))
+    errors.push("WireBarCap no longer arms the ramp's floor swap — fresh vsbars lose their authored floor ink (round 60, S50)");
+  /* the vsbar's two-sided width road: each fighter one bordered stadium
+     growing from its own end toward center, each side its own KitBarFill
+     (Value slider / SetValue — WireBarCap + WireBarBodies per lane),
+     the Medal/Words center rig untouched. */
+  if (!/WireBarCap\(area, fi, root, "vsbar", false, 0\.72f\);/.test(cs)
+      || !/WireBarCap\(area, fi, root, "vsbar", true, 0\.58f\);/.test(cs))
+    errors.push("the VsBar lanes left WireBarCap — a side would hand-roll its mercury outside the width-road fork (round 60, S50)");
+  if (!/fi\.fillOrigin = \(int\)Image\.OriginHorizontal\.Right;/.test(cs))
+    errors.push("the right fighter lost its from-the-right growth — both mercuries would grow from the left and the drain edges swap ends (round 60, S50)");
+  if (!/var mgo = ImageObject\("Medal", medal, pngScale\);/.test(cs) || !/WireTextSeats\(mgo, root, m, pngScale\);/.test(cs))
+    errors.push("the VsBar's Medal/Words center rig moved — round 60 converts the mercuries only (round 60, S50)");
+  if (!/if \(kbV != null\) kbV\.SetValue\(Mathf\.Clamp01\(it\.value\)\);\s*\n\s*else if \(vlI\.type == Image\.Type\.Filled\) vlI\.fillAmount = Mathf\.Clamp01\(it\.value\);/.test(cs))
+    errors.push("the board's vsbar pose lost its rig-first write — a Filled-only gate silently drops poses on the Sliced width road (round 60, S50)");
+  /* the shipped words keep the road honest: the fill atoms teach the
+     Value slider, the cap atoms say LEGACY out loud, and the nub rows
+     teach their new job — the floor ink. */
+  if (!/Left fighter's mercury — a bordered stadium driven by WIDTH/.test(src)
+      || !/LEGACY drain bead/.test(src) || !/The FLOOR ink — the live draw at run = one bar height/.test(src))
+    errors.push("the vsbar atoms' usage rows stopped teaching the width road (the caps' LEGACY marking or the nubs' floor-ink job) (round 60, S50)");
 }
 
 if (errors.length) {
