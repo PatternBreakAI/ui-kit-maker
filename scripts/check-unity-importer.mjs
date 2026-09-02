@@ -3917,6 +3917,36 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the QuickStart lost the slider-first contract or the honest LayoutGroup cost note (round 58, S48)");
 }
 
+/* ── ROUND 59 · S49 (the GlintInk wrong-frame audit — the BarClip
+   post-mortem's queued follow-up): the canvas batcher rebases v.vertex
+   into CANVAS space, so GlintInk's `o.lpos` is label space only for a
+   label parked on the canvas origin — off it, the wipe-shine VANISHED,
+   crawled against movement near the origin, and mis-sized under scale
+   (the r59 GPU harness, five exhibits). The contract now: the frag
+   consumes lpos ONLY through the _C2L canvas→label affine that
+   HeroLabel's DressLive refreshes every frame (identity defaults keep
+   the shader safe standalone); no shipped shader may consume a
+   positional varying raw ever again — GlintInk carries the fleet's ONE
+   lpos, reconstructed, and DisabledInk stays position-free. ── */
+{
+  if (!/_C2L0 \("Canvas to label, row 0 \(HeroLabel\)", Vector\) = \(1,0,0,0\)/.test(src)
+      || !/float4 _C2L0, _C2L1;/.test(src)
+      || !/float2 lp = float2\(dot\(_C2L0\.xy, i\.lpos\) \+ _C2L0\.z, dot\(_C2L1\.xy, i\.lpos\) \+ _C2L1\.z\);/.test(src)
+      || !/float2 p = float2\(lp\.x - _Cx, -\(lp\.y - _Cy\)\);/.test(src))
+    errors.push("GlintInk lost the canvas→label reconstruction — off-origin labels lose their wipe-shine again (round 59, S49)");
+  if (/i\.lpos\.x - _Cx/.test(src))
+    errors.push("GlintInk consumes lpos RAW again — the batcher owns v.vertex; label space must come back through _C2L (round 59, S49)");
+  if (!/var miG = \(cvG\.transform\.worldToLocalMatrix \* t\.rectTransform\.localToWorldMatrix\)\.inverse;/.test(src)
+      || !/m\.SetVector\("_C2L0", new Vector4\(miG\.m00, miG\.m01, miG\.m03, 0f\)\);/.test(src)
+      || !/m\.SetVector\("_C2L1", new Vector4\(miG\.m10, miG\.m11, miG\.m13, 0f\)\);/.test(src))
+    errors.push("DressLive no longer hands the shader the per-frame canvas→label affine — scrolls and board poses would shear the shine (round 59, S49)");
+  const lposAssigns = (src.match(/o\.lpos = v\.vertex/g) ?? []).length;
+  if (lposAssigns !== 1)
+    errors.push(`the fleet's positional-varying census moved (${lposAssigns} lpos assignments; the contract is exactly 1, GlintInk's, reconstructed) — a new shader is assuming the frame the batcher destroys (round 59, S49)`);
+  if (!/o\.vertex = UnityObjectToClipPos\(v\.vertex\); o\.texcoord = v\.texcoord; o\.color = v\.color; return o;/.test(src))
+    errors.push("DisabledInk grew beyond its position-free vert — re-audit it against the batcher frame (round 59, S49)");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);

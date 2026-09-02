@@ -2592,6 +2592,12 @@ const GLINT_INK_SHADER = `Shader "UIKitMaker/GlintInk" {
     _Cx ("Word center X, label space (HeroLabel)", Float) = 0
     _Cy ("Word center Y, label space (HeroLabel)", Float) = 0
     _TextW ("Word width, label space (HeroLabel)", Float) = 200
+    // the canvas→label affine (HeroLabel, per frame): the canvas batcher
+    // rebases v.vertex into CANVAS space (round 58's flat-bar lesson),
+    // so the frag transforms it BACK before any field math. Identity
+    // defaults keep the shader safe standalone.
+    _C2L0 ("Canvas to label, row 0 (HeroLabel)", Vector) = (1,0,0,0)
+    _C2L1 ("Canvas to label, row 1 (HeroLabel)", Vector) = (0,1,0,0)
   }
   SubShader {
     Tags { "Queue"="Transparent" "RenderType"="Transparent" "IgnoreProjector"="True" "PreviewType"="Plane" "CanUseSpriteAtlas"="True" }
@@ -2607,6 +2613,7 @@ const GLINT_INK_SHADER = `Shader "UIKitMaker/GlintInk" {
       struct v2f { float4 vertex : SV_POSITION; fixed4 color : COLOR; float2 texcoord : TEXCOORD0; float2 lpos : TEXCOORD1; };
       sampler2D _MainTex; fixed4 _Color; float _Pack;
       float _Style, _StarsOnly, _Op, _Lx, _Ly, _OxEm, _OyEm, _Em, _Cx, _Cy, _TextW;
+      float4 _C2L0, _C2L1;
       /* the app's own star tables (bevel.ts): x fraction across the word,
          y offset / size in em, tilt in degrees. slab rides rows 0-2,
          stars rides rows 3-8; streak and sheen stay pure bands. */
@@ -2620,7 +2627,7 @@ const GLINT_INK_SHADER = `Shader "UIKitMaker/GlintInk" {
         o.vertex = UnityObjectToClipPos(v.vertex);
         o.texcoord = v.texcoord;
         o.color = v.color * _Color;
-        o.lpos = v.vertex.xy; // the echo repaints the text's own mesh, so this IS label space
+        o.lpos = v.vertex.xy; // whatever frame the batcher delivers (CANVAS space, batched) — the frag rebuilds label space through _C2L
         return o;
       }
       // anti-aliased rounded-rect coverage in a frame rotated to 'dir' around 'c'
@@ -2699,8 +2706,15 @@ const GLINT_INK_SHADER = `Shader "UIKitMaker/GlintInk" {
       fixed4 frag (v2f i) : SV_Target {
         fixed4 c;
         if (_Style > 0.5) {
-          // app space: word center origin, y flipped DOWN — the app's frame
-          float2 p = float2(i.lpos.x - _Cx, -(i.lpos.y - _Cy));
+          /* the round-58 lesson, applied here (round 59 — the audit's five
+             exhibits): the canvas batcher rebases v.vertex into CANVAS
+             space, so lpos was label space only for a label parked on the
+             canvas origin — everywhere else the shine vanished, crawled
+             with movement, or mis-sized under scale. HeroLabel hands the
+             canvas→label affine every frame; undo the rebase FIRST, then
+             app space: word center origin, y flipped DOWN. */
+          float2 lp = float2(dot(_C2L0.xy, i.lpos) + _C2L0.z, dot(_C2L1.xy, i.lpos) + _C2L1.z);
+          float2 p = float2(lp.x - _Cx, -(lp.y - _Cy));
           float a;
           if (_StarsOnly > 0.5) {
             // HeroLabel's full-word quad: stars spill past letterforms, like the app
@@ -10091,6 +10105,18 @@ namespace PatternBreak {
         m.SetFloat("_Em", Mathf.Max(1f, t.fontSize));
         m.SetFloat("_Cx", b.center.x); m.SetFloat("_Cy", b.center.y);
         m.SetFloat("_TextW", b.size.x);
+      }
+      /* the round-58 lesson (round 59 audit): the canvas batcher rebases
+         the echo's vertices into CANVAS space before the shader sees
+         them, so the field's "label space" needs the way back — hand the
+         shader the canvas→label affine. Refreshed every frame right
+         here, so scrolls, board poses, nested scales and rotations stay
+         true; no canvas (a bare preview) keeps the identity defaults. */
+      var cvG = t.canvas;
+      if (cvG != null && m.HasProperty("_C2L0")) {
+        var miG = (cvG.transform.worldToLocalMatrix * t.rectTransform.localToWorldMatrix).inverse;
+        m.SetVector("_C2L0", new Vector4(miG.m00, miG.m01, miG.m03, 0f));
+        m.SetVector("_C2L1", new Vector4(miG.m10, miG.m11, miG.m13, 0f));
       }
     }
     void LateUpdate() {
