@@ -1,4 +1,4 @@
-import { Component, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { Component, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import "@/styles/pricing.css"; // the staging bay wears the community desk's cg-curate buttons
 import { ChevronDown, Download, Lock, PenTool, Pin, ShieldCheck, SquarePen, Trash2 } from "lucide-react";
 import { useGen } from "@/generator/store";
@@ -1614,6 +1614,25 @@ export function KitPage() {
      cannot disagree. A hash change swaps the whole route subtree, which
      is why reading it at render is enough. */
   const namedKit = namedKitFromHash(window.location.hash);
+  /* ── who goes first on a SHIPPED kit's page ─────────────────────────
+     On `#/kit/<slug>` the seven demo screens are the headline and this
+     book is the appendix, so the book waits its turn: the screens wake
+     first, then the typography specimens and the chapter chain, and the
+     generating curtain lifts the moment the screens are up rather than
+     holding a stranger for the whole build. Measured on the production
+     build before this rule: the book's long tasks starved the screens
+     for eighteen seconds and the curtain sat over all of it. Every other
+     route is untouched — with no named kit this starts true and nothing
+     downstream can tell the difference. */
+  const [screensReady, setScreensReady] = useState(!namedKit);
+  const onScreensReady = useCallback(() => setScreensReady(true), []);
+  /* …and the book is never hostage to them: if a screen throws (its
+     SecGuard catches it) or a frame never comes, the chain starts anyway */
+  useEffect(() => {
+    if (screensReady) return;
+    const t = window.setTimeout(() => setScreensReady(true), 6000);
+    return () => window.clearTimeout(t);
+  }, [screensReady]);
   // the staging bay opens by hand only — it must never pop up mid-demo
   // (owner: "when I'm showing off the site, I don't want that stuff to
   // immediately pop up"), so collapsed is the default every load. Within
@@ -1696,7 +1715,13 @@ export function KitPage() {
      flips one breath after mount: the same work runs invisibly behind
      the curtain instead of blocking its entrance. */
   const [heavy, setHeavy] = useState(false);
-  useEffect(() => { const t = window.setTimeout(() => setHeavy(true), 50); return () => window.clearTimeout(t); }, []);
+  // …and on a shipped kit's page they wait behind the demo screens too:
+  // a hundred filtered specimens is exactly the long task that starved them
+  useEffect(() => {
+    if (!screensReady) return;
+    const t = window.setTimeout(() => setHeavy(true), 50);
+    return () => window.clearTimeout(t);
+  }, [screensReady]);
 
   const splashArt = useMemo(() => !heavy ? "" : tightenV(renderTypeSpecimen(cfg, splash, {
     highlight: treatOn ? splashHi : undefined,
@@ -1754,7 +1779,11 @@ export function KitPage() {
   // let each chapter's commit PAINT before the next begins — the curtain
   // hides the work, the double-rAF keeps the bar honest and the page alive
   const bootAdvance = () => requestAnimationFrame(() => requestAnimationFrame(() => setBootN((n) => Math.min(BOOT_DONE, n + 1))));
-  useEffect(() => { const t = window.setTimeout(bootAdvance, 250); return () => window.clearTimeout(t); }, []);
+  useEffect(() => {
+    if (!screensReady) return;
+    const t = window.setTimeout(bootAdvance, 250);
+    return () => window.clearTimeout(t);
+  }, [screensReady]); // eslint-disable-line react-hooks/exhaustive-deps
   /* round-46 stall-proofing: the boot chain is SERIAL — each chapter's
      commit advances the next — so one missed link (a throttled rAF, an
      observer that never fires, an effect lost to a race) used to strand
@@ -1766,16 +1795,17 @@ export function KitPage() {
      can't also be the thing that's stuck. Healthy boots advance in well
      under a second and never hear from it. */
   useEffect(() => {
-    if (bootN >= BOOT_DONE) return;
+    // a book that hasn't been told to start yet isn't stalled
+    if (bootN >= BOOT_DONE || !screensReady) return;
     const t = window.setTimeout(() => {
       console.warn(`[chapters] boot stalled at stage ${bootN}/${BOOT_DONE} — watchdog advancing`);
       setBootN((n) => (n === bootN ? Math.min(BOOT_DONE, n + 1) : n));
     }, 3500);
     return () => window.clearTimeout(t);
-  }, [bootN]);
+  }, [bootN, screensReady]);
   useEffect(() => {
     if (curtain !== "on") return;
-    if (bootN >= BOOT_DONE && fontsReady) {
+    if ((namedKit ? screensReady : bootN >= BOOT_DONE) && fontsReady) {
       // whole page + real glyphs are in — hold a beat so the bar is seen
       // finishing, then fade (min display keeps warm re-entries flickerless)
       const wait = Math.max(420, 900 - (Date.now() - bootT0.current));
@@ -1785,7 +1815,7 @@ export function KitPage() {
     // failsafe: a stalled stage never traps the reader behind the curtain
     const f = window.setTimeout(() => { console.warn(`[chapters] curtain failsafe lift — boot sat at stage ${bootN}/${BOOT_DONE}`); setCurtain("leaving"); }, 12000);
     return () => window.clearTimeout(f);
-  }, [bootN, fontsReady, curtain]);
+  }, [bootN, fontsReady, curtain, namedKit, screensReady]);
   useEffect(() => {
     if (curtain !== "leaving") return;
     const t = window.setTimeout(() => setCurtain("gone"), 450);
@@ -2474,7 +2504,7 @@ const kitTier = useGen((s) => s.tier);
           screens, then the kit book, then the promo block at the foot.
           On every other route namedKit is null and this is the same Kit
           page it has always been. */}
-      {namedKit && <SecGuard name="Demo screens"><KitScreens kit={namedKit} /></SecGuard>}
+      {namedKit && <SecGuard name="Demo screens"><KitScreens kit={namedKit} onReady={onScreensReady} /></SecGuard>}
       {/* ── sticky chapter navigation — persistent orientation ── */}
       <ChapterTabs />
 
@@ -2497,9 +2527,15 @@ const kitTier = useGen((s) => s.tier);
               }}
               onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setRenaming(false); }} />
           ) : (
+            /* a kit we SHIP wears its own name — a stranger on its public
+               page can't rename it out from under the store listing */
+            namedKit ? (
+              <h1 className="kp-title">{kitName ?? namedKit.name}</h1>
+            ) : (
             <h1 className="kp-title kp-renamable" onClick={() => setRenaming(true)} title="Click to rename this kit">
               {kitName ?? `The ${preset?.name ?? "Custom"} Kit`} <SquarePen className="kp-renpen" size={17} strokeWidth={2.1} aria-hidden="true" />
             </h1>
+            )
           )}
           <p className="kp-sub">A dimensional candy interface system for fast, playful game UI — one material, five levels, everything live.</p>
           <div className="kp-facts">
@@ -2525,7 +2561,15 @@ const kitTier = useGen((s) => s.tier);
               {shared ? "Link copied ✓" : "Share kit"}
             </button>
           </div>
-          {viewer ? <div className="kp-viewnote">Shared kit — view only. Ask the owner for the downloads.</div> : <ExportMenu actions={exportActions} />}
+          {viewer ? (
+            <div className="kp-viewnote">
+              {namedKit
+                /* a shipped kit's page has no "owner" to ask — the whole
+                   thing is on show, and the way in is the generator */
+                ? `${namedKit.name} is one of our kits, shown whole and read-only — every piece below is live. Make your own in the generator.`
+                : "Shared kit — view only. Ask the owner for the downloads."}
+            </div>
+          ) : <ExportMenu actions={exportActions} />}
           {!viewer && (
             <button className="kp-unitylink" onClick={() => { window.location.hash = "#/unity"; }}
               title="What lands in your project, how the import works, and why re-exports never break a scene.">

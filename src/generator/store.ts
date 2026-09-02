@@ -302,6 +302,17 @@ export function presetLookConfig(id: string): GenConfig {
 function adoptDefaultIfUntouched(): void {
   if (SAFE_BOOT) return; // safe boot never writes the real keys
   if (localStorage.getItem(TOUCHED_KEY) === "1") return;
+  /* A document that arrived from a LINK is not "untouched workspace" —
+     it is the thing the visitor came to see. This lands from a fetch, so
+     it always raced the link's own hydration; whichever won decided what
+     you saw. On a fast local dev server the fetch got in first and the
+     link's kit stood; on the deployed build the fetch resolved AFTER the
+     editor chunk downloaded and the site default painted straight over
+     Brightside — the kit's own page showing factory cyan under the right
+     kit's name. viewer covers every link road (#share=, #p=, a shipped
+     kit's #/kit/<slug> page); an open project covers the owned one. */
+  const st = useGen.getState();
+  if (st.viewer || st.openProjectId) return;
   const next = getDefault();
   if (JSON.stringify(useGen.getState().cfg) === JSON.stringify(next)) return;
   useGen.setState({ cfg: next });

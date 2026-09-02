@@ -17,17 +17,6 @@ import { namedKitPieceCount, namedKitScreens, type NamedKitDef, type NamedKitScr
 import type { BoardDef } from "@/generator/store";
 import { useGen } from "@/generator/store";
 
-/* one idle-slice callback with a working-anyway timeout (the Board desk's
-   own scheduler, kept local so this file pulls nothing extra) */
-function idleOnce(fn: () => void): () => void {
-  type IdleWin = Window & { requestIdleCallback?: (fn: () => void, o?: { timeout: number }) => number; cancelIdleCallback?: (h: number) => void };
-  const w = window as IdleWin;
-  let dead = false;
-  const run = () => { if (!dead) fn(); };
-  const h = w.requestIdleCallback ? w.requestIdleCallback(run, { timeout: 800 }) : window.setTimeout(run, 120);
-  return () => { dead = true; if (w.cancelIdleCallback) w.cancelIdleCallback(h as number); else window.clearTimeout(h as number); };
-}
-
 /** One screen: a device-true frame at the board's own aspect, its live
  *  stage inside, the card copy under it. The frame reserves its exact
  *  height from the first paint (aspect-ratio on the measured box), so a
@@ -72,20 +61,32 @@ function ScreenCard({ screen, board, n, live }: {
   );
 }
 
-/** The seven demo screens, at the top of the shipped kit's page. */
-export function KitScreens({ kit }: { kit: NamedKitDef }) {
+/** The seven demo screens, at the top of the shipped kit's page.
+ *  `onReady` fires once every screen is awake — the Kit page holds its
+ *  generating curtain (and its own chapter boot) until then, because on
+ *  THIS page the screens are the headline and the book is the appendix. */
+export function KitScreens({ kit, onReady }: { kit: NamedKitDef; onReady?: () => void }) {
   const screens = namedKitScreens(kit);
   const count = namedKitPieceCount(kit);
-  /* Waking: one board per idle slice, in reading order. Seven live stages
-     (ninety-odd rendered pieces) committed in a single task would hold
-     the first paint of the whole page; spread over idle slices, the page
-     paints immediately and each screen comes up under it. Nothing waits
-     on a click, and once a board is awake it stays awake. */
+  /* Waking: one board per frame, in reading order. Seven live stages
+     (ninety-odd rendered pieces) committed in ONE task would hold the
+     page's first paint for seconds; one per frame keeps the thread
+     breathing between them and lets each screen paint as it lands.
+     Nothing waits on a click, and once a board is awake it stays awake.
+     (An idle callback was the first cut — but the Kit book's own boot
+     chain runs long tasks back to back, so the screens starved behind it
+     for eighteen seconds. Frames, and the book waiting its turn, is what
+     makes the top of the page alive in about four.) */
   const [awake, setAwake] = useState(1);
+  const rung = useRef(false);
   useEffect(() => {
-    if (awake >= screens.length) return;
-    return idleOnce(() => setAwake((n) => n + 1));
-  }, [awake, screens.length]);
+    if (awake >= screens.length) {
+      if (!rung.current) { rung.current = true; onReady?.(); }
+      return;
+    }
+    const r = requestAnimationFrame(() => requestAnimationFrame(() => setAwake((n) => n + 1)));
+    return () => cancelAnimationFrame(r);
+  }, [awake, screens.length, onReady]);
   if (!screens.length) return null;
   return (
     <section className="kv-screens" aria-label={`${kit.name} demo screens`}>
