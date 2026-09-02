@@ -7220,11 +7220,14 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         /* the corner check — plate follows Bevel until forked, the ring
            stays the plate's own darker edge, the mark's ink and glyph are
            wells too; "none" on the plate removes the whole badge (the
-           allowNone contract) */
+           allowNone contract). Marked swappable ink (round 61b, the
+           dailycell claimbadge grammar): the engine export cuts plate +
+           mark as ONE live Image child and strips it from the posed
+           pixels — never burned into a learned copy's art (the law). */
         const plateC9 = slR.checkColor ?? bevel;
         const gph9 = STOCK_ICONS[(slR.checkGlyph ?? "check").toLowerCase()] ?? STOCK_ICONS.check;
-        over += `<circle cx="${(sx + sw - 8 * k).toFixed(1)}" cy="${(sy + 8 * k).toFixed(1)}" r="${(15 * k).toFixed(1)}" fill="${plateC9}" stroke="${darken(plateC9, 0.45)}" stroke-width="1.5"/>` +
-          iconGroup(gph9, sx + sw - 17 * k, sy - 1 * k, 18 * k, slR.checkInk ?? "#FFFFFF", { strokeWidth: 3 * iconWK });
+        over += `<g data-part="icon" data-icon="learnedbadge" data-icon-nick="Learned badge"><circle cx="${(sx + sw - 8 * k).toFixed(1)}" cy="${(sy + 8 * k).toFixed(1)}" r="${(15 * k).toFixed(1)}" fill="${plateC9}" stroke="${darken(plateC9, 0.45)}" stroke-width="1.5"/>` +
+          iconGroup(gph9, sx + sw - 17 * k, sy - 1 * k, 18 * k, slR.checkInk ?? "#FFFFFF", { strokeWidth: 3 * iconWK }) + `</g>`;
       }
       return inject(injectUnder(shell.replace("<svg ", '<svg data-skillnode="1" '), stubs), over);
     }

@@ -913,6 +913,13 @@ export async function collectExportBoards(st: {
    *  seats must too (slice-2: the badge's −18 arrived un-nudged). */
   kitTextOy?: Partial<Record<string, number>>;
   kitTextOx?: Partial<Record<string, number>>;
+  /** The maker's slot picks (KIT_SLOTS wells) — the Board stage renders
+   *  with them (svgOf passes kitSlotVals[b.kitId]), so every board-copy
+   *  bake and posed skin must too (round 61b: the skillnode's learned
+   *  path/badge wells never reached the Unity zip). Keyed by the item's
+   *  OWN id — a clone's fork is the truth. Optional: older callers ship
+   *  factory slots. */
+  kitSlotVals?: Partial<Record<KitComponentId, Record<string, string>>>;
 }): Promise<ExportBoardData[]> {
   const { captureVideoPoster } = await import("./bgvault");
   /* exports are SELF-CONTAINED: refs resolve to real pixels here — vault
@@ -1317,10 +1324,16 @@ export async function collectExportBoards(st: {
          prefab-less road. The kit-shadow bake's opacity gate goes false
          on the calmed config by construction, so replace can never stack. */
       const cfgP = b.shadow?.s ? suppressCastShadow(cfgP0) : cfgP0;
+      /* the piece's SLOT PICKS ride every board-copy bake (round 61b —
+         the app lane's flag: the skillnode's learned wells steered art
+         the posed skins never wore). The Board stage passes
+         kitSlotVals[b.kitId] (svgOf) — keyed by the item's OWN id, so a
+         clone's fork is the truth — and dims and baked pixels must match
+         what the maker saw. All six renders below speak the same grammar. */
       const svg = renderKit(cfgP, idBase, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], {
         icon: resolveKitIcon(st.kitIcons?.[id], undefined),
         // kitNoText → deliberate "" (wordless render), never heal-to-stock
-        label: st.kitNoText?.[id] ? "" : (b.label ?? st.kitLabels[id]), stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
+        label: st.kitNoText?.[id] ? "" : (b.label ?? st.kitLabels[id]), stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov, slots: st.kitSlotVals?.[id],
         // the Board stage renders with the maker's text nudges — every bake must too
         textOy: st.kitTextOy?.[`${id}:${st.kitSizes[id] ?? "l"}`], textOx: st.kitTextOx?.[`${id}:${st.kitSizes[id] ?? "l"}`],
         themedText: !!st.kitDesigns?.[id]?.type || !!st.kitTextFill[id],
@@ -1472,7 +1485,7 @@ export async function collectExportBoards(st: {
             }
             const svgC0 = renderKit(calmK, idBase, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], {
               icon: resolveKitIcon(st.kitIcons?.[id], undefined),
-              label: st.kitNoText?.[id] ? "" : (b.label ?? st.kitLabels[id]), stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
+              label: st.kitNoText?.[id] ? "" : (b.label ?? st.kitLabels[id]), stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov, slots: st.kitSlotVals?.[id],
               // the Board stage renders with the maker's text nudges — every bake must too
               textOy: st.kitTextOy?.[`${id}:${st.kitSizes[id] ?? "l"}`], textOx: st.kitTextOx?.[`${id}:${st.kitSizes[id] ?? "l"}`],
               themedText: !!st.kitDesigns?.[id]?.type || !!st.kitTextFill[id],
@@ -1651,7 +1664,7 @@ export async function collectExportBoards(st: {
         if (!pureType && (isCloneId(id) || universalPose || (Math.abs(poseAspect / natAspect - 1) > 0.08 && !BAR_RIGS.has(idBase)))) {
           let ps2 = renderKit(shellCfg(cfgP), idBase, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], {
             icon: resolveKitIcon(st.kitIcons?.[id], undefined),
-            label: st.kitNoText?.[id] ? "" : (b.label ?? st.kitLabels[id]), stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
+            label: st.kitNoText?.[id] ? "" : (b.label ?? st.kitLabels[id]), stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov, slots: st.kitSlotVals?.[id],
             // the Board stage renders with the maker's text nudges — every bake must too
             textOy: st.kitTextOy?.[`${id}:${st.kitSizes[id] ?? "l"}`], textOx: st.kitTextOx?.[`${id}:${st.kitSizes[id] ?? "l"}`],
             themedText: !!st.kitDesigns?.[id]?.type || !!st.kitTextFill[id],
@@ -1858,7 +1871,7 @@ export async function collectExportBoards(st: {
             for (const stN of ["hover", "pressed", "disabled"] as const) {
               let ssv = renderKit(shellCfg(cfgP), idBase, st.kitSizes[id] ?? "l", stN, b.v ?? st.kitVals[id], st.kitShapes[id], {
                 icon: resolveKitIcon(st.kitIcons?.[id], undefined),
-                label: st.kitNoText?.[id] ? "" : (b.label ?? st.kitLabels[id]), stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
+                label: st.kitNoText?.[id] ? "" : (b.label ?? st.kitLabels[id]), stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov, slots: st.kitSlotVals?.[id],
                 // the Board stage renders with the maker's text nudges — every bake must too
                 textOy: st.kitTextOy?.[`${id}:${st.kitSizes[id] ?? "l"}`], textOx: st.kitTextOx?.[`${id}:${st.kitSizes[id] ?? "l"}`],
                 themedText: !!st.kitDesigns?.[id]?.type || !!st.kitTextFill[id],
@@ -1923,7 +1936,7 @@ export async function collectExportBoards(st: {
           if (cSh.idle) cSh.idle = { ...cSh.idle, wipe: false, edge: false };
           let shSvg = renderKit(cSh, idBase, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], {
             icon: resolveKitIcon(st.kitIcons?.[id], undefined),
-            label: st.kitNoText?.[id] ? "" : (b.label ?? st.kitLabels[id]), stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
+            label: st.kitNoText?.[id] ? "" : (b.label ?? st.kitLabels[id]), stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov, slots: st.kitSlotVals?.[id],
             // the Board stage renders with the maker's text nudges — every bake must too
             textOy: st.kitTextOy?.[`${id}:${st.kitSizes[id] ?? "l"}`], textOx: st.kitTextOx?.[`${id}:${st.kitSizes[id] ?? "l"}`],
             themedText: !!st.kitDesigns?.[id]?.type || !!st.kitTextFill[id],
@@ -1981,7 +1994,7 @@ export async function collectExportBoards(st: {
           if (cSh2.idle) cSh2.idle = { ...cSh2.idle, wipe: false, edge: false };
           let artSvg = renderKit(cSh2, idBase, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], {
             icon: resolveKitIcon(st.kitIcons?.[id], undefined),
-            label: st.kitNoText?.[id] ? "" : (b.label ?? st.kitLabels[id]), stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
+            label: st.kitNoText?.[id] ? "" : (b.label ?? st.kitLabels[id]), stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov, slots: st.kitSlotVals?.[id],
             // the Board stage renders with the maker's text nudges — every bake must too
             textOy: st.kitTextOy?.[`${id}:${st.kitSizes[id] ?? "l"}`], textOx: st.kitTextOx?.[`${id}:${st.kitSizes[id] ?? "l"}`],
             themedText: !!st.kitDesigns?.[id]?.type || !!st.kitTextFill[id],
@@ -4712,7 +4725,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         compass: "Compass ribbon — the cardinal letters are LIVE seats and the Heading caret a LIVE child (restyle or delete it). The tick ribbon bakes at the staged heading (per-copy headings ride posed skins). Display piece.",
         dmgnumber: "Damage number — a DEV INSTRUMENT (round 47): PatternBreakDmgNumber.Show(n) composes the amount from the kit's own damage digits at the authored seat and plays the app's float-up-and-fade; Value 0 keeps the authored number byte-for-byte as a live, swappable child.",
         equipslot: "Equipment slot — the ghost silhouette showing what belongs is a LIVE Image child; the app's icon picker steers it and the Inspector swaps it. Display piece.",
-        skillnode: "Skill-tree node — a REAL button (Sprite Swap states); the skill glyph is a LIVE Image child. Learned/locked poses ride per-copy posed skins.",
+        skillnode: "Skill-tree node — a REAL button (Sprite Swap states); the skill glyph is a LIVE Image child. Learned/locked poses ride per-copy posed skins, wearing the app's own learned picks (path, badge, mark and glyph); a LEARNED copy's corner check arrives as its OWN Learned badge child — move, restyle, swap its sprite or delete it, and a badge set to None in the app ships no badge at all.",
         ammo: "Ammo counter — LIVE: the three bars are ONE thirds meter (KitCellMeter — drive Value or SetValue; bars go dark left→right as ammo depletes) and both counts are LIVE seats. Display piece.",
         killfeed: "Kill-feed row — killer and victim are LIVE seats and the weapon glyph a LIVE Image child (swap the sprite in the Inspector). Stack rows in a vertical layout. Display piece.",
         magazine: "Magazine — LIVE (round 44): the twelve round pips rest dark and the Lit layer lights whole rounds (KitCellMeter: drive Value or SetValue); the readout is a LIVE seat — drive both from your ammo count. Display piece.",

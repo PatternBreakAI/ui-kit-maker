@@ -4012,6 +4012,49 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the vsbar atoms' usage rows stopped teaching the width road (the caps' LEGACY marking or the nubs' floor-ink job) (round 60, S50)");
 }
 
+/* ── ROUND 61 · S51 (the learned skill node's export half — the app
+   lane's round-61 flag, both gaps): the maker's SLOT PICKS reach every
+   board-copy bake (the Board stage passes kitSlotVals[b.kitId]; the six
+   posed-skin renders must speak the same grammar or learned-pose picks
+   silently vanish from the zip), and the learned pose's corner check is
+   MARKED swappable ink (the dailycell claimbadge grammar) so it ships
+   as its own live Image child instead of burning into the posed skin. ── */
+{
+  // 1) the six board-copy renders (display bake, wipe companion, posed
+  //    default, posed states, kit-shadow bake, dialed-shadow art) all
+  //    carry the piece's slot picks — exactly six, one grammar
+  const slotRides = (src.match(/overlay: b\.ov, slots: st\.kitSlotVals\?\.\[id\],/g) ?? []).length;
+  if (slotRides !== 6)
+    errors.push(`the board-copy renders' slot ride moved (${slotRides} sites; the contract is exactly 6 — display bake, wipe companion, posed default, posed states, kit-shadow, dialed-shadow) — learned-pose picks (path, badge, mark, glyph) stop reaching per-copy posed skins (round 61, S51)`);
+  if (!/kitSlotVals\?: Partial<Record<KitComponentId, Record<string, string>>>;\n\}\): Promise<ExportBoardData\[\]> \{/.test(src))
+    errors.push("collectExportBoards' state no longer declares kitSlotVals — the store's slot picks can't arrive typed and every bake falls back factory (round 61, S51)");
+  // 2) the learned badge is marked swappable ink: plate + mark cut as
+  //    ONE live child, the allowNone gate intact
+  if (!/data-icon="learnedbadge" data-icon-nick="Learned badge"/.test(bevelSrc))
+    errors.push("the skillnode's learned badge lost its marked-ink wrap — the check burns back into the posed skin (round 61, S51; owner: 'remove the notification check' must stay a one-child delete in Unity too)");
+  if (!/opts\.overlay === "learned" && slR\.checkColor !== "none"/.test(bevelSrc))
+    errors.push("the learned badge's None gate is gone — the badge-removed pick would ship a badge anyway (round 61, S51)");
+  {
+    // the NEGATIVE pin: no unwrapped badge append may come back to the
+    // skillnode case — a bare `over += `<circle` is the baked-in grammar
+    const snSlice = bevelSrc.slice(bevelSrc.indexOf('case "skillnode"'), bevelSrc.indexOf('case "compass"'));
+    if (!snSlice || /over \+= `<circle/.test(snSlice))
+      errors.push("the skillnode case appends a bare badge circle again (or the case moved) — the learned check bakes into the art instead of riding the marked group (round 61, S51)");
+  }
+  // 3) the posed road's existing hands still do the rest: the cut strips
+  //    from the default skin AND the state skins, and the importer
+  //    rebuilds every posedIcons child live
+  if (!/if \(posedCuts\.length\) ps2 = stripMarkedIcons\(ps2\)\.svg;/.test(src))
+    errors.push("the posed bake no longer strips its marked icon groups — every cut child would double over its baked twin (round 61, S51)");
+  if (!/if \(posedCuts\.length\) for \(const gS of Array\.from\(domS\.querySelectorAll\('\[data-part="icon"\]'\)\)\) gS\.remove\(\);/.test(src))
+    errors.push("the posed STATE skins keep their marked icon ink — the live badge/glyph children would press over baked twins (round 61, S51)");
+  if (!/if \(it\.posedIcons != null\) foreach \(var pIc in it\.posedIcons\) \{/.test(cs))
+    errors.push("the importer's posedIcons rebuild is gone — posed copies' live icon children (the Learned badge included) never reach the scene (round 61, S51)");
+  // 4) the manifest teaches the new anatomy in the owner's language
+  if (!/its OWN Learned badge child/.test(src) || !/ships no badge at all/.test(src))
+    errors.push("the skillnode usage row stopped teaching the Learned-badge child (or the badge-None contract) — the manifest would promise burned-in art (round 61, S51)");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);
