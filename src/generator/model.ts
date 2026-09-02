@@ -1119,6 +1119,9 @@ export type KitComponentId =
   // slot button (staged) — the item slot's framed-well look as a REAL
   // pressing button; the glyph is the point (owner commission, round 49)
   | "slotbtn"
+  // classic ribbon banner (staged) — the owner's ribbon commission, the
+  // sketch pass: composite pack geometry dressed in kit roles
+  | "ribbonbanner"
   // the semantic glyph rack (glyphLibrary.ts) — every glyph is a full kit
   // citizen: its own per-piece forks, sizes, board placement. All staged.
   | "glyphcoin" | "glyphgem" | "glyphheart" | "glyphenergy" | "glyphticket" | "glyphkey" | "glyphstar"
@@ -1803,6 +1806,10 @@ export const KIT_COMPONENTS: { id: KitComponentId; name: string; staged?: true; 
      button (owner: "make these real buttons on the back end and add them
      to the kit"). Staged per the standing rule. */
   { id: "slotbtn", name: "Slot button", staged: true },
+  /* the owner's ribbon commission (sketch pass) — the classic swallow-tail
+     ribbon banner, composite pack geometry in kit roles. Staged per the
+     standing rule: bay card, admin-only, until the owner's art verdict. */
+  { id: "ribbonbanner", name: "Ribbon banner", staged: true },
   { id: "pricebtn", name: "Price button" },
   { id: "energymeter", name: "Energy meter" },
   { id: "buildqueue", name: "Build queue" },
@@ -1994,6 +2001,10 @@ export const KIT_LABEL_EDITABLE = new Set<KitComponentId>([
      Words grid as Home/Away slots; old label edits still read through. */
   "achievetoast", "endturn", "pack", "cardback", "orderticket",
   "rewardcard", "qtybadge", "claimbtn", "chestpanel", "boostercard",
+  // the ribbon's center panel is a text field by construction — the words
+  // are a live seat (the pack's editability contract), so the main Text
+  // control drives them
+  "ribbonbanner",
 ]);
 
 /* Pieces that may render TEXT-LESS (the kitNoText flag — a "No text"
@@ -2190,6 +2201,14 @@ export function migrateKitDesigns(cfg: GenConfig, forks: Partial<Record<KitCompo
   for (const id of GLYPH_FAMILY_EXTRAS) {
     if (out[id] === undefined) { out[id] = GLYPH_FLAT_DESIGN(); changed = true; }
   }
+  /* the ribbon banner ships GLOSSED like its pack art (owner ribbon
+     verdict 3: "built through the dials") — the factory fork dials the
+     kit gloss's signed Curvature to the pack sweep's upward bow, and
+     nothing else: on/off, height, opacity, softness, fill, tints, blend
+     and layer all keep following the kit. An ordinary per-piece fork —
+     only-if-absent, every knob editable upward, a cleared fork re-seeds
+     the factory read on the next load. */
+  if (out.ribbonbanner === undefined) { out.ribbonbanner = RIBBON_GLOSS_DESIGN(); changed = true; }
   return { forks: out, changed };
 }
 
@@ -2197,6 +2216,13 @@ export function migrateKitDesigns(cfg: GenConfig, forks: Partial<Record<KitCompo
  *  each call so one piece's later edits can't alias into another's. */
 export const GLYPH_FLAT_DESIGN = (): KitDesign =>
   ({ candy: { extrusion: { depth: 0 } }, bevel: { off: true } } as KitDesign);
+
+/** The ribbon banner's factory fork — the pack gameart's sweep DIRECTION as
+ *  a dialed default: a negative (upward-bowing) Curvature on the kit gloss
+ *  the ribbon's panel wears (bevel.ts, the ribbonbanner case). A fresh
+ *  object each call so later edits can't alias across pieces. */
+export const RIBBON_GLOSS_DESIGN = (): KitDesign =>
+  ({ candy: { gloss: { curve: -26 } } } as KitDesign);
 
 /** Per-component text color — the answer to "changing text color changes it
  *  everywhere". A piece with an override renders every glyph it draws in its
@@ -2228,6 +2254,7 @@ export const KIT_SHAPE: Partial<Record<KitComponentId, Shape>> = {
   gearicon: "stock:gear",
   trophyicon: "stock:trophycup",
   gifticon: "stock:gift",
+  ribbonbanner: "stock:ribbonclassic",
   header: "banner",
   dialog: "round",
   toast: "pill",

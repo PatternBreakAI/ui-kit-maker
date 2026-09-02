@@ -12,6 +12,8 @@
    Reached through the `stock:` Shape prefix. Adding an entry here plus its
    SilhouetteMeta row in silhouettes.ts is all a new stock shape needs. */
 
+import { RIBBON_BANNER_CLASSIC } from "./ribbonBannerClassic";
+
 export interface StockSilhouette {
   id: string;
   name: string;
@@ -404,6 +406,25 @@ export const STOCK_SHAPES: Record<string, StockSilhouette> = {
     id: "gift", name: "Gift box", capAware: true,
     vb: [0.0, 0.0, 200.0, 200.0],
     d: "M 30 62 L 53.7 50.9 L 52 50.6 L 52 50.6 L 50.6 50.3 L 48 49.4 L 45.5 48.2 L 43.2 46.7 L 41.2 44.8 L 39.3 42.8 L 37.8 40.5 L 36.6 38 L 35.7 35.4 L 35.2 32.7 L 35 30 L 35.2 27.3 L 35.7 24.6 L 36.6 22 L 37.8 19.5 L 39.3 17.2 L 41.2 15.2 L 43.2 13.3 L 45.5 11.8 L 48 10.6 L 50.6 9.7 L 53.3 9.2 L 56 9 L 58.7 9.2 L 61.4 9.7 L 64 10.6 L 66.5 11.8 L 68.8 13.3 L 70.8 15.2 L 72.7 17.2 L 74.2 19.5 L 75.4 22 L 75.5 22.1 L 75.5 22.1 L 84.7 45 L 86.4 44.5 L 88.2 44.1 L 90 44 L 91.8 44.1 L 93.6 44.5 L 95.3 45.1 L 105.5 20.4 L 105.5 20.4 L 105.5 20.3 L 106.7 18 L 108.1 15.8 L 109.9 13.9 L 111.8 12.1 L 114 10.7 L 116.3 9.5 L 118.8 8.7 L 121.4 8.2 L 124 8 L 126.6 8.2 L 129.2 8.7 L 131.7 9.5 L 134 10.7 L 136.2 12.1 L 138.1 13.9 L 139.9 15.8 L 141.3 18 L 142.5 20.3 L 143.3 22.8 L 143.8 25.4 L 144 28 L 143.8 30.6 L 143.3 33.2 L 142.5 35.7 L 141.3 38 L 139.9 40.2 L 138.1 42.1 L 136.2 43.9 L 134 45.3 L 131.7 46.5 L 129.3 47.3 L 129.3 47.3 L 126.7 48 L 176 48 L 176 82 L 166 86.7 L 166 170 L 136 184 L 40 184 L 40 96 L 30 96 L 30 62 Z",
+  },
+  ribbonclassic: {
+    /* Classic Ribbon Banner (owner ribbon commission — sketch pass): the
+       strict single-path union of the geometry RE-AUTHORED to the
+       owner's exact-shape ruling and construction recipe (2026-09-01
+       second pass — the pack's paths and the first re-authoring
+       superseded): the same-height staggered swallow tails and the
+       sharp-cornered panoramic panel as ONE closed loop, so bevel wall,
+       extrusion and shadow sweep the whole ribbon in one pass (the
+       one-slab depth as before). The overlapping construction (tails
+       behind, folds, panel in front, glint seats) rides the component
+       case as kit-role furnishing — see ribbonBannerClassic.ts, the
+       source of these bytes. capAware: the tails are the caps, the
+       panel's straight run is the middle, and the near-horizontal band
+       keeps a stretched frame's ends clean — the swallow cuts stay
+       rigid. */
+    id: "ribbonclassic", name: "Classic Ribbon Banner", capAware: true,
+    vb: [...RIBBON_BANNER_CLASSIC.viewBox],
+    d: RIBBON_BANNER_CLASSIC.strictSilhouette.d,
   },
   /* ── Showpieces (owner upload, 2026-08-15) — statement one-offs built to
      carry a single hero moment, not to dress a whole component family.

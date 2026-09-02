@@ -7,6 +7,7 @@ import { glyphShape } from "./glyphLibrary";
 import { innerOffsetLoops } from "./offsetKernel";
 import { tableLabelEm } from "./fontMetrics";
 import { stockShape } from "./stockShapes";
+import { RIBBON_BANNER_CLASSIC } from "./ribbonBannerClassic";
 import rough from "roughjs";
 
 /* ── label widths come from BAKED metrics, not the browser ───────────────
@@ -10886,6 +10887,266 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
   <path d="M ${(bx + bowlW * 0.82).toFixed(1)} ${(by - d4 * 0.05).toFixed(1)} l ${(d4 * 0.025).toFixed(1)} ${(d4 * 0.05).toFixed(1)} ${(d4 * 0.05).toFixed(1)} ${(d4 * 0.025).toFixed(1)} ${(-d4 * 0.05).toFixed(1)} ${(d4 * 0.025).toFixed(1)} ${(-d4 * 0.025).toFixed(1)} ${(d4 * 0.05).toFixed(1)} ${(-d4 * 0.025).toFixed(1)} ${(-d4 * 0.05).toFixed(1)} ${(-d4 * 0.05).toFixed(1)} ${(-d4 * 0.025).toFixed(1)} ${(d4 * 0.05).toFixed(1)} ${(-d4 * 0.025).toFixed(1)} Z" fill="#FFFFFF" opacity="0.9"/>
 </g>
 </svg>`;
+    }
+    case "ribbonbanner": {
+      /* Classic Ribbon Banner — the owner's ribbon commission, sketch
+         pass. GEOMETRY: re-authored 2026-09-01 (second pass) to the
+         owner's exact-shape ruling and their own construction recipe —
+         panel and tails the SAME height, all sides vertical, tails as
+         staggered copies of the banner with the V pushed in from an
+         added outer midpoint (see ribbonBannerClassic.ts; the pack's
+         paths and the first re-authoring are superseded, the
+         CONSTRUCTION kept). Every named part maps to a KIT role; the
+         references' colors are direction, not palette (the crown coin's
+         ruling: geometry is the reference's, paint is the kit's). The
+         union silhouette (stock:ribbonclassic) takes the kit's whole
+         dimensional treatment — face, pattern, bevel wall, extrusion,
+         glow, shadow — in ONE sweep, the one-slab depth as before. The
+         composite parts then ride OVER the dressed face as role
+         furnishing in the assembly order: tails behind (Shadow-role
+         wash on the kit's light axis, clipped OUT of the panel region
+         so the front panel never inherits the tail's darkening), tail
+         highlight streaks (Highlight role, under the panel), dark fold
+         triangles (Shadow ink, the relief recipe's near-solid pass),
+         fold light catches (Highlight wash), the sharp-cornered center
+         panel's own lift (Highlight wash — the panel stays the kit's
+         true face, a step prouder), the panel bottom-shadow and
+         top-catch bands, and the two authored house-glint seats (the
+         crown coin's kit-following star recipe). THE WORDS ARE A LIVE
+         SEAT, never art (the text-field construction + the editability
+         law): the label rides contentText — the kit's full lettering,
+         the per-piece type-size dial and both nudges — measure-true
+         fitted to the panel's reading zone. */
+      const hRb = ({ s: 104, m: 138, l: 176 } as Record<KitSize, number>)[size] * k;
+      const wRb = hRb * 3.72; // the twice-trimmed 372x100 box (owner: "the end flaps are a bit too wide", then "shorten those edges to about the width of those red boxes" — visible tail reach 94 → 75 → 50, panel untouched both times)
+      /* verdict 3 (owner ribbon round: "built through the dials"): on the
+         ribbon cut the PANEL is the piece's face, so the union shell PARKS
+         its own gloss band — build's full-face sweep would smear across
+         the tails — and the panel wears the kit gloss treatment below,
+         painted by the gloss system's own shapes. State-design forks park
+         the same way (the trophy's calm lesson). An alien re-dress has no
+         panel and keeps the shell gloss exactly where every component
+         wears it. */
+      const isRibCut = sov === "stock:ribbonclassic";
+      const parkRb = <T extends { candy?: GenConfig["candy"] }>(d: T): T =>
+        ({ ...d, ...(d.candy ? { candy: { ...d.candy, gloss: { ...d.candy.gloss, on: false } } } : {}) });
+      const cfgRb: GenConfig = !isRibCut ? cfg : {
+        ...parkRb(cfg),
+        stateDesigns: cfg.stateDesigns && (Object.fromEntries(Object.entries(cfg.stateDesigns).map(([s9, d9]) => [s9, d9 && parkRb(d9)])) as GenConfig["stateDesigns"]),
+      };
+      const shellRb = build(cfgRb, state, { x: 39, y: 30, h: hRb, fs: 0, iconSize: 0, tokenH: 168 }, { iconDef: null, label: "", fixedW: wRb, shapeOverride: sov });
+      // factory words are the piece's own specimen (not the kit's master
+      // CTA — a ribbon reads as an announcement, not a button verb); the
+      // Text control re-words this copy like any labeled piece
+      const lblRb = (opts.label ?? "") || "DAILY OBJECTIVE";
+      /* the reading seat re-derived for the re-authored panel (x 50-322,
+         y 0-72 of the twice-trimmed 372x100): the fit run spans the same
+         ABSOLUTE panel minus the same side margins (0.6806 of 372 ==
+         0.6 of the 422 == 0.55 of the original 460 — the panel never
+         moved, only the box shrank), the cap rises with the taller
+         panel, and the seat sits at the measure-true reading center —
+         midway between the top catch's underside (y 10) and the bottom
+         shadow's crown (y 65.5): y 37.75 of 100 */
+      const fsRb = fitFs(lblRb, 24 * k * typeK, wRb * 0.6806);
+      const labelRb = contentText(lblRb, 39 + wRb / 2, 30 + hRb * 0.3775, fsRb, { anchor: "middle" });
+      /* a per-piece re-dress (kitShapes) swaps the silhouette like any
+         component — the ribbon furnishing belongs to the ribbon cut alone,
+         so an alien cut keeps just the dressed shell + the live words */
+      if (sov !== "stock:ribbonclassic") return inject(shellRb.replace("<svg ", '<svg data-ribbonbanner="1" '), labelRb);
+      const RBP = RIBBON_BANNER_CLASSIC.parts;
+      const vbRb = RIBBON_BANNER_CLASSIC.viewBox as unknown as [number, number, number, number];
+      // the frame is authored-proportion by construction, so the uniform
+      // map and the shell's cap-aware map coincide — parts register exactly
+      const bakeRb = (d0: string) => transformPath(d0, vbRb, 39, 30, wRb, hRb);
+      const D2r = designFor(cfg, state);
+      const shInk = effect(D2r.effects, "Shadow"), hiInk = effect(D2r.effects, "Highlight");
+      // the kit's light axis + strength dials — the relief recipe's math
+      const rAr = (((D2r.lighting.angle % 360) + 360) % 360) * Math.PI / 180;
+      const rlxR = Math.cos(rAr), rlyR = -Math.sin(rAr);
+      const rgpR = (v: number) => (0.5 + clamp(v, -1, 1) * 0.5).toFixed(3);
+      const axisR = `x1="${rgpR(-rlxR)}" y1="${rgpR(-rlyR)}" x2="${rgpR(rlxR)}" y2="${rgpR(rlyR)}"`;
+      const hiKr = (state === "disabled" ? 0.35 : 1) * (D2r.lighting.highlight / 78);
+      const loKr = Math.max(0.1, D2r.lighting.lowlight / 46);
+      const ridR = "rb" + UID++;
+      const silRb = shapePath(sov as Shape, 39, 30, wRb, hRb, 0);
+      /* the behind-parts clip: everything minus the center panel, so the
+         tail washes stop dead at the panel's edge — that crisp boundary
+         IS the "panel in front" read, with no opaque repaint hiding the
+         kit's pattern and gloss anywhere on the piece */
+      const boxRb = `M ${(39 - 2).toFixed(0)} ${(30 - 2).toFixed(0)} H ${(39 + wRb + 2).toFixed(1)} V ${(30 + hRb + 2).toFixed(1)} H ${(39 - 2).toFixed(0)} Z`;
+      /* the knockout carves the panel GROWN by a hair (1.25px): the clip
+         edge's own anti-aliasing could otherwise land a quarter-covered
+         back pixel exactly on the rim row — measured as 1/255 residuals in
+         the corner raster proof. Grown, every back pixel dies before the
+         panel's edge, and the panel's opaque edge dress (z2.5) owns the
+         boundary row outright — the corner proof's diff is EMPTY. The
+         half-pixel of shell face this bares outside the keyline reads as
+         the front piece's own edge light, never as back ink. */
+      const scK = wRb / vbRb[2], eKn = 1.25;
+      const knRb = `M ${(39 + 50 * scK - eKn).toFixed(1)} ${(30 - eKn).toFixed(1)} H ${(39 + 322 * scK + eKn).toFixed(1)} V ${(30 + 72 * scK + eKn).toFixed(1)} H ${(39 + 50 * scK - eKn).toFixed(1)} Z`;
+      let defsRb = `<clipPath id="${ridR}s"><path d="${silRb}"/></clipPath>` +
+        `<clipPath id="${ridR}n"><path d="${boxRb} ${knRb}" clip-rule="evenodd"/></clipPath>` +
+        // tails: the Shadow role graded along the light axis — deeper on the
+        // away side, lifting toward the light, texture showing through
+        `<linearGradient id="${ridR}tw" ${axisR}><stop offset="0" stop-color="${shInk}" stop-opacity="${clamp(0.46 * loKr, 0.22, 0.6).toFixed(2)}"/><stop offset="1" stop-color="${shInk}" stop-opacity="${clamp(0.26 * loKr, 0.12, 0.4).toFixed(2)}"/></linearGradient>` +
+        // the shared Highlight streak voice (tail streaks + panel top catch)
+        `<linearGradient id="${ridR}hs" ${axisR}><stop offset="0" stop-color="${hiInk}" stop-opacity="0.14"/><stop offset="1" stop-color="${hiInk}" stop-opacity="${clamp(0.62 * hiKr, 0.2, 0.8).toFixed(2)}"/></linearGradient>` +
+        // the panel's lift — a whisper of Highlight so the front surface
+        // reads a step prouder in any kit look, light or dark
+        `<linearGradient id="${ridR}pl" ${axisR}><stop offset="0" stop-color="${hiInk}" stop-opacity="0.03"/><stop offset="1" stop-color="${hiInk}" stop-opacity="${clamp(0.14 * hiKr, 0.05, 0.2).toFixed(2)}"/></linearGradient>`;
+      // build()'s state paint adjust, shared by the edge dress and the
+      // gloss swoosh below (both replicate shell inks state-true)
+      const adjRb = cfg.states[state];
+      const PRb = (c: string) => {
+        if (state === "disabled") return lighten(desaturate(c, 0.82), 0.1);
+        const satRb = clamp(adjRb?.saturation ?? 0, -100, 100);
+        return bright(satRb ? saturate(c, satRb / 100) : c, adjRb?.brightness ?? 0);
+      };
+      let furnRb = "";
+      /* z0-z2 · EVERY back piece — tail washes, streaks, folds, fold
+         catches — rides ONE marked group under the panel knockout (the
+         owner's paint law, 2026-09-02: "the back shapes should NOT be
+         showing through the front shapes" — nothing painted for a back
+         piece may reach the panel's face, not even a fold's anti-aliased
+         top row; the folds were the one pass still unclipped). The
+         data-part marks the group so the corner proof can re-render the
+         piece without its back paint and pixel-diff the panel. */
+      furnRb += `<g data-part="ribbon-back" clip-path="url(#${ridR}n)"><path d="${bakeRb(RBP.leftTail)} ${bakeRb(RBP.rightTail)}" fill="url(#${ridR}tw)"/>` +
+        // tail highlight streaks — under the panel per both authored previews
+        `<path d="${bakeRb(RBP.leftTailHighlight)} ${bakeRb(RBP.rightTailHighlight)}" fill="url(#${ridR}hs)" opacity="0.72"/>` +
+        // the dark fold triangles — the tuck that sells the overlap
+        `<path d="${bakeRb(RBP.leftFold)} ${bakeRb(RBP.rightFold)}" fill="${shInk}" opacity="0.94"/>` +
+        // fold light catches — the fold's inner face finds the light
+        `<path d="${bakeRb(RBP.leftFoldLight)} ${bakeRb(RBP.rightFoldLight)}" fill="${hiInk}" opacity="0.34"/></g>`;
+      /* z2.5 · THE PANEL'S OWN FRONT EDGE, completed (owner, same note,
+         both bottom corners circled). build() dresses only the UNION
+         outline, so the panel's bottom edge wore wall, keyline, rim and
+         inner-edge ONLY over the mid-run the outline owns (x 86-286 of
+         372); along the tuck runs (x 50-86 / x 286-322) and the
+         under-tail side runs (y 28-72) the front piece ended in naked
+         geometry — the bottom band's tone step at the tuck boundary was
+         the tail literally reading through the panel, and the fold met
+         the bright face with no edge at all. The shell's recipe now
+         CONTINUES around those naked runs: the same band fill between
+         face inset and edge, the same dark outline keyline, the same rim
+         and inner-edge strokes — inks, insets and widths computed by
+         build()'s own formulas (K = 1 here: the ribbon build passes
+         tokenH 168 — keep in lockstep with build's shell layer, the
+         gloss-swoosh discipline), each segment meeting the shell's own
+         dress vertex-exact at both ends. Painted AFTER the back pieces:
+         front over back, by z-order — the opaque keyline is also what
+         buries any anti-aliased half-row at the knockout boundary. */
+      furnRb += (() => {
+        const scE = wRb / vbRb[2];
+        const Xe = (v: number) => 39 + v * scE, Ye = (v: number) => 30 + v * scE;
+        const disE = state === "disabled";
+        const bevelE = PRb(effect(D2r.effects, "Bevel"));
+        const CE = D2r.candy;
+        const fw = effectiveWall(D2r.bevel.width, sov as Shape, D2r.bevel.off);
+        const gpE = (v: number) => 0.5 + clamp(v, -1, 1) * 0.5;
+        // userSpaceOnUse replicas of the shell's own bbox gradients, each
+        // mapped over the box its build() twin resolves against, so a
+        // continuation pixel samples the identical color at the identical
+        // position — the seams cannot show a join
+        const axisE = (x0: number, y0: number, w0: number, h0: number) =>
+          `gradientUnits="userSpaceOnUse" x1="${(x0 + gpE(-rlxR) * w0).toFixed(1)}" y1="${(y0 + gpE(-rlyR) * h0).toFixed(1)}" x2="${(x0 + gpE(rlxR) * w0).toFixed(1)}" y2="${(y0 + gpE(rlyR) * h0).toFixed(1)}"`;
+        let d2 = "", art = "";
+        // the L-shaped runs, left then mirrored right: side x50 (y28-72)
+        // + bottom y72 (x50-86), meeting build's own dress at the face's
+        // reflex corner above and the outline's interior corner at x86
+        if (fw > 0.15) {
+          d2 += `<linearGradient id="${ridR}eb" ${axisE(39, 30, wRb, hRb)}><stop offset="0" stop-color="${darken(bevelE, clamp(0.3 * loKr, 0, 0.7))}"/><stop offset=".5" stop-color="${bevelE}"/><stop offset="1" stop-color="${lighten(bevelE, clamp(0.45 * hiKr, 0, 0.75))}"/></linearGradient>`;
+          const bandL = `M ${Xe(50).toFixed(1)} ${(Ye(28) + fw).toFixed(1)} L ${(Xe(50) + fw).toFixed(1)} ${(Ye(28) + fw).toFixed(1)} L ${(Xe(50) + fw).toFixed(1)} ${(Ye(72) - fw).toFixed(1)} L ${(Xe(86) - fw).toFixed(1)} ${(Ye(72) - fw).toFixed(1)} L ${(Xe(86) - fw).toFixed(1)} ${Ye(72).toFixed(1)} L ${Xe(50).toFixed(1)} ${Ye(72).toFixed(1)} Z`;
+          const bandR = `M ${Xe(322).toFixed(1)} ${(Ye(28) + fw).toFixed(1)} L ${(Xe(322) - fw).toFixed(1)} ${(Ye(28) + fw).toFixed(1)} L ${(Xe(322) - fw).toFixed(1)} ${(Ye(72) - fw).toFixed(1)} L ${(Xe(286) + fw).toFixed(1)} ${(Ye(72) - fw).toFixed(1)} L ${(Xe(286) + fw).toFixed(1)} ${Ye(72).toFixed(1)} L ${Xe(322).toFixed(1)} ${Ye(72).toFixed(1)} Z`;
+          art += `<path d="${bandL} ${bandR}" fill="url(#${ridR}eb)"/>`;
+        }
+        // the dark outline keyline — build's own stroke, continued along
+        // the panel's naked edges; opaque, centered on the true boundary
+        art += `<path d="M ${Xe(50).toFixed(1)} ${Ye(28).toFixed(1)} L ${Xe(50).toFixed(1)} ${Ye(72).toFixed(1)} L ${Xe(86).toFixed(1)} ${Ye(72).toFixed(1)} M ${Xe(322).toFixed(1)} ${Ye(28).toFixed(1)} L ${Xe(322).toFixed(1)} ${Ye(72).toFixed(1)} L ${Xe(286).toFixed(1)} ${Ye(72).toFixed(1)}" fill="none" stroke="${darken(bevelE, disE ? 0.25 : 0.5)}" stroke-width="1.5"/>`;
+        const rimWE = CE.rim.width; // K = 1
+        if (rimWE > 0.2) {
+          const tE = rimWE / 2 + 0.8;
+          d2 += `<linearGradient id="${ridR}er" ${axisE(39 + tE, 30 + tE, wRb - 2 * tE, hRb - 2 * tE)}><stop offset="0" stop-color="${PRb(D2r.lighting.tint ?? hiInk)}" stop-opacity="0.45"/><stop offset=".4" stop-color="${PRb(D2r.lighting.tint ?? hiInk)}" stop-opacity="0.08"/><stop offset="1" stop-color="${PRb(D2r.lighting.tint ?? hiInk)}" stop-opacity="0.95"/></linearGradient>`;
+          art += `<path d="M ${(Xe(50) + tE).toFixed(1)} ${(Ye(28) + tE).toFixed(1)} L ${(Xe(50) + tE).toFixed(1)} ${(Ye(72) - tE).toFixed(1)} L ${(Xe(86) - tE).toFixed(1)} ${(Ye(72) - tE).toFixed(1)} M ${(Xe(322) - tE).toFixed(1)} ${(Ye(28) + tE).toFixed(1)} L ${(Xe(322) - tE).toFixed(1)} ${(Ye(72) - tE).toFixed(1)} L ${(Xe(286) + tE).toFixed(1)} ${(Ye(72) - tE).toFixed(1)}" fill="none" stroke="url(#${ridR}er)" stroke-width="${rimWE.toFixed(1)}" opacity="${((CE.rim.brightness / 100) * (disE ? 0.5 : 1)).toFixed(2)}"/>`;
+        }
+        const ieOpE = CE.innerEdge.strength / 100;
+        if (ieOpE > 0.01 && CE.innerEdge.width > 0.1 && fw > 0.15) {
+          const faceE = D2r.face.mode === "dark" ? hexMix(bevelE, "#0B0714", 0.72) : PRb(effect(D2r.effects, "Inner Fill"));
+          d2 += `<linearGradient id="${ridR}ei" ${axisE(39 + fw, 30 + fw, wRb - 2 * fw, hRb - 2 * fw)}><stop offset="0" stop-color="${hexRgba(lighten(faceE, 0.55), 0.55)}"/><stop offset=".55" stop-color="${hexRgba(darken(bevelE, 0.35), 0.35)}"/><stop offset="1" stop-color="${hexRgba(darken(bevelE, 0.58), 0.9)}"/></linearGradient>`;
+          art += `<path d="M ${(Xe(50) + fw).toFixed(1)} ${(Ye(28) + fw).toFixed(1)} L ${(Xe(50) + fw).toFixed(1)} ${(Ye(72) - fw).toFixed(1)} L ${(Xe(86) - fw).toFixed(1)} ${(Ye(72) - fw).toFixed(1)} M ${(Xe(322) - fw).toFixed(1)} ${(Ye(28) + fw).toFixed(1)} L ${(Xe(322) - fw).toFixed(1)} ${(Ye(72) - fw).toFixed(1)} L ${(Xe(286) + fw).toFixed(1)} ${(Ye(72) - fw).toFixed(1)}" fill="none" stroke="url(#${ridR}ei)" stroke-width="${CE.innerEdge.width.toFixed(1)}" opacity="${clamp(ieOpE, 0, 1).toFixed(2)}"/>`;
+        }
+        defsRb += d2;
+        return `<g data-part="ribbon-edge">${art}</g>`;
+      })();
+      // z3 · the center panel's lift wash (the kit face stays the face)
+      furnRb += `<path d="${bakeRb(RBP.centerPanel)}" fill="url(#${ridR}pl)"/>`;
+      // z4 · panel bottom shadow · z5 · panel top catch (the pack's bands)
+      furnRb += `<path d="${bakeRb(RBP.panelBottomShadow)}" fill="${shInk}" opacity="0.74"/>`;
+      furnRb += `<path d="${bakeRb(RBP.panelTopCatch)}" fill="url(#${ridR}hs)" opacity="0.9"/>`;
+      /* z6 · THE GLOSS SWOOSH (verdict 3) — the kit gloss treatment on the
+         panel, build()'s layer-8 recipe verbatim fitted to the panel box
+         (twice-trimmed art 372x100: panel x 50-322, y 0-72): the same signed-curve
+         quadratic (bow = Curvature x the shell's token scale, 1 here), the
+         same light-keyed apex and lit-from-below flip, the same 3-stop
+         softness fade, fill modes and state adjust, the same disabled
+         dimming — the sweep geometry is the gloss SYSTEM's own shape,
+         never a baked path (keep in lockstep with build's layer 8). The
+         factory fork seeds Curvature -26 (RIBBON_GLOSS_DESIGN) so the
+         default bows upward like the pack's gameart sweep; every dial
+         stays live — kit-following, per-piece adjustable, off-able.
+         Layering: below = under the words at the top of the panel dress
+         (the gameart's own z); above = over words and glints, build's
+         above-content rule. */
+      const GLS = D2r.candy.gloss;
+      let glossAboveRb = "";
+      const gOpRb = (GLS.opacity / 100) * (state === "disabled" ? 0.35 : 1);
+      if (GLS.on && gOpRb > 0.01) {
+        const pxRb = 39 + wRb * (50 / vbRb[2]), pwRb = wRb * (272 / vbRb[2]);
+        const pyRb = 30, phRb = hRb * (72 / vbRb[3]);
+        const flipRb = rlyR > 0.25; // lit from below — the sweep flips down
+        const gHRb = phRb * clamp(GLS.height / 100, 0.08, 0.92);
+        const bowRb = GLS.curve * (flipRb ? -1 : 1);
+        const apexRb = pxRb + pwRb / 2 + rlxR * pwRb * 0.12;
+        const gyRb = flipRb ? pyRb + phRb - gHRb : pyRb + gHRb;
+        const gPathRb = flipRb
+          ? `M ${pxRb - 2} ${pyRb + phRb + 2} H ${pxRb + pwRb + 2} V ${gyRb.toFixed(1)} Q ${apexRb.toFixed(1)} ${(gyRb + bowRb * 1.8).toFixed(1)} ${pxRb - 2} ${gyRb.toFixed(1)} Z`
+          : `M ${pxRb - 2} ${pyRb - 2} H ${pxRb + pwRb + 2} V ${gyRb.toFixed(1)} Q ${apexRb.toFixed(1)} ${(gyRb + bowRb * 1.8).toFixed(1)} ${pxRb - 2} ${gyRb.toFixed(1)} Z`;
+        const softRb = clamp(GLS.softness / 100, 0, 1);
+        const hiCRb = PRb(D2r.lighting.tint ?? hiInk);
+        const gC1Rb = GLS.fill === "highlight" ? hiCRb : PRb(GLS.tint);
+        const gC2Rb = GLS.fill === "gradient" ? PRb(GLS.tint2) : gC1Rb;
+        defsRb += `<clipPath id="${ridR}p"><path d="${bakeRb(RBP.centerPanel)}"/></clipPath>` +
+          `<linearGradient id="${ridR}gl" x1="0" y1="${flipRb ? 1 : 0}" x2="0" y2="${flipRb ? 0 : 1}">` +
+          `<stop offset="0" stop-color="${gC1Rb}" stop-opacity="${gOpRb.toFixed(2)}"/>` +
+          `<stop offset="${(1 - softRb * 0.55).toFixed(2)}" stop-color="${hexMix(gC1Rb, gC2Rb, 0.6)}" stop-opacity="${(gOpRb * (1 - 0.3 * softRb)).toFixed(2)}"/>` +
+          `<stop offset="1" stop-color="${gC2Rb}" stop-opacity="${(gOpRb * (1 - softRb)).toFixed(2)}"/></linearGradient>`;
+        let gArtRb = `<g data-part="gloss" clip-path="url(#${ridR}p)"><path d="${gPathRb}" fill="url(#${ridR}gl)"/></g>`;
+        if (GLS.blend && GLS.blend !== "normal") gArtRb = `<g style="mix-blend-mode:${GLS.blend}">${gArtRb}</g>`;
+        if (GLS.layer === "above") glossAboveRb = gArtRb; else furnRb += gArtRb;
+      }
+      let outRb = inject(shellRb.replace("<svg ", '<svg data-ribbonbanner="1" '),
+        `<defs>${defsRb}</defs><g data-part="ribbon-dress" clip-path="url(#${ridR}s)">${furnRb}</g>`);
+      /* authored house-glint seats — kit-following exactly like the crown
+         coin: opacity/blend ride Typography → Glints while that treatment
+         is on; with kit glints off the seats still shine at their authored
+         strength. Unclipped on purpose, like every glint star. */
+      if (state !== "disabled") {
+        const GLR = D2r.type.glints;
+        const opR = clamp((GLR?.on ? (GLR.opacity ?? 55) : 70) / 100, 0, 1);
+        if (opR > 0.01) {
+          const scR = wRb / vbRb[2];
+          const starsRb = RIBBON_BANNER_CLASSIC.glints.map((g) =>
+            `<path d="M0 ${(-g.s * scR).toFixed(1)} L${(g.s * scR * 0.22).toFixed(1)} ${(-g.s * scR * 0.22).toFixed(1)} L${(g.s * scR).toFixed(1)} 0 L${(g.s * scR * 0.22).toFixed(1)} ${(g.s * scR * 0.22).toFixed(1)} L0 ${(g.s * scR).toFixed(1)} L${(-g.s * scR * 0.22).toFixed(1)} ${(g.s * scR * 0.22).toFixed(1)} L${(-g.s * scR).toFixed(1)} 0 L${(-g.s * scR * 0.22).toFixed(1)} ${(-g.s * scR * 0.22).toFixed(1)} Z" transform="translate(${(39 + g.x * scR).toFixed(1)} ${(30 + g.y * scR).toFixed(1)}) rotate(${g.r ?? 0})" fill="#FFFFFF"/>`).join("");
+          let glintRb = `<g data-part="ribbon-glint" opacity="${opR.toFixed(2)}">${starsRb}</g>`;
+          if (GLR?.on && GLR.blend && GLR.blend !== "normal") glintRb = `<g style="mix-blend-mode:${GLR.blend}">${glintRb}</g>`;
+          outRb = inject(outRb, glintRb);
+        }
+      }
+      outRb = inject(outRb, labelRb);
+      // gloss layered "above" seals words and glints under the candy shell
+      // — build's above-content rule, spoken by the same Layering dial
+      if (glossAboveRb) outRb = inject(outRb, glossAboveRb);
+      return outRb;
     }
     case "gearicon": {
       /* Settings gear — the illustrated cog itself IS the component: the
