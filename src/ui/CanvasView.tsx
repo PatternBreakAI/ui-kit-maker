@@ -312,14 +312,23 @@ export function CanvasView() {
         className={`canvas${panMode ? " pan" : ""}`}
         /* the Board owns its own per-artboard backgrounds — the editor's
            backdrop image must never paint behind it (the old
-           picture-in-picture bug) */
+           picture-in-picture bug).
+
+           On the Board the scroller is not an artboard at all: it is the
+           DESK the board sits on, and its header ("The Board", the aspect
+           pills, Snap to grid, Safe area) is app chrome drawn in app ink.
+           Painting it with the kit's canvas colour put a black desk with
+           near-black words under a light top bar and light trays in light
+           mode (round 68). The desk takes the app's ground from CSS
+           instead; the board's own artboard keeps its colour, its
+           backdrop and its overlays in .bd-stage, where they belong. */
         style={bgImage && phase !== "board" ? {
           backgroundColor: cfg.canvas,
           backgroundImage: `url(${bgImage})`,
           backgroundSize: "cover",
           backgroundPosition: "center",
         } : {
-          backgroundColor: cfg.canvas,
+          backgroundColor: phase === "board" ? undefined : cfg.canvas,
           // the Kit is a document — it reads on a clean ground, never a grid
           backgroundImage: phase === "kit" ? undefined :
             gridStyle === "dots" ? `radial-gradient(circle, ${dotColor} 1px, transparent 1.4px)` :
