@@ -1,4 +1,4 @@
-import { Component, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { Component, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import "@/styles/pricing.css"; // the staging bay wears the community desk's cg-curate buttons
 import { ChevronDown, Download, Lock, PenTool, Pin, ShieldCheck, SquarePen, Trash2 } from "lucide-react";
 import { useGen } from "@/generator/store";
@@ -20,6 +20,8 @@ import { downloadTestKit } from "@/generator/billing";
 import { canExport, UPGRADE_LINES } from "@/generator/entitlements";
 import { HeroGL } from "./HeroGL";
 import { buildUnityBriefing, type BriefCard } from "./unityBriefing";
+import { KitScreens, KitPromo } from "./KitShowcase";
+import { namedKitFromHash } from "@/generator/namedKits";
 
 /* The Kit — a living guideline sheet in five levels: Foundations (color,
    type, anatomy), Components, Game Systems, Screen Patterns, Resources.
@@ -537,7 +539,7 @@ function ExportMenu({ actions, preferId }: {
               : primary.prog.label === "zip" ? "Zipping…"
               : `Rendering ${Math.min(primary.prog.done + 1, primary.prog.total)} of ${primary.prog.total}…`)
             : "Working…")
-          : `Export — ${primary.name}`}
+          : `Export ${primary.name}`}
         {primary.busy && primary.prog && (
           <span className="kp-exportprog" style={{ width: `${Math.round((primary.prog.done / Math.max(1, primary.prog.total)) * 100)}%`, background: accent }} />
         )}
@@ -605,7 +607,7 @@ function UnityBriefing({ cards, prog, accent, kitName, onHide }: {
         <div className="kp-briefdots" aria-hidden="true">
           {cards.map((_, i) => <button key={i} className={i === at ? "on" : undefined} tabIndex={-1} onClick={() => setIx(i)} style={i === at ? { background: accent } : undefined} />)}
         </div>
-        <button className="kp-briefhide" onClick={onHide}>Hide — the download finishes on its own</button>
+        <button className="kp-briefhide" onClick={onHide}>Hide, the download finishes on its own</button>
       </div>
     </div>
   );
@@ -677,7 +679,7 @@ function PieceInner(p: PieceOpts & { caption: string; ambient?: boolean }) {
       <LiveArt cfg={cfg} playing stillLoops scale={p.scale ?? PIECE_SCALE} className="kp-live"
         kit={kit} title={p.caption} ambient={p.ambient} shine={shine} hug={p.hug ?? true} />
       <figcaption className="kp-cap">
-        {locked && <Lock className="kp-lockic" size={11} strokeWidth={2.4} aria-label="Locked — finished" />}
+        {locked && <Lock className="kp-lockic" size={11} strokeWidth={2.4} aria-label="Locked: finished" />}
         {!locked && pinned && <Pin className="kp-lockic" size={11} strokeWidth={2.4} aria-label="Pinned to its own look" />}
         <span>{p.caption}</span>
         <button className="kp-edit" title={`Edit ${name} in the editor`} aria-label={`Edit ${name}`}
@@ -789,10 +791,10 @@ type InvRarity = "common" | "rare" | "epic" | "legendary";
 interface InvItem { name: string; icon: IconDef; qty?: number; rarity: InvRarity; type: string; equipped?: boolean; locked?: boolean; desc?: string }
 const INV_ITEMS: (InvItem | null)[] = [
   { name: "Eclipse Gem", icon: STOCK_ICONS.gem, qty: 28, rarity: "epic", type: "Gem", desc: "A radiant gem pulsing with dark energy. Harnesses the power of the eclipse." },
-  { name: "Falcon Blade", icon: STOCK_ICONS.sword, rarity: "legendary", type: "Weapon", equipped: true, desc: "Forged for the vanguard — swift as its namesake." },
+  { name: "Falcon Blade", icon: STOCK_ICONS.sword, rarity: "legendary", type: "Weapon", equipped: true, desc: "Forged for the vanguard, swift as its namesake." },
   { name: "Aegis Plate", icon: STOCK_ICONS.shield, rarity: "rare", type: "Armor", desc: "Layered plate that shrugs off glancing blows." },
   { name: "Stride Boots", icon: STOCK_ICONS.boots, rarity: "rare", type: "Armor", desc: "Every step lands a little further than it should." },
-  { name: "Signet Ring", icon: STOCK_ICONS.key, rarity: "epic", type: "Accessory", desc: "Opens doors — some of them literal." },
+  { name: "Signet Ring", icon: STOCK_ICONS.key, rarity: "epic", type: "Accessory", desc: "Opens doors. Some of them literal." },
   { name: "Warm Pendant", icon: STOCK_ICONS.heart, qty: 14, rarity: "rare", type: "Accessory", desc: "Slow, steady mending while worn." },
   { name: "Hex Sigil", icon: STOCK_ICONS.star, qty: 12, rarity: "epic", type: "Rune", desc: "A sigil humming with borrowed starlight." },
   { name: "Field Satchel", icon: STOCK_ICONS.bag, qty: 2, rarity: "common", type: "Container", desc: "Plain, roomy, dependable." },
@@ -1118,7 +1120,7 @@ function Match3Board({ onScore }: { onScore: (cleared: number) => void }) {
           <button key={`${i}:${f?.wave ?? 0}:${f?.kind ?? "s"}`} type="button"
             className={`m3-cell${f?.kind === "burst" ? " m3-burst fx-igniting" : f?.kind === "drop" ? " m3-drop" : f?.kind === "nope" ? " m3-nope" : ""}`}
             style={{ "--m3c": cat.c, "--m3drop": f?.kind === "drop" ? f.drop : 0 } as React.CSSProperties}
-            aria-label={`${cat.icon} tile — tap a group of three or more`}
+            aria-label={`${cat.icon} tile: tap a group of three or more`}
             onPointerUp={() => { lastTouch.current = Date.now(); clear(i); }}>
             <span className={`m3-tile${tileUrl ? " m3-kittile" : ""}`} style={tileUrl ? ({ backgroundImage: tileUrl } as React.CSSProperties) : undefined}>
               {tileUrl && <i className="m3-lane" aria-hidden="true" />}
@@ -1262,7 +1264,7 @@ class SecGuard extends Component<{ name: string; children: ReactNode }, { err: s
   render() {
     if (this.state.err) return (
       <p className="kp-note" role="alert">
-        This part of the page hit a rendering error on this device — everything else is unaffected.
+        This part of the page hit a rendering error on this device. Everything else is unaffected.
         <span style={{ display: "block", marginTop: 4, fontSize: 11, opacity: 0.6, fontFamily: "ui-monospace, monospace" }}>
           [{this.props.name}] {this.state.err.slice(0, 160)}
         </span>
@@ -1380,13 +1382,13 @@ function assess(cfg: GenConfig): { level: "Strong" | "Fair" | "Risky"; notes: st
   const ratio = contrast(label, face);
   const notes: string[] = [];
   let hard = false;
-  if (ratio < 3) { hard = true; notes.push(`Label vs. face contrast is about ${ratio.toFixed(1)}:1 — hard to read for a lot of players. A darker face or brighter fill would help.`); }
-  else if (ratio < 4.5) notes.push(`Label contrast is around ${ratio.toFixed(1)}:1 — fine for big display text, but small labels may get murky.`);
-  if (T.outline.on && ratio < 4.5) notes.push("The outline is doing real legibility work here — keep it on.");
-  if (T.glow.on && T.glow.size > 16 && T.glow.opacity > 85) notes.push("That much glow can halo the letterforms at small sizes — consider easing size or opacity.");
-  if (T.spacing < -2) notes.push("Tight negative tracking crowds the glyphs — small text will smudge.");
+  if (ratio < 3) { hard = true; notes.push(`Label vs. face contrast is about ${ratio.toFixed(1)}:1, hard to read for a lot of players. A darker face or brighter fill would help.`); }
+  else if (ratio < 4.5) notes.push(`Label contrast is around ${ratio.toFixed(1)}:1. Fine for big display text, but small labels may get murky.`);
+  if (T.outline.on && ratio < 4.5) notes.push("The outline is doing real legibility work here. Keep it on.");
+  if (T.glow.on && T.glow.size > 16 && T.glow.opacity > 85) notes.push("That much glow can halo the letterforms at small sizes. Consider easing size or opacity.");
+  if (T.spacing < -2) notes.push("Tight negative tracking crowds the glyphs, so small text will smudge.");
   if ((T.outline.on && T.outline.width < 1)) notes.push("A sub-1px outline tends to disappear on low-DPI screens.");
-  if (cfg.candy.pattern.type !== "none" && cfg.candy.pattern.opacity > 60) notes.push("The face pattern is strong enough to compete with the label — lower its opacity for text-heavy pieces.");
+  if (cfg.candy.pattern.type !== "none" && cfg.candy.pattern.opacity > 60) notes.push("The face pattern is strong enough to compete with the label. Lower its opacity for text-heavy pieces.");
   const level = hard ? "Risky" : notes.length > 1 ? "Fair" : "Strong";
   if (!notes.length) notes.push("Contrast, tracking and effects are all comfortable. No warnings.");
   return { level, notes };
@@ -1449,10 +1451,10 @@ function openEditor(sec: string) {
  *  that need them intact should be rendered per-size from the app. */
 export function sliceRisks(c: GenConfig): string[] {
   const cd = c.candy, r: string[] = [];
-  if (cd.gloss.on && cd.gloss.curve > 4 && cd.gloss.opacity > 0) r.push("Curved gloss sweep — its arc spans the whole face, so a stretched middle flattens the curve");
-  if (cd.pattern.type !== "none" && cd.pattern.opacity > 0) r.push(`${cd.pattern.type.charAt(0).toUpperCase() + cd.pattern.type.slice(1)} pattern — tiles ${cd.pattern.type === "stripes" ? "skew off their angle" : "stretch out of shape"} wherever the middle slice grows`);
-  if (cd.specular.on && cd.specular.intensity > 0) r.push("Specular highlight — placed for one proportion; it drifts and smears when the face stretches");
-  if (cd.texture.amount > 0) r.push("Surface grain — stretches into visible streaks in the scaling zones");
+  if (cd.gloss.on && cd.gloss.curve > 4 && cd.gloss.opacity > 0) r.push("Curved gloss sweep: its arc spans the whole face, so a stretched middle flattens the curve");
+  if (cd.pattern.type !== "none" && cd.pattern.opacity > 0) r.push(`${cd.pattern.type.charAt(0).toUpperCase() + cd.pattern.type.slice(1)} pattern: tiles ${cd.pattern.type === "stripes" ? "skew off their angle" : "stretch out of shape"} wherever the middle slice grows`);
+  if (cd.specular.on && cd.specular.intensity > 0) r.push("Specular highlight: placed for one proportion, so it drifts and smears when the face stretches");
+  if (cd.texture.amount > 0) r.push("Surface grain: stretches into visible streaks in the scaling zones");
   return r;
 }
 
@@ -1606,6 +1608,31 @@ function KitDebugStrip() {
 
 export function KitPage() {
   const { cfg, kitClones, kitName, setKitName, saveUserPreset, updateMaster, viewer, isAdmin, componentReleases: releases, setComponentRelease, setComponentReleasesBatch } = useGen();
+  /* Is this the public page of a kit we SHIP (`#/kit/<slug>`)? The hash
+     is the only source of truth — the route, the hydrated document and
+     this page all ask generator/namedKits the same question, so they
+     cannot disagree. A hash change swaps the whole route subtree, which
+     is why reading it at render is enough. */
+  const namedKit = namedKitFromHash(window.location.hash);
+  /* ── who goes first on a SHIPPED kit's page ─────────────────────────
+     On `#/kit/<slug>` the seven demo screens are the headline and this
+     book is the appendix, so the book waits its turn: the screens wake
+     first, then the typography specimens and the chapter chain, and the
+     generating curtain lifts the moment the screens are up rather than
+     holding a stranger for the whole build. Measured on the production
+     build before this rule: the book's long tasks starved the screens
+     for eighteen seconds and the curtain sat over all of it. Every other
+     route is untouched — with no named kit this starts true and nothing
+     downstream can tell the difference. */
+  const [screensReady, setScreensReady] = useState(!namedKit);
+  const onScreensReady = useCallback(() => setScreensReady(true), []);
+  /* …and the book is never hostage to them: if a screen throws (its
+     SecGuard catches it) or a frame never comes, the chain starts anyway */
+  useEffect(() => {
+    if (screensReady) return;
+    const t = window.setTimeout(() => setScreensReady(true), 6000);
+    return () => window.clearTimeout(t);
+  }, [screensReady]);
   // the staging bay opens by hand only — it must never pop up mid-demo
   // (owner: "when I'm showing off the site, I don't want that stuff to
   // immediately pop up"), so collapsed is the default every load. Within
@@ -1688,7 +1715,13 @@ export function KitPage() {
      flips one breath after mount: the same work runs invisibly behind
      the curtain instead of blocking its entrance. */
   const [heavy, setHeavy] = useState(false);
-  useEffect(() => { const t = window.setTimeout(() => setHeavy(true), 50); return () => window.clearTimeout(t); }, []);
+  // …and on a shipped kit's page they wait behind the demo screens too:
+  // a hundred filtered specimens is exactly the long task that starved them
+  useEffect(() => {
+    if (!screensReady) return;
+    const t = window.setTimeout(() => setHeavy(true), 50);
+    return () => window.clearTimeout(t);
+  }, [screensReady]);
 
   const splashArt = useMemo(() => !heavy ? "" : tightenV(renderTypeSpecimen(cfg, splash, {
     highlight: treatOn ? splashHi : undefined,
@@ -1746,7 +1779,11 @@ export function KitPage() {
   // let each chapter's commit PAINT before the next begins — the curtain
   // hides the work, the double-rAF keeps the bar honest and the page alive
   const bootAdvance = () => requestAnimationFrame(() => requestAnimationFrame(() => setBootN((n) => Math.min(BOOT_DONE, n + 1))));
-  useEffect(() => { const t = window.setTimeout(bootAdvance, 250); return () => window.clearTimeout(t); }, []);
+  useEffect(() => {
+    if (!screensReady) return;
+    const t = window.setTimeout(bootAdvance, 250);
+    return () => window.clearTimeout(t);
+  }, [screensReady]); // eslint-disable-line react-hooks/exhaustive-deps
   /* round-46 stall-proofing: the boot chain is SERIAL — each chapter's
      commit advances the next — so one missed link (a throttled rAF, an
      observer that never fires, an effect lost to a race) used to strand
@@ -1758,16 +1795,17 @@ export function KitPage() {
      can't also be the thing that's stuck. Healthy boots advance in well
      under a second and never hear from it. */
   useEffect(() => {
-    if (bootN >= BOOT_DONE) return;
+    // a book that hasn't been told to start yet isn't stalled
+    if (bootN >= BOOT_DONE || !screensReady) return;
     const t = window.setTimeout(() => {
       console.warn(`[chapters] boot stalled at stage ${bootN}/${BOOT_DONE} — watchdog advancing`);
       setBootN((n) => (n === bootN ? Math.min(BOOT_DONE, n + 1) : n));
     }, 3500);
     return () => window.clearTimeout(t);
-  }, [bootN]);
+  }, [bootN, screensReady]);
   useEffect(() => {
     if (curtain !== "on") return;
-    if (bootN >= BOOT_DONE && fontsReady) {
+    if ((namedKit ? screensReady : bootN >= BOOT_DONE) && fontsReady) {
       // whole page + real glyphs are in — hold a beat so the bar is seen
       // finishing, then fade (min display keeps warm re-entries flickerless)
       const wait = Math.max(420, 900 - (Date.now() - bootT0.current));
@@ -1777,7 +1815,7 @@ export function KitPage() {
     // failsafe: a stalled stage never traps the reader behind the curtain
     const f = window.setTimeout(() => { console.warn(`[chapters] curtain failsafe lift — boot sat at stage ${bootN}/${BOOT_DONE}`); setCurtain("leaving"); }, 12000);
     return () => window.clearTimeout(f);
-  }, [bootN, fontsReady, curtain]);
+  }, [bootN, fontsReady, curtain, namedKit, screensReady]);
   useEffect(() => {
     if (curtain !== "leaving") return;
     const t = window.setTimeout(() => setCurtain("gone"), 450);
@@ -1933,7 +1971,7 @@ export function KitPage() {
             kitIcons: st.kitIcons,
             // the maker's text-nudge dials — labels bake and seat where the maker pushed them (engine-lane slice 2; cross-lane one-liner, called out in the PR)
             kitTextOy: st.kitTextOy, kitTextOx: st.kitTextOx },
-          scope === "full" ? () => buildSpriteSheetBytes(sheetEntries(st), `${name} — visual catalog`, st.cfg.type.font, fdef2?.css ?? null,
+          scope === "full" ? () => buildSpriteSheetBytes(sheetEntries(st), `${name} · visual catalog`, st.cfg.type.font, fdef2?.css ?? null,
             (d, t) => setEngineProg({ done: d, total: t, label: "catalog" })) : undefined,
           grant.licence,
           (done, total, label) => setEngineProg({ done, total, label }),
@@ -2000,15 +2038,15 @@ export function KitPage() {
       files.push({
         path: "README.md",
         data: [
-          "# SVG pack — every kit asset", "",
+          "# SVG pack: every kit asset", "",
           "One layered SVG per catalog entry: every component, variant and state,",
           "with your content overrides (text, icons, dock, segments) baked in.",
-          "Named groups — cast-shadow, extrusion, shell, face, content, gloss,",
-          "specular — import as a readable layer tree.", "",
+          "Named groups: cast-shadow, extrusion, shell, face, content, gloss,",
+          "specular. Import as a readable layer tree.", "",
           fontNotesMarkdown(kitFontFamilies(st.cfg, fams)),
           "## Figma", "Drag any SVG onto the canvas. Ungroup once to reach the layers.",
           "Figma doesn't render SVG filter effects, so soft glows and grain drop",
-          "on import — the geometry, gradients, layer names and live text all",
+          "on import. The geometry, gradients, layer names and live text all",
           "arrive intact, ready to restyle with Figma's own effects. Want the",
           "rendered look exactly? Use the PNG exports.", "",
           "## Illustrator", "Open directly; the 'SVG Tiny' warning only concerns re-saving.", "",
@@ -2063,7 +2101,7 @@ const kitTier = useGen((s) => s.tier);
         }
         files.push({
           path: `UIKitMaker/${uslug}/stamps/README.md`,
-          data: "# Type Stamps\n\nYour phrases in the kit's full display treatment, baked at 4x —\nfor HERO text: titles, banners, victory moments. They import as ready\nsprites at design size.\n\nRunning UI text stays LIVE text (see the kit's UNITY-README); stamps\nare for the moments real games bake anyway. Need another phrase or a\nrestyle? Type it on uikitmaker.com, download again, extract over the\nsame spot — same overwrite rules as the kit.\n",
+          data: "# Type Stamps\n\nYour phrases in the kit's full display treatment, baked at 4x,\nfor HERO text: titles, banners, victory moments. They import as ready\nsprites at design size.\n\nRunning UI text stays LIVE text (see the kit's UNITY-README); stamps\nare for the moments real games bake anyway. Need another phrase or a\nrestyle? Type it on uikitmaker.com, download again, extract over the\nsame spot. Same overwrite rules as the kit.\n",
         });
         files.push({ path: `UIKitMaker/${uslug}/stamps/LICENCE.txt`, data: grant.licence });
         downloadZip(`${uslug}-type-stamps.zip`, files);
@@ -2107,15 +2145,15 @@ const kitTier = useGen((s) => s.tier);
        thing above, so the row steps aside for them. */
     ...(!paidTier ? [{
       id: "testkit",
-      name: "Unity test kit (ZIP) — free",
+      name: "Free Unity test kit (ZIP)",
       desc: kitTier === "guest"
-        ? "The stock Brightside kit, free with an account — prove the whole import pipeline (prefabs, scenes, gauges, words) in your engine, and ship it if you like: it's yours, commercial projects included."
-        : "The stock Brightside kit — the same fixed ZIP for everyone, not your design — yours to ship, commercial projects included, and it proves the whole import pipeline (prefabs, scenes, gauges, words) in your engine.",
+        ? "The stock Brightside kit, free with an account. Prove the whole import pipeline (prefabs, scenes, gauges, words) in your engine, and ship it if you like: it's yours, commercial projects included."
+        : "The stock Brightside kit: the same fixed ZIP for everyone, not your design. Yours to ship, commercial projects included, and it proves the whole import pipeline (prefabs, scenes, gauges, words) in your engine.",
       busy: testKitBusy, run: () => void runTestKit(),
     }] : []),
-    { id: "svg", name: "SVG pack", desc: "Every component, variant and state as a layered SVG — Illustrator, Penpot and Figma ready.", busy: svgBusy, locked: !maySvg, run: () => void downloadSvgPack() },
-    { id: "sprite", name: "Sprite sheet (PNG)", desc: "One labeled catalog image of every asset — for humans, not for slicing.", busy: sheetBusy, locked: !paidTier, run: () => { if (paidTier) void downloadAllAssets(); else openGate("export"); } },
-    { id: "stamps", name: "Type stamps (PNG)", desc: "Your phrases in the kit's full display treatment, baked crisp at 4x — hero titles, banners, victory text. Lands in the same Unity folder as the kit.", busy: stampBusy, locked: !mayEngine, run: openStamps },
+    { id: "svg", name: "SVG pack", desc: "Every component, variant and state as a layered SVG. Illustrator, Penpot and Figma ready.", busy: svgBusy, locked: !maySvg, run: () => void downloadSvgPack() },
+    { id: "sprite", name: "Sprite sheet (PNG)", desc: "One labeled catalog image of every asset: for humans, not for slicing.", busy: sheetBusy, locked: !paidTier, run: () => { if (paidTier) void downloadAllAssets(); else openGate("export"); } },
+    { id: "stamps", name: "Type stamps (PNG)", desc: "Your phrases in the kit's full display treatment, baked crisp at 4x: hero titles, banners, victory text. Lands in the same Unity folder as the kit.", busy: stampBusy, locked: !mayEngine, run: openStamps },
   ];
   const sheetEntries = (st: ReturnType<typeof useGen.getState>) => {
     {
@@ -2324,7 +2362,7 @@ const kitTier = useGen((s) => s.tier);
     try {
       const st = useGen.getState();
       const fdef = fontByName(st.cfg.type.font);
-      await downloadSpriteSheet(sheetEntries(st), `${st.kitName ?? `The ${preset?.name ?? "Custom"} Kit`} — visual catalog`, st.cfg.type.font, fdef?.css ?? null);
+      await downloadSpriteSheet(sheetEntries(st), `${st.kitName ?? `The ${preset?.name ?? "Custom"} Kit`} · visual catalog`, st.cfg.type.font, fdef?.css ?? null);
     } finally {
       setSheetBusy(false);
     }
@@ -2461,6 +2499,12 @@ const kitTier = useGen((s) => s.tier);
         <UnityBriefing cards={brief} prog={engineProg} accent={cfg.effects.Glow || cfg.effects.Bevel || "#0E9CC9"}
           kitName={kitName ?? `The ${preset?.name ?? "Custom"} Kit`} onHide={() => setBriefHidden(true)} />
       )}
+      {/* ── a SHIPPED kit's page opens on its demo screens, live ──
+          Page order is the owner's and is not negotiable: the seven
+          screens, then the kit book, then the promo block at the foot.
+          On every other route namedKit is null and this is the same Kit
+          page it has always been. */}
+      {namedKit && <SecGuard name="Demo screens"><KitScreens kit={namedKit} onReady={onScreensReady} /></SecGuard>}
       {/* ── sticky chapter navigation — persistent orientation ── */}
       <ChapterTabs />
 
@@ -2483,11 +2527,17 @@ const kitTier = useGen((s) => s.tier);
               }}
               onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setRenaming(false); }} />
           ) : (
+            /* a kit we SHIP wears its own name — a stranger on its public
+               page can't rename it out from under the store listing */
+            namedKit ? (
+              <h1 className="kp-title">{kitName ?? namedKit.name}</h1>
+            ) : (
             <h1 className="kp-title kp-renamable" onClick={() => setRenaming(true)} title="Click to rename this kit">
               {kitName ?? `The ${preset?.name ?? "Custom"} Kit`} <SquarePen className="kp-renpen" size={17} strokeWidth={2.1} aria-hidden="true" />
             </h1>
+            )
           )}
-          <p className="kp-sub">A dimensional candy interface system for fast, playful game UI — one material, five levels, everything live.</p>
+          <p className="kp-sub">A dimensional candy interface system for fast, playful game UI: one material, five levels, everything live.</p>
           <div className="kp-facts">
             {([["5", "Levels"], [String(KIT_COMPONENTS.filter((c) => kitVisible(c.id, releases, false)).length) + "+", "Components"], ["20+", "Assemblies"], [sil, "Silhouette"]] as const).map(([v, l]) => (
               <div className="kp-fact" key={l}><b>{v}</b><span>{l}</span></div>
@@ -2503,15 +2553,23 @@ const kitTier = useGen((s) => s.tier);
                 button"). setParent + setFocus(null) clear both roads;
                 setFocus carries phase:"master" itself. The tab-strip's
                 "Back to the component editor" keeps its back-semantics. */}
-            <button className="kp-editkit" onClick={() => { const st = useGen.getState(); st.setParent("button"); st.setFocus(null); }} title="Open the master button in the editor — every control reshapes the whole kit live"
+            <button className="kp-editkit" onClick={() => { const st = useGen.getState(); st.setParent("button"); st.setFocus(null); }} title="Open the master button in the editor. Every control reshapes the whole kit live"
               style={{ background: cfg.effects.Bevel ?? "#0E9CC9", color: isDarkBg(cfg.effects.Bevel ?? "#0E9CC9") ? "#ffffff" : "#0d0f16" }}>
               <PenTool size={16} strokeWidth={2.3} /> Edit master component
             </button>
-            <button className="kp-share" onClick={() => void shareKit()} title="Copy a link that opens this kit for anyone — view only">
+            <button className="kp-share" onClick={() => void shareKit()} title="Copy a view-only link that opens this kit for anyone">
               {shared ? "Link copied ✓" : "Share kit"}
             </button>
           </div>
-          {viewer ? <div className="kp-viewnote">Shared kit — view only. Ask the owner for the downloads.</div> : <ExportMenu actions={exportActions} />}
+          {viewer ? (
+            <div className="kp-viewnote">
+              {namedKit
+                /* a shipped kit's page has no "owner" to ask — the whole
+                   thing is on show, and the way in is the generator */
+                ? `${namedKit.name} is one of our kits, shown whole and read-only. Every piece below is live. Make your own in the generator.`
+                : "Shared kit, view only. Ask the owner for the downloads."}
+            </div>
+          ) : <ExportMenu actions={exportActions} />}
           {!viewer && (
             <button className="kp-unitylink" onClick={() => { window.location.hash = "#/unity"; }}
               title="What lands in your project, how the import works, and why re-exports never break a scene.">
@@ -2521,7 +2579,7 @@ const kitTier = useGen((s) => s.tier);
           {stampsOpen && (
             <div className="kp-stampsheet" role="dialog" aria-label="Type stamps">
               <b>Type Stamps</b>
-              <p>One phrase per line (up to 24). Each bakes as a crisp 4× PNG in your kit's full display treatment — for hero text: titles, banners, victory moments. Extract the zip into your Unity project's Assets/ and they land beside the kit, ready as sprites.</p>
+              <p>One phrase per line (up to 24). Each bakes as a crisp 4× PNG in your kit's full display treatment, for hero text: titles, banners, victory moments. Extract the zip into your Unity project's Assets/ and they land beside the kit, ready as sprites.</p>
               <textarea value={stampText} onChange={(e) => setStampText(e.target.value)} rows={6} maxLength={1200}
                 spellCheck={false} autoCorrect="off" autoCapitalize="off"
                 placeholder={"SWEET VICTORY\nLEVEL UP!\nGAME OVER"} aria-label="Stamp phrases, one per line" />
@@ -2539,8 +2597,8 @@ const kitTier = useGen((s) => s.tier);
           {aboutOpen && (
             <div className="kp-reveal"><div>
               <p className="kp-note kp-aboutbody">
-                {sil} silhouette · {T.font}. One material recipe at five levels: foundations — color,
-                type and the material's anatomy — then finished components, game systems, screen patterns and resources.
+                {sil} silhouette · {T.font}. One material recipe at five levels. Foundations first: color,
+                type and the material's anatomy. Then finished components, game systems, screen patterns and resources.
                 Every specimen is a live render from the same engine that draws the editor canvas;
                 each opens in the editor via the ✎ next to its name. Nothing on this page is a mockup.
               </p>
@@ -2549,9 +2607,9 @@ const kitTier = useGen((s) => s.tier);
           {a11yOpen && (
             <div className="kp-reveal"><div>
               <div className={`kp-a11y ${audit.level.toLowerCase()}`} role="status">
-                <b>{audit.level === "Strong" ? "Strong — reads clearly." : audit.level === "Fair" ? "Fair — solid, with a couple of watch-outs." : "Risky — worth a tweak before shipping."}</b>
+                <b>{audit.level === "Strong" ? "Strong: reads clearly." : audit.level === "Fair" ? "Fair: solid, with a couple of watch-outs." : "Risky: worth a tweak before shipping."}</b>
                 <ul>{audit.notes.map((n) => <li key={n}>{n}</li>)}</ul>
-                <div className="kp-a11yhow">Computed locally from WCAG contrast ratios and type metrics — no AI involved, nothing leaves the page.</div>
+                <div className="kp-a11yhow">Computed locally from WCAG contrast ratios and type metrics. No AI involved, nothing leaves the page.</div>
               </div>
             </div></div>
           )}
@@ -2596,15 +2654,15 @@ const kitTier = useGen((s) => s.tier);
         if (!bayOpen) return (
           <section className="kp-sec kp-baycollapsed">
             <button className="kp-baytoggle" onClick={() => setBayOpen(true)}>
-              <ShieldCheck size={13} strokeWidth={2.2} /> Staging bay · {bayCount} waiting — only you see this
+              <ShieldCheck size={13} strokeWidth={2.2} /> Staging bay · {bayCount} waiting, only you see this
             </button>
           </section>
         );
         return (
           <Sec n="00" title="The staging bay"
-            note="New pieces land here first, visible only to you. Test them across the editor, the Board and the exports, then approve — the piece leaves the bay and appears for every maker the moment you do, no deploy needed. Reject moves it to the trash at the page bottom; both are reversible.">
+            note="New pieces land here first, visible only to you. Test them across the editor, the Board and the exports, then approve. The piece leaves the bay and appears for every maker the moment you do, no deploy needed. Reject moves it to the trash at the page bottom; both are reversible.">
             <button className="kp-baytoggle" onClick={() => setBayOpen(false)}>Collapse the bay</button>
-            {inBay.length === 0 && <p className="kp-baynote">The bay is clear — everything staged is released or waiting in the trash. New pieces will land here.</p>}
+            {inBay.length === 0 && <p className="kp-baynote">The bay is clear. Everything staged is released or waiting in the trash. New pieces will land here.</p>}
             {/* batch lane for the GLYPH SET only (owner: 44 one-by-one approvals
                 is a chore) — one atomic ledger write; every card stays
                 individually reversible afterward */}
@@ -2623,7 +2681,7 @@ const kitTier = useGen((s) => s.tier);
                     <ShieldCheck size={13} strokeWidth={2.2} /> Release all {glyphBay.length} glyphs
                   </button>
                   <button className="cg-curate cg-curate--danger" onClick={() => batch("rejected",
-                    `Park all ${glyphBay.length} glyphs? They move to the trash at the page bottom — still admin-only; restore any of them from there.`)}>
+                    `Park all ${glyphBay.length} glyphs? They move to the trash at the page bottom, still admin-only. Restore any of them from there.`)}>
                     Park all glyphs
                   </button>
                 </div>
@@ -2660,14 +2718,14 @@ const kitTier = useGen((s) => s.tier);
                       </div>
                     </KpFold>
                     <div className="kp-bayside">
-                      <span className="kp-baychip">Glyph buttons · {gbtnBay.length} — one gate for the whole set</span>
+                      <span className="kp-baychip">Glyph buttons · {gbtnBay.length} · one gate for the whole set</span>
                       <div className="kp-bayacts">
                         <button className="cg-curate cg-curate--add" onClick={() => actSet(gbtnBay, "released",
-                          `Release all ${gbtnBay.length} glyph buttons to every maker? The whole set leaves the bay and appears across the app the moment you approve — one atomic act. You can pull the set back afterward.`)}>
-                          <ShieldCheck size={13} strokeWidth={2.2} /> Approve the set — release all {gbtnBay.length}
+                          `Release all ${gbtnBay.length} glyph buttons to every maker? The whole set leaves the bay and appears across the app the moment you approve, in one atomic act. You can pull the set back afterward.`)}>
+                          <ShieldCheck size={13} strokeWidth={2.2} /> Approve the set: release all {gbtnBay.length}
                         </button>
-                        <button className="cg-curate cg-curate--danger" title="Move the whole set to the trash at the page bottom — restorable from there" onClick={() => actSet(gbtnBay, "rejected",
-                          `Reject all ${gbtnBay.length} glyph buttons? The set moves to the trash at the page bottom — still admin-only, restorable as a set.`)}>Reject the set</button>
+                        <button className="cg-curate cg-curate--danger" title="Move the whole set to the trash at the page bottom, restorable from there" onClick={() => actSet(gbtnBay, "rejected",
+                          `Reject all ${gbtnBay.length} glyph buttons? The set moves to the trash at the page bottom, still admin-only and restorable as a set.`)}>Reject the set</button>
                       </div>
                     </div>
                   </div>
@@ -2695,12 +2753,12 @@ const kitTier = useGen((s) => s.tier);
                       ]} />
                     )}
                     <div className="kp-bayside">
-                      <span className="kp-baychip">In the bay — only you see this</span>
+                      <span className="kp-baychip">In the bay, only you see this</span>
                       <div className="kp-bayacts">
                         <button className="cg-curate cg-curate--add" onClick={() => act(sid, "released", `Release ${nm} to every maker? It leaves the bay and appears across the app the moment you approve.`)}>
-                          <ShieldCheck size={13} strokeWidth={2.2} /> Approve — release to everyone
+                          <ShieldCheck size={13} strokeWidth={2.2} /> Approve: release to everyone
                         </button>
-                        <button className="cg-curate cg-curate--danger" title="Move to the trash at the page bottom — restorable from there" onClick={() => act(sid, "rejected")}>Reject</button>
+                        <button className="cg-curate cg-curate--danger" title="Move to the trash at the page bottom, restorable from there" onClick={() => act(sid, "rejected")}>Reject</button>
                       </div>
                     </div>
                   </div>
@@ -2728,7 +2786,7 @@ const kitTier = useGen((s) => s.tier);
         );
       }} />}
 
-      <Chapter n={chapN("foundations")} id="foundations" label="Foundations" blurb="The design story every piece inherits: color roles, typography, and the material's anatomy — parts, layers and the nine-slice bones." />
+      <Chapter n={chapN("foundations")} id="foundations" label="Foundations" blurb="The design story every piece inherits: color roles, typography, and the material's anatomy: parts, layers and the nine-slice bones." />
 
       {/* ── 01 · style tokens ── */}
       <Sec n="01" title="Color & Material" note="Five color roles drive the material: face, bevel, glow, shadow and inner fill. Repaint a role and every layer that uses it follows. These are functional roles, not a brand palette.">
@@ -2757,7 +2815,7 @@ const kitTier = useGen((s) => s.tier);
             {innerGlowChip && (
               <div className="kp-role2">
                 <i style={{ background: innerGlowChip }} />
-                <div className="kp-rolemeta"><b>Inner Glow</b><span>Colored light inside the candy — this kit gives it its own voice instead of the Glow role</span></div>
+                <div className="kp-rolemeta"><b>Inner Glow</b><span>Colored light inside the candy. This kit gives it its own voice instead of the Glow role</span></div>
                 <code>{innerGlowChip.toUpperCase()}{"\n"}RGB {rgbOf(innerGlowChip).join(" ")}{"\n"}CMYK {cmykOf(innerGlowChip)}</code>
               </div>
             )}
@@ -2803,7 +2861,7 @@ const kitTier = useGen((s) => s.tier);
               <i>·</i>
               <span>Live text</span>
             </div>
-            <div className="kp-tynote">Some treatments show best against one ground — a pale glint fades on light surfaces, a dark emboss sinks into black. Proof the type on both the light and dark stage swatches.</div>
+            <div className="kp-tynote">Some treatments show best against one ground: a pale glint fades on light surfaces, a dark emboss sinks into black. Proof the type on both the light and dark stage swatches.</div>
           </aside>
 
           <div className="kp-tyspec">
@@ -2889,8 +2947,8 @@ const kitTier = useGen((s) => s.tier);
 
       {/* ── 03 · build parts — the kit's anatomy, in Foundations ── */}
       <Sec n="03" title="Build Parts" note="Everything in the kit is built from these. Each part opens the layer that produces it in the editor. Downloads are layered SVGs with named groups and nine-slice metadata.">
-        {viewer ? <div className="kp-viewnote">Shared kit — view only. Ask the owner for the downloads.</div> : <ExportMenu actions={exportActions} preferId="svg" />}
-        <button className="kp-share" onClick={() => void shareKit()} title="Copy a link that opens this kit for anyone — view only">
+        {viewer ? <div className="kp-viewnote">Shared kit, view only. Ask the owner for the downloads.</div> : <ExportMenu actions={exportActions} preferId="svg" />}
+        <button className="kp-share" onClick={() => void shareKit()} title="Copy a view-only link that opens this kit for anyone">
           {shared ? "Link copied ✓" : "Share kit"}
         </button>
         <div className="kp-dlrow">
@@ -2920,7 +2978,7 @@ const kitTier = useGen((s) => s.tier);
                   path: "assemblies/RECIPES.md",
                   data: [
                     "# Assembly recipes", "",
-                    "Assemblies are compositions of registered components — no unique art.",
+                    "Assemblies are compositions of registered components, with no unique art.",
                     "Rebuild them in any tool by stacking the pieces in this folder:", "",
                     "- Titled panel: panel + tab (top-left, inset 16) + iconbtn (top-right)",
                     "- Confirmation modal: panel-s + header + two buttons, stacked on center axis",
@@ -2964,10 +3022,10 @@ const kitTier = useGen((s) => s.tier);
                   path: "README.md",
                   data: [
                     "# UI Kit asset pack", "",
-                    "Layered SVGs from UI Kit Maker. Every component keeps named groups —",
-                    "cast-shadow, extrusion, shell, face, content, gloss, specular — so Figma", "imports them as a readable layer tree.", "",
+                    "Layered SVGs from UI Kit Maker. Every component keeps named groups:",
+                    "cast-shadow, extrusion, shell, face, content, gloss, specular, so Figma", "imports them as a readable layer tree.", "",
                     "## Figma", "Drag any SVG onto the canvas. Ungroup once to reach the named layers.", "",
-                    "## Illustrator", "Open directly. You may see 'Clipping will be lost on roundtrip to Tiny' —",
+                    "## Illustrator", "Open directly. You may see 'Clipping will be lost on roundtrip to Tiny'.",
                     "that warning concerns re-SAVING to the SVG Tiny profile; the artwork imports",
                     "completely. The candy face requires one clip group (gloss, pattern and",
                     "speculars must stay inside the face), which is what triggers the notice.", "",
@@ -3007,7 +3065,7 @@ const kitTier = useGen((s) => s.tier);
           <span>Thumb / knob · Fixed, never scales with track</span><span>Track · Stretch X</span>
           <span>Fill · Stretch X, ends at thumb center</span><span>All recolor via the five wells</span>
         </div>
-        <div className="kp-subhead">Typography treatment — live layered recipe</div>
+        <div className="kp-subhead">Typography treatment · the live layered recipe</div>
         <div className="kp-recipe">
           {recipe.map((r) => (
             <button className="kp-part wide" key={r.name} title="Open Typography in the editor" onClick={() => openEditor("typography")}>
@@ -3020,12 +3078,12 @@ const kitTier = useGen((s) => s.tier);
 
       {/* ── 04 · nine-slice & anatomy — the stretch contract closes Foundations ── */}
       <Sec n="04" title="Nine-Slice & Anatomy" note="Corners fixed, edges stretch on one axis, the center stretches on both. The Unity kit ships borders measured from each edge's drawn curvature (kit-manifest.json); the SVG pack carries the fraction contract (9slice.json).">
-        <p className="kp-note">Every silhouette is procedural sliced geometry: caps never distort; only the middle stretches. Magenta dashes mark the fixed caps — measured from this design's own drawn curvature, the same walk the Unity export uses, so an asymmetric silhouette wears a wider cap on its decorated end. Green marks the text-safe area.</p>
+        <p className="kp-note">Every silhouette is procedural sliced geometry: caps never distort; only the middle stretches. Magenta dashes mark the fixed caps, measured from this design's own drawn curvature, the same walk the Unity export uses, so an asymmetric silhouette wears a wider cap on its decorated end. Green marks the text-safe area.</p>
         {sliceRisks(cfg).length > 0 && (
           <div className="kp-slicenote">
-            <b>Heads-up — this design carries effects a stretched slice can't keep:</b>
+            <b>Heads-up. This design carries effects a stretched slice can't keep:</b>
             <ul>{sliceRisks(cfg).map((r) => <li key={r}>{r}</li>)}</ul>
-            <span>The exported slices scale cleanly without them. When a piece needs these effects intact at a specific size, render that one-off component straight from the app instead — it repaints every effect for the exact proportion.</span>
+            <span>The exported slices scale cleanly without them. When a piece needs these effects intact at a specific size, render that one-off component straight from the app instead. It repaints every effect for the exact proportion.</span>
           </div>
         )}
         <div className="kp-slices">
@@ -3057,7 +3115,7 @@ const kitTier = useGen((s) => s.tier);
         const groups = CLONE_KINDS.map((kind) => ({ kind, list: vis.filter(([, c]) => kindOf(c.kind) === kind) })).filter((g) => g.list.length);
         return (
           <>
-            <Chapter n={chapN("yours")} id="yours" label="Your components" blurb="Pieces you duplicated — each renders through its base component and restyles alone." />
+            <Chapter n={chapN("yours")} id="yours" label="Your components" blurb="Pieces you duplicated. Each renders through its base component and restyles alone." />
             {groups.map((g, i) => (
               <Sec key={g.kind} n={String(i + 1).padStart(2, "0")} title={g.kind}>
                 <div className="kp-tray">
@@ -3102,7 +3160,7 @@ const kitTier = useGen((s) => s.tier);
             the bay, the editor and the Board. */}
         {kitVisible("slotbtn", releases, false) && (<>
           <div className="kp-subhead">Slot button</div>
-          <p className="kp-note">The item-slot look — frame, dark well, glyph — as a real pressing button. Swap the glyph in Component content (per copy on the Board); type a count in Qty chip for the corner pill.</p>
+          <p className="kp-note">The item-slot look (frame, dark well, glyph) as a real pressing button. Swap the glyph in Component content (per copy on the Board); type a count in Qty chip for the corner pill.</p>
           <div className="kp-tray">
             <Piece id="slotbtn" caption="Slot button" />
             <Piece id="slotbtn" caption="Slot button · Hammer" icon={STOCK_ICONS.hammer} />
@@ -3158,7 +3216,7 @@ const kitTier = useGen((s) => s.tier);
       </Sec>
 
       {/* ── 04 · sliders & progress ── */}
-      <Sec n="04" title="Sliders & Progress" note="Shared range rules: the thumb stays inside the shell at both endpoints and the fill ends at the thumb's center. Progress replays to its configured value on click or Enter. The emblem bar docks a silhouette-aware socket on the track — swap its glyph in Component content; the segmented meter snaps to whole cells or slides one fill under the notches.">
+      <Sec n="04" title="Sliders & Progress" note="Shared range rules: the thumb stays inside the shell at both endpoints and the fill ends at the thumb's center. Progress replays to its configured value on click or Enter. The emblem bar docks a silhouette-aware socket on the track: swap its glyph in Component content; the segmented meter snaps to whole cells or slides one fill under the notches.">
         <div className="kp-tray">
           <Piece id="slider" caption="Slider" value={0.62} />
           <Piece id="progress" caption="Progress" value={0.62} ambient />
@@ -3177,7 +3235,7 @@ const kitTier = useGen((s) => s.tier);
           <Piece id="hotbar" caption="Hotbar · sandbox" value={0.25} ambient scale={0.5} />
         </div>
         <div className="kp-subhead">Card battler</div>
-        <p className="kp-note">Every set ships its back as a pair — standard and premium foil (the shine sweep) — and the same back becomes a deck cover the moment it takes a nameplate. Packs carry the crimped foil caps; click one to tear it open with the themed burst.</p>
+        <p className="kp-note">Every set ships its back as a pair, standard and premium foil (the shine sweep), and the same back becomes a deck cover the moment it takes a nameplate. Packs carry the crimped foil caps; click one to tear it open with the themed burst.</p>
         <div className="kp-tray">
           <Piece id="cardback" caption="Card back · standard" scale={0.42} />
           <Piece id="cardback" caption="Card back · premium foil" scale={0.42} shine />
@@ -3225,13 +3283,38 @@ const kitTier = useGen((s) => s.tier);
             purpose: the ribbon has no hover/press story to tell. */}
         {kitVisible("ribbonbanner", releases, false) && (<>
           <div className="kp-subhead">Ribbon banner</div>
-          <p className="kp-note">The classic swallow-tail ribbon — tails tucked behind, message panel proud in front, the whole cut wearing the kit's material in one sweep. The panel is a live text seat, never baked art: re-word it in Text like any labeled piece.</p>
+          <p className="kp-note">The classic swallow-tail ribbon: tails tucked behind, message panel proud in front, the whole cut wearing the kit's material in one sweep. The panel is a live text seat, never baked art: re-word it in Text like any labeled piece.</p>
           <div className="kp-tray">
             <Piece id="ribbonbanner" caption="Ribbon banner" scale={0.55} />
             <Piece id="ribbonbanner" caption="Ribbon banner · re-worded" label="VICTORY" scale={0.55} />
           </div>
           <div className="kp-meta">
-            <span>Panel and tails share one height; every side runs true vertical</span><span>Words fit to the panel's reading zone — long labels shrink, they never enter the tails</span><span>Authored proportion — the ribbon keeps its cut at every size</span>
+            <span>Panel and tails share one height; every side runs true vertical</span><span>Words fit to the panel's reading zone: long labels shrink, they never enter the tails</span><span>Authored proportion, so the ribbon keeps its cut at every size</span>
+          </div>
+        </>)}
+        {/* the bottom nav bar, seated at last. It rendered on the demo
+            boards and shipped in every export while having no card here and
+            no tray tile, so once it left the bay it was findable nowhere:
+            the ribbon's round-60 bug, hit by a second piece. Its home is
+            Navigation, not the casual chapter — a tab picks a view inside a
+            screen, this picks the screen, and every genre that goes mobile
+            wants one. scripts/check-component-surfaces.mjs now fails the
+            build on the whole class. Gated like every bay resident. */}
+        {kitVisible("bottomnav", releases, false) && (<>
+          <div className="kp-subhead">Bottom nav bar</div>
+          <p className="kp-note">The tab bar a mobile game stands on: four destination cells in the kit material, the active one lifted onto a brighter well inside the glow ring. Nothing on it is baked. Every caption is a live text seat, every glyph a swappable sprite, and the selected ring is its own child, so a bar re-labels, re-icons and changes tab without leaving the Inspector. A count on any cell pins the red dot to that corner.</p>
+          <div className="kp-tray">
+            <Piece id="bottomnav" caption="Bottom nav · on Map" value={0} scale={0.46} />
+            <Piece id="bottomnav" caption="Bottom nav · on Store" value={1} scale={0.46} />
+          </div>
+          <StateStrip variants={[
+            { cap: "Default", piece: { id: "bottomnav", value: 0.3, scale: 0.24 } },
+            { cap: "Hover", piece: { id: "bottomnav", value: 0.3, baseState: "hover", scale: 0.24 } },
+            { cap: "Pressed", piece: { id: "bottomnav", value: 0.3, baseState: "pressed", scale: 0.24 } },
+            { cap: "Disabled", piece: { id: "bottomnav", value: 0.3, baseState: "disabled", scale: 0.24 } },
+          ]} />
+          <div className="kp-meta">
+            <span>The value slider picks the active cell, in quarters</span><span>Cell captions, glyphs and badge counts are per-cell content</span><span>Cell corners follow the Smoothness slider</span>
           </div>
         </>)}
       </Sec>
@@ -3261,7 +3344,7 @@ const kitTier = useGen((s) => s.tier);
 
       {/* ── 07 · system chrome & feedback — the Feedback section folded in
           (owner IA round): three specimens weren't a section of their own ── */}
-      <Sec n="07" title="System Chrome & Feedback" note="The connective tissue every game ships — the dialog frame, confirmations, tooltips and input prompts, all in the kit material — plus the feedback voices: counts, awards and callouts. A badge awards on click. Key prompts stretch like real keycaps; pad buttons carry console color rings.">
+      <Sec n="07" title="System Chrome & Feedback" note="The connective tissue every game ships: the dialog frame, confirmations, tooltips and input prompts, all in the kit material. Plus the feedback voices: counts, awards and callouts. A badge awards on click. Key prompts stretch like real keycaps; pad buttons carry console color rings.">
         <div className="kp-tray">
           <Piece id="dialog" caption="Dialog" scale={0.4} />
           <Piece id="toast" caption="Toast" scale={0.52} />
@@ -3314,7 +3397,7 @@ const kitTier = useGen((s) => s.tier);
           (owner call, 2026-08-27): its story — states, sheets, modals built
           from registered pieces — is told properly by Screen Patterns and
           Layout Starters, and the cards read as parts-debris beside them */}
-      <Sec n="08" title="Containers" note="Container shapes and panels — the surfaces everything else sits on. Included in the Build Parts downloads.">
+      <Sec n="08" title="Containers" note="Container shapes and panels: the surfaces everything else sits on. Included in the Build Parts downloads.">
         <div className="kp-subhead">Container shapes</div>
         <div className="kp-tray">
           <Piece id="panel" caption="Container · Panel" size="s" scale={0.4} />
@@ -3336,7 +3419,7 @@ const kitTier = useGen((s) => s.tier);
           own Sec so the section guard names it alone. Last in the
           chapter, so the numbered sections above keep their numbers. */}
       {GLYPH_BUTTONS.some((b) => kitVisible(b.id, releases, false)) && (
-        <Sec n="09" title="Glyph Buttons" note="The semantic glyph set as ready-made buttons — the slot button's frame wearing each glyph, one component per glyph. Every one follows the kit until you edit it; Edit opens it in the editor with the full control set (states, colors, the glyph well, nudges, the qty chip). No assembly required.">
+        <Sec n="09" title="Glyph Buttons" note="The semantic glyph set as ready-made buttons: the slot button's frame wearing each glyph, one component per glyph. Every one follows the kit until you edit it; Edit opens it in the editor with the full control set (states, colors, the glyph well, nudges, the qty chip). No assembly required.">
           <div className="kp-slotgrid">
             {GLYPH_BUTTONS.filter((b) => kitVisible(b.id, releases, false)).map((b) => (
               <Piece key={b.id} id={b.id} caption={b.glyphName} scale={0.34} />
@@ -3349,7 +3432,7 @@ const kitTier = useGen((s) => s.tier);
             { cap: "Disabled", piece: { id: "gbtncoin", baseState: "disabled", scale: 0.34 } },
           ]} />
           <Meta items={[
-            "Real pressing buttons — hover lift, press travel, disabled dimming, the slot button's whole grammar",
+            "Real pressing buttons: hover lift, press travel, disabled dimming, the slot button's whole grammar",
             "The glyph stays a live swappable child: re-pick it under Icons, type ×250 in Qty chip for the corner pill",
             "Style one alone with Edit, or restyle the whole set at once with the Glyph buttons group scope",
           ]} />
@@ -3357,7 +3440,7 @@ const kitTier = useGen((s) => s.tier);
       )}
 
       </>}</Deferred>
-      <Chapter n={chapN("genres")} id="genres" label="Game Systems" blurb="The genre vocabularies — HUD, RPG, shooter, casual, strategy and the reward economy — every piece the same material." />
+      <Chapter n={chapN("genres")} id="genres" label="Game Systems" blurb="The genre vocabularies: HUD, RPG, shooter, casual, strategy and the reward economy, every piece the same material." />
       <Deferred tag="Game Systems" estH={3800} eager={bootN >= 3} onLive={bootAdvance}>{() => <>
 
       {/* ── 01 · game HUD & data ── */}
@@ -3379,7 +3462,7 @@ const kitTier = useGen((s) => s.tier);
           <Piece id="datarow" caption="Locked" overlay="locked" baseState="disabled" label="???" sub="Reach level 20" value={0} scale={0.42} />
           <Piece id="datarow" caption="Completed" overlay="check" label="Daily Login" sub="Reward ready" value={1} scale={0.42} />
         </div>
-        <div className="kp-subhead">Item slots — one family, stackable status overlays</div>
+        <div className="kp-subhead">Item slots · one family, stackable status overlays</div>
         <div className="kp-slotgrid">
           <Piece id="slot" caption="Empty" icon={null} scale={0.38} />
           <Piece id="slot" caption="Filled" icon={STOCK_ICONS.gem} scale={0.38} />
@@ -3405,7 +3488,7 @@ const kitTier = useGen((s) => s.tier);
             <Piece id="gearicon" caption="Settings gear" scale={0.5} />
             <Piece id="gearicon" caption="Disabled" baseState="disabled" scale={0.5} />
           </div>
-          <div className="kp-meta"><span>The cog itself wears the kit — face, bevel and extrusion wrap the silhouette</span><span>No shell box; the hub is a recessed well</span><span>A real button — hover and press work</span></div>
+          <div className="kp-meta"><span>The cog itself wears the kit: face, bevel and extrusion wrap the silhouette</span><span>No shell box; the hub is a recessed well</span><span>A real button: hover and press work</span></div>
         </>)}
         {kitVisible("trophyicon", releases, false) && (<>
           <div className="kp-subhead">Trophy</div>
@@ -3416,7 +3499,7 @@ const kitTier = useGen((s) => s.tier);
             <Piece id="trophyicon" caption="Bronze" overlay="bronze" scale={0.5} />
             <Piece id="trophyicon" caption="Disabled" baseState="disabled" scale={0.5} />
           </div>
-          <div className="kp-meta"><span>The prize cup wears the kit — crescent handles carry real daylight</span><span>Podium finishes: gold, silver and bronze keep the kit's shapes but contrast its palette — pick them in the Board's assets tray too</span><span>A real button — hover and press work; the state glow rings the whole silhouette</span></div>
+          <div className="kp-meta"><span>The prize cup wears the kit; crescent handles carry real daylight</span><span>Podium finishes: gold, silver and bronze keep the kit's shapes but contrast its palette. Pick them in the Board's assets tray too</span><span>A real button: hover and press work, and the state glow rings the whole silhouette</span></div>
         </>)}
         {kitVisible("gifticon", releases, false) && (<>
           <div className="kp-subhead">Gift box</div>
@@ -3424,7 +3507,7 @@ const kitTier = useGen((s) => s.tier);
             <Piece id="gifticon" caption="Gift box" scale={0.5} />
             <Piece id="gifticon" caption="Disabled" baseState="disabled" scale={0.5} />
           </div>
-          <div className="kp-meta"><span>A 3/4 gift box wearing the kit whole — lid slab, bow loops, receding side</span><span>Ribbon, lid shadow and bow glint ride as overlays on the kit's own material</span><span>A real button — hover and press work</span></div>
+          <div className="kp-meta"><span>A 3/4 gift box wearing the kit whole: lid slab, bow loops, receding side</span><span>Ribbon, lid shadow and bow glint ride as overlays on the kit's own material</span><span>A real button: hover and press work</span></div>
         </>)}
         {/* the semantic glyph rack — staged residents; each glyph gates on its
             own release, and the whole section stays silent until one ships */}
@@ -3432,11 +3515,11 @@ const kitTier = useGen((s) => s.tier);
           const visG = LIVE_GLYPHS.filter((g) => kitVisible(`glyph${g.id}` as KitComponentId, releases, false));
           if (!visG.length) return null;
           return (<>
-            <div className="kp-subhead">Semantic glyphs — pre-treated icons in the kit's material</div>
+            <div className="kp-subhead">Semantic glyphs · pre-treated icons in the kit's material</div>
             <div className="kp-slotgrid">
               {visG.map((g) => <Piece key={g.id} id={`glyph${g.id}` as KitComponentId} caption={g.name} scale={0.38} />)}
             </div>
-            <div className="kp-meta"><span>The glyph itself wears the kit — face, pattern, bevel wall and extrusion wrap the outline, the gear/trophy canon</span><span>Real buttons — hover and press work; states fork like any piece</span><span>Style one alone with Edit; it follows the kit until you fork it</span></div>
+            <div className="kp-meta"><span>The glyph itself wears the kit: face, pattern, bevel wall and extrusion wrap the outline, the gear/trophy canon</span><span>Real buttons: hover and press work, and states fork like any piece</span><span>Style one alone with Edit; it follows the kit until you fork it</span></div>
           </>);
         })()}
         {kitVisible("firebutton", releases, false) && (<>
@@ -3447,7 +3530,7 @@ const kitTier = useGen((s) => s.tier);
             <Piece id="firebutton" caption="Pressed" baseState="pressed" scale={0.5} />
             <Piece id="firebutton" caption="Disabled" baseState="disabled" scale={0.5} />
           </div>
-          <div className="kp-meta"><span>The joystick pad's committed sibling — a big dome nearly filling the well, ringed by danger ticks</span><span>The dome wears the armed weapon's icon; the rest of the armory fans out as its own mini-buttons, a quick-select carousel — Value cycles what's armed, Icons swaps the glyph</span><span>Pressed sinks the dome — a real button</span></div>
+          <div className="kp-meta"><span>The joystick pad's committed sibling: a big dome nearly filling the well, ringed by danger ticks</span><span>The dome wears the armed weapon's icon; the rest of the armory fans out as its own mini-buttons, a quick-select carousel. Value cycles what's armed, Icons swaps the glyph</span><span>Pressed sinks the dome. A real button</span></div>
         </>)}
         <div className="kp-subhead">Combat & spatial HUD</div>
         <div className="kp-tray kp-axis">
@@ -3459,12 +3542,12 @@ const kitTier = useGen((s) => s.tier);
           <Piece id="lives" caption="Lives" label="3" max="5" scale={0.72} />
           <Piece id="joystick" caption="Joystick · ghost overlay" overlay="ghost" scale={0.44} />
         </div>
-        <div className="kp-meta"><span>Reticles and lives are shell-free spatial UI</span><span>Badges double as spatial markers — pair one with the pulse ring from Onboarding & Map</span><span>The overlay stick is stroke-and-glass — designed to sit on live gameplay</span></div>
+        <div className="kp-meta"><span>Reticles and lives are shell-free spatial UI</span><span>Badges double as spatial markers: pair one with the pulse ring from Onboarding & Map</span><span>The overlay stick is stroke-and-glass, designed to sit on live gameplay</span></div>
         <div className="kp-subhead">Celebration numbers</div>
         <div className="kp-tray">
           <Piece id="bignum" caption="Big number · full type treatment, no container" label="+12,450" scale={0.6} />
         </div>
-        <div className="kp-subhead">Progress rings & timers — click one to replay it</div>
+        <div className="kp-subhead">Progress rings & timers · click one to replay it</div>
         <div className="kp-ringrow">
           <Piece id="ring" size="l" caption="Standard" value={0.62} scale={0.56} />
           <Piece id="ring" size="l" caption="Countdown" value={0.72} label="0:42" scale={0.56} ambient />
@@ -3472,7 +3555,7 @@ const kitTier = useGen((s) => s.tier);
           <Piece id="ring" size="l" caption="Complete" value={1} label="✓" scale={0.56} />
           <Piece id="ring" size="l" caption="Expired" value={0} label="0:00" baseState="disabled" scale={0.56} />
         </div>
-        <div className="kp-subhead">Timers — three voices for the same clock; every one ticks live</div>
+        <div className="kp-subhead">Timers · three voices for the same clock, every one ticking live</div>
         <div className="kp-tray">
           <Piece id="flipclock" caption="Flip countdown · running" value={0.62} scale={0.48} ambient />
           <Piece id="flipclock" caption="Flip countdown · urgent" value={0.13} scale={0.48} />
@@ -3483,8 +3566,8 @@ const kitTier = useGen((s) => s.tier);
           <Piece id="stopwatch" caption="Stopwatch · urgent" value={0.13} scale={0.52} />
           <Piece id="timerdigits" caption="Timer digits · pure type, no container" value={0.75} scale={0.5} ambient />
         </div>
-        <div className="kp-meta"><span>Time derives from the value — hosts tick the value, the readout follows</span><span>Click any timer to replay its drain</span><span>Below 25% remaining, digits, hand and tiles switch to the alarm tint</span></div>
-        <div className="kp-subhead">Racing HUD — click a gauge to rev it</div>
+        <div className="kp-meta"><span>Time derives from the value: hosts tick the value, the readout follows</span><span>Click any timer to replay its drain</span><span>Below 25% remaining, digits, hand and tiles switch to the alarm tint</span></div>
+        <div className="kp-subhead">Racing HUD · click a gauge to rev it</div>
         <div className="kp-tray kp-axis kp-race">
           <Piece id="speedo" caption="Speedometer · classic dial" value={0.62} scale={0.52} ambient />
           <Piece id="speedo2" caption="Speedometer · HUD segments" value={0.62} scale={0.52} ambient />
@@ -3498,10 +3581,10 @@ const kitTier = useGen((s) => s.tier);
         </div>
         <div className="kp-tray kp-axis kp-race">
         </div>
-        <div className="kp-meta"><span>Speed derives from the value — 0 to 280 across the sweep</span><span>Past 78% the dial enters the red zone and the readout takes the alarm tint</span><span>Kazuri Ring is drawn as a dimensional ribbon — elevation reads from the extruded walls</span><span>Graphs carry live engine data in real games — on the lap chart, Value plays the session forward (first lap set → all eight in, delta going live); telemetry's traces are specimens</span></div>
+        <div className="kp-meta"><span>Speed derives from the value: 0 to 280 across the sweep</span><span>Past 78% the dial enters the red zone and the readout takes the alarm tint</span><span>Kazuri Ring is drawn as a dimensional ribbon; elevation reads from the extruded walls</span><span>Graphs carry live engine data in real games. On the lap chart, Value plays the session forward (first lap set → all eight in, delta going live); telemetry's traces are specimens</span></div>
       </Sec>
 
-      <Sec n="02" title="RPG & MMO" note="The role-playing vocabulary: vitals, quests, dialogue, inventory and progression. Rarity tiers ship with genre-standard names and hues, and they're yours to retune — rename and recolor all five under Color → Rarity tiers in the editor; everything else follows the kit's roles.">
+      <Sec n="02" title="RPG & MMO" note="The role-playing vocabulary: vitals, quests, dialogue, inventory and progression. Rarity tiers ship with genre-standard names and hues, and they're yours to retune: rename and recolor all five under Color → Rarity tiers in the editor; everything else follows the kit's roles.">
         <div className="kp-subhead">Vitals & progression</div>
         <div className="kp-tray kp-axis">
           <Piece id="healthglobe" caption="Health globe" value={0.72} scale={0.52} />
@@ -3522,7 +3605,7 @@ const kitTier = useGen((s) => s.tier);
           <Piece id="partyframe" caption="Party · hurt" value={0.24} scale={0.5} />
           <Piece id="compass" caption="Compass ribbon · swings live" value={0.08} scale={0.48} ambient />
         </div>
-        <div className="kp-subhead">Rarity — one frame, five tiers</div>
+        <div className="kp-subhead">Rarity · one frame, five tiers</div>
         <div className="kp-tray">
           <Piece id="rarityframe" caption="Common" value={0} scale={0.46} />
           <Piece id="rarityframe" caption="Uncommon" value={0.25} scale={0.46} />
@@ -3530,7 +3613,7 @@ const kitTier = useGen((s) => s.tier);
           <Piece id="rarityframe" caption="Epic" value={0.75} scale={0.46} />
           <Piece id="rarityframe" caption="Legendary" value={1} scale={0.46} />
         </div>
-        <div className="kp-subhead">Equipment sockets — the ghost shows what belongs</div>
+        <div className="kp-subhead">Equipment sockets · the ghost shows what belongs</div>
         <div className="kp-tray">
           <Piece id="equipslot" caption="Head" icon={STOCK_ICONS.helmet} scale={0.46} />
           <Piece id="equipslot" caption="Chest" icon={STOCK_ICONS.shirt} scale={0.46} />
@@ -3563,7 +3646,7 @@ const kitTier = useGen((s) => s.tier);
         <Meta items={["Liquid and fills follow the Glow role", "mana/stamina/HP hues are genre semantics", "value scrubs fill, heading, tier and selection", "the lit skill stub is the Learned state's path", "damage numbers are shell-free spatial type"]} />
       </Sec>
 
-      <Sec n="03" title="Shooter & Action" note="The FPS/brawler vocabulary: aim, feedback, loadout and objectives. Spatial pieces (crosshair, markers, arcs) are shell-free and carry a dark understroke so they read on live footage. The weapon wheel follows your pointer's angle — hold and point, like the real thing.">
+      <Sec n="03" title="Shooter & Action" note="The FPS/brawler vocabulary: aim, feedback, loadout and objectives. Spatial pieces (crosshair, markers, arcs) are shell-free and carry a dark understroke so they read on live footage. The weapon wheel follows your pointer's angle: hold and point, like the real thing.">
         <div className="kp-subhead">Aim & feedback</div>
         <div className="kp-tray kp-axis">
           <Piece id="crosshair" caption="Crosshair" value={0.25} scale={0.56} />
@@ -3587,7 +3670,7 @@ const kitTier = useGen((s) => s.tier);
         <div className="kp-subhead">Objectives & rounds</div>
         <div className="kp-tray kp-axis">
           <Piece id="killfeed" caption="Kill feed" scale={0.5} />
-          <Piece id="killfeed" caption="You — flashed" baseState="hover" label="YOU" sub="NOVA_KNIGHT" scale={0.5} />
+          <Piece id="killfeed" caption="You · flashed" baseState="hover" label="YOU" sub="NOVA_KNIGHT" scale={0.5} />
         </div>
         <div className="kp-tray kp-axis">
           <Piece id="waypoint" caption="Waypoint" value={0.3} scale={0.54} />
@@ -3632,6 +3715,22 @@ const kitTier = useGen((s) => s.tier);
           <Piece id="dailycell" caption="Claimed" label="DAY 3" overlay="check" scale={0.5} />
           <Piece id="dailycell" caption="Tomorrow" label="DAY 5" overlay="locked" scale={0.5} />
         </div>
+        {/* the booster card, seated at last — same story as the bottom nav
+            bar above: rendered on the Shop and Booster Select boards, shipped
+            in the export, findable in neither the book nor the tray. It sits
+            with the booster button because it IS the booster button's
+            reading twin: the same item, given room to say what it does. */}
+        {kitVisible("boostercard", releases, false) && (<>
+          <div className="kp-subhead">Booster cards</div>
+          <div className="kp-tray kp-axis">
+            <Piece id="boostercard" caption="Booster card" label="HAMMER" value={0.03} scale={0.46} />
+            <Piece id="boostercard" caption="Owned · ×12" label="ROCKET" slots={{ effect: "Clears a row" }} icon={STOCK_ICONS.zap} value={0.12} scale={0.46} />
+            <Piece id="boostercard" caption="Spent" label="BOMB" slots={{ effect: "Blows a 3×3" }} value={0.03} baseState="disabled" scale={0.46} />
+          </div>
+          <div className="kp-meta">
+            <span>The name is the piece's own Text; the effect line is a slot</span><span>The glyph is a swappable sprite in a dark well</span><span>The value slider drives the quantity chip, ×1 to ×99</span>
+          </div>
+        </>)}
         {/* staging-bay resident — the whole block (subhead included) hides
             from the public until the owner releases the component */}
         {kitVisible("orderticket", releases, false) && (<>
@@ -3642,7 +3741,7 @@ const kitTier = useGen((s) => s.tier);
             <Piece id="orderticket" caption="Served" value={0.62} baseState="disabled" scale={0.5} />
           </div>
         </>)}
-        <Meta items={["Gold, hearts-red and ready-green are genre semantics", "stars and the spin ride the tween engine", "cells keep the negative-space canon", "counts and timers wear the adaptive ink rule", "level nodes and boosters are real buttons — hover and press work"]} />
+        <Meta items={["Gold, hearts-red and ready-green are genre semantics", "stars and the spin ride the tween engine", "cells keep the negative-space canon", "counts and timers wear the adaptive ink rule", "level nodes and boosters are real buttons: hover and press work"]} />
       </Sec>
 
       {/* ── 05 · rewards & chests — the staging-bay pack: the whole Sec
@@ -3708,7 +3807,7 @@ const kitTier = useGen((s) => s.tier);
             <Piece id="giftbox" caption="Claimed" baseState="disabled" scale={0.5} />
           </div>
         </>)}
-        <Meta items={["Chest bodies and gift boxes are the kit's candy — they restyle with everything else", "tier trims, gold ribbons and ready-green are genre semantics", "the reward card reads the kit's rarity tiers", "timers, reveals and readiness ride the value slider", "chests, gifts, cards and claims are real buttons"]} />
+        <Meta items={["Chest bodies and gift boxes are the kit's candy, so they restyle with everything else", "tier trims, gold ribbons and ready-green are genre semantics", "the reward card reads the kit's rarity tiers", "timers, reveals and readiness ride the value slider", "chests, gifts, cards and claims are real buttons"]} />
       </Sec>
       )}
 
@@ -3784,7 +3883,7 @@ const kitTier = useGen((s) => s.tier);
         </div>
       </Sec>
 
-      <Sec n={rewardsVis ? "07" : "06"} title="Strategy & Social" note="The command layer and the people layer: production, tech, turns and scores; friends, chat, emotes, clans and the season pass. Team hues and premium gold are semantics; the emote wheel picks instantly — social is fast.">
+      <Sec n={rewardsVis ? "07" : "06"} title="Strategy & Social" note="The command layer and the people layer: production, tech, turns and scores; friends, chat, emotes, clans and the season pass. Team hues and premium gold are semantics; the emote wheel picks instantly, because social is fast.">
         <div className="kp-subhead">Command & production</div>
         <div className="kp-tray kp-axis">
           <Piece id="buildqueue" caption="Build queue" value={0.55} scale={0.5} />
@@ -3818,11 +3917,11 @@ const kitTier = useGen((s) => s.tier);
           <Piece id="seasontrack" caption="Season track · free / premium" value={0.5} scale={0.48} />
           <Piece id="achievetoast" caption="Achievement toast" scale={0.5} />
         </div>
-        <Meta items={["Team blue/red and premium gold are semantics", "the emote wheel selects instantly — no spin", "the end-turn arc is the turn timer", "score bug and instruments keep the dark-well rule", "plates, cards, crests and rows are real buttons"]} />
+        <Meta items={["Team blue/red and premium gold are semantics", "the emote wheel selects instantly, no spin", "the end-turn arc is the turn timer", "score bug and instruments keep the dark-well rule", "plates, cards, crests and rows are real buttons"]} />
       </Sec>
 
       </>}</Deferred>
-      <Chapter n={chapN("patterns")} id="patterns" label="Screen Patterns" blurb="Complete screens and starters composed from the system — with onboarding, motion and the proof." />
+      <Chapter n={chapN("patterns")} id="patterns" label="Screen Patterns" blurb="Complete screens and starters composed from the system, with onboarding, motion and the proof." />
       <Deferred tag="Screen Patterns" estH={4800} eager={bootN >= 4} onLive={bootAdvance}>{() => <>
 
       {/* ── 01 · patterns — editorial case study, three meaningful groups ── */}
@@ -3838,7 +3937,7 @@ const kitTier = useGen((s) => s.tier);
           <div className="pat-group">
             <div className="pat-ghead">
               <h3>Core Screens</h3>
-              <p>Navigation, account, economy and social screens — the rooms a player lives in between runs.</p>
+              <p>Navigation, account, economy and social screens: the rooms a player lives in between runs.</p>
             </div>
             <div className="pat-grid">
               <Pat n="01" name="Main Menu" cat="Core Screen" comps={8} asms={3} lead="primary">
@@ -3997,7 +4096,7 @@ const kitTier = useGen((s) => s.tier);
                 <SPiece id="loadbar" label="EMBER PASS" value={0.72} ambient scale={0.44} />
                 <span className="sc-caption dim sc-push">Tip: locked doors remember you.</span>
               </Pat>
-              <Pat n="12" name="Results — Victory" cat="Outcome Screen" comps={5} asms={3} lead="ribbonbanner">
+              <Pat n="12" name="Victory Results" cat="Outcome Screen" comps={5} asms={3} lead="ribbonbanner">
                 {/* round 62: the ribbon banner is the crown — the star fan
                     and trophy count read under it, CTAs at the floor */}
                 <SPiece id="ribbonbanner" label="VICTORY!" scale={0.3} />
@@ -4019,7 +4118,7 @@ const kitTier = useGen((s) => s.tier);
           <div className="pat-group">
             <div className="pat-ghead">
               <h3>Empty &amp; Error States</h3>
-              <p>Empty, offline and error handling — one template, two intents.</p>
+              <p>Empty, offline and error handling: one template, two intents.</p>
             </div>
             <div className="pat-grid">
               <Pat n="13" name="Empty State" cat="State Screen" comps={4} asms={1} lead="small">
@@ -4034,7 +4133,7 @@ const kitTier = useGen((s) => s.tier);
       </Sec>
 
       {/* ── layout starters — everything working together, at device scale ── */}
-      <Sec n="02" title="Layout Starters" wide note="Full screens at true device proportions — idea starters showing the system working together. Remove any you don't want; they're starters, not rules.">
+      <Sec n="02" title="Layout Starters" wide note="Full screens at true device proportions: idea starters showing the system working together. Remove any you don't want; they're starters, not rules.">
         {hiddenLays.length > 0 && (
           <button className="pat-open kp-layrestore" onClick={() => hideLay("*reset*")}>Restore {hiddenLays.length} removed starter{hiddenLays.length > 1 ? "s" : ""}</button>
         )}
@@ -4182,7 +4281,7 @@ const kitTier = useGen((s) => s.tier);
                 <span className="kp-spothole" />
               </span>
               <span className="kp-pointer">▲</span>
-              <span className="gp-label">The ring targets any component — nothing is nested inside it</span>
+              <span className="gp-label">The ring targets any component; nothing is nested inside it</span>
             </div>
             <div className="kp-dim">
               <span className="kp-locpin"><span className="kp-ringpulse" /><span className="kp-locdot" /></span>
@@ -4232,17 +4331,17 @@ const kitTier = useGen((s) => s.tier);
         <div className="kp-mounity">
           <h3>Driving the animations in Unity</h3>
           <p>
-            Every motion this kit ships is a <b>named PatternBreak component on the prefab</b> — visible in the
+            Every motion this kit ships is a <b>named PatternBreak component on the prefab</b>, visible in the
             Inspector with tooltipped public fields and plain public methods. No animation clips, no Animator
             controllers, no magic strings, no scene lookups. Each motion falls into one of three access lanes:
           </p>
           <dl className="kp-spec">
-            <div className="kp-specline"><dt>Already wired</dt><dd>State and idle motion arrive per this kit&apos;s own dials — nothing to call. Hover glow, press travel and disabled dim are <code>StateFx</code>; the idle wipe and edge shines are <code>WipeShine</code> / <code>EdgeShine</code>. Tune the public fields, or delete the component and the piece is exactly what it was.</dd></div>
-            <div className="kp-specline"><dt>Value-driven</dt><dd>Bars, rings, meters, dials and trackers expose <code>SetValue(0..1)</code> — the motion IS the value changing, so drive it with any tween you like; board poses strike the same method. Richer verbs where a piece speaks a domain: <code>SetSeconds</code> on the stopwatch and cooldown, <code>SetStep</code>, <code>SetPage</code>, <code>ArmChamber</code> on the weapon wheel. On Unity 2022.3 the numeral readouts (the stopwatch and cooldown seconds, the start-light caption, the step digits) hold their seeded word while the arcs, hands and lights move — live ticking text is 2023.2+.</dd></div>
-            <div className="kp-specline"><dt>One call</dt><dd>Celebrations and ambient loops are single methods: <code>ComboPop.Pop()</code>, <code>ClaimBurst.Fire()</code>, <code>DmgNumber.Show(damage)</code> (spawn one per hit, pass the damage), <code>Play()</code>/<code>Stop()</code> on the spinner. The attention pulse and glow cycle demoed above ship as real behaviors — Add Component → UI Kit Maker → Attention Pulse or Glow Cycle on any piece; the glow cycles in this kit&apos;s own Glow color.</dd></div>
+            <div className="kp-specline"><dt>Already wired</dt><dd>State and idle motion arrive per this kit&apos;s own dials, with nothing to call. Hover glow, press travel and disabled dim are <code>StateFx</code>; the idle wipe and edge shines are <code>WipeShine</code> / <code>EdgeShine</code>. Tune the public fields, or delete the component and the piece is exactly what it was.</dd></div>
+            <div className="kp-specline"><dt>Value-driven</dt><dd>Bars, rings, meters, dials and trackers expose <code>SetValue(0..1)</code>: the motion IS the value changing, so drive it with any tween you like; board poses strike the same method. Richer verbs where a piece speaks a domain: <code>SetSeconds</code> on the stopwatch and cooldown, <code>SetStep</code>, <code>SetPage</code>, <code>ArmChamber</code> on the weapon wheel. On Unity 2022.3 the numeral readouts (the stopwatch and cooldown seconds, the start-light caption, the step digits) hold their seeded word while the arcs, hands and lights move. Live ticking text is 2023.2+.</dd></div>
+            <div className="kp-specline"><dt>One call</dt><dd>Celebrations and ambient loops are single methods: <code>ComboPop.Pop()</code>, <code>ClaimBurst.Fire()</code>, <code>DmgNumber.Show(damage)</code> (spawn one per hit, pass the damage), <code>Play()</code>/<code>Stop()</code> on the spinner. The attention pulse and glow cycle demoed above ship as real behaviors: Add Component → UI Kit Maker → Attention Pulse or Glow Cycle on any piece; the glow cycles in this kit&apos;s own Glow color.</dd></div>
           </dl>
           <p className="kp-mounote">
-            The complete table — every component name, field and trigger — travels with the export as the
+            The complete table, every component name, field and trigger, travels with the export as the
             &ldquo;Driving the animations&rdquo; section of <code>Documentation/QuickStart.md</code>. The one-shot cards
             above (bounce, shake, pop, press, slide-in, rise) are generic transforms to apply with your own tween;
             the kit&apos;s own equivalents (ComboPop&apos;s pop, StateFx&apos;s press) arrive as components.
@@ -4324,14 +4423,14 @@ const kitTier = useGen((s) => s.tier);
       <Chapter n={chapN("resources")} id="resources" label="Resources" blurb="Files, formats and integration notes." />
       <Deferred tag="Resources" estH={1600} eager={bootN >= 5} onLive={bootAdvance}>{() => <>
 
-      <Sec n="01" title="Export & Integration" note="Layered SVG first — Figma reads the named groups directly. Category downloads sit with Build Parts above; engine sprite kits export from the toolbar.">
+      <Sec n="01" title="Export & Integration" note="Layered SVG first: Figma reads the named groups directly. Category downloads sit with Build Parts above; engine sprite kits export from the toolbar.">
         <SpecList rows={[
           ["Figma", "Drop any exported SVG on the canvas; ungroup once for the layer tree (shadow, extrusion, shell, face, content, gloss)"],
           ["Illustrator", "Opens directly. The SVG-Tiny clipping notice concerns re-saving only; imports are complete"],
           ["Unity", "The Unity kit: nine-slice sprites + kit-manifest.json (dims, margins, pivots, tintability), a smart importer, wired example prefabs, styled live text and a press-Play Playground scene; the sprite sheet is a visual catalog only"],
           ["Unreal", "Coming soon"],
           ["Nine-slice", "Caps are capScale × shell height and never stretch; content gives the text-safe insets (9slice.json)"],
-          ["Settings", "The whole design as portable JSON — re-import it or share it as a team default"],
+          ["Settings", "The whole design as portable JSON. Re-import it or share it as a team default"],
         ]} />
         <div className="kp-links">
           <a target="_blank" rel="noreferrer"
@@ -4369,13 +4468,13 @@ const kitTier = useGen((s) => s.tier);
         if (!trashOpen) return (
           <section className="kp-sec kp-baycollapsed">
             <button className="kp-baytoggle" onClick={() => setTrashOpen(true)}>
-              <Trash2 size={13} strokeWidth={2.2} /> Trash · {trashCount} rejected — only you see this
+              <Trash2 size={13} strokeWidth={2.2} /> Trash · {trashCount} rejected, only you see this
             </button>
           </section>
         );
         return (
           <Sec n="00" title="The trash"
-            note="Pieces you rejected from the staging bay. Restore sends one back to the bay to be judged again. Delete forever is permanent — the piece disappears for good and cannot be brought back, even by you.">
+            note="Pieces you rejected from the staging bay. Restore sends one back to the bay to be judged again. Delete forever is permanent: the piece disappears for good and cannot be brought back, even by you.">
             <button className="kp-baytoggle" onClick={() => setTrashOpen(false)}>Close the trash</button>
             <div className="kp-baygrid">
               {trashedGbtn.length > 0 && (
@@ -4386,12 +4485,12 @@ const kitTier = useGen((s) => s.tier);
                     ))}
                   </div>
                   <div className="kp-bayside">
-                    <span className="kp-baychip rej">Glyph buttons · {trashedGbtn.length} — rejected as a set</span>
+                    <span className="kp-baychip rej">Glyph buttons · {trashedGbtn.length} · rejected as a set</span>
                     <div className="kp-bayacts">
                       <button className="cg-curate" onClick={() => actSet(trashedGbtn, null,
                         `Restore all ${trashedGbtn.length} glyph buttons to the bay to be judged again?`)}>Restore the set to the bay</button>
                       <button className="cg-curate cg-curate--danger" onClick={() => actSet(trashedGbtn, "deleted",
-                        `Delete all ${trashedGbtn.length} glyph buttons forever? This is PERMANENT — the whole set is removed for every maker and for you, and there is no way to bring it back.`)}>
+                        `Delete all ${trashedGbtn.length} glyph buttons forever? This is PERMANENT. The whole set is removed for every maker and for you, and there is no way to bring it back.`)}>
                         <Trash2 size={13} strokeWidth={2.2} /> Delete the set forever
                       </button>
                     </div>
@@ -4406,11 +4505,11 @@ const kitTier = useGen((s) => s.tier);
                       <Piece id={sid} caption={nm} scale={0.5} bay />
                     </div>
                     <div className="kp-bayside">
-                      <span className="kp-baychip rej">Rejected — in the trash</span>
+                      <span className="kp-baychip rej">Rejected, in the trash</span>
                       <div className="kp-bayacts">
                         <button className="cg-curate" onClick={() => act(sid, null)}>Restore to the bay</button>
                         <button className="cg-curate cg-curate--danger" onClick={() => act(sid, "deleted",
-                          `Delete ${nm} forever? This is PERMANENT — the piece is removed for every maker and for you, and there is no way to bring it back.`)}>
+                          `Delete ${nm} forever? This is PERMANENT. The piece is removed for every maker and for you, and there is no way to bring it back.`)}>
                           <Trash2 size={13} strokeWidth={2.2} /> Delete forever
                         </button>
                       </div>
@@ -4422,7 +4521,9 @@ const kitTier = useGen((s) => s.tier);
           </Sec>
         );
       })()}
-      <footer className="kp-foot">UI Kit Maker Design System · five levels, one material recipe, one renderer, zero mockups. <span title="Which build this page is running — compare against the latest merge before judging a change">build {__BUILD_STAMP__}</span></footer>
+      {/* the shipped kit's page closes on our own pitch — nothing else's */}
+      {namedKit && <SecGuard name="Promo"><KitPromo kit={namedKit} /></SecGuard>}
+      <footer className="kp-foot">UI Kit Maker Design System · five levels, one material recipe, one renderer, zero mockups. <span title="Which build this page is running. Compare against the latest merge before judging a change">build {__BUILD_STAMP__}</span></footer>
       <KitDebugStrip />
     </div>
   );

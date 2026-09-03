@@ -11,6 +11,12 @@ body {
 }
 button { font-family: inherit; color: inherit; }
 ::selection { background: #17181c; color: #fff; }
+/* Every native tick in the app wears the SAME accent, and that accent is
+   a theme token — some boxes used to draw in the UA's own blue while
+   others were pinned to a hardcoded near-black that vanished on a dark
+   panel (round 68). The front door's own consent boxes keep their violet:
+   frontdoor.css loads after this and matches on specificity. */
+input[type="checkbox"], input[type="radio"] { accent-color: var(--ink); }
 
 :root {
   --line: #e8eaee; --line2: #dcdfe5;
@@ -20,6 +26,23 @@ button { font-family: inherit; color: inherit; }
   --accent: #6366f1;
   --r-ctl: 12px; --r-card: 16px;
   --shadow-pop: 0 2px 4px rgba(20,22,28,.06), 0 12px 32px rgba(20,22,28,.12);
+  /* ── theme-agnostic chrome pieces (round 68) ───────────────────────
+     Everything the app draws must come from a token that flips with
+     data-theme; a hardcoded light value is a light-mode-only bug wearing
+     a dark-mode disguise (and vice versa).
+     · --ring: the gap a selection halo leaves around a colour chip — the
+       PANEL's own ground, so the halo reads as a gap and not a white dot
+     · --hair: the hairline around a colour well; a black hairline is
+       invisible on a dark panel, a white one on a light panel
+     · --veil / --veil-ink: full-surface loading curtains (the kit page's
+       and the boards desk's) and the coach marks that float over the art
+     · --veil-line: the quiet border those floating surfaces wear */
+  --ring: var(--card);
+  --hair: rgba(0,0,0,.12);
+  /* the DESK the canvas scroller falls back to when no artboard colour is
+     painted over it (the Board) */
+  --desk: #fbfbfd;
+  --veil: #f2f4f9; --veil-ink: #171a22; --veil-line: rgba(20,26,44,.14);
 }
 
 .app { height: 100vh; display: grid; grid-template-rows: 104px 1fr; }
@@ -144,7 +167,7 @@ button { font-family: inherit; color: inherit; }
 }
 .menu-pop button.acct-link:hover { background: var(--soft); }
 .menu-pop button:disabled { opacity: 0.45; cursor: default; }
-[data-theme="dark"] .acct-in { background: var(--panel, #16181d); }
+[data-theme="dark"] .acct-in { background: var(--card); }
 
 /* my projects (v76) — named cloud kits */
 .proj-pop { min-width: 300px; }
@@ -230,15 +253,15 @@ button { font-family: inherit; color: inherit; }
 
 .swrow { display: flex; gap: 10px; align-items: center; }
 .sw {
-  width: 34px; height: 34px; border-radius: 9px; border: 1px solid rgba(0,0,0,.10);
+  width: 34px; height: 34px; border-radius: 9px; border: 1px solid var(--hair);
   cursor: pointer; transition: transform .12s, box-shadow .12s; padding: 0;
 }
 .sw:hover { transform: translateY(-1px); }
-.sw.on { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--ink); }
+.sw.on { box-shadow: 0 0 0 2px var(--ring), 0 0 0 4px var(--ink); }
 .sw.add { background: #fff; border: 1px solid var(--line2); display: grid; place-items: center; color: var(--ink2); position: relative; overflow: hidden; }
 .sw.add input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 
-.mini-swatch { width: 26px; height: 26px; border-radius: 7px; border: 1px solid rgba(0,0,0,.10); }
+.mini-swatch { width: 26px; height: 26px; border-radius: 7px; border: 1px solid var(--hair); }
 
 .ctl { display: flex; align-items: center; gap: 12px; }
 .ctl label { font-size: 12.5px; font-weight: 500; color: var(--ink2); width: 98px; flex: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -257,7 +280,7 @@ input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; border-radius
 .tinput:focus { border-color: var(--ink); }
 
 .check { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 500; cursor: pointer; user-select: none; }
-.check input { width: 17px; height: 17px; accent-color: #17181c; cursor: pointer; }
+.check input { width: 17px; height: 17px; accent-color: var(--ink); cursor: pointer; }
 
 .randbtn {
   margin-top: 18px; width: 100%; height: 52px; border-radius: 14px; border: 1px solid var(--line2);
@@ -273,7 +296,7 @@ input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; border-radius
 
 .bgrow { display: flex; gap: 10px; }
 .bgopt { width: 40px; height: 34px; border-radius: 9px; border: 1px solid var(--line2); cursor: pointer; padding: 0; }
-.bgopt.on { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--ink); }
+.bgopt.on { box-shadow: 0 0 0 2px var(--ring), 0 0 0 4px var(--ink); }
 
 /* ── canvas + right state stack ─────────────────────────── */
 .canvas-wrap { padding: 0; min-width: 0; display: grid; grid-template-columns: 1fr 120px; gap: 0; min-height: 0; }
@@ -284,7 +307,7 @@ input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; border-radius
 .canvas-col { position: relative; min-width: 0; min-height: 0; display: flex; }
 .canvas {
   position: relative; border: 0; border-radius: 0;
-  overflow: auto; background: #FBFBFD; min-width: 0; flex: 1;
+  overflow: auto; background: var(--desk); min-width: 0; flex: 1;
   /* grid + margin:auto on the child is overflow-SAFE centering: a stage
      smaller than the viewport centers, a zoomed stage larger than it
      overflows toward reachable scroll range — never off the top edge */
@@ -359,7 +382,7 @@ input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; border-radius
 
 .chips { display: flex; gap: 12px; align-items: flex-start; }
 .chip { display: flex; flex-direction: column; align-items: center; gap: 5px; }
-.chipwell { width: 30px; height: 30px; border-radius: 8px; border: 1px solid rgba(0,0,0,.12); position: relative; overflow: hidden; cursor: pointer; display: block; }
+.chipwell { width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--hair); position: relative; overflow: hidden; cursor: pointer; display: block; }
 .chipwell input { position: absolute; inset: -8px; width: 200%; height: 200%; opacity: 0; cursor: pointer; }
 .chiplabel { font-size: 9.5px; color: var(--ink2); white-space: nowrap; }
 .chipbtn { width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--line2); background: #fff; display: grid; place-items: center; color: var(--ink2); cursor: pointer; }
@@ -391,7 +414,7 @@ input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; border-radius
   border-radius: 9px; height: 34px; padding: 0 12px; font-size: 13px; font-weight: 500; color: var(--ink2); cursor: pointer; align-self: flex-start; }
 .addlight:hover { background: var(--soft); color: var(--ink); }
 
-.mapbar { width: 120px; height: 14px; border-radius: 7px; border: 1px solid rgba(0,0,0,.08); display: inline-block; }
+.mapbar { width: 120px; height: 14px; border-radius: 7px; border: 1px solid var(--hair); display: inline-block; }
 .mapbar.wide { width: 100%; height: 16px; }
 .maplist { display: flex; flex-direction: column; gap: 8px; }
 .maprow { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
@@ -435,8 +458,8 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
 .lightcard-head button { width: 22px; height: 22px; border-radius: 6px; border: 1px solid var(--line2); background: #fff; display: grid; place-items: center; color: var(--ink2); cursor: pointer; }
 
 .bgdot { width: 26px; height: 26px; border-radius: 8px; border: 0; background: none; display: grid; place-items: center; cursor: pointer; padding: 0; }
-.bgdot span { width: 18px; height: 18px; border-radius: 6px; border: 1px solid rgba(0,0,0,.14); display: block; }
-.bgdot.on span { box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px var(--ink); }
+.bgdot span { width: 18px; height: 18px; border-radius: 6px; border: 1px solid var(--hair); display: block; }
+.bgdot.on span { box-shadow: 0 0 0 2px var(--ring), 0 0 0 3.5px var(--ink); }
 
 .canvas-wrap.kitmode { grid-template-columns: 1fr; }
 
@@ -501,8 +524,8 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
 .btnrow { display: flex; gap: 10px; }
 .btnrow .randbtn { margin-top: 18px; flex: 1; }
 .btnrow .randbtn.kit.on { background: #17181c; border-color: #17181c; color: #fff; }
-.sec .inlinectl input[type="checkbox"] { width: 15px; height: 15px; accent-color: #17181c; cursor: pointer; }
-.check input[type="checkbox"] { accent-color: #17181c; }
+.sec .inlinectl input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--ink); cursor: pointer; }
+.check input[type="checkbox"] { accent-color: var(--ink); }
 
 /* ── v11: resizable inspector, account stub, fx peek, add-font ── */
 .panel-resize {
@@ -549,6 +572,9 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
   --ink: #ecedf1; --ink2: #a6adba; --ink3: #6f7683;
   --soft: #23252b; --card: #1b1c21;
   --accent: #818cf8; /* a step brighter so it carries on dark panels */
+  --hair: rgba(255,255,255,.18);
+  --desk: #131418;
+  --veil: #0d0f16; --veil-ink: #ecedf1; --veil-line: rgba(235,238,255,.16);
   /* the browser must know the page is dark, or every NATIVE surface it
      draws — the open <select> list above all — stays a light panel while
      the options inherit our light ink: pale-on-white, unreadable (field
@@ -576,6 +602,10 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
 [data-theme="dark"] .btnrow .randbtn.kit.on { background: #e9eaef; border-color: #e9eaef; color: #17181c; }
 [data-theme="dark"] input[type="range"] { background: var(--line2); }
 [data-theme="dark"] input[type="range"]::-webkit-slider-thumb { background: #2b2d34; border-color: #4a4e58; }
+/* Gecko paints its own thumb from a SEPARATE pseudo — it was never given
+   the dark treatment, so every slider in Firefox wore a white pill on the
+   dark panel (round 68) */
+[data-theme="dark"] input[type="range"]::-moz-range-thumb { background: #2b2d34; border-color: #4a4e58; }
 [data-theme="dark"] ::selection { background: #e9eaef; color: #17181c; }
 [data-theme="dark"] .panel-resize:hover, [data-theme="dark"] .panel-resize:active { background: rgba(236, 237, 241, 0.1); }
 
@@ -808,6 +838,17 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
   /* v55: connector/pulse accent that survives a light page — deep teal in
      light mode, the airy glow cyan in dark */
   --kp-glowline: #12849E;
+  /* solid surfaces for the page's own controls — --kp-card is translucent
+     by design (it floats over the specimen ground) and is no use behind a
+     text field or a chip */
+  --kp-field: #ffffff; --kp-soft: rgba(25,28,36,.06);
+  /* Round 68: the sheet's DEFAULT ink. Without it every descendant that
+     doesn't name a colour inherited var(--ink) from the app — so on a
+     light-mode app in front of a dark kit the prose, the fold links and
+     the Unity link all painted near-black on near-black. The page's own
+     ink and the app's are the same colour whenever the two agree, so
+     this only bites where it used to break. */
+  color: var(--kp-ink);
 }
 .kitpage.dark {
   --kp-ink: #f1f3fa; --kp-ink2: rgba(235,238,255,.66); --kp-ink3: rgba(235,238,255,.4);
@@ -816,11 +857,14 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
   --st-ink: rgba(235,238,255,.88); --st-ink2: rgba(235,238,255,.55); --st-well: rgba(10,12,22,.5);
   --kp-editink: #0f1119;
   --kp-glowline: rgba(160,240,255,.75);
+  --kp-field: #14161d; --kp-soft: rgba(235,238,255,.07);
 }
+/* the back button sits ON the sheet, so it wears the SHEET's palette —
+   from the app's it came out as a white pill on a dark page (round 68) */
 .kitpage .makekit.kitback {
   display: flex; position: absolute; top: -6px; left: 0; align-items: center; gap: 8px; height: 40px;
-  padding: 0 16px; border-radius: 12px; border: 1px solid var(--line2); background: var(--card);
-  color: var(--ink); font-size: 13.5px; font-weight: 600; cursor: pointer; box-shadow: var(--shadow-pop); z-index: 10;
+  padding: 0 16px; border-radius: 12px; border: 1px solid var(--kp-line); background: var(--kp-field);
+  color: var(--kp-ink); font-size: 13.5px; font-weight: 600; cursor: pointer; box-shadow: var(--shadow-pop); z-index: 10;
 }
 
 .kp-hero { padding: 30px 0 4px; }
@@ -1204,15 +1248,21 @@ svg:hover .kit-shine--armed, svg:hover .kit-edgeshine--armed { animation-play-st
 /* dormant chapter placeholder — honest scroll room, no paint */
 .kp-ghost { contain: strict; }
 /* the one-time Safari → Chromium nudge — a quiet pill, never a wall */
-.chrome-nudge { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 70; display: flex; align-items: center; gap: 14px; max-width: min(92vw, 560px); padding: 10px 14px 10px 18px; border-radius: 999px; background: rgba(16, 18, 28, 0.94); border: 1px solid rgba(255, 255, 255, 0.16); color: #E8E9F0; font-size: 12.5px; line-height: 1.45; box-shadow: 0 10px 34px rgba(0, 0, 0, 0.45); }
+.chrome-nudge { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 70; display: flex; align-items: center; gap: 14px; max-width: min(92vw, 560px); padding: 10px 14px 10px 18px; border-radius: 999px; background: var(--card); border: 1px solid var(--line2); color: var(--ink); font-size: 12.5px; line-height: 1.45; box-shadow: 0 10px 34px rgba(0, 0, 0, 0.28); }
 .chrome-nudge b { font-weight: 800; }
-.chrome-nudge button { flex: none; padding: 6px 13px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.25); background: rgba(255, 255, 255, 0.1); color: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
-.chrome-nudge button:hover { background: rgba(255, 255, 255, 0.18); }
+.chrome-nudge button { flex: none; padding: 6px 13px; border-radius: 999px; border: 1px solid var(--line2); background: var(--soft); color: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.chrome-nudge button:hover { border-color: var(--ink3); }
 /* The generating curtain — the kit page assembles behind it and reveals
    whole (owner: partial paint-in read as broken; a generator generating
    reads as intended). The bar ticks on REAL chapter completions. */
-.kp-curtain { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; background: #f2f4f9; transition: opacity .42s ease; }
-.kitpage.dark .kp-curtain { background: #0d0f16; }
+/* The curtain is fixed to the VIEWPORT — it covers the top bar and the
+   rail, so it is app chrome and takes the app theme. It used to take
+   its ground from .kitpage.dark (the KIT's canvas colour) while its
+   words inherited var(--ink) from the app: a light app in front of a
+   dark kit painted near-black text on a near-black sheet, and the
+   whole loading screen read as broken (round 68). Ground AND ink now
+   come from the one theme, so they can never disagree again. */
+.kp-curtain { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; background: var(--veil); color: var(--veil-ink); transition: opacity .42s ease; }
 .kp-curtain.leaving { opacity: 0; pointer-events: none; }
 .kp-curtainbox { display: flex; flex-direction: column; align-items: center; gap: 13px; padding: 24px; text-align: center; }
 .kp-curtainkicker { font-size: 11px; font-weight: 800; letter-spacing: .22em; text-transform: uppercase; opacity: .45; }
@@ -1787,9 +1837,11 @@ button.kp-fact { cursor: pointer; }
    the hard rail: no drag (or bad stored value) can break the stage */
 .board2 { position: relative; display: grid; grid-template-columns: clamp(200px, var(--trayl, 238px), 400px) minmax(0, 1fr) clamp(230px, var(--trayr, 270px), 420px); grid-template-rows: minmax(0, 1fr); height: 100%; min-height: 620px; overflow: hidden; }
 /* ── the boards curtain — the kit page's loading language on the desk.
-   Scoped to the boards surface (rail and top bar stay); dark by design
-   like the desk itself. Grace + minimum-display live in the component. */
-.bd-curtain { position: absolute; inset: 0; z-index: 60; display: grid; place-items: center; background: #0d0f16; color: #ecedf1; transition: opacity .42s ease; }
+   Scoped to the boards surface (rail and top bar stay). It covers the
+   TRAYS as well as the stage, so it is chrome and follows the app
+   theme — it used to be black over white trays in light mode
+   (round 68). Grace + minimum-display live in the component. */
+.bd-curtain { position: absolute; inset: 0; z-index: 60; display: grid; place-items: center; background: var(--veil); color: var(--veil-ink); transition: opacity .42s ease; }
 .bd-curtain.leaving { opacity: 0; pointer-events: none; }
 .bd-assets, .bd-side { position: relative; display: flex; flex-direction: column; min-width: 0; padding: 16px 14px; background: var(--card); }
 .bd-traygrip { position: absolute; top: 0; bottom: 0; width: 9px; cursor: col-resize; z-index: 9; touch-action: none; }
@@ -1813,7 +1865,11 @@ button.kp-fact { cursor: pointer; }
    Big Glyphs (ai generated)") — quiet, lowercase against the caps title */
 .bd-cat-note { font-size: 10px; font-weight: 600; letter-spacing: .02em; text-transform: none; opacity: .65; margin-left: 2px; }
 .bd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.bd-asset { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 4px 5px; border: 1px solid var(--line2); border-radius: 10px; background: var(--bg, #fff); cursor: pointer; min-width: 0; }
+/* --bg belongs to the landing and is not in scope here, so this was a
+   hardcoded white in BOTH themes: the whole asset tray came out as
+   white tiles on the dark desk (round 68). Card ground, like every
+   other tile in the app. */
+.bd-asset { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 4px 5px; border: 1px solid var(--line2); border-radius: 10px; background: var(--card); cursor: pointer; min-width: 0; }
 .bd-asset:hover { border-color: var(--ink); }
 /* the art carries the Looks rack's presence (owner: "make the thumbnails
    bigger here in Boards like they are in Looks") — same tighten-crop as
@@ -1849,15 +1905,15 @@ button.kp-fact { cursor: pointer; }
 .bd-aspect button { display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; padding: 8px 15px; font: inherit; font-size: 12px; font-weight: 700; color: var(--ink2); cursor: pointer; }
 .bd-aspect button.on { background: var(--soft); color: var(--ink); }
 .bd-snap { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; color: var(--ink); }
-.bd-export { display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 16px; border: 0; border-radius: 10px; background: var(--ink); color: var(--bg, #fff); font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+.bd-export { display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 16px; border: 0; border-radius: 10px; background: var(--ink); color: var(--card); font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; }
 .bd-export:hover { opacity: .88; }
-/* dark mode flips --ink light, and these two leaned on a --bg variable
-   that never existed — white text on a light pill, pale numerals on a
-   white field (dev field report: "washed out text in dark mode in the
-   board editor"). The pill takes the rail convention: dark ink on the
-   light chip; the fields join the dark-card family. */
-[data-theme="dark"] .bd-export { color: #17181c; }
-[data-theme="dark"] .bd-row2 input { background: var(--card); }
+/* These leaned on a --bg variable that never existed in this scope, so
+   they were hardcoded white in both themes — white text on a light pill,
+   pale numerals on a white field (dev field report: "washed out text in
+   dark mode in the board editor"). Round 68 retired the fallback for
+   var(--card), which already flips, so the per-theme patches that used to
+   sit here are the base rule now. */
+
 .bd-frame { position: relative; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 36px 16px 18px; }
 .bd-meta { position: absolute; top: 12px; left: 20px; font-size: 11px; font-weight: 600; color: var(--ink2); }
 .bd-stage { position: relative; border-radius: 14px; overflow: hidden; background: #0D0F16; box-shadow: 0 16px 44px rgba(10,12,20,.30); }
@@ -1929,12 +1985,11 @@ button.kp-fact { cursor: pointer; }
 
 .bd-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
 .bd-row2 label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; font-weight: 700; color: var(--ink2); }
-.bd-row2 input { height: 32px; border: 1px solid var(--line2); border-radius: 8px; padding: 0 8px; font: inherit; font-size: 12.5px; color: var(--ink); background: var(--bg, #fff); width: 100%; }
+.bd-row2 input { height: 32px; border: 1px solid var(--line2); border-radius: 8px; padding: 0 8px; font: inherit; font-size: 12.5px; color: var(--ink); background: var(--card); width: 100%; }
 .bd-slider { display: flex; flex-direction: column; gap: 4px; margin-top: 13px; font-size: 11.5px; font-weight: 700; color: var(--ink2); }
 /* the Scale row's typed entry — the X/Y inputs' look at inline size */
 .bd-sliderhead { display: flex; align-items: center; gap: 5px; }
-.bd-scalenum { width: 54px; height: 24px; border: 1px solid var(--line2); border-radius: 6px; padding: 0 6px; font: inherit; font-size: 12px; color: var(--ink); background: var(--bg, #fff); }
-[data-theme="dark"] .bd-scalenum { background: var(--card); }
+.bd-scalenum { width: 54px; height: 24px; border: 1px solid var(--line2); border-radius: 6px; padding: 0 6px; font: inherit; font-size: 12px; color: var(--ink); background: var(--card); }
 /* two columns, never wider than the panel — three inline buttons used to
    shove the inspector past the right edge */
 .bd-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 15px; min-width: 0; }
@@ -2163,7 +2218,10 @@ button.kp-fact { cursor: pointer; }
 .kp-baytoggle { display: inline-flex; align-items: center; gap: 7px; border: 1px dashed var(--kp-line); background: none; border-radius: 999px; padding: 7px 15px; font: inherit; font-size: 11.5px; font-weight: 700; letter-spacing: .05em; color: var(--kp-ink3); cursor: pointer; }
 .kp-baytoggle:hover { color: var(--kp-ink); border-color: var(--kp-ink3); }
 .kp-baygrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 18px; align-items: stretch; }
-.kp-bayrow { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 20px 18px; border: 1px dashed var(--line2); border-radius: 14px; background: var(--card); }
+/* the bay sits ON the sheet — sheet tokens, not app tokens, or a
+   light-mode app in front of a dark kit puts white cards on a black
+   page (round 68) */
+.kp-bayrow { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 20px 18px; border: 1px dashed var(--kp-line); border-radius: 14px; background: var(--kp-field); }
 /* the editor round-trip lands back on the card that was edited — a brief
    flash marks it, then the class removes itself (a moment, not a state) */
 .kp-bayrow.kp-bayhot { border-style: solid; border-color: #14b8a6; box-shadow: 0 0 0 3px rgba(45, 212, 191, .22); transition: border-color .4s, box-shadow .4s; }
@@ -2172,13 +2230,13 @@ button.kp-fact { cursor: pointer; }
 .kp-baychip {
   align-self: flex-start; padding: 4px 10px; border-radius: 999px;
   font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
-  background: var(--soft); color: var(--ink2); border: 1px solid var(--line2);
+  background: var(--kp-soft); color: var(--kp-ink2); border: 1px solid var(--kp-line);
 }
 .kp-baychip.ok { background: rgba(45, 212, 191, .14); color: #14b8a6; border-color: rgba(45, 212, 191, .4); }
 .kp-baychip.rej { background: rgba(185, 85, 80, .12); color: #b95550; border-color: rgba(185, 85, 80, .35); }
 .kp-bayacts { display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .kp-bayacts .cg-curate { margin-left: 0; }
-.kp-baynote { font-size: 12.5px; line-height: 1.7; color: var(--ink2); }
+.kp-baynote { font-size: 12.5px; line-height: 1.7; color: var(--kp-ink2); }
 .kp-baynote .cg-curate { margin-left: 2px; font-size: 11.5px; }
 .kp-tysrc a { color: var(--kp-ink2); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: color-mix(in srgb, currentColor 40%, transparent); }
 .kp-tysrc a:hover { color: var(--kp-ink); }
@@ -2539,14 +2597,19 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
 .bd-inlineedit:focus { outline: none; border-color: #9fe2ff; }
 .bd-inlineedit::placeholder { color: rgba(231, 236, 245, .4); }
 /* the stamp door — the one non-component asset, pinned above the groups */
+/* it lives in the ASSET TRAY, on the tray's card ground — the dark slab
+   and pale blue ink it shipped with only ever worked on the dark theme
+   (round 68). The cyan dashed keyline is the door's own mark and stays. */
 .bd-stampbtn {
   display: flex; align-items: center; gap: 7px; width: 100%; margin: 8px 0 2px;
   padding: 9px 11px; border-radius: 10px; cursor: pointer; text-align: left;
-  border: 1px dashed rgba(159, 226, 255, .4); background: rgba(24, 30, 46, .5);
-  color: #cfe0f2; font: 600 12px/1.3 Inter, sans-serif;
+  border: 1px dashed rgba(94, 176, 214, .5); background: var(--soft);
+  color: var(--ink); font: 600 12px/1.3 Inter, sans-serif;
   transition: border-color .15s, color .15s;
 }
-.bd-stampbtn:hover { border-color: #9fe2ff; color: #fff; }
+.bd-stampbtn:hover { border-color: #4aa6cf; color: var(--ink); }
+[data-theme="dark"] .bd-stampbtn { border-color: rgba(159, 226, 255, .4); }
+[data-theme="dark"] .bd-stampbtn:hover { border-color: #9fe2ff; }
 
 /* safety-area guides — a view layer over the stage; pointer-dead, never
    exported. Frames are dashed with a soft outer dim so the unsafe margin
@@ -2955,7 +3018,12 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
 .tutortip {
   position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%); z-index: 90;
   display: flex; align-items: center; gap: 11px; max-width: 560px;
-  background: var(--panel, #14161d); color: var(--ink);
+  /* --panel is the LANDING's token and is not in scope here, so this
+     resolved to the hardcoded fallback in both themes: a dark card
+     carrying var(--ink), which in light mode is dark ink on dark card —
+     invisible (round 68). The card is app chrome; it takes the app's
+     card ground. */
+  background: var(--card); color: var(--ink);
   border: 1px solid var(--line2); border-radius: 13px; padding: 10px 12px;
   box-shadow: 0 12px 34px rgba(0, 0, 0, .45);
   animation: ttIn .22s ease;
@@ -2992,19 +3060,22 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
 
 /* ── Type Stamps sheet — the phrase factory's little order form ───── */
 .kp-stampsheet {
-  margin: 10px 0 4px; padding: 12px 14px; border: 1px solid var(--line2);
-  border-radius: 13px; background: var(--soft); max-width: 460px;
+  margin: 10px 0 4px; padding: 12px 14px; border: 1px solid var(--kp-line);
+  border-radius: 13px; background: var(--kp-soft); max-width: 460px;
   display: flex; flex-direction: column; gap: 8px;
 }
 .kp-stampsheet b { font-size: 13px; }
-.kp-stampsheet p { font-size: 12px; color: var(--ink2); line-height: 1.45; margin: 0; }
+.kp-stampsheet p { font-size: 12px; color: var(--kp-ink2); line-height: 1.45; margin: 0; }
 .kp-stampsheet textarea {
   resize: vertical; min-height: 96px; padding: 8px 10px; border-radius: 9px;
-  border: 1px solid var(--line2);
-  /* phrase entry is DATA — explicit ink on an explicit field, immune to the
-     kit page's theme vars (owner: "the page styling is making it difficult
-     for the Type Stamper to read") */
-  background: #ffffff; color: #1c1e26; caret-color: #1c1e26;
+  border: 1px solid var(--kp-line);
+  /* phrase entry is DATA — a SOLID field, never the translucent card the
+     specimens float on (owner: "the page styling is making it difficult
+     for the Type Stamper to read"). Round 68: solid, but no longer a
+     hardcoded white one — it takes the sheet's own solid surface, so the
+     field is white on a light page and a dark card on a dark one instead
+     of a white slab punched into a black sheet. */
+  background: var(--kp-field); color: var(--kp-ink); caret-color: var(--kp-ink);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 13px; font-weight: 600; line-height: 1.5; letter-spacing: .02em;
 }
@@ -3014,8 +3085,8 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
   background: var(--accent, #8b5cf6); color: #fff; font-weight: 700; font-size: 12.5px;
 }
 .kp-stampgo:disabled { opacity: .6; cursor: default; }
-.kp-stampx { border: 1px solid var(--line2); background: none; color: var(--ink2); border-radius: 9px; padding: 8px 12px; cursor: pointer; font-size: 12.5px; }
-.kp-stampx:hover { color: var(--ink); }
+.kp-stampx { border: 1px solid var(--kp-line); background: none; color: var(--kp-ink2); border-radius: 9px; padding: 8px 12px; cursor: pointer; font-size: 12.5px; }
+.kp-stampx:hover { color: var(--kp-ink); }
 
 /* ── all-states flag + saved swatches (dev field notes round) ── */
 .stateflag.allstates { color: #7cc4ff; }
@@ -3038,8 +3109,8 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
 /* a saved chip carries its own forget button, revealed on hover */
 .swdotwrap { position: relative; display: inline-flex; line-height: 0; }
 .swx { position: absolute; top: -5px; right: -5px; width: 13px; height: 13px; border-radius: 50%; border: 0; padding: 0;
-  background: var(--ink1, #10131c); color: #fff; font-size: 10px; line-height: 13px; text-align: center; cursor: pointer;
-  opacity: 0; transition: opacity .12s; box-shadow: 0 0 0 1px rgba(255,255,255,.25); }
+  background: #10131c; color: #fff; font-size: 10px; line-height: 13px; text-align: center; cursor: pointer;
+  opacity: 0; transition: opacity .12s; box-shadow: 0 0 0 1px var(--ring); }
 .swdotwrap:hover .swx, .swx:focus-visible { opacity: 1; }
 .kp-unitylink { display: block; margin: 6px 0 0; background: none; border: none; color: inherit; opacity: 0.62; font-size: 12.5px; cursor: pointer; text-align: left; padding: 2px 4px; }
 .kp-unitylink:hover { opacity: 1; text-decoration: underline; }
@@ -3065,7 +3136,11 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
 
 /* ── the slicing workbench — the same truth, at working size ─────────── */
 /* above the zoolbar (z 40) — the workbench owns the whole canvas area */
-.slicestage { position: absolute; inset: 14px; z-index: 45; display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border-radius: 14px; background: rgba(13, 16, 26, 0.97); border: 1px solid rgba(124, 196, 255, 0.22); box-shadow: 0 18px 60px rgba(0, 0, 0, 0.5); color: #dfe7f5; overflow: auto; }
+/* The bench is chrome — a panel of guides, sliders and readouts that
+   takes over the canvas area — so it follows the app theme instead of
+   the dark-only paint it shipped with (round 68). The cyan guide
+   accent stays: it is the tool's own colour and reads on both grounds. */
+.slicestage { position: absolute; inset: 14px; z-index: 45; display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border-radius: 14px; background: var(--card); border: 1px solid rgba(124, 196, 255, 0.28); box-shadow: 0 18px 60px rgba(0, 0, 0, 0.35); color: var(--ink); overflow: auto; }
 .ss-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .ss-head > b { font-size: 14px; }
 .ss-modes { display: inline-flex; gap: 6px; }
@@ -3077,7 +3152,7 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
 .ss-x:hover { opacity: 1; }
 .ss-wait { padding: 40px 0; opacity: 0.6; font-size: 13px; }
 .ss-benchwrap { overflow: auto; padding: 18px; border-radius: 10px;
-  background: repeating-conic-gradient(rgba(255,255,255,0.05) 0% 25%, transparent 0% 50%) 0 0 / 18px 18px, rgba(255,255,255,0.02); }
+  background: repeating-conic-gradient(var(--hair) 0% 25%, transparent 0% 50%) 0 0 / 18px 18px, var(--soft); }
 .ss-bench { position: relative; margin: 0 auto; }
 .ss-bench canvas { display: block; }
 /* guides: a wide invisible grab strip around a dashed line with a dark
@@ -3092,7 +3167,7 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
   background: repeating-linear-gradient(180deg, #9fe0ff 0 7px, transparent 7px 12px); }
 .ss-h i { top: 6px; left: 0; right: 0; height: 2px;
   background: repeating-linear-gradient(90deg, #9fe0ff 0 7px, transparent 7px 12px); }
-.ss-guide:hover i, .ss-guide:focus-visible i { background: #d6f1ff; }
+.ss-guide:hover i, .ss-guide:focus-visible i { background: #2aa7dd; }
 .ss-tag { position: absolute; font-size: 10.5px; font-weight: 600; color: #05121e; background: #9fe0ff; border-radius: 5px; padding: 1px 5px; white-space: nowrap; pointer-events: none; font-variant-numeric: tabular-nums; }
 .ss-v .ss-tag { top: -2px; left: 10px; }
 .ss-h .ss-tag { left: -2px; top: 10px; }
@@ -3101,7 +3176,7 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
 .ss-striprow input[type="range"] { flex: 0 1 220px; }
 .ss-stripval { font-variant-numeric: tabular-nums; opacity: 0.7; }
 .ss-stripwrap { overflow-x: auto; padding: 10px; border-radius: 10px;
-  background: repeating-conic-gradient(rgba(255,255,255,0.05) 0% 25%, transparent 0% 50%) 0 0 / 18px 18px, rgba(255,255,255,0.02); }
+  background: repeating-conic-gradient(var(--hair) 0% 25%, transparent 0% 50%) 0 0 / 18px 18px, var(--soft); }
 .ss-stripwrap canvas { display: block; }
 .ss-help { font-size: 11.5px; line-height: 1.5; opacity: 0.62; }
 /* the pattern-smear warning — honest amber, in the workbench and the panel */
@@ -3116,12 +3191,16 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
   0% { box-shadow: 0 0 0 0 rgba(124, 196, 255, 0.55); }
   100% { box-shadow: 0 0 0 22px rgba(124, 196, 255, 0); }
 }
-.fv-card { position: fixed; z-index: 91; padding: 13px 15px 11px; border-radius: 12px; background: rgba(13, 16, 26, 0.97); border: 1px solid rgba(124, 196, 255, 0.35); box-shadow: 0 14px 44px rgba(0, 0, 0, 0.45); color: #dfe7f5; }
+/* the coach mark is APP chrome floating over the art, so its card and
+   ink come from the theme, not from the dark-only paint it shipped
+   with (round 68 — it stayed a dark card in light mode). The blue
+   keyline is the hint accent and belongs to both themes. */
+.fv-card { position: fixed; z-index: 91; padding: 13px 15px 11px; border-radius: 12px; background: var(--card); border: 1px solid rgba(124, 196, 255, 0.35); box-shadow: 0 14px 44px rgba(0, 0, 0, 0.28); color: var(--ink); }
 .fv-card > b { font-size: 13.5px; display: block; margin-bottom: 4px; padding-right: 18px; }
 .fv-card > p { margin: 0 0 10px; font-size: 12.5px; line-height: 1.5; opacity: 0.85; }
 .fv-row { display: flex; align-items: center; justify-content: space-between; }
 .fv-dots { display: inline-flex; gap: 5px; }
-.fv-dots i { width: 6px; height: 6px; border-radius: 50%; background: rgba(223, 231, 245, 0.25); }
+.fv-dots i { width: 6px; height: 6px; border-radius: 50%; background: color-mix(in srgb, var(--ink) 25%, transparent); }
 .fv-dots i.on { background: #7cc4ff; }
 .fv-next { padding: 5px 14px; border-radius: 8px; border: none; background: #7cc4ff; color: #0a1220; font-size: 12.5px; font-weight: 600; cursor: pointer; }
 .fv-next:hover { filter: brightness(1.1); }
@@ -3134,10 +3213,152 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
    the canvas through, a pill that says what's happening. Cached faces
    never show it. */
 .lookbusy { position: fixed; inset: 0; z-index: 92; display: grid; place-items: center; background: rgba(6, 4, 14, 0.32); animation: lookbusy-in 0.18s ease; pointer-events: all; }
-.lookbusy-pill { display: inline-flex; align-items: center; gap: 9px; padding: 11px 18px; border-radius: 999px; background: rgba(13, 16, 26, 0.97); border: 1px solid rgba(124, 196, 255, 0.35); box-shadow: 0 14px 44px rgba(0, 0, 0, 0.45); color: #dfe7f5; font-size: 13px; }
+.lookbusy-pill { display: inline-flex; align-items: center; gap: 9px; padding: 11px 18px; border-radius: 999px; background: var(--card); border: 1px solid rgba(124, 196, 255, 0.35); box-shadow: 0 14px 44px rgba(0, 0, 0, 0.28); color: var(--ink); font-size: 13px; }
 .lookbusy-pill b { font-weight: 650; }
 .lookbusy-pill .fd-spin { color: #7cc4ff; }
 @keyframes lookbusy-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes fdspin { to { transform: rotate(360deg); } }
 .lookbusy .fd-spin { animation: fdspin 1s linear infinite; }
 @media (prefers-reduced-motion: reduce) { .lookbusy { animation: none; } .lookbusy .fd-spin { animation: none; } }
+
+/* ── the shipped kit's public page (#/kit/<slug>) ─────────────────────
+   Two blocks bolted to the top and bottom of the Kit sheet: the live
+   demo screens, and our own short pitch. Both live inside .kitpage, so
+   they read from its ink/line tokens and follow light and dark with it. */
+.kv-screens { margin: 4px 0 30px; }
+.kv-head {
+  display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between;
+  gap: 14px 26px; padding-bottom: 14px; border-bottom: 1px solid var(--kp-line);
+}
+.kv-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .22em; text-transform: uppercase; color: var(--kp-ink3); }
+.kv-title { margin: 8px 0 0; max-width: 34ch; font-size: 25px; font-weight: 800; letter-spacing: -.02em; line-height: 1.2; color: var(--kp-ink); }
+.kv-facts { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0; font-size: 12px; color: var(--kp-ink2); }
+.kv-facts b { font-weight: 750; color: var(--kp-ink); font-variant-numeric: tabular-nums; }
+.kv-facts span { white-space: nowrap; }
+
+/* every screen at a glance: as many columns as the frame can hold at a
+   legible width, one column on a phone. The cards never squash — the
+   frame carries the board's own aspect ratio. */
+.kv-grid {
+  display: grid; gap: 20px 14px; margin-top: 18px;
+  /* 168px is the "seven across" floor: on a normal desktop kit page all
+     seven screens land in ONE row (the five-second read the page is for),
+     and narrower frames drop to six, four, two, one without ever
+     squashing a screen — the frame keeps the board's aspect. */
+  grid-template-columns: repeat(auto-fit, minmax(min(168px, 100%), 1fr));
+}
+.kv-card { margin: 0; display: flex; flex-direction: column; gap: 9px; min-width: 0; }
+.kv-frame { position: relative; width: 100%; border-radius: 14px; }
+.kv-wake {
+  position: absolute; inset: 0; border-radius: 14px; overflow: hidden;
+  background: #0D0F16; box-shadow: 0 16px 44px rgba(10,12,20,.30);
+}
+.kv-wakeblock { position: absolute; left: 9%; right: 9%; border-radius: 8px; background: rgba(235,238,255,.07); animation: kv-wake 1.5s ease-in-out infinite; }
+.kv-wakeblock--bar { top: 6%; height: 6%; }
+.kv-wakeblock--hero { top: 26%; height: 34%; animation-delay: .18s; }
+.kv-wakeblock--foot { bottom: 7%; height: 9%; animation-delay: .34s; }
+@keyframes kv-wake { 0%, 100% { opacity: .5; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .kv-wakeblock { animation: none; } }
+
+.kv-cap { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.kv-cap b { font-size: 13.5px; font-weight: 700; color: var(--kp-ink); letter-spacing: -.01em; }
+.kv-cap span { font-size: 11.5px; line-height: 1.45; color: var(--kp-ink2); }
+.kv-capnum { display: inline-block; margin-right: 7px; font-size: 10.5px; font-weight: 700; color: var(--kp-ink3); font-variant-numeric: tabular-nums; }
+.kv-note { margin: 16px 0 0; font-size: 12px; line-height: 1.6; color: var(--kp-ink2); }
+
+/* the promo block — tasteful and short; the demo is the page's job */
+.kv-promo { margin-top: 54px; padding-top: 24px; border-top: 1px solid var(--kp-line); }
+.kv-promohead .kv-title { max-width: 46ch; font-size: 22px; }
+.kv-promogrid { display: grid; gap: 14px; margin-top: 20px; grid-template-columns: repeat(auto-fit, minmax(min(258px, 100%), 1fr)); }
+.kv-promocard {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 9px;
+  padding: 18px 18px 20px; border-radius: 16px;
+  border: 1px solid var(--kp-line); background: var(--kp-card);
+}
+.kv-promocard h3 { margin: 0; font-size: 15px; font-weight: 750; color: var(--kp-ink); letter-spacing: -.01em; }
+.kv-promocard p { margin: 0; flex: 1; font-size: 12.5px; line-height: 1.6; color: var(--kp-ink2); }
+.kv-btn {
+  display: inline-flex; align-items: center; gap: 7px; margin-top: 4px;
+  padding: 9px 16px; border-radius: 11px; border: 1px solid var(--kp-line);
+  background: transparent; color: var(--kp-ink); font: inherit; font-size: 13px; font-weight: 650;
+  text-decoration: none; cursor: pointer;
+}
+.kv-btn:hover { border-color: var(--kp-ink3); }
+.kv-btn--main { border-color: transparent; background: var(--kp-ink); color: var(--kp-editink); }
+.kv-btn--main:hover { filter: brightness(1.12); border-color: transparent; }
+.kv-soon { margin-top: 4px; font-size: 12.5px; font-weight: 650; color: var(--kp-ink2); }
+.kv-fine { margin-top: 2px; font-size: 12px; color: var(--kp-ink2); text-decoration: none; }
+.kv-fine:hover { color: var(--kp-ink); text-decoration: underline; }
+/* the store line — the promo block's headline row */
+.kv-store {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 26px;
+  margin-top: 20px; padding: 20px 22px; border-radius: 16px;
+  border: 1px solid var(--kp-line); background: var(--kp-card);
+}
+.kv-storetext { min-width: 0; flex: 1 1 380px; }
+.kv-storetext h3 { margin: 0; font-size: 17px; font-weight: 750; color: var(--kp-ink); letter-spacing: -.01em; }
+.kv-storetext p { margin: 6px 0 0; max-width: 62ch; font-size: 12.5px; line-height: 1.6; color: var(--kp-ink2); }
+.kv-storeact { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.kv-btn--big { padding: 11px 20px; font-size: 13.5px; }
+
+/* ── the shipped kit's page on a narrow screen ────────────────────────
+   `#/kit/<slug>` is deliberately NOT behind the editor's desktop gate: a
+   store listing points at this address and a reviewer may well open it on
+   a phone. The kit BOOK below is a desktop reading surface and keeps its
+   own width (it scrolls sideways there, as it always has) — but the part
+   the visitor came for, the demo screens and the pitch, is pinned to the
+   viewport so it reads without a single sideways swipe. The editor rail
+   and the workspace controls step aside: nothing here is editable, and
+   the editor itself is desktop work. */
+@media (max-width: 900px) {
+  /* the rail is editor navigation — the grid template is inline on .body,
+     so this is one of the few places that must out-shout it */
+  html[data-kitpublic] .rail { display: none; }
+  html[data-kitpublic] .body { grid-template-columns: 1fr !important; }
+  html[data-kitpublic] .top { padding: 0 12px; gap: 10px; }
+  /* workspace chrome with nothing to do on a read-only public page */
+  html[data-kitpublic] .newkitbtn,
+  html[data-kitpublic] .savekitbtn,
+  html[data-kitpublic] .exportbtn { display: none; }
+  /* the bar's own min-content was the last thing dragging the shell wider
+     than the screen: the wordmark and the projects shortcut step aside on
+     a phone, the logo still walks home, the kit's name still names it */
+  html[data-kitpublic] .brand .name,
+  html[data-kitpublic] .homebtn { display: none; }
+  html[data-kitpublic] .filechip { max-width: 52vw; }
+  /* nothing is being saved on a read-only page, and the shine toggle is a
+     workshop switch — the theme and the account door stay */
+  html[data-kitpublic] .savedbtn,
+  html[data-kitpublic] .acct[data-shinebtn] { display: none; }
+  /* min-width:100% on the wrap makes the book's desktop min-content push
+     the whole SHELL wide — header included — so the document scrolled
+     sideways. Releasing it keeps the shell at the viewport and hands the
+     sideways scroll to the canvas, where it belongs. */
+  html[data-kitpublic] .kitwrap { padding: 14px 10px 120px; min-width: 0; }
+  /* pin the page box to the viewport: whatever inside the BOOK still
+     insists on desktop width now overflows into the canvas's own
+     sideways scroll instead of dragging the shell (and the header) out
+     past the screen edge */
+  html[data-kitpublic] .kitpage { padding: 10px 0 28px; width: min(100%, calc(100vw - 22px)); }
+  /* the demo screens and the promo live in the VIEWPORT's width, whatever
+     the book below insists on */
+  html[data-kitpublic] .kv-screens,
+  html[data-kitpublic] .kv-promo { width: min(100%, calc(100vw - 24px)); }
+  html[data-kitpublic] .kv-title { font-size: 20px; }
+  html[data-kitpublic] .kv-grid { gap: 16px 10px; grid-template-columns: repeat(auto-fit, minmax(min(148px, 100%), 1fr)); }
+  /* stacked, and the text's flex-basis must stop acting as a HEIGHT once
+     the row becomes a column */
+  html[data-kitpublic] .kv-store { flex-direction: column; align-items: flex-start; }
+  html[data-kitpublic] .kv-storetext { flex: 0 0 auto; }
+  /* the chapter strip is width:fit-content with seven tabs — its
+     min-content was what pushed the whole page past the viewport. It
+     scrolls inside itself here instead. */
+  html[data-kitpublic] .kp-tabsbar {
+    width: min(100%, calc(100vw - 24px)); justify-content: flex-start;
+    overflow-x: auto; scrollbar-width: none;
+  }
+  html[data-kitpublic] .kp-tabsbar::-webkit-scrollbar { display: none; }
+  /* the canvas toolbar is pan/zoom/grid for an editor — on a phone it just
+     sits on top of the screens the visitor came to look at */
+  html[data-kitpublic] .zoolbar { display: none; }
+}

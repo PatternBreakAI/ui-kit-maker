@@ -24,7 +24,7 @@ import { listProjects, saveProject, updateProjectDoc, uniqueName } from "@/gener
 function freshDesk(after?: string) {
   const g = useGen.getState();
   g.newKit();
-  g.flashFile(after ?? "A fresh kit is on your desk — nothing carried over.");
+  g.flashFile(after ?? "A fresh kit is on your desk. Nothing carried over.");
   navigate("#/app");
 }
 
@@ -69,7 +69,7 @@ export function NewKitSheet() {
   const settle = async (mode: "update" | "savenew" | "discard") => {
     if (mode === "discard") {
       done();
-      freshDesk(signedIn ? `Fresh kit — “${name}” was left as last saved.` : "Fresh kit — the old work was cleared.");
+      freshDesk(signedIn ? `Fresh kit. “${name}” was left as last saved.` : "Fresh kit. The old work was cleared.");
       return;
     }
     setBusy(true); setNote(null);
@@ -78,12 +78,12 @@ export function NewKitSheet() {
     const st = useGen.getState();
     if (mode === "update" && st.openProjectId) {
       const row = (projects ?? []).find((x) => x.id === st.openProjectId);
-      if (!row) { setBusy(false); setNote("That project's row is gone — save as a new file instead."); return; }
+      if (!row) { setBusy(false); setNote("That project's row is gone. Save as a new file instead."); return; }
       /* same privacy line as every save: public docs never carry boards */
       const err = await updateProjectDoc(row.id, row.is_public ? st.kitPayload() : await st.kitPayloadWithBoards());
       if (err) { setBusy(false); setNote(err); return; }
       done();
-      freshDesk(`“${row.name}” updated — a fresh kit is on your desk.`);
+      freshDesk(`“${row.name}” updated. A fresh kit is on your desk.`);
       return;
     }
     /* save as a NEW file — the save popover's exact rules: resolved tier
@@ -99,7 +99,7 @@ export function NewKitSheet() {
     const { error: saveErr } = await saveProject(saveName, pub ? st2.kitPayload() : await st2.kitPayloadWithBoards(), pub);
     if (saveErr) { setBusy(false); setNote(saveErr); return; }
     done();
-    freshDesk(`Saved as “${saveName}” — a fresh kit is on your desk.`);
+    freshDesk(`Saved as “${saveName}”. A fresh kit is on your desk.`);
   };
 
   return (
@@ -110,7 +110,7 @@ export function NewKitSheet() {
         <div className="ph-sheet">
           <b>Start a new kit?</b>
           <p>
-            The kit on your desk lives only in this browser — without an account it
+            The kit on your desk lives only in this browser. Without an account it
             can't be saved. Starting fresh clears it, and there's no undo across a
             new kit.
           </p>

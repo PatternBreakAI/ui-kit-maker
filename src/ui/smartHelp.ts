@@ -22,14 +22,14 @@ export interface PartRoute {
 
 export const PART_ROUTES: Record<string, PartRoute> = {
   "cast-shadow":    { label: "Cast shadow",    hint: "Distance, blur and opacity of the ground shadow", section: "depth" },
-  "outer-glow":     { label: "State glow",     hint: "Per-state aura — pick the state, then set its glow", section: "state" },
+  "outer-glow":     { label: "State glow",     hint: "Per-state aura: pick the state, then set its glow", section: "state" },
   extrusion:        { label: "Extrusion",      hint: "Depth of the solid body; darkness lives in Depth & Shadow", section: "structure" },
   shell:            { label: "Shell & bevel",  hint: "Wall width, softness and rim; the silhouette has its own section", section: "structure" },
-  face:             { label: "Face",           hint: "The candy face — fills and texture; colors live in Color", section: "surface" },
+  face:             { label: "Face",           hint: "Fills and texture on the candy face; colors live in Color", section: "surface" },
   pattern:          { label: "Face pattern",   hint: "Pattern style, scale, angle and opacity", section: "surface" },
   "inner-glow":     { label: "Inner glow",     hint: "The lit-from-within wash on the unlit side", section: "glow" },
   bloom:            { label: "Bloom",          hint: "Bounce light pooling low on the face", section: "gloss" },
-  gloss:            { label: "Gloss",          hint: "The broad curved shine — height, curve, opacity, layer", section: "gloss" },
+  gloss:            { label: "Gloss",          hint: "The broad curved shine: height, curve, opacity, layer", section: "gloss" },
   specular:         { label: "Specular",       hint: "The reflective event riding the silhouette edge", section: "gloss" },
   texture:          { label: "Micro texture",  hint: "Grain amount and scale", section: "surface" },
   content:          { label: "Content",        hint: "The label and icon block", section: "typography" },
@@ -38,10 +38,10 @@ export const PART_ROUTES: Record<string, PartRoute> = {
      routes to where icon controls actually live: the Icons block inside
      Typography. Routing to an unmounted section is a silent dead click —
      the bug the anchor mechanism exists to prevent. */
-  icon:             { label: "Icon",           hint: "Size, weight, color and effects — swap a specific piece's glyph in Component content on the Kit page", section: "typography", anchor: "icons" },
+  icon:             { label: "Icon",           hint: "Size, weight, color and effects. Swap a specific piece's glyph in Component content on the Kit page", section: "typography", anchor: "icons" },
   /* Slot-backed lines (quest objectives, eyebrows…) are typed in Component
      content, not Typography — route to where the field actually is. */
-  "slot-text":      { label: "Editable text",  hint: "This line is a text slot — type it under Component content", section: "kiticon" },
+  "slot-text":      { label: "Editable text",  hint: "This line is a text slot. Type it under Component content", section: "kiticon" },
 };
 
 /** Anything stamped but unrouted (future parts) lands on the master row. */

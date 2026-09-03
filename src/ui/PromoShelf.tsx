@@ -111,7 +111,7 @@ export function PromoCardView({ p, seen, admin, onDismiss, onGo }: {
       {admin && p.active === false && <span className="pspot-chip">STAGED</span>}
       {admin && p.active !== false && held && <span className="pspot-chip">HELD</span>}
       {onDismiss && (
-        <button className="pspot-x" aria-label={`Dismiss “${p.title}”`} title="Seen it — quiet this card"
+        <button className="pspot-x" aria-label={`Dismiss “${p.title}”`} title="Seen it. Quiet this card"
           onClick={onDismiss}><X size={13} strokeWidth={2.4} /></button>
       )}
       <div className="pspot-art" aria-hidden="true">
@@ -151,10 +151,10 @@ export function PromoShelf({ home }: { home?: boolean }) {
   const cards = (isAdmin ? promos : promos.filter((p) => promoIsLive(p))).slice(0, 3);
   if (cards.length === 0) return null;
   return (
-    <section className={`pspot${home ? " pspot--home" : ""}`} aria-label="Spotlight — what's new">
+    <section className={`pspot${home ? " pspot--home" : ""}`} aria-label="Spotlight: what's new">
       <div className="pspot-head">
         Spotlight
-        {isAdmin && !promosLive && <span className="pspot-gatechip">admin preview — not live yet</span>}
+        {isAdmin && !promosLive && <span className="pspot-gatechip">admin preview: not live yet</span>}
       </div>
       <div className="pspot-grid">
         {cards.map((p) => (

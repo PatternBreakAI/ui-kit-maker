@@ -88,12 +88,12 @@ export function TopBar() {
     ? `saved ${new Date(projectSavedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
     : "saved";
   const fileTitle = viewer
-    ? "A shared kit, view only — Save kit files your own copy."
+    ? "A shared kit, view only. Save kit files your own copy."
     : openProjectId
       ? (projectDirty
-        ? `You have edits that aren't in the saved project “${fileName}” yet — Update it from the home or Save a new file. Click for your projects.`
+        ? `You have edits that aren't in the saved project “${fileName}” yet. Update it from the home or Save a new file. Click for your projects.`
         : `This is your saved project “${fileName}” (${savedWord}). Click for your projects.`)
-      : "The kit on screen isn't saved as a project yet — Save kit files it. Click for your projects.";
+      : "The kit on screen isn't saved as a project yet. Save kit files it. Click for your projects.";
 
   const svg = () => renderBevel(cfg, selectedState);
   /* The top-bar singles leave the page: the PNG rasterizes inside a sealed
@@ -152,7 +152,7 @@ export function TopBar() {
       {/* the HOME — the Adobe-style projects room (owner mandate). Always
           visible; guests land on its sign-in invitation. */}
       <button className="acct homebtn" onClick={() => navigate("#/projects")}
-        aria-label="Home — your projects" title="Home — all your projects, as thumbnails">
+        aria-label="Home: your projects" title="Home: all your projects, as thumbnails">
         <House size={17} strokeWidth={1.9} />
       </button>
 
@@ -161,7 +161,7 @@ export function TopBar() {
       <div className="top-spacer" />
       <div className="filewrap">
         <button className="filechip" onClick={() => navigate("#/projects")} title={fileTitle}
-          aria-label={`${fileName}${viewer ? " — view only" : dirty ? " — unsaved changes" : ""}`}>
+          aria-label={`${fileName}${viewer ? ", view only" : dirty ? ", unsaved changes" : ""}`}>
           <FolderOpen size={14} strokeWidth={1.9} />
           <span className="filechip-name">{fileName}</span>
           {viewer && <span className="filechip-state">· view only</span>}
@@ -172,7 +172,7 @@ export function TopBar() {
             kit ends and your new kit begins"). Unsaved work gets the
             settle sheet; a clean desk just starts over. */}
         <button className="newkitbtn" onClick={startNewKit} aria-label="New kit"
-          title="New kit — start from zero. Your current kit is offered a save first; it stays in My Projects.">
+          title="New kit: start from zero. Your current kit is offered a save first; it stays in My Projects.">
           <FilePlus2 size={14} strokeWidth={1.9} /> New
         </button>
         {fileFlash && <div className="fileflash" role="status" aria-live="polite">{fileFlash}</div>}
@@ -192,14 +192,14 @@ export function TopBar() {
             {t("savedLocal")}
           </button>
         ) : cloud.state === "error" ? (
-          <div className="saved" title="Cloud sync hit a problem — your work keeps saving in this browser.">
+          <div className="saved" title="Cloud sync hit a problem. Your work keeps saving in this browser.">
             <span className="ok"><CloudOff size={18} strokeWidth={1.9} color="#d97706" /></span>Cloud paused
           </div>
         ) : null}
 
         <button className={`acct${shine ? " on" : ""}`} onClick={() => setShine(!shine)}
           aria-label={shine ? "Turn the shine sweep off" : "Turn the shine sweep on"} aria-pressed={shine}
-          title={shine ? "Shine sweep — on" : "Shine sweep — off"} data-shinebtn="1">
+          title={shine ? "Shine sweep: on" : "Shine sweep: off"} data-shinebtn="1">
           <Star size={17} strokeWidth={1.9} />
         </button>
 
@@ -214,7 +214,7 @@ export function TopBar() {
             re-verifies is_admin server-side. */}
         {isAdmin && (
           <button className="acct" onClick={() => navigate("#/admin")}
-            aria-label="Admin desk" title="Admin desk — only admin accounts see this">
+            aria-label="Admin desk" title="Admin desk: only admin accounts see this">
             <ShieldCheck size={17} strokeWidth={1.9} />
           </button>
         )}
@@ -226,13 +226,13 @@ export function TopBar() {
         {isAdmin && TUTOR_SURFACED && (
           <button className={`acct tutorbtn${tutorOn ? " on" : ""}`} onClick={() => setTutorOn(!tutorOn)}
             aria-pressed={tutorOn}
-            aria-label="Tutor tips" title={tutorOn ? "Tutor is watching — contextual tips are live (admin preview)" : "Tutor — turn on contextual tips (admin preview)"}>
+            aria-label="Tutor tips" title={tutorOn ? "Tutor is watching. Contextual tips are live (admin preview)" : "Tutor: turn on contextual tips (admin preview)"}>
             <GraduationCap size={17} strokeWidth={1.9} />
           </button>
         )}
 
         <button className={`acct${cloud.state === "synced" ? " on" : ""}`} onClick={() => openAuth("signin")}
-          aria-label={t("account")} title={cloud.email ? `${t("account")} — ${cloud.email}` : t("account")}>
+          aria-label={t("account")} title={cloud.email ? `${t("account")}: ${cloud.email}` : t("account")}>
           <User size={17} strokeWidth={1.9} />
         </button>
 
@@ -294,8 +294,8 @@ export function TopBar() {
                   it HERE first (dev field report: "I expected the Unity Export
                   in the Export menu"), so this row walks them there */}
               <button onClick={() => { useGen.getState().setPhase("kit"); setMenuOpen(false); }}
-                title="Opens your kit page — the Unity ZIP is the big export button there.">
-                <Gamepad2 size={15} strokeWidth={1.8} /> Unity kit — on the Kit page
+                title="Opens your kit page. The Unity ZIP is the big export button there.">
+                <Gamepad2 size={15} strokeWidth={1.8} /> Unity kit (on the Kit page)
               </button>
               {/* round 45 · B6: the one FREE download sits beside the locked
                   formats, so the story lands before any paywall click —
@@ -303,13 +303,13 @@ export function TopBar() {
                   free with an account. Paid tiers have the real thing. */}
               {tier === "guest" ? (
                 <button className="lockedmi"
-                  title="The stock Brightside kit, free with an account — prove the whole Unity import in your engine before paying anything. Exporting your OWN designs is the Pro unlock."
+                  title="The stock Brightside kit, free with an account. Prove the whole Unity import in your engine before paying anything. Exporting your OWN designs is the Pro unlock."
                   onClick={() => { setMenuOpen(false); gate(); }}>
                   <Gamepad2 size={15} strokeWidth={1.8} /> Unity test kit <i className="protag">FREE</i>
                 </button>
               ) : !paid ? (
                 <button disabled={tkBusy}
-                  title="The stock Brightside kit — the same fixed ZIP for everyone, not your design, yours to ship. Exporting your OWN designs is the Pro unlock."
+                  title="The stock Brightside kit: the same fixed ZIP for everyone, not your design, yours to ship. Exporting your OWN designs is the Pro unlock."
                   onClick={dlTestKit}>
                   <Gamepad2 size={15} strokeWidth={1.8} /> {tkBusy ? "Fetching your kit…" : <>Unity test kit <i className="protag">FREE</i></>}
                 </button>
@@ -318,7 +318,7 @@ export function TopBar() {
                   backup/portability is workflow, not a deliverable) — but
                   guests take nothing home, so it's part of the sign-up pitch */}
               {tier === "guest" ? (
-                <button className="lockedmi" title="Your settings file comes with a free account — sign up and the recipe is yours." onClick={() => { setMenuOpen(false); gate(); }}>
+                <button className="lockedmi" title="Your settings file comes with a free account. Sign up and the recipe is yours." onClick={() => { setMenuOpen(false); gate(); }}>
                   <Lock size={13} strokeWidth={2.2} /> {t("exportSettings")} <i className="protag">FREE</i>
                 </button>
               ) : (

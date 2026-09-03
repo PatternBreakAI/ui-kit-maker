@@ -4736,6 +4736,11 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
   const ICR = (state !== "default" ? cfg.stateDesigns?.[state as Exclude<GenStateName, "default">]?.icon : undefined) ?? cfg.icon;
   // icon stroke weight rides the type controls — 1.0 at the default 24
   const iconWK = clamp((ICR.strokeWidth ?? 24) / 24, 0.35, 1.8);
+  /* the Icons panel's SIZE dial as a plain scale factor — 1.0 at the
+     factory 100%, so a seat that multiplies by it is byte-still until the
+     slider moves. One source of truth for every self-drawn seat that can
+     afford to grow (wellGlyph's wells, the showcase emblems). */
+  const iconSizeK = clamp((ICR.size ?? 100) / 100, 0.4, 2.2);
   const typeOyK = (opts.textOy ?? cfg.type.oy ?? 0);
   const typeOxK = (opts.textOx ?? cfg.type.ox ?? 0);
   const bevel = effect(cfg.effects, "Bevel"), glow = effect(cfg.effects, "Glow");
@@ -4976,7 +4981,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
      what that panel promises ("every glyph in the kit follows this one
      treatment"). Center-anchored so rotation pivots in place. */
   const wellGlyph = (defI: IconDef, cxI: number, cyI: number, baseS: number, tone: string, swI = 2.2): string => {
-    const sI = baseS * clamp((ICR.size ?? 100) / 100, 0.4, 2.2);
+    const sI = baseS * iconSizeK;
     const op = (ICR.opacity ?? 100) < 100 ? ` opacity="${(ICR.opacity / 100).toFixed(2)}"` : "";
     const rot = ICR.rotation ? ` transform="rotate(${ICR.rotation} ${cxI.toFixed(1)} ${cyI.toFixed(1)})"` : "";
     return `<g${op}${rot}${emblemFx(Math.max(6, sI * 0.28), glow)}>${themedIcon(defI, cxI - sI / 2, cyI - sI / 2, sI, tone, swI)}</g>`;
@@ -7288,7 +7293,12 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const dimRaw9 = slR.lockedDim;
         const dim9 = dimRaw9 !== undefined && /^\d+$/.test(dimRaw9) ? Math.min(100, +dimRaw9) / 100 : 0.5;
         const fcM = /url\(#([A-Za-z0-9_-]+)fc\)/.exec(shell);
-        if (fcM) over += `<g clip-path="url(#${fcM[1]}fc)"><rect x="${(sx - 4).toFixed(1)}" y="${(sy - 4).toFixed(1)}" width="${(sw + 8).toFixed(1)}" height="${(sh + 8).toFixed(1)}" fill="rgba(6,8,16,${dim9})"/></g>`;
+        /* round 61f (exporter handoff): the veil wears a data-skillveil
+           mark so the export can bake a LOCKED face atom without it — the
+           rig draws the veil as its own live child, and a veil baked into
+           the swapped art would double-dim. Inert attribute; every byte of
+           the app's own draw unchanged. */
+        if (fcM) over += `<g data-skillveil="1" clip-path="url(#${fcM[1]}fc)"><rect x="${(sx - 4).toFixed(1)}" y="${(sy - 4).toFixed(1)}" width="${(sw + 8).toFixed(1)}" height="${(sh + 8).toFixed(1)}" fill="rgba(6,8,16,${dim9})"/></g>`;
         // the lock IS the content on a locked node: big, face-centered, and
         // in the same deactivated gray as every disabled glyph
         /* round 61e (exporter handoff): the padlock rides a MARKED icon
@@ -9661,7 +9671,14 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       /* the card's own dials (KIT_SLOTS.cardback): emblem footprint,
          corner sparkles, inner frame — first choice is the factory look */
       const slC = opts.slots ?? {};
-      const embS = w * (slC.emblem === "Small" ? 0.32 : slC.emblem === "Large" ? 0.56 : slC.emblem === "Hero" ? 0.66 : 0.44);
+      /* FOOTPRINT = the dropdown's base figure × the Icons panel's Size
+         dial (owner, round 67: "icon sizeing doesn't seem to work on the
+         card backs"). The dropdown still means what it always meant — it
+         picks the base — and the slider scales from there, so 100% is the
+         card back every stored kit already has, to the byte. The halo
+         below rides the same figure: a glow left at the old radius would
+         read as the resize only half-working. */
+      const embS = w * (slC.emblem === "Small" ? 0.32 : slC.emblem === "Large" ? 0.56 : slC.emblem === "Hero" ? 0.66 : 0.44) * iconSizeK;
       const sparklesOn = slC.sparkles !== "Off";
       const frameOn = slC.frame !== "Off";
       const spark = (sx: number, sy: number, r: number) =>
@@ -9699,7 +9716,9 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       };
       const cxP = 39 + w / 2, cyP = 30 + h * 0.44;
       const emb = opts.icon === null ? null : (opts.icon ?? STOCK_ICONS.gem ?? STOCK_ICONS.star);
-      const embS = w * 0.4;
+      // same footprint contract as the card back: the pack has no dropdown,
+      // so the Size dial is the emblem's only scale — 100% holds byte-still
+      const embS = w * 0.4 * iconSizeK;
       const sparkP = (sx: number, sy: number, r: number) =>
         `<path d="M ${sx.toFixed(1)} ${(sy - r).toFixed(1)} L ${(sx + r * 0.28).toFixed(1)} ${(sy - r * 0.28).toFixed(1)} L ${(sx + r).toFixed(1)} ${sy.toFixed(1)} L ${(sx + r * 0.28).toFixed(1)} ${(sy + r * 0.28).toFixed(1)} L ${sx.toFixed(1)} ${(sy + r).toFixed(1)} L ${(sx - r * 0.28).toFixed(1)} ${(sy + r * 0.28).toFixed(1)} L ${(sx - r).toFixed(1)} ${sy.toFixed(1)} L ${(sx - r * 0.28).toFixed(1)} ${(sy - r * 0.28).toFixed(1)} Z" fill="${hexRgba(hexMix(glow, "#FFFFFF", 0.55), 0.85)}"/>`;
       let parts = `<defs><radialGradient id="${gid}g"><stop offset="0" stop-color="${glow}" stop-opacity="0.5"/><stop offset="1" stop-color="${glow}" stop-opacity="0"/></radialGradient></defs>`;
@@ -11676,5 +11695,79 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
           return `height="${newH}" viewBox="${ox} ${oy} ${vbw} ${newH}"`;
         });
     }
+  }
+}
+
+/* ── icon-dial reach ──────────────────────────────────────────────────
+   Which Icons dials can actually change a given piece's art.
+
+   Answered by RENDERING, never by a hand-kept list of component ids: the
+   piece is drawn once with the icon rig at factory and once per dial
+   moved, and a dial that cannot shift a single byte cannot reach this
+   piece. A new component classifies itself the day it lands, and nothing
+   here can go stale (round 67, after the card back's Size slider sat dead
+   through several rounds because its emblem drew its own footprint).
+
+   Only the dials whose ONLY road is the render are answerable here. Colour,
+   Weight and Outline width are deliberately absent: colour also inks the
+   checkbox/radio selected mark and the exported check sprite, weight rides
+   the exported icon sprite's stroke, and both are live or dead per GLYPH
+   (a fill-mode glyph ignores weight, a stroke-mode one obeys), so a piece
+   that reads inert today would read live the moment its glyph is swapped.
+   Those stay on show; a render probe cannot speak for them honestly. */
+export type IconDialId = "size" | "rotation" | "opacity" | "nudge" | "fx";
+export const ICON_DIAL_IDS: IconDialId[] = ["size", "rotation", "opacity", "nudge", "fx"];
+export type IconDialReach = Record<IconDialId, boolean>;
+
+const ALL_DIALS_REACH = (): IconDialReach =>
+  ({ size: true, rotation: true, opacity: true, nudge: true, fx: true });
+
+/** The rig every probe render starts from — factory values for the five
+ *  dials under test, so the answer never depends on where the user has
+ *  already dragged them (a rig already at 170% would make a move to 170%
+ *  read as "this dial does nothing"). */
+const factoryRig = (ic: GenConfig["icon"]): GenConfig["icon"] =>
+  ({ ...ic, size: 100, rotation: 0, opacity: 100, ox: 0, oy: 0, fx: { shadow: false, glow: false, emboss: false } });
+
+const DIAL_MOVES: { id: IconDialId; move: (ic: GenConfig["icon"]) => void }[] = [
+  { id: "size", move: (ic) => { ic.size = 170; } },
+  { id: "rotation", move: (ic) => { ic.rotation = 137; } },
+  { id: "opacity", move: (ic) => { ic.opacity = 35; } },
+  { id: "nudge", move: (ic) => { ic.ox = 90; ic.oy = 90; } },
+  { id: "fx", move: (ic) => { ic.fx = { shadow: true, glow: true, emboss: true }; } },
+];
+
+export function iconDialReach(cfg: GenConfig, id: KitComponentId, size: KitSize = "l",
+  value?: number, shapeOv?: Shape, opts: KitOpts = {}): IconDialReach {
+  const draw = (c: GenConfig, st: GenStateName): string => {
+    /* pin BOTH id counters so the two renders name their gradients, filters
+       and shadow primitives identically — then the comparison is exact
+       bytes, with no normalizing pass to get subtly wrong */
+    const keepU = UID, keepS = SH11;
+    UID = 1e6; SH11 = 1e6;
+    try { return renderKit(c, id, size, st, value, shapeOv, opts); }
+    finally { UID = keepU; SH11 = keepS; }
+  };
+  try {
+    const base = { ...cfg, icon: factoryRig(cfg.icon) } as GenConfig;
+    /* every LIT state, because a piece can wear its glyph in only one of
+       them — the quantity badge draws its star on Pressed alone, and a dial
+       that steers that star is not dead just because Default has no glyph.
+       Disabled is left out on purpose: it greys every glyph by design, so
+       it can only ever say "no", and a control that vanished when you
+       stepped to Disabled would read as the panel breaking. */
+    const STS: GenStateName[] = ["default", "hover", "pressed"];
+    const refs = STS.map((st) => draw(base, st));
+    const out = ALL_DIALS_REACH();
+    for (const d of DIAL_MOVES) {
+      const ic = JSON.parse(JSON.stringify(base.icon)) as GenConfig["icon"];
+      d.move(ic);
+      const moved = { ...base, icon: ic };
+      out[d.id] = STS.some((st, i) => draw(moved, st) !== refs[i]);
+    }
+    return out;
+  } catch {
+    // fail OPEN: a control is only ever hidden on a clean, positive answer
+    return ALL_DIALS_REACH();
   }
 }

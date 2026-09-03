@@ -36,7 +36,7 @@ export function GateModal() {
     setTkBusy(true); setTkNote(null);
     const err = await downloadTestKit();
     setTkBusy(false);
-    setTkNote(err ?? "On its way — check your downloads.");
+    setTkNote(err ?? "On its way. Check your downloads.");
   };
 
   return (
@@ -51,16 +51,16 @@ export function GateModal() {
           <>
             <div className="lootkicker"><Zap size={14} strokeWidth={2.2} /> FREE ACCOUNT</div>
             <h2>MAKE IT <span className="lootgrad">YOURS</span></h2>
-            <p className="lootsub">The whole playground is already free — signing up is how you keep what you make:</p>
+            <p className="lootsub">The whole playground is already free. Signing up is how you keep what you make:</p>
             <ul className="gateperks">
               {/* one span per row — the li is a flex row, and bare text nodes
                   beside a <b> would each become flex items and wrap apart */}
-              <li><Check size={13} strokeWidth={3} /><span>Your kits and boards saved to your account — on any device, safe from a cleared browser</span></li>
+              <li><Check size={13} strokeWidth={3} /><span>Your kits and boards saved to your account, on any device and safe from a cleared browser</span></li>
               <li><Check size={13} strokeWidth={3} /><span>Named projects, and a spot in the Community Gallery if yours gets picked</span></li>
-              <li><Check size={13} strokeWidth={3} /><span>Your settings file — the whole recipe, downloadable</span></li>
-              <li><Check size={13} strokeWidth={3} /><span>The <b>Unity test kit</b> — a stock kit ZIP that proves the import pipeline in your engine</span></li>
+              <li><Check size={13} strokeWidth={3} /><span>Your settings file: the whole recipe, downloadable</span></li>
+              <li><Check size={13} strokeWidth={3} /><span>The <b>Unity test kit</b>, a stock kit ZIP that proves the import pipeline in your engine</span></li>
             </ul>
-            <p className="gatefine">Exporting your own designs is the Pro unlock — sign up free first, upgrade if it earns it.</p>
+            <p className="gatefine">Exporting your own designs is the Pro unlock. Sign up free first, upgrade if it earns it.</p>
             <button className="lootclaim" onClick={signUp}>
               <UserPlus size={15} strokeWidth={2.4} /> CREATE A FREE ACCOUNT
             </button>
@@ -71,17 +71,17 @@ export function GateModal() {
             <div className="lootkicker"><Crown size={14} strokeWidth={2.2} /> PRO UNLOCK</div>
             <h2>EXPORTS SHIP WITH <span className="lootgrad">PRO</span></h2>
             <p className="lootsub">
-              Every export format — PNG up to 4×, layered SVG, HTML, game kit,
-              engine ZIP — comes with Pro, and Student carries the same formats.
+              Every export format (PNG up to 4×, layered SVG, HTML, game kit,
+              engine ZIP) comes with Pro, and Student carries the same formats.
             </p>
             <button className="lootclaim" onClick={seePlans}>
-              <Crown size={15} strokeWidth={2.4} /> GO PRO — SEE THE PLANS
+              <Crown size={15} strokeWidth={2.4} /> SEE THE PRO PLANS
             </button>
             <div className="gateoffer">
-              <b><Gamepad2 size={14} strokeWidth={2.2} /> Prove the pipeline first — free</b>
+              <b><Gamepad2 size={14} strokeWidth={2.2} /> Prove the pipeline first, free</b>
               <p>
-                The <b>Unity test kit</b> is a stock free kit — the same
-                ZIP for everyone, not your design — with prefabs, scenes,
+                The <b>Unity test kit</b> is a stock free kit (the same
+                ZIP for everyone, not your design) with prefabs, scenes,
                 gauges and words. Feel the whole import in your engine before
                 you pay a cent, and ship what's inside if you like: it's
                 yours, commercial projects included.
@@ -92,7 +92,7 @@ export function GateModal() {
               </button>
               {tkNote && <p className="gatenote" role="status">{tkNote}</p>}
             </div>
-            <p className="gatefine"><FileJson size={12} strokeWidth={2.2} /> Your settings file (Export → Export settings) stays free — the recipe is always yours.</p>
+            <p className="gatefine"><FileJson size={12} strokeWidth={2.2} /> Your settings file (Export → Export settings) stays free. The recipe is always yours.</p>
           </>
         )}
       </div>

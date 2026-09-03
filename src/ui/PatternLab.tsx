@@ -67,9 +67,9 @@ export function PatternLab() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#12141C", color: "#E9EDF7", fontFamily: "Inter, system-ui, sans-serif", padding: 28 }}>
-      <h1 style={{ margin: "0 0 4px", fontSize: 22 }}>Pattern Wave Lab — the twenty</h1>
+      <h1 style={{ margin: "0 0 4px", fontSize: 22 }}>Pattern Wave Lab: the twenty</h1>
       <p style={{ margin: "0 0 18px", color: "#96A0B8", fontSize: 13 }}>
-        Same swatch size, same color, same scale — density compares honestly. Seam view tiles 5×5; component view is the brief's three contexts.
+        Same swatch size, same color, same scale. Density compares honestly. Seam view tiles 5×5; component view is the brief's three contexts.
       </p>
       <div style={{ display: "flex", gap: 18, alignItems: "center", marginBottom: 20, flexWrap: "wrap", fontSize: 13 }}>
         <label>Scale{" "}
@@ -120,7 +120,7 @@ export function PatternLab() {
                   ))}
                 </div>
                 <div>
-                  <div style={{ fontSize: 10.5, color: "#5C6B8A", marginBottom: 3 }}>8 × 4 tiles at 100% — squint for repeats</div>
+                  <div style={{ fontSize: 10.5, color: "#5C6B8A", marginBottom: 3 }}>8 × 4 tiles at 100% (squint for repeats)</div>
                   <Swatch id={p.id} w={98 * 8} h={98 * 4} ps={98} color={color} angle={angle} bg={bg} dispW={508} />
                 </div>
               </div>

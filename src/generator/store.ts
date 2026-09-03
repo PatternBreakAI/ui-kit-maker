@@ -302,6 +302,17 @@ export function presetLookConfig(id: string): GenConfig {
 function adoptDefaultIfUntouched(): void {
   if (SAFE_BOOT) return; // safe boot never writes the real keys
   if (localStorage.getItem(TOUCHED_KEY) === "1") return;
+  /* A document that arrived from a LINK is not "untouched workspace" —
+     it is the thing the visitor came to see. This lands from a fetch, so
+     it always raced the link's own hydration; whichever won decided what
+     you saw. On a fast local dev server the fetch got in first and the
+     link's kit stood; on the deployed build the fetch resolved AFTER the
+     editor chunk downloaded and the site default painted straight over
+     Brightside — the kit's own page showing factory cyan under the right
+     kit's name. viewer covers every link road (#share=, #p=, a shipped
+     kit's #/kit/<slug> page); an open project covers the owned one. */
+  const st = useGen.getState();
+  if (st.viewer || st.openProjectId) return;
   const next = getDefault();
   if (JSON.stringify(useGen.getState().cfg) === JSON.stringify(next)) return;
   useGen.setState({ cfg: next });
@@ -890,6 +901,29 @@ export interface UserAsset {
   w: number; h: number;
 }
 
+/** The smallest ART a board item may be shrunk to, in board px, measured
+ *  across the piece's THIN side. This is what the old flat 30% floor was
+ *  really protecting, said honestly: a percentage cannot know how big a
+ *  piece's artwork is, so 30% left the card back stranded at 110×154 on a
+ *  390px phone board while it let the count badge down to a 34px chip
+ *  (owner, round 67: "I need to be able to size the card backs lower than
+ *  30% in Boards"). 34px IS that count badge at 30% — the smallest piece
+ *  the old rule already allowed — so nothing the board permitted before
+ *  becomes illegal, and no piece's floor ever rises. */
+export const BOARD_MIN_ART_PX = 34;
+
+/** The thin side of a piece's own ART box — the shell stamp every kit
+ *  render carries, NOT the padded canvas (glow padding would read a
+ *  heavily-lit button as a large piece and hand it a floor it hasn't
+ *  earned). Undefined when a render carries no shell stamp; the floor
+ *  then keeps its flat legacy value, which is the safe direction. */
+export const artShortOf = (svg: string): number | undefined => {
+  const m = /data-shell="([-\d. ]+)"/.exec(svg);
+  if (!m) return undefined;
+  const p = m[1].split(" ").map(Number);
+  return p.length === 4 && p[2] > 0 && p[3] > 0 ? Math.min(p[2], p[3]) : undefined;
+};
+
 /** Instance Scale bounds per board item. Big glyphs may shrink to real
  *  match-3 tile size (owner, from a mobile board: "I need to be able to
  *  shrink the glyphs smaller than this") — 5% of the ~437px design
@@ -898,10 +932,47 @@ export interface UserAsset {
  *  that 5% floor (owner, from the Pause board's music-note clone: "i
  *  need to be able to shrink these glyphs smaller") — they render as
  *  live SVG, so tiny stays crisp; a clone resolves through baseOf so
- *  copies of a glyph shrink like the glyph itself. Every other kit
- *  piece keeps the 30% legibility floor; the 200% ceiling is shared. */
-export const boardScaleMin = (b: Pick<BoardItem, "big" | "logo" | "kitId"> | null | undefined): number =>
-  (b?.big || b?.logo || (b?.kitId != null && isGlyphPiece(baseOf(b.kitId))) ? 0.05 : 0.3);
+ *  copies of a glyph shrink like the glyph itself.
+ *
+ *  Every other kit piece floors where its own artwork hits
+ *  BOARD_MIN_ART_PX (`artShort`, from artShortOf) — a big piece may go
+ *  far below 30% while a small one still cannot collapse to nothing. The
+ *  5% grant stays the hard bottom and 30% the hard top, so no floor can
+ *  rise above what shipped. Without a measurement the old flat 30%
+ *  stands. The 200% ceiling is shared. */
+export const boardScaleMin = (b: Pick<BoardItem, "big" | "logo" | "kitId"> | null | undefined, artShort?: number): number =>
+  (b?.big || b?.logo || (b?.kitId != null && isGlyphPiece(baseOf(b.kitId))) ? 0.05
+    : artShort && artShort > 0 ? Math.max(0.05, Math.min(0.3, BOARD_MIN_ART_PX / artShort))
+    : 0.3);
+
+/** What a board item's art measures RIGHT NOW, for the floor above. One
+ *  road for every caller — the scale slider, the typed entry, the corner
+ *  handle, the group clamp and the drop placement all ask this, so they
+ *  cannot disagree about where a piece bottoms out. Kit copies re-render
+ *  live (a restyle that changes a piece's size moves its floor with it);
+ *  library snapshots, stamps and raster art have no shell to read and
+ *  keep the flat legacy floor. */
+export type BoardArtSrc = Pick<GenStore, "cfg" | "kitDesigns" | "kitTextFill" | "kitSizes" | "kitShapes" | "kitVals" | "kitIcons" | "kitLabels" | "kitNoText" | "kitSlotVals" | "library">;
+export function boardItemArtShort(st: BoardArtSrc, b: BoardItem): number | undefined {
+  try {
+    if (b.kitId) {
+      const base = baseOf(b.kitId), size = st.kitSizes[b.kitId] ?? "l";
+      const pc = applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns[b.kitId]), st.kitTextFill[b.kitId]);
+      return artShortOf(renderKit(pc, base, size, "default", b.v ?? st.kitVals[b.kitId], st.kitShapes[b.kitId], {
+        icon: resolveKitIcon(st.kitIcons[b.kitId], undefined),
+        label: st.kitNoText[b.kitId] ? "" : (b.label ?? st.kitLabels[b.kitId]),
+        slots: st.kitSlotVals[b.kitId], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
+      }));
+    }
+    const item = st.library.find((l) => l.id === b.libId);
+    if (!item?.kit) return undefined;
+    return artShortOf(renderKit(item.cfg, item.kit.id, item.kit.size, "default", item.kit.v, item.kit.shape,
+      item.kit.label !== undefined ? { label: item.kit.label } : undefined));
+  } catch {
+    // a piece that will not render keeps the flat floor rather than none
+    return undefined;
+  }
+}
 
 /** One filter string for a backdrop's darkroom dials — the stage, the PNG
  *  compositor and the Unity bake all speak THIS. Blur last, so the color
@@ -2028,15 +2099,17 @@ export const useGen = create<GenStore>((set, get) => ({
        libId as ever. Both land by the same centered/fit contract. */
     const cl = (item0.cloneId && st.kitClones[item0.cloneId] ? item0.cloneId : null) as KitComponentId | null;
     const clSize = cl ? st.kitSizes[cl] ?? "l" : "l";
-    const m = / width="([\d.]+)" height="([\d.]+)"/.exec(
-      cl
-        ? renderKit(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns[cl]), st.kitTextFill[cl]), baseOf(cl), clSize, "default", st.kitVals[cl], st.kitShapes[cl], { icon: resolveKitIcon(st.kitIcons[cl], undefined), label: st.kitNoText[cl] ? "" : st.kitLabels[cl], sub: st.kitSubs[cl], slots: st.kitSlotVals[cl], textOy: st.kitTextOy[`${cl}:${clSize}`], textOx: st.kitTextOx[`${cl}:${clSize}`] })
-        : item0.kit
-          ? renderKit(item0.cfg, item0.kit.id, item0.kit.size, "default", item0.kit.v, item0.kit.shape, item0.kit.label !== undefined ? { label: item0.kit.label } : undefined)
-          : renderBevel(item0.cfg, "default"));
+    const dropSvg = cl
+      ? renderKit(applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns[cl]), st.kitTextFill[cl]), baseOf(cl), clSize, "default", st.kitVals[cl], st.kitShapes[cl], { icon: resolveKitIcon(st.kitIcons[cl], undefined), label: st.kitNoText[cl] ? "" : st.kitLabels[cl], sub: st.kitSubs[cl], slots: st.kitSlotVals[cl], textOy: st.kitTextOy[`${cl}:${clSize}`], textOx: st.kitTextOx[`${cl}:${clSize}`] })
+      : item0.kit
+        ? renderKit(item0.cfg, item0.kit.id, item0.kit.size, "default", item0.kit.v, item0.kit.shape, item0.kit.label !== undefined ? { label: item0.kit.label } : undefined)
+        : renderBevel(item0.cfg, "default");
+    const m = / width="([\d.]+)" height="([\d.]+)"/.exec(dropSvg);
     const [w0, h0] = m ? [+m[1], +m[2]] : [W * 0.5, H * 0.1];
-    // never seed below the piece's own legibility floor (scaleBoardItem's)
-    const scale = Math.max(boardScaleMin(cl ? { kitId: cl } : {}), Math.min(1, Math.round(((W * 0.86) / w0) * 100) / 100));
+    /* never seed below the piece's own floor — read from the SAME render
+       the placement is measured from, so the seed and the scale slider
+       agree about where this piece bottoms out */
+    const scale = Math.max(boardScaleMin(cl ? { kitId: cl } : {}, artShortOf(dropSvg)), Math.min(1, Math.round(((W * 0.86) / w0) * 100) / 100));
     const item: BoardItem = {
       id: "bd" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
       libId: cl ? "" : libId, ...(cl ? { kitId: cl } : {}),
@@ -2107,8 +2180,8 @@ export const useGen = create<GenStore>((set, get) => ({
   boardSel: null,
   setBoardSel: (id) => set({ boardSel: id }),
   moveBoardItem: (id, x, y) => mutateItem(get, set, `move:${id}`, id, (b) => ({ ...b, x, y })),
-  scaleBoardItem: (id, scale) => mutateItem(get, set, `scale:${id}`, id, (b) => ({ ...b, scale: Math.max(boardScaleMin(b), Math.min(2, scale)) })),
-  transformBoardItem: (id, scale, x, y) => mutateItem(get, set, `xform:${id}`, id, (b) => ({ ...b, scale: Math.max(boardScaleMin(b), Math.min(2, scale)), x, y })),
+  scaleBoardItem: (id, scale) => mutateItem(get, set, `scale:${id}`, id, (b) => ({ ...b, scale: Math.max(boardScaleMin(b, boardItemArtShort(get(), b)), Math.min(2, scale)) })),
+  transformBoardItem: (id, scale, x, y) => mutateItem(get, set, `xform:${id}`, id, (b) => ({ ...b, scale: Math.max(boardScaleMin(b, boardItemArtShort(get(), b)), Math.min(2, scale)), x, y })),
   stretchBoardItem: (id, stretch, x) => mutateItem(get, set, `stretch:${id}`, id, (b) => ({ ...b, stretch: Math.max(0.7, Math.min(3, stretch)), x })),
   stretchBoardItemV: (id, stretchY, y) => mutateItem(get, set, `stretchy:${id}`, id, (b) => ({ ...b, stretchY: Math.max(0.7, Math.min(3, stretchY)), y })),
   setBoardItemOpacity: (id, v) => mutateItem(get, set, `opac:${id}`, id, (b) => {
@@ -2279,7 +2352,7 @@ export const useGen = create<GenStore>((set, get) => ({
     const map = new Map(patches.map((p) => [p.id, p]));
     mutateBoards(get, set, tag, (bs) => bs.map((bd) =>
       bd.items.some((b) => map.has(b.id))
-        ? { ...bd, items: bd.items.map((b) => { const p = map.get(b.id); return p ? { ...b, scale: Math.max(boardScaleMin(b), Math.min(2, p.scale)), x: p.x, y: p.y } : b; }) }
+        ? { ...bd, items: bd.items.map((b) => { const p = map.get(b.id); return p ? { ...b, scale: Math.max(boardScaleMin(b, boardItemArtShort(get(), b)), Math.min(2, p.scale)), x: p.x, y: p.y } : b; }) }
         : bd));
   },
   removeBoardItems: (ids) => {

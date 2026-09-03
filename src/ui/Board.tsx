@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceBetween, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceBetween, ArrowDown, ArrowUp, BookmarkPlus, BringToFront, Copy, Download, Grid3x3, ImagePlus, LayoutTemplate, Lock, Monitor, Plus, RotateCcw, Search, SendToBack, Shield, Smartphone, SquarePen, Trash2, Type, X } from "lucide-react";
-import { useGen, rehydrateBoardBgs, boardBgFilter, boardScaleMin, drawBoardNoise, drawBoardOverlays, stampFilter, stampSvg, warpStampRaster, importUserAssetFile, kitShadowFilter, suppressCastShadow } from "@/generator/store";
+import { useGen, rehydrateBoardBgs, boardBgFilter, boardScaleMin, boardItemArtShort, drawBoardNoise, drawBoardOverlays, stampFilter, stampSvg, warpStampRaster, importUserAssetFile, kitShadowFilter, suppressCastShadow } from "@/generator/store";
 import type { UserAsset, UserLogoFx } from "@/generator/store";
 import { normalizeShipCopy, captureVideoPoster } from "@/generator/bgvault";
 import { importBgAsset, bgAssetStatusLine, onAssetActivity, bgAssetDisplayUrl } from "@/generator/assets";
 import { BACKDROP_LIBRARY, BACKDROP_CATEGORIES, backdropThumb, backdropUrl } from "@/generator/backdropLibrary";
 import type { BoardDef, BoardItem } from "@/generator/store";
 import { renderBevel, renderKit, VALUE_DRIVEN } from "@/generator/bevel";
-import { GLYPH_BUTTONS, KIT_COMPONENTS, applyKitDesign, applyKitTextFill, baseOf, fontByName, isGlyphFamily, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
+import { GLYPH_BUTTONS, KIT_COMPONENTS, applyKitDesign, applyKitTextFill, baseOf, fontByName, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
 import { LIVE_GLYPHS } from "@/generator/glyphLibrary";
 import { BIG_GLYPHS, BIG_GLYPH_BASE, bigGlyphById, bigGlyphThumb, bigGlyphMid, bigGlyphUrl, bigGlyphFilter, type BigGlyphDef, type BigGlyphFx } from "@/generator/bigGlyphs";
 import type { GenConfig, KitComponentId } from "@/generator/model";
@@ -70,13 +70,18 @@ async function downloadPieceRaster(pc: { svg: string; cfg: GenConfig }, name: st
    the overlay stick — one component, two placeable faces. */
 const ASSET_GROUPS: { name: string; ids: string[] }[] = [
   { name: "Buttons", ids: ["primary", "secondary", "small", "ghost", "iconbtn", "slotbtn", "pricebtn", "endturn", "keycap", "padbtn"] },
-  { name: "Containers & overlays", ids: ["panel", "header", "ribbonbanner", "tab", "tabback", "dropdown", "dialog", "toast", "tooltip", "listmenu", "choicelist", "scrollbar", "input", "searchfield", "setrow"] },
+  /* bottomnav sits with the tabs: it is the same job one level up (a tab
+     picks a view inside a screen, the nav bar picks the screen). It had no
+     tile at all until round 64 — released out of the bay with nowhere to
+     appear, exactly like the ribbon in round 60. */
+  { name: "Containers & overlays", ids: ["panel", "header", "ribbonbanner", "tab", "tabback", "bottomnav", "dropdown", "dialog", "toast", "tooltip", "listmenu", "choicelist", "scrollbar", "input", "searchfield", "setrow"] },
   { name: "HUD & readouts", ids: ["resource", "chip", "badge", "datarow", "slot", "orb", "ring", "bignum", "xpbar", "vitalbar", "currency", "healthglobe", "manarails", "buffframe", "cooldown", "notifydot", "countbadge", "avatarframe", "nameplate", "loadbar", "spinner", "pagedots", "steps", "stepper"] },
   { name: "Timers", ids: ["flipclock", "stopwatch", "timerdigits"] },
   { name: "Controls", ids: ["toggle", "slider", "progress", "segbar", "emblembar", "vsbar", "hotbar", "segment", "checkbox", "radio", "joystick", "gearicon", "trophyicon", "trophyicon~gold", "trophyicon~silver", "trophyicon~bronze", "gifticon"] },
   { name: "Shooter", ids: ["reticle", "crosshair", "hitmarker", "ammo", "magazine", "lives", "minimap", "compass", "killfeed", "weaponwheel", "equipselector", "firebutton", "joystick~ghost", "streakmeter", "waypoint", "capturemeter", "respawn", "dmgarc", "dmgnumber"] },
   { name: "RPG & progression", ids: ["questpanel", "dialoguebox", "partyframe", "unitplate", "invgrid", "rarityframe", "equipslot", "quickslots", "skillnode", "levelnode", "pathconnector", "loottag", "seasontrack", "achievetoast"] },
-  { name: "Casual & mobile", ids: ["heartmeter", "energymeter", "movecounter", "orderticket", "booster", "combo", "dailycell", "spinwheel", "popmeter", "starrating"] },
+  // boostercard follows booster: the same item, given room to read
+  { name: "Casual & mobile", ids: ["heartmeter", "energymeter", "movecounter", "orderticket", "booster", "boostercard", "combo", "dailycell", "spinwheel", "popmeter", "starrating"] },
   { name: "Rewards & chests", ids: ["chest", "giftbox", "rewardcard", "qtybadge", "rewardtray", "claimbtn", "chestpanel"] },
   { name: "Racing", ids: ["speedo", "speedo2", "tacho", "circuit", "leaderboard", "laptimes", "telemetry", "startlights"] },
   { name: "Strategy & score", ids: ["buildqueue", "techcard", "scorebug", "trophy"] },
@@ -115,6 +120,8 @@ const SEARCH_TERMS: Partial<Record<KitComponentId, string>> = {
   dailycell: "daily rewards calendar gift streak",
   spinwheel: "spin wheel fortune prize daily lucky",
   booster: "powerup power-up consumable item casual",
+  bottomnav: "bottom nav bar navigation tab bar dock destinations menu mobile chrome map quests heroes store badge",
+  boostercard: "booster card powerup power-up consumable item shop sku loadout casual quantity effect",
   chest: "reward loot crate treasure win",
   giftbox: "present reward gift daily",
   rewardcard: "reward results win prize claim",
@@ -323,7 +330,7 @@ const BOARD_TEMPLATES: Record<string, Tpl> = {
     { kitId: "datarow", x: 1266, y: 477, scale: 0.68 },
     { kitId: "chatbubble", x: 330, y: 600, scale: 0.75, label: "anyone up for the ember run?" },
     { kitId: "avatarframe", x: 358, y: 830, scale: 0.85 },
-    { kitId: "dialoguebox", x: 555, y: 800, scale: 0.8, label: "Warm yourself — the pass can wait." },
+    { kitId: "dialoguebox", x: 555, y: 800, scale: 0.8, label: "Warm yourself. The pass can wait." },
     { kitId: "secondary", x: 751, y: 636, scale: 0.62, label: "ENTER TOWN" },
     { kitId: "iconbtn", x: 1586, y: 36, scale: 0.85 },
     { kitId: "notifydot", x: 1734, y: 36, scale: 0.85 },
@@ -729,7 +736,20 @@ const STAGE: Record<"169" | "mobile", [number, number, string]> = {
   mobile: [390, 844, "Mobile"],
 };
 
-const clone = (c: GenConfig) => (typeof structuredClone === "function" ? structuredClone(c) : JSON.parse(JSON.stringify(c))) as GenConfig;
+/* Tray thumbs are ~40px tall, so the state glows (authored for a piece at
+   full size) would smear every tile into a haze — they render glow-less.
+   Non-mutating, and it runs AFTER a piece's design fork applies: a fork
+   carries its own `states` block, so zeroing the master's first let a
+   forked glow straight back in (and mutating the fork's own states object
+   would corrupt the store). Identity is preserved when there is nothing
+   to zero, which keeps the per-thumb cache below hitting. */
+const noGlow = (c: GenConfig): GenConfig => {
+  const st = c.states as unknown as Record<string, { glow?: number }>;
+  if (!Object.values(st).some((s) => s.glow)) return c;
+  const out: Record<string, unknown> = {};
+  for (const [k, s] of Object.entries(st)) out[k] = { ...s, glow: 0 };
+  return { ...c, states: out } as unknown as GenConfig;
+};
 
 /* Paste-a-URL video backdrops: vet the link BEFORE the board takes it.
    https only, embeds turned away by name, then a real load test — the
@@ -737,7 +757,7 @@ const clone = (c: GenConfig) => (typeof structuredClone === "function" ? structu
 const checkVideoUrl = async (raw: string): Promise<{ url?: string; err?: string }> => {
   const url = raw.trim();
   if (!/^https:\/\//i.test(url)) return { err: "Paste a full https:// link." };
-  if (/youtube\.com|youtu\.be|vimeo\.com/i.test(url)) return { err: "YouTube / Vimeo pages can't sit under the pieces — paste a direct .mp4 or .webm file link instead." };
+  if (/youtube\.com|youtu\.be|vimeo\.com/i.test(url)) return { err: "YouTube / Vimeo pages can't sit under the pieces. Paste a direct .mp4 or .webm file link instead." };
   const ok = await new Promise<boolean>((res) => {
     const v = document.createElement("video");
     v.muted = true; v.preload = "metadata";
@@ -746,7 +766,7 @@ const checkVideoUrl = async (raw: string): Promise<{ url?: string; err?: string 
     v.onerror = () => { window.clearTimeout(t); res(false); };
     v.src = url;
   });
-  return ok ? { url } : { err: "That link didn't play — it needs to be a direct video file (.mp4 / .webm), not a page or an embed." };
+  return ok ? { url } : { err: "That link didn't play. It needs to be a direct video file (.mp4 / .webm), not a page or an embed." };
 };
 
 /* Overlay tint per mode — shared by the live stage and the PNG export so
@@ -813,7 +833,7 @@ function BackdropLibrary({ aspect, current, apply }: {
       <div className="bd-h" style={{ marginTop: 14 }}>Scene library <span className="bd-lib-staged" title="Visible to admins only until released">staged</span></div>
       <div className="bd-libsearch">
         <Search size={13} strokeWidth={2.2} />
-        <input value={q} placeholder="Search 82 scenes — cozy kitchen, neon, battle…" aria-label="Search the scene library"
+        <input value={q} placeholder="Search 82 scenes: cozy kitchen, neon, battle…" aria-label="Search the scene library"
           onChange={(e) => { setQ(e.target.value); setShowAll(false); }} />
         {q && <button aria-label="Clear search" onClick={() => setQ("")}><X size={12} strokeWidth={2.4} /></button>}
       </div>
@@ -825,7 +845,7 @@ function BackdropLibrary({ aspect, current, apply }: {
         ))}
       </div>
       {list.length === 0 ? (
-        <div className="bd-note">No scene matches — try fewer words, or another genre.</div>
+        <div className="bd-note">No scene matches. Try fewer words, or another genre.</div>
       ) : (
         <div className="bd-bggrid bd-libgrid" aria-label="Library scenes">
           {shown.map((e) => {
@@ -847,10 +867,10 @@ function BackdropLibrary({ aspect, current, apply }: {
       )}
       {loadErr && (
         <div className="bd-note bd-vurl-err" role="alert">
-          <span>That scene didn't arrive from the cloud. If the storage bucket isn't set up yet: Supabase dashboard → Storage → new <b>public</b> bucket named exactly <b>backgrounds</b>, then drag the 82 .webp files in — the boards light up instantly, no redeploy.</span>
+          <span>That scene didn't arrive from the cloud. If the storage bucket isn't set up yet: Supabase dashboard → Storage → new <b>public</b> bucket named exactly <b>backgrounds</b>, then drag the 82 .webp files in. The boards light up instantly, no redeploy.</span>
         </div>
       )}
-      <div className="bd-note">Scenes stream from the cloud — your board saves a link, never the pixels.</div>
+      <div className="bd-note">Scenes stream from the cloud. Your board saves a link, never the pixels.</div>
     </div>
   );
 }
@@ -912,6 +932,72 @@ function BoardBackdrop({ bd }: { bd: BoardDef }) {
       )}
     </div>
   );
+}
+
+/* Everything between the stage floor and the pieces — backdrop, video,
+   film grain, the overlay tint and its grain, the center scrim. ONE
+   recipe, shared by the editor's desk and the read-only stage below, so
+   a screen shown on the kit's public page can't drift from the same
+   screen on the owner's desk. */
+function BoardDressing({ bd }: { bd: BoardDef }) {
+  return (<>
+    <BoardBackdrop bd={bd} />
+    {bd.bgVideo && (bd.bgShow ?? true) && (
+      <video className="bd-bg bd-bgvid" src={bd.bgVideo} autoPlay muted loop playsInline
+        style={{ opacity: (bd.bgOpacity ?? 100) / 100, filter: boardBgFilter(bd) }} />
+    )}
+    {(bd.bgNoise ?? 0) > 0 && (bd.bgShow ?? true) && (
+      <div className="bd-noise" style={{ opacity: ((bd.bgNoise ?? 0) / 100) * 0.6 }} />
+    )}
+    {/* overlay sits between the backdrop and the pieces */}
+    {(bd.ovMode ?? "none") !== "none" && (
+      <div className="bd-ov" style={{ background: ovBackground(bd.ovMode!), opacity: (bd.ovStrength ?? 45) / 100, mixBlendMode: (bd.ovBlend ?? "normal") as React.CSSProperties["mixBlendMode"] }} />
+    )}
+    {(bd.ovMode ?? "none") !== "none" && (bd.ovNoise ?? 0) > 0 && (
+      <div className="bd-noise" style={{ opacity: ((bd.ovNoise ?? 0) / 100) * 0.6 }} />
+    )}
+    {(bd.ovCenter ?? 0) > 0 && (
+      <div className="bd-ov" style={{ background: CENTER_SCRIM, opacity: (bd.ovCenter ?? 0) / 100 }} />
+    )}
+  </>);
+}
+
+const noop = () => {};
+
+/** One artboard, LIVE and read-only — the exact stage the desk draws
+ *  (same dressing, same StagePiece, same LiveArt engine), running in
+ *  PLAY mode: buttons highlight and press, toggles flip, bars fill, and
+ *  nothing can be selected, dragged or edited. This is what the shipped
+ *  kits' public pages show, so "working" means working — not a picture
+ *  of a screen. `fit` scales stage units to the frame the caller
+ *  measured; the board's own aspect is never squashed. */
+export function LiveBoardStage({ bd, fit }: { bd: BoardDef; fit: number }) {
+  const [W, H] = STAGE[bd.aspect];
+  return (
+    <div className="bd-stage bd-stage--read" style={{ width: W * fit, height: H * fit }}
+      onScroll={(e) => {
+        // the stage clips with overflow:hidden, but a hidden box still
+        // scrolls under focus/scrollIntoView — and a scrolled stage
+        // renders the whole board displaced (the desk's invariant)
+        const el = e.currentTarget;
+        if (el.scrollLeft || el.scrollTop) { el.scrollLeft = 0; el.scrollTop = 0; }
+      }}>
+      <BoardDressing bd={bd} />
+      <div className="bd-canvas" style={{ width: W, height: H, transform: `scale(${fit})` }}>
+        {bd.items.map((b) => (
+          <StagePiece key={b.id} b={b} playing selected={false} solo={false} fit={fit}
+            onSelect={noop} onDragStart={noop} onDragMove={noop} onDragEnd={noop} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** The stage's true pixel size, per aspect — callers size their frames
+ *  from this so a mobile-portrait screen keeps 390 × 844. */
+export function boardStageSize(aspect: BoardDef["aspect"]): [number, number] {
+  const [w, h] = STAGE[aspect];
+  return [w, h];
 }
 
 export function BoardView({ playing }: { playing: boolean }) {
@@ -1450,12 +1536,57 @@ export function BoardView({ playing }: { playing: boolean }) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  /* ── one tray thumb ────────────────────────────────────────────────
+     A thumb draws the piece AS IT IS: the same reads svgOf makes for a
+     fresh placement of it on a board (owner, round 64: "the assets tray
+     in boards isn't updating the thumbnails as the kit piece updates…
+     I saw some old thumbs in there"). Before this, only the glyph family
+     wore its per-piece design fork and NOTHING wore its slot picks,
+     staged value, sub-label, bar/dock config or seat nudges — a piece the
+     maker had restyled sat in the tray in its factory clothes.
+
+     The two liberties the tray still takes are its own, not staleness:
+     it renders at "s" (a hundred tiles at board scale is a different
+     drawer), and glow is zeroed for legibility. Everything else is the
+     board's own read, keyed by the piece's id — a clone reads its own
+     entries and renders its base, exactly like a clone item on a board. */
+  const drawThumb = (key: KitComponentId, base: KitComponentId, ov?: string) => {
+    const kb = base === "progress" || base === "segbar" ? kitBar[key] : undefined;
+    const nudge = `${key}:${kitSizes[key] ?? "l"}`; // seat nudges are size-keyed, like svgOf's
+    const pc = noGlow(applyKitTextFill(applyKitDesign(cfg, kitDesigns[key]), kitTextFill[key]));
+    return tightenSvg(renderKit(pc, base, "s", "default", kitVals[key], kitShapes[key], {
+      icon: resolveKitIcon(kitIcons[key], undefined),
+      label: kitNoText[key] ? "" : kitLabels[key],
+      sub: kitSubs[key], slots: kitSlotVals[key],
+      textOy: kitTextOy[nudge], textOx: kitTextOx[nudge], overlay: ov,
+      dock: kb?.dock ? { icon: resolveKitIcon(kitIcons[key], undefined), side: kb.dockSide ?? "left" } : undefined,
+      bar: kb, row: base === "datarow" ? kitRow : undefined,
+      themedText: !!kitDesigns[key]?.type || !!kitTextFill[key],
+    }), 20);
+  };
+  /* …and its memo. The tray is ~200 renderKit calls, so one piece's edit
+     must not redraw two hundred pieces. The cache key is the IDENTITY of
+     every input drawThumb reads — the store replaces these maps and their
+     entries wholesale on every edit, so a changed piece always changes its
+     key. That is why this cache cannot become the stale thumb it exists to
+     prevent: nothing is remembered across a change to anything it drew. */
+  const thumbCache = useRef(new Map<string, { k: unknown[]; svg: string }>());
+  const thumbOf = (cacheId: string, key: KitComponentId, base: KitComponentId, ov?: string) => {
+    const nudge = `${key}:${kitSizes[key] ?? "l"}`;
+    const k: unknown[] = [cfg, base, ov, kitDesigns[key], kitTextFill[key], kitShapes[key], kitIcons[key],
+      kitLabels[key], kitNoText[key], kitSubs[key], kitSlotVals[key], kitVals[key], kitBar[key],
+      kitSizes[key], kitTextOy[nudge], kitTextOx[nudge], base === "datarow" ? kitRow : null];
+    const hit = thumbCache.current.get(cacheId);
+    if (hit && hit.k.length === k.length && hit.k.every((v, i) => v === k[i])) return hit.svg;
+    const svg = drawThumb(key, base, ov);
+    thumbCache.current.set(cacheId, { k, svg });
+    return svg;
+  };
+
   // asset thumbnails render tight (glow pads collapse) and follow the style;
   // staging-bay pieces show only to the admin until released
   const assets = useMemo(() => {
     if (!trayReady) return []; // catalog thumbs wait one idle beat behind the active board's paint
-    const tc = clone(cfg);
-    for (const s of Object.values(tc.states)) s.glow = 0;
     /* trophy/startlights are deregistered from the kit-page roster but the
        Board surfaces EVERYTHING (owner: "all kit elements… surface-able by
        search") — they still need honest display names here */
@@ -1468,36 +1599,31 @@ export function BoardView({ playing }: { playing: boolean }) {
         const [bid, ov] = entry.split("~");
         const kid = bid as KitComponentId;
         const nm = ov ? `${name(kid)} · ${ov}` : name(kid);
-        /* glyph-FAMILY thumbs wear their per-piece fork (the family is
-           born with a flat factory design — icon props included, round
-           45 · B5) — a walled tray thumb would promise a look that never
-           lands on the board. Other stock thumbs stay the master-look
-           catalog they've always been. */
-        const gtc = isGlyphFamily(kid) ? applyKitDesign(tc, kitDesigns[kid]) : tc;
-        return { id: entry, kitId: kid, ov, name: nm, hay: `${nm} ${entry} ${g.name} ${SEARCH_TERMS[kid] ?? ""}${ov ? ` ${ov} overlay` : ""}`.toLowerCase(), svg: tightenSvg(renderKit(applyKitTextFill(gtc, kitTextFill[kid]), kid, "s", "default", undefined, kitShapes[kid], { icon: resolveKitIcon(kitIcons[kid], undefined), label: kitNoText[kid] ? "" : kitLabels[kid], overlay: ov }), 20) };
+        return { id: entry, kitId: kid, ov, name: nm, hay: `${nm} ${entry} ${g.name} ${SEARCH_TERMS[kid] ?? ""}${ov ? ` ${ov} overlay` : ""}`.toLowerCase(), svg: thumbOf(entry, kid, kid, ov) };
       }),
     }));
-  }, [trayReady, cfg, kitShapes, kitTextFill, kitIcons, kitLabels, kitNoText, kitDesigns, componentReleases, isAdmin]);
+    // every map the thumb draws from is a dependency; the per-thumb cache
+    // above is what keeps a one-piece edit from redrawing the whole catalog
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trayReady, cfg, kitShapes, kitTextFill, kitIcons, kitLabels, kitNoText, kitDesigns, kitSubs, kitSlotVals, kitVals, kitBar, kitSizes, kitTextOy, kitTextOx, kitRow, componentReleases, isAdmin]);
 
   /* the user's duplicated pieces — live kit citizens like the stock roster
      above. Thumbs render the BASE component wearing the clone's own design
      fork (that fork is the whole point of a clone); a staged base keeps
      its clones admin-only, same gate as the stock entry */
-  const cloneAssets = useMemo(() => {
-    const tc = clone(cfg);
-    for (const s of Object.values(tc.states)) s.glow = 0;
-    return Object.entries(kitClones)
-      .filter(([, c]) => kitVisible(c.base, componentReleases, isAdmin))
-      .map(([cid, c]) => {
-        const key = cid as KitComponentId; // per-piece maps are clone-keyed
-        const baseName = KIT_COMPONENTS.find((k) => k.id === c.base)?.name ?? c.base;
-        return {
-          id: cid, kitId: key, name: c.name,
-          hay: `${c.name} ${c.kind} ${baseName}`.toLowerCase(),
-          svg: tightenSvg(renderKit(applyKitTextFill(applyKitDesign(tc, kitDesigns[key]), kitTextFill[key]), c.base, "s", "default", undefined, kitShapes[key], { icon: resolveKitIcon(kitIcons[key], undefined), label: kitNoText[key] ? "" : kitLabels[key] }), 20),
-        };
-      });
-  }, [cfg, kitClones, kitDesigns, kitShapes, kitTextFill, kitIcons, kitLabels, kitNoText, componentReleases, isAdmin]);
+  const cloneAssets = useMemo(() => Object.entries(kitClones)
+    .filter(([, c]) => kitVisible(c.base, componentReleases, isAdmin))
+    .map(([cid, c]) => {
+      const key = cid as KitComponentId; // per-piece maps are clone-keyed
+      const baseName = KIT_COMPONENTS.find((k) => k.id === c.base)?.name ?? c.base;
+      return {
+        id: cid, kitId: key, name: c.name,
+        hay: `${c.name} ${c.kind} ${baseName}`.toLowerCase(),
+        svg: thumbOf(cid, key, c.base),
+      };
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [cfg, kitClones, kitDesigns, kitShapes, kitTextFill, kitIcons, kitLabels, kitNoText, kitSubs, kitSlotVals, kitVals, kitBar, kitSizes, kitTextOy, kitTextOx, kitRow, componentReleases, isAdmin]);
 
   const selBoard = boards.find((bd) => bd.items.some((b) => b.id === boardSel)) ?? null;
   const sel = selBoard?.items.find((b) => b.id === boardSel) ?? null;
@@ -1533,6 +1659,12 @@ export function BoardView({ playing }: { playing: boolean }) {
     if (!item) return { svg: "", cfg };
     return { svg: item.kit ? renderKit(item.cfg, item.kit.id, item.kit.size, "default", item.kit.v, item.kit.shape, item.kit.label !== undefined ? { label: item.kit.label } : undefined) : renderBevel(item.cfg, "default"), cfg: item.cfg };
   };
+
+  /* WHERE a piece bottoms out. Every control asks this one function —
+     the scale slider, the typed percent, the corner handle and the group
+     clamp — and it asks the same measurement the store's own clamp uses,
+     so they cannot disagree about a piece's floor. */
+  const scaleMinOf = (b: BoardItem) => boardScaleMin(b, boardItemArtShort(useGen.getState(), b));
 
   const nameOf = (b: BoardItem): string => {
     if (b.stamp) return `"${b.stamp.text}"`;
@@ -1871,17 +2003,17 @@ export function BoardView({ playing }: { playing: boolean }) {
             </button>
           )}
         </label>
-        <div className="bd-teach">Click a piece to add it to the screen — or drag it straight onto a board.</div>
-        <button className="bd-stampbtn" title="Drop the kit's lettering on the board — type any words, size them like a logo"
+        <div className="bd-teach">Click a piece to add it to the screen, or drag it straight onto a board.</div>
+        <button className="bd-stampbtn" title="Drop the kit's lettering on the board: type any words, size them like a logo"
           onClick={() => useGen.getState().addStampToBoard()}>
-          <Type size={13} strokeWidth={2.2} /> Type stamp — your words in the kit's lettering
+          <Type size={13} strokeWidth={2.2} /> Type stamp: your words in the kit's lettering
         </button>
         {/* the PLAIN tier (owner: "a delineation between splash text and
             just good font usage") — same face, flat pickable color, for
             labels that must READ against any backdrop */}
-        <button className="bd-stampbtn" title="Plain text in the kit's font — pick its color in the side rail; for labels that must stay readable"
+        <button className="bd-stampbtn" title="Plain text in the kit's font. Pick its color in the side rail; for labels that must stay readable"
           onClick={() => useGen.getState().addStampToBoard(true)}>
-          <Type size={13} strokeWidth={2.2} /> Plain text — the kit's font, your color
+          <Type size={13} strokeWidth={2.2} /> Plain text: the kit's font, your color
         </button>
         <div className="bd-scroll">
           {assets.map((g) => {
@@ -1894,7 +2026,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                 <div className="bd-cat">{g.name}</div>
                 <div className="bd-grid">
                   {items.map((it) => (
-                    <button key={it.id} className="bd-asset" title={`Add ${it.name} to ${act?.name ?? "the board"} — or drag it onto any board`}
+                    <button key={it.id} className="bd-asset" title={`Add ${it.name} to ${act?.name ?? "the board"}, or drag it onto any board`}
                       onClick={() => { if (suppressClick.current) { suppressClick.current = false; return; } addKitToBoard(it.kitId, it.ov); }}
                       onPointerDown={(e) => { if (e.button === 0) ghostRef.current = { kitId: it.kitId, ov: it.ov, svg: it.svg, x0: e.clientX, y0: e.clientY, moved: false }; }}
                       onPointerEnter={() => setPreview({ name: it.name, svg: svgOf({ id: "pv", libId: "", kitId: it.kitId, ov: it.ov, x: 0, y: 0 } as BoardItem).svg })}
@@ -1923,7 +2055,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                 <div className="bd-cat">Your components</div>
                 <div className="bd-grid">
                   {items.map((it) => (
-                    <button key={it.id} className="bd-asset" title={`Add ${it.name} to ${act?.name ?? "the board"} — or drag it onto any board`}
+                    <button key={it.id} className="bd-asset" title={`Add ${it.name} to ${act?.name ?? "the board"}, or drag it onto any board`}
                       onClick={() => { if (suppressClick.current) { suppressClick.current = false; return; } addKitToBoard(it.kitId); }}
                       onPointerDown={(e) => { if (e.button === 0) ghostRef.current = { kitId: it.kitId, svg: it.svg, x0: e.clientX, y0: e.clientY, moved: false }; }}
                       onPointerEnter={() => setPreview({ name: it.name, svg: svgOf({ id: "pv", libId: "", kitId: it.kitId, x: 0, y: 0 } as BoardItem).svg })}
@@ -1968,7 +2100,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                               const name = window.prompt("Rename this asset:", a.name);
                               if (name?.trim()) useGen.getState().renameUserAsset(a.id, name.trim());
                             }}><SquarePen size={11} strokeWidth={2.4} /></button>
-                          <button className="danger" title={`Delete ${a.name} — board copies of it go too`} aria-label={`Delete ${a.name}`}
+                          <button className="danger" title={`Delete ${a.name}. Board copies of it go too`} aria-label={`Delete ${a.name}`}
                             onClick={() => {
                               const placed = useGen.getState().boards.reduce((n, bd) => n + bd.items.filter((it) => it.logo?.aid === a.id).length, 0);
                               if (window.confirm(placed ? `Delete ${a.name}? Its ${placed} placed cop${placed === 1 ? "y" : "ies"} leave the boards too.` : `Delete ${a.name}?`))
@@ -1980,9 +2112,9 @@ export function BoardView({ playing }: { playing: boolean }) {
                   </div>
                 )}
                 <button className="bd-stampbtn" disabled={uaBusy}
-                  title="Upload your own image — a transparent PNG makes the best logo; JPG and WebP work too. 2 MB cap; big images downscale on import."
+                  title="Upload your own image. A transparent PNG makes the best logo; JPG and WebP work too. 2 MB cap; big images downscale on import."
                   onClick={() => uaInput.current?.click()}>
-                  <ImagePlus size={13} strokeWidth={2.2} /> {uaBusy ? "Importing…" : "Upload a logo — transparent PNG shines"}
+                  <ImagePlus size={13} strokeWidth={2.2} /> {uaBusy ? "Importing…" : "Upload a logo: transparent PNG shines"}
                 </button>
                 {uaErr && <div className="bd-note bd-vurl-err" role="alert">{uaErr}</div>}
                 <BgKeepsafeLine />
@@ -2071,7 +2203,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                        <button>s can't nest, and a live tile carries its
                        own Edit control */
                     <div key={l.id} className="bd-asset bd-sasset" role="button" tabIndex={0}
-                      title={`Add ${l.name} to ${act?.name ?? "the board"} — or drag it onto any board`}
+                      title={`Add ${l.name} to ${act?.name ?? "the board"}, or drag it onto any board`}
                       onClick={place}
                       onKeyDown={(e) => { if (e.key === "Enter") place(); }}
                       onPointerDown={(e) => { if (e.button === 0) ghostRef.current = { ...(live ? { kitId: live.kitId } : { libId: l.id }), svg: art, x0: e.clientX, y0: e.clientY, moved: false }; }}
@@ -2081,7 +2213,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                       <i>{l.name}</i>
                       {live && (
                         <span className="bd-uactl" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
-                          <button title={`Edit ${l.name} — every control shapes this saved component live`} aria-label={`Edit ${l.name}`}
+                          <button title={`Edit ${l.name}. Every control shapes this saved component live`} aria-label={`Edit ${l.name}`}
                             onClick={() => { useGen.getState().setFocus(live.kitId); useGen.getState().setPhase("master"); }}>
                             <SquarePen size={11} strokeWidth={2.4} /> Edit
                           </button>
@@ -2120,7 +2252,7 @@ export function BoardView({ playing }: { playing: boolean }) {
           </div>
           {/* the glow invites while the board is bare, then goes quiet */}
           <label className={`bd-tpl${act && act.items.length === 0 ? " glow" : ""}`}
-            title="Add a full starter screen — pieces land pre-sized and pre-placed, backdrop included">
+            title="Add a full starter screen: pieces land pre-sized and pre-placed, backdrop included">
             <LayoutTemplate size={13} strokeWidth={2} />
             <select value="" aria-label="Add a starter screen"
               onChange={(e) => {
@@ -2139,17 +2271,17 @@ export function BoardView({ playing }: { playing: boolean }) {
           <label className="bd-snap"><Grid3x3 size={13} strokeWidth={2} /> Snap to grid
             <input type="checkbox" checked={boardSnap} onChange={(e) => setBoardSnap(e.target.checked)} />
           </label>
-          <label className="bd-snap" title="Safe-area guides — keep HUD inside the dashed frames. 16:9 shows action/title safe; Mobile shows notch and home-bar insets. Guides never export.">
+          <label className="bd-snap" title="Safe-area guides: keep HUD inside the dashed frames. 16:9 shows action/title safe; Mobile shows notch and home-bar insets. Guides never export.">
             <Shield size={13} strokeWidth={2} /> Safe area
             <input type="checkbox" checked={boardSafe} onChange={(e) => setBoardSafe(e.target.checked)} />
           </label>
           <button className="bd-export" onClick={() => guardExport(() => { if (act) void exportPng(act); })}><Download size={14} strokeWidth={2.2} /> Export PNG</button>
-          <button className="bd-export" title="Every piece on a transparent PNG — no backdrop, no base fill; drops straight into an engine or a mockup"
+          <button className="bd-export" title="Every piece on a transparent PNG: no backdrop, no base fill. Drops straight into an engine or a mockup"
             onClick={() => guardExport(() => { if (act) void exportPng(act, { alpha: true }); })}>
             <Download size={14} strokeWidth={2.2} /> PNG · no background
           </button>
           <button className="bd-export bd-exportall"
-            title="Every board as a full-resolution PNG, one after another — the browser may ask once to allow multiple downloads"
+            title="Every board as a full-resolution PNG, one after another. The browser may ask once to allow multiple downloads"
             onClick={() => guardExport(() => {
               void (async () => {
                 for (const bd of boards) if (bd.items.length || bd.bgImage || bd.bgVideo) await exportPng(bd);
@@ -2200,17 +2332,17 @@ export function BoardView({ playing }: { playing: boolean }) {
                     onFocus={() => setActiveBoard(bd.id)}
                     onChange={(e) => renameBoard(bd.id, e.target.value)} />
                   <button className="bd-abtool" aria-label={`Export ${bd.name} as PNG`}
-                    title={`Export ${bd.name} as a PNG at full ${W} × ${H} resolution — background, overlay and pieces`}
+                    title={`Export ${bd.name} as a PNG at full ${W} × ${H} resolution: background, overlay and pieces`}
                     onClick={() => guardExport(() => void exportPng(bd))}>
                     <Download size={12} strokeWidth={2.2} />
                   </button>
                   <button className="bd-abtool" aria-label={`Duplicate ${bd.name}`}
-                    title={`Duplicate ${bd.name} — pieces, backdrop and darkroom dials, a running start for the next screen`}
+                    title={`Duplicate ${bd.name}: pieces, backdrop and darkroom dials, a running start for the next screen`}
                     onClick={() => duplicateBoard(bd.id)}>
                     <Copy size={12} strokeWidth={2.2} />
                   </button>
                   <button className="bd-abtool" aria-label={`Clear ${bd.name}`}
-                    title="Clear this board — every piece and the background"
+                    title="Clear this board: every piece and the background"
                     onClick={() => {
                       const hasBg = !!(bd.bgImage || bd.bgVideo);
                       const what = bd.items.length ? `all ${bd.items.length} pieces${hasBg ? " and the background" : ""}` : hasBg ? "the background" : "";
@@ -2258,24 +2390,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                       </div>
                     </div>
                   ) : (<>
-                  <BoardBackdrop bd={bd} />
-                  {bd.bgVideo && (bd.bgShow ?? true) && (
-                    <video className="bd-bg bd-bgvid" src={bd.bgVideo} autoPlay muted loop playsInline
-                      style={{ opacity: (bd.bgOpacity ?? 100) / 100, filter: boardBgFilter(bd) }} />
-                  )}
-                  {(bd.bgNoise ?? 0) > 0 && (bd.bgShow ?? true) && (
-                    <div className="bd-noise" style={{ opacity: ((bd.bgNoise ?? 0) / 100) * 0.6 }} />
-                  )}
-                  {/* overlay sits between the backdrop and the pieces */}
-                  {(bd.ovMode ?? "none") !== "none" && (
-                    <div className="bd-ov" style={{ background: ovBackground(bd.ovMode!), opacity: (bd.ovStrength ?? 45) / 100, mixBlendMode: (bd.ovBlend ?? "normal") as React.CSSProperties["mixBlendMode"] }} />
-                  )}
-                  {(bd.ovMode ?? "none") !== "none" && (bd.ovNoise ?? 0) > 0 && (
-                    <div className="bd-noise" style={{ opacity: ((bd.ovNoise ?? 0) / 100) * 0.6 }} />
-                  )}
-                  {(bd.ovCenter ?? 0) > 0 && (
-                    <div className="bd-ov" style={{ background: CENTER_SCRIM, opacity: (bd.ovCenter ?? 0) / 100 }} />
-                  )}
+                  <BoardDressing bd={bd} />
                   {/* safety guides (owner) — pure view layer, never exported.
                       16:9: broadcast/console action (95%) + title (90%) safe;
                       mobile: notch + home-bar insets in stage units. */}
@@ -2396,7 +2511,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                           ref={(el) => { if (el && document.activeElement !== el) el.focus({ preventScroll: true }); }}
                           value={val}
                           maxLength={isStamp ? 40 : labelMaxOf(baseOf(eb.kitId!))}
-                          placeholder={isStamp ? "Type the words…" : (eb.kitId ? kitLabels[eb.kitId] || "Text — this copy" : "")}
+                          placeholder={isStamp ? "Type the words…" : (eb.kitId ? kitLabels[eb.kitId] || "Text for this copy" : "")}
                           style={{ left: eb.x, top: Math.max(4, eb.y - 44 / fit), transform: `scale(${1 / fit})`, transformOrigin: "top left" }}
                           onPointerDown={(e) => e.stopPropagation()}
                           onChange={(e) => {
@@ -2419,7 +2534,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                                 e.stopPropagation();
                                 try { (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId); } catch { /* uncaptured scale still works */ }
                                 const pieces = bd.items.filter((it) => selIdsAll.includes(it.id))
-                                  .map((it) => ({ id: it.id, s0: it.scale ?? 1, px: it.x, py: it.y, min: boardScaleMin(it) }));
+                                  .map((it) => ({ id: it.id, s0: it.scale ?? 1, px: it.x, py: it.y, min: scaleMinOf(it) }));
                                 if (pieces.length < 2) return;
                                 grsz.current = {
                                   x0: e.clientX, y0: e.clientY,
@@ -2455,7 +2570,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                     {/* the hint is for a truly bare stage — a board wearing a
                         backdrop is already someone's scene, never watermark it
                         (owner: hint text over a fresh upload) */}
-                    {bd.items.length === 0 && !bd.bgImage && !bd.bgVideo && <div className="bd-empty"><span>An empty stage — pick a <b>Starter screen</b> above, or click an asset on the left.</span></div>}
+                    {bd.items.length === 0 && !bd.bgImage && !bd.bgVideo && <div className="bd-empty"><span>An empty stage. Pick a <b>Starter screen</b> above, or click an asset on the left.</span></div>}
                   </div>
                   </>)}
                 </div>
@@ -2465,7 +2580,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                     fit, never scrolls), beneath starts the next row */}
                 {sideAspect && (
                   <button className="bd-addtab bd-addtab--r"
-                    title={`Add a ${sideAspect === "mobile" ? "mobile" : "16:9"} board beside ${bd.name}${sideAspect !== bd.aspect ? " — the row rescales so both fit" : ""}`}
+                    title={`Add a ${sideAspect === "mobile" ? "mobile" : "16:9"} board beside ${bd.name}${sideAspect !== bd.aspect ? ". The row rescales so both fit" : ""}`}
                     aria-label={`Add a board to the right of ${bd.name}`}
                     onClick={() => addBoardAfter(bd.id, { aspect: sideAspect })}>
                     <Plus size={14} strokeWidth={2.2} />
@@ -2536,12 +2651,12 @@ export function BoardView({ playing }: { playing: boolean }) {
               ))}
             </div>
             <div className="bd-alignrow" role="group" aria-label="Distribute selection">
-              <button title="Distribute horizontally — equal gaps, outer pieces planted (3+ pieces)"
+              <button title="Distribute horizontally: equal gaps, outer pieces planted (3+ pieces)"
                 aria-label="Distribute horizontally" disabled={selIdsAll.length < 3}
                 onClick={() => distributeSel("h")}>
                 <AlignHorizontalSpaceBetween size={13} strokeWidth={2} />
               </button>
-              <button title="Distribute vertically — equal gaps, outer pieces planted (3+ pieces)"
+              <button title="Distribute vertically: equal gaps, outer pieces planted (3+ pieces)"
                 aria-label="Distribute vertically" disabled={selIdsAll.length < 3}
                 onClick={() => distributeSel("v")}>
                 <AlignVerticalSpaceBetween size={13} strokeWidth={2} />
@@ -2572,12 +2687,16 @@ export function BoardView({ playing }: { playing: boolean }) {
                 included — boardScaleMin resolves through baseOf) dive to 5%
                 (match-3 tiles on a mobile board need ~12%; owner from the
                 Pause board: "i need to be able to shrink these glyphs
-                smaller"); everything else keeps the 30% legibility floor.
+                smaller"). Every other piece floors where its OWN art hits
+                BOARD_MIN_ART_PX, so a tall card back reaches ~9% while a
+                count badge still stops at 30% — a flat percentage could
+                only ever be wrong for one of them (owner, round 67: "I
+                need to be able to size the card backs lower than 30%").
                 The typed entry exists because one slider pixel jumps several
                 percent at the small end — the owner types 12 and gets 12. */}
             <label className="bd-slider"><span className="bd-sliderhead">Scale ·
-              <ScaleEntry id={sel.id} pct={Math.round((sel.scale ?? 1) * 100)} min={Math.round(boardScaleMin(sel) * 100)} />%</span>
-              <input type="range" min={Math.round(boardScaleMin(sel) * 100)} max={200} value={Math.round((sel.scale ?? 1) * 100)}
+              <ScaleEntry id={sel.id} pct={Math.round((sel.scale ?? 1) * 100)} min={Math.floor(scaleMinOf(sel) * 100)} />%</span>
+              <input type="range" min={Math.floor(scaleMinOf(sel) * 100)} max={200} value={Math.round((sel.scale ?? 1) * 100)}
                 onChange={(e) => scaleBoardItem(sel.id, +e.target.value / 100)} />
             </label>
             <label className="bd-slider">Rotation · {sel.rot ?? 0}°
@@ -2588,7 +2707,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                 neighbours in tight stacks (owner: "placement of controls is
                 problematic"); the rail is always readable */}
             {sel.kitId && STRETCHABLE.has(baseOf(sel.kitId)) && (
-              <label className="bd-slider" title="9-slice width — the track re-renders wider; caps and knob stay true. The side handles on the piece do the same by hand.">
+              <label className="bd-slider" title="9-slice width: the track re-renders wider; caps and knob stay true. The side handles on the piece do the same by hand.">
                 Width · {Math.round((sel.stretch ?? 1) * 100)}%
                 <input type="range" min={70} max={300} value={Math.round((sel.stretch ?? 1) * 100)}
                   onChange={(e) => useGen.getState().stretchBoardItem(sel.id, +e.target.value / 100, sel.x)}
@@ -2596,32 +2715,32 @@ export function BoardView({ playing }: { playing: boolean }) {
               </label>
             )}
             {sel.kitId && STRETCHABLE_V.has(baseOf(sel.kitId)) && (
-              <label className="bd-slider" title="9-slice height — the shell re-renders taller; walls and rim stay true. The top/bottom handles on the piece do the same by hand.">
+              <label className="bd-slider" title="9-slice height: the shell re-renders taller; walls and rim stay true. The top/bottom handles on the piece do the same by hand.">
                 Height · {Math.round((sel.stretchY ?? 1) * 100)}%
                 <input type="range" min={70} max={300} value={Math.round((sel.stretchY ?? 1) * 100)}
                   onChange={(e) => useGen.getState().stretchBoardItemV(sel.id, +e.target.value / 100, sel.y)}
                   onDoubleClick={() => useGen.getState().stretchBoardItemV(sel.id, 1, sel.y)} />
               </label>
             )}
-            <label className="bd-slider" title="This piece's opacity — ghosted HUD layers, faded scenery. Double-click restores full strength. Exports honor it.">
+            <label className="bd-slider" title="This piece's opacity: ghosted HUD layers, faded scenery. Double-click restores full strength. Exports honor it.">
               Opacity · {sel.opacity ?? 100}%
               <input type="range" min={0} max={100} value={sel.opacity ?? 100}
                 onChange={(e) => useGen.getState().setBoardItemOpacity(sel.id, +e.target.value)}
                 onDoubleClick={() => useGen.getState().setBoardItemOpacity(sel.id, null)} />
             </label>
             {sel.kitId && VALUE_DRIVEN.has(baseOf(sel.kitId)) && (
-              <label className="bd-slider" title="Value — this piece only (fill level, rarity tier, pose). Double-click to follow the kit again.">
-                Value — this piece · {Math.round((sel.v ?? kitVals[sel.kitId] ?? 0.62) * 100)}%
+              <label className="bd-slider" title="Value for this piece only (fill level, rarity tier, pose). Double-click to follow the kit again.">
+                Value for this piece · {Math.round((sel.v ?? kitVals[sel.kitId] ?? 0.62) * 100)}%
                 <input type="range" min={0} max={100} value={Math.round((sel.v ?? kitVals[sel.kitId] ?? 0.62) * 100)}
                   onChange={(e) => useGen.getState().setBoardItemVal(sel.id, +e.target.value / 100)}
                   onDoubleClick={() => useGen.getState().setBoardItemVal(sel.id, null)} />
               </label>
             )}
             {sel.kitId && KIT_LABEL_EDITABLE.has(baseOf(sel.kitId)) && (
-              <label className="bd-slider" title="Text — this copy only. Clear the field to follow the kit again. Double-clicking the piece on the stage edits in place.">
-                The words — this copy
+              <label className="bd-slider" title="Text for this copy only. Clear the field to follow the kit again. Double-clicking the piece on the stage edits in place.">
+                The words for this copy
                 <input className="bd-abname bd-words" maxLength={labelMaxOf(baseOf(sel.kitId))} aria-label="Instance text"
-                  placeholder={kitLabels[sel.kitId] || "Text — this copy"}
+                  placeholder={kitLabels[sel.kitId] || "Text for this copy"}
                   value={sel.label ?? ""}
                   onChange={(e) => useGen.getState().setBoardItemLabel(sel.id, e.target.value)} />
               </label>
@@ -2637,10 +2756,10 @@ export function BoardView({ playing }: { playing: boolean }) {
                  a stored dial with no way back would break the
                  editability law. One-way by design. */
               <div className="bd-actions one">
-                <button aria-label="Factory glyph — follow the kit"
+                <button aria-label="Factory glyph: follow the kit"
                   title="This copy wears its own glyph (a starter deal, or a pick from before the per-copy rack retired). Follow the kit again: the family's stock glyph, or your kit-wide pick under Icons. To seat a different glyph, place its glyph button from the tray."
                   onClick={() => useGen.getState().setBoardItemOv(sel.id, null)}>
-                  <RotateCcw size={12} strokeWidth={2.2} /> Factory glyph — follow the kit
+                  <RotateCcw size={12} strokeWidth={2.2} /> Factory glyph: follow the kit
                 </button>
               </div>
             )}
@@ -2654,15 +2773,15 @@ export function BoardView({ playing }: { playing: boolean }) {
               const sh = sel.shadow;
               const patch = (p: Partial<NonNullable<typeof sh>> | null) => useGen.getState().setBoardItemShadow(sel.id, p);
               return (<>
-                <label className="bd-slider" title="Drop shadow — this copy only. While on it replaces the kit's own cast shadow here; double-click (or 0) follows the kit again. Exports and Unity scenes carry it.">
-                  Drop shadow — this copy · {sh?.s ?? 0}%
+                <label className="bd-slider" title="Drop shadow for this copy only. While on it replaces the kit's own cast shadow here; double-click (or 0) follows the kit again. Exports and Unity scenes carry it.">
+                  Drop shadow for this copy · {sh?.s ?? 0}%
                   <input type="range" min={0} max={100} value={sh?.s ?? 0}
                     onChange={(e) => patch({ s: +e.target.value })}
                     onDoubleClick={() => patch(null)} />
                 </label>
                 {!sh?.s && boardShadowLast && (
                   <div className="bd-actions one">
-                    <button title="Apply the last shadow you dialed — strength and pose together"
+                    <button title="Apply the last shadow you dialed: strength and pose together"
                       onClick={() => patch({ ...boardShadowLast })}>
                       Use my last shadow · {boardShadowLast.s}%
                     </button>
@@ -2681,7 +2800,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                     <input type="range" min={0} max={60} value={Math.round(sh!.blur ?? 2 + (sh!.s ?? 0) * 0.22)} onChange={(e) => patch({ blur: +e.target.value })}
                       onDoubleClick={() => patch({ blur: undefined })} />
                   </label>
-                  <div className="bd-note">Replaces the kit's cast shadow on THIS copy; in Unity it travels as the grounded shadow sibling — planted while the piece lifts and presses.</div>
+                  <div className="bd-note">Replaces the kit's cast shadow on THIS copy; in Unity it travels as the grounded shadow sibling, planted while the piece lifts and presses.</div>
                 </>)}
               </>);
             })()}
@@ -2698,7 +2817,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                     and the art follows live. One line by design: the
                     specimen renderer draws a single phrase. Double-click
                     the piece on the stage edits in place too. */}
-                <label className="bd-slider" title="The words this piece shows — type and the art follows live. Double-clicking the piece on the stage edits in place.">
+                <label className="bd-slider" title="The words this piece shows. Type and the art follows live. Double-clicking the piece on the stage edits in place.">
                   The words
                   <input className="bd-abname bd-words" value={st.text} maxLength={40} aria-label="Stamp text"
                     placeholder="Type the words…"
@@ -2709,10 +2828,10 @@ export function BoardView({ playing }: { playing: boolean }) {
                     pickable color, for labels that must READ anywhere */}
                 <div className="bd-actions bd-fitrow" role="radiogroup" aria-label="Text tier">
                   <button className={!st.plain ? "on" : ""} role="radio" aria-checked={!st.plain}
-                    title="The kit's full splash lettering — gradients, outline, glints, the works"
+                    title="The kit's full splash lettering: gradients, outline, glints, the works"
                     onClick={() => patch({ plain: undefined })}>Splash</button>
                   <button className={st.plain ? "on" : ""} role="radio" aria-checked={!!st.plain}
-                    title="The kit's font at one flat color you pick — labels that stay readable on any backdrop"
+                    title="The kit's font at one flat color you pick, for labels that stay readable on any backdrop"
                     onClick={() => { if (!st.plain) patch({ plain: { color: "#FFFFFF" } }); }}>Plain</button>
                 </div>
                 {st.plain && (
@@ -2763,7 +2882,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                       onDoubleClick={() => patch({ warp: { style: st.warp!.style, amount: 0 } })} />
                   </label>
                 )}
-                <div className="bd-note">The dials touch only THIS stamp — the kit's typography stays put. Glow wears the kit's Glow color.</div>
+                <div className="bd-note">The dials touch only THIS stamp. The kit's typography stays put. Glow wears the kit's Glow color.</div>
               </>);
             })()}
             {sel.big && (() => {
@@ -2841,7 +2960,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                       onChange={(e) => patch({ glowInk: e.target.checked ? undefined : (cfg.effects.Glow ?? "#7DF9FF") })} /> Kit's glow ink</label>
                   </label>
                 )}
-                <div className="bd-note">Your own art — the kit never restyles it. The dials touch only THIS copy; glow follows the kit's Glow color until you pick your own.</div>
+                <div className="bd-note">Your own art. The kit never restyles it. The dials touch only THIS copy; glow follows the kit's Glow color until you pick your own.</div>
               </>);
             })()}
             {/* stacking order — items render in array order, later = on top
@@ -2864,7 +2983,7 @@ export function BoardView({ playing }: { playing: boolean }) {
             <div className="bd-actions">
               {sel.kitId && (
                 <button onClick={() => { useGen.getState().setFocus(sel.kitId!); useGen.getState().setPhase("master"); }}
-                  title="Open this component in the editor — every control shapes it live">
+                  title="Open this component in the editor. Every control shapes it live">
                   <SquarePen size={13} strokeWidth={2.2} /> Edit component
                 </button>
               )}
@@ -2876,7 +2995,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                    The owner's FORWARD-button worry: a piece reworked on the
                    Board (words, value, the component's current look) freezes
                    into a named asset — the master keeps its own life. */
-                <button title="Save to my assets — this piece, with this look and label, becomes a reusable asset, and this copy becomes the saved item (Edit component opens it). The master component stays untouched."
+                <button title="Save to my assets: this piece, with this look and label, becomes a reusable asset, and this copy becomes the saved item (Edit component opens it). The master component stays untouched."
                   onClick={() => {
                     const def = sel.label ?? kitClones[sel.kitId!]?.name ?? KIT_COMPONENTS.find((c) => c.id === baseOf(sel.kitId!))?.name ?? "My asset";
                     const name = window.prompt("Save this piece to your assets as:", def);
@@ -2890,14 +3009,14 @@ export function BoardView({ playing }: { playing: boolean }) {
                 <Download size={13} strokeWidth={2.2} /> SVG
               </button>
               <button onClick={() => guardExport(() => { const p = svgOf(sel); void downloadPieceRaster(p, `board-${nameOf(sel).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`); })}
-                title="This piece as a transparent-background PNG at 2× — drops straight into an engine or a mockup">
+                title="This piece as a transparent-background PNG at 2×. Drops straight into an engine or a mockup">
                 <Download size={13} strokeWidth={2.2} /> PNG
               </button>
               <button className="danger" onClick={() => removeBoardItem(sel.id)} title="Remove (Delete)">
                 <Trash2 size={13} strokeWidth={2.2} /> Remove
               </button>
             </div>
-            {sel.kitId && <div className="bd-note"><Lock size={11} strokeWidth={2.2} /> Live asset — restyling the kit restyles this piece.</div>}
+            {sel.kitId && <div className="bd-note"><Lock size={11} strokeWidth={2.2} /> Live asset: restyling the kit restyles this piece.</div>}
           </>
         ) : act ? (
           <>
@@ -2945,10 +3064,10 @@ export function BoardView({ playing }: { playing: boolean }) {
                 {act.bgImage && (
                   <div className="bd-actions bd-fitrow" role="radiogroup" aria-label="Background fit">
                     <button className={(act.bgFit ?? "cover") === "cover" ? "on" : ""} role="radio" aria-checked={(act.bgFit ?? "cover") === "cover"}
-                      title="Fill the board — the scene covers the frame; overflow is cropped"
+                      title="Fill the board: the scene covers the frame; overflow is cropped"
                       onClick={() => setBoardBg({ bgFit: "cover" })}>Fill</button>
                     <button className={act.bgFit === "fit" ? "on" : ""} role="radio" aria-checked={act.bgFit === "fit"}
-                      title="Show the whole scene — nothing cropped, a blurred fill behind"
+                      title="Show the whole scene: nothing cropped, a blurred fill behind"
                       onClick={() => setBoardBg({ bgFit: "fit" })}>Fit</button>
                   </div>
                 )}
@@ -2979,16 +3098,16 @@ export function BoardView({ playing }: { playing: boolean }) {
                 <div className="bd-note">
                   {act.bgVideo
                     ? act.bgVideo.startsWith("blob:")
-                      ? "Your uploaded loop plays for this session only — bundled scenes, images and pasted URLs stick around."
+                      ? "Your uploaded loop plays for this session only. Bundled scenes, images and pasted URLs stick around."
                       : act.bgVideo.startsWith("/")
                         ? "The loop plays on the live board; a PNG export uses its first frame."
                         : "A remote loop plays on the live board and persists; the PNG export can include its frame only when the host allows it (CORS)."
-                    : "The image crops to the board bounds — cover fit, nothing spills."}
+                    : "The image crops to the board bounds: cover fit, nothing spills."}
                 </div>
               </>
             ) : (
               <div className="bd-actions one">
-                <button onClick={() => bgInput.current?.click()}><ImagePlus size={13} strokeWidth={2.2} /> Upload your own — image or mp4</button>
+                <button onClick={() => bgInput.current?.click()}><ImagePlus size={13} strokeWidth={2.2} /> Upload your own image or mp4</button>
               </div>
             )}
             <BgKeepsafeLine />
@@ -3033,12 +3152,12 @@ export function BoardView({ playing }: { playing: boolean }) {
                     {(["normal", "multiply", "screen", "overlay", "soft-light"] as const).map((b) => <option key={b} value={b}>{b}</option>)}
                   </select>
                 </label>
-                <div className="bd-note">Sits between the backdrop and your pieces — knock the art back so components pop. Exports include it.</div>
+                <div className="bd-note">Sits between the backdrop and your pieces. Knock the art back so components pop. Exports include it.</div>
               </>
             ) : (
               <div className="bd-note">A dark, light or vignetted wash with film grain, between the backdrop and the pieces.</div>
             )}
-            <label className="bd-slider" title="Dims the middle of the frame — the move games make behind menus so the UI pops. Stacks with the overlay above, or works alone.">
+            <label className="bd-slider" title="Dims the middle of the frame: the move games make behind menus so the UI pops. Stacks with the overlay above, or works alone.">
               Center scrim · {act.ovCenter ?? 0}%
               <input type="range" min={0} max={100} value={act.ovCenter ?? 0}
                 onChange={(e) => setBoardBg({ ovCenter: +e.target.value })}
@@ -3067,7 +3186,7 @@ export function BoardView({ playing }: { playing: boolean }) {
               <Plus size={15} strokeWidth={2.4} /> A FRESH BOARD
             </button>
             <button className="lootclaim" onClick={() => { const t = starterAsk; setStarterAsk(null); applyStarter(t, "replace"); }}>
-              <Copy size={15} strokeWidth={2.4} /> REPLACE THESE PIECES — BACKDROP STAYS
+              <Copy size={15} strokeWidth={2.4} /> REPLACE THESE PIECES, BACKDROP STAYS
             </button>
             <button className="gatequiet" onClick={() => { const t = starterAsk; setStarterAsk(null); applyStarter(t, "stack"); }}>
               Add on top of what's here
@@ -3739,7 +3858,7 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
                       const ry = Math.abs(r.handY + ddy - r.anchorY) / Math.max(1, Math.abs(r.handY - r.anchorY));
                       // corners follow the diagonal (both axes, averaged);
                       // the handlebars are pure vertical stretch-to-scale
-                      const s2 = Math.max(boardScaleMin(b), Math.min(2, r.s0 * (r.hx === 0.5 ? ry : (rx + ry) / 2)));
+                      const s2 = Math.max(boardScaleMin(b, boardItemArtShort(useGen.getState(), b)), Math.min(2, r.s0 * (r.hx === 0.5 ? ry : (rx + ry) / 2)));
                       useGen.getState().transformBoardItem(b.id, s2,
                         r.anchorX - (r.shx + r.axf * r.shw) * s2,
                         r.anchorY - (r.shy + r.ayf * r.shh) * s2);
