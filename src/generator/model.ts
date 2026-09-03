@@ -1219,33 +1219,33 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
       note: "How loudly the unselected captions read. Quiet is the factory look; push it up when a busy face pattern swallows the words." },
     { id: "offstyle", name: "Unselected treatment", kind: "choice",
       choices: ["Plain ink", "Full type style"],
-      note: "Plain ink keeps unselected captions deliberately understated. Full type style dresses them like the selected one — outline, shadow and all — so they hold up on loud faces." },
+      note: "Plain ink keeps unselected captions deliberately understated. Full type style dresses them like the selected one (outline, shadow and all) so they hold up on loud faces." },
   ],
   healthglobe: [
     { id: "lvl", name: "Level badge", kind: "free", def: "", maxLen: 3,
-      note: "A number here pins a small level medallion to the globe's lower-right rim — the Diablo corner badge. Empty keeps the classic bare globe." },
+      note: "A number here pins a small level medallion to the globe's lower-right rim: the Diablo corner badge. Empty keeps the classic bare globe." },
   ],
   quickslots: [
     /* the soulslike equipment quadrant: each arm is the ARMED item of its
        d-pad category — there is no centre socket, arming IS the tile */
-    { id: "g1", name: "Up — spell / skill", kind: "choice", choices: INV_GLYPHS,
+    { id: "g1", name: "Up: spell / skill", kind: "choice", choices: INV_GLYPHS,
       note: "The north tile: the armed spell or skill (d-pad up cycles it in the soulslike canon). Factory is the stock bolt; Empty leaves a dashed ready well." },
     { id: "q1", name: "Up quantity", kind: "free", def: "", maxLen: 3,
-      note: "A number here pins a count badge to the tile's corner — charges, uses. Empty removes it." },
-    { id: "g2", name: "Left — off-hand", kind: "choice", choices: INV_GLYPHS,
+      note: "A number here pins a count badge to the tile's corner: charges, uses. Empty removes it." },
+    { id: "g2", name: "Left: off-hand", kind: "choice", choices: INV_GLYPHS,
       note: "The west tile: the armed off-hand (d-pad left). Factory is the stock shield." },
     { id: "q2", name: "Left quantity", kind: "free", def: "", maxLen: 3,
       note: "Count badge for the west tile. Empty removes it." },
-    { id: "g3", name: "Right — weapon", kind: "choice", choices: INV_GLYPHS,
+    { id: "g3", name: "Right: weapon", kind: "choice", choices: INV_GLYPHS,
       note: "The east tile: the armed weapon (d-pad right). Factory is the stock sword." },
     { id: "q3", name: "Right quantity", kind: "free", def: "", maxLen: 3,
       note: "Count badge for the east tile. Empty removes it." },
-    { id: "g4", name: "Down — consumable", kind: "choice", choices: INV_GLYPHS,
-      note: "The south tile: the armed quick item (d-pad down) — the flask slot. Factory is the stock potion." },
+    { id: "g4", name: "Down: consumable", kind: "choice", choices: INV_GLYPHS,
+      note: "The south tile: the armed quick item (d-pad down), the flask slot. Factory is the stock potion." },
     { id: "q4", name: "Down quantity", kind: "free", def: "", maxLen: 3,
-      note: "The consumable count — the Estus number. Empty removes it." },
+      note: "The consumable count, the Estus number. Empty removes it." },
     { id: "active", name: "Active arm", kind: "choice", choices: ["None", "Up", "Left", "Right", "Down"],
-      note: "Lights one arm with the selection ring — the focus a controller draws while cycling. None rests the cross." },
+      note: "Lights one arm with the selection ring, the focus a controller draws while cycling. None rests the cross." },
   ],
   hotbar: [
     /* the owner, field round 46: "wasn't able to edit the color of the
@@ -1279,13 +1279,13 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
     { id: "b1", name: "Cell 1 badge", kind: "free", def: "", maxLen: 3,
       note: "A number here pins the red count dot to the cell's corner. Empty removes it." },
     { id: "b2", name: "Cell 2 badge", kind: "free", def: "3", maxLen: 3,
-      note: "The factory look badges this cell with 3 — the specimen's unread quests. Type 0 to clear it, any number to change it." },
+      note: "The factory look badges this cell with 3, the specimen's unread quests. Type 0 to clear it, any number to change it." },
     { id: "b3", name: "Cell 3 badge", kind: "free", def: "", maxLen: 3,
       note: "A number here pins the red count dot to the cell's corner. Empty removes it." },
     { id: "b4", name: "Cell 4 badge", kind: "free", def: "", maxLen: 3,
       note: "A number here pins the red count dot to the cell's corner. Empty removes it." },
     { id: "active", name: "Active cell", kind: "value",
-      note: "Driven by the value slider, in quarters — 0–24% lights cell 1, 25–49% cell 2, 50–74% cell 3, 75–100% cell 4." },
+      note: "Driven by the value slider, in quarters: 0–24% lights cell 1, 25–49% cell 2, 50–74% cell 3, 75–100% cell 4." },
   ],
   booster: [
     /* the owner, field round 48: "can't change the color of the
@@ -1304,47 +1304,47 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
        the quantity-badge pill to the well's corner. Kit-wide here; a
        board copy's glyph is per-copy via the Inspector's glyph picker. */
     { id: "qty", name: "Qty chip", kind: "free", def: "", maxLen: 6,
-      note: "The corner count chip — type ×250 (or 99+) to pin it to the well's corner. Empty keeps the button clean. It speaks the quantity-badge voice and dims with the disabled state." },
+      note: "The corner count chip: type ×250 (or 99+) to pin it to the well's corner. Empty keeps the button clean. It speaks the quantity-badge voice and dims with the disabled state." },
   ],
   boostercard: [
     /* name rides the main Text control (KIT_LABEL_EDITABLE); the second
        line is the house sub-label pattern — the dialogue box's split */
     { id: "effect", name: "Effect line", kind: "free", def: "+10% Damage", maxLen: 18,
-      note: "The quieter second line — what the booster does. Speaks the list voice, like the dialogue body. Empty keeps the specimen." },
+      note: "The quieter second line: what the booster does. Speaks the list voice, like the dialogue body. Empty keeps the specimen." },
     { id: "qty", name: "Quantity", kind: "value",
-      note: "Driven by the value slider — 0 to 100% maps ×1 to ×99 (the count-badge map). Untouched shows the ×3 specimen." },
+      note: "Driven by the value slider: 0 to 100% maps ×1 to ×99 (the count-badge map). Untouched shows the ×3 specimen." },
   ],
   vitalbar: [
     { id: "readout", name: "Readout", kind: "free", def: "1,250 / 1,500", maxLen: 18,
-      note: "The value text riding inside the track. Purely cosmetic here — the fill amount is the piece's live value." },
+      note: "The value text riding inside the track. Purely cosmetic here. The fill amount is the piece's live value." },
     { id: "tint", name: "Fill", kind: "choice", choices: ["Glow", "Health", "Mana", "Gold"],
-      note: "Glow follows the kit's Glow role. Health, Mana and Gold are the genre-semantic hues — same canon as the mana & stamina rails — so two bars in one kit can read as different resources." },
+      note: "Glow follows the kit's Glow role. Health, Mana and Gold are the genre-semantic hues (same canon as the mana & stamina rails), so two bars in one kit can read as different resources." },
   ],
   cardback: [
     { id: "emblem", name: "Emblem size", kind: "choice", choices: ["Standard", "Small", "Large", "Hero"],
-      note: "The set emblem's footprint — Standard is the factory 44% of the card's width; Hero nearly fills the face. Swap the glyph itself under Icon; the text field turns the back into a deck cover." },
+      note: "The set emblem's footprint. Standard is the factory 44% of the card's width; Hero nearly fills the face. Swap the glyph itself under Icon; the text field turns the back into a deck cover." },
     { id: "sparkles", name: "Corner sparkles", kind: "choice", choices: ["On", "Off"],
       note: "The four corner glints. Off reads cleaner on busy themes and photo backdrops." },
     { id: "frame", name: "Inner frame", kind: "choice", choices: ["On", "Off"],
-      note: "The frame line echoing the silhouette inside the wall — the classic card-back border." },
+      note: "The frame line echoing the silhouette inside the wall, the classic card-back border." },
   ],
   speedo: [
     { id: "unit", name: "Unit", kind: "choice", choices: ["MPH", "KPH"],
-      note: "A dial reads as an instrument because its unit is real — MPH or KPH, nothing invented." },
+      note: "A dial reads as an instrument because its unit is real: MPH or KPH, nothing invented." },
     { id: "readout", name: "Readout", kind: "value",
-      note: "Driven by the value slider — the number and the needle move together. Set the value to stage the exact frame you want." },
+      note: "Driven by the value slider: the number and the needle move together. Set the value to stage the exact frame you want." },
   ],
   speedo2: [
     { id: "unit", name: "Unit", kind: "choice", choices: ["MPH", "KPH"],
-      note: "A dial reads as an instrument because its unit is real — MPH or KPH, nothing invented." },
+      note: "A dial reads as an instrument because its unit is real: MPH or KPH, nothing invented." },
     { id: "readout", name: "Readout", kind: "value",
-      note: "Driven by the value slider — the number and the needle move together. Set the value to stage the exact frame you want." },
+      note: "Driven by the value slider: the number and the needle move together. Set the value to stage the exact frame you want." },
   ],
   tacho: [
     { id: "unit", name: "Unit", kind: "choice", choices: ["RPM ×1000", "RPM"],
-      note: "Tachometers read in revs — the ×1000 form is how real clusters print it." },
+      note: "Tachometers read in revs, and the ×1000 form is how real clusters print it." },
     { id: "readout", name: "Readout", kind: "value",
-      note: "Driven by the value slider — needle and number move together." },
+      note: "Driven by the value slider: needle and number move together." },
   ],
   waypoint: [
     { id: "unit", name: "Distance unit", kind: "choice", choices: ["m", "ft", "km", "mi"],
@@ -1356,7 +1356,7 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
     { id: "eyebrow", name: "Eyebrow", kind: "free", def: "SIDE QUEST", maxLen: 24,
       note: "The small caption above the quest name." },
     { id: "eyebrowColor", name: "Eyebrow color", kind: "color", def: "#FFFFFF",
-      note: "The caption's ink — factory is a quiet translucent white; a picked color prints solid." },
+      note: "The caption's ink. Factory is a quiet translucent white; a picked color prints solid." },
     { id: "obj1", name: "Objective 1", kind: "free", def: "Reach the vault gate", maxLen: 40 },
     { id: "obj2", name: "Objective 2", kind: "free", def: "Recover ember shards", maxLen: 40 },
     { id: "obj3", name: "Objective 3", kind: "free", def: "Return to Elder Rowan", maxLen: 40 },
@@ -1365,7 +1365,7 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
     { id: "speaker", name: "Speaker", kind: "free", def: "ELDER ROWAN", maxLen: 24 },
     { id: "line2", name: "Second line", kind: "free", def: "Take the ember pass at first light.", maxLen: 60 },
     { id: "bodyColor", name: "Body text color", kind: "color", def: "#1A2418",
-      note: "The reading lines' own ink — the speaker plate keeps the kit's type color, so the body can go dark for the light face without touching the title." },
+      note: "The reading lines' own ink. The speaker plate keeps the kit's type color, so the body can go dark for the light face without touching the title." },
   ],
   chatbubble: [
     { id: "sender", name: "Sender", kind: "free", def: "NOVA_KNIGHT", maxLen: 20 },
@@ -1375,11 +1375,11 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
     /* both counts are the piece's real content — the prototyper stages the
        exact frame (owner: "couldn't find the value slider for this") */
     { id: "mag", name: "Magazine", kind: "free", def: "24", maxLen: 4,
-      note: "The live round count — the big number." },
+      note: "The live round count, the big number." },
     { id: "reserve", name: "Reserve", kind: "free", def: "90", maxLen: 4,
       note: "The backup count after the slash. Clear it for a bare magazine readout." },
     { id: "gap", name: "Reserve gap", kind: "choice", choices: ["Factory", "Snug", "Roomy", "Wide"],
-      note: "Air between the count and the slash — wide display faces read better with more." },
+      note: "Air between the count and the slash. Wide display faces read better with more." },
   ],
   spinwheel: [
     /* the fortune wheel was a fixed picture — count, jackpot and glyphs are
@@ -1389,7 +1389,7 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
     { id: "wedges", name: "Wedges", kind: "choice", choices: ["8", "6", "10", "12"],
       note: "How many prizes the wheel offers. The jackpot wedges stay opposite each other whatever the count." },
     { id: "jackpot", name: "Jackpot color", kind: "color", def: "#FACC15",
-      note: "The winning wedge's ink — gold by factory. The other wedges are mixed from your Color map." },
+      note: "The winning wedge's ink, gold by factory. The other wedges are mixed from your Color map." },
     { id: "glyph1", name: "Glyph 1", kind: "choice", choices: GLYPH_CHOICES },
     { id: "glyph2", name: "Glyph 2", kind: "choice", choices: GLYPH_CHOICES },
     { id: "glyph3", name: "Glyph 3", kind: "choice", choices: GLYPH_CHOICES },
@@ -1402,29 +1402,29 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
     { id: "goword", name: "Ready word", kind: "free", def: "GO", maxLen: 10,
       note: "The celebration word at zero. Drag the Value slider to 0 to stage the GO frame; the readout counts down to it." },
     { id: "goheading", name: "Ready heading", kind: "free", def: "REDEPLOY", maxLen: 24,
-      note: "The heading the GO frame swaps in — the countdown heading is the piece's label in Typography." },
+      note: "The heading the GO frame swaps in. The countdown heading is the piece's label in Typography." },
     { id: "readycolor", name: "Ready color", kind: "color", def: "#4ADE80",
-      note: "The celebration ink — the GO word, its pulse, and the hue the countdown and bar warm toward. Factory is the arcade ready-green." },
+      note: "The celebration ink: the GO word, its pulse, and the hue the countdown and bar warm toward. Factory is the arcade ready-green." },
     { id: "barheight", name: "Bar height", kind: "choice", choices: ["Standard", "Slim", "Chunky", "Hidden"],
-      note: "The countdown strip's weight — Hidden drops it entirely for a pure readout." },
+      note: "The countdown strip's weight. Hidden drops it entirely for a pure readout." },
   ],
   streakmeter: [
     /* the ignition glyph is the meter's whole story (owner: "need to be
        able to control / customize the icon on the streak counter") */
     { id: "endicon", name: "Ignition icon", kind: "choice", choices: STREAK_GLYPHS,
-      note: "The glyph that lights when the streak fills — Factory is the zap. None removes it; size and weight follow Typography → Icons." },
+      note: "The glyph that lights when the streak fills. Factory is the zap. None removes it; size and weight follow Typography → Icons." },
     /* round 48 (owner: "i can't change the icon color of the streak meter
        (non-ignited)") — the unlit pose wore a baked dim white while the
        lit pose answered the Glow role. One well inks the ghost. */
     { id: "offink", name: "Idle icon color", kind: "color", def: "#FFFFFF",
-      note: "The ignition glyph's UNLIT pose — the ghost it wears while the streak builds. Factory is a dim HUD white; a pick here inks it alone. The lit pose follows the kit's Glow role." },
+      note: "The ignition glyph's UNLIT pose, the ghost it wears while the streak builds. Factory is a dim HUD white; a pick here inks it alone. The lit pose follows the kit's Glow role." },
   ],
   joystick: [
     /* the overlay stick's stroke-and-glass ink all mixes from one hue
        (owner: "i also need to be able to edit the color on the ghost
        joystick") */
     { id: "ghostink", name: "Ghost color", kind: "color", def: "#FFFFFF",
-      note: "The ghost overlay stick's ink — ring, ticks, chevrons and knob all mix from this one hue. Factory follows the kit's Glow role; a picked color takes over. The solid pad doesn't wear it." },
+      note: "The ghost overlay stick's ink: ring, ticks, chevrons and knob all mix from this one hue. Factory follows the kit's Glow role; a picked color takes over. The solid pad doesn't wear it." },
   ],
   invgrid: [
     /* every cell's glyph is content (owner: "I should be able to change
@@ -1438,7 +1438,7 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
     { id: "cell7", name: "Cell 7 item", kind: "choice", choices: INV_GLYPHS },
     { id: "cell8", name: "Cell 8 item", kind: "choice", choices: INV_GLYPHS },
     { id: "cell9", name: "Cell 9 item", kind: "choice", choices: INV_GLYPHS,
-      note: "Cells 10–12 are the empty wells — pick a glyph for any cell (or Empty to clear one); Factory keeps the stock loadout." },
+      note: "Cells 10–12 are the empty wells. Pick a glyph for any cell (or Empty to clear one); Factory keeps the stock loadout." },
     { id: "cell10", name: "Cell 10 item", kind: "choice", choices: INV_GLYPHS },
     { id: "cell11", name: "Cell 11 item", kind: "choice", choices: INV_GLYPHS },
     { id: "cell12", name: "Cell 12 item", kind: "choice", choices: INV_GLYPHS },
@@ -1462,21 +1462,21 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
        holds (face = Inner Fill role, rim = Bevel role, glow/path = Glow
        role, white check, half veil) — the booster count-well precedent. */
     { id: "face", name: "Face color", kind: "color", def: "#27B0DE", statable: true,
-      note: "The node's candy face. Factory follows the kit's Inner Fill role under Effects. Unpinned, a pick is the node's BASE — every state follows it live; pin Learned or Locked on the State tray first to dress that state alone." },
+      note: "The node's candy face. Factory follows the kit's Inner Fill role under Effects. Unpinned, a pick is the node's BASE: every state follows it live; pin Learned or Locked on the State tray first to dress that state alone." },
     { id: "rim", name: "Rim & wall", kind: "color", def: "#0E9CC9", statable: true,
       note: "The shell ring and bevel wall. Factory follows the kit's Bevel role. Base and per-state picks work like the face well." },
     { id: "glowColor", name: "Glow", kind: "color", def: "#5FD4F4", allowNone: true, statable: true,
-      note: "The node's glow — inner bloom and aura together. Factory follows the kit's Glow role. None turns the glow off for the state being edited; base and per-state picks work like the face well." },
+      note: "The node's glow: inner bloom and aura together. Factory follows the kit's Glow role. None turns the glow off for the state being edited; base and per-state picks work like the face well." },
     { id: "glyphInk", name: "Glyph ink", kind: "color", def: "#FFFFFF", statable: true,
-      note: "The skill glyph's ink — and the padlock's, in Locked. Factory follows the kit's icon color under Typography → Icons. Base and per-state picks work like the face well." },
+      note: "The skill glyph's ink, and the padlock's, in Locked. Factory follows the kit's icon color under Typography → Icons. Base and per-state picks work like the face well." },
     { id: "pathColor", name: "Path color", kind: "color", def: "#0E9CC9", statable: true,
-      note: "The connector stub — the path into the node. Factory follows the kit's Glow role under Effects; a base pick moves every state's stub, a pinned pick that state's alone." },
+      note: "The connector stub, the path into the node. Factory follows the kit's Glow role under Effects; a base pick moves every state's stub, a pinned pick that state's alone." },
     { id: "checkColor", name: "Check badge", kind: "color", def: "#0E9CC9", allowNone: true, state: "learned",
-      note: "The Learned state's corner badge — plate and ring together (the ring stays the plate's own darker edge). Factory follows the kit's Bevel role; a pick forks it alone. None removes the badge entirely." },
+      note: "The Learned state's corner badge: plate and ring together (the ring stays the plate's own darker edge). Factory follows the kit's Bevel role; a pick forks it alone. None removes the badge entirely." },
     { id: "checkInk", name: "Check mark", kind: "color", def: "#FFFFFF", state: "learned",
       note: "The mark riding the badge plate. Factory is white. Reads only while the badge is on." },
     { id: "checkGlyph", name: "Badge glyph", kind: "choice", choices: GLYPH_CHOICES, state: "learned",
-      note: "What the badge carries — Factory is the check. Reads only while the badge is on." },
+      note: "What the badge carries. Factory is the check. Reads only while the badge is on." },
     { id: "lockedDim", name: "Veil strength", kind: "dial", def: "50", state: "locked",
       note: "How heavily the Locked veil dims the node. Factory is the classic half veil; 0 lifts the veil entirely." },
   ],
@@ -1533,9 +1533,9 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
   achievetoast: [
     { id: "eyebrow", name: "Eyebrow", kind: "free", def: "ACHIEVEMENT UNLOCKED", maxLen: 28 },
     { id: "eyebrowColor", name: "Eyebrow color", kind: "color", def: "#FACC15",
-      note: "The announcement line's ink — gold is the factory setting because unlocks read as gold." },
+      note: "The announcement line's ink. Gold is the factory setting because unlocks read as gold." },
     { id: "eyebrowStroke", name: "Eyebrow stroke", kind: "color", def: "#141A28", allowNone: true,
-      note: "The thin keyline around the announcement letters — keeps them legible over bright shells. Factory is a soft translucent dark; a picked color prints solid; None removes it." },
+      note: "The thin keyline around the announcement letters, keeping them legible over bright shells. Factory is a soft translucent dark; a picked color prints solid; None removes it." },
   ],
   movecounter: [
     { id: "caption", name: "Caption", kind: "free", def: "MOVES", maxLen: 12 },
@@ -1546,21 +1546,21 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
     { id: "i1", name: "Line 1", kind: "free", def: "Flour · eggs · milk", maxLen: 26 },
     { id: "i2", name: "Line 2", kind: "free", def: "Flip until golden", maxLen: 26 },
     { id: "i3", name: "Line 3", kind: "free", def: "Serve with syrup", maxLen: 26 },
-    { id: "timer", name: "Time left", kind: "value", note: "Driven by the value slider — 100% is a fresh ticket, 0% is overdue." },
+    { id: "timer", name: "Time left", kind: "value", note: "Driven by the value slider: 100% is a fresh ticket, 0% is overdue." },
   ],
   chest: [
     { id: "tier", name: "Chest tier", kind: "choice", choices: ["Wood", "Iron", "Gold", "Premium", "Event"], note: "Wood/Iron/Gold are the small/medium/large ladder; Premium and Event are the specials. The trim wears the tier; the body stays the kit's material." },
     { id: "variant", name: "Gate", kind: "choice", choices: ["Timed", "Locked", "Plain"], note: "Timed shows the countdown plate; Locked wears the padlock (key-gated, no timer)." },
-    { id: "time", name: "Unlock", kind: "value", note: "Driven by the value slider — 100% just started, 0% is READY to open. Disabled = already opened." },
+    { id: "time", name: "Unlock", kind: "value", note: "Driven by the value slider: 100% just started, 0% is READY to open. Disabled = already opened." },
   ],
   giftbox: [
     { id: "tag", name: "Tag", kind: "choice", choices: ["Plain", "Daily", "Surprise", "Milestone"], note: "Daily wears the banner, Surprise the ?, Milestone adds the progress ring." },
-    { id: "ready", name: "Readiness", kind: "value", note: "Driven by the value slider — at 100% the gift glows ready to claim. Disabled = claimed." },
+    { id: "ready", name: "Readiness", kind: "value", note: "Driven by the value slider: at 100% the gift glows ready to claim. Disabled = claimed." },
   ],
   rewardcard: [
     { id: "qty", name: "Quantity", kind: "free", def: "×3", maxLen: 8 },
-    { id: "kind", name: "Face", kind: "choice", choices: ["Revealed", "Mystery"], note: "Mystery hides the reward as a ? silhouette — the pre-reveal card." },
-    { id: "tierv", name: "Rarity", kind: "value", note: "Driven by the value slider — the card's aura walks the kit's rarity tiers (see Color → Rarity tiers)." },
+    { id: "kind", name: "Face", kind: "choice", choices: ["Revealed", "Mystery"], note: "Mystery hides the reward as a ? silhouette, the pre-reveal card." },
+    { id: "tierv", name: "Rarity", kind: "value", note: "Driven by the value slider: the card's aura walks the kit's rarity tiers (see Color → Rarity tiers)." },
   ],
   rewardtray: [
     { id: "title", name: "Title", kind: "free", def: "REWARDS", maxLen: 16 },
@@ -1568,7 +1568,7 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
     { id: "q2", name: "Qty 2", kind: "free", def: "×3", maxLen: 6 },
     { id: "q3", name: "Qty 3", kind: "free", def: "×1", maxLen: 6 },
     { id: "q4", name: "Qty 4", kind: "free", def: "×2", maxLen: 6 },
-    { id: "reveal", name: "Reveal", kind: "value", note: "Driven by the value slider — slots flip from ? to revealed left to right; 100% is the full summary." },
+    { id: "reveal", name: "Reveal", kind: "value", note: "Driven by the value slider: slots flip from ? to revealed left to right; 100% is the full summary." },
   ],
   claimbtn: [
     { id: "mode", name: "Mode", kind: "choice", choices: ["Claim all", "2x by ad"], note: "Claim-all wears the gift; the ad take wears the play badge and the ×2 ribbon." },
@@ -1607,9 +1607,9 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
        auto-contrast suggestion), never dialed. Unset = today's kit-derived
        look. */
     { id: "rowplate", name: "Row plate", kind: "color", def: "#222A38",
-      note: "The open menu's plate. Unset follows the kit's face. The hover highlight derives from this automatically — lighter on dark plates, darker on pale ones, always legible." },
+      note: "The open menu's plate. Unset follows the kit's face. The hover highlight derives from this automatically: lighter on dark plates, darker on pale ones, always legible." },
     { id: "rowtext", name: "Row text", kind: "color", def: "#FFFFFF",
-      note: "Row text ink. Unset picks a legible ink for the plate on its own — white on dark plates, deep ink on pale ones." },
+      note: "Row text ink. Unset picks a legible ink for the plate on its own: white on dark plates, deep ink on pale ones." },
   ],
   flipclock: [
     { id: "tag1", name: "Tag 1", kind: "free", def: "DAYS", maxLen: 10 },
@@ -1719,7 +1719,7 @@ for (const g of GLYPH_LIBRARY) {
   if (!g.detail) continue;
   KIT_SLOTS[`glyph${g.id}` as KitComponentId] = [
     { id: "detailglow", name: "Band glow", kind: "dial",
-      note: "The engraved bands (seams, recess shading) are inked in the kit's Shadow role and carry the same bloom the extrusion shadow wears on buttons — same ink (Inner glow color when set, else the Glow well), same dial. Band glow follows the kit's glow until you set it; a set dial is this glyph's own strength, and 0 keeps its engraving quiet." },
+      note: "The engraved bands (seams, recess shading) are inked in the kit's Shadow role and carry the same bloom the extrusion shadow wears on buttons: same ink (Inner glow color when set, else the Glow well), same dial. Band glow follows the kit's glow until you set it; a set dial is this glyph's own strength, and 0 keeps its engraving quiet." },
   ];
 }
 
@@ -1732,48 +1732,48 @@ export type KitLesson = {
 };
 export const KIT_LESSONS: Partial<Record<KitComponentId, KitLesson>> = {
   speedo: {
-    what: "An analog gauge — the industry calls this a dial or needle gauge. Value maps to needle angle, with the danger zone marked in the alarm color.",
+    what: "An analog gauge. The industry calls this a dial or needle gauge. Value maps to needle angle, with the danger zone marked in the alarm color.",
     history: "Pole Position (1982) showed speed as a bare number; OutRun (1986) put a dashboard under it; by Ridge Racer (1993) and Gran Turismo (1997) the skeuomorphic dial was the racing genre's signature. It survives because a needle's angle reads faster in peripheral vision than a number.",
-    games: "Gran Turismo 7 (2022) for cockpit-grade dials · Forza Horizon 5 (2021) for the minimal floating dial · and as a counter-example, Mario Kart 8 (2014) has no speedometer at all — speed is told through field-of-view and motion blur.",
+    games: "Gran Turismo 7 (2022) for cockpit-grade dials · Forza Horizon 5 (2021) for the minimal floating dial · and as a counter-example, Mario Kart 8 (2014) has no speedometer at all. Speed is told through field-of-view and motion blur.",
     links: [
-      { label: "Speedometer — the real-world instrument", url: "https://en.wikipedia.org/wiki/Speedometer" },
-      { label: "Game UI Database — thousands of real game HUD screenshots", url: "https://www.gameuidatabase.com/" },
+      { label: "Speedometer: the real-world instrument", url: "https://en.wikipedia.org/wiki/Speedometer" },
+      { label: "Game UI Database: thousands of real game HUD screenshots", url: "https://www.gameuidatabase.com/" },
     ],
   },
   dropdown: {
-    what: "A select control — one value on show, the whole list on demand; the Pressed state here draws it open. The menu rows speak three voices: resting, HIGHLIGHTED (the row under the cursor — its bar borrows this kit's Hover recipe, so tuning your Hover state retunes the menu too), and SELECTED (the check — the choice that is currently true). Highlighted moves constantly; selected only changes when you commit. Mixing them up is one of the most common menu mistakes in games.",
-    history: "Games inherited the dropdown from the desktop — the Macintosh (1984) fixed the pattern of a closed value unfolding into a list, and PC strategy and sim UIs that already leaned on desktop conventions (SimCity 2000 (1993), Civilization II (1996)) brought it into games. It settled where games are configured rather than played: the settings screen.",
-    games: "Baldur's Gate 3 (2023) and Cyberpunk 2077 (2020) for modern PC settings dropdowns · as the counter-pattern, console games since the PlayStation era mostly use left/right option cyclers instead — a d-pad hates scrolling nested lists, which is why Gran Turismo and FIFA settings flip through values in place rather than dropping a menu.",
+    what: "A select control: one value on show, the whole list on demand; the Pressed state here draws it open. The menu rows speak three voices: resting, HIGHLIGHTED (the row under the cursor; its bar borrows this kit's Hover recipe, so tuning your Hover state retunes the menu too), and SELECTED (the check, the choice that is currently true). Highlighted moves constantly; selected only changes when you commit. Mixing them up is one of the most common menu mistakes in games.",
+    history: "Games inherited the dropdown from the desktop. The Macintosh (1984) fixed the pattern of a closed value unfolding into a list, and PC strategy and sim UIs that already leaned on desktop conventions (SimCity 2000 (1993), Civilization II (1996)) brought it into games. It settled where games are configured rather than played: the settings screen.",
+    games: "Baldur's Gate 3 (2023) and Cyberpunk 2077 (2020) for modern PC settings dropdowns · as the counter-pattern, console games since the PlayStation era mostly use left/right option cyclers instead: a d-pad hates scrolling nested lists, which is why Gran Turismo and FIFA settings flip through values in place rather than dropping a menu.",
     links: [
-      { label: "Drop-down list — the desktop pattern games inherited", url: "https://en.wikipedia.org/wiki/Drop-down_list" },
-      { label: "Game UI Database — thousands of real game settings screens", url: "https://www.gameuidatabase.com/" },
+      { label: "Drop-down list: the desktop pattern games inherited", url: "https://en.wikipedia.org/wiki/Drop-down_list" },
+      { label: "Game UI Database: thousands of real game settings screens", url: "https://www.gameuidatabase.com/" },
     ],
   },
   speedo2: {
-    what: "The HUD cut of the analog gauge — same needle physics, drawn open-faced so it can sit over gameplay without a housing.",
-    history: "As the chase camera took over — OutRun (1986) through Need for Speed (1994) — the dial left the cockpit and became a floating HUD instrument, keeping the needle (fast to read) while dropping the chrome. Burnout Paradise (2008) fused it with the boost meter; F-Zero GX (2003) turned raw speed into the spectacle itself.",
+    what: "The HUD cut of the analog gauge: same needle physics, drawn open-faced so it can sit over gameplay without a housing.",
+    history: "As the chase camera took over, from OutRun (1986) through Need for Speed (1994), the dial left the cockpit and became a floating HUD instrument, keeping the needle (fast to read) while dropping the chrome. Burnout Paradise (2008) fused it with the boost meter; F-Zero GX (2003) turned raw speed into the spectacle itself.",
     games: "Forza Horizon 5 (2021) for restraint · Burnout Paradise (2008) for speed-plus-boost in one instrument · F-Zero GX (2003) for speed as drama.",
     links: [
-      { label: "Game UI Database — thousands of real game HUD screenshots", url: "https://www.gameuidatabase.com/" },
-      { label: "HUDs in games — history and patterns", url: "https://en.wikipedia.org/wiki/HUD_(video_games)" },
+      { label: "Game UI Database: thousands of real game HUD screenshots", url: "https://www.gameuidatabase.com/" },
+      { label: "HUDs in games: history and patterns", url: "https://en.wikipedia.org/wiki/HUD_(video_games)" },
     ],
   },
   secondary: {
-    what: "The companion action — the industry says secondary button. It is the SAME button as your primary (same silhouette, bevel, gloss, states) with exactly two things turned down: the candy face washes almost all the way toward the surface, and the label ink trades white for a tint of your Bevel color. Every screen has one action the game wants (PLAY, CLAIM) and companions that must exist without competing (Back, Not now) — the pair encodes that choice physically, so the eye lands on the primary first, every time.",
-    history: "The two-volume button pair is older than games: the Macintosh (1984) fixed the dialog convention of one emphasized default beside quieter alternatives, and games absorbed it through their settings screens and confirm dialogs. Mobile free-to-play hardened it into grammar — when every screen sells one thing, Candy Crush Saga (2012) and Clash of Clans (2012) made the wanted answer candy-bright and the polite refusal matte. A gray stock secondary next to a candy primary reads as borrowed furniture, which is why this kit cuts both buttons from the same material and only changes the volume.",
-    games: "Fortnite (2017) — a lobby built so one loud PLAY outranks a dozen quiet doors · Hades (2020) for disciplined loud/quiet pairs in shops and prompts · counter-example: dark-pattern purchase dialogs that make BOTH buttons shout (or swap their positions) to farm misclicks — players notice, and reviews say so.",
+    what: "The companion action. The industry says secondary button. It is the SAME button as your primary (same silhouette, bevel, gloss, states) with exactly two things turned down: the candy face washes almost all the way toward the surface, and the label ink trades white for a tint of your Bevel color. Every screen has one action the game wants (PLAY, CLAIM) and companions that must exist without competing (Back, Not now). The pair encodes that choice physically, so the eye lands on the primary first, every time.",
+    history: "The two-volume button pair is older than games: the Macintosh (1984) fixed the dialog convention of one emphasized default beside quieter alternatives, and games absorbed it through their settings screens and confirm dialogs. Mobile free-to-play hardened it into grammar: when every screen sells one thing, Candy Crush Saga (2012) and Clash of Clans (2012) made the wanted answer candy-bright and the polite refusal matte. A gray stock secondary next to a candy primary reads as borrowed furniture, which is why this kit cuts both buttons from the same material and only changes the volume.",
+    games: "Fortnite (2017) for a lobby built so one loud PLAY outranks a dozen quiet doors · Hades (2020) for disciplined loud/quiet pairs in shops and prompts · counter-example: dark-pattern purchase dialogs that make BOTH buttons shout (or swap their positions) to farm misclicks. Players notice, and reviews say so.",
     links: [
-      { label: "Material Design — button hierarchy, the reference write-up", url: "https://m3.material.io/components/buttons/overview" },
-      { label: "Game UI Database — thousands of real game dialogs and lobbies", url: "https://www.gameuidatabase.com/" },
+      { label: "Material Design: button hierarchy, the reference write-up", url: "https://m3.material.io/components/buttons/overview" },
+      { label: "Game UI Database: thousands of real game dialogs and lobbies", url: "https://www.gameuidatabase.com/" },
     ],
   },
   ghost: {
-    what: "The quietest rung of the ladder — primary speaks, secondary accompanies, ghost whispers. Same washed-face treatment as the secondary on a smaller, icon-less frame, for actions that must exist but should nearly disappear: skip, dismiss, \"maybe later\", the legal link under a big decision.",
-    history: "The name comes from the flat-design web (~2013–2014): transparent buttons with hairline borders floating on hero images, back when every startup homepage had one. Games were flattening at the same time, and the ghost settled where games whisper — the press-to-continue prompt, the skip control, the fine-print action under a paywall.",
-    games: "Destiny (2014) for whisper-quiet menu chrome around loud reward moments · Alto's Adventure (2015) for menus that nearly dissolve into the scene · counter-example: the skip button in mobile ads, ghosted specifically so you miss it — your game earns goodwill by making skip honest.",
+    what: "The quietest rung of the ladder: primary speaks, secondary accompanies, ghost whispers. Same washed-face treatment as the secondary on a smaller, icon-less frame, for actions that must exist but should nearly disappear: skip, dismiss, \"maybe later\", the legal link under a big decision.",
+    history: "The name comes from the flat-design web (~2013–2014): transparent buttons with hairline borders floating on hero images, back when every startup homepage had one. Games were flattening at the same time, and the ghost settled where games whisper: the press-to-continue prompt, the skip control, the fine-print action under a paywall.",
+    games: "Destiny (2014) for whisper-quiet menu chrome around loud reward moments · Alto's Adventure (2015) for menus that nearly dissolve into the scene · counter-example: the skip button in mobile ads, ghosted specifically so you miss it. Your game earns goodwill by making skip honest.",
     links: [
-      { label: "Flat design — the era that named the ghost button", url: "https://en.wikipedia.org/wiki/Flat_design" },
-      { label: "Game UI Database — thousands of real game menu screens", url: "https://www.gameuidatabase.com/" },
+      { label: "Flat design: the era that named the ghost button", url: "https://en.wikipedia.org/wiki/Flat_design" },
+      { label: "Game UI Database: thousands of real game menu screens", url: "https://www.gameuidatabase.com/" },
     ],
   },
 };

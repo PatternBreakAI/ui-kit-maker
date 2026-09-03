@@ -119,8 +119,8 @@ export function canExport(tier: Tier, kind: ExportKind): boolean {
     Free-play round: the guest line pitches SAVING, never play features —
     guests already have the whole playground. */
 export const UPGRADE_LINES: Record<Tier, string> = {
-  guest: "Sign in free — save your kits to your account and keep them on any device.",
-  free: "Go Pro — export everything you design: SVG, HTML, sprite sheets, the Unity engine kit, and 4× zoom.",
+  guest: "Sign in free and your kits save to your account, on any device.",
+  free: "Go Pro to export everything you design: SVG, HTML, sprite sheets, the Unity engine kit, and 4× zoom.",
   student: "Selling what you build? Pro carries the commercial licence.",
   pro: "",
 };
