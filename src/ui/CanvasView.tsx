@@ -321,14 +321,25 @@ export function CanvasView() {
            near-black words under a light top bar and light trays in light
            mode (round 68). The desk takes the app's ground from CSS
            instead; the board's own artboard keeps its colour, its
-           backdrop and its overlays in .bd-stage, where they belong. */
-        style={bgImage && phase !== "board" ? {
+           backdrop and its overlays in .bd-stage, where they belong.
+
+           Round 69 finishes the line: the scroller is an ARTBOARD in
+           MASTER phase only — that is the one phase where the piece being
+           designed actually stands on it. On the Kit it is the desk under
+           a DOCUMENT: the sheet's ground, behind its prose and its section
+           chrome, is app furniture and follows the app's theme like the
+           top bar beside it. The stage backdrop stays with the artboard
+           for the same reason it stays off the Board — a photograph under
+           a page of body copy is the same mixing, one layer down. The
+           user's canvas colour is untouched and still paints the artboard
+           in master phase, where it is their design decision. */
+        style={bgImage && phase === "master" ? {
           backgroundColor: cfg.canvas,
           backgroundImage: `url(${bgImage})`,
           backgroundSize: "cover",
           backgroundPosition: "center",
         } : {
-          backgroundColor: phase === "board" ? undefined : cfg.canvas,
+          backgroundColor: phase === "master" ? cfg.canvas : undefined,
           // the Kit is a document — it reads on a clean ground, never a grid
           backgroundImage: phase === "kit" ? undefined :
             gridStyle === "dots" ? `radial-gradient(circle, ${dotColor} 1px, transparent 1.4px)` :

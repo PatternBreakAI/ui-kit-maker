@@ -4558,6 +4558,22 @@ export interface KitOpts {
    *  per-piece text color) — instrument readouts that default to plain AUTO
    *  ink (cooldown) switch to the full type treatment when set. */
   themedText?: boolean;
+  /** THE GROUND THIS RENDER SITS ON, when it is not the artboard.
+   *
+   *  Nearly everything a piece draws sits on the piece's own shell and takes
+   *  its ink from that material. A handful of marks are drawn OUTSIDE the
+   *  shell, on bare ground — the ring's readout in its hole, the flip clock's
+   *  tag line and separator dots, the gauge's unlit ticks, the circuit's name
+   *  plate and start tick, the start-lights caption. Those have no surface of
+   *  their own, so their ink has to answer whatever the piece is standing on.
+   *
+   *  That ground is the ARTBOARD — `cfg.canvas`, the user's own stage colour
+   *  — everywhere the piece is placed on the stage or written to a file, and
+   *  the artboard stays the default, so every export is byte-identical with
+   *  this option absent. The kit SHEET is the one caller that is NOT the
+   *  artboard: the sheet is app furniture, it follows the app's theme, and it
+   *  says which ground it is offering here. */
+  onDark?: boolean;
   /** Data-row content model — independent size/tracking/placement per text
    *  group and slot toggles. Explicit label/sub/value still win per instance. */
   row?: {
@@ -4744,6 +4760,11 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
   const typeOyK = (opts.textOy ?? cfg.type.oy ?? 0);
   const typeOxK = (opts.textOx ?? cfg.type.ox ?? 0);
   const bevel = effect(cfg.effects, "Bevel"), glow = effect(cfg.effects, "Glow");
+  /* AUTO-INK FOR ART DRAWN OUTSIDE THE SHELL — is the ground under this
+     piece dark? See KitOpts.onDark for the artboard/sheet line. Absent, it
+     is the ARTBOARD, exactly as before: every export path leaves it absent,
+     so exported bytes are unchanged. Only the kit sheet passes it. */
+  const onDark = opts.onDark ?? isDarkBg(cfg.canvas);
   // the dragger ball can carry its own color; null follows the Bevel role
   const knobC = cfg.knob?.color ?? bevel;
   /* the SELECTED-mark ink (checkbox check, radio pip): Pressed is the kit's
@@ -10449,7 +10470,7 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
   <circle cx="${cx3}" cy="${cy3}" r="${r2}" fill="none" stroke="${wellFill}" stroke-width="${stroke2}"/>
   ${v2 > 0.005 ? `<circle cx="${cx3}" cy="${cy3}" r="${r2}" fill="none" stroke="${glow}" stroke-width="${stroke2}" stroke-linecap="round" stroke-dasharray="${(circ * v2).toFixed(1)} ${circ.toFixed(1)}" transform="rotate(-90 ${cx3} ${cy3})" filter="url(#${gid3}g)" opacity="0.55"/>
   <circle cx="${cx3}" cy="${cy3}" r="${r2}" fill="none" stroke="url(#${gid3})" stroke-width="${stroke2}" stroke-linecap="round" stroke-dasharray="${(circ * v2).toFixed(1)} ${circ.toFixed(1)}" transform="rotate(-90 ${cx3} ${cy3})"/>` : ""}
-  ${contentText(label2, cx3, cy3 + 1, d2 * 0.18, { anchor: "middle", keepCase: true, autoInk: isDarkBg(cfg.canvas) ? "#FFFFFF" : darken(bevel, 0.55) })}
+  ${contentText(label2, cx3, cy3 + 1, d2 * 0.18, { anchor: "middle", keepCase: true, autoInk: onDark ? "#FFFFFF" : darken(bevel, 0.55) })}
 </g>
 </svg>`;
     }
@@ -10504,9 +10525,9 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
           </g>
           <circle cx="${(x + insT + 7 * k).toFixed(1)}" cy="${midY}" r="${(3.6 * k).toFixed(1)}" fill="#04060C" opacity="0.92"/>
           <circle cx="${(x + tw - insT - 7 * k).toFixed(1)}" cy="${midY}" r="${(3.6 * k).toFixed(1)}" fill="#04060C" opacity="0.92"/>
-          <text x="${x + tw / 2}" y="${(pad3 + th + 38 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(12.5 * k).toFixed(1)}" font-weight="800" letter-spacing=".22em" fill="${urgent ? alarm : (isDarkBg(cfg.canvas) ? hexRgba(glow, 0.8) : darken(bevel, 0.3))}" text-anchor="middle" opacity="${dim}">${esc(tags[i] ?? "")}</text>` +
+          <text x="${x + tw / 2}" y="${(pad3 + th + 38 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(12.5 * k).toFixed(1)}" font-weight="800" letter-spacing=".22em" fill="${urgent ? alarm : (onDark ? hexRgba(glow, 0.8) : darken(bevel, 0.3))}" text-anchor="middle" opacity="${dim}">${esc(tags[i] ?? "")}</text>` +
           (i < segs.length - 1
-            ? `<circle cx="${(x + tw + gap2 / 2).toFixed(1)}" cy="${(midY - 16 * k).toFixed(1)}" r="${(4 * k).toFixed(1)}" fill="${isDarkBg(cfg.canvas) ? hexRgba(glow, 0.7) : darken(bevel, 0.25)}"/><circle cx="${(x + tw + gap2 / 2).toFixed(1)}" cy="${(midY + 16 * k).toFixed(1)}" r="${(4 * k).toFixed(1)}" fill="${isDarkBg(cfg.canvas) ? hexRgba(glow, 0.7) : darken(bevel, 0.25)}"/>`
+            ? `<circle cx="${(x + tw + gap2 / 2).toFixed(1)}" cy="${(midY - 16 * k).toFixed(1)}" r="${(4 * k).toFixed(1)}" fill="${onDark ? hexRgba(glow, 0.7) : darken(bevel, 0.25)}"/><circle cx="${(x + tw + gap2 / 2).toFixed(1)}" cy="${(midY + 16 * k).toFixed(1)}" r="${(4 * k).toFixed(1)}" fill="${onDark ? hexRgba(glow, 0.7) : darken(bevel, 0.25)}"/>`
             : "");
       }).join("");
       return `<svg xmlns="http://www.w3.org/2000/svg" width="${W2.toFixed(0)}" height="${H2.toFixed(0)}" viewBox="0 0 ${W2.toFixed(0)} ${H2.toFixed(0)}" role="img" aria-label="flip countdown" data-timer="flip"${urgent ? ' data-urgent="1"' : ""}>${tiles}</svg>`;
@@ -10715,9 +10736,11 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
         const a = A0 + ((i + 0.5) / N) * SWEEP;
         const lit = part === "face" ? false : (i + 0.5) / N <= v3;
         const rO = r0, rI = r0 - 20 * k;
-        // unlit segments must survive a light canvas too — white dies there
-        const col = lit ? hexMix(bevel, glow, i / N) : useHousing ? "#FFFFFF" : isDarkBg(cfg.canvas) ? "#FFFFFF" : darken(bevel, 0.35);
-        segs += `<line x1="${(cx3 + Math.cos(a) * rI).toFixed(1)}" y1="${(cy3 + Math.sin(a) * rI).toFixed(1)}" x2="${(cx3 + Math.cos(a) * rO).toFixed(1)}" y2="${(cy3 + Math.sin(a) * rO).toFixed(1)}" stroke="${col}" stroke-width="${(8 * k).toFixed(1)}" stroke-linecap="round" opacity="${lit ? 0.95 : useHousing ? 0.2 : isDarkBg(cfg.canvas) ? 0.14 : 0.3}"${lit ? ` filter="url(#${gid8}g)"` : ""}/>`;
+        /* housed, the unlit segments lie on the recessed well and take their
+           ink from that material; bare, they lie on the GROUND and must
+           survive a light one too — white dies there (see KitOpts.onDark) */
+        const col = lit ? hexMix(bevel, glow, i / N) : useHousing ? "#FFFFFF" : onDark ? "#FFFFFF" : darken(bevel, 0.35);
+        segs += `<line x1="${(cx3 + Math.cos(a) * rI).toFixed(1)}" y1="${(cy3 + Math.sin(a) * rI).toFixed(1)}" x2="${(cx3 + Math.cos(a) * rO).toFixed(1)}" y2="${(cy3 + Math.sin(a) * rO).toFixed(1)}" stroke="${col}" stroke-width="${(8 * k).toFixed(1)}" stroke-linecap="round" opacity="${lit ? 0.95 : useHousing ? 0.2 : onDark ? 0.14 : 0.3}"${lit ? ` filter="url(#${gid8}g)"` : ""}/>`;
       }
       if (part === "segment") {
         /* export-only (round 14): ONE segment at the ARC'S OWN geometry —
@@ -10880,7 +10903,7 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       const wall = [8, 6.5, 5, 3.5, 2]
         .map((dy, i) => `<path d="${d3}" transform="translate(0 ${(dy * k).toFixed(1)})" fill="none" stroke="${darken(bevel, 0.62 - i * 0.05)}" stroke-width="${(9 * k).toFixed(1)}" stroke-linejoin="round"/>`)
         .join("");
-      const startTick = `<line x1="${(26 * sx3 + pad2).toFixed(1)}" y1="${(110 * sy3 + pad2 - 6).toFixed(1)}" x2="${(36 * sx3 + pad2).toFixed(1)}" y2="${(114 * sy3 + pad2 + 4).toFixed(1)}" stroke="${isDarkBg(cfg.canvas) ? "#FFFFFF" : darken(bevel, 0.5)}" stroke-width="3" stroke-dasharray="3 3" opacity="0.9"/>`;
+      const startTick = `<line x1="${(26 * sx3 + pad2).toFixed(1)}" y1="${(110 * sy3 + pad2 - 6).toFixed(1)}" x2="${(36 * sx3 + pad2).toFixed(1)}" y2="${(114 * sy3 + pad2 + 4).toFixed(1)}" stroke="${onDark ? "#FFFFFF" : darken(bevel, 0.5)}" stroke-width="3" stroke-dasharray="3 3" opacity="0.9"/>`;
       const track =
         wall +
         `<path d="${d3}" fill="none" stroke="${darken(bevel, 0.45)}" stroke-width="${(9 * k).toFixed(1)}" stroke-linejoin="round" opacity="0.95"/>` +
@@ -10893,9 +10916,9 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       }
       const markers =
         `<circle cx="${(64 * sx3 + pad2).toFixed(1)}" cy="${(68 * sy3 + pad2).toFixed(1)}" r="${(6.5 * k).toFixed(1)}" fill="${glow}" filter="url(#${gid9}g)"/>` +
-        `<circle cx="${(150 * sx3 + pad2).toFixed(1)}" cy="${(107 * sy3 + pad2).toFixed(1)}" r="${(5 * k).toFixed(1)}" fill="${isDarkBg(cfg.canvas) ? "#FFFFFF" : darken(bevel, 0.55)}" opacity="0.85"/>` +
+        `<circle cx="${(150 * sx3 + pad2).toFixed(1)}" cy="${(107 * sy3 + pad2).toFixed(1)}" r="${(5 * k).toFixed(1)}" fill="${onDark ? "#FFFFFF" : darken(bevel, 0.55)}" opacity="0.85"/>` +
         `<circle cx="${(114 * sx3 + pad2).toFixed(1)}" cy="${(34 * sy3 + pad2).toFixed(1)}" r="${(5 * k).toFixed(1)}" fill="${hexMix("#FF4D5A", bevel, 0.18)}" opacity="0.9"/>`;
-      const tag = `<text x="${(cxOf(W2)).toFixed(1)}" y="${(H2 - 10).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(11 * k).toFixed(1)}" font-weight="800" letter-spacing=".3em" fill="${isDarkBg(cfg.canvas) ? hexRgba(glow, 0.7) : darken(bevel, 0.3)}" text-anchor="middle" opacity="${dim}">KAZURI RING · GP CIRCUIT</text>`;
+      const tag = `<text x="${(cxOf(W2)).toFixed(1)}" y="${(H2 - 10).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(11 * k).toFixed(1)}" font-weight="800" letter-spacing=".3em" fill="${onDark ? hexRgba(glow, 0.7) : darken(bevel, 0.3)}" text-anchor="middle" opacity="${dim}">KAZURI RING · GP CIRCUIT</text>`;
       return `<svg xmlns="http://www.w3.org/2000/svg" width="${W2.toFixed(0)}" height="${H2.toFixed(0)}" viewBox="0 0 ${W2.toFixed(0)} ${H2.toFixed(0)}" role="img" aria-label="race circuit map" data-race="circuit">
 <defs><filter id="${gid9}g" x="-40%" y="-40%" width="180%" height="180%">${shadow11(0, 0, (3 * k).toFixed(1), glow, 0.55)}</filter></defs>
 <g opacity="${dim}">${iso(track + markers)}${tag}</g>
@@ -11609,7 +11632,7 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
             : `<circle cx="${cx3.toFixed(1)}" cy="${cy3.toFixed(1)}" r="${(podR * 0.72).toFixed(1)}" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>`);
       }
       const tag = isBase ? "" :
-        `<text x="${(W2 / 2).toFixed(1)}" y="${(hy + housH + 24 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(11 * k).toFixed(1)}" font-weight="800" letter-spacing=".3em" fill="${lit === 0 ? "#4ADE80" : isDarkBg(cfg.canvas) ? hexRgba(glow, 0.7) : darken(bevel, 0.3)}" text-anchor="middle" opacity="${dim}">${lit === 0 ? "LIGHTS OUT" : "GET READY"}</text>`;
+        `<text x="${(W2 / 2).toFixed(1)}" y="${(hy + housH + 24 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(11 * k).toFixed(1)}" font-weight="800" letter-spacing=".3em" fill="${lit === 0 ? "#4ADE80" : onDark ? hexRgba(glow, 0.7) : darken(bevel, 0.3)}" text-anchor="middle" opacity="${dim}">${lit === 0 ? "LIGHTS OUT" : "GET READY"}</text>`;
       /* data-pods (round 44, item 36): pod 1's center, cy, pitch, radius —
          an attribute, so the base raster stays byte-identical */
       return `<svg xmlns="http://www.w3.org/2000/svg" width="${W2.toFixed(0)}" height="${H2.toFixed(0)}" viewBox="0 0 ${W2.toFixed(0)} ${H2.toFixed(0)}" data-shell="${hx.toFixed(1)} ${hy.toFixed(1)} ${housW.toFixed(1)} ${housH.toFixed(1)}" data-pods="${(hx + gapP + podR).toFixed(1)} ${(hy + housH / 2).toFixed(1)} ${(podR * 2 + gapP).toFixed(1)} ${podR.toFixed(1)}" role="img" aria-label="start lights" data-race="lights">

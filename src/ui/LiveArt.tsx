@@ -43,6 +43,13 @@ export interface LiveKit {
   kind?: "circle" | "oval" | "strip";
   /** Alt tone — muted material; the piece ignores hover and press. */
   tone?: "alt";
+  /** The ground this instance is standing on, when it is NOT the artboard
+   *  (see KitOpts.onDark). Hosts that place pieces on the user's artboard —
+   *  the editor canvas, the Board's stage — leave it alone and the renderer
+   *  reads cfg.canvas as it always has. The kit SHEET is app furniture and
+   *  passes its own theme, so the marks a piece draws outside its shell
+   *  answer the page they sit on rather than the kit's stage colour. */
+  onDark?: boolean;
 }
 
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
@@ -263,12 +270,12 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
   // kitNoText flag) are DIFFERENT renders: the sentinel keeps their keys apart
   // or flipping "No text" on an unworded piece would never re-render.
   const kitKey = kit
-    ? `${kit.id}|${kit.size ?? "m"}|${kit.shape ?? ""}|${kit.label ?? "\u0000"}|${(kit.segments ?? []).join(",")}|${kit.icon ? kit.icon.lib + ":" + kit.icon.name : kit.icon === null ? "none" : ""}|${kit.textOy ?? ""}|${kit.textOx ?? ""}|${kit.dock ? (kit.dock.side ?? "left") + ":" + (kit.dock.icon ? kit.dock.icon.name : kit.dock.icon === null ? "none" : "clock") : ""}|${kit.bar ? JSON.stringify(kit.bar) : ""}|${kit.sub ?? ""}|${kit.max ?? ""}|${kit.addBtn ? 1 : 0}|${kit.overlay ?? ""}|${kit.iconScale ?? ""}|${kit.row ? JSON.stringify(kit.row) : ""}|${kit.kind ?? ""}|${kit.tone ?? ""}|${kit.themedText ? 1 : 0}|${kit.stretch ?? ""}|${kit.stretchY ?? ""}|${kit.slots ? JSON.stringify(kit.slots) : ""}`
+    ? `${kit.id}|${kit.size ?? "m"}|${kit.shape ?? ""}|${kit.label ?? "\u0000"}|${(kit.segments ?? []).join(",")}|${kit.icon ? kit.icon.lib + ":" + kit.icon.name : kit.icon === null ? "none" : ""}|${kit.textOy ?? ""}|${kit.textOx ?? ""}|${kit.dock ? (kit.dock.side ?? "left") + ":" + (kit.dock.icon ? kit.dock.icon.name : kit.dock.icon === null ? "none" : "clock") : ""}|${kit.bar ? JSON.stringify(kit.bar) : ""}|${kit.sub ?? ""}|${kit.max ?? ""}|${kit.addBtn ? 1 : 0}|${kit.overlay ?? ""}|${kit.iconScale ?? ""}|${kit.row ? JSON.stringify(kit.row) : ""}|${kit.kind ?? ""}|${kit.tone ?? ""}|${kit.themedText ? 1 : 0}|${kit.stretch ?? ""}|${kit.stretchY ?? ""}|${kit.slots ? JSON.stringify(kit.slots) : ""}|${kit.onDark === undefined ? "" : kit.onDark ? 1 : 0}`
     : "";
   const svg = useMemo(
     () => {
       const raw = kit
-        ? renderKit(cfg, kit.id, kit.size ?? "m", state, value, kit.shape, { label: id === "input" ? (typed ?? kit.label) : kit.label, segments: kit.segments, slots: kit.slots, icon: kit.icon, textOy: kit.textOy, textOx: kit.textOx, dock: kit.dock, bar: kit.bar, sub: kit.sub, max: kit.max, addBtn: kit.addBtn, overlay: kit.overlay, iconScale: kit.iconScale, row: kit.row, kind: kit.kind, tone: kit.tone, themedText: kit.themedText, stretch: kit.stretch, stretchY: kit.stretchY, stick: id === "joystick" && playing ? stick : undefined })
+        ? renderKit(cfg, kit.id, kit.size ?? "m", state, value, kit.shape, { label: id === "input" ? (typed ?? kit.label) : kit.label, segments: kit.segments, slots: kit.slots, icon: kit.icon, textOy: kit.textOy, textOx: kit.textOx, dock: kit.dock, bar: kit.bar, sub: kit.sub, max: kit.max, addBtn: kit.addBtn, overlay: kit.overlay, iconScale: kit.iconScale, row: kit.row, kind: kit.kind, tone: kit.tone, themedText: kit.themedText, onDark: kit.onDark, stretch: kit.stretch, stretchY: kit.stretchY, stick: id === "joystick" && playing ? stick : undefined })
         : renderBevel(cfg, state);
       const out = stablePad ? padSvg(raw) : raw;
       // the document's own idle wipe joins the host-driven shine — same
