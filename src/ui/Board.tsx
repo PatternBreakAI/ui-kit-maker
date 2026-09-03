@@ -70,13 +70,18 @@ async function downloadPieceRaster(pc: { svg: string; cfg: GenConfig }, name: st
    the overlay stick — one component, two placeable faces. */
 const ASSET_GROUPS: { name: string; ids: string[] }[] = [
   { name: "Buttons", ids: ["primary", "secondary", "small", "ghost", "iconbtn", "slotbtn", "pricebtn", "endturn", "keycap", "padbtn"] },
-  { name: "Containers & overlays", ids: ["panel", "header", "ribbonbanner", "tab", "tabback", "dropdown", "dialog", "toast", "tooltip", "listmenu", "choicelist", "scrollbar", "input", "searchfield", "setrow"] },
+  /* bottomnav sits with the tabs: it is the same job one level up (a tab
+     picks a view inside a screen, the nav bar picks the screen). It had no
+     tile at all until round 64 — released out of the bay with nowhere to
+     appear, exactly like the ribbon in round 60. */
+  { name: "Containers & overlays", ids: ["panel", "header", "ribbonbanner", "tab", "tabback", "bottomnav", "dropdown", "dialog", "toast", "tooltip", "listmenu", "choicelist", "scrollbar", "input", "searchfield", "setrow"] },
   { name: "HUD & readouts", ids: ["resource", "chip", "badge", "datarow", "slot", "orb", "ring", "bignum", "xpbar", "vitalbar", "currency", "healthglobe", "manarails", "buffframe", "cooldown", "notifydot", "countbadge", "avatarframe", "nameplate", "loadbar", "spinner", "pagedots", "steps", "stepper"] },
   { name: "Timers", ids: ["flipclock", "stopwatch", "timerdigits"] },
   { name: "Controls", ids: ["toggle", "slider", "progress", "segbar", "emblembar", "vsbar", "hotbar", "segment", "checkbox", "radio", "joystick", "gearicon", "trophyicon", "trophyicon~gold", "trophyicon~silver", "trophyicon~bronze", "gifticon"] },
   { name: "Shooter", ids: ["reticle", "crosshair", "hitmarker", "ammo", "magazine", "lives", "minimap", "compass", "killfeed", "weaponwheel", "equipselector", "firebutton", "joystick~ghost", "streakmeter", "waypoint", "capturemeter", "respawn", "dmgarc", "dmgnumber"] },
   { name: "RPG & progression", ids: ["questpanel", "dialoguebox", "partyframe", "unitplate", "invgrid", "rarityframe", "equipslot", "quickslots", "skillnode", "levelnode", "pathconnector", "loottag", "seasontrack", "achievetoast"] },
-  { name: "Casual & mobile", ids: ["heartmeter", "energymeter", "movecounter", "orderticket", "booster", "combo", "dailycell", "spinwheel", "popmeter", "starrating"] },
+  // boostercard follows booster: the same item, given room to read
+  { name: "Casual & mobile", ids: ["heartmeter", "energymeter", "movecounter", "orderticket", "booster", "boostercard", "combo", "dailycell", "spinwheel", "popmeter", "starrating"] },
   { name: "Rewards & chests", ids: ["chest", "giftbox", "rewardcard", "qtybadge", "rewardtray", "claimbtn", "chestpanel"] },
   { name: "Racing", ids: ["speedo", "speedo2", "tacho", "circuit", "leaderboard", "laptimes", "telemetry", "startlights"] },
   { name: "Strategy & score", ids: ["buildqueue", "techcard", "scorebug", "trophy"] },
@@ -115,6 +120,8 @@ const SEARCH_TERMS: Partial<Record<KitComponentId, string>> = {
   dailycell: "daily rewards calendar gift streak",
   spinwheel: "spin wheel fortune prize daily lucky",
   booster: "powerup power-up consumable item casual",
+  bottomnav: "bottom nav bar navigation tab bar dock destinations menu mobile chrome map quests heroes store badge",
+  boostercard: "booster card powerup power-up consumable item shop sku loadout casual quantity effect",
   chest: "reward loot crate treasure win",
   giftbox: "present reward gift daily",
   rewardcard: "reward results win prize claim",

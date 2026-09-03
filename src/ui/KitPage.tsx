@@ -3292,6 +3292,31 @@ const kitTier = useGen((s) => s.tier);
             <span>Panel and tails share one height; every side runs true vertical</span><span>Words fit to the panel's reading zone — long labels shrink, they never enter the tails</span><span>Authored proportion — the ribbon keeps its cut at every size</span>
           </div>
         </>)}
+        {/* the bottom nav bar, seated at last. It rendered on the demo
+            boards and shipped in every export while having no card here and
+            no tray tile, so once it left the bay it was findable nowhere:
+            the ribbon's round-60 bug, hit by a second piece. Its home is
+            Navigation, not the casual chapter — a tab picks a view inside a
+            screen, this picks the screen, and every genre that goes mobile
+            wants one. scripts/check-component-surfaces.mjs now fails the
+            build on the whole class. Gated like every bay resident. */}
+        {kitVisible("bottomnav", releases, false) && (<>
+          <div className="kp-subhead">Bottom nav bar</div>
+          <p className="kp-note">The tab bar a mobile game stands on: four destination cells in the kit material, the active one lifted onto a brighter well inside the glow ring. Nothing on it is baked. Every caption is a live text seat, every glyph a swappable sprite, and the selected ring is its own child, so a bar re-labels, re-icons and changes tab without leaving the Inspector. A count on any cell pins the red dot to that corner.</p>
+          <div className="kp-tray">
+            <Piece id="bottomnav" caption="Bottom nav · on Map" value={0} scale={0.46} />
+            <Piece id="bottomnav" caption="Bottom nav · on Store" value={1} scale={0.46} />
+          </div>
+          <StateStrip variants={[
+            { cap: "Default", piece: { id: "bottomnav", value: 0.3, scale: 0.24 } },
+            { cap: "Hover", piece: { id: "bottomnav", value: 0.3, baseState: "hover", scale: 0.24 } },
+            { cap: "Pressed", piece: { id: "bottomnav", value: 0.3, baseState: "pressed", scale: 0.24 } },
+            { cap: "Disabled", piece: { id: "bottomnav", value: 0.3, baseState: "disabled", scale: 0.24 } },
+          ]} />
+          <div className="kp-meta">
+            <span>The value slider picks the active cell, in quarters</span><span>Cell captions, glyphs and badge counts are per-cell content</span><span>Cell corners follow the Smoothness slider</span>
+          </div>
+        </>)}
       </Sec>
 
       {/* ── 06 · icons ── */}
@@ -3690,6 +3715,22 @@ const kitTier = useGen((s) => s.tier);
           <Piece id="dailycell" caption="Claimed" label="DAY 3" overlay="check" scale={0.5} />
           <Piece id="dailycell" caption="Tomorrow" label="DAY 5" overlay="locked" scale={0.5} />
         </div>
+        {/* the booster card, seated at last — same story as the bottom nav
+            bar above: rendered on the Shop and Booster Select boards, shipped
+            in the export, findable in neither the book nor the tray. It sits
+            with the booster button because it IS the booster button's
+            reading twin: the same item, given room to say what it does. */}
+        {kitVisible("boostercard", releases, false) && (<>
+          <div className="kp-subhead">Booster cards</div>
+          <div className="kp-tray kp-axis">
+            <Piece id="boostercard" caption="Booster card" label="HAMMER" value={0.03} scale={0.46} />
+            <Piece id="boostercard" caption="Owned · ×12" label="ROCKET" slots={{ effect: "Clears a row" }} icon={STOCK_ICONS.zap} value={0.12} scale={0.46} />
+            <Piece id="boostercard" caption="Spent" label="BOMB" slots={{ effect: "Blows a 3×3" }} value={0.03} baseState="disabled" scale={0.46} />
+          </div>
+          <div className="kp-meta">
+            <span>The name is the piece's own Text; the effect line is a slot</span><span>The glyph is a swappable sprite in a dark well</span><span>The value slider drives the quantity chip, ×1 to ×99</span>
+          </div>
+        </>)}
         {/* staging-bay resident — the whole block (subhead included) hides
             from the public until the owner releases the component */}
         {kitVisible("orderticket", releases, false) && (<>
