@@ -757,7 +757,7 @@ const noGlow = (c: GenConfig): GenConfig => {
 const checkVideoUrl = async (raw: string): Promise<{ url?: string; err?: string }> => {
   const url = raw.trim();
   if (!/^https:\/\//i.test(url)) return { err: "Paste a full https:// link." };
-  if (/youtube\.com|youtu\.be|vimeo\.com/i.test(url)) return { err: "YouTube / Vimeo pages can't sit under the pieces — paste a direct .mp4 or .webm file link instead." };
+  if (/youtube\.com|youtu\.be|vimeo\.com/i.test(url)) return { err: "YouTube / Vimeo pages can't sit under the pieces. Paste a direct .mp4 or .webm file link instead." };
   const ok = await new Promise<boolean>((res) => {
     const v = document.createElement("video");
     v.muted = true; v.preload = "metadata";
@@ -766,7 +766,7 @@ const checkVideoUrl = async (raw: string): Promise<{ url?: string; err?: string 
     v.onerror = () => { window.clearTimeout(t); res(false); };
     v.src = url;
   });
-  return ok ? { url } : { err: "That link didn't play — it needs to be a direct video file (.mp4 / .webm), not a page or an embed." };
+  return ok ? { url } : { err: "That link didn't play. It needs to be a direct video file (.mp4 / .webm), not a page or an embed." };
 };
 
 /* Overlay tint per mode — shared by the live stage and the PNG export so
@@ -833,7 +833,7 @@ function BackdropLibrary({ aspect, current, apply }: {
       <div className="bd-h" style={{ marginTop: 14 }}>Scene library <span className="bd-lib-staged" title="Visible to admins only until released">staged</span></div>
       <div className="bd-libsearch">
         <Search size={13} strokeWidth={2.2} />
-        <input value={q} placeholder="Search 82 scenes — cozy kitchen, neon, battle…" aria-label="Search the scene library"
+        <input value={q} placeholder="Search 82 scenes: cozy kitchen, neon, battle…" aria-label="Search the scene library"
           onChange={(e) => { setQ(e.target.value); setShowAll(false); }} />
         {q && <button aria-label="Clear search" onClick={() => setQ("")}><X size={12} strokeWidth={2.4} /></button>}
       </div>
@@ -845,7 +845,7 @@ function BackdropLibrary({ aspect, current, apply }: {
         ))}
       </div>
       {list.length === 0 ? (
-        <div className="bd-note">No scene matches — try fewer words, or another genre.</div>
+        <div className="bd-note">No scene matches. Try fewer words, or another genre.</div>
       ) : (
         <div className="bd-bggrid bd-libgrid" aria-label="Library scenes">
           {shown.map((e) => {
@@ -867,10 +867,10 @@ function BackdropLibrary({ aspect, current, apply }: {
       )}
       {loadErr && (
         <div className="bd-note bd-vurl-err" role="alert">
-          <span>That scene didn't arrive from the cloud. If the storage bucket isn't set up yet: Supabase dashboard → Storage → new <b>public</b> bucket named exactly <b>backgrounds</b>, then drag the 82 .webp files in — the boards light up instantly, no redeploy.</span>
+          <span>That scene didn't arrive from the cloud. If the storage bucket isn't set up yet: Supabase dashboard → Storage → new <b>public</b> bucket named exactly <b>backgrounds</b>, then drag the 82 .webp files in. The boards light up instantly, no redeploy.</span>
         </div>
       )}
-      <div className="bd-note">Scenes stream from the cloud — your board saves a link, never the pixels.</div>
+      <div className="bd-note">Scenes stream from the cloud. Your board saves a link, never the pixels.</div>
     </div>
   );
 }
@@ -1997,17 +1997,17 @@ export function BoardView({ playing }: { playing: boolean }) {
             </button>
           )}
         </label>
-        <div className="bd-teach">Click a piece to add it to the screen — or drag it straight onto a board.</div>
-        <button className="bd-stampbtn" title="Drop the kit's lettering on the board — type any words, size them like a logo"
+        <div className="bd-teach">Click a piece to add it to the screen, or drag it straight onto a board.</div>
+        <button className="bd-stampbtn" title="Drop the kit's lettering on the board: type any words, size them like a logo"
           onClick={() => useGen.getState().addStampToBoard()}>
-          <Type size={13} strokeWidth={2.2} /> Type stamp — your words in the kit's lettering
+          <Type size={13} strokeWidth={2.2} /> Type stamp: your words in the kit's lettering
         </button>
         {/* the PLAIN tier (owner: "a delineation between splash text and
             just good font usage") — same face, flat pickable color, for
             labels that must READ against any backdrop */}
-        <button className="bd-stampbtn" title="Plain text in the kit's font — pick its color in the side rail; for labels that must stay readable"
+        <button className="bd-stampbtn" title="Plain text in the kit's font. Pick its color in the side rail; for labels that must stay readable"
           onClick={() => useGen.getState().addStampToBoard(true)}>
-          <Type size={13} strokeWidth={2.2} /> Plain text — the kit's font, your color
+          <Type size={13} strokeWidth={2.2} /> Plain text: the kit's font, your color
         </button>
         <div className="bd-scroll">
           {assets.map((g) => {
@@ -2020,7 +2020,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                 <div className="bd-cat">{g.name}</div>
                 <div className="bd-grid">
                   {items.map((it) => (
-                    <button key={it.id} className="bd-asset" title={`Add ${it.name} to ${act?.name ?? "the board"} — or drag it onto any board`}
+                    <button key={it.id} className="bd-asset" title={`Add ${it.name} to ${act?.name ?? "the board"}, or drag it onto any board`}
                       onClick={() => { if (suppressClick.current) { suppressClick.current = false; return; } addKitToBoard(it.kitId, it.ov); }}
                       onPointerDown={(e) => { if (e.button === 0) ghostRef.current = { kitId: it.kitId, ov: it.ov, svg: it.svg, x0: e.clientX, y0: e.clientY, moved: false }; }}
                       onPointerEnter={() => setPreview({ name: it.name, svg: svgOf({ id: "pv", libId: "", kitId: it.kitId, ov: it.ov, x: 0, y: 0 } as BoardItem).svg })}
@@ -2049,7 +2049,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                 <div className="bd-cat">Your components</div>
                 <div className="bd-grid">
                   {items.map((it) => (
-                    <button key={it.id} className="bd-asset" title={`Add ${it.name} to ${act?.name ?? "the board"} — or drag it onto any board`}
+                    <button key={it.id} className="bd-asset" title={`Add ${it.name} to ${act?.name ?? "the board"}, or drag it onto any board`}
                       onClick={() => { if (suppressClick.current) { suppressClick.current = false; return; } addKitToBoard(it.kitId); }}
                       onPointerDown={(e) => { if (e.button === 0) ghostRef.current = { kitId: it.kitId, svg: it.svg, x0: e.clientX, y0: e.clientY, moved: false }; }}
                       onPointerEnter={() => setPreview({ name: it.name, svg: svgOf({ id: "pv", libId: "", kitId: it.kitId, x: 0, y: 0 } as BoardItem).svg })}
@@ -2094,7 +2094,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                               const name = window.prompt("Rename this asset:", a.name);
                               if (name?.trim()) useGen.getState().renameUserAsset(a.id, name.trim());
                             }}><SquarePen size={11} strokeWidth={2.4} /></button>
-                          <button className="danger" title={`Delete ${a.name} — board copies of it go too`} aria-label={`Delete ${a.name}`}
+                          <button className="danger" title={`Delete ${a.name}. Board copies of it go too`} aria-label={`Delete ${a.name}`}
                             onClick={() => {
                               const placed = useGen.getState().boards.reduce((n, bd) => n + bd.items.filter((it) => it.logo?.aid === a.id).length, 0);
                               if (window.confirm(placed ? `Delete ${a.name}? Its ${placed} placed cop${placed === 1 ? "y" : "ies"} leave the boards too.` : `Delete ${a.name}?`))
@@ -2106,9 +2106,9 @@ export function BoardView({ playing }: { playing: boolean }) {
                   </div>
                 )}
                 <button className="bd-stampbtn" disabled={uaBusy}
-                  title="Upload your own image — a transparent PNG makes the best logo; JPG and WebP work too. 2 MB cap; big images downscale on import."
+                  title="Upload your own image. A transparent PNG makes the best logo; JPG and WebP work too. 2 MB cap; big images downscale on import."
                   onClick={() => uaInput.current?.click()}>
-                  <ImagePlus size={13} strokeWidth={2.2} /> {uaBusy ? "Importing…" : "Upload a logo — transparent PNG shines"}
+                  <ImagePlus size={13} strokeWidth={2.2} /> {uaBusy ? "Importing…" : "Upload a logo: transparent PNG shines"}
                 </button>
                 {uaErr && <div className="bd-note bd-vurl-err" role="alert">{uaErr}</div>}
                 <BgKeepsafeLine />
@@ -2197,7 +2197,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                        <button>s can't nest, and a live tile carries its
                        own Edit control */
                     <div key={l.id} className="bd-asset bd-sasset" role="button" tabIndex={0}
-                      title={`Add ${l.name} to ${act?.name ?? "the board"} — or drag it onto any board`}
+                      title={`Add ${l.name} to ${act?.name ?? "the board"}, or drag it onto any board`}
                       onClick={place}
                       onKeyDown={(e) => { if (e.key === "Enter") place(); }}
                       onPointerDown={(e) => { if (e.button === 0) ghostRef.current = { ...(live ? { kitId: live.kitId } : { libId: l.id }), svg: art, x0: e.clientX, y0: e.clientY, moved: false }; }}
@@ -2207,7 +2207,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                       <i>{l.name}</i>
                       {live && (
                         <span className="bd-uactl" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
-                          <button title={`Edit ${l.name} — every control shapes this saved component live`} aria-label={`Edit ${l.name}`}
+                          <button title={`Edit ${l.name}. Every control shapes this saved component live`} aria-label={`Edit ${l.name}`}
                             onClick={() => { useGen.getState().setFocus(live.kitId); useGen.getState().setPhase("master"); }}>
                             <SquarePen size={11} strokeWidth={2.4} /> Edit
                           </button>
@@ -2246,7 +2246,7 @@ export function BoardView({ playing }: { playing: boolean }) {
           </div>
           {/* the glow invites while the board is bare, then goes quiet */}
           <label className={`bd-tpl${act && act.items.length === 0 ? " glow" : ""}`}
-            title="Add a full starter screen — pieces land pre-sized and pre-placed, backdrop included">
+            title="Add a full starter screen: pieces land pre-sized and pre-placed, backdrop included">
             <LayoutTemplate size={13} strokeWidth={2} />
             <select value="" aria-label="Add a starter screen"
               onChange={(e) => {
@@ -2265,17 +2265,17 @@ export function BoardView({ playing }: { playing: boolean }) {
           <label className="bd-snap"><Grid3x3 size={13} strokeWidth={2} /> Snap to grid
             <input type="checkbox" checked={boardSnap} onChange={(e) => setBoardSnap(e.target.checked)} />
           </label>
-          <label className="bd-snap" title="Safe-area guides — keep HUD inside the dashed frames. 16:9 shows action/title safe; Mobile shows notch and home-bar insets. Guides never export.">
+          <label className="bd-snap" title="Safe-area guides: keep HUD inside the dashed frames. 16:9 shows action/title safe; Mobile shows notch and home-bar insets. Guides never export.">
             <Shield size={13} strokeWidth={2} /> Safe area
             <input type="checkbox" checked={boardSafe} onChange={(e) => setBoardSafe(e.target.checked)} />
           </label>
           <button className="bd-export" onClick={() => guardExport(() => { if (act) void exportPng(act); })}><Download size={14} strokeWidth={2.2} /> Export PNG</button>
-          <button className="bd-export" title="Every piece on a transparent PNG — no backdrop, no base fill; drops straight into an engine or a mockup"
+          <button className="bd-export" title="Every piece on a transparent PNG: no backdrop, no base fill. Drops straight into an engine or a mockup"
             onClick={() => guardExport(() => { if (act) void exportPng(act, { alpha: true }); })}>
             <Download size={14} strokeWidth={2.2} /> PNG · no background
           </button>
           <button className="bd-export bd-exportall"
-            title="Every board as a full-resolution PNG, one after another — the browser may ask once to allow multiple downloads"
+            title="Every board as a full-resolution PNG, one after another. The browser may ask once to allow multiple downloads"
             onClick={() => guardExport(() => {
               void (async () => {
                 for (const bd of boards) if (bd.items.length || bd.bgImage || bd.bgVideo) await exportPng(bd);
@@ -2326,17 +2326,17 @@ export function BoardView({ playing }: { playing: boolean }) {
                     onFocus={() => setActiveBoard(bd.id)}
                     onChange={(e) => renameBoard(bd.id, e.target.value)} />
                   <button className="bd-abtool" aria-label={`Export ${bd.name} as PNG`}
-                    title={`Export ${bd.name} as a PNG at full ${W} × ${H} resolution — background, overlay and pieces`}
+                    title={`Export ${bd.name} as a PNG at full ${W} × ${H} resolution: background, overlay and pieces`}
                     onClick={() => guardExport(() => void exportPng(bd))}>
                     <Download size={12} strokeWidth={2.2} />
                   </button>
                   <button className="bd-abtool" aria-label={`Duplicate ${bd.name}`}
-                    title={`Duplicate ${bd.name} — pieces, backdrop and darkroom dials, a running start for the next screen`}
+                    title={`Duplicate ${bd.name}: pieces, backdrop and darkroom dials, a running start for the next screen`}
                     onClick={() => duplicateBoard(bd.id)}>
                     <Copy size={12} strokeWidth={2.2} />
                   </button>
                   <button className="bd-abtool" aria-label={`Clear ${bd.name}`}
-                    title="Clear this board — every piece and the background"
+                    title="Clear this board: every piece and the background"
                     onClick={() => {
                       const hasBg = !!(bd.bgImage || bd.bgVideo);
                       const what = bd.items.length ? `all ${bd.items.length} pieces${hasBg ? " and the background" : ""}` : hasBg ? "the background" : "";
@@ -2505,7 +2505,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                           ref={(el) => { if (el && document.activeElement !== el) el.focus({ preventScroll: true }); }}
                           value={val}
                           maxLength={isStamp ? 40 : labelMaxOf(baseOf(eb.kitId!))}
-                          placeholder={isStamp ? "Type the words…" : (eb.kitId ? kitLabels[eb.kitId] || "Text — this copy" : "")}
+                          placeholder={isStamp ? "Type the words…" : (eb.kitId ? kitLabels[eb.kitId] || "Text for this copy" : "")}
                           style={{ left: eb.x, top: Math.max(4, eb.y - 44 / fit), transform: `scale(${1 / fit})`, transformOrigin: "top left" }}
                           onPointerDown={(e) => e.stopPropagation()}
                           onChange={(e) => {
@@ -2564,7 +2564,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                     {/* the hint is for a truly bare stage — a board wearing a
                         backdrop is already someone's scene, never watermark it
                         (owner: hint text over a fresh upload) */}
-                    {bd.items.length === 0 && !bd.bgImage && !bd.bgVideo && <div className="bd-empty"><span>An empty stage — pick a <b>Starter screen</b> above, or click an asset on the left.</span></div>}
+                    {bd.items.length === 0 && !bd.bgImage && !bd.bgVideo && <div className="bd-empty"><span>An empty stage. Pick a <b>Starter screen</b> above, or click an asset on the left.</span></div>}
                   </div>
                   </>)}
                 </div>
@@ -2574,7 +2574,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                     fit, never scrolls), beneath starts the next row */}
                 {sideAspect && (
                   <button className="bd-addtab bd-addtab--r"
-                    title={`Add a ${sideAspect === "mobile" ? "mobile" : "16:9"} board beside ${bd.name}${sideAspect !== bd.aspect ? " — the row rescales so both fit" : ""}`}
+                    title={`Add a ${sideAspect === "mobile" ? "mobile" : "16:9"} board beside ${bd.name}${sideAspect !== bd.aspect ? ". The row rescales so both fit" : ""}`}
                     aria-label={`Add a board to the right of ${bd.name}`}
                     onClick={() => addBoardAfter(bd.id, { aspect: sideAspect })}>
                     <Plus size={14} strokeWidth={2.2} />
@@ -2645,12 +2645,12 @@ export function BoardView({ playing }: { playing: boolean }) {
               ))}
             </div>
             <div className="bd-alignrow" role="group" aria-label="Distribute selection">
-              <button title="Distribute horizontally — equal gaps, outer pieces planted (3+ pieces)"
+              <button title="Distribute horizontally: equal gaps, outer pieces planted (3+ pieces)"
                 aria-label="Distribute horizontally" disabled={selIdsAll.length < 3}
                 onClick={() => distributeSel("h")}>
                 <AlignHorizontalSpaceBetween size={13} strokeWidth={2} />
               </button>
-              <button title="Distribute vertically — equal gaps, outer pieces planted (3+ pieces)"
+              <button title="Distribute vertically: equal gaps, outer pieces planted (3+ pieces)"
                 aria-label="Distribute vertically" disabled={selIdsAll.length < 3}
                 onClick={() => distributeSel("v")}>
                 <AlignVerticalSpaceBetween size={13} strokeWidth={2} />
@@ -2697,7 +2697,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                 neighbours in tight stacks (owner: "placement of controls is
                 problematic"); the rail is always readable */}
             {sel.kitId && STRETCHABLE.has(baseOf(sel.kitId)) && (
-              <label className="bd-slider" title="9-slice width — the track re-renders wider; caps and knob stay true. The side handles on the piece do the same by hand.">
+              <label className="bd-slider" title="9-slice width: the track re-renders wider; caps and knob stay true. The side handles on the piece do the same by hand.">
                 Width · {Math.round((sel.stretch ?? 1) * 100)}%
                 <input type="range" min={70} max={300} value={Math.round((sel.stretch ?? 1) * 100)}
                   onChange={(e) => useGen.getState().stretchBoardItem(sel.id, +e.target.value / 100, sel.x)}
@@ -2705,32 +2705,32 @@ export function BoardView({ playing }: { playing: boolean }) {
               </label>
             )}
             {sel.kitId && STRETCHABLE_V.has(baseOf(sel.kitId)) && (
-              <label className="bd-slider" title="9-slice height — the shell re-renders taller; walls and rim stay true. The top/bottom handles on the piece do the same by hand.">
+              <label className="bd-slider" title="9-slice height: the shell re-renders taller; walls and rim stay true. The top/bottom handles on the piece do the same by hand.">
                 Height · {Math.round((sel.stretchY ?? 1) * 100)}%
                 <input type="range" min={70} max={300} value={Math.round((sel.stretchY ?? 1) * 100)}
                   onChange={(e) => useGen.getState().stretchBoardItemV(sel.id, +e.target.value / 100, sel.y)}
                   onDoubleClick={() => useGen.getState().stretchBoardItemV(sel.id, 1, sel.y)} />
               </label>
             )}
-            <label className="bd-slider" title="This piece's opacity — ghosted HUD layers, faded scenery. Double-click restores full strength. Exports honor it.">
+            <label className="bd-slider" title="This piece's opacity: ghosted HUD layers, faded scenery. Double-click restores full strength. Exports honor it.">
               Opacity · {sel.opacity ?? 100}%
               <input type="range" min={0} max={100} value={sel.opacity ?? 100}
                 onChange={(e) => useGen.getState().setBoardItemOpacity(sel.id, +e.target.value)}
                 onDoubleClick={() => useGen.getState().setBoardItemOpacity(sel.id, null)} />
             </label>
             {sel.kitId && VALUE_DRIVEN.has(baseOf(sel.kitId)) && (
-              <label className="bd-slider" title="Value — this piece only (fill level, rarity tier, pose). Double-click to follow the kit again.">
-                Value — this piece · {Math.round((sel.v ?? kitVals[sel.kitId] ?? 0.62) * 100)}%
+              <label className="bd-slider" title="Value for this piece only (fill level, rarity tier, pose). Double-click to follow the kit again.">
+                Value for this piece · {Math.round((sel.v ?? kitVals[sel.kitId] ?? 0.62) * 100)}%
                 <input type="range" min={0} max={100} value={Math.round((sel.v ?? kitVals[sel.kitId] ?? 0.62) * 100)}
                   onChange={(e) => useGen.getState().setBoardItemVal(sel.id, +e.target.value / 100)}
                   onDoubleClick={() => useGen.getState().setBoardItemVal(sel.id, null)} />
               </label>
             )}
             {sel.kitId && KIT_LABEL_EDITABLE.has(baseOf(sel.kitId)) && (
-              <label className="bd-slider" title="Text — this copy only. Clear the field to follow the kit again. Double-clicking the piece on the stage edits in place.">
-                The words — this copy
+              <label className="bd-slider" title="Text for this copy only. Clear the field to follow the kit again. Double-clicking the piece on the stage edits in place.">
+                The words for this copy
                 <input className="bd-abname bd-words" maxLength={labelMaxOf(baseOf(sel.kitId))} aria-label="Instance text"
-                  placeholder={kitLabels[sel.kitId] || "Text — this copy"}
+                  placeholder={kitLabels[sel.kitId] || "Text for this copy"}
                   value={sel.label ?? ""}
                   onChange={(e) => useGen.getState().setBoardItemLabel(sel.id, e.target.value)} />
               </label>
@@ -2746,10 +2746,10 @@ export function BoardView({ playing }: { playing: boolean }) {
                  a stored dial with no way back would break the
                  editability law. One-way by design. */
               <div className="bd-actions one">
-                <button aria-label="Factory glyph — follow the kit"
+                <button aria-label="Factory glyph: follow the kit"
                   title="This copy wears its own glyph (a starter deal, or a pick from before the per-copy rack retired). Follow the kit again: the family's stock glyph, or your kit-wide pick under Icons. To seat a different glyph, place its glyph button from the tray."
                   onClick={() => useGen.getState().setBoardItemOv(sel.id, null)}>
-                  <RotateCcw size={12} strokeWidth={2.2} /> Factory glyph — follow the kit
+                  <RotateCcw size={12} strokeWidth={2.2} /> Factory glyph: follow the kit
                 </button>
               </div>
             )}
@@ -2763,15 +2763,15 @@ export function BoardView({ playing }: { playing: boolean }) {
               const sh = sel.shadow;
               const patch = (p: Partial<NonNullable<typeof sh>> | null) => useGen.getState().setBoardItemShadow(sel.id, p);
               return (<>
-                <label className="bd-slider" title="Drop shadow — this copy only. While on it replaces the kit's own cast shadow here; double-click (or 0) follows the kit again. Exports and Unity scenes carry it.">
-                  Drop shadow — this copy · {sh?.s ?? 0}%
+                <label className="bd-slider" title="Drop shadow for this copy only. While on it replaces the kit's own cast shadow here; double-click (or 0) follows the kit again. Exports and Unity scenes carry it.">
+                  Drop shadow for this copy · {sh?.s ?? 0}%
                   <input type="range" min={0} max={100} value={sh?.s ?? 0}
                     onChange={(e) => patch({ s: +e.target.value })}
                     onDoubleClick={() => patch(null)} />
                 </label>
                 {!sh?.s && boardShadowLast && (
                   <div className="bd-actions one">
-                    <button title="Apply the last shadow you dialed — strength and pose together"
+                    <button title="Apply the last shadow you dialed: strength and pose together"
                       onClick={() => patch({ ...boardShadowLast })}>
                       Use my last shadow · {boardShadowLast.s}%
                     </button>
@@ -2790,7 +2790,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                     <input type="range" min={0} max={60} value={Math.round(sh!.blur ?? 2 + (sh!.s ?? 0) * 0.22)} onChange={(e) => patch({ blur: +e.target.value })}
                       onDoubleClick={() => patch({ blur: undefined })} />
                   </label>
-                  <div className="bd-note">Replaces the kit's cast shadow on THIS copy; in Unity it travels as the grounded shadow sibling — planted while the piece lifts and presses.</div>
+                  <div className="bd-note">Replaces the kit's cast shadow on THIS copy; in Unity it travels as the grounded shadow sibling, planted while the piece lifts and presses.</div>
                 </>)}
               </>);
             })()}
@@ -2807,7 +2807,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                     and the art follows live. One line by design: the
                     specimen renderer draws a single phrase. Double-click
                     the piece on the stage edits in place too. */}
-                <label className="bd-slider" title="The words this piece shows — type and the art follows live. Double-clicking the piece on the stage edits in place.">
+                <label className="bd-slider" title="The words this piece shows. Type and the art follows live. Double-clicking the piece on the stage edits in place.">
                   The words
                   <input className="bd-abname bd-words" value={st.text} maxLength={40} aria-label="Stamp text"
                     placeholder="Type the words…"
@@ -2818,10 +2818,10 @@ export function BoardView({ playing }: { playing: boolean }) {
                     pickable color, for labels that must READ anywhere */}
                 <div className="bd-actions bd-fitrow" role="radiogroup" aria-label="Text tier">
                   <button className={!st.plain ? "on" : ""} role="radio" aria-checked={!st.plain}
-                    title="The kit's full splash lettering — gradients, outline, glints, the works"
+                    title="The kit's full splash lettering: gradients, outline, glints, the works"
                     onClick={() => patch({ plain: undefined })}>Splash</button>
                   <button className={st.plain ? "on" : ""} role="radio" aria-checked={!!st.plain}
-                    title="The kit's font at one flat color you pick — labels that stay readable on any backdrop"
+                    title="The kit's font at one flat color you pick, for labels that stay readable on any backdrop"
                     onClick={() => { if (!st.plain) patch({ plain: { color: "#FFFFFF" } }); }}>Plain</button>
                 </div>
                 {st.plain && (
@@ -2872,7 +2872,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                       onDoubleClick={() => patch({ warp: { style: st.warp!.style, amount: 0 } })} />
                   </label>
                 )}
-                <div className="bd-note">The dials touch only THIS stamp — the kit's typography stays put. Glow wears the kit's Glow color.</div>
+                <div className="bd-note">The dials touch only THIS stamp. The kit's typography stays put. Glow wears the kit's Glow color.</div>
               </>);
             })()}
             {sel.big && (() => {
@@ -2950,7 +2950,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                       onChange={(e) => patch({ glowInk: e.target.checked ? undefined : (cfg.effects.Glow ?? "#7DF9FF") })} /> Kit's glow ink</label>
                   </label>
                 )}
-                <div className="bd-note">Your own art — the kit never restyles it. The dials touch only THIS copy; glow follows the kit's Glow color until you pick your own.</div>
+                <div className="bd-note">Your own art. The kit never restyles it. The dials touch only THIS copy; glow follows the kit's Glow color until you pick your own.</div>
               </>);
             })()}
             {/* stacking order — items render in array order, later = on top
@@ -2973,7 +2973,7 @@ export function BoardView({ playing }: { playing: boolean }) {
             <div className="bd-actions">
               {sel.kitId && (
                 <button onClick={() => { useGen.getState().setFocus(sel.kitId!); useGen.getState().setPhase("master"); }}
-                  title="Open this component in the editor — every control shapes it live">
+                  title="Open this component in the editor. Every control shapes it live">
                   <SquarePen size={13} strokeWidth={2.2} /> Edit component
                 </button>
               )}
@@ -2985,7 +2985,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                    The owner's FORWARD-button worry: a piece reworked on the
                    Board (words, value, the component's current look) freezes
                    into a named asset — the master keeps its own life. */
-                <button title="Save to my assets — this piece, with this look and label, becomes a reusable asset, and this copy becomes the saved item (Edit component opens it). The master component stays untouched."
+                <button title="Save to my assets: this piece, with this look and label, becomes a reusable asset, and this copy becomes the saved item (Edit component opens it). The master component stays untouched."
                   onClick={() => {
                     const def = sel.label ?? kitClones[sel.kitId!]?.name ?? KIT_COMPONENTS.find((c) => c.id === baseOf(sel.kitId!))?.name ?? "My asset";
                     const name = window.prompt("Save this piece to your assets as:", def);
@@ -2999,14 +2999,14 @@ export function BoardView({ playing }: { playing: boolean }) {
                 <Download size={13} strokeWidth={2.2} /> SVG
               </button>
               <button onClick={() => guardExport(() => { const p = svgOf(sel); void downloadPieceRaster(p, `board-${nameOf(sel).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`); })}
-                title="This piece as a transparent-background PNG at 2× — drops straight into an engine or a mockup">
+                title="This piece as a transparent-background PNG at 2×. Drops straight into an engine or a mockup">
                 <Download size={13} strokeWidth={2.2} /> PNG
               </button>
               <button className="danger" onClick={() => removeBoardItem(sel.id)} title="Remove (Delete)">
                 <Trash2 size={13} strokeWidth={2.2} /> Remove
               </button>
             </div>
-            {sel.kitId && <div className="bd-note"><Lock size={11} strokeWidth={2.2} /> Live asset — restyling the kit restyles this piece.</div>}
+            {sel.kitId && <div className="bd-note"><Lock size={11} strokeWidth={2.2} /> Live asset: restyling the kit restyles this piece.</div>}
           </>
         ) : act ? (
           <>
@@ -3054,10 +3054,10 @@ export function BoardView({ playing }: { playing: boolean }) {
                 {act.bgImage && (
                   <div className="bd-actions bd-fitrow" role="radiogroup" aria-label="Background fit">
                     <button className={(act.bgFit ?? "cover") === "cover" ? "on" : ""} role="radio" aria-checked={(act.bgFit ?? "cover") === "cover"}
-                      title="Fill the board — the scene covers the frame; overflow is cropped"
+                      title="Fill the board: the scene covers the frame; overflow is cropped"
                       onClick={() => setBoardBg({ bgFit: "cover" })}>Fill</button>
                     <button className={act.bgFit === "fit" ? "on" : ""} role="radio" aria-checked={act.bgFit === "fit"}
-                      title="Show the whole scene — nothing cropped, a blurred fill behind"
+                      title="Show the whole scene: nothing cropped, a blurred fill behind"
                       onClick={() => setBoardBg({ bgFit: "fit" })}>Fit</button>
                   </div>
                 )}
@@ -3088,16 +3088,16 @@ export function BoardView({ playing }: { playing: boolean }) {
                 <div className="bd-note">
                   {act.bgVideo
                     ? act.bgVideo.startsWith("blob:")
-                      ? "Your uploaded loop plays for this session only — bundled scenes, images and pasted URLs stick around."
+                      ? "Your uploaded loop plays for this session only. Bundled scenes, images and pasted URLs stick around."
                       : act.bgVideo.startsWith("/")
                         ? "The loop plays on the live board; a PNG export uses its first frame."
                         : "A remote loop plays on the live board and persists; the PNG export can include its frame only when the host allows it (CORS)."
-                    : "The image crops to the board bounds — cover fit, nothing spills."}
+                    : "The image crops to the board bounds: cover fit, nothing spills."}
                 </div>
               </>
             ) : (
               <div className="bd-actions one">
-                <button onClick={() => bgInput.current?.click()}><ImagePlus size={13} strokeWidth={2.2} /> Upload your own — image or mp4</button>
+                <button onClick={() => bgInput.current?.click()}><ImagePlus size={13} strokeWidth={2.2} /> Upload your own image or mp4</button>
               </div>
             )}
             <BgKeepsafeLine />
@@ -3142,12 +3142,12 @@ export function BoardView({ playing }: { playing: boolean }) {
                     {(["normal", "multiply", "screen", "overlay", "soft-light"] as const).map((b) => <option key={b} value={b}>{b}</option>)}
                   </select>
                 </label>
-                <div className="bd-note">Sits between the backdrop and your pieces — knock the art back so components pop. Exports include it.</div>
+                <div className="bd-note">Sits between the backdrop and your pieces. Knock the art back so components pop. Exports include it.</div>
               </>
             ) : (
               <div className="bd-note">A dark, light or vignetted wash with film grain, between the backdrop and the pieces.</div>
             )}
-            <label className="bd-slider" title="Dims the middle of the frame — the move games make behind menus so the UI pops. Stacks with the overlay above, or works alone.">
+            <label className="bd-slider" title="Dims the middle of the frame: the move games make behind menus so the UI pops. Stacks with the overlay above, or works alone.">
               Center scrim · {act.ovCenter ?? 0}%
               <input type="range" min={0} max={100} value={act.ovCenter ?? 0}
                 onChange={(e) => setBoardBg({ ovCenter: +e.target.value })}
@@ -3176,7 +3176,7 @@ export function BoardView({ playing }: { playing: boolean }) {
               <Plus size={15} strokeWidth={2.4} /> A FRESH BOARD
             </button>
             <button className="lootclaim" onClick={() => { const t = starterAsk; setStarterAsk(null); applyStarter(t, "replace"); }}>
-              <Copy size={15} strokeWidth={2.4} /> REPLACE THESE PIECES — BACKDROP STAYS
+              <Copy size={15} strokeWidth={2.4} /> REPLACE THESE PIECES, BACKDROP STAYS
             </button>
             <button className="gatequiet" onClick={() => { const t = starterAsk; setStarterAsk(null); applyStarter(t, "stack"); }}>
               Add on top of what's here
