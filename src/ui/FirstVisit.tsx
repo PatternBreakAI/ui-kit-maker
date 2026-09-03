@@ -16,7 +16,7 @@ const HINTS: Hint[] = [
     id: "play",
     sel: '.zoolbar button[title^="Play mode"]',
     title: "This canvas is playable",
-    body: "The pencil designs. The ▶ plays — hover and press your button and it responds exactly like it will in your game.",
+    body: "The pencil designs, the ▶ plays. Hover and press your button and it responds exactly like it will in your game.",
   },
   {
     id: "states",
