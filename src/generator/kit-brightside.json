@@ -1,436 +1,109 @@
 {
- "v": 1,
- "cfg": {
-  "presetId": "hard-candy",
-  "stateDesigns": {},
-  "shape": "mazepill",
-  "effects": {
-   "Bevel": "#DFD6C4",
-   "Glow": "#FFE9AE",
-   "Highlight": "#FFFFFF",
-   "Shadow": "#877E6F",
-   "Inner Fill": "#FAF6ED"
-  },
-  "face": {
-   "mode": "light",
-   "contrast": 62,
-   "midpoint": 50
-  },
-  "bevel": {
-   "width": 13,
-   "softness": 80
-  },
-  "candy": {
-   "extrusion": {
-    "depth": 11,
-    "darkness": 84,
-    "glow": 14
-   },
-   "rim": {
-    "width": 2,
-    "brightness": 68
-   },
-   "innerEdge": {
-    "strength": 30,
-    "width": 2
-   },
-   "innerGlow": {
-    "opacity": 26,
-    "size": 44,
-    "color": null
-   },
-   "aura": {
-    "color": null
-   },
-   "gloss": {
-    "on": true,
-    "height": 34,
-    "curve": 22,
-    "opacity": 26,
-    "softness": 96,
-    "layer": "below",
-    "fill": "highlight",
-    "tint": "#ffffff",
-    "tint2": "#ffffff"
-   },
-   "specular": {
-    "on": true,
-    "mode": "anime",
-    "size": 24,
-    "stretch": 10,
-    "intensity": 28,
-    "softness": 0,
-    "angle": 0,
-    "gap": 300,
-    "ox": 32,
-    "oy": -28,
-    "blend": "screen"
-   },
-   "bloom": {
-    "opacity": 26,
-    "size": 55
-   },
-   "contact": {
-    "opacity": 30
-   },
-   "texture": {
-    "amount": 12,
-    "scale": 50
-   },
-   "pattern": {
-    "type": "none",
-    "scale": 100,
-    "angle": 45,
-    "opacity": 10,
-    "color": null
-   }
-  },
-  "lighting": {
-   "angle": 90,
-   "highlight": 64,
-   "lowlight": 42
-  },
-  "shadow": {
-   "distance": 18,
-   "blur": 13,
-   "opacity": 32
-  },
-  "transparency": {
-   "frame": 100,
-   "interior": 100,
-   "content": 100
-  },
-  "content": {
-   "label": "Play Now"
-  },
-  "type": {
-   "font": "Fredoka",
-   "customFonts": [],
-   "size": 76,
-   "weight": 600,
-   "italic": false,
-   "spacing": 1,
-   "case": "title",
-   "fillMode": "solid",
-   "fill": "#22304A",
-   "fill2": "#FFFFFF",
-   "fillOpacity": 100,
-   "outline": {
-    "on": false,
-    "color": "#000000",
-    "color2": null,
-    "width": 0.5
-   },
-   "shadow": {
-    "on": true,
-    "x": 0,
-    "y": 2,
-    "blur": 2.5,
-    "color": "#8A7E64",
-    "opacity": 26
-   },
-   "emboss": {
-    "on": true,
-    "strength": 26,
-    "softness": 55,
-    "shSoftness": 60,
-    "distance": 2,
-    "hiOpacity": 34,
-    "shOpacity": 30,
-    "hiColor": "#FFFFFF",
-    "shColor": "#0A1020"
-   },
-   "glow": {
-    "on": false,
-    "size": 8,
-    "color": "#FFFFFF",
-    "opacity": 60
-   },
-   "preset": "custom",
-   "listInk": "#22304A"
-  },
-  "icon": {
-   "show": true,
-   "def": {
-    "lib": "lucide",
-    "name": "Play",
-    "viewBox": "0 0 24 24",
-    "inner": "<polygon points=\"6 3 20 12 6 21 6 3\"/>",
-    "mode": "stroke"
-   },
-   "placement": "right",
-   "only": false,
-   "size": 100,
-   "strokeWidth": 24,
-   "color": "#22304A",
-   "outlineWidth": null,
-   "opacity": 100,
-   "rotation": 0,
-   "gap": 18,
-   "ox": 0,
-   "oy": 0,
-   "fx": {
-    "shadow": false,
-    "glow": false,
-    "emboss": false
-   }
-  },
-  "states": {
-   "default": {
-    "glow": 0,
-    "lift": 0,
-    "opacity": 100,
-    "brightness": 0,
-    "saturation": 0
-   },
-   "hover": {
-    "glow": 14,
-    "lift": -2,
-    "opacity": 100,
-    "brightness": 6,
-    "saturation": 10
-   },
-   "pressed": {
-    "glow": 6,
-    "lift": 3,
-    "opacity": 100,
-    "brightness": -9,
-    "saturation": 4
-   },
-   "disabled": {
-    "glow": 0,
-    "lift": 0,
-    "opacity": 85,
-    "brightness": -5,
-    "saturation": -60
-   }
-  },
-  "visible": {
-   "hover": true,
-   "pressed": true,
-   "disabled": true
-  },
-  "canvas": "#000000",
-  "idle": {
-   "wipe": true,
-   "edge": false
-  },
-  "knob": {
-   "color": "#2AA67C"
-  }
- },
- "kitName": "Brightside",
- "kitClones": {
-  "copy-um55-header": {
-   "base": "header",
-   "name": "Level Header",
-   "kind": "Decor",
-   "createdAt": "2026-08-25T17:00:38.701Z"
-  },
-  "copy-xedu-boostercard": {
-   "base": "boostercard",
-   "name": "Booster Card \u00b7 Bomb",
-   "kind": "Action",
-   "createdAt": "2026-08-25T17:00:38.997Z"
-  },
-  "copy-pnu6-boostercard": {
-   "base": "boostercard",
-   "name": "Booster Card \u00b7 Magnet",
-   "kind": "Action",
-   "createdAt": "2026-08-25T17:00:39.001Z"
-  },
-  "copy-spmm-glyphchest": {
-   "base": "glyphchest",
-   "name": "Chest \u00b7 Common",
-   "kind": "Reward",
-   "createdAt": "2026-08-25T17:00:39.001Z"
-  },
-  "copy-m5m7-glyphchest": {
-   "base": "glyphchest",
-   "name": "Chest \u00b7 Rare",
-   "kind": "Reward",
-   "createdAt": "2026-08-25T17:00:39.002Z"
-  },
-  "copy-b3n2-glyphchest": {
-   "base": "glyphchest",
-   "name": "Chest \u00b7 Epic",
-   "kind": "Reward",
-   "createdAt": "2026-08-25T17:00:39.003Z"
-  },
-  "copy-fbdb-glyphchest": {
-   "base": "glyphchest",
-   "name": "Chest \u00b7 Legendary",
-   "kind": "Reward",
-   "createdAt": "2026-08-25T17:00:39.003Z"
-  },
-  "copy-c4gz-glyphstar": {
-   "base": "glyphstar",
-   "name": "Star \u00b7 Ink",
-   "kind": "Decor",
-   "createdAt": "2026-08-25T17:00:39.003Z"
-  },
-  "copy-fwp3-glyphmusic": {
-   "base": "glyphmusic",
-   "name": "Music Note \u00b7 Ink",
-   "kind": "Decor",
-   "createdAt": "2026-08-25T17:00:39.004Z"
-  },
-  "copy-n7q6-glyphsound": {
-   "base": "glyphsound",
-   "name": "Speaker \u00b7 Ink",
-   "kind": "Decor",
-   "createdAt": "2026-08-25T17:00:39.007Z"
-  },
-  "copy-amtm-chip": {
-   "base": "chip",
-   "name": "Score Chip",
-   "kind": "HUD",
-   "createdAt": "2026-08-25T17:00:39.008Z"
-  },
-  "copy-fwud-glyphstar": {
-   "base": "glyphstar",
-   "name": "Star \u00b7 Gold",
-   "kind": "Decor",
-   "createdAt": "2026-08-25T17:43:41.679Z"
-  },
-  "copy-hxh2-iconbtn": {
-   "base": "iconbtn",
-   "name": "Icon Button \u00b7 Replay",
-   "kind": "Action",
-   "createdAt": "2026-08-25T17:43:41.681Z"
-  },
-  "copy-2cn9-header": {
-   "base": "header",
-   "name": "GO!",
-   "kind": "Other",
-   "createdAt": "2026-08-25T23:29:45.855Z"
-  }
- },
- "kitShapes": {
-  "header": "kenneyTag",
-  "copy-um55-header": "banner",
-  "copy-2cn9-header": "banner",
-  "checkbox": "pill",
-  "radio": "pill",
-  "toggle": "pill"
- },
- "kitDesigns": {
-  "resource": {
-   "effects": {
-    "Bevel": "#24324F",
-    "Glow": "#7FB2E8",
-    "Highlight": "#EAF2FF",
-    "Shadow": "#111A2E",
-    "Inner Fill": "#2B3E68"
-   },
-   "type": {
-    "fillMode": "solid",
-    "fill": "#F2F6FF",
-    "listInk": "#DFD6C4"
-   },
-   "icon": {
-    "color": "#5c5f6a"
-   },
-   "stateDesigns": {
-    "pressed": {
-     "shape": "mazepill",
-     "effects": {
-      "Bevel": "#24324F",
-      "Glow": "#7FB2E8",
-      "Highlight": "#EAF2FF",
-      "Shadow": "#111A2E",
-      "Inner Fill": "#2B3E68"
-     },
-     "face": {
+  "v": 1,
+  "cfg": {
+    "presetId": "hard-candy",
+    "stateDesigns": {},
+    "shape": "mazepill",
+    "effects": {
+      "Glow": "#FFE9AE",
+      "Bevel": "#DFD6C4",
+      "Shadow": "#877E6F",
+      "Highlight": "#FFFFFF",
+      "Inner Fill": "#FAF6ED"
+    },
+    "face": {
       "mode": "light",
       "contrast": 62,
       "midpoint": 50
-     },
-     "bevel": {
+    },
+    "bevel": {
       "width": 13,
       "softness": 80
-     },
-     "candy": {
+    },
+    "candy": {
       "extrusion": {
-       "depth": 11,
-       "darkness": 84,
-       "glow": 14
+        "depth": 11,
+        "darkness": 84,
+        "glow": 14
       },
       "rim": {
-       "width": 2,
-       "brightness": 68
+        "width": 2,
+        "brightness": 71
       },
       "innerEdge": {
-       "strength": 30,
-       "width": 2
+        "strength": 30,
+        "width": 2
       },
       "innerGlow": {
-       "opacity": 26,
-       "size": 44,
-       "color": null
+        "opacity": 26,
+        "size": 44,
+        "color": null
       },
       "aura": {
-       "color": null
+        "color": null
       },
       "gloss": {
-       "on": true,
-       "height": 34,
-       "curve": 22,
-       "opacity": 26,
-       "softness": 96,
-       "layer": "below",
-       "fill": "highlight",
-       "tint": "#ffffff",
-       "tint2": "#ffffff"
+        "on": true,
+        "height": 34,
+        "curve": 22,
+        "opacity": 26,
+        "softness": 96,
+        "layer": "below",
+        "fill": "highlight",
+        "tint": "#ffffff",
+        "tint2": "#ffffff"
       },
       "specular": {
-       "on": true,
-       "mode": "anime",
-       "size": 24,
-       "stretch": 10,
-       "intensity": 28,
-       "softness": 0,
-       "angle": 0,
-       "gap": 300,
-       "ox": 32,
-       "oy": -28,
-       "blend": "screen"
+        "on": true,
+        "mode": "anime",
+        "size": 24,
+        "stretch": 10,
+        "intensity": 28,
+        "softness": 0,
+        "angle": 0,
+        "gap": 300,
+        "ox": 32,
+        "oy": -28,
+        "blend": "screen"
       },
       "bloom": {
-       "opacity": 26,
-       "size": 55
+        "opacity": 26,
+        "size": 55
       },
       "contact": {
-       "opacity": 30
+        "opacity": 30
       },
       "texture": {
-       "amount": 12,
-       "scale": 50
+        "amount": 12,
+        "scale": 50
       },
       "pattern": {
-       "type": "none",
-       "scale": 100,
-       "angle": 45,
-       "opacity": 10,
-       "color": null
+        "type": "none",
+        "scale": 100,
+        "angle": 45,
+        "opacity": 10,
+        "color": null
       }
-     },
-     "lighting": {
+    },
+    "lighting": {
       "angle": 90,
-      "highlight": 64,
-      "lowlight": 42
-     },
-     "shadow": {
-      "distance": 18,
+      "lowlight": 42,
+      "highlight": 64
+    },
+    "shadow": {
       "blur": 13,
-      "opacity": 32
-     },
-     "transparency": {
+      "opacity": 32,
+      "distance": 18
+    },
+    "transparency": {
       "frame": 100,
-      "interior": 100,
-      "content": 100
-     },
-     "type": {
+      "content": 100,
+      "interior": 100
+    },
+    "content": {
+      "label": "Play Now"
+    },
+    "type": {
       "font": "Fredoka",
       "customFonts": [],
       "size": 76,
@@ -439,3027 +112,2784 @@
       "spacing": 1,
       "case": "title",
       "fillMode": "solid",
-      "fill": "#F2F6FF",
+      "fill": "#22304A",
       "fill2": "#FFFFFF",
       "fillOpacity": 100,
       "outline": {
-       "on": false,
-       "color": "#000000",
-       "color2": null,
-       "width": 0.5
+        "on": false,
+        "color": "#000000",
+        "width": 0.5,
+        "color2": null
       },
       "shadow": {
-       "on": true,
-       "x": 0,
-       "y": 2,
-       "blur": 2.5,
-       "color": "#8A7E64",
-       "opacity": 26
+        "x": 0,
+        "y": 2,
+        "on": true,
+        "blur": 2.5,
+        "color": "#8A7E64",
+        "opacity": 26
       },
       "emboss": {
-       "on": true,
-       "strength": 26,
-       "softness": 55,
-       "shSoftness": 60,
-       "distance": 2,
-       "hiOpacity": 34,
-       "shOpacity": 30,
-       "hiColor": "#FFFFFF",
-       "shColor": "#0A1020"
+        "on": true,
+        "hiColor": "#FFFFFF",
+        "shColor": "#0A1020",
+        "distance": 2,
+        "softness": 55,
+        "strength": 26,
+        "hiOpacity": 34,
+        "shOpacity": 30,
+        "shSoftness": 60
       },
       "glow": {
-       "on": false,
-       "size": 8,
-       "color": "#FFFFFF",
-       "opacity": 60
+        "on": false,
+        "size": 8,
+        "color": "#FFFFFF",
+        "opacity": 60
       },
       "preset": "custom",
-      "listInk": "#DFD6C4"
-     }
-    }
-   }
-  },
-  "currency": {
-   "effects": {
-    "Bevel": "#24324F",
-    "Glow": "#7FB2E8",
-    "Highlight": "#EAF2FF",
-    "Shadow": "#111A2E",
-    "Inner Fill": "#2B3E68"
-   },
-   "type": {
-    "fillMode": "solid",
-    "fill": "#F2F6FF"
-   },
-   "icon": {
-    "color": "#F2F6FF"
-   }
-  },
-  "minimap": {
-   "effects": {
-    "Bevel": "#24324F",
-    "Glow": "#7FB2E8",
-    "Highlight": "#EAF2FF",
-    "Shadow": "#111A2E",
-    "Inner Fill": "#2B3E68"
-   },
-   "type": {
-    "fillMode": "solid",
-    "fill": "#F2F6FF"
-   },
-   "icon": {
-    "color": "#F2F6FF"
-   }
-  },
-  "compass": {
-   "effects": {
-    "Bevel": "#24324F",
-    "Glow": "#7FB2E8",
-    "Highlight": "#EAF2FF",
-    "Shadow": "#111A2E",
-    "Inner Fill": "#2B3E68"
-   },
-   "type": {
-    "fillMode": "solid",
-    "fill": "#F2F6FF"
-   },
-   "icon": {
-    "color": "#F2F6FF"
-   }
-  },
-  "ammo": {
-   "effects": {
-    "Bevel": "#24324F",
-    "Glow": "#7FB2E8",
-    "Highlight": "#EAF2FF",
-    "Shadow": "#111A2E",
-    "Inner Fill": "#2B3E68"
-   },
-   "type": {
-    "fillMode": "solid",
-    "fill": "#F2F6FF",
-    "infoInk": "#DCE6F8"
-   },
-   "icon": {
-    "color": "#F2F6FF"
-   }
-  },
-  "hotbar": {
-   "effects": {
-    "Bevel": "#24324F",
-    "Glow": "#7FB2E8",
-    "Highlight": "#EAF2FF",
-    "Shadow": "#111A2E",
-    "Inner Fill": "#2B3E68"
-   },
-   "type": {
-    "fillMode": "solid",
-    "fill": "#F2F6FF"
-   },
-   "icon": {
-    "color": "#F2F6FF"
-   }
-  },
-  "scorebug": {
-   "effects": {
-    "Bevel": "#24324F",
-    "Glow": "#7FB2E8",
-    "Highlight": "#EAF2FF",
-    "Shadow": "#111A2E",
-    "Inner Fill": "#2B3E68"
-   },
-   "type": {
-    "fillMode": "solid",
-    "fill": "#F2F6FF"
-   },
-   "icon": {
-    "color": "#F2F6FF"
-   }
-  },
-  "killfeed": {
-   "effects": {
-    "Bevel": "#24324F",
-    "Glow": "#7FB2E8",
-    "Highlight": "#EAF2FF",
-    "Shadow": "#111A2E",
-    "Inner Fill": "#2B3E68"
-   },
-   "type": {
-    "fillMode": "solid",
-    "fill": "#F2F6FF"
-   },
-   "icon": {
-    "color": "#F2F6FF"
-   }
-  },
-  "nameplate": {
-   "effects": {
-    "Bevel": "#24324F",
-    "Glow": "#7FB2E8",
-    "Highlight": "#EAF2FF",
-    "Shadow": "#111A2E",
-    "Inner Fill": "#2B3E68"
-   },
-   "type": {
-    "fillMode": "solid",
-    "fill": "#F2F6FF"
-   },
-   "icon": {
-    "color": "#F2F6FF"
-   }
-  },
-  "flipclock": {
-   "effects": {
-    "Bevel": "#24324F",
-    "Glow": "#7FB2E8",
-    "Highlight": "#EAF2FF",
-    "Shadow": "#111A2E",
-    "Inner Fill": "#2B3E68"
-   },
-   "type": {
-    "fillMode": "solid",
-    "fill": "#F2F6FF"
-   },
-   "icon": {
-    "color": "#F2F6FF"
-   }
-  },
-  "stopwatch": {
-   "effects": {
-    "Bevel": "#24324F",
-    "Glow": "#7FB2E8",
-    "Highlight": "#EAF2FF",
-    "Shadow": "#111A2E",
-    "Inner Fill": "#2B3E68"
-   },
-   "type": {
-    "fillMode": "solid",
-    "fill": "#F2F6FF"
-   },
-   "icon": {
-    "color": "#F2F6FF"
-   }
-  },
-  "timerdigits": {
-   "effects": {
-    "Bevel": "#24324F",
-    "Glow": "#7FB2E8",
-    "Highlight": "#EAF2FF",
-    "Shadow": "#111A2E",
-    "Inner Fill": "#2B3E68"
-   },
-   "type": {
-    "fillMode": "solid",
-    "fill": "#F2F6FF"
-   },
-   "icon": {
-    "color": "#F2F6FF"
-   }
-  },
-  "movecounter": {
-   "effects": {
-    "Bevel": "#24324F",
-    "Glow": "#7FB2E8",
-    "Highlight": "#EAF2FF",
-    "Shadow": "#111A2E",
-    "Inner Fill": "#2B3E68"
-   },
-   "type": {
-    "fillMode": "solid",
-    "fill": "#F2F6FF",
-    "infoInk": "#DCE6F8"
-   },
-   "icon": {
-    "color": "#F2F6FF"
-   }
-  },
-  "lives": {
-   "effects": {
-    "Bevel": "#24324F",
-    "Glow": "#7FB2E8",
-    "Highlight": "#EAF2FF",
-    "Shadow": "#111A2E",
-    "Inner Fill": "#2B3E68"
-   },
-   "type": {
-    "fillMode": "solid",
-    "fill": "#F2F6FF"
-   },
-   "icon": {
-    "color": "#F2F6FF"
-   }
-  },
-  "buffframe": {
-   "effects": {
-    "Bevel": "#24324F",
-    "Glow": "#7FB2E8",
-    "Highlight": "#EAF2FF",
-    "Shadow": "#111A2E",
-    "Inner Fill": "#2B3E68"
-   },
-   "type": {
-    "fillMode": "solid",
-    "fill": "#F2F6FF"
-   },
-   "icon": {
-    "color": "#F2F6FF"
-   }
-  },
-  "waypoint": {
-   "effects": {
-    "Bevel": "#24324F",
-    "Glow": "#7FB2E8",
-    "Highlight": "#EAF2FF",
-    "Shadow": "#111A2E",
-    "Inner Fill": "#2B3E68"
-   },
-   "type": {
-    "fillMode": "solid",
-    "fill": "#F2F6FF"
-   },
-   "icon": {
-    "color": "#F2F6FF"
-   }
-  },
-  "capturemeter": {
-   "effects": {
-    "Bevel": "#24324F",
-    "Glow": "#7FB2E8",
-    "Highlight": "#EAF2FF",
-    "Shadow": "#111A2E",
-    "Inner Fill": "#2B3E68"
-   },
-   "type": {
-    "fillMode": "solid",
-    "fill": "#F2F6FF"
-   },
-   "icon": {
-    "color": "#F2F6FF"
-   }
-  },
-  "streakmeter": {
-   "effects": {
-    "Bevel": "#24324F",
-    "Glow": "#7FB2E8",
-    "Highlight": "#EAF2FF",
-    "Shadow": "#111A2E",
-    "Inner Fill": "#2B3E68"
-   },
-   "type": {
-    "fillMode": "solid",
-    "fill": "#F2F6FF"
-   },
-   "icon": {
-    "color": "#F2F6FF"
-   }
-  },
-  "vsbar": {
-   "effects": {
-    "Bevel": "#24324F",
-    "Glow": "#7FB2E8",
-    "Highlight": "#EAF2FF",
-    "Shadow": "#111A2E",
-    "Inner Fill": "#2B3E68"
-   },
-   "type": {
-    "fillMode": "solid",
-    "fill": "#F2F6FF"
-   },
-   "icon": {
-    "color": "#F2F6FF"
-   }
-  },
-  "combo": {
-   "effects": {
-    "Bevel": "#24324F",
-    "Glow": "#7FB2E8",
-    "Highlight": "#EAF2FF",
-    "Shadow": "#111A2E",
-    "Inner Fill": "#2B3E68"
-   },
-   "type": {
-    "fillMode": "solid",
-    "fill": "#F2F6FF"
-   },
-   "icon": {
-    "color": "#F2F6FF"
-   }
-  },
-  "slider": {
-   "effects": {
-    "Bevel": "#24324F",
-    "Glow": "#7FB2E8",
-    "Highlight": "#EAF2FF",
-    "Shadow": "#111A2E",
-    "Inner Fill": "#2B3E68"
-   },
-   "type": {
-    "fillMode": "solid",
-    "fill": "#F2F6FF"
-   },
-   "icon": {
-    "color": "#F2F6FF"
-   }
-  },
-  "primary": {
-   "effects": {
-    "Bevel": "#2AA67C",
-    "Glow": "#9FF4D4",
-    "Highlight": "#ECFFF7",
-    "Shadow": "#0E5C42",
-    "Inner Fill": "#41CD9E"
-   },
-   "type": {
-    "fillMode": "solid",
-    "fill": "#FFFFFF"
-   },
-   "icon": {
-    "color": "#FFFFFF"
-   }
-  },
-  "endturn": {
-   "effects": {
-    "Bevel": "#2AA67C",
-    "Glow": "#9FF4D4",
-    "Highlight": "#ECFFF7",
-    "Shadow": "#0E5C42",
-    "Inner Fill": "#41CD9E"
-   },
-   "type": {
-    "fillMode": "solid",
-    "fill": "#FFFFFF"
-   },
-   "icon": {
-    "color": "#FFFFFF"
-   }
-  },
-  "secondary": {
-   "effects": {
-    "Bevel": "#D25239",
-    "Glow": "#FFB49B",
-    "Highlight": "#FFF1EA",
-    "Shadow": "#7C2812",
-    "Inner Fill": "#F5765A"
-   },
-   "type": {
-    "fillMode": "solid",
-    "fill": "#B94832"
-   },
-   "icon": {
-    "color": "#B94832"
-   }
-  },
-  "booster": {
-   "effects": {
-    "Bevel": "#D25239",
-    "Glow": "#FFB49B",
-    "Highlight": "#FFF1EA",
-    "Shadow": "#7C2812",
-    "Inner Fill": "#F5765A"
-   },
-   "type": {
-    "fillMode": "solid",
-    "fill": "#FFFFFF"
-   },
-   "icon": {
-    "color": "#FFFFFF"
-   }
-  },
-  "progress": {
-   "effects": {
-    "Bevel": "#DFA61E",
-    "Glow": "#FFE289",
-    "Highlight": "#FFFAE6",
-    "Shadow": "#7C5A08",
-    "Inner Fill": "#FFC945"
-   }
-  },
-  "xpbar": {
-   "effects": {
-    "Bevel": "#DFA61E",
-    "Glow": "#FFE289",
-    "Highlight": "#FFFAE6",
-    "Shadow": "#7C5A08",
-    "Inner Fill": "#FFC945"
-   }
-  },
-  "loadbar": {
-   "effects": {
-    "Bevel": "#DFA61E",
-    "Glow": "#FFE289",
-    "Highlight": "#FFFAE6",
-    "Shadow": "#7C5A08",
-    "Inner Fill": "#FFC945"
-   }
-  },
-  "segbar": {
-   "effects": {
-    "Bevel": "#DFA61E",
-    "Glow": "#FFE289",
-    "Highlight": "#FFFAE6",
-    "Shadow": "#7C5A08",
-    "Inner Fill": "#FFC945"
-   }
-  },
-  "energymeter": {
-   "effects": {
-    "Bevel": "#DFA61E",
-    "Glow": "#FFE289",
-    "Highlight": "#FFFAE6",
-    "Shadow": "#7C5A08",
-    "Inner Fill": "#FFC945"
-   }
-  },
-  "dailycell": {
-   "effects": {
-    "Bevel": "#DFA61E",
-    "Glow": "#FFE289",
-    "Highlight": "#FFFAE6",
-    "Shadow": "#7C5A08",
-    "Inner Fill": "#FFC945"
-   }
-  },
-  "starrating": {
-   "effects": {
-    "Bevel": "#DFA61E",
-    "Glow": "#FFE289",
-    "Highlight": "#FFFAE6",
-    "Shadow": "#7C5A08",
-    "Inner Fill": "#FFC945"
-   }
-  },
-  "seasontrack": {
-   "effects": {
-    "Bevel": "#24324F",
-    "Glow": "#FFE289",
-    "Highlight": "#FFFAE6",
-    "Shadow": "#111A2E",
-    "Inner Fill": "#2B3E68"
-   },
-   "type": {
-    "fillMode": "solid",
-    "fill": "#F2F6FF",
-    "infoInk": "#DCE6F8"
-   },
-   "icon": {
-    "color": "#F2F6FF"
-   }
-  },
-  "rarityframe": {
-   "effects": {
-    "Bevel": "#6D49C9",
-    "Glow": "#C5ACFF",
-    "Highlight": "#F2EDFF",
-    "Shadow": "#3A2378",
-    "Inner Fill": "#8B67E9"
-   },
-   "type": {
-    "fillMode": "solid",
-    "fill": "#FFFFFF"
-   },
-   "icon": {
-    "color": "#FFFFFF"
-   }
-  },
-  "loottag": {
-   "effects": {
-    "Bevel": "#6D49C9",
-    "Glow": "#C5ACFF",
-    "Highlight": "#F2EDFF",
-    "Shadow": "#3A2378",
-    "Inner Fill": "#8B67E9"
-   },
-   "type": {
-    "fillMode": "solid",
-    "fill": "#FFFFFF"
-   },
-   "icon": {
-    "color": "#FFFFFF"
-   },
-   "face": {
-    "mode": "dark"
-   }
-  },
-  "pack": {
-   "effects": {
-    "Bevel": "#6D49C9",
-    "Glow": "#C5ACFF",
-    "Highlight": "#F2EDFF",
-    "Shadow": "#3A2378",
-    "Inner Fill": "#8B67E9"
-   },
-   "type": {
-    "fillMode": "solid",
-    "fill": "#FFFFFF"
-   },
-   "icon": {
-    "color": "#FFFFFF"
-   }
-  },
-  "pricebtn": {
-   "effects": {
-    "Bevel": "#6D49C9",
-    "Glow": "#C5ACFF",
-    "Highlight": "#F2EDFF",
-    "Shadow": "#3A2378",
-    "Inner Fill": "#8B67E9"
-   },
-   "type": {
-    "fillMode": "solid",
-    "fill": "#FFFFFF"
-   },
-   "icon": {
-    "color": "#FFFFFF"
-   }
-  },
-  "input": {
-   "effects": {
-    "Bevel": "#DFD6C4",
-    "Glow": "#FFE9AE",
-    "Highlight": "#FFFFFF",
-    "Shadow": "#877E6F",
-    "Inner Fill": "#FFFFFF"
-   },
-   "type": {
-    "fillMode": "solid",
-    "fill": "#22304A",
-    "listInk": "#22304A"
-   }
-  },
-  "dropdown": {
-   "effects": {
-    "Bevel": "#DFD6C4",
-    "Glow": "#FFE9AE",
-    "Highlight": "#FFFFFF",
-    "Shadow": "#877E6F",
-    "Inner Fill": "#FFFFFF"
-   },
-   "type": {
-    "fillMode": "solid",
-    "fill": "#22304A",
-    "listInk": "#22304A"
-   }
-  },
-  "searchfield": {
-   "effects": {
-    "Bevel": "#DFD6C4",
-    "Glow": "#FFE9AE",
-    "Highlight": "#FFFFFF",
-    "Shadow": "#877E6F",
-    "Inner Fill": "#FFFFFF"
-   },
-   "type": {
-    "fillMode": "solid",
-    "fill": "#22304A",
-    "listInk": "#22304A"
-   }
-  },
-  "checkbox": {
-   "icon": {
-    "color": "#41CD9E"
-   }
-  },
-  "radio": {
-   "icon": {
-    "color": "#41CD9E"
-   }
-  },
-  "glyphaddtime": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphbomb": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphcalendar": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphcart": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphcheckmark": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphcheckpoint": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphchest": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphclapboard": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphcoin": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphcoinpile": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphcoinsingle": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphcoinstack": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphcrown": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphenergy": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphflag": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphfriends": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphgem": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphgift": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphhammer": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphheart": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphhome": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphkey": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphleaderboard": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphlock": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphmagnet": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphmail": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphmedal": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphmusic": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphnotification": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphpause": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphpiggybank": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphplay": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphplus": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphprizewheel": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphprofile": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphquests": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphreplay": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphrocket": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphsale": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphsettings": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphshield": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphskull": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphsound": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphstar": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphstarformation": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphstreak": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphtarget": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphticket": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphtimer": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "glyphtrophy": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "badge": {
-   "type": {
-    "size": 140,
-    "fill": "#FAF6ED"
-   },
-   "face": {
-    "mode": "dark"
-   },
-   "icon": {
-    "color": "#FAF6ED"
-   }
-  },
-  "firebutton": {
-   "icon": {
-    "oy": -10
-   }
-  },
-  "invgrid": {
-   "icon": {
-    "color": "#FFC800"
-   },
-   "type": {
-    "emboss": {
-     "on": true
-    }
-   }
-  },
-  "orderticket": {
-   "type": {
-    "size": 60
-   },
-   "stateDesigns": {},
-   "states": {
-    "default": {
-     "glow": 0,
-     "lift": 0,
-     "opacity": 100,
-     "brightness": 0,
-     "saturation": 0
+      "listInk": "#22304A"
     },
-    "hover": {
-     "glow": 0,
-     "lift": 0,
-     "opacity": 100,
-     "brightness": 0,
-     "saturation": 0
-    },
-    "pressed": {
-     "glow": 0,
-     "lift": 0,
-     "opacity": 100,
-     "brightness": 0,
-     "saturation": 0
-    },
-    "disabled": {
-     "glow": 0,
-     "lift": 0,
-     "opacity": 100,
-     "brightness": 0,
-     "saturation": 0
-    }
-   }
-  },
-  "rewardcard": {
-   "icon": {
-    "color": "#FFC800"
-   }
-  },
-  "rewardtray": {
-   "icon": {
-    "color": "#FFC800"
-   }
-  },
-  "buildqueue": {
-   "icon": {
-    "color": "#FFC800"
-   }
-  },
-  "techcard": {
-   "icon": {
-    "color": "#FFC800"
-   }
-  },
-  "claimbtn": {
-   "stateDesigns": {
-    "disabled": {
-     "effects": {
-      "Bevel": "#9A948A",
-      "Glow": "#C9C4BA",
-      "Highlight": "#E8E5DF",
-      "Shadow": "#5C574E",
-      "Inner Fill": "#C7C2B8"
-     }
-    }
-   }
-  },
-  "speedo": {
-   "type": {
-    "fillMode": "solid",
-    "fill": "#F2F6FF"
-   }
-  },
-  "speedo2": {
-   "type": {
-    "fillMode": "solid",
-    "fill": "#F2F6FF"
-   }
-  },
-  "tacho": {
-   "type": {
-    "fillMode": "solid",
-    "fill": "#F2F6FF"
-   }
-  },
-  "chestpanel": {
-   "type": {
-    "fillMode": "solid",
-    "fill": "#F2F6FF"
-   }
-  },
-  "equipselector": {
-   "icon": {
-    "color": "#FFC800"
-   }
-  },
-  "levelnode": {
-   "type": {
-    "size": 140
-   }
-  },
-  "ring": {
-   "type": {
-    "listInk": "#FAF6ED",
-    "fill": "#FAF6ED"
-   }
-  },
-  "slot": {
-   "icon": {
-    "color": "#FAF6ED"
-   }
-  },
-  "keycap": {
-   "type": {
-    "size": 140
-   }
-  },
-  "padbtn": {
-   "type": {
-    "size": 140
-   }
-  },
-  "respawn": {
-   "face": {
-    "mode": "light"
-   },
-   "type": {
-    "listInk": "#FFFFFF"
-   }
-  },
-  "glyphshuffle": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   }
-  },
-  "copy-spmm-glyphchest": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   },
-   "effects": {
-    "Bevel": "#24324F",
-    "Glow": "#7FB2E8",
-    "Highlight": "#EAF2FF",
-    "Shadow": "#111A2E",
-    "Inner Fill": "#2B3E68"
-   }
-  },
-  "copy-m5m7-glyphchest": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   },
-   "effects": {
-    "Bevel": "#2F66B5",
-    "Glow": "#9CCBFF",
-    "Highlight": "#EAF4FF",
-    "Shadow": "#173864",
-    "Inner Fill": "#3F7FD1"
-   }
-  },
-  "copy-b3n2-glyphchest": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   },
-   "effects": {
-    "Bevel": "#6D49C9",
-    "Glow": "#C5ACFF",
-    "Highlight": "#F2EDFF",
-    "Shadow": "#3A2378",
-    "Inner Fill": "#8B67E9"
-   }
-  },
-  "copy-fbdb-glyphchest": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": true
-   },
-   "effects": {
-    "Bevel": "#DFA61E",
-    "Glow": "#FFE289",
-    "Highlight": "#FFFAE6",
-    "Shadow": "#7C5A08",
-    "Inner Fill": "#FFC945"
-   }
-  },
-  "copy-c4gz-glyphstar": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": false,
-    "width": 16
-   },
-   "effects": {
-    "Bevel": "#24324F",
-    "Glow": "#7FB2E8",
-    "Highlight": "#EAF2FF",
-    "Shadow": "#111A2E",
-    "Inner Fill": "#2B3E68"
-   }
-  },
-  "copy-fwp3-glyphmusic": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": false,
-    "width": 11
-   },
-   "effects": {
-    "Bevel": "#24324F",
-    "Glow": "#7FB2E8",
-    "Highlight": "#EAF2FF",
-    "Shadow": "#111A2E",
-    "Inner Fill": "#2B3E68"
-   }
-  },
-  "copy-n7q6-glyphsound": {
-   "candy": {
-    "extrusion": {
-     "depth": 0
-    }
-   },
-   "bevel": {
-    "off": false,
-    "width": 15
-   },
-   "effects": {
-    "Bevel": "#24324F",
-    "Glow": "#7FB2E8",
-    "Highlight": "#EAF2FF",
-    "Shadow": "#111A2E",
-    "Inner Fill": "#2B3E68"
-   }
-  },
-  "boostercard": {
-   "icon": {
-    "color": "#FAF6ED"
-   }
-  },
-  "copy-xedu-boostercard": {
-   "icon": {
-    "color": "#FAF6ED"
-   }
-  },
-  "copy-pnu6-boostercard": {
-   "icon": {
-    "color": "#FAF6ED"
-   }
-  },
-  "bottomnav": {
-   "icon": {
-    "color": "#FAF6ED"
-   }
-  },
-  "copy-fwud-glyphstar": {
-   "candy": {
-    "extrusion": {
-     "depth": 37
-    },
-    "pattern": {
-     "type": "stars",
-     "opacity": 51,
-     "scale": 10
-    }
-   },
-   "bevel": {
-    "off": false,
-    "width": 13
-   },
-   "effects": {
-    "Bevel": "#DFA61E",
-    "Glow": "#FFE289",
-    "Highlight": "#FFFAE6",
-    "Shadow": "#7C5A08",
-    "Inner Fill": "#FFC945"
-   },
-   "states": {
-    "default": {
-     "glow": 100,
-     "lift": 0,
-     "opacity": 100,
-     "brightness": 0,
-     "saturation": 100
-    },
-    "hover": {
-     "glow": 14,
-     "lift": -2,
-     "opacity": 100,
-     "brightness": 6,
-     "saturation": 10
-    },
-    "pressed": {
-     "glow": 6,
-     "lift": 3,
-     "opacity": 100,
-     "brightness": -9,
-     "saturation": 4
-    },
-    "disabled": {
-     "glow": 0,
-     "lift": 0,
-     "opacity": 85,
-     "brightness": -5,
-     "saturation": -60
-    }
-   }
-  },
-  "copy-2cn9-header": {
-   "face": {
-    "mode": "light"
-   },
-   "effects": {
-    "Inner Fill": "#b0e718",
-    "Bevel": "#8aa716",
-    "Glow": "#befdc2",
-    "Shadow": "#38430f",
-    "Highlight": "#fcfdfc"
-   },
-   "type": {
-    "outline": {
-     "color": "#45540b"
-    },
-    "shadow": {
-     "color": "#343f08"
-    },
-    "glow": {
-     "color": "#befdc2"
-    },
-    "size": 140,
-    "italic": true,
-    "shine": {
-     "size": 1.5,
-     "inset": 2,
-     "round": 2,
-     "opacity": 86,
-     "on": true
-    }
-   }
-  }
- },
- "kitTextFill": {},
- "kitLabels": {
-  "copy-2cn9-header": "GO!"
- },
- "kitNoText": {},
- "kitSubs": {},
- "kitIcons": {
-  "iconbtn": {
-   "lib": "lucide",
-   "name": "Settings",
-   "viewBox": "0 0 24 24",
-   "inner": "<path d=\"M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z\"></path><circle cx=\"12\" cy=\"12\" r=\"3\"></circle>",
-   "mode": "stroke"
-  },
-  "copy-xedu-boostercard": {
-   "lib": "lucide",
-   "name": "Bomb",
-   "viewBox": "0 0 24 24",
-   "inner": "<circle cx=\"11\" cy=\"13\" r=\"9\"></circle><path d=\"M14.35 4.65 16.3 2.7a2.41 2.41 0 0 1 3.4 0l1.6 1.6a2.4 2.4 0 0 1 0 3.4l-1.95 1.95\"></path><path d=\"m22 2-1.5 1.5\"></path>",
-   "mode": "stroke"
-  },
-  "copy-pnu6-boostercard": {
-   "lib": "lucide",
-   "name": "Magnet",
-   "viewBox": "0 0 24 24",
-   "inner": "<path d=\"m6 15-4-4 6.75-6.77a7.79 7.79 0 0 1 11 11L13 22l-4-4 6.39-6.36a2.14 2.14 0 0 0-3-3L6 15\"></path><path d=\"m5 8 4 4\"></path><path d=\"m12 15 4 4\"></path>",
-   "mode": "stroke"
-  },
-  "copy-amtm-chip": "none",
-  "copy-hxh2-iconbtn": {
-   "lib": "lucide",
-   "name": "RotateCw",
-   "viewBox": "0 0 24 24",
-   "inner": "<path d=\"M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8\"/><path d=\"M21 3v5h-5\"/>",
-   "mode": "stroke"
-  }
- },
- "kitSlotVals": {},
- "kitVals": {},
- "kitBar": {},
- "kitTextOy": {
-  "badge:l": -18,
-  "waypoint:l": -3,
-  "respawn:l": -10
- },
- "kitTextOx": {
-  "orderticket:l": -2,
-  "waypoint:l": 1,
-  "respawn:l": -11
- },
- "kitLocks": {},
- "boards": [
-  {
-   "id": "abmt93iheg0",
-   "name": "Level Select",
-   "aspect": "mobile",
-   "items": [
-    {
-     "id": "bdmt93iheg0i0",
-     "libId": "",
-     "kitId": "header",
-     "x": 15,
-     "y": 102,
-     "scale": 0.482,
-     "label": "Level Select",
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg0i1",
-     "libId": "",
-     "kitId": "ring",
-     "x": 15,
-     "y": 13,
-     "scale": 0.3,
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg0i2",
-     "libId": "",
-     "kitId": "iconbtn",
-     "x": 322,
-     "y": 7,
-     "scale": 0.3,
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg0i3",
-     "libId": "",
-     "kitId": "seasontrack",
-     "x": 4,
-     "y": 428,
-     "scale": 0.441,
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg0i4",
-     "libId": "",
-     "kitId": "primary",
-     "x": 52,
-     "y": 645,
-     "scale": 0.473,
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg0i5",
-     "libId": "",
-     "kitId": "levelnode",
-     "x": 11,
-     "y": 273,
-     "scale": 0.35,
-     "label": "10",
-     "v": 1,
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg0i6",
-     "libId": "",
-     "kitId": "levelnode",
-     "x": 80,
-     "y": 273,
-     "scale": 0.35,
-     "label": "11",
-     "v": 1,
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg0i7",
-     "libId": "",
-     "kitId": "levelnode",
-     "x": 149,
-     "y": 273,
-     "scale": 0.35,
-     "label": "12",
-     "v": 0.66,
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg0i8",
-     "libId": "",
-     "kitId": "levelnode",
-     "x": 218,
-     "y": 273,
-     "scale": 0.35,
-     "label": "13",
-     "v": 0.33,
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg0i9",
-     "libId": "",
-     "kitId": "levelnode",
-     "x": 287,
-     "y": 273,
-     "scale": 0.35,
-     "label": "14",
-     "v": 0,
-     "shadow": {
-      "s": 100
-     }
-    }
-   ],
-   "bgShow": true,
-   "bgBright": 94,
-   "ovMode": "vignette",
-   "ovStrength": 100,
-   "bgOpacity": 77,
-   "bgBlur": 1,
-   "bgImage": "/backdrops/brightside/level-select.jpg"
-  },
-  {
-   "id": "abmt93iheg1",
-   "name": "Returning User Start Screen",
-   "aspect": "mobile",
-   "items": [
-    {
-     "id": "bdmt93iheg1i0",
-     "libId": "",
-     "kitId": "header",
-     "x": 21,
-     "y": 300,
-     "scale": 0.482,
-     "label": "Crystal Pass",
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg1i1",
-     "libId": "",
-     "kitId": "primary",
-     "x": 68,
-     "y": 473,
-     "scale": 0.473,
-     "label": "Continue",
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg1i2",
-     "libId": "",
-     "kitId": "badge",
-     "x": 250.75312598754306,
-     "y": 381.95443175216997,
-     "scale": 0.431,
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg1i3",
-     "libId": "",
-     "kitId": "ghost",
-     "x": 83,
-     "y": 608,
-     "scale": 0.4237228528537073,
-     "label": "Level Select",
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg1i4",
-     "libId": "",
-     "kitId": "resource",
-     "x": 82,
-     "y": 34,
-     "scale": 0.3,
-     "v": 0.44,
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg1i5",
-     "libId": "",
-     "kitId": "currency",
-     "x": 196.72169974861788,
-     "y": 33.30039628256826,
-     "scale": 0.3,
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg1i6",
-     "libId": "",
-     "kitId": "iconbtn",
-     "x": 317.95084986676113,
-     "y": 21.100989068691206,
-     "scale": 0.3,
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg1i7",
-     "libId": "",
-     "kitId": "avatarframe",
-     "x": 6,
-     "y": 9,
-     "scale": 0.3,
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg1i8",
-     "libId": "",
-     "x": 69,
-     "y": 234,
-     "stamp": {
-      "text": "Chapter 2",
-      "size": 25
-     }
-    },
-    {
-     "id": "bdmt93iheg1i9",
-     "libId": "",
-     "x": 16,
-     "y": 97,
-     "scale": 0.5446165676695603,
-     "logo": {
-      "aid": "uamt892wvb6agh6",
-      "shadow": 100,
-      "shadowX": 9,
-      "shadowY": 25,
-      "shadowBlur": 10,
-      "glow": 0
-     }
-    }
-   ],
-   "bgShow": true,
-   "ovMode": "vignette",
-   "bgOpacity": 65,
-   "bgSat": 85,
-   "bgBright": 98,
-   "bgBlur": 1,
-   "bgContrast": 107,
-   "bgImage": "/backdrops/brightside/returning-user-start-screen.jpg"
-  },
-  {
-   "id": "abmt93iheg2",
-   "name": "Booster Select",
-   "aspect": "mobile",
-   "items": [
-    {
-     "id": "bdmt93iheg2i0",
-     "libId": "",
-     "kitId": "tabback",
-     "x": 6,
-     "y": 1,
-     "scale": 0.35,
-     "label": "Back",
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg2i1",
-     "libId": "",
-     "kitId": "currency",
-     "x": 263,
-     "y": 7,
-     "scale": 0.3,
-     "v": 0.125,
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg2i2",
-     "libId": "",
-     "kitId": "movecounter",
-     "x": 148,
-     "y": 274,
-     "scale": 0.36,
-     "v": 0.8,
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg2i3",
-     "libId": "",
-     "kitId": "primary",
-     "x": 86,
-     "y": 691,
-     "scale": 0.473,
-     "label": "Start",
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg2i4",
-     "libId": "",
-     "kitId": "chip",
-     "x": 72,
-     "y": 180,
-     "scale": 0.36,
-     "label": "Pick Your Boosters",
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg2i5",
-     "libId": "",
-     "kitId": "copy-um55-header",
-     "x": 23,
-     "y": 69,
-     "scale": 0.482,
-     "label": "Level 12",
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg2i6",
-     "libId": "",
-     "kitId": "boostercard",
-     "x": 2,
-     "y": 358,
-     "scale": 0.459,
-     "label": "Hammer",
-     "v": 0.030303030303030304,
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg2i7",
-     "libId": "",
-     "kitId": "copy-xedu-boostercard",
-     "x": 121,
-     "y": 358,
-     "scale": 0.459,
-     "label": "Bomb",
-     "v": 0.010101010101010102,
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg2i8",
-     "libId": "",
-     "kitId": "copy-pnu6-boostercard",
-     "x": 240,
-     "y": 358,
-     "scale": 0.459,
-     "label": "Magnet",
-     "v": 0.020202020202020204,
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg2i9",
-     "libId": "",
-     "kitId": "panel",
-     "x": 2,
-     "y": 529,
-     "scale": 0.4462,
-     "stretchY": 0.7,
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg2ia",
-     "libId": "",
-     "kitId": "copy-c4gz-glyphstar",
-     "x": 40,
-     "y": 574,
-     "scale": 0.3,
-     "shadow": {
-      "s": 45,
-      "x": 0,
-      "y": 4,
-      "blur": 8
-     }
-    },
-    {
-     "id": "bdmt93iheg2ib",
-     "libId": "",
-     "x": 43,
-     "y": 503,
-     "stamp": {
-      "text": "Active Booster",
-      "size": 25,
-      "plain": {
-       "color": "#55617C"
+    "icon": {
+      "show": true,
+      "def": {
+        "lib": "lucide",
+        "mode": "stroke",
+        "name": "Play",
+        "inner": "<polygon points=\"6 3 20 12 6 21 6 3\"/>",
+        "viewBox": "0 0 24 24"
+      },
+      "placement": "right",
+      "only": false,
+      "size": 100,
+      "strokeWidth": 24,
+      "color": "#FFE9AE",
+      "outlineWidth": null,
+      "opacity": 100,
+      "rotation": 0,
+      "gap": 18,
+      "ox": 0,
+      "oy": 0,
+      "fx": {
+        "glow": false,
+        "emboss": false,
+        "shadow": false
       }
-     },
-     "scale": 1
     },
-    {
-     "id": "bdmt93iheg2ic",
-     "libId": "",
-     "x": 66,
-     "y": 556,
-     "stamp": {
-      "text": "Star Blitz \u00b7 +1 star per match",
-      "size": 25,
-      "plain": {
-       "color": "#22304A"
+    "states": {
+      "hover": {
+        "glow": 14,
+        "lift": -2,
+        "opacity": 100,
+        "brightness": 6,
+        "saturation": 10
+      },
+      "default": {
+        "glow": 0,
+        "lift": 0,
+        "opacity": 100,
+        "brightness": 0,
+        "saturation": 0
+      },
+      "pressed": {
+        "glow": 6,
+        "lift": 3,
+        "opacity": 100,
+        "brightness": -9,
+        "saturation": 4
+      },
+      "disabled": {
+        "glow": 0,
+        "lift": 0,
+        "opacity": 85,
+        "brightness": -5,
+        "saturation": -60
       }
-     },
-     "scale": 0.7179990091609065
+    },
+    "visible": {
+      "hover": true,
+      "pressed": true,
+      "disabled": true
+    },
+    "canvas": "#000000",
+    "idle": {
+      "wipe": false,
+      "edge": false,
+      "wipeWidth": 37
+    },
+    "knob": {
+      "color": "#2AA67C"
     }
-   ],
-   "bgImage": "/backdrops/valley.jpg",
-   "bgShow": true,
-   "bgOpacity": 84,
-   "bgBright": 96,
-   "bgBlur": 2,
-   "ovMode": "vignette",
-   "ovStrength": 100
   },
-  {
-   "id": "abmt93iheg3",
-   "name": "Gameplay HUD",
-   "aspect": "mobile",
-   "items": [
-    {
-     "id": "bdmt93iheg3i2",
-     "libId": "",
-     "kitId": "resource",
-     "x": 14,
-     "y": 4,
-     "scale": 0.34,
-     "v": 0.44,
-     "shadow": {
-      "s": 100
-     }
+  "kitName": "Brightside",
+  "kitClones": {
+    "copy-p5vv-boostercard": {
+      "base": "boostercard",
+      "name": "Booster card Diamond",
+      "kind": "Other",
+      "createdAt": "2026-09-02T23:53:53.158Z"
     },
-    {
-     "id": "bdmt93iheg3i4",
-     "libId": "",
-     "kitId": "glyphpause",
-     "x": 308,
-     "y": -16,
-     "scale": 0.3,
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg3i9",
-     "libId": "",
-     "kitId": "slot",
-     "x": 39,
-     "y": 671,
-     "scale": 0.4,
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg3ia",
-     "libId": "",
-     "kitId": "slot",
-     "x": 141,
-     "y": 671,
-     "scale": 0.4,
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg3ib",
-     "libId": "",
-     "kitId": "slot",
-     "x": 243,
-     "y": 671,
-     "scale": 0.4,
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg3ic",
-     "libId": "",
-     "kitId": "glyphhammer",
-     "x": 49,
-     "y": 679,
-     "scale": 0.3,
-     "shadow": {
-      "s": 45,
-      "x": 0,
-      "y": 4,
-      "blur": 8
-     }
-    },
-    {
-     "id": "bdmt93iheg3id",
-     "libId": "",
-     "kitId": "glyphbomb",
-     "x": 151,
-     "y": 679,
-     "scale": 0.3,
-     "shadow": {
-      "s": 45,
-      "x": 0,
-      "y": 4,
-      "blur": 8
-     }
-    },
-    {
-     "id": "bdmt93iheg3ie",
-     "libId": "",
-     "kitId": "glyphmagnet",
-     "x": 253,
-     "y": 679,
-     "scale": 0.3,
-     "shadow": {
-      "s": 45,
-      "x": 0,
-      "y": 4,
-      "blur": 8
-     }
-    },
-    {
-     "id": "bdmt93iheg3if",
-     "libId": "",
-     "kitId": "qtybadge",
-     "x": 54,
-     "y": 764,
-     "scale": 0.3,
-     "label": "\u00d72",
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg3ig",
-     "libId": "",
-     "kitId": "qtybadge",
-     "x": 157,
-     "y": 764,
-     "scale": 0.3,
-     "label": "\u00d71",
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg3ih",
-     "libId": "",
-     "kitId": "qtybadge",
-     "x": 258,
-     "y": 764,
-     "scale": 0.3,
-     "label": "\u00d72",
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt97r1zbyjgs",
-     "libId": "libmt97qoiow8yf",
-     "x": 80,
-     "y": 960
-    },
-    {
-     "id": "bdmt97sj9e27y0",
-     "libId": "libmt97qoiow8yf",
-     "x": 80,
-     "y": 960
-    },
-    {
-     "id": "bdmt97smvj3ii0",
-     "libId": "libmt97qoiow8yf",
-     "x": 420,
-     "y": 960
-    },
-    {
-     "id": "bdmt97sxp5n76u",
-     "libId": "libmt97qoiow8yf",
-     "x": 760,
-     "y": 960
-    },
-    {
-     "id": "bdmt97u55pn6pe",
-     "libId": "libmt97qoiow8yf",
-     "x": 80,
-     "y": 1180
-    },
-    {
-     "id": "bdmt97u7beiw98",
-     "libId": "libmt97qoiow8yf",
-     "x": 420,
-     "y": 1180
-    },
-    {
-     "id": "bdmt97uc6vxvqo",
-     "libId": "libmt97qoiow8yf",
-     "x": 760,
-     "y": 1180
-    },
-    {
-     "id": "bdmt98gogl5w6e",
-     "libId": "libmt97qoiow8yf",
-     "x": 80,
-     "y": 1400
-    },
-    {
-     "id": "bdmt98hby1bpr5",
-     "libId": "libmt97qoiow8yf",
-     "x": 420,
-     "y": 1400
-    },
-    {
-     "id": "bdmt98hejakomc",
-     "libId": "libmt97qoiow8yf",
-     "x": 760,
-     "y": 1400
-    },
-    {
-     "id": "bdmt9aqmtnx8dv",
-     "libId": "",
-     "kitId": "copy-2cn9-header",
-     "x": 23,
-     "y": 98,
-     "scale": 0.46504388593880586,
-     "label": "GO!"
+    "copy-2ycp-boostercard": {
+      "base": "boostercard",
+      "name": "Booster card Shield",
+      "kind": "Other",
+      "createdAt": "2026-09-02T23:59:42.507Z"
     }
-   ],
-   "bgImage": "/backdrops/valley.jpg",
-   "bgShow": true,
-   "bgOpacity": 90,
-   "bgBright": 98,
-   "bgBlur": 0,
-   "ovMode": "vignette",
-   "ovStrength": 62
   },
-  {
-   "id": "abmt93iheg4",
-   "name": "Pause",
-   "aspect": "mobile",
-   "items": [
-    {
-     "id": "bdmt93iheg4i0",
-     "libId": "",
-     "kitId": "panel",
-     "x": 9,
-     "y": 141,
-     "scale": 0.4295,
-     "stretchY": 2.8,
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg4i1",
-     "libId": "",
-     "kitId": "header",
-     "x": 60,
-     "y": 96,
-     "scale": 0.44,
-     "label": "Paused",
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg4i2",
-     "libId": "",
-     "kitId": "slider",
-     "x": 143,
-     "y": 254,
-     "scale": 0.34,
-     "v": 0.72,
-     "shadow": {
-      "s": 45,
-      "x": 0,
-      "y": 4,
-      "blur": 8
-     }
-    },
-    {
-     "id": "bdmt93iheg4i3",
-     "libId": "",
-     "kitId": "slider",
-     "x": 143,
-     "y": 316,
-     "scale": 0.34,
-     "v": 0.55,
-     "shadow": {
-      "s": 45,
-      "x": 0,
-      "y": 4,
-      "blur": 8
-     }
-    },
-    {
-     "id": "bdmt93iheg4i4",
-     "libId": "",
-     "kitId": "toggle",
-     "x": 166,
-     "y": 364,
-     "scale": 0.34,
-     "v": 1,
-     "shadow": {
-      "s": 45,
-      "x": 0,
-      "y": 4,
-      "blur": 8
-     }
-    },
-    {
-     "id": "bdmt93iheg4i5",
-     "libId": "",
-     "kitId": "dropdown",
-     "x": 110,
-     "y": 428,
-     "scale": 0.35472595104903587,
-     "label": "English",
-     "shadow": {
-      "s": 45,
-      "x": 0,
-      "y": 4,
-      "blur": 8
-     }
-    },
-    {
-     "id": "bdmt93iheg4i6",
-     "libId": "",
-     "kitId": "primary",
-     "x": 90,
-     "y": 555,
-     "scale": 0.3758234237722024,
-     "label": "Resume",
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg4i7",
-     "libId": "",
-     "kitId": "secondary",
-     "x": 100,
-     "y": 650,
-     "scale": 0.3462989885164506,
-     "label": "Restart",
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg4i8",
-     "libId": "",
-     "kitId": "ghost",
-     "x": 121,
-     "y": 739,
-     "scale": 0.4,
-     "label": "Quit",
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg4i9",
-     "libId": "",
-     "x": 17,
-     "y": 161,
-     "stamp": {
-      "text": "Music",
-      "size": 26
-     },
-     "scale": 1
-    },
-    {
-     "id": "bdmt93iheg4ia",
-     "libId": "",
-     "x": 18,
-     "y": 223,
-     "stamp": {
-      "text": "SFX",
-      "size": 26
-     },
-     "scale": 1
-    },
-    {
-     "id": "bdmt93iheg4ib",
-     "libId": "",
-     "x": 16,
-     "y": 285,
-     "stamp": {
-      "text": "Haptics",
-      "size": 26
-     },
-     "scale": 1
-    },
-    {
-     "id": "bdmt93iheg4ie",
-     "libId": "",
-     "kitId": "dropdown",
-     "x": 68,
-     "y": 494,
-     "scale": 0.35683146657734394,
-     "label": "Graphics \u00b7 High",
-     "shadow": {
-      "s": 45,
-      "x": 0,
-      "y": 4,
-      "blur": 8
-     }
-    },
-    {
-     "id": "bdmt93iheg4if",
-     "libId": "",
-     "x": 127,
-     "y": 34,
-     "scale": 0.19876818563967233,
-     "logo": {
-      "aid": "uamt892wvb6agh6",
-      "shadow": 100,
-      "shadowX": 9,
-      "shadowY": 25,
-      "shadowBlur": 10,
-      "glow": 0
-     }
-    },
-    {
-     "id": "bdmt97bvke6qaa",
-     "libId": "",
-     "kitId": "copy-fwp3-glyphmusic",
-     "x": 41,
-     "y": 253,
-     "scale": 0.1683994472665347
-    },
-    {
-     "id": "bdmt97hvp7hc7z",
-     "libId": "",
-     "kitId": "copy-n7q6-glyphsound",
-     "x": 39,
-     "y": 306,
-     "scale": 0.19955875021832786
-    }
-   ],
-   "bgImage": "/backdrops/valley.jpg",
-   "bgShow": true,
-   "bgOpacity": 100,
-   "bgBright": 60,
-   "bgBlur": 5,
-   "bgSat": 80,
-   "ovMode": "vignette",
-   "ovStrength": 100
+  "kitShapes": {
+    "toggle": "pill",
+    "minimap": "pill",
+    "gbtngem": "crest",
+    "gbtncrowncoin": "pill",
+    "gbtnbomb": "pill",
+    "gbtncheckpoint": "round",
+    "gbtnprizewheel": "pill",
+    "gbtnskull": "pill",
+    "gbtnprofile": "pill",
+    "gbtncoin": "pill",
+    "gbtnheart": "pill",
+    "gbtnpiggybank": "pill",
+    "gbtntarget": "pill",
+    "gbtnreplay": "pill",
+    "gbtnmedal": "shield"
   },
-  {
-   "id": "abmt93iheg5",
-   "name": "Shop",
-   "aspect": "mobile",
-   "items": [
-    {
-     "id": "bdmt93iheg5i0",
-     "libId": "",
-     "kitId": "resource",
-     "x": 25,
-     "y": 8,
-     "scale": 0.3,
-     "v": 0.44,
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg5i1",
-     "libId": "",
-     "kitId": "currency",
-     "x": 141,
-     "y": 7,
-     "scale": 0.3,
-     "v": 0.125,
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg5i2",
-     "libId": "",
-     "kitId": "iconbtn",
-     "x": 314,
-     "y": -5,
-     "scale": 0.3,
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg5i3",
-     "libId": "",
-     "kitId": "tab",
-     "x": 17,
-     "y": 67,
-     "scale": 0.38,
-     "label": "Shop",
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg5i4",
-     "libId": "",
-     "kitId": "tab",
-     "x": 112,
-     "y": 67,
-     "scale": 0.38,
-     "label": "Daily",
-     "opacity": 55,
-     "shadow": {
-      "s": 35,
-      "x": 0,
-      "y": 3,
-      "blur": 6
-     }
-    },
-    {
-     "id": "bdmt93iheg5i5",
-     "libId": "",
-     "kitId": "glyphgem",
-     "x": 34,
-     "y": 142,
-     "scale": 0.3,
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg5i6",
-     "libId": "",
-     "kitId": "glyphgem",
-     "x": 144,
-     "y": 129,
-     "scale": 0.35,
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg5i7",
-     "libId": "",
-     "kitId": "glyphgem",
-     "x": 251,
-     "y": 110,
-     "scale": 0.42,
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg5i8",
-     "libId": "",
-     "kitId": "qtybadge",
-     "x": 34,
-     "y": 221,
-     "scale": 0.3,
-     "label": "\u00d780",
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg5i9",
-     "libId": "",
-     "kitId": "qtybadge",
-     "x": 146,
-     "y": 221,
-     "scale": 0.3,
-     "label": "\u00d7500",
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg5ia",
-     "libId": "",
-     "kitId": "qtybadge",
-     "x": 257,
-     "y": 221,
-     "scale": 0.3,
-     "label": "\u00d71,200",
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg5ib",
-     "libId": "",
-     "kitId": "small",
-     "x": 18,
-     "y": 252,
-     "scale": 0.34,
-     "label": "$1.99",
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg5ic",
-     "libId": "",
-     "kitId": "pricebtn",
-     "x": 122,
-     "y": 251,
-     "scale": 0.33,
-     "label": "$4.99",
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg5id",
-     "libId": "",
-     "kitId": "small",
-     "x": 251,
-     "y": 252,
-     "scale": 0.34,
-     "label": "$9.99",
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg5ie",
-     "libId": "",
-     "kitId": "dailycell",
-     "x": 19,
-     "y": 398,
-     "scale": 0.38,
-     "ov": "check",
-     "label": "Day 3",
-     "shadow": {
-      "s": 45,
-      "x": 0,
-      "y": 4,
-      "blur": 8
-     }
-    },
-    {
-     "id": "bdmt93iheg5if",
-     "libId": "",
-     "kitId": "dailycell",
-     "x": 107,
-     "y": 398,
-     "scale": 0.38,
-     "label": "Day 4",
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg5ig",
-     "libId": "",
-     "kitId": "dailycell",
-     "x": 195,
-     "y": 398,
-     "scale": 0.38,
-     "ov": "locked",
-     "label": "Day 5",
-     "shadow": {
-      "s": 45,
-      "x": 0,
-      "y": 4,
-      "blur": 8
-     }
-    },
-    {
-     "id": "bdmt93iheg5ih",
-     "libId": "",
-     "kitId": "dailycell",
-     "x": 283,
-     "y": 398,
-     "scale": 0.38,
-     "ov": "locked",
-     "label": "Day 6",
-     "shadow": {
-      "s": 45,
-      "x": 0,
-      "y": 4,
-      "blur": 8
-     }
-    },
-    {
-     "id": "bdmt93iheg5ii",
-     "libId": "",
-     "x": 53,
-     "y": 28,
-     "stamp": {
-      "text": "Gem Bundles",
-      "size": 26,
-      "plain": {
-       "color": "#FAF6ED"
+  "kitDesigns": {
+    "badge": {
+      "type": {
+        "size": 140
       },
-      "shadow": 60
-     },
-     "scale": 1
+      "stateDesigns": {
+        "pressed": {
+          "shape": "mazepill",
+          "effects": {
+            "Glow": "#FFE9AE",
+            "Bevel": "#DFD6C4",
+            "Shadow": "#877E6F",
+            "Highlight": "#FFFFFF",
+            "Inner Fill": "#FAF6ED"
+          },
+          "face": {
+            "mode": "light",
+            "contrast": 62,
+            "midpoint": 50
+          },
+          "bevel": {
+            "width": 13,
+            "softness": 80
+          },
+          "candy": {
+            "extrusion": {
+              "depth": 11,
+              "darkness": 84,
+              "glow": 14
+            },
+            "rim": {
+              "width": 2,
+              "brightness": 68
+            },
+            "innerEdge": {
+              "strength": 30,
+              "width": 2
+            },
+            "innerGlow": {
+              "opacity": 26,
+              "size": 44,
+              "color": null
+            },
+            "aura": {
+              "color": null
+            },
+            "gloss": {
+              "on": true,
+              "height": 34,
+              "curve": 22,
+              "opacity": 26,
+              "softness": 96,
+              "layer": "below",
+              "fill": "highlight",
+              "tint": "#ffffff",
+              "tint2": "#ffffff"
+            },
+            "specular": {
+              "on": true,
+              "mode": "anime",
+              "size": 24,
+              "stretch": 10,
+              "intensity": 28,
+              "softness": 0,
+              "angle": 0,
+              "gap": 300,
+              "ox": 32,
+              "oy": -28,
+              "blend": "screen"
+            },
+            "bloom": {
+              "opacity": 26,
+              "size": 55
+            },
+            "contact": {
+              "opacity": 30
+            },
+            "texture": {
+              "amount": 12,
+              "scale": 50
+            },
+            "pattern": {
+              "type": "none",
+              "scale": 100,
+              "angle": 45,
+              "opacity": 10,
+              "color": null
+            }
+          },
+          "lighting": {
+            "angle": 90,
+            "lowlight": 42,
+            "highlight": 64
+          },
+          "shadow": {
+            "blur": 13,
+            "opacity": 32,
+            "distance": 18
+          },
+          "transparency": {
+            "frame": 100,
+            "content": 100,
+            "interior": 100
+          },
+          "type": {
+            "font": "Fredoka",
+            "customFonts": [],
+            "size": 140,
+            "weight": 600,
+            "italic": false,
+            "spacing": 1,
+            "case": "title",
+            "fillMode": "solid",
+            "fill": "#22304A",
+            "fill2": "#FFFFFF",
+            "fillOpacity": 100,
+            "outline": {
+              "on": false,
+              "color": "#000000",
+              "width": 0.5,
+              "color2": null
+            },
+            "shadow": {
+              "x": 0,
+              "y": 2,
+              "on": true,
+              "blur": 2.5,
+              "color": "#8A7E64",
+              "opacity": 26
+            },
+            "emboss": {
+              "on": true,
+              "hiColor": "#FFFFFF",
+              "shColor": "#0A1020",
+              "distance": 2,
+              "softness": 55,
+              "strength": 26,
+              "hiOpacity": 34,
+              "shOpacity": 30,
+              "shSoftness": 60
+            },
+            "glow": {
+              "on": false,
+              "size": 8,
+              "color": "#FFFFFF",
+              "opacity": 60
+            },
+            "preset": "custom",
+            "listInk": "#22304A"
+          },
+          "icon": {
+            "show": true,
+            "def": {
+              "lib": "lucide",
+              "mode": "stroke",
+              "name": "Play",
+              "inner": "<polygon points=\"6 3 20 12 6 21 6 3\"/>",
+              "viewBox": "0 0 24 24"
+            },
+            "placement": "right",
+            "only": false,
+            "size": 100,
+            "strokeWidth": 24,
+            "color": "#0A205C",
+            "outlineWidth": null,
+            "opacity": 100,
+            "rotation": 0,
+            "gap": 18,
+            "ox": 0,
+            "oy": 0,
+            "fx": {
+              "glow": false,
+              "emboss": false,
+              "shadow": false
+            }
+          }
+        }
+      }
     },
-    {
-     "id": "bdmt93iheg5ij",
-     "libId": "",
-     "x": -30,
-     "y": 250,
-     "stamp": {
-      "text": "Daily Deals \u00b7 resets in 14h 32m",
-      "size": 25,
-      "plain": {
-       "color": "#FAF6ED"
+    "input": {
+      "type": {
+        "fill": "#FFE9AE"
+      }
+    },
+    "emblembar": {
+      "icon": {
+        "color": "#0a1020"
       },
-      "shadow": 60
-     },
-     "scale": 1
+      "stateDesigns": {},
+      "states": {
+        "default": {
+          "glow": 0,
+          "lift": 0,
+          "opacity": 100,
+          "brightness": 0,
+          "saturation": 0
+        },
+        "hover": {
+          "glow": 0,
+          "lift": 0,
+          "opacity": 100,
+          "brightness": 0,
+          "saturation": 0
+        },
+        "pressed": {
+          "glow": 0,
+          "lift": 0,
+          "opacity": 100,
+          "brightness": 0,
+          "saturation": 0
+        },
+        "disabled": {
+          "glow": 0,
+          "lift": 0,
+          "opacity": 100,
+          "brightness": 0,
+          "saturation": 0
+        }
+      }
     },
-    {
-     "id": "bdmt93iheg5ik",
-     "libId": "",
-     "kitId": "bottomnav",
-     "x": -10,
-     "y": 693,
-     "scale": 0.5176,
-     "v": 0.99,
-     "shadow": {
-      "s": 100
-     }
+    "hotbar": {
+      "type": {
+        "listInk": "#FFE9AE",
+        "fill": "#66FF00",
+        "size": 85
+      }
     },
-    {
-     "id": "bdmt93iheg5il",
-     "libId": "",
-     "kitId": "claimbtn",
-     "x": 65,
-     "y": 489,
-     "scale": 0.6095098302958969
+    "cardback": {
+      "icon": {
+        "color": "#22304A"
+      }
+    },
+    "pack": {
+      "icon": {
+        "color": "#22304A"
+      },
+      "type": {
+        "infoInk": "#FFFFFF"
+      }
+    },
+    "iconbtn": {
+      "icon": {
+        "color": "#0A205C"
+      }
+    },
+    "chip": {
+      "icon": {
+        "color": "#22304A",
+        "size": 166,
+        "strokeWidth": 26,
+        "fx": {
+          "shadow": true,
+          "emboss": true
+        }
+      }
+    },
+    "keycap": {
+      "type": {
+        "size": 140
+      }
+    },
+    "padbtn": {
+      "type": {
+        "size": 140
+      }
+    },
+    "notifydot": {
+      "icon": {
+        "color": "#22304A"
+      }
+    },
+    "nameplate": {
+      "type": {
+        "infoInk": null
+      },
+      "icon": {
+        "color": "#22304A"
+      }
+    },
+    "buffframe": {
+      "icon": {
+        "color": "#22304A"
+      }
+    },
+    "resource": {
+      "icon": {
+        "color": "#22304A"
+      }
+    },
+    "firebutton": {
+      "icon": {
+        "ox": 3,
+        "oy": -8,
+        "color": "#22304A",
+        "size": 84
+      }
+    },
+    "ring": {
+      "type": {
+        "fill": "#FFE9AE"
+      }
+    },
+    "flipclock": {
+      "type": {
+        "fill": "#FFE9AE"
+      }
+    },
+    "stopwatch": {
+      "type": {
+        "fill": "#FFE9AE"
+      }
+    },
+    "speedo": {
+      "type": {
+        "fill": "#FFE9AE"
+      }
+    },
+    "speedo2": {
+      "type": {
+        "fill": "#FFE9AE"
+      }
+    },
+    "timerdigits": {
+      "type": {
+        "fill": "#FFE9AE"
+      }
+    },
+    "tacho": {
+      "type": {
+        "fill": "#FFE9AE"
+      }
+    },
+    "compass": {
+      "type": {
+        "fill": "#FFE9AE"
+      }
+    },
+    "loottag": {
+      "face": {
+        "mode": "dark"
+      },
+      "type": {
+        "fill": "#FFE9AE"
+      }
+    },
+    "streakmeter": {
+      "icon": {
+        "color": "#22304A"
+      }
+    },
+    "glyphcoinsingle": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphcoin": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphcoinstack": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphcoinpile": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphgem": {
+      "candy": {
+        "extrusion": {
+          "depth": 17
+        }
+      },
+      "bevel": {
+        "off": false,
+        "width": 9
+      }
+    },
+    "glyphheart": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphenergy": {
+      "candy": {
+        "extrusion": {
+          "depth": 40
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphticket": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphkey": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphstar": {
+      "candy": {
+        "extrusion": {
+          "depth": 45
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphcrown": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphtrophy": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphmedal": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphflag": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphcheckpoint": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphlock": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphcheckmark": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphstarformation": {
+      "candy": {
+        "extrusion": {
+          "depth": 48
+        }
+      },
+      "bevel": {
+        "off": false,
+        "width": 3
+      },
+      "effects": {
+        "Glow": "#FFE9AE",
+        "Bevel": "#878787",
+        "Shadow": "#877E6F",
+        "Highlight": "#FFFFFF",
+        "Inner Fill": "#FAF6ED"
+      }
+    },
+    "glyphbomb": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphrocket": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphhammer": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphmagnet": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphshield": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphaddtime": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphshuffle": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphchest": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphgift": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphprizewheel": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphcalendar": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphstreak": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphtimer": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphtarget": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphskull": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphcart": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphsale": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphplus": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphpiggybank": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphhome": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphpause": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphplay": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphreplay": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphclapboard": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphsettings": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphsound": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphmusic": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphmail": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphfriends": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphleaderboard": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphnotification": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphquests": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "glyphprofile": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "gearicon": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "trophyicon": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "gifticon": {
+      "candy": {
+        "extrusion": {
+          "depth": 0
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "killfeed": {
+      "icon": {
+        "color": "#ff0000",
+        "ox": -30,
+        "size": 108
+      },
+      "type": {
+        "spacing": 8
+      }
+    },
+    "combo": {
+      "type": {
+        "fill": "#FFE9AE"
+      }
+    },
+    "levelnode": {
+      "type": {
+        "size": 140
+      }
+    },
+    "booster": {
+      "icon": {
+        "color": "#22304A"
+      },
+      "type": {
+        "fillMode": "solid",
+        "listInk": "#FFFFFF",
+        "infoInk": "#22304A"
+      }
+    },
+    "dailycell": {
+      "icon": {
+        "color": "#22304A"
+      }
+    },
+    "orderticket": {
+      "icon": {
+        "color": "#22304A"
+      },
+      "type": {
+        "size": 62
+      }
+    },
+    "seasontrack": {
+      "face": {
+        "mode": "dark"
+      }
+    },
+    "clancrest": {
+      "icon": {
+        "color": "#22304A"
+      }
+    },
+    "friendrow": {
+      "type": {
+        "weight": 530
+      }
+    },
+    "skillnode": {
+      "icon": {
+        "color": "#22304A"
+      },
+      "face": {
+        "mode": "dark"
+      }
+    },
+    "dmgnumber": {
+      "type": {
+        "fill": "#FFE9AE"
+      }
+    },
+    "claimbtn": {
+      "icon": {
+        "color": "#22304A"
+      }
+    },
+    "glyphcrowncoin": {
+      "candy": {
+        "extrusion": {
+          "depth": 17
+        }
+      },
+      "bevel": {
+        "off": true
+      }
+    },
+    "weaponwheel": {
+      "type": {
+        "fill": "#FFE9AE"
+      }
+    },
+    "gbtngem": {
+      "bevel": {
+        "softness": 0
+      },
+      "icon": {
+        "size": 112,
+        "oy": 1
+      }
+    },
+    "dropdown": {
+      "icon": {
+        "size": 170,
+        "color": "#22304A",
+        "oy": 8,
+        "fx": {
+          "emboss": true
+        },
+        "ox": 41
+      }
+    },
+    "partyframe": {
+      "icon": {
+        "color": "#22304A",
+        "size": 126,
+        "strokeWidth": 29
+      }
+    },
+    "listmenu": {
+      "icon": {
+        "color": "#22304A",
+        "strokeWidth": 5,
+        "fx": {
+          "emboss": false,
+          "glow": false,
+          "shadow": false
+        }
+      }
+    },
+    "datarow": {
+      "icon": {
+        "color": "#FFE9AE"
+      }
+    },
+    "respawn": {
+      "type": {
+        "outline": {
+          "on": true
+        },
+        "size": 70
+      }
+    },
+    "capturemeter": {
+      "type": {
+        "listInk": "#FFE9AE",
+        "fill": "#FFE9AE"
+      }
+    },
+    "ribbonbanner": {
+      "candy": {
+        "gloss": {
+          "curve": -26
+        }
+      },
+      "type": {
+        "size": 140
+      }
+    },
+    "gbtncrowncoin": {
+      "icon": {
+        "show": true,
+        "def": {
+          "lib": "lucide",
+          "mode": "stroke",
+          "name": "Play",
+          "inner": "<polygon points=\"6 3 20 12 6 21 6 3\"/>",
+          "viewBox": "0 0 24 24"
+        },
+        "placement": "right",
+        "only": false,
+        "size": 170,
+        "strokeWidth": 24,
+        "color": "#FFE9AE",
+        "outlineWidth": null,
+        "opacity": 100,
+        "rotation": 0,
+        "gap": 18,
+        "ox": 0,
+        "oy": 0,
+        "fx": {
+          "glow": false,
+          "emboss": false,
+          "shadow": false
+        }
+      }
+    },
+    "gbtncheckpoint": {
+      "bevel": {
+        "softness": 0
+      }
+    },
+    "copy-hxh2-iconbtn": {
+      "icon": {
+        "color": "#22304A",
+        "size": 120
+      }
+    },
+    "choicelist": {
+      "icon": {
+        "color": "#22304A"
+      }
+    },
+    "dialoguebox": {
+      "icon": {
+        "color": "#22304A"
+      }
+    },
+    "copy-p5vv-boostercard": {
+      "icon": {
+        "strokeWidth": 10,
+        "size": 102,
+        "fx": {
+          "glow": false,
+          "emboss": false,
+          "shadow": true
+        }
+      }
+    },
+    "copy-mqbm-boostercard": {
+      "icon": {
+        "strokeWidth": 5,
+        "size": 104
+      }
+    },
+    "copy-2ycp-boostercard": {
+      "icon": {
+        "strokeWidth": 10,
+        "size": 102,
+        "fx": {
+          "glow": false,
+          "emboss": false,
+          "shadow": true
+        }
+      }
     }
-   ],
-   "bgImage": "/backdrops/tavern.jpg",
-   "bgShow": true,
-   "bgOpacity": 92,
-   "bgBright": 102,
-   "bgBlur": 1,
-   "ovMode": "vignette",
-   "ovStrength": 100
   },
-  {
-   "id": "abmt93iheg6",
-   "name": "Victory",
-   "aspect": "mobile",
-   "items": [
-    {
-     "id": "bdmt93iheg6ig",
-     "libId": "",
-     "x": 128,
-     "y": 222,
-     "stamp": {
-      "text": "Best Score 18,960",
-      "size": 25,
-      "plain": {
-       "color": "#FAF6ED"
-      },
-      "shadow": 70
-     },
-     "scale": 1
+  "kitTextFill": {},
+  "kitLabels": {
+    "ribbonbanner": "VICTORY!",
+    "copy-p5vv-boostercard": "AXE",
+    "copy-2ycp-boostercard": "AXE"
+  },
+  "kitNoText": {},
+  "kitSubs": {},
+  "kitIcons": {
+    "copy-p5vv-boostercard": {
+      "lib": "lucide",
+      "name": "Axe",
+      "viewBox": "0 0 24 24",
+      "inner": "<path d=\"m14 12-8.5 8.5a2.12 2.12 0 1 1-3-3L11 9\"></path><path d=\"M15 13 9 7l4-4 6 6h3a8 8 0 0 1-7 7z\"></path>",
+      "mode": "stroke"
     },
-    {
-     "id": "bdmt93iheg6i0",
-     "libId": "",
-     "kitId": "rewardcard",
-     "x": 75,
-     "y": 471,
-     "scale": 0.38,
-     "label": "Sun Shard",
-     "v": 0.85,
-     "shadow": {
-      "s": 100
-     }
+    "copy-mqbm-boostercard": {
+      "lib": "lucide",
+      "name": "Hammer",
+      "viewBox": "0 0 24 24",
+      "inner": "<path d=\"m15 12-8.373 8.373a1 1 0 1 1-3-3L12 9\"></path><path d=\"m18 15 4-4\"></path><path d=\"m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172V7l-2.26-2.26a6 6 0 0 0-4.202-1.756L9 2.96l.92.82A6.18 6.18 0 0 1 12 8.4V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5\"></path>",
+      "mode": "stroke"
     },
-    {
-     "id": "bdmt93iheg6i1",
-     "libId": "",
-     "kitId": "rewardcard",
-     "x": 189,
-     "y": 472,
-     "scale": 0.38,
-     "label": "Sky Crystal",
-     "v": 0.35,
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg6i2",
-     "libId": "",
-     "kitId": "progress",
-     "x": 45,
-     "y": 646,
-     "scale": 0.42,
-     "v": 0.6,
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg6i3",
-     "libId": "",
-     "kitId": "primary",
-     "x": 51,
-     "y": 710,
-     "scale": 0.3513436035320198,
-     "label": "Next Level",
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg6i4",
-     "libId": "",
-     "x": -20,
-     "y": 223,
-     "stamp": {
-      "text": "Score 12,480",
-      "size": 26,
-      "plain": {
-       "color": "#FAF6ED"
-      },
-      "shadow": 85
-     },
-     "scale": 1
-    },
-    {
-     "id": "bdmt93iheg6i5",
-     "libId": "",
-     "x": 64,
-     "y": 525,
-     "stamp": {
-      "text": "Chapter 2",
-      "size": 25,
-      "plain": {
-       "color": "#FAF6ED"
-      },
-      "shadow": 85
-     },
-     "scale": 1
-    },
-    {
-     "id": "bdmt93iheg6i6",
-     "libId": "",
-     "kitId": "copy-um55-header",
-     "x": 23,
-     "y": 181,
-     "scale": 0.482,
-     "label": "Level 12",
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg6i7",
-     "libId": "",
-     "kitId": "slot",
-     "x": 34,
-     "y": 342,
-     "scale": 0.38,
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg6i8",
-     "libId": "",
-     "kitId": "slot",
-     "x": 144,
-     "y": 342,
-     "scale": 0.38,
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg6i9",
-     "libId": "",
-     "kitId": "slot",
-     "x": 254,
-     "y": 342,
-     "scale": 0.38,
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg6ia",
-     "libId": "",
-     "kitId": "glyphgem",
-     "x": 41,
-     "y": 341,
-     "scale": 0.3,
-     "shadow": {
-      "s": 45,
-      "x": 0,
-      "y": 4,
-      "blur": 8
-     }
-    },
-    {
-     "id": "bdmt93iheg6ib",
-     "libId": "",
-     "kitId": "glyphcoinstack",
-     "x": 151,
-     "y": 341,
-     "scale": 0.3,
-     "shadow": {
-      "s": 45,
-      "x": 0,
-      "y": 4,
-      "blur": 8
-     }
-    },
-    {
-     "id": "bdmt93iheg6ic",
-     "libId": "",
-     "kitId": "glyphstar",
-     "x": 261,
-     "y": 341,
-     "scale": 0.3,
-     "shadow": {
-      "s": 45,
-      "x": 0,
-      "y": 4,
-      "blur": 8
-     }
-    },
-    {
-     "id": "bdmt93iheg6id",
-     "libId": "",
-     "kitId": "qtybadge",
-     "x": 42,
-     "y": 435,
-     "scale": 0.3,
-     "label": "\u00d712",
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg6ie",
-     "libId": "",
-     "kitId": "qtybadge",
-     "x": 147,
-     "y": 435,
-     "scale": 0.3,
-     "label": "\u00d7120",
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg6if",
-     "libId": "",
-     "kitId": "qtybadge",
-     "x": 253,
-     "y": 435,
-     "scale": 0.3,
-     "label": "XP 50",
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg6ih",
-     "libId": "",
-     "kitId": "copy-fwud-glyphstar",
-     "x": 39,
-     "y": 83,
-     "scale": 0.42,
-     "shadow": {
-      "s": 100
-     },
-     "rot": -15
-    },
-    {
-     "id": "bdmt93iheg6ii",
-     "libId": "",
-     "kitId": "copy-fwud-glyphstar",
-     "x": 226,
-     "y": 102,
-     "scale": 0.42,
-     "shadow": {
-      "s": 100
-     },
-     "rot": 15
-    },
-    {
-     "id": "bdmt93iheg6ij",
-     "libId": "",
-     "kitId": "copy-fwud-glyphstar",
-     "x": 104,
-     "y": 19,
-     "scale": 0.6326214613130061,
-     "shadow": {
-      "s": 100
-     }
-    },
-    {
-     "id": "bdmt93iheg6ik",
-     "libId": "",
-     "kitId": "copy-hxh2-iconbtn",
-     "x": 290,
-     "y": 712,
-     "scale": 0.3478,
-     "shadow": {
-      "s": 100
-     }
+    "copy-2ycp-boostercard": {
+      "lib": "lucide",
+      "name": "ShieldMinus",
+      "viewBox": "0 0 24 24",
+      "inner": "<path d=\"M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z\"></path><path d=\"M9 12h6\"></path>",
+      "mode": "stroke"
     }
-   ],
-   "bgImage": "/backdrops/valley.jpg",
-   "bgShow": true,
-   "bgOpacity": 85,
-   "bgBright": 82,
-   "bgBlur": 3,
-   "bgSat": 100,
-   "ovMode": "vignette",
-   "ovStrength": 90
-  }
- ]
+  },
+  "kitSlotVals": {
+    "streakmeter": {
+      "offink": "#b8b09d"
+    },
+    "skillnode": {
+      "learned:checkColor": "none"
+    },
+    "booster": {
+      "plateColor": "#ff0000"
+    },
+    "copy-p5vv-boostercard": {
+      "effect": "+ 15% Damage"
+    },
+    "copy-2ycp-boostercard": {
+      "effect": "- 5% Damage"
+    }
+  },
+  "kitVals": {
+    "seasontrack": 0.62,
+    "questpanel": 0.63
+  },
+  "kitBar": {},
+  "kitTextOy": {
+    "badge:l": -10,
+    "hotbar:l": 39,
+    "padbtn:l": -4,
+    "respawn:l": -10,
+    "ribbonbanner:l": -2
+  },
+  "kitTextOx": {
+    "hotbar:l": 6,
+    "killfeed:l": -7
+  },
+  "kitLocks": {},
+  "boards": [
+    {
+      "id": "abmt93iheg0",
+      "name": "Level Select",
+      "items": [
+        {
+          "x": 12,
+          "y": 41,
+          "id": "bdmt93iheg0i1",
+          "kitId": "ring",
+          "libId": "",
+          "scale": 0.3,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "x": 319,
+          "y": 35,
+          "id": "bdmt93iheg0i2",
+          "kitId": "iconbtn",
+          "libId": "",
+          "scale": 0.3,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "x": 4,
+          "y": 428,
+          "id": "bdmt93iheg0i3",
+          "kitId": "seasontrack",
+          "libId": "",
+          "scale": 0.441,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "x": 52,
+          "y": 601,
+          "id": "bdmt93iheg0i4",
+          "kitId": "primary",
+          "libId": "",
+          "scale": 0.473,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "v": 1,
+          "x": 11,
+          "y": 328,
+          "id": "bdmt93iheg0i5",
+          "kitId": "levelnode",
+          "label": "10",
+          "libId": "",
+          "scale": 0.35,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "v": 1,
+          "x": 80,
+          "y": 328,
+          "id": "bdmt93iheg0i6",
+          "kitId": "levelnode",
+          "label": "11",
+          "libId": "",
+          "scale": 0.35,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "v": 0.66,
+          "x": 149,
+          "y": 328,
+          "id": "bdmt93iheg0i7",
+          "kitId": "levelnode",
+          "label": "12",
+          "libId": "",
+          "scale": 0.35,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "v": 0.33,
+          "x": 218,
+          "y": 328,
+          "id": "bdmt93iheg0i8",
+          "kitId": "levelnode",
+          "label": "13",
+          "libId": "",
+          "scale": 0.35,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "v": 0,
+          "x": 287,
+          "y": 328,
+          "id": "bdmt93iheg0i9",
+          "kitId": "levelnode",
+          "label": "14",
+          "libId": "",
+          "scale": 0.35,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "id": "bdmtkqwghj13c3",
+          "libId": "",
+          "kitId": "ribbonbanner",
+          "x": 0,
+          "y": 168,
+          "scale": 0.44577054483283524,
+          "label": "LEVEL SELECT",
+          "shadow": {
+            "s": 98
+          }
+        },
+        {
+          "x": 136,
+          "y": 93,
+          "id": "bdmtkqxznb0m47",
+          "logo": {
+            "aid": "uamt892wvb6agh6",
+            "glow": 0,
+            "shadow": 100,
+            "shadowX": 9,
+            "shadowY": 25,
+            "shadowBlur": 10
+          },
+          "libId": "",
+          "scale": 0.18071235966172963
+        }
+      ],
+      "aspect": "mobile",
+      "bgBlur": 1,
+      "bgShow": true,
+      "ovMode": "vignette",
+      "bgBright": 94,
+      "bgOpacity": 77,
+      "ovStrength": 100,
+      "bgImage": "https://pmhmefwkmyennxvazdls.supabase.co/storage/v1/object/public/backgrounds/moonriver-pines.webp",
+      "bgVideo": null
+    },
+    {
+      "id": "abmt93iheg1",
+      "name": "Returning User Start Screen",
+      "bgSat": 85,
+      "items": [
+        {
+          "x": 53,
+          "y": 475,
+          "id": "bdmt93iheg1i1",
+          "kitId": "primary",
+          "label": "Continue",
+          "libId": "",
+          "scale": 0.473,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "x": 72,
+          "y": 607,
+          "id": "bdmt93iheg1i3",
+          "kitId": "ghost",
+          "label": "Level Select",
+          "libId": "",
+          "scale": 0.4237228528537073,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "v": 0.44,
+          "x": 82,
+          "y": 34,
+          "id": "bdmt93iheg1i4",
+          "kitId": "resource",
+          "libId": "",
+          "scale": 0.3,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "x": 196.72169974861788,
+          "y": 33.30039628256826,
+          "id": "bdmt93iheg1i5",
+          "kitId": "currency",
+          "libId": "",
+          "scale": 0.3,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "x": 317.95084986676113,
+          "y": 21.100989068691206,
+          "id": "bdmt93iheg1i6",
+          "kitId": "iconbtn",
+          "libId": "",
+          "scale": 0.3,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "x": 6,
+          "y": 9,
+          "id": "bdmt93iheg1i7",
+          "kitId": "avatarframe",
+          "libId": "",
+          "scale": 0.3,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "x": 57,
+          "y": 160,
+          "id": "bdmt93iheg1i8",
+          "libId": "",
+          "scale": 1.1243498765262605,
+          "stamp": {
+            "size": 25,
+            "text": "Chapter 2",
+            "plain": {
+              "color": "#FFFFFF"
+            }
+          }
+        },
+        {
+          "x": 58,
+          "y": 102,
+          "id": "bdmt93iheg1i9",
+          "logo": {
+            "aid": "uamt892wvb6agh6",
+            "glow": 0,
+            "shadow": 100,
+            "shadowX": 9,
+            "shadowY": 25,
+            "shadowBlur": 10
+          },
+          "libId": "",
+          "scale": 0.40995191236310774
+        },
+        {
+          "id": "bdmtjmvrbal7mh",
+          "libId": "",
+          "kitId": "ribbonbanner",
+          "x": -5,
+          "y": 294,
+          "scale": 0.45611505260171237,
+          "label": "CRYSTAL PASS"
+        },
+        {
+          "x": 153,
+          "y": 363,
+          "id": "bdmt93iheg1i2",
+          "kitId": "badge",
+          "libId": "",
+          "scale": 0.4259179589426601,
+          "shadow": {
+            "s": 100
+          }
+        }
+      ],
+      "aspect": "mobile",
+      "bgBlur": 1,
+      "bgShow": true,
+      "ovMode": "vignette",
+      "bgBright": 98,
+      "bgOpacity": 65,
+      "bgContrast": 107,
+      "bgImage": "https://pmhmefwkmyennxvazdls.supabase.co/storage/v1/object/public/backgrounds/cloudcrown-peak.webp",
+      "bgVideo": null
+    },
+    {
+      "id": "abmt93iheg2",
+      "name": "Booster Select",
+      "items": [
+        {
+          "x": -3,
+          "y": 28,
+          "id": "bdmt93iheg2i0",
+          "kitId": "tabback",
+          "label": "Back",
+          "libId": "",
+          "scale": 0.35,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "v": 0.125,
+          "x": 273,
+          "y": 40,
+          "id": "bdmt93iheg2i1",
+          "kitId": "currency",
+          "libId": "",
+          "scale": 0.3,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "v": 0.8,
+          "x": 147,
+          "y": 264,
+          "id": "bdmt93iheg2i2",
+          "kitId": "movecounter",
+          "libId": "",
+          "scale": 0.36,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "x": 86,
+          "y": 691,
+          "id": "bdmt93iheg2i3",
+          "kitId": "primary",
+          "label": "Start",
+          "libId": "",
+          "scale": 0.473,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "x": 70,
+          "y": 204,
+          "id": "bdmt93iheg2i4",
+          "kitId": "chip",
+          "label": "Pick Your Boosters",
+          "libId": "",
+          "scale": 0.36,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "x": 24,
+          "y": 88,
+          "id": "bdmt93iheg2i5",
+          "kitId": "copy-um55-header",
+          "label": "Level 12",
+          "libId": "",
+          "scale": 0.482,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "x": 72.47837630229864,
+          "y": 534.693389497256,
+          "id": "bdmt93iheg2i9",
+          "kitId": "panel",
+          "libId": "",
+          "scale": 0.35993652276884913,
+          "shadow": {
+            "s": 100
+          },
+          "stretchY": 0.7,
+          "stretch": 1.0015323285282252
+        },
+        {
+          "x": 2,
+          "y": 535,
+          "id": "bdmt93iheg2ia",
+          "kitId": "copy-c4gz-glyphstar",
+          "libId": "",
+          "scale": 0.4387914450253901,
+          "shadow": {
+            "s": 45,
+            "x": 0,
+            "y": 4,
+            "blur": 8
+          }
+        },
+        {
+          "x": 44,
+          "y": 475,
+          "id": "bdmt93iheg2ib",
+          "libId": "",
+          "scale": 1,
+          "stamp": {
+            "size": 25,
+            "text": "Active Booster",
+            "plain": {
+              "color": "#55617C"
+            }
+          }
+        },
+        {
+          "x": 70,
+          "y": 535,
+          "id": "bdmt93iheg2ic",
+          "libId": "",
+          "scale": 0.7179990091609065,
+          "stamp": {
+            "size": 25,
+            "text": "Star Blitz · +1 star per match",
+            "plain": {
+              "color": "#22304A"
+            }
+          }
+        },
+        {
+          "id": "bdmtg6eiefgg8q",
+          "libId": "",
+          "kitId": "copy-mqbm-boostercard",
+          "x": -3,
+          "y": 358,
+          "scale": 0.4659951840890171
+        },
+        {
+          "id": "bdmtkr4c4un5cg",
+          "libId": "",
+          "kitId": "copy-p5vv-boostercard",
+          "x": 122,
+          "y": 359,
+          "scale": 0.4659951840890171
+        },
+        {
+          "id": "bdmtkrcnlx5ncl",
+          "libId": "",
+          "kitId": "copy-2ycp-boostercard",
+          "x": 243,
+          "y": 361,
+          "scale": 0.4659951840890171
+        }
+      ],
+      "aspect": "mobile",
+      "bgBlur": 2,
+      "bgShow": true,
+      "ovMode": "vignette",
+      "bgImage": "/backdrops/valley.jpg",
+      "bgBright": 96,
+      "bgOpacity": 84,
+      "ovStrength": 100,
+      "bgVideo": null
+    },
+    {
+      "id": "abmt93iheg3",
+      "name": "Gameplay HUD",
+      "items": [
+        {
+          "id": "bdmtgo0p2m9f9s",
+          "libId": "",
+          "kitId": "gbtnmagnet",
+          "x": 244.6221510275785,
+          "y": 672.0104131303258,
+          "scale": 0.4110780932483353,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "v": 0.44,
+          "x": 0,
+          "y": 33,
+          "id": "bdmt93iheg3i2",
+          "kitId": "resource",
+          "libId": "",
+          "scale": 0.34,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "x": 315,
+          "y": 14,
+          "id": "bdmt93iheg3i4",
+          "kitId": "glyphpause",
+          "libId": "",
+          "scale": 0.3,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "x": 258,
+          "y": 764,
+          "id": "bdmt93iheg3ih",
+          "kitId": "qtybadge",
+          "label": "×2",
+          "libId": "",
+          "scale": 0.3,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "x": 420,
+          "y": 960,
+          "id": "bdmt97smvj3ii0",
+          "libId": "libmt97qoiow8yf"
+        },
+        {
+          "x": 760,
+          "y": 960,
+          "id": "bdmt97sxp5n76u",
+          "libId": "libmt97qoiow8yf"
+        },
+        {
+          "x": 80,
+          "y": 1180,
+          "id": "bdmt97u55pn6pe",
+          "libId": "libmt97qoiow8yf"
+        },
+        {
+          "x": 420,
+          "y": 1180,
+          "id": "bdmt97u7beiw98",
+          "libId": "libmt97qoiow8yf"
+        },
+        {
+          "x": 760,
+          "y": 1180,
+          "id": "bdmt97uc6vxvqo",
+          "libId": "libmt97qoiow8yf"
+        },
+        {
+          "x": 80,
+          "y": 1400,
+          "id": "bdmt98gogl5w6e",
+          "libId": "libmt97qoiow8yf"
+        },
+        {
+          "x": 420,
+          "y": 1400,
+          "id": "bdmt98hby1bpr5",
+          "libId": "libmt97qoiow8yf"
+        },
+        {
+          "x": 760,
+          "y": 1400,
+          "id": "bdmt98hejakomc",
+          "libId": "libmt97qoiow8yf"
+        },
+        {
+          "x": 26,
+          "y": 148,
+          "id": "bdmt9aqmtnx8dv",
+          "kitId": "copy-2cn9-header",
+          "label": "GO!",
+          "libId": "",
+          "scale": 0.5351017152343391,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "id": "bdmtgjkcs2exiq",
+          "libId": "",
+          "kitId": "gbtnhammer",
+          "x": 38,
+          "y": 673,
+          "scale": 0.405302473689372,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "x": 54,
+          "y": 764,
+          "id": "bdmt93iheg3if",
+          "kitId": "qtybadge",
+          "label": "×2",
+          "libId": "",
+          "scale": 0.3,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "id": "bdmtgnvn1r8umd",
+          "libId": "",
+          "kitId": "gbtnbomb",
+          "x": 139,
+          "y": 673,
+          "scale": 0.4084154703187689,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "x": 157,
+          "y": 764,
+          "id": "bdmt93iheg3ig",
+          "kitId": "qtybadge",
+          "label": "×1",
+          "libId": "",
+          "scale": 0.3,
+          "shadow": {
+            "s": 100
+          }
+        }
+      ],
+      "aspect": "mobile",
+      "bgBlur": 0,
+      "bgShow": true,
+      "ovMode": "vignette",
+      "bgImage": "/backdrops/valley.jpg",
+      "bgBright": 98,
+      "bgOpacity": 90,
+      "ovStrength": 62,
+      "bgVideo": null
+    },
+    {
+      "id": "abmt93iheg4",
+      "name": "Pause",
+      "bgSat": 80,
+      "items": [
+        {
+          "x": 9,
+          "y": 141,
+          "id": "bdmt93iheg4i0",
+          "kitId": "panel",
+          "libId": "",
+          "scale": 0.4295,
+          "shadow": {
+            "s": 100
+          },
+          "stretchY": 3
+        },
+        {
+          "x": 25.607348541392554,
+          "y": 97.1502805257565,
+          "id": "bdmt93iheg4i1",
+          "kitId": "header",
+          "label": "Paused",
+          "libId": "",
+          "scale": 0.5033950258071046,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "v": 0.72,
+          "x": 143,
+          "y": 254,
+          "id": "bdmt93iheg4i2",
+          "kitId": "slider",
+          "libId": "",
+          "scale": 0.34,
+          "shadow": {
+            "s": 45,
+            "x": 0,
+            "y": 4,
+            "blur": 8
+          }
+        },
+        {
+          "v": 0.55,
+          "x": 143,
+          "y": 316,
+          "id": "bdmt93iheg4i3",
+          "kitId": "slider",
+          "libId": "",
+          "scale": 0.34,
+          "shadow": {
+            "s": 45,
+            "x": 0,
+            "y": 4,
+            "blur": 8
+          }
+        },
+        {
+          "v": 1,
+          "x": 166,
+          "y": 364,
+          "id": "bdmt93iheg4i4",
+          "kitId": "toggle",
+          "libId": "",
+          "scale": 0.34,
+          "shadow": {
+            "s": 45,
+            "x": 0,
+            "y": 4,
+            "blur": 8
+          }
+        },
+        {
+          "x": 107,
+          "y": 428,
+          "id": "bdmt93iheg4i5",
+          "kitId": "dropdown",
+          "label": "English",
+          "libId": "",
+          "scale": 0.35472595104903587,
+          "shadow": {
+            "s": 45,
+            "x": 0,
+            "y": 4,
+            "blur": 8
+          }
+        },
+        {
+          "x": 94,
+          "y": 557,
+          "id": "bdmt93iheg4i6",
+          "kitId": "primary",
+          "label": "Resume",
+          "libId": "",
+          "scale": 0.3758234237722024,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "x": 103,
+          "y": 650,
+          "id": "bdmt93iheg4i7",
+          "kitId": "secondary",
+          "label": "Restart",
+          "libId": "",
+          "scale": 0.3462989885164506,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "x": 124,
+          "y": 729,
+          "id": "bdmt93iheg4i8",
+          "kitId": "ghost",
+          "label": "Quit",
+          "libId": "",
+          "scale": 0.4,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "x": 17,
+          "y": 161,
+          "id": "bdmt93iheg4i9",
+          "libId": "",
+          "scale": 1,
+          "stamp": {
+            "size": 26,
+            "text": "Music"
+          }
+        },
+        {
+          "x": 18,
+          "y": 223,
+          "id": "bdmt93iheg4ia",
+          "libId": "",
+          "scale": 1,
+          "stamp": {
+            "size": 26,
+            "text": "SFX"
+          }
+        },
+        {
+          "x": 16,
+          "y": 285,
+          "id": "bdmt93iheg4ib",
+          "libId": "",
+          "scale": 1,
+          "stamp": {
+            "size": 26,
+            "text": "Haptics"
+          }
+        },
+        {
+          "x": 65,
+          "y": 496,
+          "id": "bdmt93iheg4ie",
+          "kitId": "dropdown",
+          "label": "Graphics · High",
+          "libId": "",
+          "scale": 0.35683146657734394,
+          "shadow": {
+            "s": 45,
+            "x": 0,
+            "y": 4,
+            "blur": 8
+          }
+        },
+        {
+          "x": 128,
+          "y": 42,
+          "id": "bdmt93iheg4if",
+          "logo": {
+            "aid": "uamt892wvb6agh6",
+            "glow": 0,
+            "shadow": 100,
+            "shadowX": 9,
+            "shadowY": 25,
+            "shadowBlur": 10
+          },
+          "libId": "",
+          "scale": 0.19876818563967233
+        },
+        {
+          "x": 41,
+          "y": 253,
+          "id": "bdmt97bvke6qaa",
+          "kitId": "copy-fwp3-glyphmusic",
+          "libId": "",
+          "scale": 0.1683994472665347
+        },
+        {
+          "x": 39,
+          "y": 306,
+          "id": "bdmt97hvp7hc7z",
+          "kitId": "copy-n7q6-glyphsound",
+          "libId": "",
+          "scale": 0.19955875021832786
+        }
+      ],
+      "aspect": "mobile",
+      "bgBlur": 5,
+      "bgShow": true,
+      "ovMode": "vignette",
+      "bgImage": "/backdrops/valley.jpg",
+      "bgBright": 60,
+      "bgOpacity": 100,
+      "ovStrength": 100,
+      "bgVideo": null
+    },
+    {
+      "id": "abmt93iheg5",
+      "name": "Shop",
+      "items": [
+        {
+          "v": 0.44,
+          "x": 12,
+          "y": 41,
+          "id": "bdmt93iheg5i0",
+          "kitId": "resource",
+          "libId": "",
+          "scale": 0.3,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "v": 0.125,
+          "x": 136,
+          "y": 40,
+          "id": "bdmt93iheg5i1",
+          "kitId": "currency",
+          "libId": "",
+          "scale": 0.3,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "x": 322,
+          "y": 29,
+          "id": "bdmt93iheg5i2",
+          "kitId": "iconbtn",
+          "libId": "",
+          "scale": 0.3,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "x": 6,
+          "y": 122,
+          "id": "bdmt93iheg5i3",
+          "kitId": "tab",
+          "label": "Shop",
+          "libId": "",
+          "scale": 0.38,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "x": 99,
+          "y": 122,
+          "id": "bdmt93iheg5i4",
+          "kitId": "tab",
+          "label": "Daily",
+          "libId": "",
+          "scale": 0.38,
+          "shadow": {
+            "s": 35,
+            "x": 0,
+            "y": 3,
+            "blur": 6
+          },
+          "opacity": 55
+        },
+        {
+          "x": 33,
+          "y": 240,
+          "id": "bdmt93iheg5i5",
+          "kitId": "glyphgem",
+          "libId": "",
+          "scale": 0.3,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "x": 143,
+          "y": 227,
+          "id": "bdmt93iheg5i6",
+          "kitId": "glyphgem",
+          "libId": "",
+          "scale": 0.35,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "x": 250,
+          "y": 208,
+          "id": "bdmt93iheg5i7",
+          "kitId": "glyphgem",
+          "libId": "",
+          "scale": 0.42,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "x": 33,
+          "y": 319,
+          "id": "bdmt93iheg5i8",
+          "kitId": "qtybadge",
+          "label": "×80",
+          "libId": "",
+          "scale": 0.3,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "x": 145,
+          "y": 319,
+          "id": "bdmt93iheg5i9",
+          "kitId": "qtybadge",
+          "label": "×500",
+          "libId": "",
+          "scale": 0.3,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "x": 256,
+          "y": 319,
+          "id": "bdmt93iheg5ia",
+          "kitId": "qtybadge",
+          "label": "×1,200",
+          "libId": "",
+          "scale": 0.3,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "x": 21,
+          "y": 362,
+          "id": "bdmt93iheg5ib",
+          "kitId": "small",
+          "label": "$1.99",
+          "libId": "",
+          "scale": 0.34,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "x": 125,
+          "y": 361,
+          "id": "bdmt93iheg5ic",
+          "kitId": "pricebtn",
+          "label": "$4.99",
+          "libId": "",
+          "scale": 0.33,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "x": 254,
+          "y": 362,
+          "id": "bdmt93iheg5id",
+          "kitId": "small",
+          "label": "$9.99",
+          "libId": "",
+          "scale": 0.34,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "x": 12,
+          "y": 476,
+          "id": "bdmt93iheg5ie",
+          "ov": "check",
+          "kitId": "dailycell",
+          "label": "Day 3",
+          "libId": "",
+          "scale": 0.38,
+          "shadow": {
+            "s": 45,
+            "x": 0,
+            "y": 4,
+            "blur": 8
+          }
+        },
+        {
+          "x": 100,
+          "y": 476,
+          "id": "bdmt93iheg5if",
+          "kitId": "dailycell",
+          "label": "Day 4",
+          "libId": "",
+          "scale": 0.38,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "x": 188,
+          "y": 476,
+          "id": "bdmt93iheg5ig",
+          "ov": "locked",
+          "kitId": "dailycell",
+          "label": "Day 5",
+          "libId": "",
+          "scale": 0.38,
+          "shadow": {
+            "s": 45,
+            "x": 0,
+            "y": 4,
+            "blur": 8
+          }
+        },
+        {
+          "x": 276,
+          "y": 476,
+          "id": "bdmt93iheg5ih",
+          "ov": "locked",
+          "kitId": "dailycell",
+          "label": "Day 6",
+          "libId": "",
+          "scale": 0.38,
+          "shadow": {
+            "s": 45,
+            "x": 0,
+            "y": 4,
+            "blur": 8
+          }
+        },
+        {
+          "x": 54,
+          "y": 116,
+          "id": "bdmt93iheg5ii",
+          "libId": "",
+          "scale": 1,
+          "stamp": {
+            "size": 26,
+            "text": "Gem Bundles",
+            "plain": {
+              "color": "#FAF6ED"
+            },
+            "shadow": 60
+          }
+        },
+        {
+          "x": -19,
+          "y": 344,
+          "id": "bdmt93iheg5ij",
+          "libId": "",
+          "scale": 1,
+          "stamp": {
+            "size": 25,
+            "text": "Daily Deals · resets in 14h 32m",
+            "plain": {
+              "color": "#FAF6ED"
+            },
+            "shadow": 60
+          }
+        },
+        {
+          "v": 0.99,
+          "x": -10,
+          "y": 693,
+          "id": "bdmt93iheg5ik",
+          "kitId": "bottomnav",
+          "libId": "",
+          "scale": 0.5176,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "x": 53,
+          "y": 561,
+          "id": "bdmt93iheg5il",
+          "kitId": "claimbtn",
+          "libId": "",
+          "scale": 0.6095098302958969
+        }
+      ],
+      "aspect": "mobile",
+      "bgBlur": 3,
+      "bgShow": true,
+      "ovMode": "vignette",
+      "bgImage": "/backdrops/tavern.jpg",
+      "bgBright": 102,
+      "bgOpacity": 87,
+      "ovStrength": 100,
+      "bgVideo": null
+    },
+    {
+      "id": "abmt93iheg6",
+      "name": "Victory",
+      "bgSat": 100,
+      "items": [
+        {
+          "x": 116,
+          "y": 211,
+          "id": "bdmt93iheg6ig",
+          "libId": "",
+          "scale": 1,
+          "stamp": {
+            "size": 25,
+            "text": "Best Score 18,960",
+            "plain": {
+              "color": "#FAF6ED"
+            },
+            "shadow": 70
+          }
+        },
+        {
+          "v": 0.85,
+          "x": 56,
+          "y": 467,
+          "id": "bdmt93iheg6i0",
+          "kitId": "rewardcard",
+          "label": "Sun Shard",
+          "libId": "",
+          "scale": 0.44078532019006034,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "v": 0.35,
+          "x": 203,
+          "y": 467,
+          "id": "bdmt93iheg6i1",
+          "kitId": "rewardcard",
+          "label": "Sky Crystal",
+          "libId": "",
+          "scale": 0.44078532019006034,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "v": 0.6,
+          "x": 45,
+          "y": 646,
+          "id": "bdmt93iheg6i2",
+          "kitId": "progress",
+          "libId": "",
+          "scale": 0.42,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "x": 57,
+          "y": 705,
+          "id": "bdmt93iheg6i3",
+          "kitId": "primary",
+          "label": "Next Level",
+          "libId": "",
+          "scale": 0.3050790717467834,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "x": -28,
+          "y": 212,
+          "id": "bdmt93iheg6i4",
+          "libId": "",
+          "scale": 1,
+          "stamp": {
+            "size": 26,
+            "text": "Score 12,480",
+            "plain": {
+              "color": "#FAF6ED"
+            },
+            "shadow": 85
+          }
+        },
+        {
+          "x": 64,
+          "y": 525,
+          "id": "bdmt93iheg6i5",
+          "libId": "",
+          "scale": 1,
+          "stamp": {
+            "size": 25,
+            "text": "Chapter 2",
+            "plain": {
+              "color": "#FAF6ED"
+            },
+            "shadow": 85
+          }
+        },
+        {
+          "x": 42,
+          "y": 435,
+          "id": "bdmt93iheg6id",
+          "kitId": "qtybadge",
+          "label": "×12",
+          "libId": "",
+          "scale": 0.3,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "x": 147,
+          "y": 435,
+          "id": "bdmt93iheg6ie",
+          "kitId": "qtybadge",
+          "label": "×120",
+          "libId": "",
+          "scale": 0.3,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "x": 253,
+          "y": 435,
+          "id": "bdmt93iheg6if",
+          "kitId": "qtybadge",
+          "label": "XP 50",
+          "libId": "",
+          "scale": 0.3,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "x": 39,
+          "y": 83,
+          "id": "bdmt93iheg6ih",
+          "rot": -15,
+          "kitId": "copy-fwud-glyphstar",
+          "libId": "",
+          "scale": 0.42,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "x": 226,
+          "y": 102,
+          "id": "bdmt93iheg6ii",
+          "rot": 15,
+          "kitId": "copy-fwud-glyphstar",
+          "libId": "",
+          "scale": 0.42,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "x": 104,
+          "y": 20,
+          "id": "bdmt93iheg6ij",
+          "kitId": "copy-fwud-glyphstar",
+          "libId": "",
+          "scale": 0.6326214613130061,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "x": 284,
+          "y": 698,
+          "id": "bdmt93iheg6ik",
+          "kitId": "copy-hxh2-iconbtn",
+          "libId": "",
+          "scale": 0.3478,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "id": "bdmtir4zgvcvr8",
+          "libId": "",
+          "kitId": "gbtngem",
+          "x": 139.31527420434267,
+          "y": 332.7468998364069,
+          "scale": 0.4164962726799527
+        },
+        {
+          "id": "bdmtjlylv5x3gd",
+          "libId": "",
+          "kitId": "ribbonbanner",
+          "x": 5.235909152873603,
+          "y": 190.41150983860064,
+          "scale": 0.43174439731559616
+        },
+        {
+          "id": "bdmtkqqx6ecbxt",
+          "libId": "",
+          "kitId": "gbtncoin",
+          "x": 40,
+          "y": 337,
+          "scale": 0.37040670545806076
+        },
+        {
+          "id": "bdmtkqrotbw2gf",
+          "libId": "",
+          "kitId": "gbtnpiggybank",
+          "x": 251,
+          "y": 334,
+          "scale": 0.39569712968471143
+        }
+      ],
+      "aspect": "mobile",
+      "bgBlur": 3,
+      "bgShow": true,
+      "ovMode": "vignette",
+      "bgImage": "/backdrops/valley.jpg",
+      "bgBright": 82,
+      "bgOpacity": 85,
+      "ovStrength": 90,
+      "bgVideo": null
+    },
+    {
+      "id": "abmti0t0yreyc",
+      "name": "Progress & Loaders",
+      "aspect": "mobile",
+      "items": [
+        {
+          "id": "bdmti0tari4qg6",
+          "libId": "",
+          "kitId": "loadbar",
+          "x": 4.883079672804669,
+          "y": 215.31662740580393,
+          "scale": 0.3799210340306495,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "id": "bdmti0u3akk3vn",
+          "libId": "",
+          "kitId": "vsbar",
+          "x": 11.498104405761126,
+          "y": 67.59154943007852,
+          "scale": 0.3248791618066694,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "id": "bdmti0uk72bhhj",
+          "libId": "",
+          "kitId": "segbar",
+          "x": -4,
+          "y": 134,
+          "scale": 0.557393818608223,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "id": "bdmtkqtm0kkigu",
+          "libId": "",
+          "kitId": "partyframe",
+          "x": -10.553989696095556,
+          "y": 265.03741561437823,
+          "scale": 0.7284727828104008,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "id": "bdmtkqtyn7e870",
+          "libId": "",
+          "kitId": "progress",
+          "x": -3.4216891035979202,
+          "y": 430.06913523872254,
+          "scale": 0.5623793176583707,
+          "shadow": {
+            "s": 100
+          }
+        },
+        {
+          "id": "bdmtkqu8x4xhuc",
+          "libId": "",
+          "kitId": "ring",
+          "x": 126.65028983087954,
+          "y": 504.48551851161795,
+          "scale": 0.5033978150889344
+        },
+        {
+          "id": "bdmtkquhdc3jdl",
+          "libId": "",
+          "kitId": "xpbar",
+          "x": 2,
+          "y": 631,
+          "scale": 0.38183277249159464,
+          "shadow": {
+            "s": 100
+          }
+        }
+      ],
+      "bgImage": "/backdrops/valley.jpg",
+      "bgShow": true,
+      "bgBlur": 7,
+      "bgOpacity": 72,
+      "bgBright": 65,
+      "bgVideo": null
+    }
+  ]
 }

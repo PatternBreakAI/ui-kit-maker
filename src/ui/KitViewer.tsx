@@ -9,7 +9,7 @@
    The payload loads in viewer mode, which is what keeps it polite: the
    visitor's own saved workspace is never written over, and their boards
    are left exactly where they were (loadKitPayload only imports boards
-   for an OWNED open). The seven demo screens on the page come from the
+   for an OWNED open). The demo screens on the page come from the
    shipped definition itself, not from the workspace. */
 import { lazy, Suspense, useLayoutEffect, useMemo, useState } from "react";
 import { namedKitFromHash } from "@/generator/namedKits";

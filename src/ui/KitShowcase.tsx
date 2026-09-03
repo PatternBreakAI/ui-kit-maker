@@ -5,7 +5,7 @@
 
    The screens are the whole point of the page. A visitor who followed a
    store listing has five seconds of patience, so the first thing under
-   the fold is the seven demo screens themselves — LIVE, through the same
+   the fold is the demo screens themselves — LIVE, through the same
    Board stage the owner composed them on (LiveBoardStage → StagePiece →
    LiveArt, in play mode): hover a button and it lights, press it and it
    sinks, toggles flip, bars fill. Not screenshots, and never a
@@ -61,15 +61,15 @@ function ScreenCard({ screen, board, n, live }: {
   );
 }
 
-/** The seven demo screens, at the top of the shipped kit's page.
+/** The demo screens, at the top of the shipped kit's page.
  *  `onReady` fires once every screen is awake — the Kit page holds its
  *  generating curtain (and its own chapter boot) until then, because on
  *  THIS page the screens are the headline and the book is the appendix. */
 export function KitScreens({ kit, onReady }: { kit: NamedKitDef; onReady?: () => void }) {
   const screens = namedKitScreens(kit);
   const count = namedKitPieceCount(kit);
-  /* Waking: one board per frame, in reading order. Seven live stages
-     (ninety-odd rendered pieces) committed in ONE task would hold the
+  /* Waking: one board per frame, in reading order. Eight live stages
+     (a hundred-odd rendered pieces) committed in ONE task would hold the
      page's first paint for seconds; one per frame keeps the thread
      breathing between them and lets each screen paint as it lands.
      Nothing waits on a click, and once a board is awake it stays awake.
@@ -109,7 +109,7 @@ export function KitScreens({ kit, onReady }: { kit: NamedKitDef; onReady?: () =>
         ))}
       </div>
       <p className="kv-note">
-        Every screen above is running the real components — hover one, press it, drag a slider.
+        Every screen above is running the real components. Hover one, press it, drag a slider.
         Nothing here is a screenshot; the whole kit is below.
       </p>
     </section>
@@ -138,7 +138,7 @@ export function KitPromo({ kit }: { kit: NamedKitDef }) {
     <section className="kv-promo" aria-label={`About ${kit.name}`}>
       <div className="kv-promohead">
         <div className="kv-eyebrow">Made with UI Kit Maker</div>
-        <h2 className="kv-title">{kit.name} was drawn by the generator on this page — every piece of it.</h2>
+        <h2 className="kv-title">{kit.name} was drawn by the generator on this page. Every piece of it.</h2>
       </div>
       {/* the store line, given the top of the block — it is the one thing
           a visitor from the listing might be looking for */}
@@ -147,7 +147,7 @@ export function KitPromo({ kit }: { kit: NamedKitDef }) {
           {/* the heading tells the truth about the listing's state: it
               only says AVAILABLE once there is a listing to point at */}
           <h3>{kit.storeUrl ? "Available on the Unity Asset Store" : "Coming to the Unity Asset Store"}</h3>
-          <p>{kit.name} ships as drop-in Unity assets: nine-sliced sprites, wired prefabs, live text — and the whole kit restyles in place on re-import.</p>
+          <p>{kit.name} ships as drop-in Unity assets: nine-sliced sprites, wired prefabs, live text. The whole kit restyles in place on re-import.</p>
         </div>
         <div className="kv-storeact">
           {kit.storeUrl ? (
@@ -168,12 +168,12 @@ export function KitPromo({ kit }: { kit: NamedKitDef }) {
       <div className="kv-promogrid">
         <article className="kv-promocard">
           <h3>Make your own</h3>
-          <p>Start from a look, turn the dials once, and the whole kit follows — every component, every state, in the same material.</p>
+          <p>Start from a look, turn the dials once, and the whole kit follows: every component, every state, in the same material.</p>
           <a className="kv-btn kv-btn--main" href="#/app">Open the generator</a>
         </article>
         <article className="kv-promocard">
           <h3>Restyle this one</h3>
-          <p>{kit.name} is already loaded. Open it in the editor and push the colour, the bevel, the type — the screens above restyle with it.</p>
+          <p>{kit.name} is already loaded. Open it in the editor and push the colour, the bevel, the type. The screens above restyle with it.</p>
           <button className="kv-btn" onClick={openEditor}>Edit {kit.name} live</button>
         </article>
         {/* every OTHER kit we ship, if we ship any — nothing renders while
@@ -182,7 +182,7 @@ export function KitPromo({ kit }: { kit: NamedKitDef }) {
         {others.length > 0 && (
           <article className="kv-promocard">
             <h3>Our other kits</h3>
-            <p>Same generator, different material — each one live on its own page.</p>
+            <p>Same generator, different material. Each one is live on its own page.</p>
             {others.map((o) => (
               <a className="kv-btn" key={o.slug} href={`#/kit/${o.slug}`}>{o.name}</a>
             ))}

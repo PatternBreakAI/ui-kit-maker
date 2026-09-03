@@ -55,27 +55,32 @@ export type NamedKitDef = {
    itself — the page it sits on may never link to another marketplace. */
 const BRIGHTSIDE_STORE_URL: string | null = null;
 
-/* Brightside — the kit heading for the Unity Asset Store. The seven
-   screens are the owner's own boards, in the order a player walks them. */
+/* Brightside — the kit heading for the Unity Asset Store. The screens
+   are the owner's own boards: seven game screens in the order a player
+   walks them, then the bar-and-loader sampler the owner keeps beside
+   them. Eight boards ship, eight cards render, and the copy says so. */
 const BRIGHTSIDE: NamedKitDef = {
   slug: "brightside",
   name: "Brightside",
-  lede: "Seven real game screens, built entirely from one kit — live on this page, not screenshots.",
+  lede: "Seven real game screens and a bar sampler, all built from one kit. Live on this page, not screenshots.",
   platform: "Composed for mobile portrait · 390 × 844",
   storeUrl: BRIGHTSIDE_STORE_URL, // ← the constant at the top of this file
   /* Captions describe what is ACTUALLY on each board — they were written
      against the rendered screens, piece by piece, and they must be
      re-read whenever the boards are re-captured. A caption that promises
      a timer the screen doesn't carry is the kind of small lie a store
-     reviewer catches first. */
+     reviewer catches first. NO EM DASHES in anything a visitor reads
+     (owner, round 65): a full stop and a second sentence, or a colon
+     when a list follows. */
   screens: [
-    { board: "Returning User Start Screen", title: "Home", caption: "Profile and wallet up top, the chapter card, and the one big way back in." },
-    { board: "Level Select", title: "Level Select", caption: "The trail's next five nodes, the season track's free and premium rails, and Play." },
-    { board: "Booster Select", title: "Booster Select", caption: "Pre-game loadout: the move budget, three boosters to carry in, then Start." },
-    { board: "Gameplay HUD", title: "Gameplay HUD", caption: "In-play chrome — wallet, pause, the round banner, and the booster tray at the thumb line." },
-    { board: "Pause", title: "Pause", caption: "The mid-run sheet: two sliders, a toggle, two dropdowns, three ways out." },
-    { board: "Shop", title: "Shop", caption: "The storefront — gem packs over price buttons, the daily row, and the nav bar." },
-    { board: "Victory", title: "Victory", caption: "The ceremony: stars, the score line, the reward fan, chapter progress, Next Level." },
+    { board: "Returning User Start Screen", title: "Home", caption: "Avatar, gems and coins across the top. The Crystal Pass ribbon over its level shield, then Continue with Level Select under it." },
+    { board: "Level Select", title: "Level Select", caption: "A progress ring and five level buttons, 10 through 14. The season track shows its free and premium rails, with Play Now underneath." },
+    { board: "Booster Select", title: "Booster Select", caption: "The pre-game loadout: a 24-move budget, three booster cards to carry in, the active booster on its own panel, then Start." },
+    { board: "Gameplay HUD", title: "Gameplay HUD", caption: "In-play chrome: the gem count and a pause button up top, the GO! banner, and three boosters with count badges at the thumb line." },
+    { board: "Pause", title: "Pause", caption: "The mid-run sheet: Music and SFX sliders, a haptics toggle, language and graphics dropdowns, then Resume, Restart and Quit." },
+    { board: "Shop", title: "Shop", caption: "The storefront: three gem packs over their price buttons, the daily deals row with Claim All, and the bottom nav." },
+    { board: "Victory", title: "Victory", caption: "The ceremony: three stars over the banner, both score lines, the reward counters and cards, chapter progress, then Next Level." },
+    { board: "Progress & Loaders", title: "Progress & Loaders", caption: "Not a game screen. It is the kit's bars in one place: versus bar, segmented bar, loading bar, party frame, progress bar, ring and XP bar." },
   ],
   payload: brightsideKit as unknown as Record<string, unknown>,
 };
