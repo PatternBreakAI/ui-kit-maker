@@ -7,7 +7,7 @@ import { importBgAsset, bgAssetStatusLine, onAssetActivity, bgAssetDisplayUrl } 
 import { BACKDROP_LIBRARY, BACKDROP_CATEGORIES, backdropThumb, backdropUrl } from "@/generator/backdropLibrary";
 import type { BoardDef, BoardItem } from "@/generator/store";
 import { renderBevel, renderKit, VALUE_DRIVEN } from "@/generator/bevel";
-import { GLYPH_BUTTONS, KIT_COMPONENTS, applyKitDesign, applyKitTextFill, baseOf, fontByName, isGlyphFamily, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
+import { GLYPH_BUTTONS, KIT_COMPONENTS, applyKitDesign, applyKitTextFill, baseOf, fontByName, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
 import { LIVE_GLYPHS } from "@/generator/glyphLibrary";
 import { BIG_GLYPHS, BIG_GLYPH_BASE, bigGlyphById, bigGlyphThumb, bigGlyphMid, bigGlyphUrl, bigGlyphFilter, type BigGlyphDef, type BigGlyphFx } from "@/generator/bigGlyphs";
 import type { GenConfig, KitComponentId } from "@/generator/model";
@@ -729,7 +729,20 @@ const STAGE: Record<"169" | "mobile", [number, number, string]> = {
   mobile: [390, 844, "Mobile"],
 };
 
-const clone = (c: GenConfig) => (typeof structuredClone === "function" ? structuredClone(c) : JSON.parse(JSON.stringify(c))) as GenConfig;
+/* Tray thumbs are ~40px tall, so the state glows (authored for a piece at
+   full size) would smear every tile into a haze — they render glow-less.
+   Non-mutating, and it runs AFTER a piece's design fork applies: a fork
+   carries its own `states` block, so zeroing the master's first let a
+   forked glow straight back in (and mutating the fork's own states object
+   would corrupt the store). Identity is preserved when there is nothing
+   to zero, which keeps the per-thumb cache below hitting. */
+const noGlow = (c: GenConfig): GenConfig => {
+  const st = c.states as unknown as Record<string, { glow?: number }>;
+  if (!Object.values(st).some((s) => s.glow)) return c;
+  const out: Record<string, unknown> = {};
+  for (const [k, s] of Object.entries(st)) out[k] = { ...s, glow: 0 };
+  return { ...c, states: out } as unknown as GenConfig;
+};
 
 /* Paste-a-URL video backdrops: vet the link BEFORE the board takes it.
    https only, embeds turned away by name, then a real load test — the
@@ -1516,12 +1529,57 @@ export function BoardView({ playing }: { playing: boolean }) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  /* ── one tray thumb ────────────────────────────────────────────────
+     A thumb draws the piece AS IT IS: the same reads svgOf makes for a
+     fresh placement of it on a board (owner, round 64: "the assets tray
+     in boards isn't updating the thumbnails as the kit piece updates…
+     I saw some old thumbs in there"). Before this, only the glyph family
+     wore its per-piece design fork and NOTHING wore its slot picks,
+     staged value, sub-label, bar/dock config or seat nudges — a piece the
+     maker had restyled sat in the tray in its factory clothes.
+
+     The two liberties the tray still takes are its own, not staleness:
+     it renders at "s" (a hundred tiles at board scale is a different
+     drawer), and glow is zeroed for legibility. Everything else is the
+     board's own read, keyed by the piece's id — a clone reads its own
+     entries and renders its base, exactly like a clone item on a board. */
+  const drawThumb = (key: KitComponentId, base: KitComponentId, ov?: string) => {
+    const kb = base === "progress" || base === "segbar" ? kitBar[key] : undefined;
+    const nudge = `${key}:${kitSizes[key] ?? "l"}`; // seat nudges are size-keyed, like svgOf's
+    const pc = noGlow(applyKitTextFill(applyKitDesign(cfg, kitDesigns[key]), kitTextFill[key]));
+    return tightenSvg(renderKit(pc, base, "s", "default", kitVals[key], kitShapes[key], {
+      icon: resolveKitIcon(kitIcons[key], undefined),
+      label: kitNoText[key] ? "" : kitLabels[key],
+      sub: kitSubs[key], slots: kitSlotVals[key],
+      textOy: kitTextOy[nudge], textOx: kitTextOx[nudge], overlay: ov,
+      dock: kb?.dock ? { icon: resolveKitIcon(kitIcons[key], undefined), side: kb.dockSide ?? "left" } : undefined,
+      bar: kb, row: base === "datarow" ? kitRow : undefined,
+      themedText: !!kitDesigns[key]?.type || !!kitTextFill[key],
+    }), 20);
+  };
+  /* …and its memo. The tray is ~200 renderKit calls, so one piece's edit
+     must not redraw two hundred pieces. The cache key is the IDENTITY of
+     every input drawThumb reads — the store replaces these maps and their
+     entries wholesale on every edit, so a changed piece always changes its
+     key. That is why this cache cannot become the stale thumb it exists to
+     prevent: nothing is remembered across a change to anything it drew. */
+  const thumbCache = useRef(new Map<string, { k: unknown[]; svg: string }>());
+  const thumbOf = (cacheId: string, key: KitComponentId, base: KitComponentId, ov?: string) => {
+    const nudge = `${key}:${kitSizes[key] ?? "l"}`;
+    const k: unknown[] = [cfg, base, ov, kitDesigns[key], kitTextFill[key], kitShapes[key], kitIcons[key],
+      kitLabels[key], kitNoText[key], kitSubs[key], kitSlotVals[key], kitVals[key], kitBar[key],
+      kitSizes[key], kitTextOy[nudge], kitTextOx[nudge], base === "datarow" ? kitRow : null];
+    const hit = thumbCache.current.get(cacheId);
+    if (hit && hit.k.length === k.length && hit.k.every((v, i) => v === k[i])) return hit.svg;
+    const svg = drawThumb(key, base, ov);
+    thumbCache.current.set(cacheId, { k, svg });
+    return svg;
+  };
+
   // asset thumbnails render tight (glow pads collapse) and follow the style;
   // staging-bay pieces show only to the admin until released
   const assets = useMemo(() => {
     if (!trayReady) return []; // catalog thumbs wait one idle beat behind the active board's paint
-    const tc = clone(cfg);
-    for (const s of Object.values(tc.states)) s.glow = 0;
     /* trophy/startlights are deregistered from the kit-page roster but the
        Board surfaces EVERYTHING (owner: "all kit elements… surface-able by
        search") — they still need honest display names here */
@@ -1534,36 +1592,31 @@ export function BoardView({ playing }: { playing: boolean }) {
         const [bid, ov] = entry.split("~");
         const kid = bid as KitComponentId;
         const nm = ov ? `${name(kid)} · ${ov}` : name(kid);
-        /* glyph-FAMILY thumbs wear their per-piece fork (the family is
-           born with a flat factory design — icon props included, round
-           45 · B5) — a walled tray thumb would promise a look that never
-           lands on the board. Other stock thumbs stay the master-look
-           catalog they've always been. */
-        const gtc = isGlyphFamily(kid) ? applyKitDesign(tc, kitDesigns[kid]) : tc;
-        return { id: entry, kitId: kid, ov, name: nm, hay: `${nm} ${entry} ${g.name} ${SEARCH_TERMS[kid] ?? ""}${ov ? ` ${ov} overlay` : ""}`.toLowerCase(), svg: tightenSvg(renderKit(applyKitTextFill(gtc, kitTextFill[kid]), kid, "s", "default", undefined, kitShapes[kid], { icon: resolveKitIcon(kitIcons[kid], undefined), label: kitNoText[kid] ? "" : kitLabels[kid], overlay: ov }), 20) };
+        return { id: entry, kitId: kid, ov, name: nm, hay: `${nm} ${entry} ${g.name} ${SEARCH_TERMS[kid] ?? ""}${ov ? ` ${ov} overlay` : ""}`.toLowerCase(), svg: thumbOf(entry, kid, kid, ov) };
       }),
     }));
-  }, [trayReady, cfg, kitShapes, kitTextFill, kitIcons, kitLabels, kitNoText, kitDesigns, componentReleases, isAdmin]);
+    // every map the thumb draws from is a dependency; the per-thumb cache
+    // above is what keeps a one-piece edit from redrawing the whole catalog
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trayReady, cfg, kitShapes, kitTextFill, kitIcons, kitLabels, kitNoText, kitDesigns, kitSubs, kitSlotVals, kitVals, kitBar, kitSizes, kitTextOy, kitTextOx, kitRow, componentReleases, isAdmin]);
 
   /* the user's duplicated pieces — live kit citizens like the stock roster
      above. Thumbs render the BASE component wearing the clone's own design
      fork (that fork is the whole point of a clone); a staged base keeps
      its clones admin-only, same gate as the stock entry */
-  const cloneAssets = useMemo(() => {
-    const tc = clone(cfg);
-    for (const s of Object.values(tc.states)) s.glow = 0;
-    return Object.entries(kitClones)
-      .filter(([, c]) => kitVisible(c.base, componentReleases, isAdmin))
-      .map(([cid, c]) => {
-        const key = cid as KitComponentId; // per-piece maps are clone-keyed
-        const baseName = KIT_COMPONENTS.find((k) => k.id === c.base)?.name ?? c.base;
-        return {
-          id: cid, kitId: key, name: c.name,
-          hay: `${c.name} ${c.kind} ${baseName}`.toLowerCase(),
-          svg: tightenSvg(renderKit(applyKitTextFill(applyKitDesign(tc, kitDesigns[key]), kitTextFill[key]), c.base, "s", "default", undefined, kitShapes[key], { icon: resolveKitIcon(kitIcons[key], undefined), label: kitNoText[key] ? "" : kitLabels[key] }), 20),
-        };
-      });
-  }, [cfg, kitClones, kitDesigns, kitShapes, kitTextFill, kitIcons, kitLabels, kitNoText, componentReleases, isAdmin]);
+  const cloneAssets = useMemo(() => Object.entries(kitClones)
+    .filter(([, c]) => kitVisible(c.base, componentReleases, isAdmin))
+    .map(([cid, c]) => {
+      const key = cid as KitComponentId; // per-piece maps are clone-keyed
+      const baseName = KIT_COMPONENTS.find((k) => k.id === c.base)?.name ?? c.base;
+      return {
+        id: cid, kitId: key, name: c.name,
+        hay: `${c.name} ${c.kind} ${baseName}`.toLowerCase(),
+        svg: thumbOf(cid, key, c.base),
+      };
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [cfg, kitClones, kitDesigns, kitShapes, kitTextFill, kitIcons, kitLabels, kitNoText, kitSubs, kitSlotVals, kitVals, kitBar, kitSizes, kitTextOy, kitTextOx, kitRow, componentReleases, isAdmin]);
 
   const selBoard = boards.find((bd) => bd.items.some((b) => b.id === boardSel)) ?? null;
   const sel = selBoard?.items.find((b) => b.id === boardSel) ?? null;
