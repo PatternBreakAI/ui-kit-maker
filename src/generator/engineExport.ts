@@ -571,7 +571,30 @@ export interface ExportBoardData {
    ancestors, filters and clips kept, so the sprite is the app's exact
    pixels) and strip the groups from the shipping bake. ── */
 const ICON_DRAWABLE_SEL = "path,rect,circle,ellipse,line,polyline,polygon,text,image,use";
-function markedIconOnlySvgs(svgIn: string): { name: string; btn: boolean; well: number[] | null; box: number[] | null; nick: string | null; tint: string | null; svg: string }[] {
+/* SVG paint INHERITS (round 61f). A built kit icon carries its ink on the
+   wrapping <g> — iconGroup writes fill/stroke there and the Lucide inner
+   markup states nothing — so a judge that reads only the leaf shape sees
+   NO paint at all and a whitener that rewrites only leaf shapes changes
+   NOTHING. Both roads walk the chain now: the nearest ancestor (self
+   first) that actually states the attribute is the one that paints. */
+function inheritedPaint(el: Element, attr: string): string | null {
+  for (let n: Element | null = el; n; n = n.parentElement) {
+    const v = (n.getAttribute(attr) ?? "").trim();
+    if (v) return v;
+    const st = n.getAttribute("style");
+    if (st) {
+      const m = new RegExp(`(?:^|;)\\s*${attr}\\s*:\\s*([^;]+)`).exec(st);
+      if (m) return m[1].trim();
+    }
+  }
+  return null;
+}
+/* tintOverride (round 61f): the caller may declare a marked group
+   TINTABLE from the outside — same white-cut grammar as data-icon-tint,
+   for ink whose flatness only the EXPORT can prove (it rasters the cut
+   and reads the drawn color back; see skillFlatInkOf). Keyed by the
+   group's data-icon name. */
+function markedIconOnlySvgs(svgIn: string, tintOverride?: Record<string, string>): { name: string; btn: boolean; well: number[] | null; box: number[] | null; nick: string | null; tint: string | null; svg: string }[] {
   try {
     const dom0 = new DOMParser().parseFromString(svgIn, "image/svg+xml");
     const gs0 = Array.from(dom0.querySelectorAll('[data-part="icon"]'));
@@ -591,16 +614,25 @@ function markedIconOnlySvgs(svgIn: string): { name: string; btn: boolean; well: 
          white × tint reproduces the app exactly and a dev retint is one
          clean color edit. Only ink drawn IN the tint color whitens —
          outlines and shading in other colors stay the art's. */
-      const tint = gs0[gi].getAttribute("data-icon-tint") || null;
+      const nm0 = gs0[gi].getAttribute("data-icon") ?? (gs0.length > 1 ? `icon${gi + 1}` : "glyph");
+      const tint = gs0[gi].getAttribute("data-icon-tint") || tintOverride?.[nm0] || null;
       if (tint) {
         const norm = (c: string | null) => (c ?? "").trim().toUpperCase();
-        for (const el of Array.from(keep.querySelectorAll(ICON_DRAWABLE_SEL))) {
+        /* round 61f: the paint may sit on the GROUP the shapes inherit
+           from (iconGroup writes it there and Lucide's inner markup states
+           nothing), so the sweep runs over the kept group AND everything
+           under it — not the leaf shapes alone, which left a built glyph
+           entirely un-whitened while its seat claimed a tint. Ink outside
+           defs only, and still only ink drawn IN the tint colour: outlines
+           and shading in other colours stay the art's. */
+        for (const el of [keep, ...Array.from(keep.querySelectorAll("*"))]) {
+          if (el !== keep && el.closest("defs")) continue;
           if (norm(el.getAttribute("fill")) === norm(tint)) el.setAttribute("fill", "#FFFFFF");
           if (norm(el.getAttribute("stroke")) === norm(tint)) el.setAttribute("stroke", "#FFFFFF");
         }
       }
       out.push({
-        name: gs0[gi].getAttribute("data-icon") ?? (gs0.length > 1 ? `icon${gi + 1}` : "glyph"),
+        name: nm0,
         btn: gs0[gi].getAttribute("data-icon-btn") === "1",
         well: gs0[gi].getAttribute("data-icon-well")?.split(" ").map(Number) ?? null,
         /* a FIXED crop frame "x y w h" in raw design px (round 44, item
@@ -676,6 +708,19 @@ function stripSkillPath(svgIn: string): string {
   try {
     const dom = new DOMParser().parseFromString(svgIn, "image/svg+xml");
     const gs = Array.from(dom.querySelectorAll("[data-skillpath]"));
+    if (!gs.length) return svgIn;
+    for (const g of gs) g.remove();
+    return new XMLSerializer().serializeToString(dom.documentElement);
+  } catch { return svgIn; }
+}
+/* the locked veil (round 61f): marked data-skillveil in bevel so the
+   LOCKED face atom can bake WITHOUT it — the rig keeps the veil as its
+   own live child (its dimAlpha stays the dev's dial), and a veil baked
+   into the swapped art would double-dim the node. */
+function stripSkillVeil(svgIn: string): string {
+  try {
+    const dom = new DOMParser().parseFromString(svgIn, "image/svg+xml");
+    const gs = Array.from(dom.querySelectorAll("[data-skillveil]"));
     if (!gs.length) return svgIn;
     for (const g of gs) g.remove();
     return new XMLSerializer().serializeToString(dom.documentElement);
@@ -3300,14 +3345,74 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     } catch { return { svg: svgIn, labelStripped: false, seatsStripped: 0 }; }
   };
   const stripIconInk = stripMarkedIcons;
+  /* ── THE FLAT-INK PROOF (round 61f, reviewer gate F1) ───────────────
+     A white cut + an ABSOLUTE Image.color reproduces the app EXACTLY —
+     but only for ink that is genuinely FLAT. A relative (multiply) tint
+     can only ever DARKEN, so a state fork lighter than base composed
+     wrong at runtime; the cure is the white cut, and the cure is only
+     honest if the atom really carries one colour and nothing else.
+     Two judges, both must pass:
+       STRUCTURE — every drawable outside <defs> paints in exactly ONE
+         plain #RRGGBB (fill or stroke; "none" ignored). A gradient
+         paint (url(#…)), a second colour (an outline underlay), or a
+         non-hex paint disqualifies immediately.
+       RASTER — the shipped pixels are re-read and every covered pixel
+         must BE that colour. This is what catches shading no attribute
+         shows: drop-shadow/emboss/glow filter chains, blend modes,
+         anything the renderer composited in another ink. The tolerance
+         rides the coverage (canvas stores premultiplied, so a thin AA
+         pixel un-premultiplies with real quantisation error).
+     Returns the drawn ink for a flat cut, null for anything else. */
+  const flatInkOf = async (svgCut: string): Promise<string | null> => {
+    try {
+      const dom = new DOMParser().parseFromString(svgCut, "image/svg+xml");
+      const paints = new Set<string>();
+      for (const el of Array.from(dom.querySelectorAll(ICON_DRAWABLE_SEL))) {
+        if (el.closest("defs")) continue;
+        for (const at of ["fill", "stroke"]) {
+          const v = inheritedPaint(el, at);
+          if (!v || v.toLowerCase() === "none") continue;
+          paints.add(v.toUpperCase());
+        }
+      }
+      if (paints.size !== 1) return null;
+      const ink = [...paints][0];
+      if (!/^#[0-9A-F]{6}$/.test(ink)) return null;
+      const R = parseInt(ink.slice(1, 3), 16), G = parseInt(ink.slice(3, 5), 16), B = parseInt(ink.slice(5, 7), 16);
+      const { bytes, w, h } = await svgToPngBytes(svgCut, PNG_SCALE);
+      const bmp = await createImageBitmap(new Blob([new Uint8Array(bytes)], { type: "image/png" }));
+      const cv = document.createElement("canvas");
+      cv.width = w; cv.height = h;
+      const cx = cv.getContext("2d")!;
+      cx.drawImage(bmp, 0, 0);
+      const d = cx.getImageData(0, 0, w, h).data;
+      let covered = 0;
+      for (let i = 0; i < d.length; i += 4) {
+        const a = d[i + 3];
+        if (a < 32) continue; // below this the un-premultiply noise swamps the reading
+        covered++;
+        /* the tolerance bounds what a VIEWER could see, not the raw
+           channel: a pixel at alpha a contributes tol·a/255 to the
+           composite, so holding that under ~2.5/255 means tol ≤ 640/a.
+           At full opacity that is the old 3 (where real shading has to
+           show); on a thin antialiased stroke it is the room the canvas
+           round-trip actually needs — premultiplied storage, then an
+           un-premultiply, on a 20%-covered pixel. A second INK is off by
+           tens where the coverage is high, and still caught. */
+        const tol = Math.max(3, Math.round(640 / a));
+        if (Math.abs(d[i] - R) > tol || Math.abs(d[i + 1] - G) > tol || Math.abs(d[i + 2] - B) > tol) return null;
+      }
+      return covered > 8 ? ink : null;
+    } catch { return null; }
+  };
   /* the resting cut's EXACT shipped window per seat (full precision — the
      manifest row rounds to 0.1): the per-state glyph road (round 53)
      re-cuts a diverged state's dress on this same canvas so the sprite
      swap registers 1:1, and rasters BOTH windows to judge divergence.
      A WeakMap keyed by the seat object — nothing leaks into the manifest. */
   const SEAT_CUTS = new WeakMap<object, { spr: string; box: [number, number, number, number] }>();
-  const iconSeatsOf = async (uid: KitComponentId, fullSvg: string, spritePrefix?: string, nameOverride?: string): Promise<NonNullable<AssetMeta["iconSeats"]> | null> => {
-    const cuts = markedIconOnlySvgs(fullSvg);
+  const iconSeatsOf = async (uid: KitComponentId, fullSvg: string, spritePrefix?: string, nameOverride?: string, tintOverride?: Record<string, string>): Promise<NonNullable<AssetMeta["iconSeats"]> | null> => {
+    const cuts = markedIconOnlySvgs(fullSvg, tintOverride);
     if (!cuts.length) return null;
     if (nameOverride && cuts.length === 1) cuts[0].name = nameOverride;
     /* the DRAWN shell frame — the raster measures drawn pixels, so the
@@ -3991,6 +4096,60 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   // comparing the id silently broke the placed-piece fallback (field: the
   // owner's placed Back tab shipped nothing while still staged)
   const stagedShips = (id: KitComponentId) => kitVisible(id, st.releases ?? {}, false) || usedOnBoards0.has(PREFAB_FAMILY[id] ?? id);
+  /* ── ROUND 61e: the skill node's three RESOLVED state skins ─────────
+     The app's statable grammar (61d) keeps Available as BASE with
+     per-state forks in kitSlotVals ("learned:face" — stateSlotKey); the
+     owner's ruling is "whatever is best for developers", so the Unity
+     rig hands the dev three COMPLETE flat blocks with zero inheritance
+     to decode — the fork table flattens HERE: fork(state) ?? base ??
+     factory per token (bevel's own slR ladder + effSlotColor roles),
+     with the app's literal locked rules kept exactly (the padlock's ink
+     falls to the deactivated gray, the veil to the classic 0.5, the
+     stub alphas 0.95/0.25). Field names are the RIG's serialized names
+     — stable forever (a rename resets every dev override). */
+  /* round 61f — the FLAT-INK road's measured base: when the glyph atom
+     ships WHITE (flatInkOf proved it flat and a state re-inks it), the
+     rig's glyphInk becomes an ABSOLUTE colour, so the Available block
+     must state the ink the sprite was actually cut at. effSlotColor's
+     ladder is the well's closest hex, not necessarily the drawn pixel
+     (an inherit-mode glyph reads build()'s own autoLabel), and an
+     absolute colour that is merely close would repaint Available. The
+     atom road below sets this to the colour it measured off the cut —
+     null keeps the pre-61f ladder verbatim. */
+  let skillFlatInk: string | null = null;
+  const resolveSkillSkins = (): { state: string; faceColor: string; glyphInk: string; rimColor: string; glowColor: string; glowEnabled: boolean; pathColor: string; dimAlpha: number }[] => {
+    const cfgS = pieceCfg("skillnode");
+    const slotsS = st.kitSlotVals?.skillnode ?? {};
+    const hexish = (v: string | null | undefined): v is string => !!v && /^#[0-9a-fA-F]{6,8}$/.test(v);
+    const pickS = (state: string | null, id: string): string | undefined =>
+      (state ? slotsS[stateSlotKey(state, id)] : undefined) ?? slotsS[id];
+    const factoryS = (id: string): string => {
+      const v = effSlotColor(cfgS, "skillnode", id, slotsS);
+      return hexish(v) ? v : "#FFFFFF";
+    };
+    const alphaHex = (hex: string, a: number): string =>
+      hex.length === 7 ? hex + Math.round(a * 255).toString(16).padStart(2, "0").toUpperCase() : hex;
+    return (["available", "learned", "locked"] as const).map((name) => {
+      const state = name === "available" ? null : name;
+      const valS = (id: string) => { const p = pickS(state, id); return hexish(p) ? p : factoryS(id); };
+      const glowRaw = pickS(state, "glowColor");
+      // "none" is the well's OFF half; unpicked follows the factory role
+      const glowEnabled = glowRaw === "none" ? false : (hexish(glowRaw) || hexish(effSlotColor(cfgS, "skillnode", "glowColor", slotsS)));
+      const glowColor = hexish(glowRaw) ? glowRaw : factoryS("glowColor");
+      /* the path falls to the POSE's Glow (bevel: pathC = slR.pathColor
+         ?? glow9 — a glow fork re-inks its own pose's unforked stub;
+         "none" leaves the role color standing, the dress9 gate) */
+      const pathBase = pickS(state, "pathColor") ?? (hexish(glowRaw) ? glowRaw : factoryS("glowColor"));
+      const pathColor = alphaHex(hexish(pathBase) ? pathBase : factoryS("glowColor"), name === "locked" ? 0.25 : 0.95);
+      /* the padlock's ink ladder is the app's literal: fork ?? base ??
+         the deactivated gray (bevel: slR.glyphInk ?? "#A7AAB4") */
+      const glyphInk = name === "locked" ? (hexish(pickS(state, "glyphInk")) ? pickS(state, "glyphInk")! : "#A7AAB4")
+        : (hexish(pickS(state, "glyphInk")) ? pickS(state, "glyphInk")! : (skillFlatInk ?? valS("glyphInk")));
+      const dimRaw = name === "locked" ? pickS("locked", "lockedDim") : undefined;
+      const dimAlpha = name === "locked" ? (dimRaw !== undefined && /^\d+$/.test(dimRaw) ? Math.min(100, +dimRaw) / 100 : 0.5) : 0;
+      return { state: name, faceColor: valS("face"), glyphInk, rimColor: valS("rim"), glowColor, glowEnabled, pathColor, dimAlpha };
+    });
+  };
   /* the GLYPH-BUTTON class roster (round 51 wave 2, re-anchored in round
      52 to the REAL components): the emission fills it — one entry per
      SHIPPED gbtn component — the manifest ships it as `glyphFleet`, and
@@ -4930,7 +5089,73 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
            seat on the base row (iconSeatsOf), and the state skins strip
            identically so the live child rides the press with no baked
            twin beneath. */
-        const iconSeatsU = isArt ? null : await iconSeatsOf(uid, fullU);
+        /* ── ROUND 61f · THE FLAT-INK ROAD (reviewer gate F1) ───────────
+           The rig's per-state inks used to ride Image.color as a RELATIVE
+           tint, and a multiply can only DARKEN: a Learned glyph ink
+           LIGHTER than Available composed wrong at runtime (the gate
+           measured a 150/255 miss on the face; glyphInk is the same class
+           of error). The cure the reviewer prescribed is the connector
+           stub's own grammar — cut the atom WHITE, make the skin colour
+           ABSOLUTE — and it is only honest for ink that is genuinely
+           flat, so flatInkOf has to PROVE it (structure + raster) before
+           anything is whitened.
+           TWO GATES, both required, both byte-safe:
+           - the cut must read as ONE plain colour (a gradient glyph, an
+             outline underlay, a drop-shadow chain: all disqualify), and
+           - the colour it reads must be exactly the colour the rig will
+             apply (available.glyphInk / locked.glyphInk) — the ladder's
+             closest hex is not always the drawn pixel, and an absolute
+             colour that is merely close would repaint Available.
+           And the road only opens when a state actually RE-INKS the glyph
+           (learned ≠ available): with every state on one ink the old tint
+           was already pure white, nothing was ever wrong, and a kit that
+           was right stays byte-for-byte what it was.
+           THE THIRD GATE — a pointer-state ICON FORK shuts the road. The
+           hazard is exactly one thing: a round-53 dress cut. Those re-cut
+           the glyph off the pose's own render, so a white resting sprite
+           could swap to an INKED hover one and the absolute colour would
+           multiply into it. Dresses ship under ONE predicate (the ICR
+           ladder / the inherit-mode type fork), so this gate IS that
+           predicate — the same expression on the same cfg, which is why
+           the two can never disagree.
+           What is NOT the hazard, and must not shut the road: the
+           renderer's state-wide recolour. The app lightens every glyph on
+           hover and darkens it on press (P() carries the pose), and round
+           53 deliberately cuts no dress for that — so Unity's glyph child
+           holds its RESTING ink through the press today, and a white cut
+           under an absolute colour holds exactly the same ink. Same for
+           the universal disabled gray: StateFx's DisabledInk material
+           writes a solid silhouette and never reads vertex colour, so it
+           lands identically on a white cut. Neither is a fork the maker
+           pinned; neither changes what the child shows. */
+        let skillInkTint: Record<string, string> | undefined;
+        if (uid === "skillnode" && !isArt) {
+          try {
+            const cfgP61 = pieceCfg(uid);
+            const dressForks61 = (["hover", "pressed", "disabled"] as const).some((sn61) => {
+              const sd61 = cfgP61.stateDesigns?.[sn61];
+              return !!sd61 && (!!sd61.icon
+                || (!!sd61.type && !(sd61.icon ?? cfgP61.icon)?.color
+                  && (sd61.type.fillMode !== cfgP61.type.fillMode
+                    || sd61.type.fill !== cfgP61.type.fill
+                    || (sd61.type.fillMode === "gradient" && sd61.type.fill2 !== cfgP61.type.fill2)
+                    || JSON.stringify(sd61.type.outline) !== JSON.stringify(cfgP61.type.outline))));
+            });
+            const gCut61 = dressForks61 ? null : markedIconOnlySvgs(fullU).find((c) => c.name === "glyph");
+            const ink61 = gCut61 ? await flatInkOf(gCut61.svg) : null;
+            // the measured ink IS Available's, so the skins resolve against
+            // the drawn pixel before the fork is judged
+            skillFlatInk = ink61;
+            const rows61 = resolveSkillSkins();
+            const avail61 = rows61.find((r) => r.state === "available");
+            const learn61 = rows61.find((r) => r.state === "learned");
+            const same61 = (a?: string, b?: string) => !!a && !!b && a.toUpperCase() === b.toUpperCase();
+            if (ink61 && avail61 && learn61 && same61(avail61.glyphInk, ink61) && !same61(avail61.glyphInk, learn61.glyphInk))
+              skillInkTint = { glyph: ink61 };
+            else skillFlatInk = null;
+          } catch { skillInkTint = undefined; skillFlatInk = null; }
+        }
+        const iconSeatsU = isArt ? null : await iconSeatsOf(uid, fullU, undefined, undefined, skillInkTint);
         let baseSvgU = iconSeatsU ? stripIconInk(strippedU.svg).svg : strippedU.svg;
         /* the inventory grid's family base ships RINGLESS (the posed
            road's own data-invring cut): the selection is a live layer —
@@ -5019,11 +5244,33 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
               const bSeat = bCut ? await cutAtom(bCut.svg) : null;
               if (bSeat) atoms.push({ part: "badge", ...bSeat, tint: false,
                 usage: "The Learned badge — plate and mark as ONE live child; SetState shows it in Learned only. Move, restyle, swap its sprite or delete it; a badge set to None in the app ships no badge at all." });
+              /* the padlock joins the FLAT-INK road with the glyph (round
+                 61f): while the glyph cuts white, the lock does too — same
+                 two proofs (flatInkOf, and the measured colour must BE the
+                 locked skin's glyphInk), so locked.glyphInk stops being a
+                 dead Inspector knob and becomes the live absolute ink the
+                 padlock actually wears. Off the road, or on art carrying
+                 shading, the lock stays baked at that same colour — exact
+                 either way, and byte-identical to r61e. */
               const kSvg = stripLoopsU(shell(uid, { ...uOpts, overlay: "locked" }, undefined, uVal));
-              const kCut = markedIconOnlySvgs(kSvg).find((c9) => c9.name === "lockglyph");
+              let kInk: string | null = null;
+              /* the lock's own door onto the road: the glyph's cut opened
+                 it, OR the kit pins a LOCKED glyph ink of its own. Both
+                 mean the kit already re-inks something here, so no
+                 fork-less export grows a byte — and where the dev cares
+                 about the padlock's colour, the Inspector knob answers. */
+              if (skillInkTint || (st.kitSlotVals?.skillnode ?? {})[stateSlotKey("locked", "glyphInk")] !== undefined) {
+                const kProbe = markedIconOnlySvgs(kSvg).find((c9) => c9.name === "lockglyph");
+                const kFlat = kProbe ? await flatInkOf(kProbe.svg) : null;
+                const lockSkin = resolveSkillSkins().find((r) => r.state === "locked");
+                if (kFlat && lockSkin && kFlat.toUpperCase() === lockSkin.glyphInk.toUpperCase()) kInk = kFlat;
+              }
+              const kCut = markedIconOnlySvgs(kSvg, kInk ? { lockglyph: kInk } : undefined).find((c9) => c9.name === "lockglyph");
               const kSeat = kCut ? await cutAtom(kCut.svg) : null;
-              if (kSeat) atoms.push({ part: "lock", ...kSeat, tint: false,
-                usage: "The padlock — the Locked state's content, its own live child (SetState shows it in Locked only; the skill glyph stands down there, the app's rule). Baked at the Locked skin's resolved glyph ink." });
+              if (kSeat) atoms.push({ part: "lock", ...kSeat, tint: !!kInk,
+                usage: kInk
+                  ? "The padlock — the Locked state's content, its own live child (SetState shows it in Locked only; the skill glyph stands down there, the app's rule). Cut WHITE: the Locked skin's glyphInk rides Image.color as an ABSOLUTE colour, so re-inking the lock — lighter or darker — is one Inspector edit."
+                  : "The padlock — the Locked state's content, its own live child (SetState shows it in Locked only; the skill glyph stands down there, the app's rule). Baked at the Locked skin's resolved glyph ink." });
               // the strip is gated on the PATH atoms (the badge/lock are
               // additive children; the stubs are what the skins must shed)
               if (cIn && cOutP) {
@@ -5910,7 +6157,14 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
                 if (shR9?.length === 4 && shS9?.length === 4) {
                   const dxSh9 = shS9[0] + shS9[2] / 2 - (shR9[0] + shR9[2] / 2);
                   const dySh9 = shS9[1] + shS9[3] / 2 - (shR9[1] + shR9[3] / 2);
-                  const cutsS9 = markedIconOnlySvgs(sSvg);
+                  /* round 61f: a seat on the FLAT-INK road cuts its state
+                     dresses white too — the resting sprite is white and
+                     the skin's colour is absolute, so an inked dress would
+                     be multiplied by that colour the instant the pointer
+                     arrived. Proved safe upstream: the road only opens
+                     when every pointer pose measured the SAME flat ink.
+                     undefined for every other family — no byte moves. */
+                  const cutsS9 = markedIconOnlySvgs(sSvg, skillInkTint);
                   for (const seat9 of iconSeatsU) {
                     if (seat9.btn || (seat9.wellR ?? 0) > 0.5) continue;
                     const rest9 = SEAT_CUTS.get(seat9);
@@ -5947,6 +6201,123 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
               component: uid, part: `base-${stName}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
               usage: `${SWAP_USAGE[stName]} state — Sprite Swap beside base.png (the generated prefab wires it). Union-cropped with base, so the press pose stays registered.`,
             }, true, uid);
+          }
+        }
+        /* ── ROUND 61f · THE PER-STATE FACE (reviewer gate F1, the half
+           no tint can reach) ─────────────────────────────────────────
+           The node's face is CANDY: a gradient derived from the face
+           colour, a bevel wall, gloss and specular highlights that must
+           NOT move with the ink. Image.color multiplies, so it can only
+           darken, and even a darkening lands on the highlights too — a
+           Learned face LIGHTER than Available composed at RGB (24,0,96)
+           where the app draws (174,7,126). There is no separable cut
+           here: the shading is DERIVED from the colour, not layered over
+           it, so the only exact answer is the app's own render of that
+           state, baked and SWAPPED — the r53 GlyphSwap precedent and
+           this slice's own posed-copy bakes, and squarely inside the
+           house law (the law forbids burning in swappable CONTENT and
+           forbids swapping GEOMETRY; this swaps neither — same node,
+           same box, a different dress).
+           WHAT SHIPS, AND ONLY WHEN IT MUST:
+           - Learned bakes all four poses, because the Button keeps
+             Sprite-Swapping under the state (a rest-only swap would drop
+             the state's paint the moment the pointer arrived).
+           - Locked bakes ONE: the app poses a locked node as the
+             DISABLED dress, always (bevel's own `overlay === "locked" ?
+             "disabled"` rule), and the rig parks the Button
+             non-interactable, so all four slots wear it.
+           - Every pose is judged at the RASTER against its own base
+             counterpart (the round-53 discipline): byte-equal ships
+             NOTHING, so a kit with no face fork grows no atoms and its
+             manifest does not move.
+           The bakes ride base's crop GROUP, so every state sprite shares
+           base's coordinate space and the swap registers 1:1. They strip
+           exactly what base strips — words, marked icon ink, the stubs.
+           THE LOCKED VEIL (round 61f, measured): the app clips its dark
+           veil to the FACE path, while the rig's live veil child wears the
+           frame's whole silhouette — so the rim, the extrusion wall and
+           the bloom fringe dimmed in Unity where the app leaves them
+           bright (the composition missed by up to 109/255 across a third
+           of the node). Wherever a locked atom SHIPS, it therefore bakes
+           the veil in — the app's own render, exact by construction — and
+           the rig stands its live veil down (Apply's `sk.face == null`
+           gate), so nothing double-dims. The GATE still runs veil-LESS,
+           so the app's default veil cannot by itself make every kit grow
+           an atom; a kit that pins the veil's own dial (lockedDim) has
+           said it cares, and takes the exact road too. */
+        if (uid === "skillnode" && skillAtoms && interactive) {
+          try {
+            /* the JUDGE's cut — veil stripped, so divergence means the
+               state's own paint moved, never the app's standing veil */
+            const skinOf61 = (sv: string) => stripSkillPath(stripSkillVeil(stripIconInk(stripWordInk(sv).svg).svg));
+            /* what SHIPS — the veil kept: it is this state's paint, and a
+               baked veil beats a live child that cannot find the face */
+            const shipOf61 = (sv: string) => stripSkillPath(stripIconInk(stripWordInk(sv).svg).svg);
+            const dimPinned61 = (st.kitSlotVals?.skillnode ?? {})[stateSlotKey("locked", "lockedDim")] !== undefined;
+            const same61 = async (a: string, b: string) => {
+              const [ra, rb] = [await svgToPngBytes(a, PNG_SCALE), await svgToPngBytes(b, PNG_SCALE)];
+              return ra.bytes.length === rb.bytes.length && ra.bytes.every((v, i) => v === rb.bytes[i]);
+            };
+            const POSES61: { part: string; state: "learned" | "locked"; pose: "hover" | "pressed" | "disabled" | null; note: string }[] = [
+              { part: "state-learned", state: "learned", pose: null, note: "resting" },
+              { part: "state-learned-hover", state: "learned", pose: "hover", note: "hover" },
+              { part: "state-learned-pressed", state: "learned", pose: "pressed", note: "pressed" },
+              { part: "state-learned-disabled", state: "learned", pose: "disabled", note: "disabled" },
+              // the locked dress IS the disabled dress (bevel's own rule)
+              { part: "state-locked", state: "locked", pose: "disabled", note: "locked" },
+            ];
+            for (const p61 of POSES61) {
+              const opts61 = { ...uOpts, overlay: p61.state };
+              const raw61 = stripLoopsU(p61.pose
+                ? stateShell(uid, p61.pose, opts61, uVal)
+                : shell(uid, opts61, undefined, uVal));
+              const theirs = skinOf61(stripLoopsU(p61.pose
+                ? stateShell(uid, p61.pose, uOpts, uVal)
+                : shell(uid, uOpts, undefined, uVal)));
+              // veil-LESS judgement: this state's own paint, never the veil
+              const diverged61 = !(await same61(skinOf61(raw61), theirs));
+              // a pinned veil dial takes the exact road even with no face fork
+              if (!diverged61 && !(p61.state === "locked" && dimPinned61)) continue;
+              const ship61 = p61.state === "locked" ? shipOf61(raw61) : skinOf61(raw61);
+              await addPng(`${uid}/${p61.part}.png`, ship61, {
+                component: uid, part: p61.part, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+                usage: `The node's ${p61.state.toUpperCase()} face art${p61.pose && p61.state === "learned" ? ` (${p61.note})` : ""} — the app's own render of this state, EXACT to the gradient, the rim and the wall${p61.state === "locked" ? ", the dark veil included (the app clips it to the FACE, which no full-silhouette overlay can reproduce — so the rig stands its live veil down while this art is here)" : ""}. SetState assigns it to the frame${p61.state === "locked" ? " and to every Sprite Swap slot (a locked node always wears the disabled dress)" : " and to the Button's Sprite Swap"}; the skin's colour fields beside it say what the app resolved. Swap this sprite to redress the state.`,
+              }, true, uid);
+            }
+            /* the GLYPH, when the flat road is shut (round 61f): a glyph
+               carrying a gradient, an outline underlay or a filter chain
+               cannot be white-cut honestly — and a fork does not merely
+               re-tint it, it RESTRUCTURES it (the app pins icon.color,
+               which drops the inherited gradient and outline entirely).
+               So the diverged state's glyph bakes on the RESTING cut's
+               exact window (the r53 canvas rule — same integer box, so
+               the sprite swap registers 1:1) and the rig swaps the live
+               child. Locked never needs one: the app hides the glyph
+               there and shows the padlock. Byte-equal ships nothing. */
+            const gSeat61 = iconSeatsU?.find((s9) => s9.name === "glyph");
+            const gRest61 = gSeat61 ? SEAT_CUTS.get(gSeat61) : undefined;
+            if (!skillInkTint && gSeat61 && gRest61) {
+              const lFull61 = stripLoopsU(shell(uid, { ...uOpts, overlay: "learned" }, undefined, uVal));
+              const shOf61 = (sv: string) => (/data-shell="([-\d. ]+)"/.exec(sv) ?? /data-shell0="([-\d. ]+)"/.exec(sv))?.[1].split(" ").map(Number);
+              const shR61 = shOf61(fullU), shS61 = shOf61(lFull61);
+              const mkL61 = markedIconOnlySvgs(lFull61).find((c9) => c9.name === "glyph");
+              if (mkL61 && shR61?.length === 4 && shS61?.length === 4) {
+                const [bx61, by61, bw61, bh61] = gRest61.box;
+                const dx61 = shS61[0] + shS61[2] / 2 - (shR61[0] + shR61[2] / 2);
+                const dy61 = shS61[1] + shS61[3] / 2 - (shR61[1] + shR61[3] / 2);
+                const spr61 = mkL61.svg
+                  .replace(/viewBox="[^"]+"/, `viewBox="${(bx61 + dx61).toFixed(1)} ${(by61 + dy61).toFixed(1)} ${bw61.toFixed(1)} ${bh61.toFixed(1)}"`)
+                  .replace(/ width="[\d.]+"/, ` width="${Math.ceil(bw61)}"`)
+                  .replace(/ height="[\d.]+"/, ` height="${Math.ceil(bh61)}"`);
+                if (!(await same61(spr61, gRest61.spr)) && (await svgEdgeAlphaMax(spr61, PNG_SCALE).catch(() => 255)) <= 1)
+                  await addPng(`${uid}/state-learned-glyph.png`, spr61, {
+                    component: uid, part: "state-learned-glyph", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+                    usage: "The skill glyph's LEARNED dress — this state's ink exactly as the app draws it, cut on the resting sprite's own canvas (the swap registers 1:1). SetState swaps the live Icon glyph child to it; re-sprite either field freely.",
+                  }, false);
+              }
+            }
+          } catch (e61) {
+            console.warn("engine export: the skill node's per-state face bakes failed — the rig falls back to its relative tint for any forked state", e61);
           }
         }
       }
@@ -6868,49 +7239,6 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   const stateCollapseDy = (pid: KitComponentId, sn: "hover" | "pressed" | "disabled", dialDy: number): number => {
     if (!dialDy) return 0; // no extrusion fork — nothing to measure
     return measuredStateDy(pid, sn) ?? dialDy;
-  };
-  /* ── ROUND 61e: the skill node's three RESOLVED state skins ─────────
-     The app's statable grammar (61d) keeps Available as BASE with
-     per-state forks in kitSlotVals ("learned:face" — stateSlotKey); the
-     owner's ruling is "whatever is best for developers", so the Unity
-     rig hands the dev three COMPLETE flat blocks with zero inheritance
-     to decode — the fork table flattens HERE: fork(state) ?? base ??
-     factory per token (bevel's own slR ladder + effSlotColor roles),
-     with the app's literal locked rules kept exactly (the padlock's ink
-     falls to the deactivated gray, the veil to the classic 0.5, the
-     stub alphas 0.95/0.25). Field names are the RIG's serialized names
-     — stable forever (a rename resets every dev override). */
-  const resolveSkillSkins = (): { state: string; faceColor: string; glyphInk: string; rimColor: string; glowColor: string; glowEnabled: boolean; pathColor: string; dimAlpha: number }[] => {
-    const cfgS = pieceCfg("skillnode");
-    const slotsS = st.kitSlotVals?.skillnode ?? {};
-    const hexish = (v: string | null | undefined): v is string => !!v && /^#[0-9a-fA-F]{6,8}$/.test(v);
-    const pickS = (state: string | null, id: string): string | undefined =>
-      (state ? slotsS[stateSlotKey(state, id)] : undefined) ?? slotsS[id];
-    const factoryS = (id: string): string => {
-      const v = effSlotColor(cfgS, "skillnode", id, slotsS);
-      return hexish(v) ? v : "#FFFFFF";
-    };
-    const alphaHex = (hex: string, a: number): string =>
-      hex.length === 7 ? hex + Math.round(a * 255).toString(16).padStart(2, "0").toUpperCase() : hex;
-    return (["available", "learned", "locked"] as const).map((name) => {
-      const state = name === "available" ? null : name;
-      const valS = (id: string) => { const p = pickS(state, id); return hexish(p) ? p : factoryS(id); };
-      const glowRaw = pickS(state, "glowColor");
-      // "none" is the well's OFF half; unpicked follows the factory role
-      const glowEnabled = glowRaw === "none" ? false : (hexish(glowRaw) || hexish(effSlotColor(cfgS, "skillnode", "glowColor", slotsS)));
-      const glowColor = hexish(glowRaw) ? glowRaw : factoryS("glowColor");
-      /* the path falls to the POSE's Glow (bevel: pathC = slR.pathColor
-         ?? glow9 — a glow fork re-inks its own pose's unforked stub;
-         "none" leaves the role color standing, the dress9 gate) */
-      const pathBase = pickS(state, "pathColor") ?? (hexish(glowRaw) ? glowRaw : factoryS("glowColor"));
-      const pathColor = alphaHex(hexish(pathBase) ? pathBase : factoryS("glowColor"), name === "locked" ? 0.25 : 0.95);
-      /* the padlock's ink ladder is the app's literal: fork ?? base ??
-         the deactivated gray (bevel: slR.glyphInk ?? "#A7AAB4") */
-      const glyphInk = name === "locked" ? (hexish(pickS(state, "glyphInk")) ? pickS(state, "glyphInk")! : "#A7AAB4") : valS("glyphInk");
-      const dimRaw = name === "locked" ? pickS("locked", "lockedDim") : undefined;
-      const dimAlpha = name === "locked" ? (dimRaw !== undefined && /^\d+$/.test(dimRaw) ? Math.min(100, +dimRaw) / 100 : 0.5) : 0;
-      return { state: name, faceColor: valS("face"), glyphInk, rimColor: valS("rim"), glowColor, glowEnabled, pathColor, dimAlpha };
-    });
   };
   files.push({
     path: "kit-manifest.json",
@@ -8527,11 +8855,25 @@ namespace PatternBreak {
        every dev override on package update. */
     [System.Serializable]
     public class StateSkin {
-      [Tooltip("The node's candy face color, resolved for this state (the app's Face well). The frame art bakes the Available dress; other states tint RELATIVE to Available's face, so an unforked state changes nothing.")]
+      [Tooltip("The node's candy face color, resolved for this state (the app's Face well). When this state ships its own face art below, that art is BAKED in exactly this color — the value is here to read and to drive your own effects; redress the state by swapping the sprite. A state with no art of its own tints RELATIVE to Available's face.")]
       public Color faceColor = Color.white;
-      [Tooltip("The skill glyph's ink for this state (the padlock's, in Locked — the lock sprite already bakes it). Relative tint, like the face.")]
+      /* the per-state FACE ART (round 61f, reviewer gate F1). A candy face
+         is a gradient DERIVED from its color, with gloss, specular and a
+         bevel wall on top; Image.color MULTIPLIES, so a tint could only
+         ever darken — a Learned face lighter than Available composed at
+         RGB (24,0,96) where the app draws (174,7,126). There is nothing
+         separable to cut here, so the state wears the app's own render.
+         Four poses because the Button keeps Sprite-Swapping underneath:
+         a rest-only swap would drop the state's paint the moment the
+         pointer arrived. Empty = this state wears Available's art. */
+      [Tooltip("This state's face art, exactly as the app renders it — gradient, rim and wall included. SetState puts it on the frame and, for the three below, into the Button's Sprite Swap. Empty = this state wears Available's art. Swap any of them freely.")]
+      public Sprite face;
+      public Sprite faceHover, facePressed, faceDisabled;
+      [Tooltip("The skill glyph's ink for this state (the padlock's, in Locked). ABSOLUTE whenever the kit's glyph cuts white — any color lands exactly, lighter or darker. On art that carries its own shading the ink tints relative to Available instead, and a state that re-inks the glyph ships its own art below.")]
       public Color glyphInk = Color.white;
-      [Tooltip("The rim & wall color, resolved for this state — reference data for your own effects: the rim lives inside the frame art, and a multiply tint cannot repaint it alone (posed board copies carry true rim forks).")]
+      [Tooltip("This state's skill-glyph art — shipped only where the glyph is not a flat white cut and this state's ink restructures it. Empty = the resting glyph stands.")]
+      public Sprite glyphArt;
+      [Tooltip("The rim & wall color, resolved for this state. It lives inside the face art, which this state now ships whole (round 61f) — so the rim IS this color at runtime; the value is here for your own effects and for posed board copies.")]
       public Color rimColor = Color.white;
       [Tooltip("The glow color for this state — drives the StateFx halo's tint.")]
       public Color glowColor = Color.white;
@@ -8539,7 +8881,7 @@ namespace PatternBreak {
       public bool glowEnabled = true;
       [Tooltip("The connector stub's ink for this state — an ABSOLUTE tint on the white-cut Path child (alpha included: the app draws available/learned at 95%, locked at 25%).")]
       public Color pathColor = Color.white;
-      [Tooltip("How heavily the veil dims the node in this state (the app's Locked veil; 0 on Available/Learned).")]
+      [Tooltip("How heavily the veil dims the node in this state (the app's Locked veil; 0 on Available/Learned). When this state ships face art above, that art already carries the veil clipped to the FACE exactly as the app draws it — the Locked veil child stays down and this value is what the app resolved; redress it by swapping the sprite. With no art the Locked veil child wears the frame's whole silhouette at this alpha.")]
       [Range(0f, 1f)] public float dimAlpha;
     }
     [Tooltip("The node's semantic state — flip it and the skin applies live, edit mode included. Code: SetState(...).")]
@@ -8552,6 +8894,10 @@ namespace PatternBreak {
     public Image frame;
     [Tooltip("The live skill glyph child — hidden in Locked (the app shows only the padlock there).")]
     public Image glyph;
+    [Tooltip("On = this kit's glyph and padlock ship as WHITE cuts, so every skin's glyphInk is an ABSOLUTE color: set any ink, lighter or darker, and it lands exactly. Off = the art carries its own colors (a gradient glyph, an outline underlay) and glyphInk tints relative to Available.")]
+    public bool absoluteInk;
+    [Tooltip("The padlock's Image when it ships as a white cut — the rig paints it the Locked skin's glyphInk. Empty = the padlock's art is already inked (older zips, or art the white cut would have lied about).")]
+    public Image lockInk;
     [Tooltip("The connector stub INTO the node — white-cut, tinted by the skin's pathColor.")]
     public Image pathIn;
     [Tooltip("The connector stub OUT of the node — the app's constant faint white; no state re-inks it (kept here so you can restyle or delete it).")]
@@ -8585,19 +8931,53 @@ namespace PatternBreak {
       if (sk == null || available == null) return;
       // sprite-less = a raycast body (RebodyIfGlow's root), never tint it:
       // a color on a bare Image paints a solid rectangle over the node
+      // the state's OWN face art (round 61f) — exact by construction;
+      // without it the ink still rides as the relative tint below
+      var art = sk.face != null ? sk.face : available.face;
+      if (frame != null && art != null && frame.sprite != art) frame.sprite = art;
       if (frame != null && frame.sprite != null) {
-        var fc = Rel(sk.faceColor, available.faceColor);
+        var fc = sk.face != null ? Color.white : Rel(sk.faceColor, available.faceColor);
         if (frame.color != fc) frame.color = fc;
+      }
+      /* the Button keeps Sprite-Swapping UNDER the state, so the swap
+         group follows the state too: without this the state's paint
+         vanished the instant the pointer arrived, and Locked — which
+         parks the Button non-interactable — would have worn Available's
+         disabled face instead of the locked one. Available's own four
+         sprites are the baseline the rig restores. */
+      if (selectable != null && available.face != null) {
+        var ss = selectable.spriteState;
+        ss.highlightedSprite = sk.faceHover != null ? sk.faceHover : available.faceHover;
+        ss.pressedSprite = sk.facePressed != null ? sk.facePressed : available.facePressed;
+        ss.disabledSprite = sk.faceDisabled != null ? sk.faceDisabled : available.faceDisabled;
+        selectable.spriteState = ss;
       }
       if (glyph != null) {
         bool showG = state != SkillNodeState.Locked;
         if (glyph.gameObject.activeSelf != showG) glyph.gameObject.SetActive(showG);
-        var gc = Rel(sk.glyphInk, available.glyphInk);
+        var gArt = sk.glyphArt != null ? sk.glyphArt : available.glyphArt;
+        if (gArt != null && glyph.sprite != gArt) glyph.sprite = gArt;
+        /* ABSOLUTE on a white cut: the ink lands exactly, lighter or
+           darker. Off the flat road the art carries its own colors — a
+           state that re-inks it ships that art (white then), and anything
+           else keeps the pre-61f relative tint. */
+        var gc = absoluteInk ? sk.glyphInk
+          : sk.glyphArt != null ? Color.white
+          : Rel(sk.glyphInk, available.glyphInk);
         if (glyph.color != gc) glyph.color = gc;
       }
+      // the padlock's ink, absolute on its own white cut — the Locked
+      // skin's glyphInk is the lock's, and now a knob that answers
+      if (lockInk != null && lockInk.color != locked.glyphInk) lockInk.color = locked.glyphInk;
       if (pathIn != null && pathIn.color != sk.pathColor) pathIn.color = sk.pathColor;
       if (veil != null) {
-        bool showV = sk.dimAlpha > 0.004f;
+        /* the live veil is the LEGACY dim: it wears the frame's whole
+           silhouette, and the app clips its veil to the FACE — rim, wall
+           and bloom fringe stay bright there. So the moment this state
+           ships art of its own (round 61f) the veil is already IN it and
+           the child stands down; without art it is still the only dim
+           there is, exactly as it was. */
+        bool showV = sk.dimAlpha > 0.004f && sk.face == null;
         if (veil.gameObject.activeSelf != showV) veil.gameObject.SetActive(showV);
         var vc = new Color(0.0235f, 0.0314f, 0.0627f, sk.dimAlpha); // the app's rgba(6,8,16,dim)
         if (showV && veil.color != vc) veil.color = vc;
@@ -13255,7 +13635,11 @@ namespace PatternBreak {
        posed pixels with its plate — rebuilt as live TMP ON the live child
        (wordDx/wordDy = word center from the CHILD center, board px). */
     public string word; public float wordFs; public float wordDx; public float wordDy; public string wordInk; public int wordW; }
-  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public PBTrack track; public PBTrack body; public PBShellBox ink; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelInk; public string labelInk2; public float leading; public string labelText; public PBIconSeat icon; public PBGauge gauge; public PBChart chart; public PBLoot loot; public PBSeat[] textSeats; public PBStyle seatInk; public float ringV; public PBIconChild[] iconSeats; public float fireDx; public float fireDy; public float fireW; public float railDx; public float railDy; public float railW; public float railH; public string labelAnchor; public string barMode; }
+  [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public PBTrack track; public PBTrack body; public PBShellBox ink; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelInk; public string labelInk2; public float leading; public string labelText; public PBIconSeat icon; public PBGauge gauge; public PBChart chart; public PBLoot loot; public PBSeat[] textSeats; public PBStyle seatInk; public float ringV; public PBIconChild[] iconSeats; public float fireDx; public float fireDy; public float fireW; public float railDx; public float railDy; public float railW; public float railH; public string labelAnchor; public string barMode;
+    /* the manifest has always carried this; the importer reads it from
+       round 61f on — a WHITE-cut atom whose color rides Image.color (the
+       skill node's padlock, on the flat-ink road). */
+    public bool tintable; }
   [Serializable] class PBStyleOutline { public string color; public string color2; public float width; }
   [Serializable] class PBStyleGlow { public string color; public float size; public float opacity; }
   [Serializable] class PBStyleShadow { public string color; public float x; public float y; public float blur; public float opacity; }
@@ -18996,6 +19380,42 @@ namespace PatternBreak {
             var dstSN = skSN.state == "learned" ? rigSN.learned : skSN.state == "locked" ? rigSN.locked : rigSN.available;
             FillSkillSkin(dstSN, skSN);
           }
+          /* ── ROUND 61f: the per-state FACE ART and the FLAT INKS ─────
+             A relative tint can only darken, so a state fork lighter than
+             Available composed wrong at runtime. Available's four sprites
+             are the swap group as imported — the baseline the rig
+             restores — and a forked state carries the app's own render of
+             itself. Locked ships ONE bake (the app poses a locked node as
+             the disabled dress, always) and wears it in every slot, which
+             is what the non-interactable Button actually shows.
+             Old zips ship none of these rows and keep the r61e road. */
+          rigSN.available.face = baseSp;
+          rigSN.available.faceHover = hover;
+          rigSN.available.facePressed = pressed;
+          rigSN.available.faceDisabled = disabled;
+          var lrnSN = S(root + "/assets/skillnode/skillnode-state-learned.png");
+          if (lrnSN != null) rigSN.learned.face = lrnSN;
+          var lrnHSN = S(root + "/assets/skillnode/skillnode-state-learned-hover.png");
+          if (lrnHSN != null) rigSN.learned.faceHover = lrnHSN;
+          var lrnPSN = S(root + "/assets/skillnode/skillnode-state-learned-pressed.png");
+          if (lrnPSN != null) rigSN.learned.facePressed = lrnPSN;
+          var lrnDSN = S(root + "/assets/skillnode/skillnode-state-learned-disabled.png");
+          if (lrnDSN != null) rigSN.learned.faceDisabled = lrnDSN;
+          var lckSN = S(root + "/assets/skillnode/skillnode-state-locked.png");
+          if (lckSN != null) {
+            rigSN.locked.face = lckSN; rigSN.locked.faceHover = lckSN;
+            rigSN.locked.facePressed = lckSN; rigSN.locked.faceDisabled = lckSN;
+          }
+          rigSN.learned.glyphArt = S(root + "/assets/skillnode/skillnode-state-learned-glyph.png");
+          /* the FLAT-INK road's signal, straight off the shipped rows: a
+             glyph seat carrying a tint IS a white cut (WireIconChildren
+             sets the child's color from it), so every skin's glyphInk is
+             absolute; the padlock says the same with its own tintable
+             row. Neither is inferred — the manifest states both. */
+          if (baseAsset.iconSeats != null)
+            foreach (var icSN in baseAsset.iconSeats)
+              if (icSN != null && icSN.name == "glyph" && !string.IsNullOrEmpty(icSN.tint)) rigSN.absoluteInk = true;
+          if (lockSN != null && rowLockSN != null && rowLockSN.tintable) rigSN.lockInk = lockSN;
           rigSN.Apply(); // rests Available — the resolved base skin, badge and lock down
         }
       }
@@ -19114,6 +19534,9 @@ namespace PatternBreak {
       if (rigSNg != null) {
         var gSNt = go.transform.Find("Icon glyph");
         rigSNg.glyph = gSNt != null ? gSNt.GetComponent<Image>() : null;
+        /* Available's own glyph art is the child's resting sprite — the
+           baseline a per-state glyph dress (round 61f) swaps back to */
+        if (rigSNg.glyph != null && rigSNg.available.glyphArt == null) rigSNg.available.glyphArt = rigSNg.glyph.sprite;
         rigSNg.frame = BodyImage(go);
         if (rigSNg.pathIn != null) rigSNg.pathIn.transform.SetSiblingIndex(0);
         if (rigSNg.pathOut != null) rigSNg.pathOut.transform.SetSiblingIndex(rigSNg.pathIn != null ? 1 : 0);
@@ -19951,7 +20374,14 @@ namespace PatternBreak {
              hold the dev's own art, and tinted marks (white sprites the
              app colors via Image.color) are not themedIcon glyphs — the
              app grays none of those. */
-          if (icGS.btn || icGS.wellR > 0.5f || !string.IsNullOrEmpty(icGS.tint)) continue;
+          /* round 61f: a themedIcon GLYPH is the one tinted mark the app
+             DOES gray — the renderer repaints every disabled glyph
+             #A7AAB4 whether its sprite ships inked or white-cut (the
+             skill node's, from the flat-ink road). The ink shader writes
+             a solid silhouette and never reads vertex color, so the gray
+             lands exactly the same on a white cut. Decorative tinted
+             marks — team bars, prompt rings — still sit this out. */
+          if (icGS.btn || icGS.wellR > 0.5f || (!string.IsNullOrEmpty(icGS.tint) && icGS.name != "glyph")) continue;
           var cnGS = IconChildName(icGS);
           if (!seenGS.Add(cnGS)) continue;
           var chGS = go.transform.Find(cnGS);

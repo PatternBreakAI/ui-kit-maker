@@ -2194,10 +2194,13 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
    prefabs, the emblem socket, POSED board copies), and the kept-project
    convergence with its receipt. */
 {
-  if (!/function markedIconOnlySvgs\(svgIn: string\)/.test(src)
+  /* round 61f widened both hands with an OPTIONAL tail (markedIconOnlySvgs
+     takes a tintOverride, iconSeatsU passes it through) — the pins follow
+     the arity, they never police it away */
+  if (!/function markedIconOnlySvgs\(svgIn: string[,)]/.test(src)
       || !/function stripMarkedIcons\(svgIn: string\)/.test(src))
     errors.push("the un-burn's marked-group hands (markedIconOnlySvgs / stripMarkedIcons) are missing from the export");
-  if (!/const iconSeatsU = isArt \? null : await iconSeatsOf\(uid, fullU\);/.test(src)
+  if (!/const iconSeatsU = isArt \? null : await iconSeatsOf\(uid, fullU[,)]/.test(src)
       || !/stripIconInk\(stripWordInk\(sSvg\)\.svg\)\.svg/.test(src))
     errors.push("the universal road stopped stripping marked icon ink (base and/or state skins) — burned swappables are back");
   if (!/const ibSeats = await iconSeatsOf\("iconbtn", ibFull\);/.test(src)
@@ -2559,7 +2562,9 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/data-icon="homebar" data-icon-nick="Home color bar" data-icon-tint="\$\{TA\}"/.test(bevelSrc)
       || !/data-icon="awaybar" data-icon-nick="Away color bar" data-icon-tint="\$\{TB\}"/.test(bevelSrc))
     errors.push("the score bug's team color bars lost their tintable markers — the ba34520 color slots stop reaching Unity");
-  if (!/const tint = gs0\[gi\]\.getAttribute\("data-icon-tint"\) \|\| null;/.test(src)
+  // round 61f: the attribute still leads the ladder; an export-proved
+  // tintOverride may follow it, never replace it
+  if (!/const tint = gs0\[gi\]\.getAttribute\("data-icon-tint"\) \|\|( tintOverride\?\.\[nm0\] \|\|)? null;/.test(src)
       || !/if \(norm\(el\.getAttribute\("fill"\)\) === norm\(tint\)\) el\.setAttribute\("fill", "#FFFFFF"\);/.test(src))
     errors.push("the tint grammar's white cut is gone — team bars would ship colored and Unity tints would multiply muddy");
   if (!/public string tint;/.test(cs) || !/ColorUtility\.TryParseHtmlString\(ic\.tint, out tintC\)\) ii\.color = tintC;/.test(cs))
@@ -2660,7 +2665,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the bare dome render no longer stamps data-fireseat (center + padded glyph-sprite box) — the exact armed seat can't reach the manifest (round 44, item 15)");
   if (!/fireDx: r1\(fsM\[0\] - \(shM\[0\] \+ shM\[2\] \/ 2\)\), fireDy: r1\(fsM\[1\] - \(shM\[1\] \+ shM\[3\] \/ 2\)\), fireW: r1\(fsM\[2\]\)/.test(src))
     errors.push("the emission no longer re-speaks data-fireseat shell-center relative onto the dome row (fireDx/fireDy/fireW)");
-  if (!/public PBIconChild\[\] iconSeats; public float fireDx; public float fireDy; public float fireW; public float railDx; public float railDy; public float railW; public float railH; public string labelAnchor; public string barMode; \}/.test(cs)) // round 58: barMode rides the same row
+  if (!/public PBIconChild\[\] iconSeats; public float fireDx; public float fireDy; public float fireW; public float railDx; public float railDy; public float railW; public float railH; public string labelAnchor; public string barMode;/.test(cs)) // round 58: barMode rides the same row; round 61f appends tintable after it
     errors.push("PBAsset lost the fireDx/fireDy/fireW (or S15 rail / S17 labelAnchor / S48 barMode) fields — JsonUtility drops them silently");
   if (!/if \(themed && rowFS != null && rowFS\.fireW > 1f\) \{/.test(cs)
       || !/wRt\.sizeDelta = new Vector2\(rowFS\.fireW, rowFS\.fireW\);/.test(cs)
@@ -3794,8 +3799,15 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
       || !/if \(want != null && mat\.shader != want\) \{ mat\.shader = want; EditorUtility\.SetDirty\(mat\); \}/.test(cs)
       || !/if \(fx\.disabledInkMaterial == null\) fx\.disabledInkMaterial = EnsureDisabledInkMaterial\(root\);/.test(cs))
     errors.push("the one-material-per-kit Ensure road (mint, upgrade-in-place, arm) left the importer (round 54, S46)");
-  if (!/if \(icGS\.btn \|\| icGS\.wellR > 0\.5f \|\| !string\.IsNullOrEmpty\(icGS\.tint\)\) continue;/.test(cs))
-    errors.push("the plain-seat filter left WireGlyphStateSwaps — buttons, wells or tinted marks would gray against the app (round 54, S46)");
+  /* round 61f keeps the filter and carves ONE exemption: the seat named
+     "glyph" is build()'s own themed icon — the renderer repaints it
+     #A7AAB4 on disable whether its sprite ships inked or (flat-ink road)
+     white-cut, and the DisabledInk shader never reads vertex color, so
+     the gray lands identically either way. Decorative tinted marks (ring,
+     homebar, awaybar — the only data-icon-tint marks bevel draws) still
+     sit it out. */
+  if (!/if \(icGS\.btn \|\| icGS\.wellR > 0\.5f \|\| \(!string\.IsNullOrEmpty\(icGS\.tint\) && icGS\.name != "glyph"\)\) continue;/.test(cs))
+    errors.push("the plain-seat filter left WireGlyphStateSwaps — buttons, wells or tinted marks would gray against the app, or a white-cut themed glyph stopped graying (round 54, S46; round 61f)");
   if (!/a rest-only entry rides too now/.test(cs) || /if \(g\.hover != null \|\| g\.pressed != null \|\| g\.disabled != null\) swaps\.Add\(g\);/.test(cs))
     errors.push("rest-only glyph seats left the swap roster — the disabled ink reaches only forked buttons (round 54, S46)");
 }
@@ -3897,7 +3909,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("WireBarCap lost the width-road fork — bordered stadiums (the ramped vsbar included, round 60) would mount cap/nub children again, or border-less legacy zips would lose theirs (round 58+60, S48)");
   if (!/kbf\.barMode = rowF\.barMode == "tiled" \? 2 : \(rowF\.barMode == "sliced" \? 1 : 0\);/.test(cs))
     errors.push("WireBarBodies no longer arms the measured center mode from the manifest (round 58, S48)");
-  if (!/public string barMode; \}/.test(cs))
+  if (!/public string barMode;/.test(cs))
     errors.push("PBAsset lost the barMode field — JsonUtility drops the mode and every bar falls back sliced (round 58, S48)");
   if (!/UnityEditor\.Events\.UnityEventTools\.AddPersistentListener\(slSR\.onValueChanged, kbSR\.SetValue\);/.test(cs))
     errors.push("the setrow Slider lost its onValueChanged → SetValue wire — a non-Filled fillRect drives ANCHORS and fights the width road (round 58, S48)");
@@ -4168,6 +4180,115 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/files\.push\(\{ path: "Runtime\/PatternBreakSkillNode\.cs", data: SKILL_NODE_RUNTIME \}\);/.test(src)
       || !/"Runtime\/PatternBreakSkillNode\.cs",/.test(src))
     errors.push("the SkillNode runtime left the shared Runtime lists — CS0246 on import (the IdleShine lesson) (round 61e, S53)");
+
+  /* ── ROUND 61f · S53 (reviewer gate F1 on the SHIPPED rig: flipping the
+     Inspector's dropdown to Learned composed the face at RGB (24,0,96)
+     where the app draws (174,7,126) — a 150/255 miss). The cause: the rig
+     applied every per-state paint as a RELATIVE Image.color tint, and a
+     multiply can only DARKEN, so any fork lighter than Available was
+     unreachable. Two cures, pinned here.
+
+     A · FLAT INKS. Ink that is provably ONE colour cuts WHITE and its
+     skin colour rides Image.color ABSOLUTE — the connector stub's own
+     round-61e grammar, widened to the glyph and the padlock. "Provably"
+     is the whole point: flatInkOf judges the cut twice (every drawable
+     paints one plain #RRGGBB, AND the shipped raster reads back that
+     colour on every covered pixel) so a gradient glyph, an outline
+     underlay or a drop-shadow chain can never be whitened into a lie.
+
+     B · THE FACE. A candy face is a gradient DERIVED from its colour with
+     gloss, specular and a bevel wall on top — nothing separable to cut,
+     and a tint would drag the highlights with it. So a diverged state
+     wears the app's own render of itself, baked and SWAPPED (the r53
+     GlyphSwap precedent; the law forbids burning in swappable CONTENT and
+     forbids swapping GEOMETRY — this swaps neither). ONLY when that
+     state's art actually differs, judged at the raster, so a kit with no
+     fork grows no atom and its manifest does not move. ── */
+  {
+    // A1 — the proof itself: structure judge AND raster judge, both required
+    if (!/const flatInkOf = async \(svgCut: string\): Promise<string \| null> => \{/.test(src)
+        || !/if \(paints\.size !== 1\) return null;/.test(src)
+        || !/if \(!\/\^#\[0-9A-F\]\{6\}\$\/\.test\(ink\)\) return null;/.test(src)
+        || !/const tol = Math\.max\(3, Math\.round\(640 \/ a\)\);/.test(src))
+      errors.push("flatInkOf lost a judge — the white cut stops being PROVED flat (a gradient or shadowed glyph would ship whitened and the absolute ink would repaint it) (round 61f, S53)");
+    // A2 — the three gates that open the flat road, none of them optional
+    if (!/same61\(avail61\.glyphInk, ink61\) && !same61\(avail61\.glyphInk, learn61\.glyphInk\)/.test(src))
+      errors.push("the flat-ink road lost its measured-ink / re-inked-state gates — an absolute colour merely CLOSE to the drawn pixel would repaint Available, or a kit that was already right would move (round 61f, S53)");
+    /* the ONE hazard is a round-53 DRESS cut, so this gate is r53's own
+       emission predicate, verbatim — same expression, same cfg, so the
+       two can never disagree. The renderer's state-wide recolour (hover
+       lightens, press darkens) and the universal disabled gray cut no
+       dress and must NOT shut the road: the child holds its resting ink
+       through the press either way. A dress that does ship cuts white
+       with the same proved ink. */
+    if (!/const dressForks61 = \(\["hover", "pressed", "disabled"\] as const\)\.some/.test(src)
+        || !/const gCut61 = dressForks61 \? null : markedIconOnlySvgs\(fullU\)/.test(src)
+        || !/const cutsS9 = markedIconOnlySvgs\(sSvg, skillInkTint\);/.test(src))
+      errors.push("the pointer-state ICON-FORK gate left the flat-ink road (or its state dresses stopped cutting white) — a white resting cut would swap to an INKED hover dress (round 53's cut) and the absolute colour would multiply into it (round 61f, S53)");
+    /* A2b — SVG paint INHERITS. A built kit icon states its ink on the
+       wrapping <g> (iconGroup writes it there; the Lucide inner markup
+       states nothing), so a judge reading only leaf shapes sees no paint
+       and shuts the road forever, and a whitener rewriting only leaf
+       shapes ships an INKED sprite whose seat claims a tint — Unity would
+       then multiply the ink by itself. Both walk the chain. */
+    if (!/function inheritedPaint\(el: Element, attr: string\): string \| null \{/.test(src)
+        || !/const v = inheritedPaint\(el, at\);/.test(src)
+        || !/for \(const el of \[keep, \.\.\.Array\.from\(keep\.querySelectorAll\("\*"\)\)\]\) \{/.test(src))
+      errors.push("the white-cut grammar went back to reading/rewriting LEAF shapes only — a built glyph's ink lives on its group, so the flat road either never opens or ships an inked sprite under an absolute tint (round 61f, S53)");
+    // A3 — the cut reaches the seat, and the seat tells the importer
+    if (!/const tint = gs0\[gi\]\.getAttribute\("data-icon-tint"\) \|\| tintOverride\?\.\[nm0\] \|\| null;/.test(src)
+        || !/await iconSeatsOf\(uid, fullU, undefined, undefined, skillInkTint\)/.test(src))
+      errors.push("the export-proved tintOverride no longer reaches markedIconOnlySvgs / the glyph seat — the flat road cuts nothing (round 61f, S53)");
+    if (!/var gc = absoluteInk \? sk\.glyphInk/.test(src))
+      errors.push("the glyph ink went back to a pure relative tint — a Learned glyph LIGHTER than Available is unreachable again (round 61f, S53)");
+    if (!/if \(icSN != null && icSN\.name == "glyph" && !string\.IsNullOrEmpty\(icSN\.tint\)\) rigSN\.absoluteInk = true;/.test(cs))
+      errors.push("absoluteInk stopped being READ off the shipped seat row — the rig would guess whether its glyph is a white cut (round 61f, S53)");
+    // A4 — the padlock's own door: a tintable row, an absolute ink
+    if (!/public bool tintable; \}/.test(cs))
+      errors.push("PBAsset lost the tintable field — the importer can no longer tell a WHITE-cut atom from an inked one (round 61f, S53)");
+    if (!/if \(lockSN != null && rowLockSN != null && rowLockSN\.tintable\) rigSN\.lockInk = lockSN;/.test(cs)
+        || !/if \(lockInk != null && lockInk\.color != locked\.glyphInk\) lockInk\.color = locked\.glyphInk;/.test(src))
+      errors.push("the padlock's absolute ink left the rig — locked.glyphInk goes back to a dead Inspector knob (round 61f, S53)");
+    if (!/if \(skillInkTint \|\| \(st\.kitSlotVals\?\.skillnode \?\? \{\}\)\[stateSlotKey\("locked", "glyphInk"\)\] !== undefined\) \{/.test(src))
+      errors.push("the padlock's white cut lost its gate — either the knob dies where a dev re-inks the lock, or a FORK-LESS kit's lock atom changes bytes (round 61f, S53)");
+    // B1 — the per-state face atoms and their only-when-different gate
+    if (!/\{ part: "state-learned", state: "learned", pose: null, note: "resting" \},/.test(src)
+        || !/\{ part: "state-learned-hover", state: "learned", pose: "hover", note: "hover" \},/.test(src)
+        || !/\{ part: "state-learned-pressed", state: "learned", pose: "pressed", note: "pressed" \},/.test(src)
+        || !/\{ part: "state-learned-disabled", state: "learned", pose: "disabled", note: "disabled" \},/.test(src)
+        || !/\{ part: "state-locked", state: "locked", pose: "disabled", note: "locked" \},/.test(src))
+      errors.push("the per-state FACE bakes lost a pose — the Button keeps Sprite-Swapping UNDER the state, so a missing pose drops the state's paint the moment the pointer arrives (round 61f, S53)");
+    if (!/const diverged61 = !\(await same61\(skinOf61\(raw61\), theirs\)\);/.test(src)
+        || !/if \(!diverged61 && !\(p61\.state === "locked" && dimPinned61\)\) continue;/.test(src))
+      errors.push("the face atom lost its only-when-different gate — every kit would grow state atoms and its manifest would move (round 61f, S53)");
+    if (!/}, true, uid\);\n            }\n            \/\* the GLYPH, when the flat road is shut/.test(src))
+      errors.push("the state face bakes left base's union crop GROUP — the swapped sprite stops registering 1:1 with base (round 61f, S53)");
+    // B2 — SetState assigns the sprite, and the swap group follows the state
+    if (!/var art = sk\.face != null \? sk\.face : available\.face;/.test(src)
+        || !/if \(frame != null && art != null && frame\.sprite != art\) frame\.sprite = art;/.test(src)
+        || !/var fc = sk\.face != null \? Color\.white : Rel\(sk\.faceColor, available\.faceColor\);/.test(src))
+      errors.push("SetState stopped assigning the state's face sprite (or double-tints it) — the dropdown is back to a multiply that can only darken (round 61f, S53)");
+    if (!/ss\.highlightedSprite = sk\.faceHover != null \? sk\.faceHover : available\.faceHover;/.test(src)
+        || !/ss\.disabledSprite = sk\.faceDisabled != null \? sk\.faceDisabled : available\.faceDisabled;/.test(src))
+      errors.push("the Button's Sprite Swap stopped following the state — the state's paint vanishes on hover, and Locked (non-interactable) wears Available's disabled face (round 61f, S53)");
+    if (!/rigSN\.available\.face = baseSp;/.test(cs)
+        || !/rigSN\.locked\.face = lckSN; rigSN\.locked\.faceHover = lckSN;/.test(cs))
+      errors.push("the importer stopped wiring the per-state face rows (or Locked's single bake into every slot) — fresh prefabs ignore the shipped art (round 61f, S53)");
+    /* B3 — THE LOCKED VEIL. The app clips its dark veil to the FACE path;
+       the rig's live veil child wears the frame's WHOLE silhouette, so it
+       dimmed the rim, the extrusion wall and the bloom fringe the app
+       leaves bright (measured: up to 109/255 across a third of the node).
+       So wherever a locked atom ships it bakes the veil IN — and the live
+       child stands down, or the two would double-dim. The GATE still runs
+       veil-LESS (stripSkillVeil), or the app's standing veil would make
+       every kit grow an atom. */
+    if (!/data-skillveil="1"/.test(bevelSrc) || !/function stripSkillVeil\(svgIn: string\): string \{/.test(src)
+        || !/const skinOf61 = \(sv: string\) => stripSkillPath\(stripSkillVeil\(/.test(src))
+      errors.push("the veil-LESS judge is gone (bevel's data-skillveil mark or stripSkillVeil) — the app's standing Locked veil would make every kit grow a state atom (round 61f, S53)");
+    if (!/const ship61 = p61\.state === "locked" \? shipOf61\(raw61\) : skinOf61\(raw61\);/.test(src)
+        || !/bool showV = sk\.dimAlpha > 0\.004f && sk\.face == null;/.test(src))
+      errors.push("the Locked veil no longer rides its baked atom with the live child stood down — the veil double-dims, or goes back to dimming the rim and wall the app leaves bright (round 61f, S53)");
+  }
 }
 
 /* ── ROUND 62 · S53 (owner field, a FRESH export's Pause scene: "these

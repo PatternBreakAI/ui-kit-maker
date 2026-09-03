@@ -7288,7 +7288,12 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
         const dimRaw9 = slR.lockedDim;
         const dim9 = dimRaw9 !== undefined && /^\d+$/.test(dimRaw9) ? Math.min(100, +dimRaw9) / 100 : 0.5;
         const fcM = /url\(#([A-Za-z0-9_-]+)fc\)/.exec(shell);
-        if (fcM) over += `<g clip-path="url(#${fcM[1]}fc)"><rect x="${(sx - 4).toFixed(1)}" y="${(sy - 4).toFixed(1)}" width="${(sw + 8).toFixed(1)}" height="${(sh + 8).toFixed(1)}" fill="rgba(6,8,16,${dim9})"/></g>`;
+        /* round 61f (exporter handoff): the veil wears a data-skillveil
+           mark so the export can bake a LOCKED face atom without it — the
+           rig draws the veil as its own live child, and a veil baked into
+           the swapped art would double-dim. Inert attribute; every byte of
+           the app's own draw unchanged. */
+        if (fcM) over += `<g data-skillveil="1" clip-path="url(#${fcM[1]}fc)"><rect x="${(sx - 4).toFixed(1)}" y="${(sy - 4).toFixed(1)}" width="${(sw + 8).toFixed(1)}" height="${(sh + 8).toFixed(1)}" fill="rgba(6,8,16,${dim9})"/></g>`;
         // the lock IS the content on a locked node: big, face-centered, and
         // in the same deactivated gray as every disabled glyph
         /* round 61e (exporter handoff): the padlock rides a MARKED icon
