@@ -11,8 +11,12 @@
    sinks, toggles flip, bars fill. Not screenshots, and never a
    click-to-load placeholder — the boards wake themselves one frame at a
    time so the page is alive at rest without a single interaction. */
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { LiveBoardStage, boardStageSize } from "./Board";
+import { lookArtOf, starterArt } from "./Panel";
+import { tightenSvg } from "@/marketing/engine";
+import { ensureFont } from "@/generator/fonts";
+import { presetById } from "@/generator/model";
 import { NAMED_KITS, namedKitPieceCount, namedKitScreens, type NamedKitDef, type NamedKitScreen } from "@/generator/namedKits";
 import type { BoardDef } from "@/generator/store";
 import { useGen } from "@/generator/store";
@@ -116,6 +120,99 @@ export function KitScreens({ kit, onReady }: { kit: NamedKitDef; onReady?: () =>
   );
 }
 
+/* ── The looks wall ───────────────────────────────────────────────────
+   The closing argument, and the one claim on this page that cannot be
+   faked: the SAME component, drawn by the SAME engine, wearing this
+   kit's material and then seven of the shipped starters. Every tile is
+   a live render made in the visitor's browser while they look at it, so
+   there is nothing here to photograph, mock up or overstate. It is also
+   the honest answer to what the tool is for, which a paragraph of copy
+   cannot be.
+
+   The art is the app's own preview dressing (lookArtOf / starterArt in
+   Panel), so a look reads here exactly as it reads in the Looks rack and
+   exactly as it lands when clicked.
+
+   COST. This block sits under the entire kit book, so it must never
+   compete with the demo screens at the top of the page. It draws nothing
+   at all until the visitor is near it (the Deferred grammar from the Kit
+   page), then wakes ONE TILE PER FRAME (the KitScreens grammar), asking
+   for each look's typeface as its tile lands. A visitor who never
+   scrolls this far pays nothing for it. */
+/* Seven starters beside this kit's own material. Chosen for the widest
+   spread the rack offers — seven different silhouettes (maze pill, fight
+   HUD, cutline, explorer, pill, chunky, round) over seven unrelated
+   palettes — so the wall reads as range at a glance rather than as one
+   idea recoloured.
+   They also all happen to wear a face the site SELF-HOSTS, which is why
+   they are these seven and not another seven: this block is the closing
+   argument on the page a store listing links to, and a wall of letterforms
+   quietly falling back to Inter would undercut the exact claim it makes.
+   ensureFont still runs for each of them, so nothing here depends on that
+   staying true. */
+const LOOKS_WALL = ["citrus-pop", "neon-versus", "obsidian-ember", "deep-ocean", "grape-jelly", "nope-yep", "bubble-pop"];
+
+function LooksWall({ kit }: { kit: NamedKitDef }) {
+  const host = useRef<HTMLDivElement>(null);
+  const [near, setNear] = useState(false);
+  const [art, setArt] = useState<string[]>([]);
+  const tiles = useMemo(
+    () => [{ id: "", name: kit.name, here: true }, ...LOOKS_WALL.map((id) => ({ id, name: presetById(id).name, here: false }))],
+    [kit.name],
+  );
+  useEffect(() => {
+    const el = host.current;
+    if (!el || typeof IntersectionObserver === "undefined") { setNear(true); return; }
+    const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) setNear(true); }, { rootMargin: "500px 0px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  useEffect(() => {
+    if (!near || art.length >= tiles.length) return;
+    const r = requestAnimationFrame(() => requestAnimationFrame(() => {
+      const t = tiles[art.length];
+      let svg = "";
+      try {
+        /* the kit's OWN tile reads the live document (getState, not a
+           subscription: this page is read-only, and a subscription would
+           redraw the whole wall on any unrelated store touch) */
+        const cfg = useGen.getState().cfg;
+        svg = tightenSvg(t.here ? lookArtOf(cfg) : starterArt(t.id), 20);
+        // ask for this look's face as its tile lands, one per frame — the
+        // inline SVG text repaints itself when the bytes arrive, and the
+        // fitted widths are already right (baked metrics, not the live face)
+        const face = t.here ? cfg.type.font : presetById(t.id).font;
+        if (face) ensureFont(face);
+      } catch { /* a look that will not draw simply leaves its tile empty */ }
+      setArt((a) => [...a, svg]);
+    }));
+    return () => cancelAnimationFrame(r);
+  }, [near, art.length, tiles]);
+  return (
+    <div className="kv-looks" ref={host}>
+      <div className="kv-lookgrid">
+        {tiles.map((t, i) => (
+          <figure className={`kv-look${t.here ? " kv-look--here" : ""}`} key={t.here ? "@this" : t.id}>
+            <div className="kv-lookart">
+              {art[i]
+                ? <div className="kv-looksvg" dangerouslySetInnerHTML={{ __html: art[i] }} />
+                : <i className="kv-lookwake" aria-hidden="true" />}
+            </div>
+            <figcaption>{t.name}{t.here && <i>this page</i>}</figcaption>
+          </figure>
+        ))}
+      </div>
+      {/* every word here is something the wall above is already showing —
+          the states and the screens have their own proof further up */}
+      <p className="kv-note kv-looknote">
+        One component, eight looks, all drawn in your browser just now. Shape, material and
+        type move together, so {kit.name} is one turn of the dials and so is everything
+        beside it.
+      </p>
+    </div>
+  );
+}
+
 /* ── The promotional block, at the very bottom ────────────────────────
    Our own things only, and short: the page's job is the demo, not the
    pitch. STORE POLICY — this page is what the Unity Asset Store listing
@@ -140,6 +237,9 @@ export function KitPromo({ kit }: { kit: NamedKitDef }) {
         <div className="kv-eyebrow">Made with UI Kit Maker</div>
         <h2 className="kv-title">{kit.name} was drawn by the generator on this page. Every piece of it.</h2>
       </div>
+      {/* the argument, in art rather than adjectives (owner: the promo
+          "should be heavy on visuals") */}
+      <LooksWall kit={kit} />
       {/* the store line, given the top of the block — it is the one thing
           a visitor from the listing might be looking for */}
       <div className="kv-store">
@@ -165,29 +265,17 @@ export function KitPromo({ kit }: { kit: NamedKitDef }) {
           <a className="kv-fine" href="#/unity">How the Unity kit works →</a>
         </div>
       </div>
-      <div className="kv-promogrid">
-        <article className="kv-promocard">
-          <h3>Make your own</h3>
-          <p>Start from a look, turn the dials once, and the whole kit follows: every component, every state, in the same material.</p>
-          <a className="kv-btn kv-btn--main" href="#/app">Open the generator</a>
-        </article>
-        <article className="kv-promocard">
-          <h3>Restyle this one</h3>
-          <p>{kit.name} is already loaded. Open it in the editor and push the colour, the bevel, the type. The screens above restyle with it.</p>
-          <button className="kv-btn" onClick={openEditor}>Edit {kit.name} live</button>
-        </article>
+      {/* the two doors, as one row: the wall above has already made the
+          case, so this is a place to go rather than another paragraph */}
+      <div className="kv-promoact">
+        <a className="kv-btn kv-btn--main kv-btn--big" href="#/app">Open the generator</a>
+        <button className="kv-btn kv-btn--big" onClick={openEditor}>Edit {kit.name} live</button>
         {/* every OTHER kit we ship, if we ship any — nothing renders while
             Brightside is the only one, and no other storefront ever
             appears in this list (see the store-policy note above) */}
-        {others.length > 0 && (
-          <article className="kv-promocard">
-            <h3>Our other kits</h3>
-            <p>Same generator, different material. Each one is live on its own page.</p>
-            {others.map((o) => (
-              <a className="kv-btn" key={o.slug} href={`#/kit/${o.slug}`}>{o.name}</a>
-            ))}
-          </article>
-        )}
+        {others.map((o) => (
+          <a className="kv-btn kv-btn--big" key={o.slug} href={`#/kit/${o.slug}`}>{o.name}</a>
+        ))}
       </div>
     </section>
   );

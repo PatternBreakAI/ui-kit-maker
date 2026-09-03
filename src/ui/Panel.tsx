@@ -48,21 +48,33 @@ const PACK_PITCH_GUEST = "Monthly preset packs ship with Pro. Sign in free to ge
    base document's generation: recipe starters derive from the site
    default, and ./default-settings.json can land AFTER the first cut — a
    moved base re-cuts the rack at its next render instead of standing
-   stale until reload. */
+   stale until reload.
+
+   The DRESSING itself is lookArtOf below, because two surfaces show a
+   look now: this rack, and the shipped kit's promo wall — which stands
+   the kit's own material beside the starters and so needs the same
+   dressing applied to a live document rather than to a starter id. One
+   function, so a look can never read one way here and another there. */
+/** ONE design as look-art. Clones first: a live config must never be
+ *  dressed in place. */
+export function lookArtOf(cfg: GenConfig): string {
+  const pc = structuredClone(cfg);
+  pc.content.label = "PLAY";
+  pc.icon.show = false;
+  // previews skip the glow viewport pad — the art stays tight in its card
+  for (const s of Object.values(pc.states)) s.glow = 0;
+  return renderBevel(pc, "default");
+}
+/** …and one STARTER as look-art, by id (the setPreset road). */
+export const starterArt = (id: string): string => lookArtOf(presetLookConfig(id));
+
 let presetArtCache: { id: string; name: string; svg: string }[] | null = null;
 let presetArtGen = -1;
 export function presetArt() {
   const gen = defaultGeneration();
   if (!presetArtCache || presetArtGen !== gen) {
     presetArtGen = gen;
-    presetArtCache = PRESETS.map((p) => {
-      const pc = presetLookConfig(p.id);
-      pc.content.label = "PLAY";
-      pc.icon.show = false;
-      // thumbnails skip the glow viewport pad — the art stays tight in its card
-      for (const s of Object.values(pc.states)) s.glow = 0;
-      return { id: p.id, name: p.name, svg: renderBevel(pc, "default") };
-    });
+    presetArtCache = PRESETS.map((p) => ({ id: p.id, name: p.name, svg: starterArt(p.id) }));
   }
   return presetArtCache;
 }
