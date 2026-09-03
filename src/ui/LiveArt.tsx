@@ -54,6 +54,24 @@ export interface LiveKit {
 
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 
+/* How long a timer's drain runs, and how long its end state holds before
+   the piece returns to its documented pose. Time is linear either way, so
+   the number that changes is the DURATION, and each instrument gets the
+   one its own fiction asks for rather than a shared constant:
+     · the service ticket counts SECONDS, and its last quarter is the
+       alarm — a tense, brisk gesture, held a moment on overdue;
+     · the match clock is a clock, so it keeps the family's steady tick;
+     · the chest compresses HOURS and has a real payoff at zero (OPEN!,
+       with the aura and the radiating ticks), so it runs the longest and
+       holds that payoff long enough to read.
+   Anything not listed keeps the 3.2s the family has always used. */
+const DRAIN_DEFAULT = { ms: 3200, hold: 420 };
+const DRAIN_SPAN: Record<string, { ms: number; hold: number }> = {
+  orderticket: { ms: 2600, hold: 560 },
+  scorebug: { ms: 3600, hold: 420 },
+  chest: { ms: 4600, hold: 1000 },
+};
+
 /* ── the stillness rule (owner: "most things should be user initiated") ──
    The engine bakes SMIL loops into ~30 components (damage floats, radar
    pulses, carets, liquid waves…). Left alone they run EVERYWHERE, all the
@@ -236,6 +254,7 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
      has always been. */
   const [ticking, setTicking] = useState(false);
   const expire = useRef(0);
+  const drain = (id && DRAIN_SPAN[id]) || DRAIN_DEFAULT;
   const pvalRef = useRef(pval);
   pvalRef.current = pval;
   const ref = useRef<HTMLDivElement>(null);
@@ -251,9 +270,11 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
     // pointer, the selector cycles, the wheel follows the pointer's ANGLE
     : id === "slider" || id === "setrow" || id === "scrollbar" || id === "listmenu" || id === "choicelist" || id === "dialog" || id === "equipselector" || id === "weaponwheel" || id === "spinwheel" || id === "emotewheel" ? (playing && !disabled ? val : kit?.value)
     : id === "progress" || id === "segbar" || id === "emblembar" || id === "vsbar" || id === "hotbar" || id === "ring" || id === "starrating" || id === "flipclock" || id === "stopwatch" || id === "timerdigits" || id === "respawn" || id === "speedo" || id === "speedo2" || id === "tacho" || id === "compass" ? (playing && !disabled ? pval : kit?.value)
-    // the sweep instruments run off the clock only WHILE the clock runs —
-    // at rest they are the piece the page has always documented
-    : id === "cooldown" || id === "buffframe" ? (playing && !disabled && ticking ? pval : kit?.value)
+    // the sweep instruments and the readout clocks run off the clock only
+    // WHILE the clock runs — at rest they are the piece the page has always
+    // documented, and their Value dial still steers them live
+    : id === "cooldown" || id === "buffframe" || id === "orderticket" || id === "chest" || id === "scorebug"
+      ? (playing && !disabled && ticking ? pval : kit?.value)
     : id === "segment" ? (playing && !disabled ? sel : kit?.value)
     : kit?.value;
 
@@ -541,8 +562,8 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
   };
 
   /* Timer demo playback — refills to the target, then drains LINEARLY to
-     zero (time is linear) over ~3.2s; the renderer derives the mm:ss
-     readout from the value, so the clock visibly ticks down. */
+     zero (time is linear) over the piece's own span; the renderer derives
+     the readout from the value, so the clock visibly ticks down. */
   const playTimer = () => {
     cancelAnimationFrame(raf.current);
     if (typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -553,12 +574,13 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
     setPval(target);
     const t0 = performance.now();
     const step = (t: number) => {
-      const u = Math.min(1, (t - t0) / 3200);
+      const u = Math.min(1, (t - t0) / drain.ms);
       setPval(target * (1 - u));
       if (u < 1) raf.current = requestAnimationFrame(step);
-      // a beat at empty so "expired" reads, then the sweep pieces hand the
-      // clock back to their configured pose (playCompass's return-to-rest)
-      else expire.current = window.setTimeout(() => setTicking(false), 420);
+      // a beat at empty so the end state reads — "expired", or the chest's
+      // OPEN! — then the piece hands the clock back to its configured pose
+      // (playCompass's return-to-rest)
+      else expire.current = window.setTimeout(() => setTicking(false), drain.hold);
     };
     raf.current = requestAnimationFrame(step);
   };
@@ -571,7 +593,16 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
        click→drain playback is the whole behavior: no new timeline, no
        loop, and nothing the exporter can see (pval is app-only state; the
        SVG download and every export path read the STORE's value). */
-    || id === "cooldown" || id === "buffframe";
+    || id === "cooldown" || id === "buffframe"
+    /* …and the three READOUT clocks (owner: "do the three timers too").
+       Same story again: value already IS the time on each of them — the
+       ticket's countdown bar and its 72s, the chest's 6h 24m plate, the
+       score bug's match clock — so they inherit the family's playback
+       rather than growing timelines of their own. (buildqueue is NOT
+       here: its "0:42" is a fixed string the renderer never derives from
+       value, so it would need renderer work before a clock could drive
+       it.) */
+    || id === "orderticket" || id === "chest" || id === "scorebug";
   const isGauge = id === "speedo" || id === "speedo2" || id === "tacho"; // clicking revs / replays it
 
   /* Compass demo playback — the needle swings off its heading and settles
