@@ -6,12 +6,13 @@ import { patternZones } from "./SliceStage";
 import { useGen } from "@/generator/store";
 import { t } from "@/shell/i18n";
 import { LessonBody } from "./LessonCard";
-import { PRESETS, KIT_SLOTS, KIT_STATE_POSES, stateSlotKey, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, GLINT_STYLES, defaultStates, applyKitDesign, applyKitTextFill, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, designDiff, mergeKitDesign, iconRigDiff, baseShape, isFlipShape, flipShape, labelMaxOf, groupOf, ctaForFont, ctaEntry, fontLang, KIT_SLICEABLE, KIT_LABEL_EDITABLE, NO_TEXT_ELIGIBLE, EDGE_SHINE_DEAF, baseOf, isCloneId, CLONE_KINDS, CLONE_INELIGIBLE, isGlyphButton } from "@/generator/model";
+import { PRESETS, KIT_SLOTS, KIT_STATE_POSES, stateSlotKey, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, GLINT_STYLES, defaultStates, applyKitDesign, applyKitTextFill, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, designDiff, mergeKitDesign, iconRigDiff, baseShape, isFlipShape, flipShape, labelMaxOf, groupOf, ctaForFont, ctaEntry, fontLang, KIT_SLICEABLE, KIT_LABEL_EDITABLE, NO_TEXT_ELIGIBLE, EDGE_SHINE_DEAF, baseOf, isCloneId, CLONE_KINDS, CLONE_INELIGIBLE, isGlyphButton, resolveKitIcon } from "@/generator/model";
 import type { KitSlice, SlotDef } from "@/generator/model";
 import type { GenStateName, BlendMode, GlintStyle, PatternType, KitComponentId, KitDesign, Shape  } from "@/generator/model";
 import { ICON_LIBS, loadLib, libLoaded, searchLib, getDef, previewSvg } from "@/generator/icons";
 import { ensureFont, ensureDocFonts, fontReady, awaitFonts } from "@/generator/fonts";
-import { renderBevel, renderKit, shapePath, RARITY_FACTORY, VALUE_DRIVEN, effSlotColor } from "@/generator/bevel";
+import { renderBevel, renderKit, shapePath, RARITY_FACTORY, VALUE_DRIVEN, effSlotColor, iconDialReach, ICON_DIAL_IDS } from "@/generator/bevel";
+import type { IconDialReach } from "@/generator/bevel";
 import { hydrate, presetLookConfig, defaultGeneration } from "@/generator/store";
 import type { LibItem } from "@/generator/store";
 import type { GenConfig  } from "@/generator/model";
@@ -1083,6 +1084,42 @@ export function Panel() {
      icon-ONLY: hiding its glyph would leave an empty tile, so no checkbox. */
   const iconTogglable = !!focus && baseOf(focus) !== "iconbtn" &&
     (iconSwappable || baseOf(focus) === "primary" || baseOf(focus) === "secondary");
+  /* ── what the Icons block can actually DO to the focused piece ──────
+     Asked of the RENDERER, piece by piece (iconDialReach draws the piece
+     with each dial moved and watches the bytes), never of a list of ids
+     that would rot the next time a component lands. A dial that cannot
+     move this piece's art is ABSENT from the panel, not sitting there
+     dimmed (owner, round 67: "i would prefer to hide it altogether where
+     it doesn't work"). Weight, Outline width and the colour controls are
+     deliberately never hidden — see iconDialReach's note: they have roads
+     the render cannot see (the exported sprite) and they answer per GLYPH.
+     Nothing focused = the dials steer the whole kit, so nothing hides. */
+  const reachTargets: KitComponentId[] = focus
+    ? ((scope === "group" && groupOf(focus)?.members) || [focus])
+    : [];
+  /* re-probed only when the piece's IDENTITY or CONTENT moves — not on
+     every colour drag. Reach is structural: which seat draws which glyph.
+     (Deps are the key string on purpose; cfg would re-probe every frame.) */
+  const reachKey = reachTargets.map((t) => [t, kitSizes[t], kitShapes[t], kitVals[t],
+    kitNoText[t] ? "" : kitLabels[t], JSON.stringify(kitIcons[t] ?? null),
+    JSON.stringify(kitSlotVals[t] ?? null)].join("|")).join("~");
+  const iconReach = useMemo<IconDialReach>(() => {
+    if (!focus) return { size: true, rotation: true, opacity: true, nudge: true, fx: true };
+    // a Group-scoped edit lands on every member, so the UNION answers: a
+    // dial that reaches one member of the family still has work to do
+    const out: IconDialReach = { size: false, rotation: false, opacity: false, nudge: false, fx: false };
+    for (const t of reachTargets) {
+      const r = iconDialReach(applyKitDesign(cfgMaster, kitDesigns[t]), baseOf(t),
+        effKitSize(kitSizes[t]), kitVals[t], kitShapes[t], {
+          icon: resolveKitIcon(kitIcons[t], undefined),
+          label: kitNoText[t] ? "" : kitLabels[t],
+          slots: kitSlotVals[t],
+        });
+      for (const d of ICON_DIAL_IDS) if (r[d]) out[d] = true;
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focus, reachKey]);
   const labelEditable = !!focus && KIT_LABEL_EDITABLE.has(baseOf(focus));
   /* pieces carrying a SECOND text (the combo plate word) get one more field */
   const subEditable = !!focus && (["combo"] as KitComponentId[]).includes(baseOf(focus));
@@ -3061,7 +3098,7 @@ export function Panel() {
         {selectedState !== "default" && (
           <div className="helper">Editing <b>{STATE_LABEL[selectedState]}</b>: these dials pin to this state; the other states keep following the main icon.</div>
         )}
-        <Slider label="Size" value={IC.size} min={40} max={170} unit="%" onChange={(v) => update((c) => { c.icon.size = v; })} />
+        {iconReach.size && <Slider label="Size" value={IC.size} min={40} max={170} unit="%" onChange={(v) => update((c) => { c.icon.size = v; })} />}
         <Slider label="Weight" value={IC.strokeWidth} min={5} max={40} unit="/10" onChange={(v) => update((c) => { c.icon.strokeWidth = v; })} />
         {/* the icon border rides Type → Outline width until it takes its own —
             same inherit-with-escape-hatch contract as the color below */}
@@ -3076,24 +3113,30 @@ export function Panel() {
             </button>
           )}
         </>)}
-        <Slider label="Opacity" value={IC.opacity} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.icon.opacity = v; })} />
-        <Slider label="Rotation" value={IC.rotation} min={0} max={360} unit="°" onChange={(v) => update((c) => { c.icon.rotation = v; })} />
+        {iconReach.opacity && <Slider label="Opacity" value={IC.opacity} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.icon.opacity = v; })} />}
+        {iconReach.rotation && <Slider label="Rotation" value={IC.rotation} min={0} max={360} unit="°" onChange={(v) => update((c) => { c.icon.rotation = v; })} />}
         {/* the glyph's own position, in the glyph's own house — no more
             detouring through the type nudges to move an icon (owner) */}
-        <Slider label="Nudge X" value={IC.ox} min={-150} max={150} unit="px" onChange={(v) => update((c) => { c.icon.ox = v; })} />
-        <Slider label="Nudge Y" value={IC.oy} min={-150} max={150} unit="px" onChange={(v) => update((c) => { c.icon.oy = v; })} />
+        {iconReach.nudge && (<>
+          <Slider label="Nudge X" value={IC.ox} min={-150} max={150} unit="px" onChange={(v) => update((c) => { c.icon.ox = v; })} />
+          <Slider label="Nudge Y" value={IC.oy} min={-150} max={150} unit="px" onChange={(v) => update((c) => { c.icon.oy = v; })} />
+        </>)}
         <label className="check"><input type="checkbox" checked={IC.color === null}
           onChange={(e) => update((c) => { c.icon.color = e.target.checked ? null : "#FFFFFF"; })} /> Inherit type color</label>
         {IC.color !== null && <Well label="Custom color" value={IC.color} onChange={(v) => update((c) => { c.icon.color = v; })} />}
-        <div className="sublabel" title="Every glyph in the kit follows this one treatment. Swap a single piece's glyph in Component content.">Icon effects</div>
-        <div className="fxrow">
-          {(["shadow", "glow", "emboss"] as const).map((f) => (
-            <button key={f} className={`fxchip${IC.fx[f] ? " on" : ""}`} aria-pressed={IC.fx[f]}
-              onClick={() => update((c) => { c.icon.fx[f] = !c.icon.fx[f]; })}>
-              {f[0].toUpperCase() + f.slice(1)}
-            </button>
-          ))}
-        </div>
+        {/* the header travels WITH its row: hiding the chips alone would
+            leave a bare "Icon effects" line standing over nothing */}
+        {iconReach.fx && (<>
+          <div className="sublabel" title="Every glyph in the kit follows this one treatment. Swap a single piece's glyph in Component content.">Icon effects</div>
+          <div className="fxrow">
+            {(["shadow", "glow", "emboss"] as const).map((f) => (
+              <button key={f} className={`fxchip${IC.fx[f] ? " on" : ""}`} aria-pressed={IC.fx[f]}
+                onClick={() => update((c) => { c.icon.fx[f] = !c.icon.fx[f]; })}>
+                {f[0].toUpperCase() + f.slice(1)}
+              </button>
+            ))}
+          </div>
+        </>)}
         </div>
       </Section>
 

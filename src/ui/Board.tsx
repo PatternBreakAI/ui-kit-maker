@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceBetween, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceBetween, ArrowDown, ArrowUp, BookmarkPlus, BringToFront, Copy, Download, Grid3x3, ImagePlus, LayoutTemplate, Lock, Monitor, Plus, RotateCcw, Search, SendToBack, Shield, Smartphone, SquarePen, Trash2, Type, X } from "lucide-react";
-import { useGen, rehydrateBoardBgs, boardBgFilter, boardScaleMin, drawBoardNoise, drawBoardOverlays, stampFilter, stampSvg, warpStampRaster, importUserAssetFile, kitShadowFilter, suppressCastShadow } from "@/generator/store";
+import { useGen, rehydrateBoardBgs, boardBgFilter, boardScaleMin, boardItemArtShort, drawBoardNoise, drawBoardOverlays, stampFilter, stampSvg, warpStampRaster, importUserAssetFile, kitShadowFilter, suppressCastShadow } from "@/generator/store";
 import type { UserAsset, UserLogoFx } from "@/generator/store";
 import { normalizeShipCopy, captureVideoPoster } from "@/generator/bgvault";
 import { importBgAsset, bgAssetStatusLine, onAssetActivity, bgAssetDisplayUrl } from "@/generator/assets";
@@ -1660,6 +1660,12 @@ export function BoardView({ playing }: { playing: boolean }) {
     return { svg: item.kit ? renderKit(item.cfg, item.kit.id, item.kit.size, "default", item.kit.v, item.kit.shape, item.kit.label !== undefined ? { label: item.kit.label } : undefined) : renderBevel(item.cfg, "default"), cfg: item.cfg };
   };
 
+  /* WHERE a piece bottoms out. Every control asks this one function —
+     the scale slider, the typed percent, the corner handle and the group
+     clamp — and it asks the same measurement the store's own clamp uses,
+     so they cannot disagree about a piece's floor. */
+  const scaleMinOf = (b: BoardItem) => boardScaleMin(b, boardItemArtShort(useGen.getState(), b));
+
   const nameOf = (b: BoardItem): string => {
     if (b.stamp) return `"${b.stamp.text}"`;
     if (b.big) return bigGlyphById(b.big.gid)?.name ?? "Big glyph";
@@ -2528,7 +2534,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                                 e.stopPropagation();
                                 try { (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId); } catch { /* uncaptured scale still works */ }
                                 const pieces = bd.items.filter((it) => selIdsAll.includes(it.id))
-                                  .map((it) => ({ id: it.id, s0: it.scale ?? 1, px: it.x, py: it.y, min: boardScaleMin(it) }));
+                                  .map((it) => ({ id: it.id, s0: it.scale ?? 1, px: it.x, py: it.y, min: scaleMinOf(it) }));
                                 if (pieces.length < 2) return;
                                 grsz.current = {
                                   x0: e.clientX, y0: e.clientY,
@@ -2681,12 +2687,16 @@ export function BoardView({ playing }: { playing: boolean }) {
                 included — boardScaleMin resolves through baseOf) dive to 5%
                 (match-3 tiles on a mobile board need ~12%; owner from the
                 Pause board: "i need to be able to shrink these glyphs
-                smaller"); everything else keeps the 30% legibility floor.
+                smaller"). Every other piece floors where its OWN art hits
+                BOARD_MIN_ART_PX, so a tall card back reaches ~9% while a
+                count badge still stops at 30% — a flat percentage could
+                only ever be wrong for one of them (owner, round 67: "I
+                need to be able to size the card backs lower than 30%").
                 The typed entry exists because one slider pixel jumps several
                 percent at the small end — the owner types 12 and gets 12. */}
             <label className="bd-slider"><span className="bd-sliderhead">Scale ·
-              <ScaleEntry id={sel.id} pct={Math.round((sel.scale ?? 1) * 100)} min={Math.round(boardScaleMin(sel) * 100)} />%</span>
-              <input type="range" min={Math.round(boardScaleMin(sel) * 100)} max={200} value={Math.round((sel.scale ?? 1) * 100)}
+              <ScaleEntry id={sel.id} pct={Math.round((sel.scale ?? 1) * 100)} min={Math.floor(scaleMinOf(sel) * 100)} />%</span>
+              <input type="range" min={Math.floor(scaleMinOf(sel) * 100)} max={200} value={Math.round((sel.scale ?? 1) * 100)}
                 onChange={(e) => scaleBoardItem(sel.id, +e.target.value / 100)} />
             </label>
             <label className="bd-slider">Rotation · {sel.rot ?? 0}°
@@ -3848,7 +3858,7 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
                       const ry = Math.abs(r.handY + ddy - r.anchorY) / Math.max(1, Math.abs(r.handY - r.anchorY));
                       // corners follow the diagonal (both axes, averaged);
                       // the handlebars are pure vertical stretch-to-scale
-                      const s2 = Math.max(boardScaleMin(b), Math.min(2, r.s0 * (r.hx === 0.5 ? ry : (rx + ry) / 2)));
+                      const s2 = Math.max(boardScaleMin(b, boardItemArtShort(useGen.getState(), b)), Math.min(2, r.s0 * (r.hx === 0.5 ? ry : (rx + ry) / 2)));
                       useGen.getState().transformBoardItem(b.id, s2,
                         r.anchorX - (r.shx + r.axf * r.shw) * s2,
                         r.anchorY - (r.shy + r.ayf * r.shh) * s2);
