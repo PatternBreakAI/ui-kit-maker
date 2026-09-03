@@ -330,7 +330,7 @@ const BOARD_TEMPLATES: Record<string, Tpl> = {
     { kitId: "datarow", x: 1266, y: 477, scale: 0.68 },
     { kitId: "chatbubble", x: 330, y: 600, scale: 0.75, label: "anyone up for the ember run?" },
     { kitId: "avatarframe", x: 358, y: 830, scale: 0.85 },
-    { kitId: "dialoguebox", x: 555, y: 800, scale: 0.8, label: "Warm yourself — the pass can wait." },
+    { kitId: "dialoguebox", x: 555, y: 800, scale: 0.8, label: "Warm yourself. The pass can wait." },
     { kitId: "secondary", x: 751, y: 636, scale: 0.62, label: "ENTER TOWN" },
     { kitId: "iconbtn", x: 1586, y: 36, scale: 0.85 },
     { kitId: "notifydot", x: 1734, y: 36, scale: 0.85 },

@@ -22,7 +22,7 @@ const HINTS: Hint[] = [
     id: "states",
     sel: ".allstateschip",
     title: "One look per state",
-    body: "Default, Hover, Pressed and Disabled each get their own design — pick a state here to style it. The All states chip writes a single edit across all four.",
+    body: "Default, Hover, Pressed and Disabled each get their own design. Pick a state here to style it. The All states chip writes a single edit across all four.",
   },
 ];
 
