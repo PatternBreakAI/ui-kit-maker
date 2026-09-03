@@ -350,7 +350,7 @@ export function CanvasView() {
                 <button className="focuschip" onClick={() => setFocus(null)} title="Back to the master button">
                   {/* the variant rides the banner ("Joystick · Ghost") so the
                       owner always knows WHICH face the canvas is showing */}
-                  <PenTool size={13} strokeWidth={2} /> Editing: {pieceLabel(focus)}{fOv ? ` · ${fOv.charAt(0).toUpperCase()}${fOv.slice(1)}` : ""} — back to button
+                  <PenTool size={13} strokeWidth={2} /> Editing: {pieceLabel(focus)}{fOv ? ` · ${fOv.charAt(0).toUpperCase()}${fOv.slice(1)}` : ""} (back to button)
                 </button>
                 {/* the ⓘ lives on the BANNER, always visible while a
                     component is focused — it was buried in a collapsed
@@ -359,7 +359,7 @@ export function CanvasView() {
                     pristine-canvas rule holds. */}
                 {KIT_LESSONS[baseOf(focus)] && (
                   <button className={`focuschip focuschip--info${lessonOpen ? " on" : ""}`} aria-expanded={lessonOpen}
-                    title={`About ${pieceLabel(focus)} — what it is, what's editable, where it comes from`}
+                    title={`About ${pieceLabel(focus)}: what it is, what's editable, where it comes from`}
                     onClick={() => setLessonOpen(!lessonOpen)}>
                     <Info size={13} strokeWidth={2.2} />
                   </button>
@@ -372,8 +372,8 @@ export function CanvasView() {
             <div className="state-cap" style={{ color: capColor }}>
               {/* Play mode says WHY the tray is gone — a slimmed panel with
                   no explanation reads as breakage, not a mode */}
-              {playing && focus ? "Live — hover, press, drag"
-                : playing ? `${capOf(displayed)}${live ? " · live" : ""} · Play — the pencil brings your controls back`
+              {playing && focus ? "Live: hover, press, drag"
+                : playing ? `${capOf(displayed)}${live ? " · live" : ""} · Play: the pencil brings your controls back`
                 /* a badge-with-states piece captions its SEMANTIC state —
                    "Default" over a pinned Learned pose read as a lie */
                 : fBase && KIT_STATE_POSES[fBase]
@@ -459,7 +459,7 @@ export function CanvasView() {
             {helpHover && !helpMenu && (<>
               <div className="sh-outline" style={{ left: helpHover.x, top: helpHover.y, width: helpHover.w, height: helpHover.h }} />
               <div className="sh-chip" style={{ left: helpHover.x + helpHover.w / 2, top: helpHover.y - 10 }}>
-                {routeOf(helpHover.parts[0]).label}{helpHover.parts.length > 1 ? ` +${helpHover.parts.length - 1} more — click` : " — click to edit"}
+                {routeOf(helpHover.parts[0]).label}{helpHover.parts.length > 1 ? ` +${helpHover.parts.length - 1} more · click` : " · click to edit"}
               </div>
             </>)}
             {helpMenu && (
@@ -485,7 +485,7 @@ export function CanvasView() {
           {/* the Kit page is permanently alive — Design/Play only applies to
               the editor hero and the board */}
           {phase !== "kit" && (<>
-          <button className={!playing ? "on" : ""} title="Design mode — canvas stays on the state you're editing"
+          <button className={!playing ? "on" : ""} title="Design mode: canvas stays on the state you're editing"
             aria-pressed={!playing} onClick={() => setCanvasMode("design")}>
             <SquarePen size={17} strokeWidth={1.8} />
           </button>
@@ -493,7 +493,7 @@ export function CanvasView() {
               click lands back in Design (field notes #3: "I didn't realize
               I was in play mode"; owner-approved) */}
           <button className={playing ? "on" : ""}
-            title={playing ? "Stop — leave Play and go back to editing" : "Play mode — hover and press the button live"}
+            title={playing ? "Stop: leave Play and go back to editing" : "Play mode: hover and press the button live"}
             aria-label={playing ? "Stop play mode" : "Play mode"}
             aria-pressed={playing} onClick={() => setCanvasMode(playing ? "design" : "play")}>
             {playing ? <Square size={15} strokeWidth={2} fill="currentColor" /> : <Play size={17} strokeWidth={1.8} />}
@@ -501,7 +501,7 @@ export function CanvasView() {
           {/* Dissect, not "help": the owner named the interaction — the mode
               takes the artwork apart. A question mark undersold it. */}
           {phase === "master" && (
-            <button className={helpOn ? "on" : ""} title="Dissect — click any part of the art to see what it is and where to edit it"
+            <button className={helpOn ? "on" : ""} title="Dissect: click any part of the art to see what it is and where to edit it"
               aria-pressed={helpOn} aria-label="Dissect mode" onClick={() => setHelpOn(!helpOn)}>
               <Microscope size={20} strokeWidth={1.7} />
             </button>
@@ -545,7 +545,7 @@ export function CanvasView() {
           </div>
           )}
           <span className="zdiv" />
-          <button title={phase === "board" ? "Upload a background for the ACTIVE artboard — it crops to the board bounds" : "Upload a background image — see your assets on a real game screen"}
+          <button title={phase === "board" ? "Upload a background for the ACTIVE artboard. It crops to the board bounds." : "Upload a background image and see your assets on a real game screen"}
             onClick={() => bgInput.current?.click()}
             className={(phase === "board" ? !!actBd?.bgImage : !!bgImage) ? "on" : ""}>
             <ImagePlus size={17} strokeWidth={1.8} />
@@ -581,7 +581,7 @@ export function CanvasView() {
             </button>
           ))}
           <label className={`bgdot bgcustom${CANVAS_BGS.every((b) => b.id !== cfg.canvas) ? " on" : ""}`}
-            title="Custom canvas color — the picker includes an eyedropper">
+            title="Custom canvas color. The picker includes an eyedropper.">
             <span style={{ background: CANVAS_BGS.every((b) => b.id !== cfg.canvas) ? cfg.canvas : "conic-gradient(#f66,#fc6,#6f9,#6cf,#96f,#f66)" }} />
             <input type="color" value={/^#[0-9a-fA-F]{6}$/.test(cfg.canvas) ? cfg.canvas : "#ffffff"}
               aria-label="Custom canvas color"

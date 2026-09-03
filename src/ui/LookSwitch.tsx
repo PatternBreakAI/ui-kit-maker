@@ -49,14 +49,14 @@ export function LookSwitch() {
       <div className="ph-sheet">
         <b>Switch to {pending.name ? `“${pending.name}”` : "this look"}?</b>
         <p>
-          A look replaces the whole design — colors, type, silhouettes and every
+          A look replaces the whole design: colors, type, silhouettes and every
           per-piece tweak. The tweaks you've made since your last save will be
-          lost unless you save first. (Undo — Ctrl/⌘Z — brings the old design
-          back if you change your mind right after.)
+          lost unless you save first. (Ctrl/⌘Z undoes the switch if you change
+          your mind right after.)
         </p>
         <div className="ph-sheetrow">
           <button className="fd-pricing__cta" onClick={confirm}>Switch look</button>
-          <button className="cg-open" onClick={cancel} title="Nothing changes — your tweaks stay as they are">Cancel</button>
+          <button className="cg-open" onClick={cancel} title="Nothing changes. Your tweaks stay as they are">Cancel</button>
         </div>
       </div>
     </div>

@@ -57,7 +57,7 @@ export function LootModalView({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="lootback" role="dialog" aria-modal="true" aria-label="Welcome — your work now saves to your account" onClick={onClose}>
+    <div className="lootback" role="dialog" aria-modal="true" aria-label="Welcome. Your work now saves to your account" onClick={onClose}>
       <div className="lootmodal" onClick={(e) => e.stopPropagation()}>
         {/* animated backdrop: drifting circuit field + diagonal light sweeps */}
         <span className="lootgrid" aria-hidden="true" />
@@ -66,7 +66,7 @@ export function LootModalView({ onClose }: { onClose: () => void }) {
         <button className="lootclose" aria-label="Close" onClick={onClose}><X size={16} strokeWidth={2.2} /></button>
         <div className="lootkicker"><Zap size={14} strokeWidth={2.2} /> LEVEL UP</div>
         <h2>YOUR WORK <span className="lootgrad">FOLLOWS YOU</span></h2>
-        <p className="lootsub">{allOpen ? "Both looks live in your Presets panel — and everything you make from here rides your account." : "Thanks for signing up — kits, boards and uploads now save to your account, on any device. Tap a pack to crack open a look."}</p>
+        <p className="lootsub">{allOpen ? "Both looks live in your Presets panel, and everything you make from here rides your account." : "Thanks for signing up. Kits, boards and uploads now save to your account, on any device. Tap a pack to crack open a look."}</p>
         <div className="lootrow">
           {pulls.map((p, i) => (
             <div key={p.id} className={`lootcell${opened[i] ? " open" : ""}`}>

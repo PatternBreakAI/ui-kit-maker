@@ -31,7 +31,7 @@ const lookArt = (svg: string | null | undefined) => (svg ? tightenSvg(svg, 20) :
 /* Pack tiles pitch the PACKS, not the playground. The generic guest
    upgrade line went save-centric with the free-play round and would read
    wrong on a locked pack, so the tiles carry their own road-to-Pro line. */
-const PACK_PITCH_GUEST = "Monthly preset packs ship with Pro — sign in free to get started.";
+const PACK_PITCH_GUEST = "Monthly preset packs ship with Pro. Sign in free to get started.";
 
 /* Rendered mini-previews for the style presets — built once, by the same
    renderer as everything else, from the EXACT document a click lands
@@ -209,7 +209,7 @@ function Section({ id, title, summary, right, children, allStates: allTag }: {
     <section className={`sec${allTag ? " allsec" : ""}`} data-sec={id} ref={ref} style={q && !hit ? { display: "none" } : undefined}>
       <div className="sec-head" onClick={() => toggle(id)} role="button" aria-expanded={isOpen} tabIndex={0}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") toggle(id); }}>
-        <h3>{title}{allTag && <i className="alltag" title="A state is pinned on the piece's State tray, but these controls paint ALL its states at once — use the statable wells under Component content to dress the pinned state alone.">all states</i>}</h3>
+        <h3>{title}{allTag && <i className="alltag" title="A state is pinned on the piece's State tray, but these controls paint ALL its states at once. Use the statable wells under Component content to dress the pinned state alone.">all states</i>}</h3>
         <span className="sum">
           {right}
           {!isOpen && summary}
@@ -354,7 +354,7 @@ function SwatchMem({ value, onChange }: { value: string; onChange: (v: string) =
           ))}
           {kitHues.length > 0 && <span className="swcap">In this kit</span>}
           {kitHues.map((k) => (
-            <button key={k.hex} className={`swdot${k.hex === hex ? " cur" : ""}`} style={{ background: k.hex }} title={`${k.role} — use ${k.hex}`}
+            <button key={k.hex} className={`swdot${k.hex === hex ? " cur" : ""}`} style={{ background: k.hex }} title={`${k.role}: use ${k.hex}`}
               onClick={() => pick(k.hex)} />
           ))}
         </span>
@@ -449,16 +449,16 @@ function SliceEditor({ cid }: { cid: KitComponentId }) {
   return (
     <div className="slicebox">
       <span className="fl">Unity slicing
-        <button className={`allstateschip${!on ? " on" : ""}`} title={`Borders measured from this piece's rendered pixels at export — right for almost every kit.${seed ? ` This piece measures ${seed.left} · ${seed.right} · ${seed.top} · ${seed.bottom} px (left · right · top · bottom).` : ""}`}
+        <button className={`allstateschip${!on ? " on" : ""}`} title={`Borders measured from this piece's rendered pixels at export. Right for almost every kit.${seed ? ` This piece measures ${seed.left} · ${seed.right} · ${seed.top} · ${seed.bottom} px (left · right · top · bottom).` : ""}`}
           onClick={() => setKitSlice(cid, null)}>Auto</button>
-        <button className={`allstateschip${on ? " on" : ""}`} title="Set the nine-slice borders yourself — your numbers ship exactly."
+        <button className={`allstateschip${on ? " on" : ""}`} title="Set the nine-slice borders yourself. Your numbers ship exactly."
           onClick={() => { if (!on) setKitSlice(cid, seed ?? { left: 40, right: 40, top: 36, bottom: 36 }); }}>Custom</button>
-        <button className="allstateschip slicebig" title="Open the big slicing workbench on the canvas — zoomed pixels, draggable guides."
+        <button className="allstateschip slicebig" title="Open the big slicing workbench on the canvas: zoomed pixels, draggable guides."
           onClick={() => setSliceStage(cid)}><Maximize2 size={11} strokeWidth={2.2} /> Big editor</button>
       </span>
       {probe && vals && (
         <canvas ref={prevRef} className="slicepreview"
-          title="Stretched to 1.9x width, drawn exactly as Unity's Sliced Image draws it — corners rigid, middle stretching. Dashed lines are the slice guides. Click for the big editor."
+          title="Stretched to 1.9x width, drawn exactly as Unity's Sliced Image draws it: corners rigid, middle stretching. Dashed lines are the slice guides. Click for the big editor."
           onClick={() => setSliceStage(cid)} />
       )}
       {on && vals && (
@@ -473,7 +473,7 @@ function SliceEditor({ cid }: { cid: KitComponentId }) {
         </div>
       )}
       {patOn && (
-        <div className="helper slicewarn"><AlertTriangle size={11} strokeWidth={2.4} /> This piece wears a pattern — heavy Sliced stretching smears it into noise. That only bites when a prefab is hand-stretched inside Unity; board copies posed away from these proportions ship as the app&apos;s own render instead.</div>
+        <div className="helper slicewarn"><AlertTriangle size={11} strokeWidth={2.4} /> This piece wears a pattern. Heavy Sliced stretching smears it into noise. That only bites when a prefab is hand-stretched inside Unity; board copies posed away from these proportions ship as the app&apos;s own render instead.</div>
       )}
     </div>
   );
@@ -587,14 +587,14 @@ function NameAction({ icon, label, title, defaultName, placeholder, withDate, on
           if (e.key === "Escape" && !busy) setOpen(false);
         }} />
       {withDate && (
-        <input className="tinput tinput--day" type="date" value={day} aria-label="Release date — leave blank to publish now"
-          title="Release date — leave blank to publish now" readOnly={busy}
+        <input className="tinput tinput--day" type="date" value={day} aria-label="Release date: leave blank to publish now"
+          title="Release date: leave blank to publish now" readOnly={busy}
           onChange={(e) => setDay(e.target.value)} />
       )}
-      <button className="chipbtn" title="Save" aria-label={`${label} — confirm`} disabled={busy || !name.trim()} onClick={() => void commit()}>
+      <button className="chipbtn" title="Save" aria-label={`${label}: confirm`} disabled={busy || !name.trim()} onClick={() => void commit()}>
         <CheckCircle2 size={14} strokeWidth={2.2} />
       </button>
-      <button className="chipbtn" title="Cancel" aria-label={`${label} — cancel`} disabled={busy} onClick={() => setOpen(false)}>
+      <button className="chipbtn" title="Cancel" aria-label={`${label}: cancel`} disabled={busy} onClick={() => setOpen(false)}>
         <X size={14} strokeWidth={2.2} />
       </button>
     </div>
@@ -627,21 +627,21 @@ function DupAction({ icon, label, title, defaultName, onCommit }: {
   );
   return (
     <div className="namerow">
-      <input ref={inputRef} className="tinput" value={name} placeholder="Name — e.g. Flame button" maxLength={80} aria-label={`${label} — name`}
+      <input ref={inputRef} className="tinput" value={name} placeholder="Name (e.g. Flame button)" maxLength={80} aria-label={`${label}: name`}
         onChange={(e) => setName(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter" && !e.nativeEvent.isComposing) commit();
           if (e.key === "Escape") setOpen(false);
         }} />
-      <select className="tinput" value={kind} aria-label={`${label} — classification`}
+      <select className="tinput" value={kind} aria-label={`${label}: classification`}
         onChange={(e) => setKind(e.target.value)}>
         <option value="" disabled>Classification…</option>
         {CLONE_KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
       </select>
-      <button className="chipbtn" title="Create the copy" aria-label={`${label} — confirm`} disabled={!ready} onClick={commit}>
+      <button className="chipbtn" title="Create the copy" aria-label={`${label}: confirm`} disabled={!ready} onClick={commit}>
         <CheckCircle2 size={14} strokeWidth={2.2} />
       </button>
-      <button className="chipbtn" title="Cancel" aria-label={`${label} — cancel`} onClick={() => setOpen(false)}>
+      <button className="chipbtn" title="Cancel" aria-label={`${label}: cancel`} onClick={() => setOpen(false)}>
         <X size={14} strokeWidth={2.2} />
       </button>
     </div>
@@ -1086,7 +1086,7 @@ export function Panel() {
   const labelEditable = !!focus && KIT_LABEL_EDITABLE.has(baseOf(focus));
   /* pieces carrying a SECOND text (the combo plate word) get one more field */
   const subEditable = !!focus && (["combo"] as KitComponentId[]).includes(baseOf(focus));
-  const subFieldName: Partial<Record<KitComponentId, string>> = { combo: "Plate word — e.g. COMBO!" };
+  const subFieldName: Partial<Record<KitComponentId, string>> = { combo: "Plate word (e.g. COMBO!)" };
   useEffect(() => {
     if (!ICONS_ENABLED && !iconSwappable) return;
     let live = true;
@@ -1157,7 +1157,7 @@ export function Panel() {
         <section className="sec">
           <div className="sec-head"><h3>Backdrop</h3></div>
           <div className="sec-body">
-            <label className="check" title="The active artboard's backdrop — it never ships in asset exports."><input type="checkbox" checked={actBd?.bgShow ?? true} onChange={(e) => setBoardBg({ bgShow: e.target.checked })} /> Show background image</label>
+            <label className="check" title="The active artboard's backdrop. It never ships in asset exports."><input type="checkbox" checked={actBd?.bgShow ?? true} onChange={(e) => setBoardBg({ bgShow: e.target.checked })} /> Show background image</label>
             <Slider label="Opacity" value={actBd?.bgOpacity ?? 100} min={10} max={100} unit="%" onChange={(v) => setBoardBg({ bgOpacity: v })} />
             <Slider label="Blur" value={actBd?.bgBlur ?? 0} min={0} max={14} unit="px" onChange={(v) => setBoardBg({ bgBlur: v })} />
           </div>
@@ -1178,7 +1178,7 @@ export function Panel() {
                   </div>
                 </div>
               ))}
-              {library.length === 0 && <div className="helper">Nothing saved yet — go back to the editor and hit “OK — add to library”.</div>}
+              {library.length === 0 && <div className="helper">Nothing saved yet. Go back to the editor and hit “OK, add to library”.</div>}
             </div>
           </div>
         </section>
@@ -1216,12 +1216,12 @@ export function Panel() {
   const slotForked = (slot: SlotDef): boolean => !!pinnedPose && !!slot.statable && slotOwn(slot) !== undefined;
   return (
     <aside className={`panel${playLocked || finLocked ? " playlock" : ""}${finLocked && !playLocked ? " finlock" : ""}`} ref={panelRef}>
-      {playLocked && <div className="playnote">Play mode — controls are paused so you can feel the states. Switch back to Design (✎ in the canvas toolbar) to edit.</div>}
+      {playLocked && <div className="playnote">Play mode: controls are paused so you can feel the states. Switch back to Design (✎ in the canvas toolbar) to edit.</div>}
       {/* v59: every control is searchable — matching sections open, the
           rest step aside until the query clears */}
       <div className="panelsearch">
         <SearchIcon size={14} strokeWidth={2.1} aria-hidden="true" />
-        <input value={panelQuery} placeholder="Search the controls — glow, nudge, weight…" aria-label="Search controls"
+        <input value={panelQuery} placeholder="Search the controls: glow, nudge, weight…" aria-label="Search controls"
           onChange={(e) => setPanelQuery(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Escape") setPanelQuery(""); }} />
         {panelQuery && (
@@ -1236,7 +1236,7 @@ export function Panel() {
       {/slic|nine/i.test(panelQuery) && (!focus || !KIT_SLICEABLE[baseOf(focus)]) && (
         <div className="searchpoint">
           <b>Unity slicing is set on each piece</b>
-          <p>The master button ships as the Primary button — pick a piece and its slicing (measured borders, your numbers, the big pixel editor) opens in Component content.</p>
+          <p>The master button ships as the Primary button. Pick a piece and its slicing (measured borders, your numbers, the big pixel editor) opens in Component content.</p>
           <div className="sp-chips">
             {(Object.keys(KIT_SLICEABLE) as KitComponentId[]).map((cid) => (
               <button key={cid} onClick={() => setFocus(cid)}>
@@ -1256,20 +1256,20 @@ export function Panel() {
           onMouseLeave={() => { flagHov.current = false; }}>
           <AlertTriangle size={13} strokeWidth={2.4} aria-hidden="true" />
           {allStates ? (
-            <span><b>All states</b> — every edit becomes the value for Default, Hover, Pressed and Disabled.</span>
+            <span><b>All states</b>: every edit becomes the value for Default, Hover, Pressed and Disabled.</span>
           ) : (
-            <span>Styling <b>{STATE_LABEL[selectedState]}</b> — every edit lands on this state only.</span>
+            <span>Styling <b>{STATE_LABEL[selectedState]}</b>: every edit lands on this state only.</span>
           )}
           {/* one switch answers the field report: "set any one parameter for
               all states without resetting all states to default" */}
           <button className={`stateflag-all${allStates ? " on" : ""}`} aria-pressed={allStates}
-            title={allStates ? "Back to editing one state at a time" : "Every edit you make becomes the value for ALL states — existing state styling stays, only what you touch unifies."}
+            title={allStates ? "Back to editing one state at a time" : "Every edit you make becomes the value for ALL states. Existing state styling stays, only what you touch unifies."}
             onClick={() => setAllStates(!allStates)}>
             {allStates ? "One state" : "All states"}
           </button>
           {selectedState !== "default" && <button onClick={() => setSelectedState("default")}>Back to Default</button>}
           <button className="stateflag-x" aria-label="Turn this reminder off for good"
-            title="Turn this reminder off for good — the badge in Global always shows which state you're styling"
+            title="Turn this reminder off for good. The badge in Global always shows which state you're styling"
             onClick={() => { try { localStorage.setItem(STATEFLAG_HUSH_KEY, "1"); } catch { /* private mode: hushed for the session */ } setFlagHush(true); }}>
             <X size={13} strokeWidth={2.6} />
           </button>
@@ -1288,33 +1288,33 @@ export function Panel() {
           <div className="scopebar" role="group" aria-label="Where edits land">
             <div className="scopeseg" role="radiogroup" aria-label="Styling scope">
               <button className={!focus ? "on" : ""} role="radio" aria-checked={!focus}
-                title="Style the whole kit — edits flow to every piece that follows the kit design"
+                title="Style the whole kit: edits flow to every piece that follows the kit design"
                 onClick={() => setFocus(null)}>Whole kit</button>
               {(() => {
                 const grp = groupOf(focus);
                 return grp ? (
                   <button className={focus && scope === "group" ? "on" : ""} role="radio" aria-checked={scope === "group"}
-                    title={`Style all ${grp.members.length} pieces in ${grp.name} together — locked pieces stay put`}
+                    title={`Style all ${grp.members.length} pieces in ${grp.name} together. Locked pieces stay put`}
                     onClick={() => setScope("group")}>Group · {grp.name}</button>
                 ) : (
                   <button className="" role="radio" aria-checked={false} disabled
-                    title={focus ? `${fname} isn't part of a family — it styles alone` : "Click Edit on a piece that belongs to a family"}>Group</button>
+                    title={focus ? `${fname} isn't part of a family, so it styles alone` : "Click Edit on a piece that belongs to a family"}>Group</button>
                 );
               })()}
               <button className={focus && scope === "piece" ? "on" : ""} role="radio" aria-checked={!!focus && scope === "piece"} disabled={!focus}
-                title={focus ? `Design edits stay on ${fname} only` : "Click Edit on any piece — then edits stay on that piece"}
+                title={focus ? `Design edits stay on ${fname} only` : "Click Edit on any piece, then edits stay on that piece"}
                 onClick={() => setScope("piece")}>
                 {focus ? `This piece · ${fname}` : "This piece"}
               </button>
             </div>
             {!focus && (
-              <div className="scopehint">Styling the <b>whole kit</b> — edits flow to every piece. On <b>The Kit</b> page, click <b>Edit</b> on a piece to style it alone.</div>
+              <div className="scopehint">Styling the <b>whole kit</b>: edits flow to every piece. On <b>The Kit</b> page, click <b>Edit</b> on a piece to style it alone.</div>
             )}
             {focus && frozen && (
               <>
-                <div className="scopehint"><Lock size={11} strokeWidth={2.4} /> <b>{fname}</b> is locked — the look is frozen. Its words and data stay yours in <b>Component content</b>.</div>
+                <div className="scopehint"><Lock size={11} strokeWidth={2.4} /> <b>{fname}</b> is locked: the look is frozen. Its words and data stay yours in <b>Component content</b>.</div>
                 <div className="scopeverbs">
-                  <button title="Open this piece back up for editing — it keeps its current look"
+                  <button title="Open this piece back up for editing. It keeps its current look"
                     onClick={() => toggleKitLock(focus)}>
                     <LockOpen size={12} strokeWidth={2.2} /> Unlock
                   </button>
@@ -1325,8 +1325,8 @@ export function Panel() {
               <>
                 <div className="scopehint">
                   {scope === "group" && groupOf(focus)
-                    ? <>Design edits restyle all <b>{groupOf(focus)!.members.length} pieces</b> in <b>{groupOf(focus)!.name}</b> at once — locked pieces stay put, and the rest of the kit doesn&apos;t move.</>
-                    : <>Design edits stay on <b>{fname}</b> — the rest of the kit stays put. Words and shared data still flow where they should.</>}
+                    ? <>Design edits restyle all <b>{groupOf(focus)!.members.length} pieces</b> in <b>{groupOf(focus)!.name}</b> at once. Locked pieces stay put, and the rest of the kit doesn&apos;t move.</>
+                    : <>Design edits stay on <b>{fname}</b>. The rest of the kit stays put. Words and shared data still flow where they should.</>}
                   {parentId === focus && <> · <b>This is the parent design.</b></>}
                 </div>
                 <div className="scopeverbs">
@@ -1340,28 +1340,28 @@ export function Panel() {
                         }}>
                         <Pin size={12} strokeWidth={2.2} /> Push look to whole kit
                       </button>
-                      <button title="Drop this piece's own styling — it follows the kit design again"
+                      <button title="Drop this piece's own styling. It follows the kit design again"
                         onClick={() => setKitDesign(focus, null)}>
                         <PinOff size={12} strokeWidth={2.2} /> Follow the kit again
                       </button>
                     </>
                   )}
                   {!pinned && (
-                    <button title="Pin the whole current look to this piece in one go — edits already stay here either way"
+                    <button title="Pin the whole current look to this piece in one go. Edits already stay here either way"
                       onClick={() => setKitDesign(focus, { ...pickDesign(cfg), stateDesigns: structuredClone(cfg.stateDesigns) })}>
                       <Pin size={12} strokeWidth={2.2} /> Pin the whole look
                     </button>
                   )}
-                  <button title="Make this piece the parent design — the base every whole-kit edit styles"
+                  <button title="Make this piece the parent design: the base every whole-kit edit styles"
                     onClick={() => {
                       if (PARENT_ELIGIBLE.includes(focus)) { setParent(focus); setParentErr(null); }
-                      else setParentErr(`${fname} can't be the parent design — a parent must carry the complete recipe (silhouette shell, face, typography label and all four states) so the rest of the kit can inherit from it.`);
+                      else setParentErr(`${fname} can't be the parent design. A parent must carry the complete recipe (silhouette shell, face, typography label and all four states) so the rest of the kit can inherit from it.`);
                     }}>
                     <Star size={12} strokeWidth={2.2} /> Make parent
                   </button>
                   <button title="Finished with this piece? The look freezes (design, states, nudges, glyph) until you unlock. Words and data stay editable."
                     onClick={() => toggleKitLock(focus)}>
-                    <Lock size={12} strokeWidth={2.2} /> Lock — finished
+                    <Lock size={12} strokeWidth={2.2} /> Lock as finished
                   </button>
                   {/* the duplicate verb (owner mandate: "edit the main
                       button and ONLY the main button") — datarow and panel
@@ -1369,7 +1369,7 @@ export function Panel() {
                       singletons a copy would share */}
                   {!CLONE_INELIGIBLE.has(baseOf(focus)) && (
                     <DupAction icon={<Copy size={12} strokeWidth={2.2} />} label="Duplicate this piece"
-                      title="Copy this piece as its own kit citizen — same look now, its own styling from here on"
+                      title="Copy this piece as its own kit citizen: same look now, its own styling from here on"
                       defaultName={`${pieceLabel(focus)} copy`}
                       onCommit={(n, kind) => {
                         const id = duplicateKitPiece(focus, n, kind);
@@ -1379,10 +1379,10 @@ export function Panel() {
                   {isCloneId(focus as string) && (
                     <>
                       <NameAction icon={<PenTool size={12} strokeWidth={2.2} />} label="Rename"
-                        title="Rename this copy — its classification and styling stay"
+                        title="Rename this copy. Its classification and styling stay"
                         defaultName={pieceLabel(focus)}
                         onCommit={(n) => renameKitClone(focus, n)} />
-                      <button title="Delete this copy — the piece it was copied from stays"
+                      <button title="Delete this copy. The piece it was copied from stays"
                         onClick={() => {
                           if (window.confirm(`Delete “${pieceLabel(focus)}”? The ${KIT_COMPONENTS.find((c) => c.id === baseOf(focus))?.name ?? baseOf(focus)} it copies stays.`)) removeKitClone(focus);
                         }}>
@@ -1409,7 +1409,7 @@ export function Panel() {
               the feature invisible right where you'd look for it (owner:
               "I can't find this") */}
           <button className={`allstateschip${allStates ? " on" : ""}`} aria-pressed={allStates}
-            title={allStates ? "On: every edit becomes the value for ALL states. Click to go back to one-state editing." : "Every edit you make becomes the value for Default, Hover, Pressed and Disabled at once — existing state styling stays, only what you touch unifies."}
+            title={allStates ? "On: every edit becomes the value for ALL states. Click to go back to one-state editing." : "Every edit you make becomes the value for Default, Hover, Pressed and Disabled at once. Existing state styling stays, only what you touch unifies."}
             onClick={() => setAllStates(!allStates)}>
             <Layers size={12} strokeWidth={2.2} /> All states
           </button>
@@ -1431,12 +1431,12 @@ export function Panel() {
           <button className="resetstate" onClick={() => update((c) => { c.states[selectedState] = defaultStates()[selectedState]; })}>
             <RotateCcw size={13} strokeWidth={2} /> Reset {STATE_LABEL[selectedState]}
           </button>
-          <button className="resetstate" title="Make Hover, Pressed and Disabled mirror the Default design again — a clean base after exploring"
+          <button className="resetstate" title="Make Hover, Pressed and Disabled mirror the Default design again: a clean base after exploring"
             onClick={inheritDefaults}>
             <Copy size={13} strokeWidth={2} /> Apply Default to all states
           </button>
           {selectedState !== "default" && (
-            <button className="resetstate makedefault" title={`Promote this exact ${STATE_LABEL[selectedState]} look — design and adjustments — to be the new Default. Nothing gets lost.`}
+            <button className="resetstate makedefault" title={`Promote this exact ${STATE_LABEL[selectedState]} look (design and adjustments) to be the new Default. Nothing gets lost.`}
               onClick={makeStateDefault}>
               <Star size={13} strokeWidth={2} /> Make {STATE_LABEL[selectedState]} the new Default
             </button>
@@ -1459,10 +1459,10 @@ export function Panel() {
             rest in Design too (owner, 2026-08-16: "the idle animation should
             only play when play is pressed") — that fine print rides the
             checkboxes as tooltips (round-56 affordance purge) */}
-        <label className="check" title="Plays on the live canvas, in Play mode and in Unity — stills rest on purpose."><input type="checkbox" checked={!!cfgMaster.idle?.wipe}
-          onChange={(e) => update((c) => { c.idle = { ...c.idle, wipe: e.target.checked, edge: c.idle?.edge ?? false }; })} /> Wipe shine — a glint sweeps the face, then rests</label>
-        <label className="check" title="Plays on the live canvas, in Play mode and in Unity — stills rest on purpose."><input type="checkbox" checked={!!cfgMaster.idle?.edge}
-          onChange={(e) => update((c) => { c.idle = { ...c.idle, wipe: c.idle?.wipe ?? false, edge: e.target.checked }; })} /> Edge shine — a spark runs the silhouette, shrinking and flickering</label>
+        <label className="check" title="Plays on the live canvas, in Play mode and in Unity. Stills rest on purpose."><input type="checkbox" checked={!!cfgMaster.idle?.wipe}
+          onChange={(e) => update((c) => { c.idle = { ...c.idle, wipe: e.target.checked, edge: c.idle?.edge ?? false }; })} /> Wipe shine: a glint sweeps the face, then rests</label>
+        <label className="check" title="Plays on the live canvas, in Play mode and in Unity. Stills rest on purpose."><input type="checkbox" checked={!!cfgMaster.idle?.edge}
+          onChange={(e) => update((c) => { c.idle = { ...c.idle, wipe: c.idle?.wipe ?? false, edge: e.target.checked }; })} /> Edge shine: a spark runs the silhouette, shrinking and flickering</label>
         {/* Per-piece override (owner: "turn the shine animations on/off per
             component") — rides the piece's design fork, so the kit page,
             Board and Unity export all follow. Absent chips = follow kit.
@@ -1474,7 +1474,7 @@ export function Panel() {
             {/* a locked piece silently ignores setKitDesign — say so instead
                 of presenting chips that click without effect */}
             {!!kitLocks[focus] && (
-              <div className="helper">This piece is locked — its shine chips are on hold until you unlock it.</div>
+              <div className="helper">This piece is locked. Its shine chips are on hold until you unlock it.</div>
             )}
             {(["wipe", "edge"] as const).map((k) => {
               /* a deaf piece keeps its Edge row VISIBLE but gray — the
@@ -1493,10 +1493,10 @@ export function Panel() {
               };
               return (
                 <div className="idlerow" key={k} style={deaf ? { opacity: 0.45 } : undefined}
-                  title={deaf ? "Edge shine doesn't apply here — this piece draws its own chrome, so there's no single silhouette for the spark to run." : undefined}>
+                  title={deaf ? "Edge shine doesn't apply here. This piece draws its own chrome, so there's no single silhouette for the spark to run." : undefined}>
                   <span>{k === "wipe" ? "Wipe shine" : "Edge shine"}</span>
                   <div className="idlechips">
-                    <button className={`allstateschip${ov === undefined ? " on" : ""}`} disabled={dead} title={deaf ? undefined : "No opinion of its own — this piece shines whenever the kit toggle above is on."} onClick={() => setOv(undefined)}>Follow kit</button>
+                    <button className={`allstateschip${ov === undefined ? " on" : ""}`} disabled={dead} title={deaf ? undefined : "No opinion of its own: this piece shines whenever the kit toggle above is on."} onClick={() => setOv(undefined)}>Follow kit</button>
                     <button className={`allstateschip${ov === true ? " on" : ""}`} disabled={dead} title={deaf ? undefined : "Always shine on this piece, even with the kit toggle off."} onClick={() => setOv(true)}>On</button>
                     <button className={`allstateschip${ov === false ? " on" : ""}`} disabled={dead} title={deaf ? undefined : "Never shine on this piece, even with the kit toggle on."} onClick={() => setOv(false)}>Off</button>
                   </div>
@@ -1544,7 +1544,7 @@ export function Panel() {
           </>
         )}
         {selectedState !== "default" && cfg.stateDesigns?.[selectedState] && (
-          <div className="helper">This state has its own design — edits here never touch Default. Happy accident? <b>Make {STATE_LABEL[selectedState]} the new Default</b> keeps it.</div>
+          <div className="helper">This state has its own design. Edits here never touch Default. Happy accident? <b>Make {STATE_LABEL[selectedState]} the new Default</b> keeps it.</div>
         )}
       </Section>
 
@@ -1614,8 +1614,8 @@ export function Panel() {
             return (
               <button className={`presetcard promo${match && kitName === match.name ? " on" : ""}`}
                 title={match
-                  ? (locked ? `${spotPromo.title} — the newest pack drop. ${tier === "guest" ? PACK_PITCH_GUEST : "A new pack drops every month with Pro."}` : `${spotPromo.title} — just landed; apply it`)
-                  : `${spotPromo.title} — see what's new`}
+                  ? (locked ? `${spotPromo.title}: the newest pack drop. ${tier === "guest" ? PACK_PITCH_GUEST : "A new pack drops every month with Pro."}` : `${spotPromo.title} just landed; apply it`)
+                  : `${spotPromo.title}: see what's new`}
                 onClick={go}>
                 {promoIsNew(spotPromo) && <span className="presetnew">NEW</span>}
                 {spotArtSvg ? <span className="presetart" dangerouslySetInnerHTML={{ __html: spotArtSvg }} /> : <span className="presetart" />}
@@ -1624,10 +1624,10 @@ export function Panel() {
             );
           })()}
           {userShow.map((u) => (
-            <button key={u.id} className={`presetcard user${kitName === u.name ? " on" : ""}`} title={`${u.name} — your saved kit`}
+            <button key={u.id} className={`presetcard user${kitName === u.name ? " on" : ""}`} title={`${u.name} (your saved kit)`}
               onClick={() => applyUserPreset(u.id)}>
               {u.thumb ? <span className="presetart" dangerouslySetInnerHTML={{ __html: lookArt(u.thumb) }} /> : <span className="presetart" />}
-              {standInFonts[u.id] && <span className="presetstandin" title={`Saved with “${standInFonts[u.id]}”, which isn't available right now — the preview wears a stand-in face. Applying the look keeps its real settings.`}>stand-in face</span>}
+              {standInFonts[u.id] && <span className="presetstandin" title={`Saved with “${standInFonts[u.id]}”, which isn't available right now, so the preview wears a stand-in face. Applying the look keeps its real settings.`}>stand-in face</span>}
               <span className="presetname">{u.name}</span>
               <span className="shapedel" role="button" aria-label={`Delete preset ${u.name}`} title="Delete"
                 onClick={(e) => { e.stopPropagation(); removeUserPreset(u.id); }}>×</span>
@@ -1638,7 +1638,7 @@ export function Panel() {
               has the whole tool; what they don't have is the pack drops. */}
           {cloudShow.map((p) => tier !== "pro" ? (
             <button key={p.id} className="presetcard shared lockedp"
-              title={`${p.name} — from the monthly preset packs. ${tier === "guest" ? PACK_PITCH_GUEST : "A new pack drops every month with Pro."}`}
+              title={`${p.name}, from the monthly preset packs. ${tier === "guest" ? PACK_PITCH_GUEST : "A new pack drops every month with Pro."}`}
               onClick={() => { if (tier === "guest") openAuth("signin"); else window.location.hash = "#/pricing"; }}>
               {chipName === normName(p.name) && <span className="presetnew">NEW</span>}
               <span className="presetart" dangerouslySetInnerHTML={{ __html: lookArt(p.thumb ?? cloudArt[p.id]) }} />
@@ -1646,7 +1646,7 @@ export function Panel() {
             </button>
           ) : (
             <button key={p.id} className={`presetcard shared${kitName === p.name ? " on" : ""}${heldUntil(p.publish_at) ? " held" : ""}`}
-              title={heldUntil(p.publish_at) ? `${p.name} — held until ${heldUntil(p.publish_at)}. Only you can see it.` : `${p.name} — preset pack`}
+              title={heldUntil(p.publish_at) ? `${p.name} is held until ${heldUntil(p.publish_at)}. Only you can see it.` : `${p.name} (preset pack)`}
               onClick={() => applyCloudPreset(p.id)}>
               {chipName === normName(p.name) && <span className="presetnew">NEW</span>}
               <span className="presetart" dangerouslySetInnerHTML={{ __html: lookArt(p.thumb ?? cloudArt[p.id]) }} />
@@ -1655,11 +1655,11 @@ export function Panel() {
                   the read policy hides unreleased rows from everyone else. */}
               {isAdmin && heldUntil(p.publish_at) && (
                 <span className="presethold" role="button" tabIndex={0}
-                  aria-label={`Reschedule ${p.name} — currently held until ${heldUntil(p.publish_at)}`}
+                  aria-label={`Reschedule ${p.name}, currently held until ${heldUntil(p.publish_at)}`}
                   title="Click to change the release date, or clear it to ship now"
                   onClick={(e) => {
                     e.stopPropagation();
-                    const next = window.prompt(`Release “${p.name}” on (YYYY-MM-DD) — clear the field to ship it now:`, (p.publish_at ?? "").slice(0, 10));
+                    const next = window.prompt(`Release “${p.name}” on (YYYY-MM-DD). Clear the field to ship it now:`, (p.publish_at ?? "").slice(0, 10));
                     if (next === null) return;
                     void schedulePreset(p.id, dayToISO(next.trim())).then((err) => { if (err) window.alert(err); });
                   }}>
@@ -1682,12 +1682,12 @@ export function Panel() {
                 <span className="presetname"><Lock size={11} strokeWidth={2.4} /> {p.name}</span>
               </button>
             ) : (
-              <button key={p.id} className={`presetcard${cfg.presetId === p.id ? " on" : ""}`} title={`${p.name} — starter preset`}
+              <button key={p.id} className={`presetcard${cfg.presetId === p.id ? " on" : ""}`} title={`${p.name} (starter preset)`}
                 onClick={() => setPreset(p.id)}>
                 <span className="presetart" dangerouslySetInnerHTML={{ __html: lookArt(p.svg) }} />
                 <span className="presetname">{p.name}</span>
                 {isAdmin && (
-                  <span className="shapedel" role="button" aria-label={`Remove starter preset ${p.name}`} title="Remove for everyone (admin) — restorable below"
+                  <span className="shapedel" role="button" aria-label={`Remove starter preset ${p.name}`} title="Remove for everyone (admin). Restorable below"
                     onClick={(e) => { e.stopPropagation(); if (window.confirm(`Remove the starter preset “${p.name}” for everyone? You can restore all removed starters later.`)) void hideStarterPreset(p.id).then((err) => { if (err) window.alert(err); }); }}>×</span>
                 )}
               </button>
@@ -1716,10 +1716,10 @@ export function Panel() {
             {styleLib.map((st) => (
               <div key={st.id} className="stylecard">
                 {st.thumb ? (
-                  <button className="stylethumb" title={`Apply ${st.name} to the whole kit — silhouettes stay put`} onClick={() => applyStyle(st.id)}
+                  <button className="stylethumb" title={`Apply ${st.name} to the whole kit. Silhouettes stay put`} onClick={() => applyStyle(st.id)}
                     dangerouslySetInnerHTML={{ __html: st.thumb }} />
                 ) : (
-                  <button className="stylethumb blank" title={`Apply ${st.name} to the whole kit — silhouettes stay put`} onClick={() => applyStyle(st.id)}>Aa</button>
+                  <button className="stylethumb blank" title={`Apply ${st.name} to the whole kit. Silhouettes stay put`} onClick={() => applyStyle(st.id)}>Aa</button>
                 )}
                 <div className="stylecard-row">
                   <span className="stylecard-name">{st.name}</span>
@@ -1744,16 +1744,16 @@ export function Panel() {
                     keep itself: load the whole backlog in one sitting, each
                     with its drop date. */}
                 <NameAction icon={<Globe size={14} strokeWidth={2} />} label="Publish current…"
-                  title="Publish the current style as a preset pack — set a date to hold it until then"
-                  placeholder="Pack name — Pro members see it"
+                  title="Publish the current style as a preset pack. Set a date to hold it until then"
+                  placeholder="Pack name (Pro members see it)"
                   withDate
                   onCommit={(n, day) => publishPreset(n, dayToISO(day ?? ""))} />
                 {/* Review applications moved to the Admin desk (owner: "I
                     don't need to review student applications from the
                     generator, that can live in the admin tools") */}
                 {activeCloudPreset && (
-                  <button className="resetstate" title="Shared presets show for every visitor — Overwrite saves your tweaks back into this one." onClick={() => {
-                    if (window.confirm(`Overwrite the shared preset “${activeCloudPreset.name}” with the current look — for everyone?`)) void overwriteActivePreset().then((err) => { if (err) window.alert(err); });
+                  <button className="resetstate" title="Shared presets show for every visitor. Overwrite saves your tweaks back into this one." onClick={() => {
+                    if (window.confirm(`Overwrite the shared preset “${activeCloudPreset.name}” with the current look for everyone?`)) void overwriteActivePreset().then((err) => { if (err) window.alert(err); });
                   }}>
                     <Upload size={14} strokeWidth={2} /> Overwrite “{activeCloudPreset.name}”
                   </button>
@@ -1806,7 +1806,7 @@ export function Panel() {
               const stock = m.id.startsWith("stock:");
               return (
             <button key={m.id} className={`shapecard${baseShape(focus ? (kitShapes[focus] ?? KIT_SHAPE[baseOf(focus)] ?? D.shape) : D.shape) === m.id ? " on" : ""}${retired ? " retired" : ""}`}
-              title={retired ? `${m.name} — retired from the picker` : `${m.name} — ${m.character}${shapeScopeNote}${m.preview && isAdmin ? " (unlisted preview — admins only)" : ""}`}
+              title={retired ? `${m.name} (retired from the picker)` : `${m.name}: ${m.character}${shapeScopeNote}${m.preview && isAdmin ? " (unlisted preview, admins only)" : ""}`}
               onClick={() => setShapeScoped(m.id)}>
               <svg viewBox="0 0 120 56" aria-hidden="true"><path d={shapePath(m.id, 8, 8, 104, 40, D.bevel.softness)} /></svg>
               <span>{m.name}</span>
@@ -1817,10 +1817,10 @@ export function Panel() {
                    the legacy Restore button below never touches this. */
                 <span className="shapedel" role="button"
                   aria-label={`Delete ${m.name} forever`}
-                  title={retired ? "Retired (restorable below) — × deletes it forever instead" : "Delete this silhouette forever"}
+                  title={retired ? "Retired (restorable below). × deletes it forever instead" : "Delete this silhouette forever"}
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (window.confirm(`Delete "${m.name}" forever — this cannot be undone.\n\nIt leaves the picker, the random rolls and the admin list for everyone, permanently. Kits and boards already wearing it keep rendering.`))
+                    if (window.confirm(`Delete "${m.name}" forever? This cannot be undone.\n\nIt leaves the picker, the random rolls and the admin list for everyone, permanently. Kits and boards already wearing it keep rendering.`))
                       void deleteSilhouetteForever(m.id).then((err) => { if (err) window.alert(err); });
                   }}>×</span>
               )}
@@ -1838,10 +1838,10 @@ export function Panel() {
           return (
             <button className={`resetstate${isFlipShape(live) ? " on" : ""}`} disabled={!canFlip}
               title={canFlip
-                ? "Mirror this silhouette left-to-right — asymmetric cuts point the other way; every surface and export follows"
-                : "This silhouette is symmetric left-to-right, so its mirror image is identical — there's nothing to flip"}
+                ? "Mirror this silhouette left-to-right. Asymmetric cuts point the other way; every surface and export follows"
+                : "This silhouette is symmetric left-to-right, so its mirror image is identical. There's nothing to flip"}
               onClick={() => { if (!canFlip) return; setShapeScoped(flipShape(live)); }}>
-              <ArrowLeftRight size={13} strokeWidth={2} /> Flip horizontally{isFlipShape(live) ? " — mirrored" : canFlip ? "" : " — shape is symmetric"}
+              <ArrowLeftRight size={13} strokeWidth={2} /> Flip horizontally{isFlipShape(live) ? " (mirrored)" : canFlip ? "" : " (shape is symmetric)"}
             </button>
           );
         })()}
@@ -1861,7 +1861,7 @@ export function Panel() {
         {userShapes.length > 0 && (
           <div className="shapegrid">
             {userShapes.map((u) => (
-              <button key={u.id} className={`shapecard${(focus ? (kitShapes[focus] ?? KIT_SHAPE[baseOf(focus)] ?? D.shape) : D.shape) === u.id ? " on" : ""}`} title={`${u.name} — imported silhouette${shapeScopeNote}`}
+              <button key={u.id} className={`shapecard${(focus ? (kitShapes[focus] ?? KIT_SHAPE[baseOf(focus)] ?? D.shape) : D.shape) === u.id ? " on" : ""}`} title={`${u.name} (imported silhouette)${shapeScopeNote}`}
                 onClick={() => setShapeScoped(u.id)}>
                 <svg viewBox="0 0 120 56" aria-hidden="true"><path d={shapePath(u.id, 8, 8, 104, 40, D.bevel.softness)} /></svg>
                 <span>{u.name}</span>
@@ -1899,19 +1899,19 @@ export function Panel() {
              the why waits behind the pointer as a tooltip, never as prose */
           const smoothTitle = !smoothLive
             ? (baseSil === "pill"
-              ? "The pill's ends are already fully round — smoothness shows on cornered silhouettes."
+              ? "The pill's ends are already fully round. Smoothness shows on cornered silhouettes."
               : gothic
-                ? "The Gothic cuts are authored curves — smoothness doesn't apply to them."
-                : `${silName} draws its own edges — smoothness doesn't apply to it.`)
+                ? "The Gothic cuts are authored curves, so smoothness doesn't apply to them."
+                : `${silName} draws its own edges, so smoothness doesn't apply to it.`)
             : !shellSmooths
-              ? "This piece's cell corners ride Smoothness — the shell keeps its authored edge."
+              ? "This piece's cell corners ride Smoothness. The shell keeps its authored edge."
               : undefined;
           return (
             <Slider label="Smoothness" value={D.bevel.softness} min={0} max={100} unit="%" disabled={!smoothLive} title={smoothTitle} onChange={(v) => update((c) => { c.bevel.softness = v; })} />
           );
         })()}
         <Slider label="Content margin" value={cfg.contentMargin ?? 0} min={-20} max={60} unit="px"
-          title="Breathing room between labels and the silhouette's ends — while a piece is focused it pins to that piece alone."
+          title="Breathing room between labels and the silhouette's ends. While a piece is focused it pins to that piece alone."
           onChange={(v) => update((c) => { c.contentMargin = v; })} />
         <div className="actionrow">
         <label className="fileadd">
@@ -1923,7 +1923,7 @@ export function Panel() {
               const doc = new DOMParser().parseFromString(txt, "image/svg+xml");
               const path = doc.querySelector("path");
               const d = path?.getAttribute("d");
-              if (!d) { setShapeErr("No <path> found — flatten the artwork to a single filled path first."); return; }
+              if (!d) { setShapeErr("No <path> found. Flatten the artwork to a single filled path first."); return; }
               const NS = "http://www.w3.org/2000/svg";
               const tmp = document.createElementNS(NS, "svg");
               tmp.setAttribute("style", "position:absolute;opacity:0;pointer-events:none");
@@ -1931,7 +1931,7 @@ export function Panel() {
               pp.setAttribute("d", d);
               tmp.appendChild(pp); document.body.appendChild(tmp);
               const bb = pp.getBBox(); document.body.removeChild(tmp);
-              if (!bb.width || !bb.height) { setShapeErr("That path has no area — export the filled outline, not a stroke."); return; }
+              if (!bb.width || !bb.height) { setShapeErr("That path has no area. Export the filled outline, not a stroke."); return; }
               setShapeErr(null);
               addUserShape({
                 id: `user:${Date.now().toString(36)}`,
@@ -1945,7 +1945,7 @@ export function Panel() {
             silhouette creation") — open to everyone since the free-play
             round: it's a play tool, and guest work staying browser-local
             is the same deal uploads already make */}
-        <button className="fileadd" title="A guided canvas for drawing your own silhouette — end zones, calm middle, the rules on the page"
+        <button className="fileadd" title="A guided canvas for drawing your own silhouette: end zones, calm middle, the rules on the page"
           onClick={() => {
             const blob = new Blob([SIL_TEMPLATE], { type: "image/svg+xml" });
             const a = document.createElement("a");
@@ -1965,12 +1965,12 @@ export function Panel() {
              jargon, no percentages; on demand since the round-56 copy
              purge, and also drawn INTO the template file itself */
           <div className="helper">
-            <b>How to draw one:</b> <b>one filled shape</b>, flattened — no
+            <b>How to draw one:</b> <b>one filled shape</b>, flattened: no
             strokes, groups, or images; size never matters. The ends stay
             <b> exactly as drawn</b> and the middle stretches to fit each
-            piece — keep spikes and ornaments at the ends, give the middle a
+            piece. Keep spikes and ornaments at the ends, give the middle a
             calm stretch of body, and let the shape touch all four edges.
-            Holes and floating pieces are welcome — merge overlapping shapes
+            Holes and floating pieces are welcome. Merge overlapping shapes
             into one before you export.
           </div>
         )}
@@ -1987,7 +1987,7 @@ export function Panel() {
             ? (kitIcons[focus] === "none" ? "no icon" : ((kitIcons[focus] as { name?: string } | undefined)?.name ?? "stock"))
             : (VALUE_DRIVEN.has(baseOf(focus)) ? `value ${Math.round((kitVals[focus] ?? 0.62) * 100)}%` : null)}</span>}>
           {KIT_LESSONS[baseOf(focus)] && <InfoCard cid={baseOf(focus)} />}
-          {finLocked && <div className="helper"><Lock size={11} strokeWidth={2.2} /> Locked — the look is frozen, but these words and data fields are yours to edit.</div>}
+          {finLocked && <div className="helper"><Lock size={11} strokeWidth={2.2} /> Locked: the look is frozen, but these words and data fields are yours to edit.</div>}
           {KIT_STATE_POSES[baseOf(focus)] && (
             /* the badge-with-states tray (owner, round 61 correction: "we
                should think of this like a badge with states") — pinning a
@@ -1999,7 +1999,7 @@ export function Panel() {
               <div className="segmini" role="radiogroup" aria-label="State being styled">
                 {KIT_STATE_POSES[baseOf(focus)]!.map((p) => (
                   <button key={p.name} className={(kitOverlay ?? null) === p.id ? "on" : ""} role="radio" aria-checked={(kitOverlay ?? null) === p.id}
-                    title={`Pose the canvas ${p.name} and edit that state's look — each state styles independently`}
+                    title={`Pose the canvas ${p.name} and edit that state's look. Each state styles independently`}
                     onClick={() => { setKitOverlay(p.id); setSelectedState("default"); }}>{p.name}</button>
                 ))}
               </div>
@@ -2028,7 +2028,7 @@ export function Panel() {
             <Slider label="Value" value={Math.round((kitVals[focus] ?? 0.62) * 100)} min={0} max={100} unit="%"
               title={(() => {
                 const vs = (KIT_SLOTS[baseOf(focus)] ?? []).find((sl) => sl.kind === "value");
-                return vs ? `${vs.name} — ${vs.note ?? "driven by this slider."}` : "The resting pose — the kit page, the Board and exports hold this frame.";
+                return vs ? `${vs.name}: ${vs.note ?? "driven by this slider."}` : "The resting pose: the kit page, the Board and exports hold this frame.";
               })()}
               onChange={(v) => setKitVal(focus, v / 100)} />
             {kitVals[focus] !== undefined && (
@@ -2087,7 +2087,7 @@ export function Panel() {
                        recomputed live as the kit's inks move; the moment a
                        pick is stored, the pick speaks (owner: "make the
                        swatch tell the truth") */
-                    <Well label={slot.statable && pinnedPoseName ? `${slot.name} — ${pinnedPoseName}` : slot.name}
+                    <Well label={slot.statable && pinnedPoseName ? `${slot.name} · ${pinnedPoseName}` : slot.name}
                       title={slot.note} dot={slotForked(slot)}
                       value={eff
                       ?? effSlotColor(applyKitTextFill(cfg, kitTextFill[focus]), baseOf(focus), slot.id, kitSlotVals[focus])
@@ -2108,11 +2108,11 @@ export function Panel() {
                           setKitSlot(focus, seat, effSlotColor(applyKitTextFill(cfg, kitTextFill[focus]), baseOf(focus), slot.id, kitSlotVals[focus]) ?? slot.def ?? "#FFFFFF");
                         else setKitSlot(focus, seat, null);
                       }} />
-                      None — no {slot.name.toLowerCase()}</label>
+                      None (no {slot.name.toLowerCase()})</label>
                   )}
                   {own !== undefined && own !== "none" && (
                     <button className="resetstate"
-                      title={slotForked(slot) ? `Drop this ${pinnedPoseName} fork — follow the ${snBaseName} look again` : "Back to the factory color"}
+                      title={slotForked(slot) ? `Drop this ${pinnedPoseName} fork and follow the ${snBaseName} look again` : "Back to the factory color"}
                       onClick={() => setKitSlot(focus, seat, null)}>
                       <RotateCcw size={13} strokeWidth={2} /> {slotForked(slot) ? `Follow ${snBaseName}` : "Factory color"}
                     </button>
@@ -2138,10 +2138,10 @@ export function Panel() {
               return (
                 <div key={slot.id}>
                   <Slider label={slot.name} value={own ?? restV} min={0} max={100} unit="%"
-                    title={[slot.note, own === undefined ? (slot.def !== undefined ? "At the factory strength until you set it." : "Following the kit — mirrors Candy → Extrusion → Base glow until you set it. Setting 0 quiets this piece alone.") : null].filter(Boolean).join(" ")}
+                    title={[slot.note, own === undefined ? (slot.def !== undefined ? "At the factory strength until you set it." : "Following the kit: mirrors Candy → Extrusion → Base glow until you set it. Setting 0 quiets this piece alone.") : null].filter(Boolean).join(" ")}
                     onChange={(v) => setKitSlot(focus, slotSeat(slot), String(v))} />
                   {own !== undefined && (
-                    <button className="resetstate" title={slot.def !== undefined ? "Back to the factory strength" : "Drop this piece's own strength — mirror the kit's Base glow dial again"}
+                    <button className="resetstate" title={slot.def !== undefined ? "Back to the factory strength" : "Drop this piece's own strength and mirror the kit's Base glow dial again"}
                       onClick={() => setKitSlot(focus, slotSeat(slot), null)}>
                       <RotateCcw size={13} strokeWidth={2} /> {slot.def !== undefined ? "Factory strength" : "Follow the kit"}
                     </button>
@@ -2166,12 +2166,12 @@ export function Panel() {
               (sl.state === pose.id || sl.statable) && kitSlotVals[focus]?.[stateSlotKey(pose.id, sl.id)] !== undefined);
             const forks = owned.filter((sl) => sl.statable);
             return owned.length > 0 ? (<div className="actionrow">
-              <button className="resetstate" title={`Every ${pose.name} pick back to the factory look — the wells follow ${snBaseName} and the kit's roles again`}
+              <button className="resetstate" title={`Every ${pose.name} pick back to the factory look. The wells follow ${snBaseName} and the kit's roles again`}
                 onClick={() => owned.forEach((sl) => setKitSlot(focus, stateSlotKey(pose.id, sl.id), null))}>
-                <RotateCcw size={13} strokeWidth={2} /> Reset {pose.name} — factory look
+                <RotateCcw size={13} strokeWidth={2} /> Reset {pose.name} to the factory look
               </button>
               {forks.length > 0 && (
-                <button className="resetstate makedefault" title={`Promote ${pose.name}'s forked paint to be the ${snBaseName} look — states without their own fork follow it. The ${pose.name}-only furniture (badge, veil) stays put.`}
+                <button className="resetstate makedefault" title={`Promote ${pose.name}'s forked paint to be the ${snBaseName} look. States without their own fork follow it. The ${pose.name}-only furniture (badge, veil) stays put.`}
                   onClick={() => forks.forEach((sl) => {
                     const v = kitSlotVals[focus]?.[stateSlotKey(pose.id!, sl.id)];
                     if (v === undefined) return;
@@ -2198,7 +2198,7 @@ export function Panel() {
                  means follow-the-kit and the stock words come back */
               <label className="check"><input type="checkbox" checked={!!kitNoText[focus]}
                 onChange={(e) => setKitNoText(focus, e.target.checked)} />
-                No text — this piece renders wordless (exports too)</label>
+                No text: this piece renders wordless (exports too)</label>
             )}
             {iconTogglable && !finLocked && (
               <label className="check"><input type="checkbox" checked={kitIcons[focus] !== "none"}
@@ -2216,20 +2216,20 @@ export function Panel() {
               state is pinned they still paint every state, so the block
               dims under the "all states" tag (the statable Glyph-ink well
               above is the per-state road) */}
-          <div className="sublabel" title="Size, weight & effects live under Typography → Icons.">Icon{pinnedPose && <i className="alltag" title={`Pinning ${pinnedPoseName} doesn't scope these — the glyph and this color dress ALL states. Use the Glyph ink well above to ink ${pinnedPoseName} alone.`}>all states</i>}</div>
+          <div className="sublabel" title="Size, weight & effects live under Typography → Icons.">Icon{pinnedPose && <i className="alltag" title={`Pinning ${pinnedPoseName} doesn't scope these. The glyph and this color dress ALL states. Use the Glyph ink well above to ink ${pinnedPoseName} alone.`}>all states</i>}</div>
           <div className={pinnedPose ? "allwrap" : undefined}>
           {/* the color, where a human looks for it (owner) — same state and
               routing as the Typography → Icons swatch, just surfaced here */}
           <label className="check"><input type="checkbox" checked={IC.color === null}
             onChange={(e) => update((c) => { c.icon.color = e.target.checked ? null : "#FFFFFF"; })} /> Inherit type color</label>
           {IC.color !== null && (
-            <Well label={selectedState !== "default" ? `Color — ${STATE_LABEL[selectedState]} only` : "Icon color"}
+            <Well label={selectedState !== "default" ? `Color (${STATE_LABEL[selectedState]} only)` : "Icon color"}
               value={IC.color} onChange={(v) => update((c) => { c.icon.color = v; })} />
           )}
           </div>
           <div className="actionrow">
             <button className={`resetstate${kitIcons[focus] === "none" ? " on" : ""}`} onClick={() => setKitIcon(focus, kitIcons[focus] === "none" ? null : "none")}>
-              <Trash2 size={13} strokeWidth={2} /> {kitIcons[focus] === "none" ? "Icon removed — bring it back" : "Remove the icon"}
+              <Trash2 size={13} strokeWidth={2} /> {kitIcons[focus] === "none" ? "Bring the icon back" : "Remove the icon"}
             </button>
             {kitIcons[focus] && kitIcons[focus] !== "none" && (
               <button className="resetstate" onClick={() => setKitIcon(focus, null)}>
@@ -2240,7 +2240,7 @@ export function Panel() {
           <label className="fieldbox" style={{ minWidth: 0 }}>
             <span className="fl">Icon library</span>
             <select value={browseLib} aria-label="Icon library" onChange={(e) => setBrowseLib(e.target.value)}>
-              {ICON_LIBS.map((l) => <option key={l.id} value={l.id}>{l.name} — {l.note}</option>)}
+              {ICON_LIBS.map((l) => <option key={l.id} value={l.id}>{l.name} ({l.note})</option>)}
             </select>
             <span className="chev"><ChevronDown size={17} strokeWidth={2} /></span>
           </label>
@@ -2274,8 +2274,8 @@ export function Panel() {
               the position holds across all four states by design. */}
           {(iconSwappable || iconTogglable) && !finLocked && (<>
             {!iconSwappable && <div className="sublabel">Icon</div>}
-            <Slider label="Icon nudge X" value={IC.ox} min={-50} max={50} unit="px" def={0} title={`Belongs to ${pieceLabel(focus)} at every state — the rest of the kit's glyphs stay put.`} onChange={(v) => update((c) => { c.icon.ox = v; })} />
-            <Slider label="Icon nudge Y" value={IC.oy} min={-50} max={50} unit="px" def={0} title={`Belongs to ${pieceLabel(focus)} at every state — the rest of the kit's glyphs stay put.`} onChange={(v) => update((c) => { c.icon.oy = v; })} />
+            <Slider label="Icon nudge X" value={IC.ox} min={-50} max={50} unit="px" def={0} title={`Belongs to ${pieceLabel(focus)} at every state. The rest of the kit's glyphs stay put.`} onChange={(v) => update((c) => { c.icon.ox = v; })} />
+            <Slider label="Icon nudge Y" value={IC.oy} min={-50} max={50} unit="px" def={0} title={`Belongs to ${pieceLabel(focus)} at every state. The rest of the kit's glyphs stay put.`} onChange={(v) => update((c) => { c.icon.oy = v; })} />
           </>)}
         </Section>
       )}
@@ -2285,7 +2285,7 @@ export function Panel() {
         <Section id="barsec" title={t("secBar")}
           summary={<span>{(kitBar[focus]?.dock ?? false) ? "docked" : "plain"}</span>}>
           <div className="sublabel">Emblem socket</div>
-          <label className="check" title="A mini shell riding the bar's end — its glyph comes from Component content."><input type="checkbox" checked={kitBar[focus]?.dock ?? false}
+          <label className="check" title="A mini shell riding the bar's end. Its glyph comes from Component content."><input type="checkbox" checked={kitBar[focus]?.dock ?? false}
             onChange={(e) => setKitBar(focus, { dock: e.target.checked })} /> Dock a socket on the track</label>
           {(kitBar[focus]?.dock ?? false) && (
             <div className="segmini" role="radiogroup" aria-label="Dock side">
@@ -2302,7 +2302,7 @@ export function Panel() {
                 duplicate keeps its own cell count. Smooth mode is parked
                 (owner call) — cells light one by one; the renderer snaps
                 regardless, so a toggle would lie. */}
-            <Slider label="Segments" value={kitBar[focus]?.segments ?? 5} min={2} max={12} unit="" title="Cells light one by one — stamina pips." onChange={(v) => setKitBar(focus, { segments: v })} />
+            <Slider label="Segments" value={kitBar[focus]?.segments ?? 5} min={2} max={12} unit="" title="Cells light one by one, like stamina pips." onChange={(v) => setKitBar(focus, { segments: v })} />
             <Slider label="Gap" value={kitBar[focus]?.gap ?? 6} min={2} max={14} unit="px" onChange={(v) => setKitBar(focus, { gap: v })} />
           </>)}
         </Section>
@@ -2333,11 +2333,11 @@ export function Panel() {
           ))}
         </div>
         <div className="chips" style={{ gap: 8 }}>
-          <button className="chipbtn" disabled={missingRoles.length === 0} title={`${missingRoles.length ? `Add ${missingRoles[0]}` : "All effects present"} — effect colors are component-only, never the shell`}
+          <button className="chipbtn" disabled={missingRoles.length === 0} title={`${missingRoles.length ? `Add ${missingRoles[0]}` : "All effects present"}. Effect colors are component-only, never the shell`}
             onClick={() => update((c) => { c.effects[missingRoles[0]] = PRESETS.find((p) => p.id === c.presetId)?.effects[missingRoles[0]] ?? "#888888"; })}>
             <Plus size={14} strokeWidth={2} />
           </button>
-          <button className="chipbtn" disabled={presentRoles.length <= 1} title="Remove last effect color — effect colors are component-only, never the shell"
+          <button className="chipbtn" disabled={presentRoles.length <= 1} title="Remove last effect color. Effect colors are component-only, never the shell"
             onClick={() => update((c) => { delete c.effects[presentRoles[presentRoles.length - 1]]; })}>
             <Minus size={14} strokeWidth={2} />
           </button>
@@ -2352,10 +2352,10 @@ export function Panel() {
         {rarityHelp && (
           <div className="helper">
             <b>How rarity works:</b> the Value slider on a rarity piece (under Component content)
-            picks which tier is displayed — think of it as posing the component for preview and
+            picks which tier is displayed. Think of it as posing the component for preview and
             export. These five tiers define the system itself: your ranks, your names, your colors.
             It&apos;s one shared system across the whole kit, so your game&apos;s rarity language stays
-            consistent everywhere — in your engine, you&apos;d drive the displayed tier from your own
+            consistent everywhere. In your engine, you&apos;d drive the displayed tier from your own
             item data, using these five looks.
           </div>
         )}
@@ -2398,7 +2398,7 @@ export function Panel() {
               <Slider label="Wall width" value={Math.min(wMax, Math.max(wMin, D.bevel.width))} min={wMin} max={wMax} unit="px"
                 onChange={(v) => update((c) => { c.bevel.width = v; c.bevel.off = false; })} />
               <label className="check"><input type="checkbox" checked={D.bevel.off ?? false}
-                onChange={(e) => update((c) => { c.bevel.off = e.target.checked; })} /> No wall — face fills the whole silhouette</label>
+                onChange={(e) => update((c) => { c.bevel.off = e.target.checked; })} /> No wall: face fills the whole silhouette</label>
             </>
           );
         })()}
@@ -2484,7 +2484,7 @@ export function Panel() {
 
       {/* ── E · Lighting ──────────────────────────────────── */}
       <Section id="bars" allStates={!!pinnedPose} title={t("secBarsFills")} summary={<span>{cfg.barFx?.grad2.on || cfg.barFx?.glow.on || cfg.barFx?.shadow.on ? "Styled" : "Plain"}</span>}>
-        <FxToggle label="Second gradient" title="Layers onto every bar fill — progress bars, slider fills, data-row bars. One edit restyles all of them." on={cfg.barFx?.grad2.on ?? false}
+        <FxToggle label="Second gradient" title="Layers onto every bar fill: progress bars, slider fills, data-row bars. One edit restyles all of them." on={cfg.barFx?.grad2.on ?? false}
           onToggle={(v) => update((c) => { const b = c.barFx ?? (c.barFx = defaultBarFx()); b.grad2.on = v; })}>
           <Well label="From" value={cfg.barFx?.grad2.color1 ?? "#FFFFFF"} onChange={(v) => update((c) => { const b = c.barFx ?? (c.barFx = defaultBarFx()); b.grad2.color1 = v; })} />
           <Well label="To" value={cfg.barFx?.grad2.color2 ?? "#7ADCFF"} onChange={(v) => update((c) => { const b = c.barFx ?? (c.barFx = defaultBarFx()); b.grad2.color2 = v; })} />
@@ -2499,13 +2499,13 @@ export function Panel() {
           <label className="checkrow"><input type="checkbox" checked={cfg.barFx?.grad2.vertical ?? true}
             onChange={(e) => update((c) => { const b = c.barFx ?? (c.barFx = defaultBarFx()); b.grad2.vertical = e.target.checked; })} /> Vertical sweep</label>
         </FxToggle>
-        <FxToggle label="Fill glow" title="Layers onto every bar fill — progress bars, slider fills, data-row bars. One edit restyles all of them." on={cfg.barFx?.glow.on ?? false}
+        <FxToggle label="Fill glow" title="Layers onto every bar fill: progress bars, slider fills, data-row bars. One edit restyles all of them." on={cfg.barFx?.glow.on ?? false}
           onToggle={(v) => update((c) => { const b = c.barFx ?? (c.barFx = defaultBarFx()); b.glow.on = v; })}>
           <Well label="Color" value={cfg.barFx?.glow.color ?? "#8FF0FF"} onChange={(v) => update((c) => { const b = c.barFx ?? (c.barFx = defaultBarFx()); b.glow.color = v; })} />
           <Slider label="Size" value={cfg.barFx?.glow.size ?? 7} min={2} max={18} unit="px" onChange={(v) => update((c) => { const b = c.barFx ?? (c.barFx = defaultBarFx()); b.glow.size = v; })} />
           <Slider label="Opacity" value={cfg.barFx?.glow.opacity ?? 70} min={0} max={100} unit="%" onChange={(v) => update((c) => { const b = c.barFx ?? (c.barFx = defaultBarFx()); b.glow.opacity = v; })} />
         </FxToggle>
-        <FxToggle label="Inner shadow" title="Layers onto every bar fill — progress bars, slider fills, data-row bars. One edit restyles all of them." on={cfg.barFx?.shadow.on ?? false}
+        <FxToggle label="Inner shadow" title="Layers onto every bar fill: progress bars, slider fills, data-row bars. One edit restyles all of them." on={cfg.barFx?.shadow.on ?? false}
           onToggle={(v) => update((c) => { const b = c.barFx ?? (c.barFx = defaultBarFx()); b.shadow.on = v; })}>
           <Slider label="Opacity" value={cfg.barFx?.shadow.opacity ?? 40} min={0} max={90} unit="%" onChange={(v) => update((c) => { const b = c.barFx ?? (c.barFx = defaultBarFx()); b.shadow.opacity = v; })} />
         </FxToggle>
@@ -2523,7 +2523,7 @@ export function Panel() {
         {D.lighting.tint != null && (
           <Well label="Light color" value={D.lighting.tint} onChange={(v) => update((c) => { c.lighting.tint = v; })} />
         )}
-        <Slider label="Light angle" value={D.lighting.angle} min={0} max={360} unit="°" title="One key light drives every layer — gradients, gloss side, specular position, extrusion flanks and the shadow direction." onChange={(v) => update((c) => { c.lighting.angle = ((v % 360) + 360) % 360; })} />
+        <Slider label="Light angle" value={D.lighting.angle} min={0} max={360} unit="°" title="One key light drives every layer: gradients, gloss side, specular position, extrusion flanks and the shadow direction." onChange={(v) => update((c) => { c.lighting.angle = ((v % 360) + 360) % 360; })} />
         <div className="ctl">
           <label>Direction</label>
           <AngleDial value={D.lighting.angle} onChange={(v) => update((c) => { c.lighting.angle = v; })} />
@@ -2617,7 +2617,7 @@ export function Panel() {
               <Slider label="Spacing" value={C.specular.gap} min={50} max={300} unit="%" onChange={(v) => update((c) => { c.candy.specular.gap = v; })} />
             )}
             {C.specular.mode !== "sweep" && (<>
-              <Slider label="Angle" value={C.specular.angle} min={-80} max={80} unit="°" title="Tilts the cut of the mark's ends — it rides the silhouette's lit edge." onChange={(v) => update((c) => { c.candy.specular.angle = v; })} />
+              <Slider label="Angle" value={C.specular.angle} min={-80} max={80} unit="°" title="Tilts the cut of the mark's ends as it rides the silhouette's lit edge." onChange={(v) => update((c) => { c.candy.specular.angle = v; })} />
               <Slider label="Nudge X" value={C.specular.ox} min={-50} max={50} unit="" title="Travels the mark edge to edge along the lit silhouette." onChange={(v) => update((c) => { c.candy.specular.ox = v; })} />
               <Slider label="Nudge Y" value={C.specular.oy} min={-50} max={50} unit="" title="How deep below the shell the mark sits." onChange={(v) => update((c) => { c.candy.specular.oy = v; })} />
             </>)}
@@ -2651,21 +2651,21 @@ export function Panel() {
         <Slider label="Blur" value={D.shadow.blur} min={0} max={60} unit="px" onChange={(v) => update((c) => { c.shadow.blur = v; })} />
         <Slider label="Opacity" value={D.shadow.opacity} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.shadow.opacity = v; })} />
         <div className="sublabel">Body shading</div>
-        <Slider label="Darkness" value={C.extrusion.darkness} min={0} max={100} unit="%" title="The body is lit by the key light — its flanks brighten and darken as you spin the angle. Pressing compresses it." onChange={(v) => update((c) => { c.candy.extrusion.darkness = v; })} />
+        <Slider label="Darkness" value={C.extrusion.darkness} min={0} max={100} unit="%" title="The body is lit by the key light, so its flanks brighten and darken as you spin the angle. Pressing compresses it." onChange={(v) => update((c) => { c.candy.extrusion.darkness = v; })} />
       </Section>
 
       {/* ── Data row — its own control model: two independent text groups,
             slot toggles, safe bounds. Objectives share this editor. ── */}
       {(!!focus && baseOf(focus) === "datarow") && (
         <Section id="datarowsec" title={t("secDataRow")}>
-          <div className="sublabel">Text group A — title</div>
+          <div className="sublabel">Text group A: title</div>
           <input className="tinput" value={kitRow.title} maxLength={32} aria-label="Row title"
-            title="Long titles clip inside the safe bounds — the layout never moves."
+            title="Long titles clip inside the safe bounds. The layout never moves."
             onChange={(e) => setKitRow({ title: e.target.value })} />
           <Slider label="Size" value={kitRow.titleSize} min={60} max={160} unit="%" onChange={(v) => setKitRow({ titleSize: v })} />
           <Slider label="Tracking" value={kitRow.titleTrack} min={-5} max={20} unit="" onChange={(v) => setKitRow({ titleTrack: v })} />
           <Slider label="Nudge Y" value={kitRow.titleDy} min={-20} max={20} unit="px" onChange={(v) => setKitRow({ titleDy: v })} />
-          <div className="sublabel">Text group B — second line</div>
+          <div className="sublabel">Text group B: second line</div>
           <label className="check"><input type="checkbox" checked={kitRow.subOn ?? true} onChange={(e) => setKitRow({ subOn: e.target.checked })} /> Show the second line</label>
           <input className="tinput" value={kitRow.sub} maxLength={40} aria-label="Row subtitle"
             onChange={(e) => setKitRow({ sub: e.target.value })} />
@@ -2673,7 +2673,7 @@ export function Panel() {
           <Slider label="Tracking" value={kitRow.subTrack} min={-5} max={20} unit="" onChange={(v) => setKitRow({ subTrack: v })} />
           <Slider label="Nudge Y" value={kitRow.subDy} min={-40} max={40} unit="px" onChange={(v) => setKitRow({ subDy: v })} />
           <label className="check"><input type="checkbox" checked={(kitRow.subColor ?? null) === null}
-            onChange={(e) => setKitRow({ subColor: e.target.checked ? null : "#B7C6DA" })} /> Soft white — the kit's default</label>
+            onChange={(e) => setKitRow({ subColor: e.target.checked ? null : "#B7C6DA" })} /> Soft white, the kit's default</label>
           {kitRow.subColor != null && (
             <Well label="Line 2 color" value={kitRow.subColor} onChange={(v) => setKitRow({ subColor: v })} />
           )}
@@ -2698,7 +2698,7 @@ export function Panel() {
         {focus && labelEditable ? (
           <>
             <input className="tinput" value={kitLabels[focus] ?? ""} maxLength={labelMaxOf(baseOf(focus))} aria-label="Label text"
-              placeholder={kitNoText[focus] ? `${pieceLabel(focus)} is set to No text (Component content)` : `${pieceLabel(focus)} text — empty for the default`}
+              placeholder={kitNoText[focus] ? `${pieceLabel(focus)} is set to No text (Component content)` : `${pieceLabel(focus)} text (empty for the default)`}
               disabled={!!kitNoText[focus]}
               onChange={(e) => setKitLabel(focus, e.target.value)} />
             {iconTogglable && (
@@ -2721,12 +2721,12 @@ export function Panel() {
           const e2 = ctaEntry(focus && labelEditable ? (kitLabels[focus] ?? "") : cfg.content.label);
           const showing = e2 && (focus && labelEditable ? (kitLabels[focus] ?? "") : cfg.content.label).trim() === e2.zh;
           return showing ? (
-            <InfoNote summary={<>“{e2.zh}” = <b>{e2.en}</b> — {e2.gloss}.</>}>
-              Swapped in automatically for the Chinese face ({fontLang(T2.font) === "zh" ? T2.font : "previous font"}). Type anything to replace it — bespoke labels are never auto-translated. Picking a Latin face swaps a dictionary CTA back to English.
+            <InfoNote summary={<>“{e2.zh}” = <b>{e2.en}</b>, {e2.gloss}.</>}>
+              Swapped in automatically for the Chinese face ({fontLang(T2.font) === "zh" ? T2.font : "previous font"}). Type anything to replace it. Bespoke labels are never auto-translated. Picking a Latin face swaps a dictionary CTA back to English.
             </InfoNote>
           ) : null;
         })()}
-        <input className="tinput" value={T2.highlight ?? ""} maxLength={32} placeholder="Highlight phrase — e.g. VICTORY" aria-label="Highlight phrase"
+        <input className="tinput" value={T2.highlight ?? ""} maxLength={32} placeholder="Highlight phrase (e.g. VICTORY)" aria-label="Highlight phrase"
           title="The first matching phrase in the label lights up as brighter material."
           onChange={(e) => update((c) => { c.type.highlight = e.target.value; })} />
         <FontPicker value={T2.font} customFonts={T2.customFonts ?? []}
@@ -2747,7 +2747,7 @@ export function Panel() {
             });
           }} />
         <div className="addfont">
-          <input className="tinput" value={fontDraft} placeholder="Add Google Font — exact family name" aria-label="Add Google Font"
+          <input className="tinput" value={fontDraft} placeholder="Add Google Font (exact family name)" aria-label="Add Google Font"
             title="Paste the family name exactly as it appears on fonts.google.com (e.g. “Titan One”)."
             onChange={(e) => setFontDraft(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") addFont(); }} />
@@ -2755,7 +2755,7 @@ export function Panel() {
             <Plus size={14} strokeWidth={2} />
           </button>
         </div>
-        <label className="fieldbox" style={{ minWidth: 0 }} title="Reading text — lists, dialogue, chat — speaks this face; titles keep the display font.">
+        <label className="fieldbox" style={{ minWidth: 0 }} title="Reading text (lists, dialogue, chat) speaks this face; titles keep the display font.">
           <span className="fl">List font</span>
           <select value={cfg.type.listFont ?? ""} aria-label="List font"
             onChange={(e) => { const v = e.target.value || null; if (v) ensureFont(v); update((c) => { c.type.listFont = v; }); }}>
@@ -2795,13 +2795,13 @@ export function Panel() {
         {focus ? (
           <>
             <Slider label="Nudge Y" value={kitTextOy[`${focus}:${effKitSize(kitSizes[focus])}`] ?? T2.oy ?? 0} min={-60} max={60} unit="px"
-              title={`Belongs to ${pieceLabel(focus)} at its current size — never moves anything else.`}
+              title={`Belongs to ${pieceLabel(focus)} at its current size. It never moves anything else.`}
               onChange={(v) => setKitTextOy(`${focus}:${effKitSize(kitSizes[focus])}`, v)} />
             <Slider label="Nudge X" value={kitTextOx[`${focus}:${effKitSize(kitSizes[focus])}`] ?? T2.ox ?? 0} min={-60} max={60} unit="px"
-              title={`Belongs to ${pieceLabel(focus)} at its current size — never moves anything else.`}
+              title={`Belongs to ${pieceLabel(focus)} at its current size. It never moves anything else.`}
               onChange={(v) => setKitTextOx(`${focus}:${effKitSize(kitSizes[focus])}`, v)} />
             {(kitTextOy[`${focus}:${effKitSize(kitSizes[focus])}`] !== undefined || kitTextOx[`${focus}:${effKitSize(kitSizes[focus])}`] !== undefined) && (
-              <button className="resetstate" title="Clear this component's nudges — follow the theme again"
+              <button className="resetstate" title="Clear this component's nudges and follow the theme again"
                 onClick={() => { setKitTextOy(`${focus}:${effKitSize(kitSizes[focus])}`, null); setKitTextOx(`${focus}:${effKitSize(kitSizes[focus])}`, null); }}>
                 <RotateCcw size={12} strokeWidth={2} /> Clear nudges
               </button>
@@ -2826,7 +2826,7 @@ export function Panel() {
           const ws = caps?.weights ?? [T2.weight];
           if (ws.length <= 1) {
             return (
-              <Slider label="Weight" value={T2.weight} min={ws[0] ?? 400} max={900} step={25} unit="" title="This face ships one master — heavier weights are built optically, fattening the glyphs without touching the metrics." onChange={(v) => update((c) => { c.type.weight = v; })} />
+              <Slider label="Weight" value={T2.weight} min={ws[0] ?? 400} max={900} step={25} unit="" title="This face ships one master. Heavier weights are built optically, fattening the glyphs without touching the metrics." onChange={(v) => update((c) => { c.type.weight = v; })} />
             );
           }
           return (
@@ -2863,10 +2863,10 @@ export function Panel() {
         {focus && kitTextFill[focus] ? (() => {
           const fname = pieceLabel(focus);
           return (<>
-            <Well label={`Fill — ${fname} only`} value={kitTextFill[focus]!} onChange={(v) => setKitTextFill(focus, v)} />
-            <button className="resetstate" title="Unpin the per-piece text color — this piece follows the kit's fills again"
+            <Well label={`Fill (${fname} only)`} value={kitTextFill[focus]!} onChange={(v) => setKitTextFill(focus, v)} />
+            <button className="resetstate" title="Unpin the per-piece text color. This piece follows the kit's fills again"
               onClick={() => setKitTextFill(focus, null)}>
-              <RotateCcw size={13} strokeWidth={2} /> Release — rejoin the kit's colors
+              <RotateCcw size={13} strokeWidth={2} /> Release back to the kit's colors
             </button>
           </>);
         })() : (<>
@@ -2895,7 +2895,7 @@ export function Panel() {
             them legible on any face; a pinned color follows the scope bar
             like every other type control (owner: "how do I edit the black
             text?"). */}
-        <div className="ctl" title="Timers, counts and stats — the utilitarian numbers on data pieces.">
+        <div className="ctl" title="Timers, counts and stats: the utilitarian numbers on data pieces.">
           <label>Readout ink</label>
           <div className="segmini" role="radiogroup">
             <button className={!T2.infoInk ? "on" : ""} role="radio" aria-checked={!T2.infoInk}
@@ -2917,15 +2917,15 @@ export function Panel() {
           return (<>
             <div className="sublabel">This piece only</div>
             <label className="check" title={kitTextFill[focus]
-              ? `Pinned — ${fname} keeps its color no matter how the kit changes. The color well replaces Fill above; untick to rejoin the kit.`
-              : `Pins one color to ${fname}'s text — the rest of the kit keeps following the fills.`}>
+              ? `Pinned: ${fname} keeps its color no matter how the kit changes. The color well replaces Fill above; untick to rejoin the kit.`
+              : `Pins one color to ${fname}'s text. The rest of the kit keeps following the fills.`}>
               <input type="checkbox" checked={!!kitTextFill[focus]}
                 onChange={(e) => setKitTextFill(focus, e.target.checked ? (T2.fillMode !== "auto" ? T2.fill : "#FFFFFF") : null)} />
               Own text color for <b>{fname}</b></label>
           </>);
         })()}
 
-        <label className="fieldbox" style={{ minWidth: 0 }} title="Presets fill the controls below — keep tweaking, nothing locks.">
+        <label className="fieldbox" style={{ minWidth: 0 }} title="Presets fill the controls below. Keep tweaking, nothing locks.">
           <span className="fl">Text style preset</span>
           <select value={T2.preset} aria-label="Text style preset"
             onChange={(e) => update((c) => { applyTextPreset(c.type, e.target.value, palette); })}>
@@ -2955,7 +2955,7 @@ export function Panel() {
           <Slider label="Blur" value={T2.shadow.blur} min={0} max={12} step={0.5} unit="px" onChange={(v) => update((c) => { c.type.shadow.blur = v; })} />
           <Slider label="Opacity" value={T2.shadow.opacity} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.type.shadow.opacity = v; })} />
         </FxToggle>
-        <FxToggle label="Emboss / Deboss" title="Positive depth embosses, negative debosses — the relief follows the master light." on={T2.emboss.on} onToggle={(v) => update((c) => { c.type.emboss.on = v; })}>
+        <FxToggle label="Emboss / Deboss" title="Positive depth embosses, negative debosses. The relief follows the master light." on={T2.emboss.on} onToggle={(v) => update((c) => { c.type.emboss.on = v; })}>
           <Slider label="Depth" value={T2.emboss.strength} min={-100} max={100} unit="%" onChange={(v) => update((c) => { c.type.emboss.strength = v; })} />
           <Slider label="Distance" value={T2.emboss.distance ?? 2} min={0} max={8} step={0.5} unit="px" onChange={(v) => update((c) => { c.type.emboss.distance = v; })} />
           <Slider label="Hi softness" value={T2.emboss.softness ?? 30} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.type.emboss.softness = v; })} />
@@ -2972,7 +2972,7 @@ export function Panel() {
           <Slider label="Size" value={T2.glow.size} min={2} max={24} unit="px" onChange={(v) => update((c) => { c.type.glow.size = v; })} />
           <Slider label="Opacity" value={T2.glow.opacity} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.type.glow.opacity = v; })} />
         </FxToggle>
-        <FxToggle label="Pattern fill" title="Any face pattern inside the letterforms — tone-on-tone from the shell color. Unity: live labels skip it (one shared text material can't tile every label length) — Type Stamps carry it pixel-perfect, and the seamless tile ships in fonts/." on={T2.stripes?.on ?? false}
+        <FxToggle label="Pattern fill" title="Any face pattern inside the letterforms, tone-on-tone from the shell color. Unity: live labels skip it (one shared text material can't tile every label length). Type Stamps carry it pixel-perfect, and the seamless tile ships in fonts/." on={T2.stripes?.on ?? false}
           onToggle={(v) => update((c) => { c.type.stripes = { ...(c.type.stripes ?? {}), on: v, angle: c.type.stripes?.angle ?? 45, opacity: c.type.stripes?.opacity ?? 30, style: c.type.stripes?.style ?? "stripes" }; })}>
           <div className="ctl">
             <label>Style</label>
@@ -2989,7 +2989,7 @@ export function Panel() {
           <Slider label="Scale" value={T2.stripes?.scale ?? 100} min={25} max={300} unit="%" onChange={(v) => update((c) => { c.type.stripes = { ...(c.type.stripes ?? { on: true, angle: 45, opacity: 30 }), on: c.type.stripes?.on ?? true, angle: c.type.stripes?.angle ?? 45, opacity: c.type.stripes?.opacity ?? 30, scale: v }; })} />
           <Slider label="Opacity" value={T2.stripes?.opacity ?? 30} min={0} max={100} unit="%" onChange={(v) => update((c) => { c.type.stripes = { ...(c.type.stripes ?? { on: true, angle: 45 }), on: c.type.stripes?.on ?? true, angle: c.type.stripes?.angle ?? 45, opacity: v }; })} />
         </FxToggle>
-        <FxToggle label="Highlight glints" title="Crisp vector highlights riding the letterforms — a specular slab clipped to the glyphs plus star glints, following the master Lighting angle. Unity: per-letter painting ships baked into the sprites and Type Stamps; live labels carry the rest of the treatment." on={T2.glints?.on ?? false}
+        <FxToggle label="Highlight glints" title="Crisp vector highlights riding the letterforms: a specular slab clipped to the glyphs plus star glints, following the master Lighting angle. Unity: per-letter painting ships baked into the sprites and Type Stamps; live labels carry the rest of the treatment." on={T2.glints?.on ?? false}
           onToggle={(v) => update((c) => { c.type.glints = { ...(c.type.glints ?? { opacity: 55 }), on: v, opacity: c.type.glints?.opacity ?? 55 }; })}>
           <label className="fieldbox" style={{ minWidth: 0 }}>
             <span className="fl">Glint style</span>
@@ -3015,7 +3015,7 @@ export function Panel() {
           <Slider label="Nudge X" value={T2.glints?.ox ?? 0} min={-60} max={60} unit="%" title="Shifts the whole treatment in % of the letter height." onChange={(v) => update((c) => { c.type.glints = { ...(c.type.glints ?? { opacity: 55 }), on: c.type.glints?.on ?? true, opacity: c.type.glints?.opacity ?? 55, ox: v }; })} />
           <Slider label="Nudge Y" value={T2.glints?.oy ?? 0} min={-60} max={60} unit="%" title="Shifts the whole treatment in % of the letter height." onChange={(v) => update((c) => { c.type.glints = { ...(c.type.glints ?? { opacity: 55 }), on: c.type.glints?.on ?? true, opacity: c.type.glints?.opacity ?? 55, oy: v }; })} />
         </FxToggle>
-        <FxToggle label="Ink shine" title="Hand-inked light crescents hugging each letterform's lit edges — bowls get shoulder sweeps, stems get caps — following the master Lighting angle. Blend overlay or soft-light reads as glassy lift on gradient fills. Unity: ships baked into the sprites and Type Stamps; live labels carry the rest." on={T2.shine?.on ?? false}
+        <FxToggle label="Ink shine" title="Hand-inked light crescents hugging each letterform's lit edges (bowls get shoulder sweeps, stems get caps), following the master Lighting angle. Blend overlay or soft-light reads as glassy lift on gradient fills. Unity: ships baked into the sprites and Type Stamps; live labels carry the rest." on={T2.shine?.on ?? false}
           onToggle={(v) => update((c) => { c.type.shine = { size: 4, inset: 2, round: 2, opacity: 100, ...(c.type.shine ?? {}), on: v }; })}>
           <Slider label="Size" value={T2.shine?.size ?? 4} min={1} max={10} step={0.5} unit="px" title="How far the light reaches along each edge."
             onChange={(v) => update((c) => { c.type.shine = { on: true, inset: 2, round: 2, opacity: 100, ...(c.type.shine ?? {}), size: v }; })} />
@@ -3056,10 +3056,10 @@ export function Panel() {
             onChange={(e) => {
               if (focus) setKitIcon(focus, e.target.checked ? null : "none");
               else update((c) => { c.icon.show = e.target.checked; });
-            }} /> Icon at the end of the text{focus ? ` — ${pieceLabel(focus)}` : ""}</label>
+            }} /> Icon at the end of the text{focus ? ` (${pieceLabel(focus)})` : ""}</label>
         )}
         {selectedState !== "default" && (
-          <div className="helper">Editing <b>{STATE_LABEL[selectedState]}</b> — these dials pin to this state; the other states keep following the main icon.</div>
+          <div className="helper">Editing <b>{STATE_LABEL[selectedState]}</b>: these dials pin to this state; the other states keep following the main icon.</div>
         )}
         <Slider label="Size" value={IC.size} min={40} max={170} unit="%" onChange={(v) => update((c) => { c.icon.size = v; })} />
         <Slider label="Weight" value={IC.strokeWidth} min={5} max={40} unit="/10" onChange={(v) => update((c) => { c.icon.strokeWidth = v; })} />
@@ -3067,10 +3067,10 @@ export function Panel() {
             same inherit-with-escape-hatch contract as the color below */}
         {T2.outline.on && (<>
           <Slider label="Outline width" value={IC.outlineWidth ?? T2.outline.width} min={0} max={8} step={0.5} unit="px"
-            title={IC.outlineWidth == null ? "Following Type → Outline — move the slider and the icon border takes its own width. 0 removes it; the text keeps its outline." : undefined}
+            title={IC.outlineWidth == null ? "Following Type → Outline. Move the slider and the icon border takes its own width. 0 removes it; the text keeps its outline." : undefined}
             onChange={(v) => update((c) => { c.icon.outlineWidth = v; })} />
           {IC.outlineWidth != null && (
-            <button className="resetstate" title="Drop the icon's own width — the border follows Type → Outline again"
+            <button className="resetstate" title="Drop the icon's own width and the border follows Type → Outline again"
               onClick={() => update((c) => { c.icon.outlineWidth = null; })}>
               <RotateCcw size={13} strokeWidth={2} /> Follow the type outline
             </button>
@@ -3085,7 +3085,7 @@ export function Panel() {
         <label className="check"><input type="checkbox" checked={IC.color === null}
           onChange={(e) => update((c) => { c.icon.color = e.target.checked ? null : "#FFFFFF"; })} /> Inherit type color</label>
         {IC.color !== null && <Well label="Custom color" value={IC.color} onChange={(v) => update((c) => { c.icon.color = v; })} />}
-        <div className="sublabel" title="Every glyph in the kit follows this one treatment — swap a single piece's glyph in Component content.">Icon effects</div>
+        <div className="sublabel" title="Every glyph in the kit follows this one treatment. Swap a single piece's glyph in Component content.">Icon effects</div>
         <div className="fxrow">
           {(["shadow", "glow", "emboss"] as const).map((f) => (
             <button key={f} className={`fxchip${IC.fx[f] ? " on" : ""}`} aria-pressed={IC.fx[f]}
@@ -3111,7 +3111,7 @@ export function Panel() {
         <label className="fieldbox" style={{ minWidth: 0 }}>
           <span className="fl">Icon library</span>
           <select value={browseLib} aria-label="Icon library" onChange={(e) => setBrowseLib(e.target.value)}>
-            {ICON_LIBS.map((l) => <option key={l.id} value={l.id}>{l.name} — {l.note}</option>)}
+            {ICON_LIBS.map((l) => <option key={l.id} value={l.id}>{l.name} ({l.note})</option>)}
           </select>
           <span className="chev"><ChevronDown size={17} strokeWidth={2} /></span>
         </label>
@@ -3167,13 +3167,13 @@ export function Panel() {
             <Trash2 size={13} strokeWidth={2} /> Remove icon
           </button>
         </>)}
-        {(!cfg.icon.show || !cfg.icon.def) && <div className="helper">No icon — the label recenters itself.</div>}
+        {(!cfg.icon.show || !cfg.icon.def) && <div className="helper">No icon, so the label recenters itself.</div>}
       </Section>
       )}
 
       {/* ── Library — approved components ─────────────────── */}
       <Section id="library" title={t("secLibrary")} summary={<span>{library.length} saved</span>}>
-        {library.length === 0 && <div className="helper">The flow: design a component → “OK — add to library” saves it here → the + button places it on the stage (Board) → drag to arrange, Play to feel the states.</div>}
+        {library.length === 0 && <div className="helper">The flow: design a component → “OK, add to library” saves it here → the + button places it on the stage (Board) → drag to arrange, Play to feel the states.</div>}
         <div className="libgrid">
           {library.map((item) => (
             <div className="libcard" key={item.id}>
@@ -3213,27 +3213,27 @@ export function Panel() {
             useGen.setState((st) => ({ open: { ...st.open, library: true } }));
             window.setTimeout(() => setJustAdded(false), 1800);
           }}>
-          <CheckCircle2 size={16} strokeWidth={1.9} /> {justAdded ? `✓ Saved — ${library.length} in Library` : "OK — add to library"}
+          <CheckCircle2 size={16} strokeWidth={1.9} /> {justAdded ? `✓ Saved · ${library.length} in Library` : "OK, add to library"}
         </button>
       </div>
       {(
         <div className="btnrow">
           <button className="randbtn kit" onClick={() => setPhase("kit")}
-            title="Open the Kit — pick which component to work on">
+            title="Open the Kit: pick which component to work on">
             <Hammer size={16} strokeWidth={1.9} /> The Kit
           </button>
           <button className="randbtn kit" onClick={() => setPhase("board")}
-            title="Free sketch area — drag saved components around">
+            title="Free sketch area: drag saved components around">
             <LayoutGrid size={16} strokeWidth={1.9} /> Board
           </button>
         </div>
       )}
       <button className="resetall"
-        title="Wipe the design, locks, per-piece overrides, library, board and presets — back to the factory kit"
+        title="Wipe the design, locks, per-piece overrides, library, board and presets. Back to the factory kit"
         onClick={() => {
           if (window.confirm("Reset everything?\n\nThis clears the kit design, all locks and per-piece overrides, the library, the board and your saved presets, then restores the factory kit. This cannot be undone.")) resetAll();
         }}>
-        Reset everything — back to the factory kit
+        Reset everything back to the factory kit
       </button>
     </aside>
   );

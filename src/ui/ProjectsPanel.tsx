@@ -112,7 +112,7 @@ export function ProjectsPanel({ onBack, onClose, confirmReplace = true, onOpened
     setNewName("");
     /* say what happened, especially the rename — a silent suffix would
        trade one confusion for another */
-    setNote(name === desired ? `Saved as “${name}”.` : `Saved as “${name}” — “${desired}” already exists.`);
+    setNote(name === desired ? `Saved as “${name}”.` : `Saved as “${name}”. “${desired}” already exists.`);
     /* a save mints a NEW file and you are now IN it — bind the workspace
        to the fresh row and let the TopBar chip say so out loud (owner:
        "there is a moment of confusion... it's not entirely clear when
@@ -121,16 +121,16 @@ export function ProjectsPanel({ onBack, onClose, confirmReplace = true, onOpened
     g.setOpenProject(project.id);
     g.flashFile(
       prevOpenId && prevName && prevName !== name
-        ? `You're now working in “${name}” — “${prevName}” is untouched.`
+        ? `You're now working in “${name}”. “${prevName}” is untouched.`
         : name !== desired
-          ? `You're now working in “${name}” — “${desired}” already exists.`
+          ? `You're now working in “${name}”. “${desired}” already exists.`
           : `You're now working in “${name}”.`,
     );
     await refresh();
   };
 
   const doOpen = async (p: CloudProject) => {
-    if (confirmReplace && !window.confirm(`Open “${p.name}”? It replaces the kit on screen AND the boards — save the current work as a project first if you want to keep either.`)) return;
+    if (confirmReplace && !window.confirm(`Open “${p.name}”? It replaces the kit on screen AND the boards. Save the current work as a project first if you want to keep either.`)) return;
     setBusy(true); setNote(null);
     const { doc, error } = await loadProjectDoc(p.id);
     setBusy(false);
@@ -168,13 +168,13 @@ export function ProjectsPanel({ onBack, onClose, confirmReplace = true, onOpened
     const error = await renameProject(p.id, name);
     setBusy(false);
     if (error) { setNote(error); return; }
-    if (name !== desired) setNote(`Renamed to “${name}” — “${desired}” already exists.`);
+    if (name !== desired) setNote(`Renamed to “${name}”. “${desired}” already exists.`);
     /* renaming the OPEN file: the chip's identity follows, without
        claiming unsaved changes — only the row's name moved, not the doc */
     if (useGen.getState().openProjectId === p.id) {
       useGen.getState().setKitName(name);
       useGen.getState().setOpenProject(p.id);
-      useGen.getState().flashFile(`Renamed — you're now working in “${name}”.`);
+      useGen.getState().flashFile(`Renamed. You're now working in “${name}”.`);
     }
     await refresh();
   };
@@ -193,7 +193,7 @@ export function ProjectsPanel({ onBack, onClose, confirmReplace = true, onOpened
        not an RLS error. Publishing (the other direction) is open to all. */
     const st = useGen.getState();
     if (p.is_public && !(st.tier === "pro" || st.isAdmin)) {
-      setNote("Private kits come with Pro — free and student kits are part of the community.");
+      setNote("Private kits come with Pro. Free and student kits are part of the community.");
       return;
     }
     setBusy(true); setNote(null);
@@ -273,7 +273,7 @@ export function ProjectsPanel({ onBack, onClose, confirmReplace = true, onOpened
               {/* the eyeball tells the STATE (owner call): open eye = the
                   world can see it, slashed = private. Click to flip. */}
               <button className={p.is_public ? "proj-eye on" : "proj-eye"}
-                title={p.is_public ? "Public — anyone with the link can view it, and it may be curated into the Community Gallery. Click to make private." : "Private — only you. Click to share: it gets a public link and may be curated into the Community Gallery."}
+                title={p.is_public ? "Public: anyone with the link can view it, and it may be curated into the Community Gallery. Click to make private." : "Private: only you. Click to share: it gets a public link and may be curated into the Community Gallery."}
                 disabled={busy} onClick={() => void togglePublic(p)}>
                 {p.is_public ? <Eye size={14} strokeWidth={1.8} /> : <EyeOff size={14} strokeWidth={1.8} />}
               </button>

@@ -136,7 +136,7 @@ export function SliceStage() {
   if (!vals || !probe) {
     return (
       <div className="slicestage" role="dialog" aria-label="Slicing workbench">
-        <div className="ss-head"><b>Unity slicing — {name}</b>
+        <div className="ss-head"><b>Unity slicing: {name}</b>
           <button className="ss-x" onClick={() => setSliceStage(null)} aria-label="Close"><X size={15} /></button>
         </div>
         <div className="ss-wait">Reading the sprite…</div>
@@ -208,11 +208,11 @@ export function SliceStage() {
   return (
     <div className="slicestage" role="dialog" aria-label="Slicing workbench" ref={wrapRef}>
       <div className="ss-head">
-        <b>Unity slicing — {name}</b>
+        <b>Unity slicing: {name}</b>
         <span className="ss-modes">
           <button className={`allstateschip${!on ? " on" : ""}`} title="Borders measured from the rendered pixels at export."
             onClick={() => setKitSlice(cid, null)}>Auto</button>
-          <button className={`allstateschip${on ? " on" : ""}`} title="Your numbers ship exactly — drag the guides or nudge with arrow keys."
+          <button className={`allstateschip${on ? " on" : ""}`} title="Your numbers ship exactly. Drag the guides or nudge with arrow keys."
             onClick={() => { if (!on) setKitSlice(cid, seed ?? { left: 40, right: 40, top: 36, bottom: 36 }); }}>Custom</button>
         </span>
         <span className="ss-zoom">
@@ -239,7 +239,7 @@ export function SliceStage() {
       {pat.any && (
         <div className="ss-warn" role="note">
           <AlertTriangle size={13} strokeWidth={2.4} aria-hidden="true" />
-          <span>This piece wears a {pat.wall && !pat.face ? "wall " : ""}pattern — Sliced stretching smears it, and the noise grows with the stretch (the test below is honest). This only bites when a prefab is hand-stretched inside Unity; keep that modest. Copies on your boards are safe — posed away from these proportions, they ship as the app&apos;s own render.</span>
+          <span>This piece wears a {pat.wall && !pat.face ? "wall " : ""}pattern. Sliced stretching smears it, and the noise grows with the stretch (the test below is honest). This only bites when a prefab is hand-stretched inside Unity; keep that modest. Copies on your boards are safe: posed away from these proportions, they ship as the app&apos;s own render.</span>
         </div>
       )}
       <div className="ss-striprow">
@@ -250,7 +250,7 @@ export function SliceStage() {
       </div>
       <div className="ss-stripwrap"><canvas ref={stripRef} /></div>
       <div className="ss-help">
-        Drag a guide — or focus it and tap the arrow keys for ±1 px (Shift = 5). Values are design px; the exported PNGs are 2× so they ship doubled. Hover, pressed and disabled share these borders, and {on ? "these exact numbers ship" : "Auto re-measures each export"}. The stretch test shows Unity hand-stretching the sliced prefab — a board copy posed away from these proportions skips the stretch entirely and ships as the app&apos;s own render.
+        Drag a guide, or focus it and tap the arrow keys for ±1 px (Shift = 5). Values are design px; the exported PNGs are 2× so they ship doubled. Hover, pressed and disabled share these borders, and {on ? "these exact numbers ship" : "Auto re-measures each export"}. The stretch test shows Unity hand-stretching the sliced prefab. A board copy posed away from these proportions skips the stretch entirely and ships as the app&apos;s own render.
       </div>
     </div>
   );

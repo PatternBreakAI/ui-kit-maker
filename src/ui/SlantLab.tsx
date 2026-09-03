@@ -117,7 +117,7 @@ export function SlantLab() {
       `label bbox past frame/region: ${overs} of ${svgs.length}`,
       `clipping ancestors on first svg: ${first.clipped}`,
       first.zoomed.length ? `CSS ZOOM active on: ${[...new Set(notes.flatMap((n) => n.zoomed))].join(", ")}` : "no CSS zoom in effect",
-      "— first svg wrapper chain —",
+      "first svg wrapper chain:",
       ...(first.chain.length ? first.chain.slice(0, 10) : ["(no transforms/clippers/containment found)"]),
     ];
     setReport(lines.join("\n"));

@@ -75,12 +75,12 @@ const SKINS: Record<string, LabSkin> = {
    rendered results, revised whenever either changes. */
 type RatingStatus = "PASS" | "PASS WITH PARAMETER LIMITS" | "NEEDS GENERIC ENGINE IMPROVEMENT" | "NOT SUITABLE FOR CURRENT ENGINE";
 const RATINGS: Record<string, { status: RatingStatus; reason: string }> = {
-  twinGrip: { status: "PASS", reason: "Measured clean through the entire bevel range (≈26u); crevice excursion peaks at 0.6u — under the rim stroke. One honest compromise: the engine derives extrusion tone from the Bevel role, so the gold rim and the brief's navy extrusion can't both be literal." },
-  slimeSurge: { status: "PASS", reason: "v67: with true inward offsets the lobe crevices keep a parallel wall at every tested inset — the earlier scaled-inset kisses are gone." },
+  twinGrip: { status: "PASS", reason: "Measured clean through the entire bevel range (≈26u); crevice excursion peaks at 0.6u, under the rim stroke. One honest compromise: the engine derives extrusion tone from the Bevel role, so the gold rim and the brief's navy extrusion can't both be literal." },
+  slimeSurge: { status: "PASS", reason: "v67: with true inward offsets the lobe crevices keep a parallel wall at every tested inset. The earlier scaled-inset kisses are gone." },
   cogLock: { status: "PASS", reason: "Friendliest of the eight: face inset measured clean through the whole range (≈26u), narrowest feature 24u. The hybrid finish (low gloss + grain) reads mechanical with zero custom seams or bolts." },
-  monsterBite: { status: "PASS", reason: "v67: the engine now derives inner shapes through a TRUE inward offset (the generic improvement this shape was waiting for) — the face parallels the bite notches instead of escaping into them; walls hold at the default inset." },
+  monsterBite: { status: "PASS", reason: "v67: the engine now derives inner shapes through a TRUE inward offset (the generic improvement this shape was waiting for). The face parallels the bite notches instead of escaping into them; walls hold at the default inset." },
   bossCrown: { status: "PASS WITH PARAMETER LIMITS", reason: "Wave 2, provisional. Crown-peak crevices measured clean only to ≈5u of face inset, so maxBevelRatio 0.05 clamps the face regardless of the slider; within that limit the peaks keep their identity from perimeter geometry alone." },
-  prizeBow: { status: "PASS", reason: "Wave 2, provisional. Bow lobes inset cleanly through the full measured range (excursion ≤0.5u); the outline alone carries the bow read — no ribbon objects anywhere." },
+  prizeBow: { status: "PASS", reason: "Wave 2, provisional. Bow lobes inset cleanly through the full measured range (excursion ≤0.5u); the outline alone carries the bow read. No ribbon objects anywhere." },
   turboWing: { status: "PASS WITH PARAMETER LIMITS", reason: "Wave 2, provisional. Fins measured clean to ≈9u of face inset; maxBevelRatio 0.09 caps deeper settings. The straight-line geometry keeps the label band generous." },
   gemCluster: { status: "PASS", reason: "Wave 2, provisional. Faceted contour insets cleanly through the full measured range; the hard specular mode gives the jewel read with zero attached gemstones." },
 };
@@ -249,7 +249,7 @@ function Card({ s, ov, globals }: {
 
   const validation = useMemo(() => validateImported(s), [s]);
   const warnings = [...audit.warnings];
-  if (!validation.ok) warnings.push("import validation failed — see checks");
+  if (!validation.ok) warnings.push("import validation failed: see checks");
   const rating = RATINGS[s.id];
 
   const copy = async (what: "svg" | "cfg") => {
@@ -289,10 +289,10 @@ function Card({ s, ov, globals }: {
         <p className="slab-clean" data-role="warnings">No geometry warnings at the current inset ({audit.bwSrc.toFixed(1)}u).</p>
       )}
       <p className="slab-audit">
-        Face inset {audit.bwSrc.toFixed(1)}u · clean up to ≈{audit.maxCleanInset < 0 ? "—" : `${audit.maxCleanInset}u`}
+        Face inset {audit.bwSrc.toFixed(1)}u · {audit.maxCleanInset < 0 ? "no clean inset found" : `clean up to ≈${audit.maxCleanInset}u`}
         {s.maxBevelRatio !== undefined && <> · maxBevelRatio {s.maxBevelRatio} applied</>}
         {audit.maxEscape > 0.15 && <> · crevice excursion {audit.maxEscape.toFixed(1)}u</>}
-        · narrowest face feature {audit.minFeature === Infinity ? "—" : `${audit.minFeature.toFixed(1)}u`}
+        · narrowest face feature {audit.minFeature === Infinity ? "not measurable" : `${audit.minFeature.toFixed(1)}u`}
         {bandLimited && <> · label sized to the 60–140 band</>}
       </p>
 
@@ -364,7 +364,7 @@ export function SilhouetteLab() {
   const [skinUniform, setSkinUniform] = useState(false);
   const [w, setW] = useState(200);
   const [h, setH] = useState(100);
-  useEffect(() => { ensureFont("Russo One"); document.title = "Silhouette Feasibility Lab — FORGE"; }, []);
+  useEffect(() => { ensureFont("Russo One"); document.title = "Silhouette Feasibility Lab · FORGE"; }, []);
 
   const shapes = Object.values(IMPORTED_SHAPES).filter((s) => wave2 || s.wave === 1);
   const set = (k: keyof Overrides) => (e: ChangeEvent<HTMLInputElement>) => setOv((o) => ({ ...o, [k]: +e.target.value }));
@@ -380,7 +380,7 @@ export function SilhouetteLab() {
       <header className="slab-head">
         <div>
           <h1>Silhouette Feasibility Lab</h1>
-          <p>Eight imported silhouettes rendered by the production candy engine — <strong>no custom illustration, no shape-specific code</strong>. Dev-only page; nothing here ships to the kit until the findings are approved. <a href={location.pathname}>← back to the generator</a></p>
+          <p>Eight imported silhouettes rendered by the production candy engine: <strong>no custom illustration, no shape-specific code</strong>. Dev-only page; nothing here ships to the kit until the findings are approved. <a href={location.pathname}>← back to the generator</a></p>
         </div>
         <div className="slab-legend">
           <span><i style={{ background: "#FF3B30" }} /> outer</span>
@@ -407,7 +407,7 @@ export function SilhouetteLab() {
           <label className="slab-ctl slab-ctl--select"><span>Specular mode</span>
             <select value={ov.specMode ?? ""} onChange={(e) => setOv((o) => ({ ...o, specMode: (e.target.value || undefined) as SpecularMode | undefined }))} data-ctl="specMode">
               <option value="">per skin</option>
-              {SPECULAR_MODES.map((m) => <option key={m.id} value={m.id}>{m.name}{m.id === "sweep" ? " — follows the silhouette" : ""}</option>)}
+              {SPECULAR_MODES.map((m) => <option key={m.id} value={m.id}>{m.name}{m.id === "sweep" ? " (follows the silhouette)" : ""}</option>)}
             </select>
           </label>
           <label className="slab-ctl slab-ctl--select"><span>Material preset</span>
@@ -422,7 +422,7 @@ export function SilhouetteLab() {
           <label className="slab-check"><input type="checkbox" checked={safe} onChange={(e) => setSafe(e.target.checked)} data-ctl="safe" /> Show safe area</label>
           <label className="slab-check"><input type="checkbox" checked={caps} onChange={(e) => setCaps(e.target.checked)} data-ctl="caps" /> Cap-preserving stretch (3-slice experiment)</label>
           <label className="slab-check"><input type="checkbox" checked={icon} onChange={(e) => setIcon(e.target.checked)} data-ctl="icon" /> Icon + label</label>
-          <label className="slab-check"><input type="checkbox" checked={wave2} onChange={(e) => setWave2(e.target.checked)} data-ctl="wave2" /> Second wave (4 more shapes — pending first-pass approval)</label>
+          <label className="slab-check"><input type="checkbox" checked={wave2} onChange={(e) => setWave2(e.target.checked)} data-ctl="wave2" /> Second wave (4 more shapes, pending first-pass approval)</label>
           <button className="slab-reset" onClick={() => { setOv({}); setW(200); setH(100); setCaps(false); setIcon(false); }} data-ctl="resetall">Reset all</button>
         </div>
       </section>
@@ -430,11 +430,11 @@ export function SilhouetteLab() {
       <details className="slab-notes">
         <summary>Method & honest limitations</summary>
         <ul>
-          <li>Every render is <code>build()</code> — the production pipeline. Per-shape data is limited to the path, safe-area metadata and an engine-native material preset.</li>
+          <li>Every render is <code>build()</code>, the production pipeline. Per-shape data is limited to the path, safe-area metadata and an engine-native material preset.</li>
           <li>The engine derives its face gradient from <em>one</em> Inner Fill hue + contrast; the brief's three-stop face gradients are approximated, not reproduced.</li>
-          <li>The extrusion body's color derives from the Bevel role — an independently-hued extrusion (e.g. Twin Grip's navy under a gold rim) needs a generic engine improvement (an Extrusion color role).</li>
+          <li>The extrusion body's color derives from the Bevel role. An independently-hued extrusion (e.g. Twin Grip's navy under a gold rim) needs a generic engine improvement (an Extrusion color role).</li>
           <li>Corner softness shapes procedural silhouettes only; imported paths keep their authored geometry (softness still reaches the face via the −8 offset rule).</li>
-          <li><strong>Specular:</strong> the <em>sweep</em> mode strokes an inset copy of the actual silhouette — it genuinely follows the contour. The other five modes are light-keyed face events, clipped by the silhouette but not tracing it.</li>
+          <li><strong>Specular:</strong> the <em>sweep</em> mode strokes an inset copy of the actual silhouette, so it genuinely follows the contour. The other five modes are light-keyed face events, clipped by the silhouette but not tracing it.</li>
           <li>The three-slice experiment remaps control points through a piecewise x-map: caps stay rigid, only the center band stretches, one continuous outline (no seams). It falls back to uniform scaling when the frame can't hold both caps.</li>
           <li>Imported shapes here bypass the production <code>user:</code> 1.42× distortion cap, because observing stretch is the point of this test.</li>
         </ul>
@@ -442,8 +442,8 @@ export function SilhouetteLab() {
 
       <section className="slab-skinsec" aria-label="Layered Skin proof">
         <div className="slab-skinhead">
-          <h2>Layered Skin — first proof</h2>
-          <p>The reference art is an <em>assembly</em>, not one inset shell. Here the strict one-path hull keeps its jobs (footprint, shadow, extrusion, max clip) while a data-driven recipe stacks independently authored parts — rear pieces, chassis, an independent face, mirrored caps — through one reusable <code>renderMaterialPath()</code>. No shape-specific components exist; each design is a recipe entry. Cap-preserving stretch runs every part through the same x-map, so mirrored caps stay rigid.</p>
+          <h2>Layered Skin: first proof</h2>
+          <p>The reference art is an <em>assembly</em>, not one inset shell. Here the strict one-path hull keeps its jobs (footprint, shadow, extrusion, max clip) while a data-driven recipe stacks independently authored parts (rear pieces, chassis, an independent face, mirrored caps) through one reusable <code>renderMaterialPath()</code>. No shape-specific components exist; each design is a recipe entry. Cap-preserving stretch runs every part through the same x-map, so mirrored caps stay rigid.</p>
           <label className="slab-check"><input type="checkbox" checked={skinWire} onChange={(e) => setSkinWire(e.target.checked)} data-ctl="skinwire" /> Show part wireframes</label>
           <label className="slab-check"><input type="checkbox" checked={skinUniform} onChange={(e) => setSkinUniform(e.target.checked)} data-ctl="skinuniform" /> Uniform stretch (compare)</label>
         </div>
