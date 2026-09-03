@@ -9387,11 +9387,28 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       const ribY = sy + sh - ribH * 0.4;
       const gidC1 = "cc" + UID++;
       /* the tag ribbon is a marked plate whose word RIDES it (nameplate
-         grammar): move, restyle or delete banner + tag as one */
+         grammar): move, restyle or delete banner + tag as one.
+         The TAG'S INK follows the same contract as every other self-drawn
+         word in the kit (owner: "doesn't seem to be a way to change the
+         color of the text on the clan crest"): white-on-ribbon by factory,
+         and an explicit type fork or per-piece text color re-themes it
+         through opts.themedText — the pack's count line and the cooldown's
+         seconds verbatim. Untouched kits take the literal branch below and
+         hold byte-still. */
       const ribbon = `<g${state !== "disabled" ? ` style="filter: drop-shadow(0 2px 3px rgba(6,10,18,0.45))"` : ""}>
         <g data-part="icon" data-icon="ribbon" data-icon-nick="Tag ribbon"><defs><linearGradient id="${gidC1}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(bevel, 0.3)}"/><stop offset="1" stop-color="${darken(bevel, 0.18)}"/></linearGradient></defs>
         <path d="M ${(ccx - ribW / 2).toFixed(1)} ${ribY.toFixed(1)} l ${(-14 * k).toFixed(1)} ${(ribH / 2).toFixed(1)} l ${(14 * k).toFixed(1)} ${(ribH / 2).toFixed(1)} h ${ribW.toFixed(1)} l ${(14 * k).toFixed(1)} ${(-ribH / 2).toFixed(1)} l ${(-14 * k).toFixed(1)} ${(-ribH / 2).toFixed(1)} Z" fill="url(#${gidC1})" stroke="${hexRgba(darken(bevel, 0.5), 0.7)}" stroke-width="1.4"/></g>
-        <text x="${ccx.toFixed(1)}" y="${(ribY + ribH / 2 + 0.5).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(17 * k).toFixed(1)}" font-weight="900" letter-spacing="0.14em" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central" style="paint-order: stroke; stroke: rgba(8,12,22,0.5); stroke-width: 2.4px; stroke-linejoin: round" data-seat-rider="ribbon">${esc(opts.label ?? "[NOVA]")}</text></g>`;
+        ${opts.themedText
+          /* track 12 + the factory tracking (2) lands on the 0.14em the tag
+             has always worn, so taking the ink alone never moves the word.
+             The dark halo is the RIBBON'S design, not the type treatment —
+             a nameplate legibility device, the same job the loot tag's
+             understroke does — so it rides along unless the maker has
+             turned on an outline of their own (theirs would fight it, and
+             contentText already paints that one). */
+          ? (cfg.type.outline.on ? (t9: string) => t9 : (t9: string) => t9.replace("<text ", '<text style="paint-order: stroke; stroke: rgba(8,12,22,0.5); stroke-width: 2.4px; stroke-linejoin: round" '))(
+              contentText(opts.label ?? "[NOVA]", ccx, ribY + ribH / 2 + 0.5, 17 * k, { anchor: "middle", keepCase: true, track: 12, autoInk: "#FFFFFF", rider: "ribbon" }))
+          : `<text x="${ccx.toFixed(1)}" y="${(ribY + ribH / 2 + 0.5).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(17 * k).toFixed(1)}" font-weight="900" letter-spacing="0.14em" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central" style="paint-order: stroke; stroke: rgba(8,12,22,0.5); stroke-width: 2.4px; stroke-linejoin: round" data-seat-rider="ribbon">${esc(opts.label ?? "[NOVA]")}</text>`}</g>`;
       return inject(shell.replace("<svg ", '<svg data-clancrest="1" '), emb + ribbon);
     }
     case "seasontrack": {

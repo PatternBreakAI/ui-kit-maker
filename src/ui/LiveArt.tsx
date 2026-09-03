@@ -229,10 +229,17 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
   const stickDrag = useRef<{ x: number; y: number; sx: number; sy: number } | null>(null);
   const sliding = useRef(false);
   const raf = useRef(0);
+  /* Countdown IN FLIGHT. The progress family pins pval at mount, which a
+     resting sweep instrument must not inherit: off the clock the cooldown
+     and the buff frame keep reading their configured value, so the Value
+     dial still steers them live and their resting art is exactly what it
+     has always been. */
+  const [ticking, setTicking] = useState(false);
+  const expire = useRef(0);
   const pvalRef = useRef(pval);
   pvalRef.current = pval;
   const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => () => cancelAnimationFrame(raf.current), []);
+  useEffect(() => () => { cancelAnimationFrame(raf.current); window.clearTimeout(expire.current); }, []);
 
   // a piece resting in "disabled" is inert — it never reacts or changes.
   // alt-tone pieces (muted titles) render live but ignore hover and press.
@@ -244,6 +251,9 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
     // pointer, the selector cycles, the wheel follows the pointer's ANGLE
     : id === "slider" || id === "setrow" || id === "scrollbar" || id === "listmenu" || id === "choicelist" || id === "dialog" || id === "equipselector" || id === "weaponwheel" || id === "spinwheel" || id === "emotewheel" ? (playing && !disabled ? val : kit?.value)
     : id === "progress" || id === "segbar" || id === "emblembar" || id === "vsbar" || id === "hotbar" || id === "ring" || id === "starrating" || id === "flipclock" || id === "stopwatch" || id === "timerdigits" || id === "respawn" || id === "speedo" || id === "speedo2" || id === "tacho" || id === "compass" ? (playing && !disabled ? pval : kit?.value)
+    // the sweep instruments run off the clock only WHILE the clock runs —
+    // at rest they are the piece the page has always documented
+    : id === "cooldown" || id === "buffframe" ? (playing && !disabled && ticking ? pval : kit?.value)
     : id === "segment" ? (playing && !disabled ? sel : kit?.value)
     : kit?.value;
 
@@ -539,16 +549,29 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
       setPval(target);
       return;
     }
+    setTicking(true);
     setPval(target);
     const t0 = performance.now();
     const step = (t: number) => {
       const u = Math.min(1, (t - t0) / 3200);
       setPval(target * (1 - u));
       if (u < 1) raf.current = requestAnimationFrame(step);
+      // a beat at empty so "expired" reads, then the sweep pieces hand the
+      // clock back to their configured pose (playCompass's return-to-rest)
+      else expire.current = window.setTimeout(() => setTicking(false), 420);
     };
     raf.current = requestAnimationFrame(step);
   };
-  const isTimer = id === "flipclock" || id === "stopwatch" || id === "timerdigits" || id === "respawn";
+  const isTimer = id === "flipclock" || id === "stopwatch" || id === "timerdigits" || id === "respawn"
+    /* the two SWEEP instruments join the timer family (owner: "the buff
+       frame and the cooldown radial should animate when clicked in the
+       kit"). Both already derive their whole time story from `value` —
+       the radial's spent sector and lit tick crown, the buff's clockwise
+       sweep, and both seconds readouts — so the family's existing
+       click→drain playback is the whole behavior: no new timeline, no
+       loop, and nothing the exporter can see (pval is app-only state; the
+       SVG download and every export path read the STORE's value). */
+    || id === "cooldown" || id === "buffframe";
   const isGauge = id === "speedo" || id === "speedo2" || id === "tacho"; // clicking revs / replays it
 
   /* Compass demo playback — the needle swings off its heading and settles

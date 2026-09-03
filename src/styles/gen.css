@@ -990,7 +990,21 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
 .kp-splashchip:hover { border-color: var(--kp-line); background: var(--kp-card); }
 .kp-splashchip.on { border-color: var(--kp-ink3); }
 
-.kp-states { display: flex; flex-wrap: nowrap; overflow-x: auto; align-items: flex-end; gap: 2px 14px; margin-top: 8px; padding: 6px 12px 2px; border-radius: 14px; background: var(--kp-card); }
+/* State strip — the specimens for one piece's states, side by side.
+   It SIZES TO ITS SPECIMENS and never scrolls (owner: "weird mini sections
+   that are weirdly scrollable in the kit page").
+   The old `overflow-x: auto` earned nothing and cost twice:
+   · CSS makes overflow-y compute to `auto` as soon as the other axis leaves
+     `visible`, so the band became a scroll container VERTICALLY — and the
+     hug crop's negative margins (the specimen's transparent reserve pulled
+     in around its art) then read as 65px of phantom scroll with the top of
+     every specimen clipped away.
+   · at full width the band stretched to the column while holding 18–32% of
+     it, which is the near-empty strip the owner circled.
+   Wrapping is the honest answer where the specimens genuinely run wide (a
+   phone): five tiny slider states wrap to a second row instead of hiding
+   behind a scrollbar. */
+.kp-states { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 2px 14px; margin-top: 8px; padding: 6px 12px 2px; border-radius: 14px; background: var(--kp-card); width: fit-content; max-width: 100%; }
 .kp-state { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 0; }
 .kp-state figcaption { font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--kp-ink3); }
 
