@@ -43,74 +43,99 @@ export interface SilhouetteMeta {
    *  Decoupled from the thematic category — Arabesque shapes cut the
    *  same way Gothic ones do. */
   gothicCut?: boolean;
-  /** clearly-asymmetric outlines offer the horizontal flip toggle */
-  flippable?: boolean;
+  /** This outline IS its own mirror image, so flipping it is a genuine
+   *  no-op and the flip control is hidden rather than shown inert.
+   *
+   *  MEASURED, never eyeballed — and the polarity is deliberate. The old
+   *  field was the opposite (`flippable`, hand-typed per shape), which
+   *  made "you may not flip this" the silent default: a new silhouette
+   *  that nobody remembered to annotate quietly lost the control, and 42
+   *  of the 95 shapes were wrong, Strike Bar among them (owner, round 71:
+   *  "No reason why I shouldn't be able to flip the retreat button
+   *  silhouette"). The engine can mirror EVERY outline — shapePath maps a
+   *  `~flip` id through mirrorPathX with no per-shape knowledge — so
+   *  flippable is the correct default and the exception is the thing that
+   *  has to be proven.
+   *
+   *  How the set below was derived: rasterize shapePath() and XOR it
+   *  against its own horizontal mirror about the frame centre, then take
+   *  the distance transform of the disagreement — its maximum is the
+   *  thickest place where a shape and its mirror differ. Rerun at 700,
+   *  1400 and 2800px tall: a real asymmetry holds a constant FRACTION of
+   *  height, while rasterizer rounding stays pinned at one pixel and its
+   *  fraction falls off like 1/h. Exactly these 22 stayed at the 1px
+   *  floor; the other 73 hold a real fraction, from Chapel Peak's 0.2% to
+   *  Skew Streak's 20%. Ties go to the maker: when a shape is too close
+   *  to call, it keeps the control (the maximum-editability law — a wrong
+   *  "symmetric" call is the bug we are fixing, a wrong "asymmetric" call
+   *  costs nothing). */
+  mirrorSymmetric?: boolean;
 }
 
 const BTN = ["button", "chip", "badge", "tab", "toggle", "progress", "slider", "input"];
 
 export const SILHOUETTES: SilhouetteMeta[] = [
-  { id: "round", name: "Rounded", category: "Buttons", source: "custom", license: "original", renderer: "procedural",
+  { id: "round", mirrorSymmetric: true, name: "Rounded", category: "Buttons", source: "custom", license: "original", renderer: "procedural",
     capScale: 0.3, content: { top: 0.14, right: 0.3, bottom: 0.14, left: 0.3 }, minWidth: 72, minHeight: 40,
     supports: [...BTN, "timer"], character: "Soft rectangle — the neutral baseline." },
-  { id: "pill", name: "Flat Pill", category: "Buttons", source: "custom", license: "original", renderer: "procedural",
+  { id: "pill", mirrorSymmetric: true, name: "Flat Pill", category: "Buttons", source: "custom", license: "original", renderer: "procedural",
     capScale: 0.5, content: { top: 0.14, right: 0.5, bottom: 0.14, left: 0.5 }, minWidth: 88, minHeight: 40,
     supports: [...BTN, "timer"], character: "True capsule — semicircular ends." },
-  { id: "sharp", name: "Sharp", category: "Buttons", source: "custom", license: "original", renderer: "procedural",
+  { id: "sharp", mirrorSymmetric: true, name: "Sharp", category: "Buttons", source: "custom", license: "original", renderer: "procedural",
     capScale: 0.24, content: { top: 0.14, right: 0.26, bottom: 0.14, left: 0.26 }, minWidth: 80, minHeight: 40,
     supports: [...BTN, "timer"], character: "Hard-edged chamfer, no rounding." },
-  { id: "hex", name: "Hex", category: "Buttons", source: "custom", license: "original", renderer: "procedural",
+  { id: "hex", mirrorSymmetric: true, name: "Hex", category: "Buttons", source: "custom", license: "original", renderer: "procedural",
     capScale: 0.24, content: { top: 0.14, right: 0.3, bottom: 0.14, left: 0.3 }, minWidth: 96, minHeight: 40,
     supports: BTN, character: "Single point at each end." },
-  { id: "trapezoid", name: "Trapezoid", category: "Buttons", source: "custom", license: "original", renderer: "procedural",
+  { id: "trapezoid", mirrorSymmetric: true, name: "Trapezoid", category: "Buttons", source: "custom", license: "original", renderer: "procedural",
     capScale: 0.16, content: { top: 0.14, right: 0.24, bottom: 0.14, left: 0.24 }, minWidth: 88, minHeight: 40,
     supports: BTN, character: "Top edge narrower than the base." },
-  { id: "notch", flippable: true, name: "Notch", category: "Buttons", source: "custom", license: "original", renderer: "procedural",
+  { id: "notch", name: "Notch", category: "Buttons", source: "custom", license: "original", renderer: "procedural",
     capScale: 0.28, content: { top: 0.14, right: 0.28, bottom: 0.14, left: 0.28 }, minWidth: 88, minHeight: 40,
     supports: BTN, character: "Opposing diagonal corner cuts." },
-  { id: "chunky", name: "Heavy Rounded Capsule", category: "Buttons", source: "custom (Crewmate study)", license: "original", renderer: "procedural",
+  { id: "chunky", mirrorSymmetric: true, name: "Heavy Rounded Capsule", category: "Buttons", source: "custom (Crewmate study)", license: "original", renderer: "procedural",
     capScale: 0.44, content: { top: 0.16, right: 0.44, bottom: 0.16, left: 0.44 }, minWidth: 110, minHeight: 48,
     supports: [...BTN, "timer"], character: "Toy-thick shoulders, soft inset breaks top and bottom." },
-  { id: "cutline", name: "Sport Cutline", category: "Buttons", source: "custom (broadcast study)", license: "original", renderer: "procedural",
+  { id: "cutline", mirrorSymmetric: true, name: "Sport Cutline", category: "Buttons", source: "custom (broadcast study)", license: "original", renderer: "procedural",
     capScale: 0.3, content: { top: 0.16, right: 0.3, bottom: 0.16, left: 0.3 }, minWidth: 96, minHeight: 40,
     supports: [...BTN, "timer"], character: "Athletic rectangle, clipped end caps." },
-  { id: "polybar", name: "Racing Polybar", category: "Rails & HUD", source: "custom (automotive study)", license: "original", renderer: "procedural",
+  { id: "polybar", mirrorSymmetric: true, name: "Racing Polybar", category: "Rails & HUD", source: "custom (automotive study)", license: "original", renderer: "procedural",
     capScale: 0.48, content: { top: 0.18, right: 0.5, bottom: 0.16, left: 0.5 }, minWidth: 130, minHeight: 44,
     supports: [...BTN, "timer"], character: "Deep top chamfers, stepped lower corners." },
-  { id: "explorer", name: "Cosmic Explorer", category: "Rails & HUD", source: "custom (sci-fi study)", license: "original", renderer: "procedural",
+  { id: "explorer", mirrorSymmetric: true, name: "Cosmic Explorer", category: "Rails & HUD", source: "custom (sci-fi study)", license: "original", renderer: "procedural",
     capScale: 0.42, content: { top: 0.16, right: 0.44, bottom: 0.16, left: 0.44 }, minWidth: 120, minHeight: 44,
     supports: [...BTN, "timer"], character: "Faceted end housings instead of arcs." },
-  { id: "mazepill", name: "Retro Maze Pill", category: "Buttons", source: "custom (arcade study)", license: "original", renderer: "procedural",
+  { id: "mazepill", mirrorSymmetric: true, name: "Retro Maze Pill", category: "Buttons", source: "custom (arcade study)", license: "original", renderer: "procedural",
     capScale: 0.42, content: { top: 0.14, right: 0.44, bottom: 0.14, left: 0.44 }, minWidth: 100, minHeight: 40,
     supports: [...BTN, "timer"], character: "Elliptical ends flatter than a pill." },
-  { id: "fighthud", name: "Fighting HUD", category: "Rails & HUD", source: "custom (versus study)", license: "original", renderer: "procedural",
+  { id: "fighthud", mirrorSymmetric: true, name: "Fighting HUD", category: "Rails & HUD", source: "custom (versus study)", license: "original", renderer: "procedural",
     capScale: 0.55, content: { top: 0.16, right: 0.58, bottom: 0.16, left: 0.58 }, minWidth: 140, minHeight: 44,
     supports: BTN, character: "Arrow brackets with inward notches." },
-  { id: "crest", name: "Blade Crest", category: "Plaques & Frames", source: "custom (ceremonial study)", license: "original", renderer: "procedural",
+  { id: "crest", mirrorSymmetric: true, name: "Blade Crest", category: "Plaques & Frames", source: "custom (ceremonial study)", license: "original", renderer: "procedural",
     capScale: 0.34, content: { top: 0.16, right: 0.36, bottom: 0.28, left: 0.36 }, minWidth: 120, minHeight: 48,
     supports: ["button", "badge", "tab"], character: "Sloped shoulders, shallow center point below." },
-  { id: "blade", name: "Persian Blade", category: "Banners & Labels", source: "custom (ornamental study)", license: "original", renderer: "procedural",
+  { id: "blade", mirrorSymmetric: true, name: "Persian Blade", category: "Banners & Labels", source: "custom (ornamental study)", license: "original", renderer: "procedural",
     capScale: 0.5, content: { top: 0.2, right: 0.55, bottom: 0.2, left: 0.55 }, minWidth: 150, minHeight: 44,
     supports: ["button", "badge", "tab"], character: "Swept side tips, concave top and bottom." },
-  { id: "tavern", name: "Concave Fantasy Plaque", category: "Plaques & Frames", source: "custom (tavern study)", license: "original", renderer: "procedural",
+  { id: "tavern", mirrorSymmetric: true, name: "Concave Fantasy Plaque", category: "Plaques & Frames", source: "custom (tavern study)", license: "original", renderer: "procedural",
     capScale: 0.3, content: { top: 0.2, right: 0.32, bottom: 0.2, left: 0.32 }, minWidth: 120, minHeight: 48,
     supports: BTN, character: "Bowed edges, softly concave side walls." },
   { id: "handdrawn", name: "Hand-Drawn Frame", category: "Plaques & Frames", source: "custom + Rough.js ink (seeded)", license: "original / MIT", renderer: "procedural",
     capScale: 0.24, content: { top: 0.18, right: 0.26, bottom: 0.18, left: 0.26 }, minWidth: 110, minHeight: 48,
     supports: [...BTN, "timer"], character: "Seeded ink wobble; Rough.js draws the line character only." },
-  { id: "banner", name: "Pointed Banner", category: "Banners & Labels", source: "custom (ribbon study)", license: "original", renderer: "procedural",
+  { id: "banner", mirrorSymmetric: true, name: "Pointed Banner", category: "Banners & Labels", source: "custom (ribbon study)", license: "original", renderer: "procedural",
     capScale: 0.55, content: { top: 0.16, right: 0.6, bottom: 0.16, left: 0.6 }, minWidth: 140, minHeight: 44,
     supports: ["button", "badge", "tab"], character: "Swallowtail V cut into each end." },
-  { id: "shield", name: "Shield Plaque", category: "Plaques & Frames", source: "custom (heraldic study)", license: "original", renderer: "procedural",
+  { id: "shield", mirrorSymmetric: true, name: "Shield Plaque", category: "Plaques & Frames", source: "custom (heraldic study)", license: "original", renderer: "procedural",
     capScale: 0.2, content: { top: 0.14, right: 0.22, bottom: 0.34, left: 0.22 }, minWidth: 96, minHeight: 52,
     supports: ["button", "badge", "iconbtn"], character: "Flat top, walls converging to a bottom point." },
-  { id: "pixelstep", name: "Pixel-Stepped Frame", category: "Buttons", source: "custom (8-bit study)", license: "original", renderer: "procedural",
+  { id: "pixelstep", mirrorSymmetric: true, name: "Pixel-Stepped Frame", category: "Buttons", source: "custom (8-bit study)", license: "original", renderer: "procedural",
     capScale: 0.24, content: { top: 0.16, right: 0.26, bottom: 0.16, left: 0.26 }, minWidth: 96, minHeight: 44,
     supports: [...BTN, "timer"], character: "Staircase-quantized corners." },
-  { id: "kenneyRect", name: "Crisp Panel", category: "Buttons", source: "custom study (after a CC0 pack rectangle)", license: "original", renderer: "procedural",
+  { id: "kenneyRect", mirrorSymmetric: true, name: "Crisp Panel", category: "Buttons", source: "custom study (after a CC0 pack rectangle)", license: "original", renderer: "procedural",
     capScale: 0.12, content: { top: 0.12, right: 0.16, bottom: 0.12, left: 0.16 }, minWidth: 80, minHeight: 40,
     supports: [...BTN, "timer"], character: "The pack's signature crisp rectangle — corner radius measured at 9.4% of height." },
-  { id: "kenneyTag", flippable: true, name: "Pointer Tag", category: "Banners & Labels", source: "custom study (after a CC0 pack handle)", license: "original", renderer: "procedural",
+  { id: "kenneyTag", name: "Pointer Tag", category: "Banners & Labels", source: "custom study (after a CC0 pack handle)", license: "original", renderer: "procedural",
     capScale: 0.31, content: { top: 0.14, right: 0.36, bottom: 0.14, left: 0.18 }, minWidth: 96, minHeight: 40,
     supports: ["button", "chip", "badge", "tab"], character: "Pointer tag — 45° shoulders and tip rounding measured proportions, drawn as an original study." },
   /* the SAME tag pointing the other way, as its own permanent entry —
@@ -118,10 +143,10 @@ export const SILHOUETTES: SilhouetteMeta[] = [
      wants BOTH directions living in one kit (back tab + forward tab).
      Geometry resolves through MIRROR_SILHOUETTES; insets are the base's,
      swapped. */
-  { id: "kenneyTagRev", flippable: true, name: "Pointer Tag · Reverse", category: "Banners & Labels", source: "custom study (after a CC0 pack handle)", license: "original", renderer: "procedural",
+  { id: "kenneyTagRev", name: "Pointer Tag · Reverse", category: "Banners & Labels", source: "custom study (after a CC0 pack handle)", license: "original", renderer: "procedural",
     capScale: 0.31, content: { top: 0.14, right: 0.18, bottom: 0.14, left: 0.36 }, minWidth: 96, minHeight: 40,
     supports: ["button", "chip", "badge", "tab"], character: "Pointer tag pointing the other way — the same measured study, mirrored, so both directions can live in one kit." },
-  { id: "doboBracket", name: "Bracket Label", category: "Banners & Labels", source: "custom study (after an itch.io label)", license: "original", renderer: "procedural",
+  { id: "doboBracket", mirrorSymmetric: true, name: "Bracket Label", category: "Banners & Labels", source: "custom study (after an itch.io label)", license: "original", renderer: "procedural",
     capScale: 0.36, content: { top: 0.14, right: 0.42, bottom: 0.14, left: 0.42 }, minWidth: 120, minHeight: 44,
     supports: ["button", "chip", "badge", "tab", "progress"], character: "Bar with half-round side lobes and meeting notches — measured proportions, drawn as an original study." },
 
@@ -130,37 +155,37 @@ export const SILHOUETTES: SilhouetteMeta[] = [
      same distortion-capped transform a user import gets. Safe-area insets
      below are MEASURED off each outline across the middle 64% of its
      width, not guessed — organic tops intrude further than a slab's do. */
-  { id: "stock:bubbleslab", flippable: true, name: "Bubble Slab", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
+  { id: "stock:bubbleslab", name: "Bubble Slab", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
     capScale: 0.39, content: { top: 0.201, right: 0.34, bottom: 0.177, left: 0.34 }, minWidth: 96, minHeight: 40,
     supports: [...BTN, "timer"], character: "Wide slab with a gentle swell top and bottom." },
-  { id: "stock:teardroplozenge", flippable: true, name: "Teardrop Lozenge", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
+  { id: "stock:teardroplozenge", name: "Teardrop Lozenge", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
     capScale: 0.85, content: { top: 0.123, right: 0.34, bottom: 0.151, left: 0.34 }, minWidth: 96, minHeight: 40,
     supports: [...BTN, "timer"], character: "Full round shoulder tapering to a soft point." },
-  { id: "stock:swellbar", flippable: true, name: "Swell Bar", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
+  { id: "stock:swellbar", name: "Swell Bar", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
     capScale: 0.85, content: { top: 0.173, right: 0.34, bottom: 0.218, left: 0.34 }, minWidth: 96, minHeight: 40,
     supports: [...BTN, "timer"], character: "One long S-curve — heavy at the left, lifting right." },
-  { id: "stock:wavecapsule", flippable: true, name: "Wave Capsule", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
+  { id: "stock:wavecapsule", name: "Wave Capsule", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
     capScale: 0.31, content: { top: 0.194, right: 0.34, bottom: 0.19, left: 0.34 }, minWidth: 96, minHeight: 40,
     supports: [...BTN, "timer"], character: "Rounded caps under a single rolling wave." },
-  { id: "stock:cobblebar", flippable: true, name: "Cobble Bar", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
+  { id: "stock:cobblebar", name: "Cobble Bar", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
     capScale: 0.85, content: { top: 0.251, right: 0.34, bottom: 0.124, left: 0.34 }, minWidth: 96, minHeight: 40,
     supports: [...BTN, "timer"], character: "Bumpy shoulder settling into a calm right end." },
-  { id: "stock:wedgeblob", flippable: true, name: "Wedge Blob", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
+  { id: "stock:wedgeblob", name: "Wedge Blob", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
     capScale: 0.85, content: { top: 0.168, right: 0.34, bottom: 0.125, left: 0.34 }, minWidth: 96, minHeight: 40,
     supports: [...BTN, "timer"], character: "Round left shoulder, straight taper to the right." },
-  { id: "stock:cushionslab", flippable: true, name: "Cushion Slab", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
+  { id: "stock:cushionslab", name: "Cushion Slab", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
     capScale: 0.3, content: { top: 0.125, right: 0.34, bottom: 0.11, left: 0.34 }, minWidth: 96, minHeight: 40,
     supports: [...BTN, "timer"], character: "The widest, softest slab — barely-there top wave." },
-  { id: "stock:scallopblock", flippable: true, name: "Scallop Block", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
+  { id: "stock:scallopblock", name: "Scallop Block", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
     capScale: 0.3, content: { top: 0.137, right: 0.34, bottom: 0.121, left: 0.34 }, minWidth: 96, minHeight: 40,
     supports: [...BTN, "timer"], character: "Squared block with rippled, scalloped ends." },
-  { id: "stock:longloaf", flippable: true, name: "Long Loaf", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
+  { id: "stock:longloaf", name: "Long Loaf", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
     capScale: 0.42, content: { top: 0.144, right: 0.34, bottom: 0.149, left: 0.34 }, minWidth: 96, minHeight: 40,
     supports: [...BTN, "timer"], character: "Long and low with one soft rise." },
-  { id: "stock:rollingbar", flippable: true, name: "Rolling Bar", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
+  { id: "stock:rollingbar", name: "Rolling Bar", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
     capScale: 0.3, content: { top: 0.159, right: 0.34, bottom: 0.157, left: 0.34 }, minWidth: 96, minHeight: 40,
     supports: [...BTN, "timer"], character: "Ribbon bar — top and bottom roll in parallel." },
-  { id: "stock:peanutpill", flippable: true, name: "Peanut Pill", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
+  { id: "stock:peanutpill", name: "Peanut Pill", category: "Blobs", source: "custom (PatternBreak blob set)", license: "original", renderer: "path",
     capScale: 0.37, content: { top: 0.17, right: 0.34, bottom: 0.212, left: 0.34 }, minWidth: 96, minHeight: 40,
     supports: [...BTN, "timer"], character: "Peanut profile with a clean centre waist." },
 
@@ -316,10 +341,10 @@ export const SILHOUETTES: SilhouetteMeta[] = [
   { id: "stock:velocityhex", name: "Velocity Hex", category: "Vigilante", source: "custom (PatternBreak vigilante set)", license: "original", renderer: "path", gothicCut: true,
     capScale: 0.252, content: { top: 0.207, right: 0.432, bottom: 0.047, left: 0.432 }, minWidth: 96, minHeight: 40,
     supports: [...BTN, "timer"], character: "Hex bar stretched to speed." },
-  { id: "stock:turbonotch", flippable: true, name: "Turbo Notch", category: "Vigilante", source: "custom (PatternBreak vigilante set)", license: "original", renderer: "path", gothicCut: true,
+  { id: "stock:turbonotch", name: "Turbo Notch", category: "Vigilante", source: "custom (PatternBreak vigilante set)", license: "original", renderer: "path", gothicCut: true,
     capScale: 0.235, content: { top: 0.04, right: 0.415, bottom: 0.249, left: 0.368 }, minWidth: 96, minHeight: 40,
     supports: [...BTN, "timer"], character: "Speed bar with an off-center intake notch." },
-  { id: "stock:slipstreambar", flippable: true, name: "Slipstream Bar", category: "Vigilante", source: "custom (PatternBreak vigilante set)", license: "original", renderer: "path", gothicCut: true,
+  { id: "stock:slipstreambar", name: "Slipstream Bar", category: "Vigilante", source: "custom (PatternBreak vigilante set)", license: "original", renderer: "path", gothicCut: true,
     capScale: 0.167, content: { top: 0.04, right: 0.347, bottom: 0.224, left: 0.347 }, minWidth: 96, minHeight: 40,
     supports: [...BTN, "timer"], character: "A bar caught in the slipstream — stepped tail." },
   { id: "stock:dashplate", name: "Dash Plate", category: "Vigilante", source: "custom (PatternBreak vigilante set)", license: "original", renderer: "path", gothicCut: true,
@@ -328,13 +353,13 @@ export const SILHOUETTES: SilhouetteMeta[] = [
   { id: "stock:vectorwedge", name: "Vector Wedge", category: "Vigilante", source: "custom (PatternBreak vigilante set)", license: "original", renderer: "path", gothicCut: true,
     capScale: 0.332, content: { top: 0.041, right: 0.512, bottom: 0.263, left: 0.512 }, minWidth: 96, minHeight: 40,
     supports: [...BTN, "timer"], character: "Wedge-ended vector bar." },
-  { id: "stock:rushslab", flippable: true, name: "Rush Slab", category: "Vigilante", source: "custom (PatternBreak vigilante set)", license: "original", renderer: "path", gothicCut: true,
+  { id: "stock:rushslab", name: "Rush Slab", category: "Vigilante", source: "custom (PatternBreak vigilante set)", license: "original", renderer: "path", gothicCut: true,
     capScale: 0.224, content: { top: 0.195, right: 0.404, bottom: 0.04, left: 0.359 }, minWidth: 96, minHeight: 40,
     supports: [...BTN, "timer"], character: "Slab leaning into the rush." },
-  { id: "stock:boostbar", flippable: true, name: "Boost Bar", category: "Vigilante", source: "custom (PatternBreak vigilante set)", license: "original", renderer: "path", gothicCut: true,
+  { id: "stock:boostbar", name: "Boost Bar", category: "Vigilante", source: "custom (PatternBreak vigilante set)", license: "original", renderer: "path", gothicCut: true,
     capScale: 0.261, content: { top: 0.04, right: 0.354, bottom: 0.201, left: 0.441 }, minWidth: 96, minHeight: 40,
     supports: [...BTN, "timer"], character: "Boost-vent bar, intake on the left." },
-  { id: "stock:skewstreak", flippable: true, name: "Skew Streak", category: "Vigilante", source: "custom (PatternBreak vigilante set)", license: "original", renderer: "path", gothicCut: true,
+  { id: "stock:skewstreak", name: "Skew Streak", category: "Vigilante", source: "custom (PatternBreak vigilante set)", license: "original", renderer: "path", gothicCut: true,
     capScale: 0.425, content: { top: 0.154, right: 0.605, bottom: 0.12, left: 0.343 }, minWidth: 96, minHeight: 40,
     supports: [...BTN, "timer"], character: "Full-tilt streak — everything leans." },
   { id: "stock:driftplate", name: "Drift Plate", category: "Vigilante", source: "custom (PatternBreak vigilante set)", license: "original", renderer: "path", gothicCut: true,
@@ -343,19 +368,19 @@ export const SILHOUETTES: SilhouetteMeta[] = [
   { id: "stock:strikebar", name: "Strike Bar", category: "Vigilante", source: "custom (PatternBreak vigilante set)", license: "original", renderer: "path", gothicCut: true,
     capScale: 0.164, content: { top: 0.18, right: 0.344, bottom: 0.132, left: 0.338 }, minWidth: 96, minHeight: 40,
     supports: [...BTN, "timer"], character: "Compact strike bar with beveled jaws." },
-  { id: "stock:chargewedge", flippable: true, name: "Charge Wedge", category: "Vigilante", source: "custom (PatternBreak vigilante set)", license: "original", renderer: "path", gothicCut: true,
+  { id: "stock:chargewedge", name: "Charge Wedge", category: "Vigilante", source: "custom (PatternBreak vigilante set)", license: "original", renderer: "path", gothicCut: true,
     capScale: 0.263, content: { top: 0.212, right: 0.33, bottom: 0.046, left: 0.443 }, minWidth: 96, minHeight: 40,
     supports: [...BTN, "timer"], character: "Wedge charging left, tail high." },
-  { id: "stock:leanrunner", flippable: true, name: "Lean Runner", category: "Vigilante", source: "custom (PatternBreak vigilante set)", license: "original", renderer: "path", gothicCut: true,
+  { id: "stock:leanrunner", name: "Lean Runner", category: "Vigilante", source: "custom (PatternBreak vigilante set)", license: "original", renderer: "path", gothicCut: true,
     capScale: 0.241, content: { top: 0.248, right: 0.334, bottom: 0.057, left: 0.421 }, minWidth: 96, minHeight: 40,
     supports: [...BTN, "timer"], character: "Parallelogram at a dead run." },
   /* the Settings gear component's own silhouette — unlisted from the public
      picker (preview) while the component sits in the staging bay; square by
      construction, so it never stretches */
-  { id: "stock:gear", name: "Gear", category: "Plaques & Frames", source: "custom (parametric 12-tooth cog)", license: "original", renderer: "path", preview: true,
+  { id: "stock:gear", mirrorSymmetric: true, name: "Gear", category: "Plaques & Frames", source: "custom (parametric 12-tooth cog)", license: "original", renderer: "path", preview: true,
     capScale: 0.5, content: { top: 0.3, right: 0.3, bottom: 0.3, left: 0.3 }, minWidth: 64, minHeight: 64,
     supports: ["button"], character: "Twelve-tooth cog — the settings glyph as real geometry." },
-  { id: "stock:trophycup", name: "Trophy cup", category: "Plaques & Frames", source: "custom (authored prize cup)", license: "original", renderer: "path", preview: true,
+  { id: "stock:trophycup", mirrorSymmetric: true, name: "Trophy cup", category: "Plaques & Frames", source: "custom (authored prize cup)", license: "original", renderer: "path", preview: true,
     capScale: 0.32, content: { top: 0.3, right: 0.3, bottom: 0.3, left: 0.3 }, minWidth: 64, minHeight: 64,
     supports: ["button"], character: "The classic prize cup — crescent handles, slim stem, proud base." },
   { id: "stock:gift", name: "Gift box", category: "Plaques & Frames", source: "custom (computed 3/4 iso union)", license: "original", renderer: "path", preview: true,
@@ -372,7 +397,7 @@ export const SILHOUETTES: SilhouetteMeta[] = [
      sized to their red-ring markup; box now 372x100). Content box = the
      panel's reading zone (x 54-318, y 10-65.5 of the 372x100 art); caps
      cover the V notches (apex 37 in + shoulder). */
-  { id: "stock:ribbonclassic", name: "Ribbon Banner", category: "Banners & Labels", source: "geometry authored in-house for UI Kit Maker, 2026, by the owner's construction recipe against their exact-shape reference (owner ribbon commission)", license: "original", renderer: "path", preview: true,
+  { id: "stock:ribbonclassic", mirrorSymmetric: true, name: "Ribbon Banner", category: "Banners & Labels", source: "geometry authored in-house for UI Kit Maker, 2026, by the owner's construction recipe against their exact-shape reference (owner ribbon commission)", license: "original", renderer: "path", preview: true,
     capScale: 0.43, content: { top: 0.1, right: 0.145, bottom: 0.345, left: 0.145 }, minWidth: 128, minHeight: 64,
     supports: ["button"], character: "The classic swallow-tail ribbon — tails tucked behind, message panel proud in front." },
 
@@ -387,7 +412,7 @@ export const SILHOUETTES: SilhouetteMeta[] = [
      NOTE the production retire ledger (app_settings.hidden_silhouettes)
      still carried this id at release time and needs the owner's one-click
      "Restore silhouettes" to finish opening it to non-admins. */
-  { id: "stock:afterburner", flippable: true, name: "Afterburner", category: "Showpieces", source: "custom (owner flame button, flamebutton4)", license: "original", renderer: "path", gothicCut: true,
+  { id: "stock:afterburner", name: "Afterburner", category: "Showpieces", source: "custom (owner flame button, flamebutton4)", license: "original", renderer: "path", gothicCut: true,
     capScale: 0.281, content: { top: 0.349, right: 0.368, bottom: 0.321, left: 0.461 }, minWidth: 96, minHeight: 40,
     supports: [...BTN, "timer"], character: "The flame button — fire tail streaming off the left of a rounded core. Built for a single hero moment: play, claim, ignite." },
 ];
@@ -415,6 +440,22 @@ export function silhouetteMeta(id: Shape): SilhouetteMeta | undefined {
   }
   return SILHOUETTES.find((s) => s.id === id);
 }
+
+/** Is mirroring this outline something a maker would actually SEE?
+ *
+ *  Every outline can be flipped — shapePath maps a `~flip` id through
+ *  mirrorPathX with no per-shape knowledge — so this asks the only
+ *  question worth gating on: would the picture change. It says no just
+ *  for the shapes the geometry audit measured as their own mirror
+ *  (`mirrorSymmetric`), and yes for everything else, imports included:
+ *  a user's own artwork is asymmetric until proven otherwise, and it is
+ *  never in this registry to be proven either way. */
+export const silhouetteFlippable = (id: Shape): boolean =>
+  !silhouetteMeta(baseShapeId(id))?.mirrorSymmetric;
+
+/** the base id behind a `~flip` variant — local so this module does not
+ *  have to reach into model.ts for one string slice */
+const baseShapeId = (id: Shape): Shape => (id.endsWith("~flip") ? id.slice(0, -5) as Shape : id);
 
 /** Permanent mirrored twins: the entry's geometry is its base's, flipped —
  *  the picker shows both directions side by side, and a kit can wear one

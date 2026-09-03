@@ -6331,11 +6331,16 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          count RIDES the plate (data-seat-rider — the bottomnav badge
          grammar: move, restyle or delete plate + count as one) */
       const glyph = ic ? `<g data-part="icon" data-icon="glyph">${themedIcon(ic, sx + sw / 2 - 38 * k, sy + sh / 2 - 38 * k, 76 * k, hexMix(glow, "#FFFFFF", 0.25), 2.2)}</g>` : "";
+      /* the corner count takes the counter family's text road (round 71):
+         a typed label wins, the Value dial drives it otherwise. Sizes for
+         1 character are untouched, so an untouched badge is byte-still. */
       const count = Math.max(1, Math.min(9, Math.round((value ?? 0.3) * 9)));
+      const cTxt = opts.label ?? String(count);
+      const fsN = 30 * k * (cTxt.length > 2 ? 0.63 : cTxt.length > 1 ? 0.8 : 1);
       const bcx = sx + sw - 10 * k, bcy = sy + 10 * k, br = 26 * k;
       const badgeC = hexMix("#FF3B4A", glow, 0.12);
       const badge = `<g data-part="icon" data-icon="badge" data-icon-nick="Badge plate" data-badge="1"><circle cx="${bcx.toFixed(1)}" cy="${bcy.toFixed(1)}" r="${br.toFixed(1)}" fill="${badgeC}" stroke="rgba(255,255,255,0.9)" stroke-width="${(3 * k).toFixed(1)}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(5 * k).toFixed(1)}px ${hexRgba(badgeC, 0.7)})"` : ""}/></g>
-        <text x="${bcx.toFixed(1)}" y="${(bcy + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(30 * k).toFixed(1)}" font-weight="900" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central" data-seat-rider="badge">${count}</text>`;
+        <text x="${bcx.toFixed(1)}" y="${(bcy + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${fsN.toFixed(1)}" font-weight="900" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central" data-seat-rider="badge">${esc(cTxt)}</text>`;
       return inject(shell.replace("<svg ", '<svg data-notifydot="1" '), glyph + badge);
     }
     case "countbadge": {
@@ -6353,15 +6358,27 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const baseB = liveB ? hexMix("#FF3B4A", glow, 0.12) : "#9AA0AB";
       const badgeB = state === "hover" ? lighten(baseB, 0.12) : state === "pressed" ? darken(baseB, 0.1) : baseB;
       const nB = Math.max(1, Math.min(99, Math.round((value ?? 0.03) * 99)));
-      const txtB = String(nB);
-      const fsB = dB * (txtB.length > 1 ? 0.44 : 0.54);
+      /* the count is this piece's ONE word, so it rides the house text
+         road: a typed label (per-copy words on a board, or the kit Text
+         field) always wins; untouched, the Value dial keeps driving it.
+         That is the HUD counter's contract verbatim (`resource` below),
+         and it is what the owner asked for — "I should be able to edit
+         the numbers of the badge in the right drawer just like text".
+         A badge word is not required to be a number: "99+" and "NEW" are
+         real badge words. Length is capped at the INPUT (LABEL_MAX), so
+         nothing is silently dropped here. */
+      const txtB = opts.label ?? String(nB);
+      /* the type ramp only has to grow past the 1–2 characters the value
+         road can produce, so 1 and 2 keep their exact former sizes and an
+         untouched badge renders byte-for-byte as before */
+      const fsB = dB * (txtB.length > 3 ? 0.27 : txtB.length > 2 ? 0.34 : txtB.length > 1 ? 0.44 : 0.54);
       const gidB = "cb" + UID++;
       const totB = dB + padB * 2;
       /* overlay "plain" ships the BARE circle for the engine: the count
          becomes live text over it (owner: "the countdown numerics should
          be dynamic — I'll want those to animate on play") */
       const bareB = opts.overlay === "plain";
-      return `<svg xmlns="http://www.w3.org/2000/svg" width="${totB}" height="${totB}" viewBox="0 0 ${totB} ${totB}" data-shell="${padB} ${padB} ${dB.toFixed(1)} ${dB.toFixed(1)}" data-countbadge="1" role="img" aria-label="${nB} notifications">
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${totB}" height="${totB}" viewBox="0 0 ${totB} ${totB}" data-shell="${padB} ${padB} ${dB.toFixed(1)} ${dB.toFixed(1)}" data-countbadge="1" role="img" aria-label="${esc(txtB)} notifications">
 <defs><radialGradient id="${gidB}" cx="0.35" cy="0.3" r="0.95">
   <stop offset="0" stop-color="${lighten(badgeB, 0.32)}"/>
   <stop offset="0.62" stop-color="${badgeB}"/>
@@ -6369,7 +6386,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
 </radialGradient></defs>
 <g${liveB ? ` style="filter: drop-shadow(0 0 ${(rB * 0.28).toFixed(1)}px ${hexRgba(badgeB, 0.65)})"` : ""}>
   <circle cx="${cxB}" cy="${cyB}" r="${rB.toFixed(1)}" fill="url(#${gidB})" stroke="rgba(255,255,255,${liveB ? 0.92 : 0.55})" stroke-width="${Math.max(2, dB * 0.055).toFixed(1)}"/>
-  ${bareB ? "" : `<text x="${cxB}" y="${(cyB + dB * 0.02).toFixed(1)}" font-family="Inter, sans-serif" font-size="${fsB.toFixed(1)}" font-weight="900" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">${txtB}</text>`}
+  ${bareB ? "" : `<text x="${cxB}" y="${(cyB + dB * 0.02).toFixed(1)}" font-family="Inter, sans-serif" font-size="${fsB.toFixed(1)}" font-weight="900" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">${esc(txtB)}</text>`}
 </g>
 </svg>`;
     }
@@ -6390,6 +6407,12 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const pr = Math.min(sw, sh) / 2 - bw - 2.5 * k;
       const gidA = "av" + UID++;
       const lvl = Math.max(1, Math.min(99, Math.round((value ?? 0.12) * 99)));
+      /* the level takes the counter family's text road (round 71): a typed
+         label wins, the Value dial drives it otherwise. 1–2 characters —
+         everything the value road can make — keep their former size, so an
+         untouched frame renders byte-for-byte as before. */
+      const lvlTxt = opts.label ?? String(lvl);
+      const fsA = 20 * k * (lvlTxt.length > 2 ? 0.8 : 1);
       /* the PROFILE IMAGE is marked swappable ink (maximum-editability law):
          the engine export strips it from the frame bake and ships it as a
          live masked Image child — the well circle rides data-icon-well so
@@ -6408,7 +6431,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
           <ellipse cx="${ccx.toFixed(1)}" cy="${(ccy + pr * 0.75).toFixed(1)}" rx="${(pr * 0.62).toFixed(1)}" ry="${(pr * 0.5).toFixed(1)}" fill="rgba(255,255,255,0.4)"/>
         </g>
         <g data-part="icon" data-icon="ring" data-icon-nick="Count ring">${candyKnob(ccx, sy + sh - 8 * k, 21 * k, knobC)}</g>
-        <text x="${ccx.toFixed(1)}" y="${(sy + sh - 7 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(20 * k).toFixed(1)}" font-weight="900" fill="${darken(bevel, 0.55)}" text-anchor="middle" dominant-baseline="central" data-seat-rider="ring">${lvl}</text>`;
+        <text x="${ccx.toFixed(1)}" y="${(sy + sh - 7 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${fsA.toFixed(1)}" font-weight="900" fill="${darken(bevel, 0.55)}" text-anchor="middle" dominant-baseline="central" data-seat-rider="ring">${esc(lvlTxt)}</text>`;
       return inject(shell.replace("<svg ", '<svg data-avatarframe="1" '), parts);
     }
     case "nameplate": {
@@ -8247,9 +8270,16 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       /* the badge plate is marked swappable ink and its word RIDES it
          (maximum-editability law, the bottomnav grammar): move, restyle
          or delete plate + count as one on the live prefab */
-      const badge = count > 0
+      /* the count takes the counter family's text road (round 71): a typed
+         label wins and always seats on the count plate; untouched, the
+         Value dial keeps driving it, zero-count FREE ribbon and all. The
+         ramp only fires past 2 characters — every count the value road can
+         make (0–10) keeps its former size, so untouched art is byte-still. */
+      const bTxt = opts.label || (count > 0 ? String(count) : "");
+      const fsB2 = 22 * k * (bTxt.length > 2 ? 0.72 : 1);
+      const badge = bTxt
         ? `<g data-part="icon" data-icon="badge" data-icon-nick="Badge plate" data-badge="1"><circle cx="${bcx.toFixed(1)}" cy="${bcy.toFixed(1)}" r="${br.toFixed(1)}" fill="${plateC}" stroke="rgba(255,255,255,0.9)" stroke-width="${(2.6 * k).toFixed(1)}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(plateC, 0.6)})"` : ""}/></g>
-          <text x="${bcx.toFixed(1)}" y="${(bcy + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(22 * k).toFixed(1)}" font-weight="900" fill="${countC}" text-anchor="middle" dominant-baseline="central" data-seat-rider="badge">${count}</text>`
+          <text x="${bcx.toFixed(1)}" y="${(bcy + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${fsB2.toFixed(1)}" font-weight="900" fill="${countC}" text-anchor="middle" dominant-baseline="central" data-seat-rider="badge">${esc(bTxt)}</text>`
         : `<g data-part="icon" data-icon="badge" data-icon-nick="Free ribbon" data-badge="1"><rect x="${(bcx - 34 * k).toFixed(1)}" y="${(bcy - 12 * k).toFixed(1)}" width="${(52 * k).toFixed(1)}" height="${(24 * k).toFixed(1)}" rx="${(12 * k).toFixed(1)}" fill="#FACC15" stroke="#92400E" stroke-width="1.4"/></g>
           <text x="${(bcx - 8 * k).toFixed(1)}" y="${(bcy + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(14 * k).toFixed(1)}" font-weight="900" letter-spacing="0.06em" fill="#7C2D12" text-anchor="middle" dominant-baseline="central" data-seat-rider="badge">FREE</text>`;
       return inject(shell.replace("<svg ", '<svg data-booster="1" '), badge);
@@ -10935,7 +10965,12 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
         `<circle cx="${(64 * sx3 + pad2).toFixed(1)}" cy="${(68 * sy3 + pad2).toFixed(1)}" r="${(6.5 * k).toFixed(1)}" fill="${glow}" filter="url(#${gid9}g)"/>` +
         `<circle cx="${(150 * sx3 + pad2).toFixed(1)}" cy="${(107 * sy3 + pad2).toFixed(1)}" r="${(5 * k).toFixed(1)}" fill="${onDark ? "#FFFFFF" : darken(bevel, 0.55)}" opacity="0.85"/>` +
         `<circle cx="${(114 * sx3 + pad2).toFixed(1)}" cy="${(34 * sy3 + pad2).toFixed(1)}" r="${(5 * k).toFixed(1)}" fill="${hexMix("#FF4D5A", bevel, 0.18)}" opacity="0.9"/>`;
-      const tag = `<text x="${(cxOf(W2)).toFixed(1)}" y="${(H2 - 10).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(11 * k).toFixed(1)}" font-weight="800" letter-spacing=".3em" fill="${onDark ? hexRgba(glow, 0.7) : darken(bevel, 0.3)}" text-anchor="middle" opacity="${dim}">KAZURI RING · GP CIRCUIT</text>`;
+      /* the circuit's NAME was a literal burned into the art — no icon,
+         image or word may be (maximum-editability law), and a maker
+         naming their own track should not have to leave the app. It now
+         takes the house text road: a typed label wins, the KAZURI RING
+         specimen stands otherwise, so untouched art is byte-still. */
+      const tag = `<text x="${(cxOf(W2)).toFixed(1)}" y="${(H2 - 10).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(11 * k).toFixed(1)}" font-weight="800" letter-spacing=".3em" fill="${onDark ? hexRgba(glow, 0.7) : darken(bevel, 0.3)}" text-anchor="middle" opacity="${dim}">${esc(opts.label ?? "KAZURI RING · GP CIRCUIT")}</text>`;
       return `<svg xmlns="http://www.w3.org/2000/svg" width="${W2.toFixed(0)}" height="${H2.toFixed(0)}" viewBox="0 0 ${W2.toFixed(0)} ${H2.toFixed(0)}" role="img" aria-label="race circuit map" data-race="circuit">
 <defs><filter id="${gid9}g" x="-40%" y="-40%" width="180%" height="180%">${shadow11(0, 0, (3 * k).toFixed(1), glow, 0.55)}</filter></defs>
 <g opacity="${dim}">${iso(track + markers)}${tag}</g>

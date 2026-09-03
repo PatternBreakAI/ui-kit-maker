@@ -2097,6 +2097,14 @@ export const kitVisible = (id: KitComponentId, releases: Record<string, string>,
 export const LABEL_MAX: Partial<Record<KitComponentId, number>> = {
   dialoguebox: 48, dialog: 48, tooltip: 48, toast: 40, chatbubble: 40,
   killfeed: 44, input: 40, searchfield: 36, achievetoast: 40, questpanel: 40,
+  /* The counter family (round 71). A badge is numeric in spirit but not
+     numeric by rule — "99+", "NEW" and "×3" are all real badge words, so
+     the field takes any string. What it does NOT take is more characters
+     than the face can hold, and that limit is enforced HERE, at the input,
+     where the field stops accepting keystrokes and the maker can see it —
+     never by the renderer quietly dropping the tail. Each cap is the
+     longest string its art still seats cleanly. */
+  countbadge: 4, notifydot: 3, avatarframe: 3, booster: 3, circuit: 28,
 };
 export const labelMaxOf = (id: KitComponentId | null | undefined): number => (id && LABEL_MAX[id]) || 32;
 
@@ -2118,6 +2126,19 @@ export const KIT_LABEL_EDITABLE = new Set<KitComponentId>([
      Words grid as Home/Away slots; old label edits still read through. */
   "achievetoast", "endturn", "pack", "cardback", "orderticket",
   "rewardcard", "qtybadge", "claimbtn", "chestpanel", "boostercard",
+  /* THE COUNTER FAMILY (owner, round 71: "I should be able to edit the
+     numbers of the badge in the right drawer just like text"). Each of
+     these draws exactly ONE self-drawn number — a notification count, a
+     level, a charge — staged off the Value dial and nothing else. Value
+     alone is a percentage road: it can say 12 but it cannot say 47 or
+     "99+", and because these ids were missing here the Boards drawer
+     drew no text field at all, so the number had no way in. They now
+     take the HUD counter's contract verbatim (bevel's `resource`): a
+     typed label always wins, an untouched piece keeps following the
+     value dial byte-for-byte. `circuit` joins them for a different
+     reason — its GP-circuit name was a literal burned into the art,
+     which the maximum-editability law does not allow. */
+  "countbadge", "notifydot", "avatarframe", "booster", "circuit",
   // the ribbon's center panel is a text field by construction — the words
   // are a live seat (the pack's editability contract), so the main Text
   // control drives them

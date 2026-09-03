@@ -16,7 +16,7 @@ import type { IconDialReach } from "@/generator/bevel";
 import { hydrate, presetLookConfig, defaultGeneration } from "@/generator/store";
 import type { LibItem } from "@/generator/store";
 import type { GenConfig  } from "@/generator/model";
-import { SILHOUETTES, SILHOUETTE_CATEGORIES, silhouetteMeta } from "@/generator/silhouettes";
+import { SILHOUETTES, SILHOUETTE_CATEGORIES, silhouetteMeta, silhouetteFlippable } from "@/generator/silhouettes";
 import { capsOf, UPGRADE_LINES } from "@/generator/entitlements";
 import { openAuth } from "@/shell/authOverlay";
 import { currentSession, promoIsLive, promoIsNew } from "@/generator/cloud";
@@ -1878,19 +1878,27 @@ export function Panel() {
             })}
         </div>
         {(() => {
-          /* the mirror toggle — always present so it never "vanishes";
-             disabled (with the reason) on outlines the geometry audit
-             measured as mirror-symmetric, where flipping changes nothing */
+          /* the mirror toggle. It used to be always present and DISABLED
+             on anything the registry had not been hand-annotated as
+             flippable — which told the maker "this silhouette is
+             symmetric, there's nothing to flip" about 42 shapes that are
+             nothing of the kind, Strike Bar's angled point and stepped
+             shoulder among them (owner, round 71). The claim is now
+             measured rather than typed (silhouetteFlippable), and where
+             it holds the control is HIDDEN rather than shown inert, per
+             the owner's standing preference — a symmetric outline is one
+             of the plain shapes (Rounded, Flat Pill, Hex…), where nobody
+             goes hunting for a mirror. An already-flipped piece always
+             keeps the control so there is a way back: a stored dial with
+             no way back would break the editability law. */
           const live = focus ? (kitShapes[focus] ?? KIT_SHAPE[baseOf(focus)] ?? D.shape) : D.shape;
-          const base = baseShape(live);
-          const canFlip = !!silhouetteMeta(base)?.flippable || base.startsWith("user:");
+          const flipped = isFlipShape(live);
+          if (!silhouetteFlippable(baseShape(live)) && !flipped) return null;
           return (
-            <button className={`resetstate${isFlipShape(live) ? " on" : ""}`} disabled={!canFlip}
-              title={canFlip
-                ? "Mirror this silhouette left-to-right. Asymmetric cuts point the other way; every surface and export follows"
-                : "This silhouette is symmetric left-to-right, so its mirror image is identical. There's nothing to flip"}
-              onClick={() => { if (!canFlip) return; setShapeScoped(flipShape(live)); }}>
-              <ArrowLeftRight size={13} strokeWidth={2} /> Flip horizontally{isFlipShape(live) ? " (mirrored)" : canFlip ? "" : " (shape is symmetric)"}
+            <button className={`resetstate${flipped ? " on" : ""}`}
+              title="Mirror this silhouette left-to-right. Asymmetric cuts point the other way; every surface and export follows"
+              onClick={() => setShapeScoped(flipShape(live))}>
+              <ArrowLeftRight size={13} strokeWidth={2} /> Flip horizontally{flipped ? " (mirrored)" : ""}
             </button>
           );
         })()}
