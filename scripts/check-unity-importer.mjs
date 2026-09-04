@@ -538,16 +538,44 @@ if (!/stampsInUse\.Add\("bigglyphs\/" \+ itR\.big\.id \+ "\.png"\);/.test(cs)
   errors.push("the orphan sweep must cover bigglyphs/ AND keep a used asset's clean original in-use (the prefab wears it even when every copy is fx) (round 23)");
 if (!/it2\.big != null && !string\.IsNullOrEmpty\(it2\.big\.id\)/.test(cs))
   errors.push("the kept-scene heal must re-point a big-glyph copy's clean/fx flip and shield big rows from the stamp branch's WipeShine (round 23)");
-/* round 44 REVERSES the round-23 emission pins: the Uploads/Art drawer
-   (big-glyph drop + account logo uploads) never ships in the Unity
-   download (owner mandate — AI-generated art stays out of the product's
-   engine export). The IMPORTER machinery above stays for old zips; the
-   EMISSION road must stay closed. */
-if (/component: "bigglyph"/.test(src) || /stampFiles\.push\(\{ file: `bigglyphs\//.test(src))
-  errors.push("the big-glyph/upload emission road reopened — Uploads/Art must never ship in the Unity download (owner mandate, round 44)");
-if (!/const items = bd\.items\.filter\(\(b\) => b\.kitId \|\| b\.stamp \|\| b\.libId\);/.test(src)
-    || !/Uploads\/Art never ships in the Unity download \(owner mandate\)/.test(src))
-  errors.push("the Uploads/Art export exclusion (item filter + the loud skip warn) is gone from collectExportBoards (round 44)");
+/* ── THE ART DRAWER'S TWO HALVES, PINNED APART ───────────────────────
+   round 44 (owner mandate): the PAINTED big-glyph drop never ships in
+   the Unity download — AI-generated art stays out of the product's
+   engine export. That closure must hold.
+   round 72 (owner mandate): "anyone who adds a logo to their boards
+   manually will need to be rest assured that the logo is included in
+   the Unity output." A MAKER'S OWN upload travels — as a live child on
+   its own prefab (the maximum-editability law), never baked into the
+   backdrop — and when its pixels can't be reached the export says so
+   out loud instead of dropping the piece in silence. */
+/* the painted drop's pixels can only board the zip through bigGlyphUrl —
+   its absence from the exporter IS the closure */
+if (/bigGlyphUrl/.test(src))
+  errors.push("the PAINTED big-glyph emission road reopened (bigGlyphUrl is back in the exporter) — the Art drop must never ship in the Unity download (owner mandate, round 44)");
+if (!/const items = bd\.items\.filter\(\(b\) => b\.kitId \|\| b\.stamp \|\| b\.libId \|\| b\.logo\);/.test(src)
+    || !/the painted glyph drop never ships in the Unity download \(owner mandate, round 44\)/.test(src))
+  errors.push("collectExportBoards must ship logo copies and keep excluding painted Art copies, loudly (rounds 44 + 72)");
+/* the maker's logo, all the way across the seam */
+if (!/component: "bigglyph"/.test(src) || !/big: \{ id: uid2, name: shipName, sprite: file, fx: hasFx \}/.test(src))
+  errors.push("the logo emission seam (component bigglyph + big{id,name,sprite,fx}) is missing — a placed logo would never reach a Unity scene (round 72)");
+if (!/const cleanFile = `bigglyphs\/\$\{uid2\}\.png`;/.test(src) || !/if \(!bigClean\.has\(uid2\)\) \{/.test(src))
+  errors.push("every used logo must ship its CLEAN sprite (dialed copies included) — the prefab wears it, and the Inspector swap the editability law asks for is only honest against the maker's own art (round 72)");
+if (!/const padB = hasFx \? bigGlyphFilterPad\(\{ gid: "", \.\.\.b\.logo \}\) : 0;/.test(src)
+    || !/artW: Math\.round\(wNat \* kB \* 10\) \/ 10, artH: Math\.round\(hNat \* kB \* 10\) \/ 10/.test(src))
+  errors.push("a dialed logo row must ship the PADDED footprint plus its art box (artW/artH) — without them the importer squeezes the shadow halo into the art rect and raycasts eat the neighbours (rounds 25 + 72)");
+if (!/const logoShipName = \(aid: string, name: string\): string =>/.test(src) || !/takenNames\.add\(prefabKey\(g0\.name\)\)/.test(src))
+  errors.push("logo prefab names must be uniquified against the painted-glyph set — a logo called 'Star' would overwrite a kept project's Star prefab (round 72)");
+/* the un-resolvable case is LOUD in all three places a person can look */
+if (!/artMissing\.push\(\{ board: bd\.name, name: ua\.name \}\)/.test(src)
+    || !/could not be found in this browser's vault or your account/.test(src))
+  errors.push("a logo whose pixels cannot be resolved must warn per copy and be recorded — silently dropping a piece the maker placed is the export lying (round 72)");
+if (!/onWarn\?\.\(`Heads up — \$\{missed\.length === 1 \? "a logo you placed is"/.test(src))
+  errors.push("the export must tell the MAKER to their face when a placed logo could not ship (downloadEngineExport onWarn, round 72)");
+if (!/public PBBoardItem\[\] items; public string\[\] artMissing; \}/.test(cs)
+    || !/is missing " \+ bd\.artMissing\.Length \+ " logo\(s\) you placed/.test(cs))
+  errors.push("the import receipt must name the logos that could not ship, per scene — a gap in a layout must never read as an importer bug (round 72)");
+if (!/artMissing: b\.artMissing/.test(src))
+  errors.push("the manifest must carry each board's artMissing names, or the importer receipt has nothing to repeat (round 72)");
 if (!/Prefabs\/Art\/\*\*/.test(src))
   errors.push("the README's Prefabs/Art pointer is missing (round 23; the shelf renamed to Art on the owner's decision)");
 
@@ -1681,11 +1709,12 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   const dilatedUses = (exSrc.match(/canvasToPngBytesDilated\(/g) ?? []).length;
   if (dilatedUses < 5)
     errors.push(`exportUtils rides canvasToPngBytesDilated only ${dilatedUses}x (need >=5: definition, svgToPngBytes, tight crop, union crop, glow/catalog) — a raster road fell back to premultiplied toBlob (slice 1)`);
-  /* round 44: the bigglyph-fx and logo bake roads left with the Uploads/Art
-     export exclusion — the floor drops from 9 to 7 */
+  /* round 44 dropped the floor 9→7 with the painted-Art bake roads; round
+     72 returns the LOGO bake (one draw() helper serving the clean sprite
+     and the dialed one), so the floor is 8 */
   const dilatedUsesEE = (src.match(/canvasToPngBytesDilated\(/g) ?? []).length;
-  if (dilatedUsesEE < 7)
-    errors.push(`engineExport's direct canvas bakes ride canvasToPngBytesDilated only ${dilatedUsesEE}x (need >=7: backgrounds, stamp, stamp mask, dialed-shadow bake, mask re-register, shadow sibling, baked-face atlas) — a bake road still ships premultiplied black fringe (slice 1)`);
+  if (dilatedUsesEE < 8)
+    errors.push(`engineExport's direct canvas bakes ride canvasToPngBytesDilated only ${dilatedUsesEE}x (need >=8: backgrounds, stamp, stamp mask, logo, dialed-shadow bake, mask re-register, shadow sibling, baked-face atlas) — a bake road still ships premultiplied black fringe (slice 1)`);
   if (!/if \(!ti\.mipmapEnabled\) \{ ti\.mipmapEnabled = true; changed = true; \}/.test(cs)
       || !/if \(ti\.filterMode != FilterMode\.Trilinear\) \{ ti\.filterMode = FilterMode\.Trilinear; changed = true; \}/.test(cs))
     errors.push("Configure must import kit sprites with mips + trilinear — scaled board copies undersample into white specks without them (slice 1)");

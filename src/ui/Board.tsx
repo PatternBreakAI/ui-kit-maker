@@ -1008,8 +1008,13 @@ export function BoardView({ playing }: { playing: boolean }) {
     addToBoard, addKitToBoard, moveBoardItem, scaleBoardItem, rotateBoardItem, removeBoardItem,
     duplicateBoardItem, componentReleases, isAdmin, tier,
     applyBoardItemPatches, removeBoardItems, transformBoardItems,
-    userAssets, addUserAssetToBoard, boardShadowLast,
+    userAssets, kitAssets, addUserAssetToBoard, boardShadowLast,
   } = useGen();
+  /* one registry read for every logo road on the desk — the maker's own
+     drawer first, then the open document's bundled art, so the stage,
+     the piece name and the PNG bake can never disagree about which
+     pixels a logo item means */
+  const logoAsset = (aid: string) => userAssets.find((a) => a.id === aid) ?? kitAssets.find((a) => a.id === aid);
   /* ── the board's one gate (free-play round, owner mandate 2026-08-26) ──
      exports (board PNG, piece SVG/PNG) are paid — these composites
      render entirely in the browser, so the gate is client-side by
@@ -1669,7 +1674,7 @@ export function BoardView({ playing }: { playing: boolean }) {
   const nameOf = (b: BoardItem): string => {
     if (b.stamp) return `"${b.stamp.text}"`;
     if (b.big) return bigGlyphById(b.big.gid)?.name ?? "Big glyph";
-    if (b.logo) return userAssets.find((a) => a.id === b.logo!.aid)?.name ?? "My asset";
+    if (b.logo) return logoAsset(b.logo.aid)?.name ?? "My asset";
     // clone-registry first — a copy-* id must never surface as a name
     const kid = b.kitId;
     if (kid) return kitClones[kid]?.name ?? KIT_COMPONENTS.find((c) => c.id === baseOf(kid))?.name ?? kid;
@@ -1786,7 +1791,7 @@ export function BoardView({ playing }: { playing: boolean }) {
         /* user logo: the vaulted/cloud ship copy, the instance's dials as
            the SAME bigGlyphFilter recipe the stage shows — one filter
            string across stage, this compositor and the Unity bake */
-        const ua = userAssets.find((a) => a.id === b.logo!.aid);
+        const ua = logoAsset(b.logo.aid);
         if (!ua) continue;
         const url = await bgAssetDisplayUrl(ua.ref).catch(() => null);
         if (!url) continue;
@@ -1794,7 +1799,11 @@ export function BoardView({ playing }: { playing: boolean }) {
         await new Promise<void>((res) => {
           const img = new Image();
           img.onload = () => {
-            const w = img.width * s, h = img.height * s;
+            /* the FOOTPRINT is the registry's w/h, never the raster's own
+               (UserAsset.w/h) — identical for an upload, and the one thing
+               that keeps a bake honest when the art behind a ref is a
+               smaller display tier, the big glyphs' contract */
+            const w = ua.w * s, h = ua.h * s;
             ctx.save();
             if (b.opacity !== undefined) ctx.globalAlpha = b.opacity / 100;
             // flat board space — scale the filter recipe like the big glyphs
@@ -3577,7 +3586,7 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
    *  the marquee are untouched — dblclick is two stationary clicks. */
   onTextEdit?: () => void;
 }) {
-  const { cfg, library, kitShapes, kitSizes, kitTextFill, kitDesigns, kitIcons, kitLabels, kitNoText, kitVals, kitRow, kitBar, kitTextOy, kitTextOx, kitSlotVals, kitSubs, userAssets } = useGen();
+  const { cfg, library, kitShapes, kitSizes, kitTextFill, kitDesigns, kitIcons, kitLabels, kitNoText, kitVals, kitRow, kitBar, kitTextOy, kitTextOx, kitSlotVals, kitSubs, userAssets, kitAssets } = useGen();
   const sc = b.scale ?? 1;
   /* THE FREEZE FIX, part 1 (owner: "Page Unresponsive", every Board visit
      with a backdrop). A fresh applyKitDesign object here on every render
@@ -3768,8 +3777,11 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
           return <BigGlyphStageArt cfg={cfg} gl={gl} fx={b.big!} />;
         })() : b.logo ? (() => {
           /* a user logo is the maker's own raster at the big-glyph stage
-             footprint, its dials as the same shared filter recipe */
-          const ua = userAssets.find((a) => a.id === b.logo!.aid);
+             footprint, its dials as the same shared filter recipe. The
+             maker's drawer answers first; a SHIPPED kit's own bundled
+             art (kitAssets) answers for the boards a public kit page
+             draws, where there is no maker and no vault. */
+          const ua = userAssets.find((a) => a.id === b.logo!.aid) ?? kitAssets.find((a) => a.id === b.logo!.aid);
           if (!ua) return null;
           return <UserLogoStageArt cfg={cfg} ua={ua} fx={b.logo!} />;
         })() : b.stamp ? (

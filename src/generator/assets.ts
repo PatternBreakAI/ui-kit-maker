@@ -228,10 +228,26 @@ export async function resolveBgAsset(id: string): Promise<{ blob: Blob; name: st
 
 const displayUrls = new Map<string, string>();
 
+/** A BUNDLED art path — `/kit-art/…`, the same road `/backdrops/…` rides
+ *  in a board's bgImage. A shipped kit's own art travels in the repo, so
+ *  it needs no vault and no account: the path IS the display url, and it
+ *  paints for a signed-out stranger on first visit.
+ *
+ *  Strict on purpose. This string lands in an `<img src>` (and, on the
+ *  backdrop road, in CSS url()), and payload strings arrive from share
+ *  links and cloud docs — so nothing but a same-origin path to a shipped
+ *  raster gets through: absolute, no scheme, no `//` host, no `..`, one
+ *  of three image extensions. */
+const BUNDLED_ART_RE = /^\/[A-Za-z0-9][A-Za-z0-9._\-/]*\.(?:png|jpe?g|webp)$/;
+export function isBundledArt(s: string | null | undefined): s is string {
+  return typeof s === "string" && BUNDLED_ART_RE.test(s) && !s.includes("..") && !s.startsWith("//");
+}
+
 /** The url a board should PAINT for a vaulted/cloud backdrop — resolved
  *  once per asset id and cached. Consumers that need the bytes (export,
  *  embedding) keep using resolveBgAsset directly. */
 export async function bgAssetDisplayUrl(id: string): Promise<string | null> {
+  if (isBundledArt(id)) return id; // shipped art: the path is the url
   const hit = displayUrls.get(id);
   if (hit) return hit;
   const rec = await resolveBgAsset(id);
