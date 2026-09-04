@@ -377,6 +377,35 @@ function useShellRail(ref: React.RefObject<HTMLDivElement | null>, sel: string) 
 let bayOpenMemo = false;
 let bayEditReturn: KitComponentId | null = null;
 
+/* ── THE ARTBOARD AND THE SHEET ─────────────────────────────────────────
+   Two different grounds, and the app kept confusing them.
+
+   `cfg.canvas` is the ARTBOARD: the user's own stage colour for the piece
+   they are designing. It paints the editor canvas, it rides into every
+   export, and the art answers it — a caption drawn outside a piece's shell
+   is white on a black stage and dark on a pale one. That is a design
+   decision and nothing here touches it.
+
+   This page is the SHEET: a page of app furniture — its ground, its prose,
+   its section chrome, its specimen stages, the staging bay, the fold heads,
+   the Unity links. Furniture belongs to the APP, so the sheet follows the
+   app's theme, exactly like the top bar and the rail beside it.
+
+   Deciding the sheet from `isDarkBg(cfg.canvas)` conflated the two. It
+   self-corrected on a toggle — setTheme re-mixes the canvas — but never on
+   the FIRST PAINT of a kit arriving from a link: #/kit/brightside ships a
+   black stage, so a light-mode visitor opening it cold got a black sheet
+   inside a light app (round 69).
+
+   The renderer follows in lockstep: every piece the sheet places carries
+   `onDark` (KitOpts.onDark), so the marks drawn outside a shell take their
+   ink from the PAGE they stand on, not from the kit's stage colour. Absent
+   that flag the renderer still reads cfg.canvas, which is why the artboard
+   and every exported byte are untouched. */
+function useSheetDark(): boolean {
+  return useGen((s) => s.theme) === "dark";
+}
+
 interface PieceOpts {
   id: KitComponentId; size?: KitSize; label?: string; segments?: string[];
   /** This card lives in the staging bay proper — its Edit round-trips back
@@ -439,6 +468,10 @@ function usePiece(p: PieceOpts) {
     () => flatPiece(applyKitTextFill(applyKitDesign(cfg, kd), ktf), p.flat),
     [cfg, kd, ktf, p.flat],
   );
+  /* every piece on this page stands on the SHEET, not on the artboard — the
+     one funnel Piece / PPiece / SPiece all come through, so the marks a
+     piece draws outside its shell read on the page in either theme */
+  const onDark = useSheetDark();
   return {
     cfg: pieceCfg,
     /* two distinct badges (owner: pieces read "locked" here while the
@@ -470,7 +503,7 @@ function usePiece(p: PieceOpts) {
       // data rows follow the row model everywhere; a variant's explicit
       // label/sub still wins for its own line
       row: base === "datarow" ? kitRow : undefined,
-      kind: p.kind, tone: p.tone,
+      kind: p.kind, tone: p.tone, onDark,
       // bar-family config: the user's per-component settings ride over the
       // specimen's defaults; the dock glyph follows the icon-swap system
       ...(base === "progress" || base === "segbar" ? (() => {
@@ -846,7 +879,10 @@ function InvSlot({ item, selected, onSelect, small }: { item: InvItem | null; se
 
 function InventoryScreen() {
   const cfg = useGen((s) => s.cfg);
-  const dark = isDarkBg(cfg.canvas);
+  /* the wireframes are drawn straight onto the specimen stage, whose ground
+     is a sheet token (--st-bg1/2) — so they answer the SHEET, not the kit's
+     artboard colour */
+  const dark = useSheetDark();
   const acc = cfg.effects.Glow ?? "#8FF0FF";
   const wire = dark ? acc : hexMix(cfg.effects.Bevel ?? "#0E9CC9", "#0A0C14", 0.3);
   const [sel, setSel] = useState(0);
@@ -1668,7 +1704,9 @@ export function KitPage() {
     document.querySelectorAll(".gp-piece").forEach((el) => stillSmil(el, true));
   });
   const focusRet = useGen((s) => s.focus);
-  const dark = isDarkBg(cfg.canvas);
+  /* the SHEET's light/dark — app furniture, so it is the app's theme. See
+     "THE ARTBOARD AND THE SHEET" above. */
+  const dark = useSheetDark();
   const preset = PRESETS.find((p) => p.id === cfg.presetId);
   const sil = SHAPES.find((s) => s.id === cfg.shape)?.name.split(" — ")[0] ?? "Custom";
   const roles = EFFECT_ROLES.filter((r) => cfg.effects[r] !== undefined);

@@ -43,9 +43,34 @@ export interface LiveKit {
   kind?: "circle" | "oval" | "strip";
   /** Alt tone — muted material; the piece ignores hover and press. */
   tone?: "alt";
+  /** The ground this instance is standing on, when it is NOT the artboard
+   *  (see KitOpts.onDark). Hosts that place pieces on the user's artboard —
+   *  the editor canvas, the Board's stage — leave it alone and the renderer
+   *  reads cfg.canvas as it always has. The kit SHEET is app furniture and
+   *  passes its own theme, so the marks a piece draws outside its shell
+   *  answer the page they sit on rather than the kit's stage colour. */
+  onDark?: boolean;
 }
 
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+
+/* How long a timer's drain runs, and how long its end state holds before
+   the piece returns to its documented pose. Time is linear either way, so
+   the number that changes is the DURATION, and each instrument gets the
+   one its own fiction asks for rather than a shared constant:
+     · the service ticket counts SECONDS, and its last quarter is the
+       alarm — a tense, brisk gesture, held a moment on overdue;
+     · the match clock is a clock, so it keeps the family's steady tick;
+     · the chest compresses HOURS and has a real payoff at zero (OPEN!,
+       with the aura and the radiating ticks), so it runs the longest and
+       holds that payoff long enough to read.
+   Anything not listed keeps the 3.2s the family has always used. */
+const DRAIN_DEFAULT = { ms: 3200, hold: 420 };
+const DRAIN_SPAN: Record<string, { ms: number; hold: number }> = {
+  orderticket: { ms: 2600, hold: 560 },
+  scorebug: { ms: 3600, hold: 420 },
+  chest: { ms: 4600, hold: 1000 },
+};
 
 /* ── the stillness rule (owner: "most things should be user initiated") ──
    The engine bakes SMIL loops into ~30 components (damage floats, radar
@@ -222,10 +247,18 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
   const stickDrag = useRef<{ x: number; y: number; sx: number; sy: number } | null>(null);
   const sliding = useRef(false);
   const raf = useRef(0);
+  /* Countdown IN FLIGHT. The progress family pins pval at mount, which a
+     resting sweep instrument must not inherit: off the clock the cooldown
+     and the buff frame keep reading their configured value, so the Value
+     dial still steers them live and their resting art is exactly what it
+     has always been. */
+  const [ticking, setTicking] = useState(false);
+  const expire = useRef(0);
+  const drain = (id && DRAIN_SPAN[id]) || DRAIN_DEFAULT;
   const pvalRef = useRef(pval);
   pvalRef.current = pval;
   const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => () => cancelAnimationFrame(raf.current), []);
+  useEffect(() => () => { cancelAnimationFrame(raf.current); window.clearTimeout(expire.current); }, []);
 
   // a piece resting in "disabled" is inert — it never reacts or changes.
   // alt-tone pieces (muted titles) render live but ignore hover and press.
@@ -237,6 +270,11 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
     // pointer, the selector cycles, the wheel follows the pointer's ANGLE
     : id === "slider" || id === "setrow" || id === "scrollbar" || id === "listmenu" || id === "choicelist" || id === "dialog" || id === "equipselector" || id === "weaponwheel" || id === "spinwheel" || id === "emotewheel" ? (playing && !disabled ? val : kit?.value)
     : id === "progress" || id === "segbar" || id === "emblembar" || id === "vsbar" || id === "hotbar" || id === "ring" || id === "starrating" || id === "flipclock" || id === "stopwatch" || id === "timerdigits" || id === "respawn" || id === "speedo" || id === "speedo2" || id === "tacho" || id === "compass" ? (playing && !disabled ? pval : kit?.value)
+    // the sweep instruments and the readout clocks run off the clock only
+    // WHILE the clock runs — at rest they are the piece the page has always
+    // documented, and their Value dial still steers them live
+    : id === "cooldown" || id === "buffframe" || id === "orderticket" || id === "chest" || id === "scorebug"
+      ? (playing && !disabled && ticking ? pval : kit?.value)
     : id === "segment" ? (playing && !disabled ? sel : kit?.value)
     : kit?.value;
 
@@ -263,12 +301,12 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
   // kitNoText flag) are DIFFERENT renders: the sentinel keeps their keys apart
   // or flipping "No text" on an unworded piece would never re-render.
   const kitKey = kit
-    ? `${kit.id}|${kit.size ?? "m"}|${kit.shape ?? ""}|${kit.label ?? "\u0000"}|${(kit.segments ?? []).join(",")}|${kit.icon ? kit.icon.lib + ":" + kit.icon.name : kit.icon === null ? "none" : ""}|${kit.textOy ?? ""}|${kit.textOx ?? ""}|${kit.dock ? (kit.dock.side ?? "left") + ":" + (kit.dock.icon ? kit.dock.icon.name : kit.dock.icon === null ? "none" : "clock") : ""}|${kit.bar ? JSON.stringify(kit.bar) : ""}|${kit.sub ?? ""}|${kit.max ?? ""}|${kit.addBtn ? 1 : 0}|${kit.overlay ?? ""}|${kit.iconScale ?? ""}|${kit.row ? JSON.stringify(kit.row) : ""}|${kit.kind ?? ""}|${kit.tone ?? ""}|${kit.themedText ? 1 : 0}|${kit.stretch ?? ""}|${kit.stretchY ?? ""}|${kit.slots ? JSON.stringify(kit.slots) : ""}`
+    ? `${kit.id}|${kit.size ?? "m"}|${kit.shape ?? ""}|${kit.label ?? "\u0000"}|${(kit.segments ?? []).join(",")}|${kit.icon ? kit.icon.lib + ":" + kit.icon.name : kit.icon === null ? "none" : ""}|${kit.textOy ?? ""}|${kit.textOx ?? ""}|${kit.dock ? (kit.dock.side ?? "left") + ":" + (kit.dock.icon ? kit.dock.icon.name : kit.dock.icon === null ? "none" : "clock") : ""}|${kit.bar ? JSON.stringify(kit.bar) : ""}|${kit.sub ?? ""}|${kit.max ?? ""}|${kit.addBtn ? 1 : 0}|${kit.overlay ?? ""}|${kit.iconScale ?? ""}|${kit.row ? JSON.stringify(kit.row) : ""}|${kit.kind ?? ""}|${kit.tone ?? ""}|${kit.themedText ? 1 : 0}|${kit.stretch ?? ""}|${kit.stretchY ?? ""}|${kit.slots ? JSON.stringify(kit.slots) : ""}|${kit.onDark === undefined ? "" : kit.onDark ? 1 : 0}`
     : "";
   const svg = useMemo(
     () => {
       const raw = kit
-        ? renderKit(cfg, kit.id, kit.size ?? "m", state, value, kit.shape, { label: id === "input" ? (typed ?? kit.label) : kit.label, segments: kit.segments, slots: kit.slots, icon: kit.icon, textOy: kit.textOy, textOx: kit.textOx, dock: kit.dock, bar: kit.bar, sub: kit.sub, max: kit.max, addBtn: kit.addBtn, overlay: kit.overlay, iconScale: kit.iconScale, row: kit.row, kind: kit.kind, tone: kit.tone, themedText: kit.themedText, stretch: kit.stretch, stretchY: kit.stretchY, stick: id === "joystick" && playing ? stick : undefined })
+        ? renderKit(cfg, kit.id, kit.size ?? "m", state, value, kit.shape, { label: id === "input" ? (typed ?? kit.label) : kit.label, segments: kit.segments, slots: kit.slots, icon: kit.icon, textOy: kit.textOy, textOx: kit.textOx, dock: kit.dock, bar: kit.bar, sub: kit.sub, max: kit.max, addBtn: kit.addBtn, overlay: kit.overlay, iconScale: kit.iconScale, row: kit.row, kind: kit.kind, tone: kit.tone, themedText: kit.themedText, onDark: kit.onDark, stretch: kit.stretch, stretchY: kit.stretchY, stick: id === "joystick" && playing ? stick : undefined })
         : renderBevel(cfg, state);
       const out = stablePad ? padSvg(raw) : raw;
       // the document's own idle wipe joins the host-driven shine — same
@@ -524,24 +562,47 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
   };
 
   /* Timer demo playback — refills to the target, then drains LINEARLY to
-     zero (time is linear) over ~3.2s; the renderer derives the mm:ss
-     readout from the value, so the clock visibly ticks down. */
+     zero (time is linear) over the piece's own span; the renderer derives
+     the readout from the value, so the clock visibly ticks down. */
   const playTimer = () => {
     cancelAnimationFrame(raf.current);
     if (typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches) {
       setPval(target);
       return;
     }
+    setTicking(true);
     setPval(target);
     const t0 = performance.now();
     const step = (t: number) => {
-      const u = Math.min(1, (t - t0) / 3200);
+      const u = Math.min(1, (t - t0) / drain.ms);
       setPval(target * (1 - u));
       if (u < 1) raf.current = requestAnimationFrame(step);
+      // a beat at empty so the end state reads — "expired", or the chest's
+      // OPEN! — then the piece hands the clock back to its configured pose
+      // (playCompass's return-to-rest)
+      else expire.current = window.setTimeout(() => setTicking(false), drain.hold);
     };
     raf.current = requestAnimationFrame(step);
   };
-  const isTimer = id === "flipclock" || id === "stopwatch" || id === "timerdigits" || id === "respawn";
+  const isTimer = id === "flipclock" || id === "stopwatch" || id === "timerdigits" || id === "respawn"
+    /* the two SWEEP instruments join the timer family (owner: "the buff
+       frame and the cooldown radial should animate when clicked in the
+       kit"). Both already derive their whole time story from `value` —
+       the radial's spent sector and lit tick crown, the buff's clockwise
+       sweep, and both seconds readouts — so the family's existing
+       click→drain playback is the whole behavior: no new timeline, no
+       loop, and nothing the exporter can see (pval is app-only state; the
+       SVG download and every export path read the STORE's value). */
+    || id === "cooldown" || id === "buffframe"
+    /* …and the three READOUT clocks (owner: "do the three timers too").
+       Same story again: value already IS the time on each of them — the
+       ticket's countdown bar and its 72s, the chest's 6h 24m plate, the
+       score bug's match clock — so they inherit the family's playback
+       rather than growing timelines of their own. (buildqueue is NOT
+       here: its "0:42" is a fixed string the renderer never derives from
+       value, so it would need renderer work before a clock could drive
+       it.) */
+    || id === "orderticket" || id === "chest" || id === "scorebug";
   const isGauge = id === "speedo" || id === "speedo2" || id === "tacho"; // clicking revs / replays it
 
   /* Compass demo playback — the needle swings off its heading and settles

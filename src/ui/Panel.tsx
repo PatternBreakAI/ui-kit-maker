@@ -16,7 +16,7 @@ import type { IconDialReach } from "@/generator/bevel";
 import { hydrate, presetLookConfig, defaultGeneration } from "@/generator/store";
 import type { LibItem } from "@/generator/store";
 import type { GenConfig  } from "@/generator/model";
-import { SILHOUETTES, SILHOUETTE_CATEGORIES, silhouetteMeta } from "@/generator/silhouettes";
+import { SILHOUETTES, SILHOUETTE_CATEGORIES, silhouetteMeta, silhouetteFlippable } from "@/generator/silhouettes";
 import { capsOf, UPGRADE_LINES } from "@/generator/entitlements";
 import { openAuth } from "@/shell/authOverlay";
 import { currentSession, promoIsLive, promoIsNew } from "@/generator/cloud";
@@ -48,21 +48,33 @@ const PACK_PITCH_GUEST = "Monthly preset packs ship with Pro. Sign in free to ge
    base document's generation: recipe starters derive from the site
    default, and ./default-settings.json can land AFTER the first cut — a
    moved base re-cuts the rack at its next render instead of standing
-   stale until reload. */
+   stale until reload.
+
+   The DRESSING itself is lookArtOf below, because two surfaces show a
+   look now: this rack, and the shipped kit's promo wall — which stands
+   the kit's own material beside the starters and so needs the same
+   dressing applied to a live document rather than to a starter id. One
+   function, so a look can never read one way here and another there. */
+/** ONE design as look-art. Clones first: a live config must never be
+ *  dressed in place. */
+export function lookArtOf(cfg: GenConfig): string {
+  const pc = structuredClone(cfg);
+  pc.content.label = "PLAY";
+  pc.icon.show = false;
+  // previews skip the glow viewport pad — the art stays tight in its card
+  for (const s of Object.values(pc.states)) s.glow = 0;
+  return renderBevel(pc, "default");
+}
+/** …and one STARTER as look-art, by id (the setPreset road). */
+export const starterArt = (id: string): string => lookArtOf(presetLookConfig(id));
+
 let presetArtCache: { id: string; name: string; svg: string }[] | null = null;
 let presetArtGen = -1;
 export function presetArt() {
   const gen = defaultGeneration();
   if (!presetArtCache || presetArtGen !== gen) {
     presetArtGen = gen;
-    presetArtCache = PRESETS.map((p) => {
-      const pc = presetLookConfig(p.id);
-      pc.content.label = "PLAY";
-      pc.icon.show = false;
-      // thumbnails skip the glow viewport pad — the art stays tight in its card
-      for (const s of Object.values(pc.states)) s.glow = 0;
-      return { id: p.id, name: p.name, svg: renderBevel(pc, "default") };
-    });
+    presetArtCache = PRESETS.map((p) => ({ id: p.id, name: p.name, svg: starterArt(p.id) }));
   }
   return presetArtCache;
 }
@@ -1866,19 +1878,27 @@ export function Panel() {
             })}
         </div>
         {(() => {
-          /* the mirror toggle — always present so it never "vanishes";
-             disabled (with the reason) on outlines the geometry audit
-             measured as mirror-symmetric, where flipping changes nothing */
+          /* the mirror toggle. It used to be always present and DISABLED
+             on anything the registry had not been hand-annotated as
+             flippable — which told the maker "this silhouette is
+             symmetric, there's nothing to flip" about 42 shapes that are
+             nothing of the kind, Strike Bar's angled point and stepped
+             shoulder among them (owner, round 71). The claim is now
+             measured rather than typed (silhouetteFlippable), and where
+             it holds the control is HIDDEN rather than shown inert, per
+             the owner's standing preference — a symmetric outline is one
+             of the plain shapes (Rounded, Flat Pill, Hex…), where nobody
+             goes hunting for a mirror. An already-flipped piece always
+             keeps the control so there is a way back: a stored dial with
+             no way back would break the editability law. */
           const live = focus ? (kitShapes[focus] ?? KIT_SHAPE[baseOf(focus)] ?? D.shape) : D.shape;
-          const base = baseShape(live);
-          const canFlip = !!silhouetteMeta(base)?.flippable || base.startsWith("user:");
+          const flipped = isFlipShape(live);
+          if (!silhouetteFlippable(baseShape(live)) && !flipped) return null;
           return (
-            <button className={`resetstate${isFlipShape(live) ? " on" : ""}`} disabled={!canFlip}
-              title={canFlip
-                ? "Mirror this silhouette left-to-right. Asymmetric cuts point the other way; every surface and export follows"
-                : "This silhouette is symmetric left-to-right, so its mirror image is identical. There's nothing to flip"}
-              onClick={() => { if (!canFlip) return; setShapeScoped(flipShape(live)); }}>
-              <ArrowLeftRight size={13} strokeWidth={2} /> Flip horizontally{isFlipShape(live) ? " (mirrored)" : canFlip ? "" : " (shape is symmetric)"}
+            <button className={`resetstate${flipped ? " on" : ""}`}
+              title="Mirror this silhouette left-to-right. Asymmetric cuts point the other way; every surface and export follows"
+              onClick={() => setShapeScoped(flipShape(live))}>
+              <ArrowLeftRight size={13} strokeWidth={2} /> Flip horizontally{flipped ? " (mirrored)" : ""}
             </button>
           );
         })()}

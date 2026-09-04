@@ -990,7 +990,21 @@ img.logo { width: 46px; height: 46px; object-fit: contain; }
 .kp-splashchip:hover { border-color: var(--kp-line); background: var(--kp-card); }
 .kp-splashchip.on { border-color: var(--kp-ink3); }
 
-.kp-states { display: flex; flex-wrap: nowrap; overflow-x: auto; align-items: flex-end; gap: 2px 14px; margin-top: 8px; padding: 6px 12px 2px; border-radius: 14px; background: var(--kp-card); }
+/* State strip — the specimens for one piece's states, side by side.
+   It SIZES TO ITS SPECIMENS and never scrolls (owner: "weird mini sections
+   that are weirdly scrollable in the kit page").
+   The old `overflow-x: auto` earned nothing and cost twice:
+   · CSS makes overflow-y compute to `auto` as soon as the other axis leaves
+     `visible`, so the band became a scroll container VERTICALLY — and the
+     hug crop's negative margins (the specimen's transparent reserve pulled
+     in around its art) then read as 65px of phantom scroll with the top of
+     every specimen clipped away.
+   · at full width the band stretched to the column while holding 18–32% of
+     it, which is the near-empty strip the owner circled.
+   Wrapping is the honest answer where the specimens genuinely run wide (a
+   phone): five tiny slider states wrap to a second row instead of hiding
+   behind a scrollbar. */
+.kp-states { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 2px 14px; margin-top: 8px; padding: 6px 12px 2px; border-radius: 14px; background: var(--kp-card); width: fit-content; max-width: 100%; }
 .kp-state { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 0; }
 .kp-state figcaption { font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--kp-ink3); }
 
@@ -3269,14 +3283,38 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
 /* the promo block — tasteful and short; the demo is the page's job */
 .kv-promo { margin-top: 54px; padding-top: 24px; border-top: 1px solid var(--kp-line); }
 .kv-promohead .kv-title { max-width: 46ch; font-size: 22px; }
-.kv-promogrid { display: grid; gap: 14px; margin-top: 20px; grid-template-columns: repeat(auto-fit, minmax(min(258px, 100%), 1fr)); }
-.kv-promocard {
-  display: flex; flex-direction: column; align-items: flex-start; gap: 9px;
-  padding: 18px 18px 20px; border-radius: 16px;
-  border: 1px solid var(--kp-line); background: var(--kp-card);
-}
-.kv-promocard h3 { margin: 0; font-size: 15px; font-weight: 750; color: var(--kp-ink); letter-spacing: -.01em; }
-.kv-promocard p { margin: 0; flex: 1; font-size: 12.5px; line-height: 1.6; color: var(--kp-ink2); }
+/* the looks wall — the same component in this kit's material and seven
+   starters, drawn live. The tiles are the argument, so they get the room:
+   four across on a desktop column, two on a phone, and the art is sized
+   from the tile rather than a fixed pixel box so a wide shape (the shield,
+   the polybar) fills the same footprint as a narrow one. */
+.kv-looks { margin-top: 20px; }
+/* four across, then two: eight tiles land as 4x2 and 2x4, never as a
+   ragged 6+2. The count is fixed (this kit plus seven starters), so the
+   columns are stated rather than guessed at from a min width. */
+.kv-lookgrid { display: grid; gap: 14px 12px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 900px) { .kv-lookgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.kv-look { position: relative; margin: 0; display: flex; flex-direction: column; gap: 10px; min-width: 0;
+  padding: 16px 14px 13px; border-radius: 16px; border: 1px solid var(--kp-line); background: var(--kp-card); }
+/* THIS page's kit wears the ink border, so the eye starts on what it is
+   already looking at and reads the rest as alternatives */
+.kv-look--here { border-color: var(--kp-ink3); }
+/* one FIXED art row for every tile, so a short shield and a tall pill
+   still line their captions up across the wall */
+.kv-lookart { display: flex; align-items: center; justify-content: center; height: 92px; }
+.kv-looksvg { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
+.kv-looksvg svg { max-width: 100%; max-height: 92px; width: auto; height: auto; display: block; }
+/* the waking tile — a quiet block at the art's own size, never a spinner */
+.kv-lookwake { width: 74%; height: 46px; border-radius: 12px; background: rgba(128,138,170,.12); animation: kv-wake 1.5s ease-in-out infinite; }
+.kv-look figcaption { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 7px;
+  font-size: 12px; font-weight: 700; letter-spacing: -.01em; color: var(--kp-ink); }
+.kv-look figcaption i { font-style: normal; font-size: 10px; font-weight: 700; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--kp-ink3); }
+@media (prefers-reduced-motion: reduce) { .kv-lookwake { animation: none; } }
+.kv-looknote { max-width: 76ch; }
+/* the two doors under the store line */
+.kv-promoact { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+.kv-promoact .kv-btn { margin-top: 0; }
 .kv-btn {
   display: inline-flex; align-items: center; gap: 7px; margin-top: 4px;
   padding: 9px 16px; border-radius: 11px; border: 1px solid var(--kp-line);
