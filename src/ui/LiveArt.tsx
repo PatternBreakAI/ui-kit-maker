@@ -13,6 +13,9 @@ export interface LiveKit {
   slots?: Record<string, string>;
   segments?: string[];
   icon?: IconDef | null;
+  /** A maker's own uploaded picture for this piece (round 73) — already
+   *  resolved to a url by kitPicOf; absent means draw the icon. */
+  pic?: { href: string; w: number; h: number } | null;
   /** Starting value — toggle on/off (1/0), slider/progress fill, segment index. */
   value?: number;
   /** Horizontal 9-slice stretch for the bar family — see KitOpts.stretch. */
@@ -306,7 +309,7 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
   const svg = useMemo(
     () => {
       const raw = kit
-        ? renderKit(cfg, kit.id, kit.size ?? "m", state, value, kit.shape, { label: id === "input" ? (typed ?? kit.label) : kit.label, segments: kit.segments, slots: kit.slots, icon: kit.icon, textOy: kit.textOy, textOx: kit.textOx, dock: kit.dock, bar: kit.bar, sub: kit.sub, max: kit.max, addBtn: kit.addBtn, overlay: kit.overlay, iconScale: kit.iconScale, row: kit.row, kind: kit.kind, tone: kit.tone, themedText: kit.themedText, onDark: kit.onDark, stretch: kit.stretch, stretchY: kit.stretchY, stick: id === "joystick" && playing ? stick : undefined })
+        ? renderKit(cfg, kit.id, kit.size ?? "m", state, value, kit.shape, { label: id === "input" ? (typed ?? kit.label) : kit.label, segments: kit.segments, slots: kit.slots, icon: kit.icon, pic: kit.pic, textOy: kit.textOy, textOx: kit.textOx, dock: kit.dock, bar: kit.bar, sub: kit.sub, max: kit.max, addBtn: kit.addBtn, overlay: kit.overlay, iconScale: kit.iconScale, row: kit.row, kind: kit.kind, tone: kit.tone, themedText: kit.themedText, onDark: kit.onDark, stretch: kit.stretch, stretchY: kit.stretchY, stick: id === "joystick" && playing ? stick : undefined })
         : renderBevel(cfg, state);
       const out = stablePad ? padSvg(raw) : raw;
       // the document's own idle wipe joins the host-driven shine — same

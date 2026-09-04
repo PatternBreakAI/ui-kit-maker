@@ -354,6 +354,14 @@ export interface EngineExportState {
   /** Per-piece 9-slice override from the app's slicing editor, design px —
       absent = borders measured from the rendered pixels. */
   kitSlices?: Partial<Record<KitComponentId, { left: number; right: number; top: number; bottom: number }>>;
+  /** A MAKER'S OWN PICTURE per piece (round 73) — a userAssets/kitAssets
+      registry id. The pixels are resolved to real bytes at export time
+      (vault first, then the account's cloud copy), so a card exported on
+      one machine carries its art to any other. */
+  kitPics?: Partial<Record<KitComponentId, string>>;
+  /** The registries those ids name — the export cannot reach the store. */
+  userAssets?: { id: string; name: string; ref: string; w: number; h: number }[];
+  kitAssets?: { id: string; name: string; ref: string; w: number; h: number }[];
   kitName: string;
   /** I1 — the kit's PERMANENT address inside the user's Unity project
       (Assets/UIKitMaker/<slug>/). Minted at first export, survives display
@@ -2997,6 +3005,42 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   };
   setEmbedFont("", null); // never inherit a stale embed from a crashed export
 
+  /* ── A MAKER'S PICTURE, MADE SHIPPABLE (round 73) ────────────────────
+     The app paints a maker's uploaded art from a blob url; an export
+     cannot, because the raster runs through a canvas and a stale or
+     foreign url is either empty or a tainted canvas. So each picture is
+     resolved to real bytes ONCE per export and inlined as a data url, and
+     the marked-ink road does the rest: the picture becomes the piece's
+     swappable Image child and the bake stays empty, which is the same
+     contract every other live child already has. A picture whose pixels
+     are not on this machine simply does not resolve, and the piece falls
+     back to its icon rather than shipping a hole. */
+  const picCache = new Map<string, { href: string; w: number; h: number } | null>();
+  const picOf = async (id: KitComponentId): Promise<{ href: string; w: number; h: number } | null> => {
+    const aid = st.kitPics?.[id] ?? st.kitPics?.[baseOf(id)];
+    if (!aid) return null;
+    if (picCache.has(aid)) return picCache.get(aid) ?? null;
+    const ua = (st.userAssets ?? []).find((a) => a.id === aid) ?? (st.kitAssets ?? []).find((a) => a.id === aid);
+    let out: { href: string; w: number; h: number } | null = null;
+    if (ua) {
+      try {
+        const { resolveBgAsset } = await import("./assets");
+        const rec = await resolveBgAsset(ua.ref);
+        if (rec?.blob) {
+          const href = await new Promise<string | null>((res) => {
+            const fr = new FileReader();
+            fr.onload = () => res(typeof fr.result === "string" ? fr.result : null);
+            fr.onerror = () => res(null);
+            fr.readAsDataURL(rec.blob);
+          });
+          if (href) out = { href, w: ua.w, h: ua.h };
+        }
+      } catch { out = null; }
+    }
+    picCache.set(aid, out);
+    return out;
+  };
+
   /* ── LOGOS THAT COULD NOT SHIP (round 72, owner mandate) ─────────────
      A maker's logo travels into the scene as its own live child. When its
      pixels live only in a vault this machine hasn't got, the copy cannot
@@ -5137,10 +5181,12 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         if (isGlyphButton(uid) && !gbtnFull.has(uid)) continue;
         const isArt = isGlyphPiece(uid);
         const uVal = st.kitVals?.[uid];
+        const uPic = isArt ? null : await picOf(uid);
         const uOpts: Record<string, unknown> = isArt ? {} : {
           label: st.kitNoText?.[uid] ? "" : st.kitLabels?.[uid],
           sub: st.kitSubs?.[uid], slots: st.kitSlotVals?.[uid],
           icon: resolveKitIcon(st.kitIcons?.[uid], undefined),
+          pic: uPic,
           themedText: !!st.kitDesigns?.[uid]?.type || !!st.kitTextFill[uid],
         };
         /* SMIL loops strip before anything downstream parses or rasters —

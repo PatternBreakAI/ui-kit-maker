@@ -1340,10 +1340,14 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
       note: "The badge under the left number. Hexagon is the factory. Off removes the corner entirely, number and all." },
     { id: "lnum", name: "Left number", kind: "free", def: "5", maxLen: 3,
       note: "Cost, mana, whatever your left corner means. It ships as live text riding its own badge, so your game writes it at runtime and it can take a hit or a buff." },
+    { id: "link", name: "Left corner colour", kind: "color", def: "",
+      note: "This corner's own ground. Cost blue on the left and power orange on the right is the classic pairing, and one shared colour could never say it. Leave it unset and the corner wears the kit's own mix." },
     { id: "rshape", name: "Right corner shape", kind: "choice", choices: CARD_CORNER_SHAPES,
       note: "The badge under the right number. Circle is the factory. Off removes the corner entirely, number and all." },
     { id: "rnum", name: "Right number", kind: "free", def: "9", maxLen: 3,
       note: "Attack, power, whatever your right corner means. Same live wiring as the left." },
+    { id: "rink", name: "Right corner colour", kind: "color", def: "",
+      note: "The right corner's own ground, independent of the left." },
     { id: "art", name: "Picture", kind: "choice", choices: ["Icon", "Full bleed"],
       note: "Icon centres the kit's glyph in the well, the way the card back does. Full bleed lets an uploaded image fill the well corner to corner. Either way the picture is a swappable child, never baked in." },
     { id: "frame", name: "Picture frame", kind: "choice", choices: ["On", "Off"],
@@ -2181,6 +2185,15 @@ export const KIT_LABEL_EDITABLE = new Set<KitComponentId>([
    primary button is usually a mistake. NOTE: there is no small-tab
    component — `small` is button-small; the tab family is tab + tabback. */
 export const NO_TEXT_ELIGIBLE = new Set<KitComponentId>(["tab", "tabback"]);
+
+/* Pieces that can carry A MAKER'S OWN PICTURE (round 73 — the owner:
+   "the card face should default to an icon BUT you can upload an image
+   that will appear in the face and obviously travel to Unity", then: "we
+   should also then add this upload ability to the card back and deck
+   covers as well"). The deck cover IS the card back wearing a nameplate,
+   so it needs no separate entry. Anywhere else the control would be a
+   dead affordance, and the house rule is to hide what cannot work. */
+export const PIC_ELIGIBLE = new Set<KitComponentId>(["cardface", "cardback", "pack"]);
 
 /* Components whose FRAME keeps the Default design in every state — the
    hot element (selected cell, the mark, the knob) carries the state, and

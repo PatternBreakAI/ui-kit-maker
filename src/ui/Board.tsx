@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceBetween, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceBetween, ArrowDown, ArrowUp, BookmarkPlus, BringToFront, Copy, Download, Grid3x3, ImagePlus, LayoutTemplate, Lock, Monitor, Plus, RotateCcw, Search, SendToBack, Shield, Smartphone, SquarePen, Trash2, Type, X } from "lucide-react";
-import { useGen, rehydrateBoardBgs, boardBgFilter, boardScaleMin, boardItemArtShort, drawBoardNoise, drawBoardOverlays, stampFilter, stampSvg, warpStampRaster, importUserAssetFile, kitShadowFilter, suppressCastShadow } from "@/generator/store";
+import { useGen, kitPicOf, rehydrateBoardBgs, boardBgFilter, boardScaleMin, boardItemArtShort, drawBoardNoise, drawBoardOverlays, stampFilter, stampSvg, warpStampRaster, importUserAssetFile, kitShadowFilter, suppressCastShadow } from "@/generator/store";
 import type { UserAsset, UserLogoFx } from "@/generator/store";
 import { normalizeShipCopy, captureVideoPoster } from "@/generator/bgvault";
 import { importBgAsset, bgAssetStatusLine, onAssetActivity, bgAssetDisplayUrl } from "@/generator/assets";
@@ -1009,7 +1009,7 @@ export function BoardView({ playing }: { playing: boolean }) {
     addToBoard, addKitToBoard, moveBoardItem, scaleBoardItem, rotateBoardItem, removeBoardItem,
     duplicateBoardItem, componentReleases, isAdmin, tier,
     applyBoardItemPatches, removeBoardItems, transformBoardItems,
-    userAssets, kitAssets, addUserAssetToBoard, boardShadowLast,
+    userAssets, kitAssets, kitPics, addUserAssetToBoard, boardShadowLast,
   } = useGen();
   /* one registry read for every logo road on the desk — the maker's own
      drawer first, then the open document's bundled art, so the stage,
@@ -1562,6 +1562,7 @@ export function BoardView({ playing }: { playing: boolean }) {
     const pc = noGlow(applyKitTextFill(applyKitDesign(cfg, kitDesigns[key]), kitTextFill[key]));
     return tightenSvg(renderKit(pc, base, "s", "default", kitVals[key], kitShapes[key], {
       icon: resolveKitIcon(kitIcons[key], undefined),
+      pic: kitPicOf({ kitPics, userAssets, kitAssets }, key),
       label: kitNoText[key] ? "" : kitLabels[key],
       sub: kitSubs[key], slots: kitSlotVals[key],
       textOy: kitTextOy[nudge], textOx: kitTextOx[nudge], overlay: ov,
@@ -1655,7 +1656,7 @@ export function BoardView({ playing }: { playing: boolean }) {
       // (owner: "changing the speedo component in edit did not update it
       // on the the board")
       const bSize = kitSizes[b.kitId] ?? "l";
-      return { svg: renderKit(pc, bBase, bSize, "default", b.v ?? kitVals[b.kitId], kitShapes[b.kitId], { icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: kitNoText[b.kitId] ? "" : (b.label ?? kitLabels[b.kitId]), sub: kitSubs[b.kitId], slots: kitSlotVals[b.kitId], textOy: kitTextOy[`${b.kitId}:${bSize}`], textOx: kitTextOx[`${b.kitId}:${bSize}`], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov, dock: kb?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kb.dockSide ?? "left" } : undefined, bar: kb, row: bBase === "datarow" ? kitRow : undefined, themedText: !!kitDesigns[b.kitId]?.type || !!kitTextFill[b.kitId] }), cfg: pc };
+      return { svg: renderKit(pc, bBase, bSize, "default", b.v ?? kitVals[b.kitId], kitShapes[b.kitId], { icon: resolveKitIcon(kitIcons[b.kitId], undefined), pic: kitPicOf({ kitPics, userAssets, kitAssets }, b.kitId), label: kitNoText[b.kitId] ? "" : (b.label ?? kitLabels[b.kitId]), sub: kitSubs[b.kitId], slots: kitSlotVals[b.kitId], textOy: kitTextOy[`${b.kitId}:${bSize}`], textOx: kitTextOx[`${b.kitId}:${bSize}`], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov, dock: kb?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kb.dockSide ?? "left" } : undefined, bar: kb, row: bBase === "datarow" ? kitRow : undefined, themedText: !!kitDesigns[b.kitId]?.type || !!kitTextFill[b.kitId] }), cfg: pc };
     }
     if (b.stamp) return { svg: stampSvg(cfg, b.stamp), cfg };
     // big glyphs and user logos are raster art — the PNG compositor
@@ -3587,7 +3588,7 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
    *  the marquee are untouched — dblclick is two stationary clicks. */
   onTextEdit?: () => void;
 }) {
-  const { cfg, library, kitShapes, kitSizes, kitTextFill, kitDesigns, kitIcons, kitLabels, kitNoText, kitVals, kitRow, kitBar, kitTextOy, kitTextOx, kitSlotVals, kitSubs, userAssets, kitAssets } = useGen();
+  const { cfg, library, kitShapes, kitSizes, kitTextFill, kitDesigns, kitIcons, kitLabels, kitNoText, kitVals, kitRow, kitBar, kitTextOy, kitTextOx, kitSlotVals, kitSubs, userAssets, kitAssets, kitPics } = useGen();
   const sc = b.scale ?? 1;
   /* THE FREEZE FIX, part 1 (owner: "Page Unresponsive", every Board visit
      with a backdrop). A fresh applyKitDesign object here on every render
@@ -3796,7 +3797,7 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
              A CLONE item hands LiveArt its BASE id (LiveArt refuses clone
              ids) while every per-piece read stays keyed by b.kitId. */
           <LiveArt cfg={forkCfg} playing={playing} anchorContent onArt={onArtDim}
-            kit={{ id: baseOf(b.kitId), size: kitSizes[b.kitId] ?? "l", shape: kitShapes[b.kitId], icon: resolveKitIcon(kitIcons[b.kitId], undefined), label: kitNoText[b.kitId] ? "" : (b.label ?? kitLabels[b.kitId]), value: b.v ?? kitVals[b.kitId], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
+            kit={{ id: baseOf(b.kitId), size: kitSizes[b.kitId] ?? "l", shape: kitShapes[b.kitId], icon: resolveKitIcon(kitIcons[b.kitId], undefined), pic: kitPicOf({ kitPics, userAssets, kitAssets }, b.kitId), label: kitNoText[b.kitId] ? "" : (b.label ?? kitLabels[b.kitId]), value: b.v ?? kitVals[b.kitId], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
               sub: kitSubs[b.kitId], slots: kitSlotVals[b.kitId],
               textOy: kitTextOy[`${b.kitId}:${kitSizes[b.kitId] ?? "l"}`], textOx: kitTextOx[`${b.kitId}:${kitSizes[b.kitId] ?? "l"}`],
               dock: (baseOf(b.kitId) === "progress" || baseOf(b.kitId) === "segbar") && kitBar[b.kitId]?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kitBar[b.kitId]?.dockSide ?? "left" } : undefined,

@@ -1,7 +1,7 @@
 import { Component, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import "@/styles/pricing.css"; // the staging bay wears the community desk's cg-curate buttons
 import { ChevronDown, Download, Lock, PenTool, Pin, ShieldCheck, SquarePen, Trash2 } from "lucide-react";
-import { useGen } from "@/generator/store";
+import { useGen, kitPicOf } from "@/generator/store";
 import { CLONE_KINDS, EFFECT_ROLES, GLYPH_BUTTONS, KIT_COMPONENTS, KIT_SHAPE, PRESETS, ROLE_HINT, SHAPES, STOCK_ICONS, STAGED_KIT, applyKitDesign, applyKitTextFill, baseOf, baseShape, fontByName, groupOf, hexMix, isDarkBg, isGlyphButton, effKitSize, kitVisible, resolveKitIcon, sanitizeUnitySlug } from "@/generator/model";
 import { LIVE_GLYPHS } from "@/generator/glyphLibrary";
 import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, Shape } from "@/generator/model";
@@ -2007,6 +2007,10 @@ export function KitPage() {
             kitLabels: st.kitLabels, kitNoText: st.kitNoText, kitSubs: st.kitSubs, kitVals: st.kitVals, kitSlotVals: st.kitSlotVals,
             // per-piece icon overrides — the chip bake and the notices' icon-credit walk read these
             kitIcons: st.kitIcons,
+            /* the maker's own uploaded pictures, plus the registries that
+               name their bytes — the export resolves them to real pixels
+               so a card carries its art to any machine (round 73) */
+            kitPics: st.kitPics, userAssets: st.userAssets, kitAssets: st.kitAssets,
             // the maker's text-nudge dials — labels bake and seat where the maker pushed them (engine-lane slice 2; cross-lane one-liner, called out in the PR)
             kitTextOy: st.kitTextOy, kitTextOx: st.kitTextOx },
           scope === "full" ? () => buildSpriteSheetBytes(sheetEntries(st), `${name} · visual catalog`, st.cfg.type.font, fdef2?.css ?? null,
@@ -2204,6 +2208,7 @@ const kitTier = useGen((s) => s.tier);
         };
         // user content overrides ride every catalog entry
         o.icon = resolveKitIcon(st.kitIcons[cid], o.icon);
+        if (o.pic === undefined) o.pic = kitPicOf(st, cid);
         o.slots = { ...st.kitSlotVals[cid], ...o.slots };
         if (st.kitNoText[cid]) o.label = ""; else if (o.label === undefined) o.label = st.kitLabels[cid];
         if (o.sub === undefined) o.sub = st.kitSubs[cid];
