@@ -9929,12 +9929,19 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
          contentText so it obeys the kit's text controls like every other
          word, and it is a live seat in the export. */
       const nameY = wY + wH;
+      /* the name SHRINKS TO FIT rather than running off the card (the
+         owner's own rule for the claim button's ribbon: grow the plate, or
+         shrink the words). There is no plate here to grow, so the type
+         gives way — down to 62% and no further, because past that a card
+         name stops being readable and the honest answer is a shorter name. */
+      const nameLen = (opts.label ?? "CARD NAME").length;
+      const nameFs = 33 * k * typeK * clamp((w * 0.88) / Math.max(1, nameLen * 33 * k * typeK * 0.56), 0.62, 1);
       /* the word straddles the well's foot, so half of it lands on the
          card's own bright face — a VIGNETTE (not a plate: the owner asked
          for no container) darkens the ground under it on both sides of
          that edge, so the name reads whatever the picture and the kit do */
       partsF += `<ellipse cx="${(39 + w / 2).toFixed(1)}" cy="${nameY.toFixed(1)}" rx="${(w * 0.5).toFixed(1)}" ry="${(34 * k).toFixed(1)}" fill="url(#${gid}v)" opacity="${dimF}"/>`;
-      partsF += `<g data-part="label">${contentText(opts.label ?? "CARD NAME", 39 + w / 2, nameY, 33 * k * typeK, { anchor: "middle", keepCase: true, track: 1, opacity: dimF, autoInk: "#FFFFFF" })}</g>`;
+      partsF += `<g data-part="label">${contentText(opts.label ?? "CARD NAME", 39 + w / 2, nameY, nameFs, { anchor: "middle", keepCase: true, track: 1, opacity: dimF, autoInk: "#FFFFFF" })}</g>`;
       return inject(track.replace("<svg ", '<svg data-cardface="1" '), partsF);
     }
     case "pack": {
