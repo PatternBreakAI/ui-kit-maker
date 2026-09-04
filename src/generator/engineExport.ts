@@ -9,9 +9,11 @@
 import type { GenConfig, IconDef, KitComponentId, KitDesign, Shape } from "./model";
 import type { BoardDef, LibItem } from "./store";
 import { stampFilter, stampFilterPad, boardBgFilter, drawBoardNoise, drawBoardOverlays, stampSvg, warpStampRaster, kitShadowFilter, kitShadowPad, suppressCastShadow } from "./store";
-/* bigGlyphById only names the excluded piece in the export-skip warn —
-   the Uploads/Art drawer never ships in the Unity download (round 44) */
-import { bigGlyphById } from "./bigGlyphs";
+/* bigGlyphById names the excluded piece in the export-skip warn — the
+   PAINTED glyph drop never ships in the Unity download (round 44). The
+   filter/base recipes are for the MAKER'S OWN logos, which do (round 72):
+   one shadow/glow recipe across stage, board PNG and the Unity bake. */
+import { bigGlyphById, bigGlyphFilter, bigGlyphFilterPad, BIG_GLYPH_BASE } from "./bigGlyphs";
 import { applyKitDesign, applyKitTextFill, baseOf, darken, hexMix, lighten, fontByName, isCloneId, isFlipShape, isGlyphPiece, KIT_COMPONENTS, KIT_SHAPE, KIT_SLICEABLE, STOCK_ICONS, effKitSize, glyphSeatIcon, kitVisible, resolveKitIcon, sanitizeUnitySlug, stateSlotKey } from "./model";
 /* the glyph-button fleet's registry (round 52) — aliased: this module's own
    GLYPH_BUTTONS is the round-40 ACTION-glyph set (pause/play/replay/home) */
@@ -561,6 +563,12 @@ export interface ExportBoardData {
   /** baked sprite files for this board (type stamps, saved assets, big
       glyphs) — pushed into the zip beside bg */
   stampFiles: { file: string; bytes: Uint8Array }[];
+  /** LOGOS THIS BOARD PLACED THAT COULD NOT SHIP (round 72): their pixels
+      live in a browser vault or an account bucket this machine can't
+      reach. Never silent — the export tells the maker to their face
+      (downloadEngineExport's onWarn) and the manifest carries the names
+      so Unity's own import receipt repeats them beside the scene. */
+  artMissing?: string[];
 }
 
 /* ── THE UN-BURN's marked-group hands (maximum-editability law,
@@ -1006,22 +1014,58 @@ export async function collectExportBoards(st: {
   const STAGE_DIMS: Record<"169" | "mobile", [number, number]> = { "169": [1920, 1080], mobile: [390, 844] };
   const out: ExportBoardData[] = [];
   const seen = new Set<string>();
-  for (const bd of st.boards) {
-    /* ── ROUND 44 (owner mandate via the coordinator): the Uploads/Art
-       drawer — the painted big-glyph drop and account logo uploads —
-       does NOT travel in the Unity download. AI-generated art never
-       ships in the product's engine export: no sprites, no board rows,
-       no prefabs, no manifest presence. The board copy simply stays out
-       of the scene, LOUDLY (the warn below names the board and asset).
-       The shipped importer KEEPS its Art/BigGlyphs machinery untouched,
-       so old zips that already carry the art keep converging in kept
-       projects; the app's own stage keeps drawing these — only the
-       export road closes. ── */
-    for (const b of bd.items) {
-      if (b.big) console.warn(`engine export: board "${bd.name}" places the Art-drawer piece "${bigGlyphById(b.big.gid)?.name ?? b.big.gid}" — Uploads/Art never ships in the Unity download (owner mandate), so this copy stays out of the exported scene.`);
-      else if (b.logo) console.warn(`engine export: board "${bd.name}" places an uploaded logo — Uploads/Art never ships in the Unity download (owner mandate), so this copy stays out of the exported scene.`);
+  /* ── THE ART DRAWER'S TWO HALVES ─────────────────────────────────────
+     ROUND 44 (owner mandate): the PAINTED BIG-GLYPH DROP does not travel
+     in the Unity download — AI-generated art never ships in the product's
+     engine export. That half stays closed, loudly (the warn below names
+     the board and the piece).
+
+     ROUND 72 (owner mandate): a MAKER'S OWN UPLOADED LOGO does travel.
+     "Anyone who adds a logo to their boards manually will need to be
+     rest assured that the logo is included in the Unity output." It is
+     their artwork, they placed it, and the maximum-editability law says
+     an exported kit must be workable without the app — a scene that
+     silently drops a piece the maker put on the board is the export
+     lying to them. So a logo copy ships as a LIVE Image child on its
+     own prefab, its own sprite, positioned and scaled as placed, never
+     flattened into the backdrop.
+
+     Un-resolvable art is the one honest failure: the bytes live in the
+     maker's vault (or their account's bucket), and a board opened on a
+     machine that has neither can't ship pixels it doesn't have. That
+     case is never silent — it warns per copy here, the export tells the
+     maker to their face (downloadEngineExport's onWarn), and the
+     manifest carries the names so Unity's own import receipt repeats it. */
+  const artMissing: { board: string; name: string }[] = [];
+  /* user-logo prefab names must stay UNIQUE per export: the importer
+     converges Prefabs/Art/<FileSafeWord(name)>.prefab by NAME, so a logo
+     called "Star" would overwrite a kept project's Star glyph prefab.
+     Compare on the importer's own truncation (24 chars, case-folded). */
+  const prefabKey = (n: string) => n.trim().slice(0, 24).trim().toLowerCase();
+  const logoNames = new Map<string, string>(); // aid → shipped unique name
+  const takenNames = new Set<string>();
+  for (const bd0 of st.boards) for (const b0 of bd0.items) {
+    if (b0.big) { const g0 = bigGlyphById(b0.big.gid); if (g0) takenNames.add(prefabKey(g0.name)); }
+  }
+  const logoShipName = (aid: string, name: string): string => {
+    const hit = logoNames.get(aid);
+    if (hit) return hit;
+    let want = name.trim() || "My logo";
+    if (takenNames.has(prefabKey(want))) {
+      for (let n = 2; ; n++) {
+        const cand = `${want.slice(0, 24 - String(n).length - 1).trim()} ${n}`;
+        if (!takenNames.has(prefabKey(cand))) { want = cand; break; }
+      }
     }
-    const items = bd.items.filter((b) => b.kitId || b.stamp || b.libId);
+    takenNames.add(prefabKey(want));
+    logoNames.set(aid, want);
+    return want;
+  };
+  for (const bd of st.boards) {
+    for (const b of bd.items) {
+      if (b.big) console.warn(`engine export: board "${bd.name}" places the Art-drawer piece "${bigGlyphById(b.big.gid)?.name ?? b.big.gid}" — the painted glyph drop never ships in the Unity download (owner mandate, round 44), so this copy stays out of the exported scene.`);
+    }
+    const items = bd.items.filter((b) => b.kitId || b.stamp || b.libId || b.logo);
     if (!items.length) continue;
     const [W, H] = STAGE_DIMS[bd.aspect];
     let slug = bd.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "board";
@@ -1160,6 +1204,8 @@ export async function collectExportBoards(st: {
        current. (The importer re-points scenes still holding old-scheme
        names once, position-keyed.) ── */
     const usedSid = new Set<string>();
+    /** a logo's CLEAN sprite ships ONCE per asset per board */
+    const bigClean = new Set<string>();
     const sidOf = (b: { id?: string }) => {
       let s = (b.id ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "").slice(-10);
       if (!s) s = `n${stampFiles.length + 1}`;
@@ -1323,6 +1369,110 @@ export async function collectExportBoards(st: {
                 };
               })()
             : {}),
+        });
+        continue;
+      }
+      if (b.logo) {
+        /* ── A MAKER'S OWN LOGO (owner mandate, round 72) ──────────────
+           It travels the big-glyph SCENE road, which the shipped importer
+           already speaks end to end: `component: "bigglyph"` rows with
+           big.id "user-<aid>" and sprites under bigglyphs/. The importer's
+           Art walk mints Prefabs/Art/<Name>.prefab per asset and the scene
+           places a live Image instance of it — swappable in the Inspector,
+           never flattened into the backdrop. Zero C# changes.
+
+           TWO SPRITES PER ASSET, on purpose:
+           · the CLEAN original, shipped once per asset per board. This is
+             what the PREFAB wears, so a maker who swaps the sprite in the
+             Inspector is swapping their own artwork, not a shadow bake.
+           · a dialed copy ALSO bakes its shadow/glow into an instance
+             sprite (the posed-pipeline precedent) so the authored
+             treatment arrives exactly as the board drew it, and the
+             scene overrides that copy's Image with it.
+
+           Pixels resolve vault-first, then the account's cloud copy (the
+           backdrop contract) and always re-encode to PNG, so the .png
+           path speaks the truth whatever the upload container was. When
+           they resolve NOWHERE the copy cannot ship — and that is said
+           out loud rather than dropped (artMissing, see the head). */
+        const ua = st.userAssets?.find((a) => a.id === b.logo!.aid);
+        const aidSafe = ua ? ua.id.replace(/[^a-z0-9]/gi, "").slice(0, 24).toLowerCase() : "";
+        const shipName = ua ? logoShipName(ua.id, ua.name) : "a logo";
+        if (!ua || !aidSafe) {
+          console.warn(`UI Kit Maker export: board "${bd.name}" places a logo whose My-assets entry is gone — it cannot ship. Re-upload the image and place it again.`);
+          artMissing.push({ board: bd.name, name: "a deleted My-assets entry" });
+          continue;
+        }
+        const uid2 = `user-${aidSafe}`;
+        const hasFx = !!(b.logo.shadow || b.logo.glow);
+        let file: string;
+        let wNat = ua.w, hNat = ua.h;
+        try {
+          const rec = await resolveBgAsset(ua.ref);
+          if (!rec) {
+            /* the one honest failure: the bytes live in the browser vault
+               (or the account's bucket) and this machine has neither */
+            console.warn(`UI Kit Maker export: board "${bd.name}" places the logo "${ua.name}", but its image could not be found in this browser's vault or your account, so it CANNOT ship in this download. Open the board on the machine that has the image, or re-upload it, and export again.`);
+            artMissing.push({ board: bd.name, name: ua.name });
+            continue;
+          }
+          const bmp = await createImageBitmap(rec.blob);
+          wNat = bmp.width; hNat = bmp.height;
+          /* a logo parked off the stage never drew in the app — the
+             stage-clip contract, gated before any bytes ship (kBg/padBg
+             mirror the kB/padB math below the try) */
+          const kBg = (b.scale ?? 1) * BIG_GLYPH_BASE;
+          const padBg = hasFx ? bigGlyphFilterPad({ gid: "", ...b.logo }) : 0;
+          if (!onStage(b.x + (wNat * kBg) / 2, b.y + (hNat * kBg) / 2, (wNat + padBg * 2) * kBg, (hNat + padBg * 2) * kBg, b.rot)) { bmp.close(); continue; }
+          const draw = (pad: number, filter?: string): Promise<Uint8Array> => {
+            const cv = document.createElement("canvas");
+            cv.width = bmp.width + pad * 2; cv.height = bmp.height + pad * 2;
+            const cx2 = cv.getContext("2d")!;
+            if (filter) cx2.filter = filter;
+            cx2.drawImage(bmp, pad, pad);
+            return canvasToPngBytesDilated(cv);
+          };
+          /* the CLEAN original ships for EVERY used asset, dialed copies
+             included — it is the prefab's sprite, and the Inspector swap
+             the law asks for is only honest if what sits there is the
+             maker's own art rather than one copy's shadow bake */
+          const cleanFile = `bigglyphs/${uid2}.png`;
+          if (!bigClean.has(uid2)) {
+            stampFiles.push({ file: cleanFile, bytes: await draw(0) });
+            bigClean.add(uid2);
+          }
+          if (!hasFx) file = cleanFile;
+          else {
+            const fxB = { gid: "", ...b.logo };
+            const bytesL = await draw(bigGlyphFilterPad(fxB), bigGlyphFilter(st.cfg, fxB));
+            file = `bigglyphs/${uid2}-${sidOf(b)}.png`;
+            stampFiles.push({ file, bytes: bytesL });
+          }
+          bmp.close();
+        } catch (e) {
+          console.warn(`UI Kit Maker export: board "${bd.name}" places the logo "${ua.name}", but its image could not be prepared for the download, so this copy stays out of the scene.`, e);
+          artMissing.push({ board: bd.name, name: ua.name });
+          continue;
+        }
+        const kB = (b.scale ?? 1) * BIG_GLYPH_BASE;
+        // fx sprites pad symmetrically — same footprint contract as glyphs
+        const padB = hasFx ? bigGlyphFilterPad({ gid: "", ...b.logo }) : 0;
+        const wB = (wNat + padB * 2) * kB, hB = (hNat + padB * 2) * kB;
+        const cxB = b.x + (wNat * kB) / 2, cyB = b.y + (hNat * kB) / 2;
+        const axB = cxB < W / 3 ? 0 : cxB > (2 * W) / 3 ? 1 : 0.5;
+        const ayB = cyB < H / 3 ? 1 : cyB > (2 * H) / 3 ? 0 : 0.5;
+        exItems.push({
+          component: "bigglyph", cx: Math.round(cxB * 10) / 10, cy: Math.round(cyB * 10) / 10,
+          w: Math.round(wB * 10) / 10, h: Math.round(hB * 10) / 10,
+          // the logo's own raster is the art box; an fx copy's symmetric
+          // filter pad is (w - artW)/2 per side — raycasts stop at the art
+          artW: Math.round(wNat * kB * 10) / 10, artH: Math.round(hNat * kB * 10) / 10,
+          rot: b.rot ?? 0, label: null, value: null, ax: axB, ay: ayB,
+          anchor: `${ayB === 1 ? "top" : ayB === 0 ? "bottom" : "middle"}-${axB === 0 ? "left" : axB === 1 ? "right" : "center"}`,
+          stamp: file,
+          // the maker's own name keys the prefab — uniquified against the
+          // glyph set so it can never overwrite a stock prefab
+          big: { id: uid2, name: shipName, sprite: file, fx: hasFx },
         });
         continue;
       }
@@ -2180,7 +2330,9 @@ export async function collectExportBoards(st: {
       });
     }
     // masks ride along AFTER the walk — ordinal names stay untouched
-    out.push({ name: bd.name, w: W, h: H, bg, items: exItems, stampFiles: [...stampFiles, ...maskFiles] });
+    const missedHere = artMissing.filter((m) => m.board === bd.name).map((m) => m.name);
+    out.push({ name: bd.name, w: W, h: H, bg, items: exItems, stampFiles: [...stampFiles, ...maskFiles],
+      ...(missedHere.length ? { artMissing: missedHere } : {}) });
   }
   return out;
 }
@@ -2844,6 +2996,19 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     else tpnPicker.set(`${d.lib}:${d.name}`, { lib: d.lib, name: d.name });
   };
   setEmbedFont("", null); // never inherit a stale embed from a crashed export
+
+  /* ── LOGOS THAT COULD NOT SHIP (round 72, owner mandate) ─────────────
+     A maker's logo travels into the scene as its own live child. When its
+     pixels live only in a vault this machine hasn't got, the copy cannot
+     ship — and the maker hears about it BEFORE they open Unity and go
+     hunting, not from a console line they were never going to read. */
+  {
+    const missed = (st.boards ?? []).flatMap((b) => (b.artMissing ?? []).map((n) => ({ board: b.name, name: n })));
+    if (missed.length) {
+      const lines = missed.map((m) => `  · "${m.name}" on the board "${m.board}"`).join("\n");
+      onWarn?.(`Heads up — ${missed.length === 1 ? "a logo you placed is" : `${missed.length} logos you placed are`} NOT in this download:\n\n${lines}\n\nTheir image files live in the browser (or account) they were uploaded from, and this one couldn't reach them. Open this project where the image lives, or re-upload it in My assets, then export again. Everything else in the zip is complete.`);
+    }
+  }
 
   const pieceCfg = (id: KitComponentId) => applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns[id]), st.kitTextFill[id]);
   const base = pieceCfg("primary");
@@ -7745,6 +7910,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           name: b.name, w: b.w, h: b.h,
           bg: b.bg ? { file: b.bg.file, opacity: b.bg.opacity, blur: b.bg.blur, saturation: b.bg.saturation, hue: b.bg.hue, brightness: b.bg.brightness, contrast: b.bg.contrast, noise: b.bg.noise, overlay: b.bg.overlay, overlayStrength: b.bg.overlayStrength, overlayBlend: b.bg.overlayBlend, original: b.bg.original } : null,
           items: b.items,
+          /* logos this board placed whose pixels this machine could not
+             reach (round 72) — the importer says so in its receipt, so
+             the absence is never a mystery on the Unity side either */
+          ...(b.artMissing?.length ? { artMissing: b.artMissing } : {}),
         })),
       } : {}),
       assets: manifest,
@@ -12896,10 +13065,22 @@ root into KEPT board scenes too (the Console says so per scene) —
 layout-identical in the editor, cutout-safe on device. Scenes never
 re-imported are never touched.
 ${st.boards?.some((b) => b.items.some((i) => i.big)) ? `
-Your board ART rides along: each Art asset you used gets its own
-prefab in **${root}/Prefabs/Art/**, and the scenes place instances of
-it (a copy's shadow/glow dials arrive baked into that copy's own
-sprite).
+**Your own logos ride along.** Every image you uploaded in My assets
+and placed on a board arrives as its own prefab in
+**${root}/Prefabs/Art/**, and the scenes place a live instance of it,
+positioned and scaled exactly as you placed it. Nothing is flattened
+into the backdrop. The prefab wears your CLEAN artwork, so swapping
+your wordmark later is one drag in the Inspector's Image → Source
+Image field. A copy you gave shadow or glow dials in the app arrives
+wearing its own sprite with that treatment already in the pixels, so
+the scene looks like the board did; clear the override on the Image to
+drop back to the clean art.
+` : ""}${st.boards?.some((b) => b.artMissing?.length) ? `
+> **One or more logos could not be included.** Their image files live
+> in the browser (or account) they were uploaded from, and the browser
+> that made this download could not reach them. The Console names them
+> per scene on import. Re-upload the image in My assets and export
+> again to fill those gaps.
 ` : ""}
 ### What arrives LIVE and what arrives as baked art
 
@@ -13700,7 +13881,11 @@ namespace PatternBreak {
   [Serializable] class PBBig { public string id; public string name; public string sprite; public bool fx; }
   [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float artW; public float artH; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string stampMask; public bool bakedFallback; public int stampLive; public float stampFs; public string stampInk; public string stampSplashInk; public string stampCase; public float stampDx; public float stampDy; public float stampW; public float stampH; public string posed; public float posedW; public float posedH; public float posedDx; public float posedDy; public string posedHover; public string posedPressed; public string posedDisabled; public float posedLabelDx; public float posedLabelDy; public string shadow; public float shadowW; public float shadowH; public float shadowDx; public float shadowDy; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; public PBBig big; public PBIconChild[] posedIcons; }
   [Serializable] class PBBoardBg { public string file; public float opacity; public float blur; public float saturation; public float hue; public float brightness; public float contrast; public float noise; public string overlay; public float overlayStrength; public string overlayBlend; public bool original; }
-  [Serializable] class PBBoard { public string name; public int w; public int h; public PBBoardBg bg; public PBBoardItem[] items; }
+  /* artMissing (round 72): logos the maker placed whose image the
+     exporting browser could not reach, so no sprite shipped for them.
+     Named here so the import receipt can repeat what the app already
+     said — a piece missing from a scene must never be a mystery. */
+  [Serializable] class PBBoard { public string name; public int w; public int h; public PBBoardBg bg; public PBBoardItem[] items; public string[] artMissing; }
   [Serializable] class PBSkillSkin { public string state; public string faceColor; public string glyphInk; public string rimColor; public string glowColor; public bool glowEnabled; public string pathColor; public float dimAlpha; }
   [Serializable] class PBManifest { public string kit; public PBSkillSkin[] skillSkins; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public string seatSpace; public string[] stagedFamilies; public PBFleetEntry[] slotFleet; public PBGlyphFleetEntry[] glyphFleet; public PBWell globeWell; public PBSeasonGeo seasonTrack; public PBDotsGeo pageDots; public PBDotsGeo startLights; public PBDotsGeo steps; public PBPathGeo pathConnector; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBTimerBlock timer; public PBMenu menu; public PBRarity rarity; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; }
   [Serializable] class PBLockEntry { public string file; public string sha256; }
@@ -16121,6 +16306,12 @@ namespace PatternBreak {
     static void BuildBoardScenes(string root, PBManifest m) {
       if (m == null || m.boards == null || m.boards.Length == 0) return;
       foreach (var bd in m.boards) {
+        /* round 72: a logo the maker placed whose image the exporting
+           browser could not reach shipped no sprite. Say so HERE, beside
+           the scene it belongs to, so the gap in the layout has a name
+           and a fix instead of reading as an importer bug. */
+        if (bd != null && bd.artMissing != null && bd.artMissing.Length > 0)
+          Debug.LogWarning("UI Kit Maker: board scene '" + bd.name + "' is missing " + bd.artMissing.Length + " logo(s) you placed — " + string.Join(", ", bd.artMissing) + ". Their image files never made it into this download (the browser that exported it could not reach them). Re-upload the image in My assets on uikitmaker.com and export again; everything else in this scene is complete.");
         try { BuildBoardScene(root, m, bd, false); }
         catch (Exception e) { Debug.LogWarning("UI Kit Maker: board scene '" + bd.name + "' failed — " + e.Message); }
       }

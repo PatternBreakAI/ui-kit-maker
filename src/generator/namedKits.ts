@@ -17,7 +17,27 @@
    bundle, so a signed-OUT visitor gets the real kit on first paint.
 
    Adding a kit: drop `kit-<slug>.json` (a `kitPayload()` snapshot plus
-   its `boards`) beside this file, import it, and add an entry below. */
+   its `boards`) beside this file, import it, and add an entry below.
+
+   ART A SHIPPED KIT'S BOARDS PLACE. A board can carry the maker's own
+   uploaded logo, and an upload lives in that one browser's vault (or,
+   signed in, that one account's bucket) — neither of which a stranger
+   on this page has. So a shipped definition carries its own
+   `userAssets` registry, and those entries point at art committed under
+   `public/kit-art/<slug>/` — the road `/backdrops/…` already rides, a
+   path that IS its own display url (assets.isBundledArt). It travels
+   with the kit, paints on first visit, signed out, with no vault and no
+   cloud round-trip. loadKitPayload sanitizes the registry into the
+   session-only `kitAssets` (store.sanitizeKitAssets): a logo item reads
+   the visitor's own drawer first and falls through to here, so the
+   kit's art never lands in a stranger's My-assets or their
+   localStorage.
+
+   The registry's w/h are the FOOTPRINT the composition was authored
+   against, not the shipped file's pixels — the big glyphs' tiered-raster
+   contract. Skybound's wordmark was authored at 1444 × 954 and ships as
+   a 722 × 477 WebP, which is the largest raster its three placements can
+   ever ask for; the boards do not move. */
 
 import brightsideKit from "./kit-brightside.json";
 import type { BoardDef, BoardItem } from "./store";

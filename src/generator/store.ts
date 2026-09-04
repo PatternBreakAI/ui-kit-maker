@@ -4,7 +4,7 @@ import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, rollSta
 import type { KitClone } from "./model";
 import { ensureFont, fontReady, awaitFonts } from "./fonts";
 import { delBgOriginal, getBgOriginal, putBgOriginal } from "./bgvault";
-import { isAssetRef, resolveBgAsset, assetCloudBacked, bgAssetDisplayUrl } from "./assets";
+import { isAssetRef, isBundledArt, resolveBgAsset, assetCloudBacked, bgAssetDisplayUrl } from "./assets";
 import { SILHOUETTES, silhouetteUnpickable, setUnpickableSilhouettes } from "./silhouettes";
 import type { UserShape } from "./model";
 import { addShine, renderBevel, renderKit, renderTypeSpecimen } from "./bevel";
@@ -483,6 +483,13 @@ interface GenStore {
   setBoardItemBig: (id: string, patch: Partial<BigGlyphFx>) => void;
   /* ── My assets: the user's own uploaded images (logos) ───────────── */
   userAssets: UserAsset[];
+  /** The OPEN DOCUMENT's own bundled art registry — a shipped kit's
+   *  logos (see sanitizeKitAssets). Session-only and never persisted: it
+   *  is replaced wholesale by every loadKitPayload and dies with the tab.
+   *  A logo item reads userAssets FIRST and falls through to here, so a
+   *  maker's own drawer always wins and a shipped kit's boards still
+   *  paint for a signed-out stranger with no vault at all. */
+  kitAssets: UserAsset[];
   /** Register an imported upload (importUserAssetFile did the vaulting). */
   addUserAsset: (a: UserAsset) => void;
   renameUserAsset: (id: string, name: string) => void;
@@ -897,8 +904,41 @@ export interface UserLogoFx {
  *  it through resolveBgAsset, the backdrop road verbatim). */
 export interface UserAsset {
   id: string; name: string; ref: string;
-  /** natural ship-copy raster px — placement footprint derives from these */
+  /** The FOOTPRINT, in art px: what the piece measures on a board is
+   *  w/h × BIG_GLYPH_BASE × the instance scale, on every surface. For an
+   *  upload these are the ship copy's own pixels. For a SHIPPED kit's
+   *  bundled art they are the pixels the composition was authored
+   *  against, and the file behind `ref` may be a smaller display raster
+   *  — the big glyphs' tiered-raster contract (thumb → mid → original
+   *  all draw into the one registry-sized box), so the art can be
+   *  compressed for the sizes it actually paints at without moving a
+   *  single piece. */
   w: number; h: number;
+}
+
+/** The bundled art a SHIPPED kit's own boards place (kit-<slug>.json's
+ *  `userAssets`) — the maker's My-assets drawer for a kit that has no
+ *  maker in the room. Read-only, session-only, and kept OUT of
+ *  `userAssets` on purpose: a visitor's drawer is theirs, and the kit's
+ *  wordmark is the owner's, so it resolves for the boards that place it
+ *  and never lands in a stranger's registry or their localStorage.
+ *  Refs are bundled paths only (isBundledArt) — payloads arrive from
+ *  share links and cloud docs, and a vault id or `asset://` ref here
+ *  would be a way to alias somebody else's pixels. */
+export function sanitizeKitAssets(raw: unknown): UserAsset[] {
+  if (!Array.isArray(raw)) return [];
+  const out: UserAsset[] = [];
+  for (const r of raw.slice(0, 32)) {
+    if (!r || typeof r !== "object") continue;
+    const a = r as Partial<UserAsset>;
+    const w = Number(a.w), h = Number(a.h);
+    if (typeof a.id !== "string" || !/^ua[a-z0-9]{1,32}$/.test(a.id)) continue;
+    if (!isBundledArt(a.ref)) continue;
+    if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0 || w > 8192 || h > 8192) continue;
+    if (out.some((x) => x.id === a.id)) continue;
+    out.push({ id: a.id, name: (typeof a.name === "string" ? a.name : "").slice(0, 40) || "Kit art", ref: a.ref, w, h });
+  }
+  return out;
 }
 
 /** The smallest ART a board item may be shrunk to, in board px, measured
@@ -2288,6 +2328,8 @@ export const useGen = create<GenStore>((set, get) => ({
      durable-assets bucket for account holders and the local vault for
      guests — see importUserAssetFile below. */
   userAssets: loadJson<UserAsset[]>(USERASSETS_KEY, []),
+  /* the shipped kit's own art — loadKitPayload fills it, nothing saves it */
+  kitAssets: [],
   addUserAsset: (a) => {
     const userAssets = [...get().userAssets.filter((x) => x.id !== a.id), a];
     saveJson(USERASSETS_KEY, userAssets);
@@ -2539,6 +2581,11 @@ export const useGen = create<GenStore>((set, get) => ({
     // payload without a project binding is a draft (chip says so).
     set({
       ...next, viewer, phase: opts?.phase ?? "kit",
+      /* the document's own bundled art (a SHIPPED kit's logos) rides in
+         with it and is replaced wholesale, so one kit's art can never
+         linger into the next document. Sanitized hard: bundled paths
+         only — a share link's payload lands here too. */
+      kitAssets: sanitizeKitAssets((p as { userAssets?: unknown }).userAssets),
       openProjectId: viewer ? null : (opts?.projectId ?? null),
       projectDirty: false,
       projectSavedAt: !viewer && opts?.projectId ? (opts?.savedAt ?? Date.now()) : null,

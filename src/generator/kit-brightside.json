@@ -1452,6 +1452,15 @@
     "killfeed:l": -7
   },
   "kitLocks": {},
+  "userAssets": [
+    {
+      "id": "uamt892wvb6agh6",
+      "name": "Skybound Adventures",
+      "ref": "/kit-art/brightside/skybound-adventures.webp",
+      "w": 1444,
+      "h": 954
+    }
+  ],
   "boards": [
     {
       "id": "abmt93iheg0",
