@@ -334,6 +334,12 @@ interface AssetMeta {
      *  to this hex, so a dev retint is one clean color edit and the
      *  app's color slots land exactly. */
     tint?: string;
+    /** OVER THE WORDS (data-icon-over — the flip clock's split bar): the
+     *  app draws this ink ON TOP of the live text, so the child must land
+     *  ABOVE the Words group instead of under it. Seat order is paint
+     *  order, and the default is under (picture ink beneath the words);
+     *  this flag is the exception, for structure that crosses a number. */
+    over?: boolean;
     /** the PER-STATE GLYPH DRESS (round 53): a state icon fork (the ICR
      *  ladder — stateDesigns[state].icon) ships that state's cut on the
      *  SAME window as the resting sprite; the StateFx rig swaps the live
@@ -602,12 +608,12 @@ function inheritedPaint(el: Element, attr: string): string | null {
    for ink whose flatness only the EXPORT can prove (it rasters the cut
    and reads the drawn color back; see skillFlatInkOf). Keyed by the
    group's data-icon name. */
-function markedIconOnlySvgs(svgIn: string, tintOverride?: Record<string, string>): { name: string; btn: boolean; well: number[] | null; box: number[] | null; nick: string | null; tint: string | null; svg: string }[] {
+function markedIconOnlySvgs(svgIn: string, tintOverride?: Record<string, string>): { name: string; btn: boolean; well: number[] | null; box: number[] | null; nick: string | null; tint: string | null; over: boolean; svg: string }[] {
   try {
     const dom0 = new DOMParser().parseFromString(svgIn, "image/svg+xml");
     const gs0 = Array.from(dom0.querySelectorAll('[data-part="icon"]'));
     if (!gs0.length) return [];
-    const out: { name: string; btn: boolean; well: number[] | null; box: number[] | null; nick: string | null; tint: string | null; svg: string }[] = [];
+    const out: { name: string; btn: boolean; well: number[] | null; box: number[] | null; nick: string | null; tint: string | null; over: boolean; svg: string }[] = [];
     for (let gi = 0; gi < gs0.length; gi++) {
       const dom = new DOMParser().parseFromString(svgIn, "image/svg+xml");
       const gs = Array.from(dom.querySelectorAll('[data-part="icon"]'));
@@ -651,6 +657,8 @@ function markedIconOnlySvgs(svgIn: string, tintOverride?: Record<string, string>
         box: gs0[gi].getAttribute("data-icon-box")?.split(" ").map(Number) ?? null,
         nick: gs0[gi].getAttribute("data-icon-nick") || null,
         tint,
+        /* draws ON TOP of the live words (the flip clock's split bar) */
+        over: gs0[gi].getAttribute("data-icon-over") === "1",
         svg: new XMLSerializer().serializeToString(dom.documentElement),
       });
     }
@@ -3692,6 +3700,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         ...(mk.well ? { wellR: r1(mk.well[2]) } : {}),
         ...(mk.nick ? { nick: mk.nick } : {}),
         ...(mk.tint ? { tint: mk.tint } : {}),
+        ...(mk.over ? { over: true } : {}),
       };
       SEAT_CUTS.set(seatRow, { spr, box: [bx, by, bw9, bh9] });
       seats.push(seatRow);
@@ -3825,15 +3834,42 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         prof.push(s9 / Math.max(1, y1 - y0));
       }
       const mn = Math.min(...prof), mx = Math.max(...prof);
-      /* flat/gradient center (vertical dressing constant along the run):
-         SLICED — stretch is invisible on it, and there is nothing to
-         tile. Patterned center: TILED — the owner's density truth
-         ("the pattern reveals at natural density, never stretches");
-         Unity's tile is the whole center region, so repeats beyond the
-         native width wrap on the art's own phase — the fence measures
-         that wrap per family (the borders stay EXACT for the floor
-         circle; no snap may widen them). */
-      const mode: "tiled" | "sliced" = mx - mn < 2.5 ? "sliced" : "tiled";
+      /* flat center (vertical dressing constant along the run): SLICED —
+         stretch is invisible on it, and there is nothing to tile. */
+      if (mx - mn < 2.5) return { nineSlice: { left, right, top, bottom }, mode: "sliced" };
+      /* ── ROUND 72b, the RAMP's own mode (owner: "the emblem bar still
+         has a weird cap on the mercury end", with the Unity Inspector
+         showing emblembar-fill.9 on Image Type TILED). Range alone can't
+         tell a lengthwise RAMP from a PATTERN, and the kit's mercury
+         dressing is a ramp: measured, emblembar/progress/slider all run
+         129 → 168 → 206 across the center, dead monotonic. Tiling a ramp
+         is the bug the owner sees — Unity's tile CLIPS a center narrower
+         than native, so the run shows the ramp's dark head and then butts
+         straight into the right border cut from the ramp's bright tail: a
+         hard luminance step exactly at the cap. Sliced compresses it
+         instead, which IS the app's own squeeze (the round-60 vsbar
+         ruling, now carried by measurement for the whole class).
+         The discriminator is SHAPE, not size: net travel over gross
+         travel on the smoothed profile. A ramp spends all its movement
+         going one way (→1); a real repeat returns to where it started
+         (→0). Measured across every shipped bar the two groups sit at
+         0.80-1.00 and 0.00-0.005 with nothing in between, so the cut at
+         0.5 is nowhere near either. Genuine patterns (xpbar, loadbar)
+         keep TILED and the owner's density truth ("the pattern reveals at
+         natural density, never stretches"); Unity's tile is the whole
+         center region, so repeats beyond the native width wrap on the
+         art's own phase — the fence measures that wrap per family (the
+         borders stay EXACT for the floor circle; no snap may widen). */
+      const sm = prof.map((_, i9) => {
+        const a9 = Math.max(0, i9 - 2), b9 = Math.min(prof.length, i9 + 3);
+        let s8 = 0;
+        for (let k9 = a9; k9 < b9; k9++) s8 += prof[k9];
+        return s8 / (b9 - a9);
+      });
+      let gross = 0;
+      for (let i9 = 1; i9 < sm.length; i9++) gross += Math.abs(sm[i9] - sm[i9 - 1]);
+      const monotone = gross > 0.01 ? Math.abs(sm[sm.length - 1] - sm[0]) / gross : 1;
+      const mode: "tiled" | "sliced" = monotone >= 0.5 ? "sliced" : "tiled";
       return { nineSlice: { left, right, top, bottom }, mode };
     } catch { return null; }
   };
@@ -5104,7 +5140,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         pathconnector: "Saga path connector — DRIVABLE (round 44): the Pathconnector prefab deals nine live beads along the kit's own S-curve and PatternBreakPathConnector lights them by value (SetProgress / SetValue 0..1). This baked sheet stays for older scenes and board stamps.",
         combo: "Combo burst — DYNAMIC (round 47): ComboPop.SetCount(n) deals the ×N numeral from the kit's own celebration digits at the authored seat (the Multiplier child holds the app-staged pose at rest; the Combo plaque is its own live child); Pop() replays the app's exact squash-overshoot-settle on whatever count is set, and ClaimBurst throws the sparks. CLICK IT IN PLAY.",
         booster: "Booster button — a REAL button (Sprite Swap states); the booster glyph is a LIVE Image child and the count badge a live plate child with its count RIDING it (the ×0 FREE ribbon ships the same way).",
-        flipclock: "Flip countdown — the tile digits and caption are LIVE seats; drive them from your own clock. Display piece.",
+        flipclock: "Flip countdown — the tile digits and caption are LIVE seats; drive them from your own clock. Each tile's Split Bar is its own Image child sitting ABOVE the digits (never baked into the tile), so the hinge crosses the number exactly as the app draws it — move it, restyle it or delete it per tile. Display piece.",
         stopwatch: "Stopwatch — the dial FUNCTIONS (round 44): PatternBreakStopwatch drives the remaining-time arc (Radial360 + rotating round head), the sweep hand, the alarm mood below 25% and the m:ss readout from ONE value (SetValue 0..1, or SetSeconds on the 90s dial). The readout stays a LIVE seat — retype it and it is yours. Display piece.",
         scorebug: "Match score bug — Home and Away names, both scores and the clock are LIVE seats (the app's Home/Away word slots land verbatim); each team's color bar is a LIVE TINTABLE child (its sprite ships white, the slot color rides Image.color — retint a side in one edit). Display piece; the value slider stays the match clock, exactly as in the app.",
         friendrow: "Friend row — drop YOUR sprite on the Portrait child (the well clips it round); name, status and time are LIVE seats, the JOIN capsule is a REAL small-button child with its word riding it, and the presence dot a LIVE Image child (move it, delete it, or tint a copy for offline). Display piece.",
@@ -5156,7 +5192,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
            export-side attribute, the app render untouched). Seats then
            speak canvas-center offsets; the importer's child math follows
            the row's shell like any family. */
-        if ((uid === "combo" || uid === "dmgnumber") && !/data-shell=/.test(fullU)) {
+        /* the flip clock joins them (round 72): its tiles carry their own
+           shells but the board itself declares none, so the split-bar
+           seats had no reference frame to speak offsets from. */
+        if ((uid === "combo" || uid === "dmgnumber" || uid === "flipclock") && !/data-shell=/.test(fullU)) {
           const vbC9 = /viewBox="0 0 ([\d.]+) ([\d.]+)"/.exec(fullU);
           if (vbC9) fullU = fullU.replace("<svg ", `<svg data-shell="0 0 ${vbC9[1]} ${vbC9[2]}" `);
         }
@@ -13807,6 +13846,10 @@ namespace PatternBreak {
      box center vs the shell center (design px, y down), box size. btn =
      a REAL small-button plate; wellR > 0 = circular-masked image well. */
   [Serializable] class PBIconChild { public string name; public string file; public float dx; public float dy; public float w; public float h; public bool btn; public float wellR; public bool pinRight; public float rightGap; public string nick; public string tint;
+    /* OVER THE WORDS (round 72 — the flip clock's split bar): the app
+       draws this ink on top of the live text, so the child lands ABOVE
+       the Words group instead of under it. */
+    public bool over;
     /* the PER-STATE GLYPH DRESS (round 53): a state icon fork ships that
        state's cut on the resting sprite's exact canvas — WireGlyphStateSwaps
        arms the StateFx rig to swap the live child in lockstep with the
@@ -19285,6 +19328,24 @@ namespace PatternBreak {
        "Selected ring", "Badge plate" — everything else keeps the generic
        icon grammar */
     static string IconChildName(PBIconChild ic) { return !string.IsNullOrEmpty(ic.nick) ? ic.nick : (ic.wellR > 0.5f ? "Portrait Well" : (ic.btn ? NiceName(ic.name) + " button" : "Icon " + ic.name)); }
+    /* THE OVER LAYER STAYS ON TOP (round 72 — the flip clock's split bar).
+       Icon children are wired BEFORE the Words group exists, so an over
+       seat that took the top of the stack would be buried the instant
+       Words arrived. Rather than chase it afterwards, seat the fresh
+       Words group UNDER the lowest over child: everything else keeps the
+       order it already had, and a piece with no over seats never moves. */
+    static void SeatWordsUnderOverInk(GameObject host, GameObject words, PBAsset row) {
+      if (host == null || words == null || row == null || row.iconSeats == null) return;
+      int lowest = -1;
+      foreach (var icO in row.iconSeats) {
+        if (icO == null || !icO.over) continue;
+        var tO = host.transform.Find(IconChildName(icO));
+        if (tO == null) continue;
+        int si = tO.GetSiblingIndex();
+        if (lowest < 0 || si < lowest) lowest = si;
+      }
+      if (lowest >= 0) words.transform.SetSiblingIndex(lowest);
+    }
     static List<string> WireIconChildren(GameObject go, string root, PBManifest m, string fam) {
       return WireIconChildrenRow(go, root, m, LabelRow(m, fam));
     }
@@ -19345,11 +19406,17 @@ namespace PatternBreak {
            slot in before the NEXT seat's existing child; failing that,
            before Words (picture ink draws UNDER the words, the app's own
            stack); fresh builds have neither yet and keep their order */
-        Transform beforeIC = null;
-        for (int nxI = icI + 1; nxI < row.iconSeats.Length && beforeIC == null; nxI++)
-          if (row.iconSeats[nxI] != null) beforeIC = go.transform.Find(IconChildName(row.iconSeats[nxI]));
-        if (beforeIC == null) beforeIC = go.transform.Find("Words");
-        if (beforeIC != null) cgo.transform.SetSiblingIndex(beforeIC.GetSiblingIndex());
+        /* an OVER seat is the exception (round 72 — the flip clock's split
+           bar crosses the digits in the app): it takes the top of the
+           stack instead, so the live words pass UNDER it. */
+        if (ic.over) { cgo.transform.SetAsLastSibling(); }
+        else {
+          Transform beforeIC = null;
+          for (int nxI = icI + 1; nxI < row.iconSeats.Length && beforeIC == null; nxI++)
+            if (row.iconSeats[nxI] != null && !row.iconSeats[nxI].over) beforeIC = go.transform.Find(IconChildName(row.iconSeats[nxI]));
+          if (beforeIC == null) beforeIC = go.transform.Find("Words");
+          if (beforeIC != null) cgo.transform.SetSiblingIndex(beforeIC.GetSiblingIndex());
+        }
         var crt = cgo.GetComponent<RectTransform>();
         float fxC = (row.shell.x + row.shell.w / 2f + ic.dx * psIC) / bsIC.rect.width;
         float fyC = 1f - (row.shell.y + row.shell.h / 2f + ic.dy * psIC) / bsIC.rect.height;
@@ -22711,6 +22778,7 @@ namespace PatternBreak {
       var words = new GameObject("Words", typeof(RectTransform));
       words.transform.SetParent(host.transform, false);
       StretchFull(words.GetComponent<RectTransform>());
+      SeatWordsUnderOverInk(host, words, row);
       var wordsT = words.transform;
       Dictionary<int, int> rowCount; Dictionary<int, float> rowFy; Dictionary<int, float> rowFfs;
       SeatRows(row, out rowCount, out rowFy, out rowFfs);
@@ -22888,6 +22956,7 @@ namespace PatternBreak {
       var wordsL = new GameObject("Words", typeof(RectTransform));
       wordsL.transform.SetParent(host.transform, false);
       StretchFull(wordsL.GetComponent<RectTransform>());
+      SeatWordsUnderOverInk(host, wordsL, row);
       Dictionary<int, int> rowCountL; Dictionary<int, float> rowFyL; Dictionary<int, float> rowFfsL;
       SeatRows(row, out rowCountL, out rowFyL, out rowFfsL);
       var kitFaceL = LtsKitFace(root, m);

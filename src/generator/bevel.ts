@@ -10561,17 +10561,30 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
           ? shapePath(sov ?? cfg.shape, x + insT, pad3 + insT, tw - insT * 2, th - insT * 2, Math.max(0, cfg.bevel.softness - 10))
           : roundRect(x + insT, pad3 + insT, tw - insT * 2, th - insT * 2, 20 * k);
         const gidT = "fc" + UID++;
+        /* THE SPLIT BAR IS ITS OWN LAYER (owner, round 72: "you can't burn
+           the cross bars into the background — they need to sit on top of
+           the dynamic numbers as their own layer"). It always drew OVER the
+           digits here; in Unity the digits are live TMP over a baked base,
+           so a bar living in that base fell behind them. Marked ink now:
+           stripped from the bake, shipped as its own Image child, and
+           `data-icon-over` parks that child ABOVE the Words group — the
+           app's own stack, rebuilt out of real layers. The clip moves into
+           defs so the marked cut keeps it (a bare clipPath's path is
+           drawable ink and the cut would strip it, un-clipping the bar). */
+        const barH = 3.6 * k * 2 + 6;
         return `${themedTiles ? `<g transform="translate(${(x - tsx).toFixed(1)} ${(pad3 - tsy).toFixed(1)})">${tileInner}</g>` : ""}
-          <clipPath id="${gidT}w"><path d="${wellD}"/></clipPath>
+          <defs><clipPath id="${gidT}w"><path d="${wellD}"/></clipPath></defs>
           <path d="${wellD}" fill="${tileFace}"${urgent ? ` stroke="${alarm}" stroke-width="2.5"` : themedTiles ? "" : ` stroke="${hexMix(bevel, glow, 0.3)}" stroke-width="2" stroke-opacity="0.55"`}/>
           <g clip-path="url(#${gidT}w)"><rect x="${x}" y="${pad3}" width="${tw}" height="${(th / 2).toFixed(1)}" fill="#FFFFFF" opacity="0.055"/></g>
           ${contentText(sg, x + tw / 2 + 3 * k, midY + 2, fsD, { anchor: "middle", keepCase: true, opacity: dim })}
-          <g clip-path="url(#${gidT}w)">
-            <rect x="${x}" y="${(midY - 2).toFixed(1)}" width="${tw}" height="4" fill="#04060C" opacity="0.85"/>
-            <rect x="${x}" y="${(midY + 2).toFixed(1)}" width="${tw}" height="1.2" fill="#FFFFFF" opacity="0.1"/>
+          <g data-part="icon" data-icon="split${i + 1}" data-icon-nick="Split Bar ${i + 1}" data-icon-over="1" data-icon-box="${x.toFixed(1)} ${(midY - barH / 2).toFixed(1)} ${tw.toFixed(1)} ${barH.toFixed(1)}">
+            <g clip-path="url(#${gidT}w)">
+              <rect x="${x}" y="${(midY - 2).toFixed(1)}" width="${tw}" height="4" fill="#04060C" opacity="0.85"/>
+              <rect x="${x}" y="${(midY + 2).toFixed(1)}" width="${tw}" height="1.2" fill="#FFFFFF" opacity="0.1"/>
+            </g>
+            <circle cx="${(x + insT + 7 * k).toFixed(1)}" cy="${midY}" r="${(3.6 * k).toFixed(1)}" fill="#04060C" opacity="0.92"/>
+            <circle cx="${(x + tw - insT - 7 * k).toFixed(1)}" cy="${midY}" r="${(3.6 * k).toFixed(1)}" fill="#04060C" opacity="0.92"/>
           </g>
-          <circle cx="${(x + insT + 7 * k).toFixed(1)}" cy="${midY}" r="${(3.6 * k).toFixed(1)}" fill="#04060C" opacity="0.92"/>
-          <circle cx="${(x + tw - insT - 7 * k).toFixed(1)}" cy="${midY}" r="${(3.6 * k).toFixed(1)}" fill="#04060C" opacity="0.92"/>
           <text x="${x + tw / 2}" y="${(pad3 + th + 38 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(12.5 * k).toFixed(1)}" font-weight="800" letter-spacing=".22em" fill="${urgent ? alarm : (onDark ? hexRgba(glow, 0.8) : darken(bevel, 0.3))}" text-anchor="middle" opacity="${dim}">${esc(tags[i] ?? "")}</text>` +
           (i < segs.length - 1
             ? `<circle cx="${(x + tw + gap2 / 2).toFixed(1)}" cy="${(midY - 16 * k).toFixed(1)}" r="${(4 * k).toFixed(1)}" fill="${onDark ? hexRgba(glow, 0.7) : darken(bevel, 0.25)}"/><circle cx="${(x + tw + gap2 / 2).toFixed(1)}" cy="${(midY + 16 * k).toFixed(1)}" r="${(4 * k).toFixed(1)}" fill="${onDark ? hexRgba(glow, 0.7) : darken(bevel, 0.25)}"/>`
