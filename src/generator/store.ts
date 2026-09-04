@@ -1,7 +1,8 @@
 import { create } from "zustand";
 import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, GridStyle, CandyTokens, Shape, KitDesign, KitSlice } from "./model";
 import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, rollStatement, classicRack, presetById, PRESETS, PATTERN_TYPES, GAME_FONTS, customFontNames, ctaForFont, darken, hexMix, registerCustomFont, pickDesign, designDiff, deepMergeDesign, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, migrateKitSlotVals, clampWeight, fontByName, sanitizeUnitySlug, baseOf, mintCloneId, CLONE_INELIGIBLE, isGlyphPiece, resolveKitIcon } from "./model";
-import type { KitClone } from "./model";
+import { isCloneId, KIT_COMPONENTS } from "./model";
+import type { KitClone, KitPieceId } from "./model";
 import { ensureFont, fontReady, awaitFonts } from "./fonts";
 import { delBgOriginal, getBgOriginal, putBgOriginal } from "./bgvault";
 import { isAssetRef, isBundledArt, resolveBgAsset, assetCloudBacked, bgAssetDisplayUrl } from "./assets";
@@ -420,6 +421,13 @@ interface GenStore {
    *  (same position/scale/dials), so Edit component opens the saved item;
    *  one board undo restores the pre-save binding. */
   saveBoardItemAsAsset: (id: string, name: string) => void;
+  /** Bring a SAVED COMPONENT into the kit as a live piece: mint a clone
+   *  pinned to the snapshot's exact look, then rebind every placement of
+   *  that saved item, on every board, to the clone. Returns the clone's
+   *  id, or null when the snapshot cannot become one (`savedPromotable`
+   *  answers that question up front). The frozen LibItem is never
+   *  deleted — it only gains `cloneId`. */
+  promoteSavedToKit: (libId: string) => KitComponentId | null;
   /** Append a pre-placed set of pieces (starter templates, ghost drops) —
    *  kit pieces, big-glyph tiles, or saved library assets (`libId`). */
   addBoardItems: (items: { kitId?: KitComponentId; big?: BigGlyphFx; libId?: string; x: number; y: number; scale?: number; ov?: string; v?: number; label?: string; rot?: number }[]) => void;
@@ -804,6 +812,26 @@ export interface LibItem {
    *  While it lives, the drawer tile thumbs/places/edits IT (live); once
    *  deleted, the frozen cfg snapshot is the tombstone fallback. */
   cloneId?: string;
+}
+/** Can this saved component join the kit as a live piece (promoteSavedToKit)?
+ *  One question, one answer — the Board asks it to decide whether to offer
+ *  Edit component, and the store asks it again before minting, so the
+ *  button and the action can never disagree.
+ *
+ *  Two snapshots stay frozen, both for the same reason — promotion must not
+ *  change a single pixel on anyone's board:
+ *   · no `kit` — the oldest saves are a bare master-button render with no
+ *     component identity to clone;
+ *   · a base that cannot be duplicated (datarow / panel keep their content
+ *     in store singletons, so a clone would share it — CLONE_INELIGIBLE);
+ *   · a pre-retirement size (the kit stands at L everywhere now and
+ *     per-piece sizes are not persisted, so an M snapshot would render
+ *     right once and grow on the next reload);
+ *   · a component the kit no longer ships — a snapshot can outlive the
+ *     piece it was taken from, and a clone of nothing draws nothing. */
+export function savedPromotable(l: LibItem | undefined | null): boolean {
+  return !!l?.kit && !CLONE_INELIGIBLE.has(l.kit.id) && effKitSize(l.kit.size) === "l"
+    && KIT_COMPONENTS.some((c) => c.id === l.kit!.id);
 }
 export interface StyleItem {
   id: string; name: string;
@@ -1485,6 +1513,10 @@ export async function importBoards(raw: unknown): Promise<boolean> {
   if (ticket !== importTicket) return false; // a newer open superseded this one
   useGen.setState({ boards, activeBoard: boards[0].id, boardSel: null, boardPast: [], boardFuture: [] });
   saveBoards(() => useGen.getState());
+  // arriving boards can name components the incoming document forgot to
+  // register (the Brightside boards place eight such copies) — see
+  // healCloneRegistry
+  healCloneRegistry();
   return true;
 }
 
@@ -1622,6 +1654,30 @@ const mutateBoards = (get: BoardsGet, set: LooseSet, key: string | null, fn: (bs
 };
 const mutateItem = (get: BoardsGet, set: LooseSet, key: string, id: string, fn: (b: BoardItem) => BoardItem) =>
   mutateBoards(get, set, key, (bs) => bs.map((bd) => (bd.items.some((b) => b.id === id) ? { ...bd, items: bd.items.map((b) => (b.id === id ? fn(b) : b)) } : bd)));
+/** Point every frozen copy of one saved component at its live kit clone —
+ *  on every board, in one board-history step (⌘Z puts the bindings back).
+ *  Position, scale, rotation, opacity and layer order come across
+ *  untouched; only the identity changes. The kit-copy instance fields are
+ *  DROPPED on the way: a frozen copy's render never read words, value
+ *  pose, overlay, 9-slice stretch or a dialed shadow (all five are gated
+ *  on `kitId` at every render site and unreachable from the Inspector for
+ *  a saved piece), so anything sitting in one is inert today and would
+ *  surface as a visible change tomorrow. The clone carries the saved
+ *  piece's own words and pose instead. */
+const rebindSavedPlacements = (get: BoardsGet, set: LooseSet, libId: string, kitId: KitComponentId) => {
+  if (!get().boards.some((bd) => bd.items.some((x) => !x.kitId && x.libId === libId))) return;
+  mutateBoards(get, set, null, (bs) => bs.map((bd) => (
+    bd.items.some((x) => !x.kitId && x.libId === libId)
+      ? {
+        ...bd,
+        items: bd.items.map((x) => {
+          if (x.kitId || x.libId !== libId) return x;
+          const { label: _l, v: _v, ov: _o, stretch: _s, stretchY: _sy, shadow: _sh, ...rest } = x;
+          return { ...rest, libId: "", kitId };
+        }),
+      }
+      : bd)));
+};
 function loadBoards(): { boards: BoardDef[]; activeBoard: string } {
   const raw = loadJson<unknown>(BOARD_KEY, null);
   if (Array.isArray(raw)) {
@@ -1727,6 +1783,19 @@ function applyWorkspace(ws: Record<string, unknown> | null): void {
   for (const k of WS_MAPS) {
     const v = ws?.[k];
     patch[k] = v && typeof v === "object" ? v : {};
+    /* THE CLONE REGISTRY IS A ROSTER, NOT A LOOK (round 73). It rode this
+       reset with the rest of the kit layer, so applying ANY look saved
+       without clones — a shelf preset, a starter, an older look of the
+       owner's own — deregistered every component they had duplicated or
+       saved to their assets. The forks still reset (a look restyles the
+       whole kit, clones included), but the components themselves survive:
+       a look may bring components WITH it, and it may never take yours
+       away. What the wipe cost, in the owner's own words: "there is even
+       an 'other' section in the kit for these items, not sure what
+       happened" — the section had emptied, their saved pieces stopped
+       being editable from the board, and eight orphaned copies still
+       stand on the shipped Brightside boards. */
+    if (k === "kitClones") patch[k] = { ...useGen.getState().kitClones, ...(patch[k] as Record<string, KitClone>) };
     // slot picks saved before the round-61 state grammar move to their
     // state-segmented seats (the kitDesigns migrate-on-apply precedent)
     if (k === "kitSlotVals") patch[k] = migrateKitSlotVals(patch[k] as GenStore["kitSlotVals"]).vals;
@@ -1737,6 +1806,54 @@ function applyWorkspace(ws: Record<string, unknown> | null): void {
   patch.kitRow = ws?.kitRow && typeof ws.kitRow === "object" ? { ...defaultRow(), ...ws.kitRow } : defaultRow();
   saveJson(KIT_STORE_KEY.kitRow, patch.kitRow);
   useGen.setState(patch as Partial<GenStore>);
+  healCloneRegistry();
+}
+
+/* ── The registry heal ────────────────────────────────────────────────
+   A clone id carries its own base ("copy-<mint4>-<base>", by design: "the
+   base recovers by slicing, no registry in hand"), so a placement whose
+   registry entry has gone missing is recoverable — and until it IS
+   recovered the piece is a ghost: it draws (renderKit reads baseOf), but
+   the kit page has no row for it, the Board's Inspector shows the base's
+   name instead of the owner's, the saved-components tile stops offering
+   Edit, and placing that saved component again lands a frozen copy with
+   no Edit component button at all. That is precisely the report this
+   round started from.
+
+   So: anything the document still REFERENCES gets its registration back —
+   board placements and the saved assets that point at a clone. The name
+   comes back from the saved asset when one names it (the owner's own
+   words for the piece); otherwise the component's own name stands in.
+   Registration is metadata: not one pixel moves. A clone nothing
+   references any more is not resurrected. */
+function healCloneRegistry(opts?: { boards?: { items?: BoardItem[] }[]; persist?: boolean }): number {
+  const st = useGen.getState();
+  const want = new Map<string, string | undefined>();
+  for (const bd of opts?.boards ?? st.boards) {
+    for (const b of bd?.items ?? []) if (b.kitId && isCloneId(b.kitId) && !st.kitClones[b.kitId]) want.set(b.kitId, undefined);
+  }
+  /* a saved asset names the clone it minted — the owner's own words for
+     the piece, worth more than the component's generic name, whether the
+     board placed it or not */
+  for (const l of st.library) {
+    if (l.cloneId && isCloneId(l.cloneId) && !st.kitClones[l.cloneId]) want.set(l.cloneId, l.name);
+  }
+  if (!want.size) return 0;
+  const kitClones = { ...st.kitClones };
+  const now = new Date().toISOString();
+  for (const [id, name] of want) {
+    const base = baseOf(id as KitPieceId);
+    const known = KIT_COMPONENTS.find((c) => c.id === base);
+    // an id whose base the kit no longer ships names nothing to register
+    if (!known) continue;
+    kitClones[id] = { base, name: name ?? known.name, kind: "Other", createdAt: now };
+  }
+  if (Object.keys(kitClones).length === Object.keys(st.kitClones).length) return 0;
+  useGen.setState({ kitClones });
+  // a VIEWER's heal is for the page they are looking at, never for their
+  // own workspace on disk
+  if (opts?.persist !== false) saveJson(KIT_STORE_KEY.kitClones, kitClones);
+  return want.size;
 }
 
 /* ── round 45 · B1 — the ONE look-switch door ───────────────────────────
@@ -2122,6 +2239,113 @@ export const useGen = create<GenStore>((set, get) => ({
         ? { ...bd, items: bd.items.map((x) => (x.id === id ? { ...x, kitId: cloneId as KitComponentId } : x)) }
         : bd)));
   },
+  /* ── Saved components join the kit ────────────────────────────────────
+     A saved component is SUPPOSED to be an ordinary kit piece — saving one
+     from the board mints a clone, files it under "Other", and rebinds the
+     board copy to it, which is why Edit component was there when the owner
+     last looked. Two things put a copy back on the frozen `libId` road,
+     where the Inspector has no Edit component and no Save to my assets:
+
+     · its clone was deregistered underneath it (a look apply used to wipe
+       the whole registry — fixed in applyWorkspace, and healCloneRegistry
+       puts the missing rows back), so the drawer stopped seeing a live
+       twin and started placing frozen copies again; and
+     · the oldest saves, made from the Kit page before any of this, never
+       had a clone at all.
+
+     This is the door back. When the saved item still points at a living
+     clone the copies simply rebind to it — nothing new is minted. When it
+     doesn't, a clone is minted the way the save road mints one, pinned to
+     the snapshot's look so the board does not move a pixel, and EVERY
+     placement of that saved item, on every board, rebinds to it: eight
+     copies of one saved piece were always one component, and they stay
+     one. From there it is an ordinary kit piece — editable, re-saveable,
+     and it rides `kitClones` into the kit document instead of dying at
+     the edge of this browser.
+
+     Nothing is deleted: the LibItem keeps its frozen cfg (the tombstone
+     the drawer falls back to if the clone is ever removed) and gains
+     `cloneId`, which is what turns its drawer tile live. The clone mint
+     is a kit-history step and the rebind a board-history step, exactly
+     like the save road — one ⌘Z on the board puts the binding back. */
+  promoteSavedToKit: (libId) => {
+    const st = get();
+    const item = st.library.find((l) => l.id === libId);
+    if (!item) return null;
+    /* the bridge the save road already built: a living twin needs no mint,
+       only the copies pointed at it */
+    if (item.cloneId && st.kitClones[item.cloneId]) {
+      rebindSavedPlacements(get, set, libId, item.cloneId as KitComponentId);
+      return item.cloneId as KitComponentId;
+    }
+    if (!savedPromotable(item)) return null;
+    const kit = item.kit!;
+    const base = kit.id;
+    const id = mintCloneId(base);
+    pushHistory(st);
+    const snap = item.cfg;
+    /* THE PIN — what the clone must hold so the board does not move, and
+       nothing more. The snapshot is diffed against TODAY'S master, exactly
+       the way a focused edit pins a fork (v70: forks stay sparse), so:
+       · every path where the frozen look departs from the kit is pinned
+         and keeps the piece looking as it was saved;
+       · every path where they already agree stays UNPINNED, so the piece
+         goes on following the kit — which is the whole point of coming
+         back into it, and what makes an untouched snapshot promote to an
+         empty fork that renders the same bytes.
+       State forks, state adjustments, the icon rig, idle motion and the
+       content margin pin the same way: only when they differ. (The dials
+       the fork grammar cannot hold — bar styling, the knob color, the
+       rarity table — are kit-wide and follow the kit from here. That IS
+       being live, and it is why promotion is a deliberate act and never a
+       silent migration.) */
+    const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+    const pin: KitDesign = {
+      ...(designDiff(pickDesign(st.cfg), pickDesign(snap)) ?? {}),
+      ...(same(snap.stateDesigns ?? {}, st.cfg.stateDesigns ?? {}) ? {} : { stateDesigns: snap.stateDesigns ?? {} }),
+      ...(same(snap.states, st.cfg.states) ? {} : { states: snap.states }),
+      ...(same(snap.icon, st.cfg.icon) ? {} : { icon: snap.icon }),
+      ...(snap.idle && !same({ wipe: !!snap.idle.wipe, edge: !!snap.idle.edge }, { wipe: !!st.cfg.idle?.wipe, edge: !!st.cfg.idle?.edge })
+        ? { idle: { wipe: !!snap.idle.wipe, edge: !!snap.idle.edge } } : {}),
+      ...(snap.contentMargin !== undefined && snap.contentMargin !== st.cfg.contentMargin
+        ? { contentMargin: snap.contentMargin } : {}),
+    };
+    /* THE WORDS. A saved snapshot renders with the label it pinned and
+       NOTHING else — so a pinned label (or a text-less save) comes across
+       verbatim, and a snapshot that pinned none keeps following the kit's
+       words like any live piece. The one case that would change the board
+       is a piece drawing the kit's specimen word when that word has moved
+       since the save: then the snapshot's own word is pinned instead. It
+       only pins when the frozen art really is showing it — a readout or a
+       counter draws its own text and must not be handed a button label
+       (owner-visible: a resource counter re-lettered with "Play"). The
+       words land on the CLONE (kitLabels), not on the board copies, so
+       editing the component's words still reaches every copy of it. */
+    let label = kit.label;
+    if (label === undefined && snap.content?.label && snap.content.label !== st.cfg.content?.label) {
+      try {
+        const art = renderKit(snap, base, effKitSize(kit.size), "default", kit.v, kit.shape);
+        if (art.toUpperCase().includes(snap.content.label.toUpperCase())) label = snap.content.label;
+      } catch { /* a piece that will not render keeps the kit's words */ }
+    }
+    const patch: Record<string, unknown> = {
+      kitClones: { ...st.kitClones, [id]: { base, name: item.name, kind: "Other", createdAt: new Date().toISOString() } },
+      kitDesigns: { ...st.kitDesigns, [id]: pin },
+      kitShapes: { ...st.kitShapes, [id]: kit.shape ?? snap.shape },
+      ...(label === "" ? { kitNoText: { ...st.kitNoText, [id]: true as const } }
+        : label !== undefined ? { kitLabels: { ...st.kitLabels, [id]: label } } : {}),
+      ...(kit.v !== undefined ? { kitVals: { ...st.kitVals, [id]: kit.v } } : {}),
+    };
+    set(patch as Partial<GenStore>);
+    markTouched();
+    for (const [k, sk] of Object.entries(KIT_STORE_KEY)) if (patch[k] !== undefined) saveJson(sk, patch[k]);
+    // the drawer tile goes live; the frozen snapshot stays put behind it
+    const library = get().library.map((l) => (l.id === libId ? { ...l, cloneId: id } : l));
+    saveJson(LIB_KEY, library);
+    set({ library });
+    rebindSavedPlacements(get, set, libId, id as KitComponentId);
+    return id as KitComponentId;
+  },
   addToBoard: (libId) => {
     const st = get();
     const item0 = st.library.find((l) => l.id === libId);
@@ -2506,7 +2730,20 @@ export const useGen = create<GenStore>((set, get) => ({
       console.warn("UI Kit Maker: board backdrops exceed the project-document budget — layouts saved, backdrop images stay in this browser.");
       boards = boards.map((b) => { const o = { ...b }; delete o.bgData; return o; });
     }
-    return { ...st.kitPayload(), boards };
+    /* SAVED COMPONENTS ride with the boards that place them. A `libId`
+       copy resolves against the maker's LOCAL library, and the library
+       never travelled — so a shared kit, a second machine or a signed-out
+       visitor drew empty space exactly where the maker had placed a saved
+       piece (eight such copies sit on the Brightside Gameplay HUD board
+       to this day). Only the entries the boards actually reference go:
+       the whole drawer would bloat every project row for nothing, and
+       these are precisely the ones without which a board is incomplete.
+       Promoted saves need none of this — they are kit clones and ride
+       kitClones like any other piece. */
+    const used = new Set<string>();
+    for (const bd of st.boards) for (const it of bd.items) if (!it.kitId && it.libId) used.add(it.libId);
+    const library = st.library.filter((l) => used.has(l.id));
+    return { ...st.kitPayload(), boards, ...(library.length ? { library } : {}) };
   },
   loadKitPayload: (p, opts) => {
     const st = get();
@@ -2599,7 +2836,33 @@ export const useGen = create<GenStore>((set, get) => ({
        doc (review catch: cross-project contamination). Settings imports
        (no projectId) only replace when boards are present, and viewer /
        share links never touch the workspace boards at all. */
+    /* The saved components the travelling boards place (kitPayloadWithBoards)
+       — landed BEFORE the boards so the first paint already resolves them.
+       MERGE, never replace: an incoming entry lands only when its id is new,
+       so nothing the visitor saved is overwritten, renamed or dropped. A
+       viewer (share link, a shipped kit's public page) keeps them in memory
+       only — their own drawer on disk is untouched. */
+    const pLib = (p as { library?: unknown }).library;
+    if (Array.isArray(pLib) && pLib.length) {
+      const have = new Set(get().library.map((l) => l.id));
+      const add = (pLib as LibItem[]).filter((l) => !!l && typeof l === "object"
+        && typeof l.id === "string" && !have.has(l.id) && !!l.cfg && typeof l.cfg === "object");
+      if (add.length) set({ library: [...get().library, ...add] });
+      /* an OWNED open commits the shelf to disk — the whole merged shelf,
+         not just what this payload added, so a kit that was VIEWED first
+         (its entries merged in memory only) still has them on the next
+         reload rather than losing the pieces its boards place */
+      if (!viewer) saveJson(LIB_KEY, get().library);
+    }
     const pBoards = (p as { boards?: unknown[] }).boards;
+    /* a document can arrive naming components it never registered — the
+       shipped Brightside kit places ten clone copies and registers two.
+       An owned open heals when the boards land (importBoards); a VIEWER's
+       demo boards are drawn straight from the payload, so they are read
+       from there and the visitor's own workspace is left on disk. */
+    if (viewer && Array.isArray(pBoards) && pBoards.length) {
+      healCloneRegistry({ boards: pBoards as { items?: BoardItem[] }[], persist: false });
+    }
     if (!viewer && Array.isArray(pBoards) && pBoards.length) void importBoards(pBoards);
     else if (!viewer && opts?.projectId) {
       importTicket++; // supersede any in-flight board import
@@ -3762,6 +4025,12 @@ export const useGen = create<GenStore>((set, get) => ({
     window.location.reload();
   },
 }));
+
+/* Any component the boards or the saved assets still use gets its registry
+   row back before anything reads the document (see healCloneRegistry) —
+   the workspace that boots here may have been through a look apply that
+   deregistered them. */
+healCloneRegistry();
 
 // kick off the site-default fetch once the store exists
 fetchSiteDefault();

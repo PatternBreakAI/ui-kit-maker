@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceBetween, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceBetween, ArrowDown, ArrowUp, BookmarkPlus, BringToFront, Copy, Download, Grid3x3, ImagePlus, LayoutTemplate, Lock, Monitor, Plus, RotateCcw, Search, SendToBack, Shield, Smartphone, SquarePen, Trash2, Type, X } from "lucide-react";
-import { useGen, rehydrateBoardBgs, boardBgFilter, boardScaleMin, boardItemArtShort, drawBoardNoise, drawBoardOverlays, stampFilter, stampSvg, warpStampRaster, importUserAssetFile, kitShadowFilter, suppressCastShadow } from "@/generator/store";
+import { useGen, rehydrateBoardBgs, boardBgFilter, boardScaleMin, boardItemArtShort, drawBoardNoise, drawBoardOverlays, savedPromotable, stampFilter, stampSvg, warpStampRaster, importUserAssetFile, kitShadowFilter, suppressCastShadow } from "@/generator/store";
 import type { UserAsset, UserLogoFx } from "@/generator/store";
 import { normalizeShipCopy, captureVideoPoster } from "@/generator/bgvault";
 import { importBgAsset, bgAssetStatusLine, onAssetActivity, bgAssetDisplayUrl } from "@/generator/assets";
 import { BACKDROP_LIBRARY, BACKDROP_CATEGORIES, backdropThumb, backdropUrl } from "@/generator/backdropLibrary";
 import type { BoardDef, BoardItem } from "@/generator/store";
 import { renderBevel, renderKit, VALUE_DRIVEN } from "@/generator/bevel";
-import { GLYPH_BUTTONS, KIT_COMPONENTS, applyKitDesign, applyKitTextFill, baseOf, fontByName, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
+import { CLONE_INELIGIBLE, GLYPH_BUTTONS, KIT_COMPONENTS, applyKitDesign, applyKitTextFill, baseOf, fontByName, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
 import { LIVE_GLYPHS } from "@/generator/glyphLibrary";
 import { BIG_GLYPHS, BIG_GLYPH_BASE, bigGlyphById, bigGlyphThumb, bigGlyphMid, bigGlyphUrl, bigGlyphFilter, type BigGlyphDef, type BigGlyphFx } from "@/generator/bigGlyphs";
 import type { GenConfig, KitComponentId } from "@/generator/model";
@@ -1632,6 +1632,20 @@ export function BoardView({ playing }: { playing: boolean }) {
 
   const selBoard = boards.find((bd) => bd.items.some((b) => b.id === boardSel)) ?? null;
   const sel = selBoard?.items.find((b) => b.id === boardSel) ?? null;
+  /* the SAVED COMPONENT behind a selection, when that's what it is —
+     a `libId` copy with no `kitId` of its own. */
+  const selSaved = sel && !sel.kitId && sel.libId ? library.find((l) => l.id === sel.libId) : undefined;
+  /* One kit id for the piece the Inspector is acting on: the copy's own
+     when it has one, otherwise the clone a saved component becomes the
+     moment the maker asks to edit or re-save it. The board promise ("Edit
+     component opens it") and the store's mint ask the same question
+     (savedPromotable), so the button can never offer what the action
+     refuses. */
+  const kitIdFor = (b: BoardItem): KitComponentId | null =>
+    b.kitId ?? (savedPromotable(library.find((l) => l.id === b.libId))
+      ? useGen.getState().promoteSavedToKit(b.libId)
+      : null);
+  const selEditable = !!sel && (!!sel.kitId || savedPromotable(selSaved));
 
   /* the exact svg a board item shows — shared by display, export and PNG.
      Per-component design forks (kitDesigns) apply here exactly like the
@@ -2220,10 +2234,21 @@ export function BoardView({ playing }: { playing: boolean }) {
                       onPointerLeave={() => setPreview(null)}>
                       <span dangerouslySetInnerHTML={{ __html: art }} />
                       <i>{l.name}</i>
-                      {live && (
+                      {(live || savedPromotable(l)) && (
+                        /* the same promise the Board's Inspector makes: a
+                           frozen tile joins the kit on this click (its look
+                           pinned, its placements rebound) and opens live. */
                         <span className="bd-uactl" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
-                          <button title={`Edit ${l.name}. Every control shapes this saved component live`} aria-label={`Edit ${l.name}`}
-                            onClick={() => { useGen.getState().setFocus(live.kitId); useGen.getState().setPhase("master"); }}>
+                          <button title={live
+                            ? `Edit ${l.name}. Every control shapes this saved component live`
+                            : `Edit ${l.name}. It joins the kit as a live piece — the same look, now editable — and every copy of it on your boards follows`}
+                            aria-label={`Edit ${l.name}`}
+                            onClick={() => {
+                              const kid = live?.kitId ?? useGen.getState().promoteSavedToKit(l.id);
+                              if (!kid) return;
+                              useGen.getState().setFocus(kid);
+                              useGen.getState().setPhase("master");
+                            }}>
                             <SquarePen size={11} strokeWidth={2.4} /> Edit
                           </button>
                         </span>
@@ -2990,25 +3015,50 @@ export function BoardView({ playing }: { playing: boolean }) {
               </button>
             </div>
             <div className="bd-actions">
-              {sel.kitId && (
-                <button onClick={() => { useGen.getState().setFocus(sel.kitId!); useGen.getState().setPhase("master"); }}
-                  title="Open this component in the editor. Every control shapes it live">
+              {selEditable && (
+                /* A saved component is edited like any other piece now: the
+                   click brings it into the kit as a live clone of the exact
+                   look it was saved at, rebinds every copy of it, and opens
+                   THAT. Nothing on the board moves; the frozen snapshot
+                   stays in the drawer behind it. */
+                <button onClick={() => {
+                  const kid = kitIdFor(sel);
+                  if (!kid) return;
+                  useGen.getState().setFocus(kid);
+                  useGen.getState().setPhase("master");
+                }}
+                  title={sel.kitId
+                    ? "Open this component in the editor. Every control shapes it live"
+                    : "Open this saved component in the editor. It joins the kit as a live piece — the same look, now editable — and every copy of it on your boards follows"}>
                   <SquarePen size={13} strokeWidth={2.2} /> Edit component
                 </button>
               )}
               <button onClick={() => duplicateBoardItem(sel.id)} title="Duplicate this piece (⌘D)">
                 <Copy size={13} strokeWidth={2.2} /> Duplicate
               </button>
-              {sel.kitId && (
+              {selEditable && (
                 /* rehomed from the retired floating tray — its one unique.
                    The owner's FORWARD-button worry: a piece reworked on the
                    Board (words, value, the component's current look) freezes
-                   into a named asset — the master keeps its own life. */
-                <button title="Save to my assets: this piece, with this look and label, becomes a reusable asset, and this copy becomes the saved item (Edit component opens it). The master component stays untouched."
+                   into a named asset — the master keeps its own life.
+                   A saved copy can be re-saved too: it joins the kit first
+                   (same click, same look), then saves like anything else. */
+                <button title={sel.kitId && CLONE_INELIGIBLE.has(baseOf(sel.kitId))
+                  /* the two pieces that cannot be duplicated keep their content
+                     in store singletons — no clone, so no live twin to open.
+                     The tooltip says exactly that rather than promising a
+                     button that will not be there. */
+                  ? "Save to my assets: this piece, with this look and label, becomes a reusable asset in the drawer. This component can't be duplicated, so the board copy stays as it is and the saved asset is a snapshot. The master component stays untouched."
+                  : "Save to my assets: this piece, with this look and label, becomes a reusable asset, and this copy becomes the saved item (Edit component opens it). The master component stays untouched."}
                   onClick={() => {
-                    const def = sel.label ?? kitClones[sel.kitId!]?.name ?? KIT_COMPONENTS.find((c) => c.id === baseOf(sel.kitId!))?.name ?? "My asset";
+                    const def = sel.label ?? (sel.kitId
+                      ? kitClones[sel.kitId]?.name ?? KIT_COMPONENTS.find((c) => c.id === baseOf(sel.kitId!))?.name
+                      : selSaved?.name) ?? "My asset";
                     const name = window.prompt("Save this piece to your assets as:", def);
-                    if (name?.trim()) useGen.getState().saveBoardItemAsAsset(sel.id, name.trim());
+                    if (!name?.trim()) return;
+                    // a saved copy joins the kit before it can be re-saved
+                    if (!kitIdFor(sel)) return;
+                    useGen.getState().saveBoardItemAsAsset(sel.id, name.trim());
                   }}>
                   <BookmarkPlus size={13} strokeWidth={2.2} /> Save to my assets
                 </button>
@@ -3025,7 +3075,13 @@ export function BoardView({ playing }: { playing: boolean }) {
                 <Trash2 size={13} strokeWidth={2.2} /> Remove
               </button>
             </div>
-            {sel.kitId && <div className="bd-note"><Lock size={11} strokeWidth={2.2} /> Live asset: restyling the kit restyles this piece.</div>}
+            {sel.kitId
+              ? <div className="bd-note"><Lock size={11} strokeWidth={2.2} /> Live asset: restyling the kit restyles this piece.</div>
+              : selSaved
+                ? <div className="bd-note">{savedPromotable(selSaved)
+                  ? <>Saved component — a frozen snapshot of “{selSaved.name}”. Edit component brings it into the kit as a live piece, and it travels with the kit from then on.</>
+                  : <>Saved component — a frozen snapshot of “{selSaved.name}”. This one was saved before pieces could be brought back into the kit, so it stays as it is.</>}</div>
+                : null}
           </>
         ) : act ? (
           <>
