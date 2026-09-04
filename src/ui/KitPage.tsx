@@ -3273,11 +3273,16 @@ const kitTier = useGen((s) => s.tier);
           <Piece id="hotbar" caption="Hotbar · sandbox" value={0.25} ambient scale={0.5} />
         </div>
         <div className="kp-subhead">Card battler</div>
-        <p className="kp-note">Every set ships its back as a pair, standard and premium foil (the shine sweep), and the same back becomes a deck cover the moment it takes a nameplate. Packs carry the crimped foil caps; click one to tear it open with the themed burst.</p>
+        <p className="kp-note">Every set ships its back as a pair, standard and premium foil (the shine sweep), and the same back becomes a deck cover the moment it takes a nameplate. Packs carry the crimped foil caps; click one to tear it open with the themed burst. The face is the back's other side: one design, and the picture, the two corner numbers and the name are per-copy, so a whole set is this piece over and over rather than a component per card.</p>
         <div className="kp-tray">
           <Piece id="cardback" caption="Card back · standard" scale={0.42} />
           <Piece id="cardback" caption="Card back · premium foil" scale={0.42} shine />
           <Piece id="cardback" caption="Deck cover · nameplate" label="STARTER · 30" scale={0.42} />
+          <Piece id="cardface" caption="Card face · hexagon and circle" scale={0.42} />
+          <Piece id="cardface" caption="Card face · diamond and shield" scale={0.42}
+            slots={{ lshape: "Diamond", rshape: "Shield", lnum: "3", rnum: "12" }} label="EMBER DRAKE" />
+          <Piece id="cardface" caption="Card face · one corner only" scale={0.42}
+            slots={{ lshape: "Dome", rshape: "Off", lnum: "7" }} label="TIDE CALLER" />
           <Piece id="pack" caption="Card pack · click to tear open" scale={0.42} />
         </div>
         <StateStrip variants={[

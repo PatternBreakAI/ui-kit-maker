@@ -263,6 +263,59 @@ function roundRect(x: number, y: number, w: number, h: number, r: number): strin
   const rr = Math.min(r, h / 2, w / 2);
   return `M ${x + rr} ${y} H ${x + w - rr} A ${rr} ${rr} 0 0 1 ${x + w} ${y + rr} V ${y + h - rr} A ${rr} ${rr} 0 0 1 ${x + w - rr} ${y + h} H ${x + rr} A ${rr} ${rr} 0 0 1 ${x} ${y + h - rr} V ${y + rr} A ${rr} ${rr} 0 0 1 ${x + rr} ${y} Z`;
 }
+/* ── THE CARD FACE'S CORNER BADGES (round 73, owner's commission: "on the
+   left should be an hexagonal and on the right should be a circle, come up
+   with a few shapes that make sense for a user to choose from, upside down
+   circle, parallelogram, square on its side at 45 degree angle (diamond
+   shape) etc"). Nine plates on ONE contract: every shape is drawn inside
+   the same square of radius r about (cx, cy), so a corner can change shape
+   with the number staying exactly where it was and the export's fixed seat
+   canvas never moving. Names are the owner's where they gave one.
+   The "upside down circle" is a DOME: flat on top, round below — the shape
+   a cost gem takes when it hangs off a frame's edge. ── */
+function cardCornerPath(kind: string, cx: number, cy: number, r: number): string {
+  const p = (pts: number[][]) => `M ${pts.map(([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`).join(" L ")} Z`;
+  switch (kind) {
+    case "Circle":
+      return `M ${(cx - r).toFixed(1)} ${cy.toFixed(1)} a ${r.toFixed(1)} ${r.toFixed(1)} 0 1 0 ${(r * 2).toFixed(1)} 0 a ${r.toFixed(1)} ${r.toFixed(1)} 0 1 0 ${(-r * 2).toFixed(1)} 0 Z`;
+    case "Diamond": // a square stood on its point
+      return p([[cx, cy - r], [cx + r, cy], [cx, cy + r], [cx - r, cy]]);
+    case "Dome": { // flat top, round bottom — the owner's "upside down circle"
+      const t = cy - r * 0.72;
+      return `M ${(cx - r).toFixed(1)} ${t.toFixed(1)} H ${(cx + r).toFixed(1)} V ${cy.toFixed(1)} A ${r.toFixed(1)} ${(r * 1.1).toFixed(1)} 0 0 1 ${(cx - r).toFixed(1)} ${cy.toFixed(1)} Z`;
+    }
+    case "Parallelogram": {
+      const sl = r * 0.42, hh = r * 0.78;
+      return p([[cx - r + sl, cy - hh], [cx + r, cy - hh], [cx + r - sl, cy + hh], [cx - r, cy + hh]]);
+    }
+    case "Shield": { // flat shoulders, point below — defense
+      const sh = r * 0.86;
+      return `M ${(cx - sh).toFixed(1)} ${(cy - r * 0.86).toFixed(1)} H ${(cx + sh).toFixed(1)} V ${(cy + r * 0.1).toFixed(1)} Q ${(cx + sh).toFixed(1)} ${(cy + r * 0.66).toFixed(1)} ${cx.toFixed(1)} ${(cy + r).toFixed(1)} Q ${(cx - sh).toFixed(1)} ${(cy + r * 0.66).toFixed(1)} ${(cx - sh).toFixed(1)} ${(cy + r * 0.1).toFixed(1)} Z`;
+    }
+    case "Rounded square":
+      return roundRect(cx - r * 0.88, cy - r * 0.88, r * 1.76, r * 1.76, r * 0.34);
+    case "Starburst": { // a disc notched all round — legendary
+      let d = "";
+      for (let i = 0; i < 24; i++) {
+        const a = (i / 24) * Math.PI * 2 - Math.PI / 2;
+        const rr = i % 2 === 0 ? r : r * 0.84;
+        d += `${i ? " L" : "M"} ${(cx + Math.cos(a) * rr).toFixed(1)} ${(cy + Math.sin(a) * rr).toFixed(1)}`;
+      }
+      return d + " Z";
+    }
+    case "Pennant": // flat top, V below — a hanging ribbon tail
+      return p([[cx - r * 0.9, cy - r * 0.8], [cx + r * 0.9, cy - r * 0.8], [cx + r * 0.9, cy + r * 0.4], [cx, cy + r], [cx - r * 0.9, cy + r * 0.4]]);
+    case "Hexagon":
+    default: { // point-top, the classic cost gem
+      const d: number[][] = [];
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2 - Math.PI / 2;
+        d.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]);
+      }
+      return p(d);
+    }
+  }
+}
 /* Deterministic hash for authored irregularity (hand-drawn) — same output
    every render, every export, every reload. */
 function silhash(i: number): number {
@@ -4508,6 +4561,13 @@ function stampTrack(svg: string, x: number, w: number, y?: number, h?: number): 
  *  `overlay` is a stackable status layer: "locked" | "new" | "check" |
  *  "equipped" | "count:N" | "level:N" | "cooldown:N" | "claimable" | "empty". */
 export interface KitOpts {
+  /** A MAKER'S OWN PICTURE in a piece's art well (round 73: the card
+   *  face, the card back and the deck cover). `href` is already resolved
+   *  by the caller — a bg-vault blob, an `asset://` bucket URL or a
+   *  bundled path — and w/h are the upload's own pixels so the well can
+   *  COVER-fit it without squashing. Per-copy content, never a new
+   *  component: this is what lets one card design carry a whole set. */
+  pic?: { href: string; w: number; h: number } | null;
   /** Container variant for panels — circle, oval, dialogue strip. */
   kind?: "circle" | "oval" | "strip";
   /** Horizontal 9-slice stretch for the bar family (slider, progress,
@@ -9766,6 +9826,116 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
           `<text x="${cxC.toFixed(1)}" y="${(py + 23 * k + 1).toFixed(1)}" font-family="'${font}', 'Inter Variable', Inter, sans-serif" font-size="${(17 * k * typeK).toFixed(1)}" font-weight="800" letter-spacing="1.5" fill="${hexMix(glow, "#FFFFFF", 0.4)}" text-anchor="middle" dominant-baseline="central">${esc(opts.label)}</text></g>`;
       }
       return inject(track.replace("<svg ", '<svg data-cardback="1" '), parts);
+    }
+    case "cardface": {
+      /* Card battler · the card's FRONT (owner commission, round 73).
+         Built off the card back's shell so a set reads as one deck, then
+         given the three things a face has and a back does not: a picture
+         well, two corner badges carrying numbers, and the card's name
+         overlapping the art at the bottom with no plate under it.
+
+         THE SCALE LAW, made structural. A card face is a DESIGN, not a
+         card. The picture, the two numbers and the name are per-copy
+         content — the same fields a board copy already carries — so a
+         hundred-card set is this ONE piece placed a hundred times, and in
+         Unity ONE prefab fed a hundred rows. Nothing here mints a
+         component; only changing the DESIGN does that.
+
+         Everything swappable is a live child: the picture is marked ink,
+         each corner badge is a marked plate with its number RIDING it
+         (the boostercard grammar), and the name is a text seat. No word,
+         icon or image is baked into this art. */
+      const w = 300 * k, h = 420 * k;
+      const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 430 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const gid = "cf" + UID++;
+      const slF = opts.slots ?? {};
+      const dimF = state === "disabled" ? 0.45 : 1;
+      /* the PICTURE WELL — inset from the wall, portrait, sitting high so
+         the name has open card beneath it */
+      const insF = bw + 24 * k;
+      const wX = 39 + insF, wY = 30 + insF;
+      const wW = w - insF * 2, wH = h * 0.68;
+      const wellR = Math.max(6 * k, cfg.bevel.softness * 0.5 * k);
+      const wellD = roundRect(wX, wY, wW, wH, wellR);
+      const frameOnF = slF.frame !== "Off";
+      const fullBleed = slF.art === "Full bleed";
+      let partsF = `<defs>` +
+        `<clipPath id="${gid}w"><path d="${wellD}"/></clipPath>` +
+        `<radialGradient id="${gid}g"><stop offset="0" stop-color="${glow}" stop-opacity="0.45"/><stop offset="0.62" stop-color="${glow}" stop-opacity="0.16"/><stop offset="1" stop-color="${glow}" stop-opacity="0"/></radialGradient>` +
+        /* the name straddles the well's foot, so the art beneath it goes
+           dark: a card name has to read over ANY picture a maker drops in */
+        `<linearGradient id="${gid}s" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#000000" stop-opacity="0.62"/><stop offset="0.5" stop-color="#000000" stop-opacity="0.22"/><stop offset="1" stop-color="#000000" stop-opacity="0"/></linearGradient>` +
+        `<radialGradient id="${gid}v"><stop offset="0" stop-color="#000000" stop-opacity="0.5"/><stop offset="0.55" stop-color="#000000" stop-opacity="0.34"/><stop offset="1" stop-color="#000000" stop-opacity="0"/></radialGradient>` +
+        `</defs>`;
+      // the well's own ground, so an empty card still reads as a frame
+      partsF += `<path d="${wellD}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.35)}" opacity="${dimF}"/>`;
+      /* THE PICTURE. `opts.pic` is a maker's uploaded art (the My-assets
+         road, same as a board logo) and covers the well corner to corner;
+         with no upload the kit's own glyph centres in it, exactly the way
+         the card back's emblem does. Either way the ink is MARKED, so the
+         export ships it as a swappable Image child on a fixed well-shaped
+         canvas — a dev swaps the sprite and the card is a different card,
+         with no trip back to the app. */
+      const picIcon = opts.icon === null ? null : (opts.icon ?? STOCK_ICONS.gem ?? STOCK_ICONS.star);
+      const picBox = `${wX.toFixed(1)} ${wY.toFixed(1)} ${wW.toFixed(1)} ${wH.toFixed(1)}`;
+      partsF += `<g data-part="icon" data-icon="art" data-icon-nick="Card art" data-icon-box="${picBox}" data-icon-well-rect="${picBox}">`;
+      if (opts.pic) {
+        /* COVER fit inside the well: the upload keeps its aspect and the
+           well crops it, never a squash (the board's own big-glyph rule) */
+        const sc = Math.max(wW / Math.max(1, opts.pic.w), wH / Math.max(1, opts.pic.h));
+        const iw = opts.pic.w * sc, ih = opts.pic.h * sc;
+        partsF += `<g clip-path="url(#${gid}w)"><image href="${esc(opts.pic.href)}" x="${(wX + (wW - iw) / 2).toFixed(1)}" y="${(wY + (wH - ih) / 2).toFixed(1)}" width="${iw.toFixed(1)}" height="${ih.toFixed(1)}" preserveAspectRatio="none" opacity="${dimF}"/></g>`;
+      } else if (picIcon) {
+        const pS = Math.min(wW, wH) * (fullBleed ? 0.86 : 0.58);
+        const pcx = wX + wW / 2, pcy = wY + wH * 0.46;
+        partsF += `<circle cx="${pcx.toFixed(1)}" cy="${pcy.toFixed(1)}" r="${(pS * 0.78).toFixed(1)}" fill="url(#${gid}g)" opacity="${dimF}"/>` +
+          `<g${emblemFx(9 * k, glow)} opacity="${dimF}">${themedIcon(picIcon, pcx - pS / 2, pcy - pS / 2, pS, hexMix(glow, "#FFFFFF", 0.35), 1.8)}</g>`;
+      }
+      partsF += `</g>`;
+      // a scrim up from the well's foot so the name reads over any picture
+      partsF += `<g clip-path="url(#${gid}w)"><rect x="${wX.toFixed(1)}" y="${(wY + wH * 0.58).toFixed(1)}" width="${wW.toFixed(1)}" height="${(wH * 0.42).toFixed(1)}" fill="url(#${gid}s)"/></g>`;
+      if (frameOnF) partsF += `<path d="${wellD}" fill="none" stroke="${hexRgba(hexMix(glow, "#FFFFFF", 0.28), 0.6)}" stroke-width="${(2.4 * k).toFixed(1)}" opacity="${dimF}"/>`;
+      /* THE CORNER BADGES. Each is a plate the number rides: the shape
+         ships as its own sprite and the digits stay live TMP, so a dev
+         drives them at runtime and can flash them on a hit or a buff. */
+      /* seated so the badge STRADDLES the picture well's top corner and
+         still sits wholly on the card: hanging one off the outer edge put
+         it past the shell's own face and the top was shorn off */
+      const bR = 42 * k;
+      const corner = (side: "l" | "r") => {
+        const shape = (slF[`${side}shape`] as string) ?? (side === "l" ? "Hexagon" : "Circle");
+        if (shape === "Off") return "";
+        const num = String(slF[`${side}num`] ?? (side === "l" ? "5" : "9")).trim().slice(0, 3);
+        const cxB = side === "l" ? wX + bR * 0.56 : wX + wW - bR * 0.56;
+        const cyB = wY + bR * 0.56;
+        const nm = side === "l" ? "cornerleft" : "cornerright";
+        const nick = side === "l" ? "Left corner" : "Right corner";
+        const box = `${(cxB - bR - 4 * k).toFixed(1)} ${(cyB - bR - 4 * k).toFixed(1)} ${(bR * 2 + 8 * k).toFixed(1)} ${(bR * 2 + 8 * k).toFixed(1)}`;
+        const plate = cardCornerPath(shape, cxB, cyB, bR);
+        let out = `<g data-part="icon" data-icon="${nm}" data-icon-nick="${nick}" data-icon-box="${box}">` +
+          `<path d="${plate}" fill="${hexMix(bevel, glow, 0.28)}" stroke="${darken(bevel, 0.45)}" stroke-width="${(3 * k).toFixed(1)}" opacity="${dimF}"/>` +
+          `<path d="${cardCornerPath(shape, cxB, cyB - bR * 0.06, bR * 0.82)}" fill="${hexRgba("#FFFFFF", 0.16)}" opacity="${dimF}"/>` +
+          `</g>`;
+        if (num) {
+          const nFs = Math.min(38 * k, (38 * k * 1.6) / Math.max(1.6, num.length)) * typeK;
+          out += `<text x="${cxB.toFixed(1)}" y="${(cyB + 1.5 * k).toFixed(1)}" font-family="'${font}', 'Inter Variable', Inter, sans-serif" font-size="${nFs.toFixed(1)}" font-weight="900" fill="#FFFFFF" stroke="${darken(bevel, 0.6)}" stroke-width="${(2.4 * k).toFixed(1)}" paint-order="stroke" text-anchor="middle" dominant-baseline="central" opacity="${dimF}" data-seat-rider="${nm}">${esc(num)}</text>`;
+        }
+        return out;
+      };
+      partsF += corner("l") + corner("r");
+      /* THE NAME — the card's word, straddling the foot of the art with
+         NO container under it (owner: "space for a logo, no container,
+         but typography that overlaps the card face"). It goes through
+         contentText so it obeys the kit's text controls like every other
+         word, and it is a live seat in the export. */
+      const nameY = wY + wH;
+      /* the word straddles the well's foot, so half of it lands on the
+         card's own bright face — a VIGNETTE (not a plate: the owner asked
+         for no container) darkens the ground under it on both sides of
+         that edge, so the name reads whatever the picture and the kit do */
+      partsF += `<ellipse cx="${(39 + w / 2).toFixed(1)}" cy="${nameY.toFixed(1)}" rx="${(w * 0.5).toFixed(1)}" ry="${(34 * k).toFixed(1)}" fill="url(#${gid}v)" opacity="${dimF}"/>`;
+      partsF += `<g data-part="label">${contentText(opts.label ?? "CARD NAME", 39 + w / 2, nameY, 33 * k * typeK, { anchor: "middle", keepCase: true, track: 1, opacity: dimF, autoInk: "#FFFFFF" })}</g>`;
+      return inject(track.replace("<svg ", '<svg data-cardface="1" '), partsF);
     }
     case "pack": {
       /* Card battler · booster pack — the engine body wears crimped foil

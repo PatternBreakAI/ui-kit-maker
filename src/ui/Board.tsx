@@ -86,7 +86,7 @@ const ASSET_GROUPS: { name: string; ids: string[] }[] = [
   { name: "Racing", ids: ["speedo", "speedo2", "tacho", "circuit", "leaderboard", "laptimes", "telemetry", "startlights"] },
   { name: "Strategy & score", ids: ["buildqueue", "techcard", "scorebug", "trophy"] },
   { name: "Social", ids: ["friendrow", "chatbubble", "clancrest", "emotewheel"] },
-  { name: "Card battler", ids: ["cardback", "pack"] },
+  { name: "Card battler", ids: ["cardback", "cardface", "pack"] },
   /* the semantic glyph rack — registry-derived so the tray and the kit page
      can't drift; the kitVisible filter below keeps it admin-only while
      staged, then per-glyph as releases land. LIVE only — a retired glyph
@@ -125,6 +125,7 @@ const SEARCH_TERMS: Partial<Record<KitComponentId, string>> = {
   chest: "reward loot crate treasure win",
   giftbox: "present reward gift daily",
   rewardcard: "reward results win prize claim",
+  cardface: "card face front tcg ccg deck collectible creature spell rarity cost attack power mana corner badge number hexagon circle diamond portrait art picture upload",
   rewardtray: "rewards results win row",
   claimbtn: "collect claim reward cta",
   qtybadge: "count amount quantity stack",

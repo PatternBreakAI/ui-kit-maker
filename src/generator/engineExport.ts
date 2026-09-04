@@ -853,7 +853,7 @@ const PREFAB_FAMILY: Partial<Record<KitComponentId, string>> = {
   chatbubble: "chatbubble", emotewheel: "emotewheel", buildqueue: "buildqueue",
   unitplate: "unitplate", techcard: "techcard", popmeter: "popmeter",
   // the Rewards slice (S6)
-  pack: "pack", cardback: "cardback", orderticket: "orderticket",
+  pack: "pack", cardback: "cardback", cardface: "cardface", orderticket: "orderticket",
   chest: "chest", giftbox: "giftbox", rewardtray: "rewardtray", chestpanel: "chestpanel",
 };
 // the glyph rack: pure-art silhouettes, one Image prefab each — placeable,
@@ -917,7 +917,7 @@ const UNIVERSAL_DISPLAY = new Set<KitComponentId>(["qtybadge", "resource", "curr
   "scorebug", "friendrow", "clancrest", "chatbubble", "emotewheel", "buildqueue", "unitplate", "techcard", "popmeter",
   /* Rewards slice: the released card twins join the shelf; the staged
      tray and ceremony ride gated (stagedShips) until the owner's bless. */
-  "pack", "cardback", "rewardtray", "chestpanel"]);
+  "pack", "cardback", "cardface", "rewardtray", "chestpanel"]);
 /* the glyph-button fleet (round 52 — the owner: "stock the kit with the
    entire semantic glyph set as buttons… I don't want to have to have one
    master then go round about to save one"): 47 REAL components join the
@@ -5117,6 +5117,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         popmeter: "Population meter — LIVE: the population glyph is a LIVE Image child, the count a seat, and the supply bar a KitBarFill bar (the Value slider or SetValue; the app's near-cap alarm red stays an app-side draw for now). Display piece.",
         pack: "Card pack — the pack art with its live word; open ceremonies are your game's (ClaimBurst fires on CLAIM-labeled copies). Display piece.",
         cardback: "Card back — the deck's face-down art with its live emblem child. Display piece.",
+        cardface: "Card face — ONE design, any number of cards. KitCardFace makes the whole card data: SetCard(art, name, left, right) dresses it in one call, or drive the parts (SetArt / SetName / SetLeft / SetRight). The two corner numbers animate on change — SetLeft(v, KitCardFace.Change.Hit) punches red, Change.Buff swells green, Change.Quiet just writes it. The picture is a swappable Image child (drop your own sprite, or feed a CardDef), the name is a LIVE seat, and each corner badge is its own child with its number riding it, so a set is this prefab instanced per row rather than a prefab per card. Pair it with KitCardFlip on a parent holding a Cardback and this face to get the reveal: Flip(), Reveal(), Hide().",
         orderticket: "Kitchen order ticket — a REAL button; dish name and recipe lines are LIVE seats, the dish glyph a LIVE Image child, and the countdown bar is LIVE (a KitBarFill bar — the Value slider or SetValue; the ≤25% alarm recolor + pulse are the game's runtime to add). Served poses ride per-copy posed skins.",
         chest: "Treasure chest — a REAL button; tier and gate poses ride per-copy posed skins.",
         giftbox: "Gift box — a REAL button; tag and readiness poses ride per-copy posed skins.",
@@ -8017,6 +8018,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Runtime/PatternBreakBuffSweep.cs", data: BUFF_SWEEP_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitBarFill.cs", data: KIT_BAR_FILL_RUNTIME });
   files.push({ path: "Runtime/PatternBreakCellMeter.cs", data: CELL_METER_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakCardFace.cs", data: CARD_FACE_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitStepper.cs", data: KIT_STEPPER_RUNTIME });
   files.push({ path: "Runtime/PatternBreakPageDots.cs", data: PAGE_DOTS_RUNTIME });
   files.push({ path: "Runtime/PatternBreakStartLights.cs", data: START_LIGHTS_RUNTIME });
@@ -8968,6 +8970,203 @@ namespace PatternBreak {
     void OnEnable() { Apply(); }
     // a raw fillAmount write reads as the VALUE and re-snaps to whole cells
     void LateUpdate() { if (lit != null && !Mathf.Approximately(lit.fillAmount, wrote)) { value = Mathf.Clamp01(lit.fillAmount); Apply(); } }
+  }
+}
+`;
+
+/* ── THE CARD FACE'S BRAIN (round 73, the owner's commission). Their own
+   worry named the design: "if someone makes sets of cards the kit will
+   grow enormously, and with each card being it's own individual asset,
+   things could get out of control quickly (what do you think here?)".
+
+   The answer is that a card face is a DESIGN and a card is a ROW. One
+   prefab, one KitCardDef per card, and a set of two hundred is two hundred
+   small assets and ONE prefab instead of two hundred prefabs with two
+   hundred sprite sets. Everything that varies card to card is a field
+   here; only a change to the FRAME is a new component back in the app.
+
+   The corner numbers answer the second half ("leave options in for those
+   dynamic numbers in the corners to take hits or buffs and animate
+   accordingly"): SetLeft/SetRight take a Change, and Nudge infers it from
+   the direction so a dev who does not want to think about it never has
+   to. The animation is the app's own punch-and-settle, scale plus a tint
+   flash, and it never allocates after the first call. ── */
+const CARD_FACE_RUNTIME = `using System.Collections;
+using UnityEngine;
+using UnityEngine.UI;
+#if UNITY_2023_2_OR_NEWER
+using TMPro;
+#endif
+
+namespace PatternBreak {
+  /* ONE CARD'S DATA. A set is a folder of these plus one prefab. */
+  [CreateAssetMenu(menuName = "UI Kit Maker/Card", fileName = "Card")]
+  public class KitCardDef : ScriptableObject {
+    public string cardName = "CARD NAME";
+    public Sprite art;
+    public int left = 5;
+    public int right = 9;
+  }
+
+  [AddComponentMenu("UI Kit Maker/Kit Card Face")]
+  public class KitCardFace : MonoBehaviour {
+    /* how a number arrived: Quiet just writes it, Hit punches red, Buff
+       swells green. Nudge picks Hit or Buff from the direction. */
+    public enum Change { Quiet, Hit, Buff }
+
+    [Header("The card's parts (wired on import)")]
+    [Tooltip("The picture. Drop any sprite here and the card is a different card — no trip back to the app.")]
+    public Image art;
+    [Tooltip("The left badge plate — flashed behind its number on a hit or a buff.")]
+    public Graphic leftBadge;
+    [Tooltip("The right badge plate.")]
+    public Graphic rightBadge;
+#if UNITY_2023_2_OR_NEWER
+    [Tooltip("The card's name, the word straddling the foot of the picture.")]
+    public TMP_Text nameLabel;
+    [Tooltip("The left corner's number. It rides the left badge, so moving the badge moves both.")]
+    public TMP_Text leftNumber;
+    [Tooltip("The right corner's number.")]
+    public TMP_Text rightNumber;
+#endif
+
+    [Header("This card")]
+    public int left = 5;
+    public int right = 9;
+
+    [Header("Hit and buff")]
+    [Tooltip("The flash when a number goes DOWN.")]
+    public Color hitTint = new Color(1f, 0.30f, 0.33f, 1f);
+    [Tooltip("The flash when a number goes UP.")]
+    public Color buffTint = new Color(0.44f, 1f, 0.55f, 1f);
+    [Range(0.05f, 1.5f)] public float punchSeconds = 0.34f;
+    [Range(1f, 2.5f)] public float punchScale = 1.42f;
+
+    /* ── the whole card in one call ── */
+    public void SetCard(KitCardDef def) {
+      if (def == null) return;
+      SetCard(def.art, def.cardName, def.left, def.right);
+    }
+    public void SetCard(Sprite picture, string cardName, int l, int r) {
+      SetArt(picture); SetName(cardName);
+      SetLeft(l, Change.Quiet); SetRight(r, Change.Quiet);
+    }
+
+    public void SetArt(Sprite s) { if (art != null && s != null) art.sprite = s; }
+
+    public void SetName(string s) {
+#if UNITY_2023_2_OR_NEWER
+      if (nameLabel != null) nameLabel.text = s == null ? "" : s;
+#endif
+    }
+
+    public void SetLeft(int v) { SetLeft(v, Change.Quiet); }
+    public void SetRight(int v) { SetRight(v, Change.Quiet); }
+    public void SetLeft(int v, Change how) {
+      left = v;
+#if UNITY_2023_2_OR_NEWER
+      Write(leftNumber, leftBadge, v, how);
+#endif
+    }
+    public void SetRight(int v, Change how) {
+      right = v;
+#if UNITY_2023_2_OR_NEWER
+      Write(rightNumber, rightBadge, v, how);
+#endif
+    }
+
+    /* the road for devs who would rather not name the mood: down is a
+       hit, up is a buff, no change is quiet */
+    public void NudgeLeft(int delta) { SetLeft(left + delta, Mood(delta)); }
+    public void NudgeRight(int delta) { SetRight(right + delta, Mood(delta)); }
+    static Change Mood(int delta) { return delta < 0 ? Change.Hit : delta > 0 ? Change.Buff : Change.Quiet; }
+
+#if UNITY_2023_2_OR_NEWER
+    readonly System.Collections.Generic.Dictionary<int, Coroutine> live = new System.Collections.Generic.Dictionary<int, Coroutine>();
+
+    void Write(TMP_Text t, Graphic plate, int v, Change how) {
+      if (t == null) return;
+      t.text = v.ToString(System.Globalization.CultureInfo.InvariantCulture);
+      if (how == Change.Quiet || !isActiveAndEnabled) return;
+      int key = t.GetInstanceID();
+      Coroutine running;
+      if (live.TryGetValue(key, out running) && running != null) StopCoroutine(running);
+      live[key] = StartCoroutine(Punch(t, plate, how == Change.Hit ? hitTint : buffTint));
+    }
+
+    IEnumerator Punch(TMP_Text t, Graphic plate, Color flash) {
+      var tr = t.rectTransform;
+      Vector3 rest = Vector3.one;
+      Color inkRest = t.color;
+      Color plateRest = plate != null ? plate.color : Color.white;
+      float d = Mathf.Max(0.05f, punchSeconds), e = 0f;
+      while (e < d) {
+        e += Time.unscaledDeltaTime;
+        float u = Mathf.Clamp01(e / d);
+        /* out fast, back slow — the app's own squash-overshoot-settle */
+        float kk = u < 0.32f ? (u / 0.32f) : 1f - Mathf.SmoothStep(0f, 1f, (u - 0.32f) / 0.68f);
+        tr.localScale = Vector3.LerpUnclamped(rest, rest * punchScale, kk);
+        t.color = Color.LerpUnclamped(inkRest, flash, kk);
+        if (plate != null) plate.color = Color.LerpUnclamped(plateRest, flash, kk * 0.55f);
+        yield return null;
+      }
+      tr.localScale = rest;
+      t.color = inkRest;
+      if (plate != null) plate.color = plateRest;
+      live.Remove(t.GetInstanceID());
+    }
+#endif
+  }
+
+  /* THE REVEAL (owner: "I'd like to have a card reveal animation in the kit
+     that flips the card from back to front"). Park a Cardback and a
+     Cardface as two children of one parent, drop this on the parent, and
+     Flip() turns it over: the card squashes to nothing edge-on, the sides
+     swap at the halfway mark, and it opens out again. Reveal() and Hide()
+     go one way only. */
+  [AddComponentMenu("UI Kit Maker/Kit Card Flip")]
+  public class KitCardFlip : MonoBehaviour {
+    [Tooltip("The face-down side (a Cardback).")] public RectTransform back;
+    [Tooltip("The face-up side (a Cardface).")] public RectTransform face;
+    [Tooltip("Which way up the card starts.")] public bool faceUp;
+    [Range(0.08f, 2f)] public float seconds = 0.42f;
+    [Tooltip("Unscaled time, so a reveal still plays while the game is paused.")]
+    public bool ignoreTimeScale = true;
+    Coroutine run;
+
+    void OnEnable() { Show(faceUp); }
+    void Show(bool up) {
+      if (back != null) back.gameObject.SetActive(!up);
+      if (face != null) face.gameObject.SetActive(up);
+      var rt = transform as RectTransform;
+      if (rt != null) rt.localScale = Vector3.one;
+    }
+    public void Flip() { Go(!faceUp); }
+    public void Reveal() { Go(true); }
+    public void Hide() { Go(false); }
+    void Go(bool up) {
+      if (run != null) StopCoroutine(run);
+      if (!isActiveAndEnabled) { faceUp = up; Show(up); return; }
+      run = StartCoroutine(Turn(up));
+    }
+    IEnumerator Turn(bool up) {
+      var rt = transform as RectTransform;
+      float d = Mathf.Max(0.08f, seconds), e = 0f;
+      Vector3 rest = rt != null ? rt.localScale : Vector3.one;
+      bool swapped = false;
+      while (e < d) {
+        e += ignoreTimeScale ? Time.unscaledDeltaTime : Time.deltaTime;
+        float u = Mathf.Clamp01(e / d);
+        /* edge-on at the halfway mark: |cos| carries the card to zero
+           width and back, which is the flat-canvas reading of a turn */
+        if (rt != null) { var sc = rest; sc.x = rest.x * Mathf.Abs(Mathf.Cos(u * Mathf.PI)); rt.localScale = sc; }
+        if (!swapped && u >= 0.5f) { swapped = true; faceUp = up; Show(up); }
+        yield return null;
+      }
+      if (!swapped) { faceUp = up; Show(up); }
+      if (rt != null) rt.localScale = rest;
+      run = null;
+    }
   }
 }
 `;
