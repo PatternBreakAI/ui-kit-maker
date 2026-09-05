@@ -1,7 +1,7 @@
 import { Component, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import "@/styles/pricing.css"; // the staging bay wears the community desk's cg-curate buttons
-import { ChevronDown, Download, Lock, PenTool, Pin, ShieldCheck, SquarePen, Trash2 } from "lucide-react";
-import { useGen } from "@/generator/store";
+import { ChevronDown, Download, Lock, PenTool, Pin, ShieldCheck, SquarePen, Trash2, X } from "lucide-react";
+import { useGen, kitPicOf } from "@/generator/store";
 import { CLONE_KINDS, EFFECT_ROLES, GLYPH_BUTTONS, KIT_COMPONENTS, KIT_SHAPE, PRESETS, ROLE_HINT, SHAPES, STOCK_ICONS, STAGED_KIT, applyKitDesign, applyKitTextFill, baseOf, baseShape, fontByName, groupOf, hexMix, isDarkBg, isGlyphButton, effKitSize, kitVisible, resolveKitIcon, sanitizeUnitySlug } from "@/generator/model";
 import { LIVE_GLYPHS } from "@/generator/glyphLibrary";
 import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, Shape } from "@/generator/model";
@@ -14,6 +14,7 @@ import { updateProjectDoc, loadProjectDoc } from "@/generator/cloud";
 import { guardedExport } from "@/generator/exportGate";
 import { kitSpecMarkdown, fontNotesMarkdown, kitFontFamilies } from "@/generator/kitDocs";
 import { detachBBoxNoise, LiveArt, stillSmil } from "./LiveArt";
+import type { LiveKit } from "./LiveArt";
 import { openAuth } from "@/shell/authOverlay";
 import { openGate } from "@/shell/gateModal";
 import { downloadTestKit } from "@/generator/billing";
@@ -447,10 +448,11 @@ function flatPiece(c: GenConfig, flat?: boolean): GenConfig {
 /** Shared plumbing for every live piece on this page. The page is always
  *  alive — clicking a piece plays it; editing goes through the ✎ button. */
 function usePiece(p: PieceOpts) {
-  const { cfg, kitClones, kitShapes, kitDesigns, kitLocks, kitTextOy, kitTextOx, kitTextFill, kitIcons, kitLabels, kitNoText, kitSubs, kitSlotVals, kitVals, kitRow, kitBar, setFocus, setKitKind, setKitOverlay } = useGen();
+  const { cfg, kitClones, kitShapes, kitDesigns, kitLocks, kitTextOy, kitTextOx, kitTextFill, kitIcons, kitLabels, kitNoText, kitSubs, kitSlotVals, kitVals, kitRow, kitBar, kitPics, kitPicFx, userAssets, kitAssets, assetTick, setFocus, setKitKind, setKitOverlay } = useGen();
   /* clone-aware (mirrors Panel/CanvasView): a duplicated piece renders
      through its BASE component — renderKit and LiveArt refuse clone ids —
      while every per-piece map read stays keyed by the piece's own id */
+  void assetTick; // read so a resolved picture re-renders this piece
   const base = baseOf(p.id);
   // an explicit size (the Primary ramp) is fixed; everything else is L —
   // the nav's kit-wide M/L switch is retired (owner: "get rid of the ML
@@ -494,6 +496,12 @@ function usePiece(p: PieceOpts) {
       // instances — the bare catalog tile, boards and exports still follow it
       icon: p.icon !== undefined ? p.icon : resolveKitIcon(kitIcons[p.id], undefined), value: kitVals[p.id] ?? p.value, baseState: p.baseState,
       sub: kitSubs[p.id] ?? p.sub, max: p.max, addBtn: p.addBtn, overlay: p.overlay, iconScale: p.iconScale,
+      /* the maker's own picture and wordmark (round 73d) — the specimen
+         road carried neither, so an upload never reached the kit page or
+         the card modal at all. assetTick is read above so this recomputes
+         the moment the bytes land. */
+      pic: kitPicOf({ kitPics, kitPicFx, userAssets, kitAssets }, p.id),
+      logo: kitPicOf({ kitPics, kitPicFx, userAssets, kitAssets }, p.id, "logo"),
       // instrument readouts default to plain AUTO ink; an explicit type fork
       // or per-piece text color re-themes them (see KitOpts.themedText)
       themedText: !!kitDesigns[p.id]?.type || !!kitTextFill[p.id],
@@ -691,6 +699,82 @@ function useStagedHidden(id: KitComponentId): boolean {
  *  Every released piece renders for every tier (free-play round, owner
  *  mandate 2026-08-26 — the guest five-component teaser road is retired);
  *  the staging bay stays the one gate, and it's about release, not tier. */
+
+/* ── THE CARD MODAL (round 73c) ───────────────────────────────────────
+   The owner's own framing: "when the cards are in this modal state you
+   should be able to bend them in 3d space a bit (with their artwork
+   following them).. in fact, let's think of it as a modal since that is
+   exactly what it is... clicking off the card will close it".
+
+   The bend is one perspective transform on the card's wrapper, so the
+   artwork follows because it IS the same element — nothing to keep in
+   sync. The pointer steers it; letting go eases it back to flat. The
+   backdrop closes on click and Escape closes from the keyboard, because
+   a modal that traps you is a bug.
+
+   Which pieces open one: the card family only. Everywhere else a click
+   would be a promise the piece cannot keep. */
+const CARDISH = new Set<KitComponentId>(["cardface", "cardback"]);
+
+function CardModal({ kit, cfg, caption, onClose }: {
+  kit: LiveKit; cfg: GenConfig; caption: string; onClose: () => void;
+}) {
+  const [tilt, setTilt] = useState({ x: 0, y: 0, z: 0 });
+  const [grabbed, setGrabbed] = useState(false);
+  const stage = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", esc);
+    return () => document.removeEventListener("keydown", esc);
+  }, [onClose]);
+  /* the bend, measured off the card's own box so the feel is the same at
+     any card size. Kept SHALLOW on purpose — a UI kit specimen is being
+     judged, not flown — and the near corner lifts toward the pointer so
+     the turn reads as depth rather than as a sheared rectangle, which is
+     what a wide perspective on a flat card gives you. */
+  const steer = (e: React.PointerEvent) => {
+    const el = stage.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const nx = Math.max(-1, Math.min(1, (e.clientX - (r.left + r.width / 2)) / (r.width / 2)));
+    const ny = Math.max(-1, Math.min(1, (e.clientY - (r.top + r.height / 2)) / (r.height / 2)));
+    setTilt({ x: ny * -12, y: nx * 12, z: (1 - Math.min(1, Math.hypot(nx, ny))) * 18 });
+  };
+  return (
+    <div className="kp-cardmodal" role="dialog" aria-modal="true" aria-label={`${caption}, expanded`}
+      onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <button className="kp-cmclose" onClick={onClose} aria-label="Close">
+        <X size={13} strokeWidth={2.4} /> Close
+      </button>
+      <div className="kp-cmstage" ref={stage}
+        onPointerMove={steer}
+        onPointerDown={() => setGrabbed(true)}
+        onPointerUp={() => setGrabbed(false)}
+        onPointerLeave={() => { setGrabbed(false); setTilt({ x: 0, y: 0, z: 0 }); }}>
+        {/* TWO LAYERS, ONE RENDER (owner, round 73e: "I don't think the
+            rules text should move around in 3d that can remain static").
+            The rules are drawn inside the same SVG as the card, so the only
+            way to hold them still is to paint them from an untilted
+            element. Both layers render the piece IDENTICALLY and share one
+            grid cell; CSS then hides the rules on the tilting copy and
+            everything BUT the rules on the static one. Identical props are
+            load-bearing — same viewBox, same size, so the two halves stay
+            registered — and the split uses `visibility`, which getBBox
+            still measures, rather than `display:none`, which it does not.
+            No renderer change, so every exported byte is untouched. */}
+        <div className="kp-cmrules" aria-hidden="true">
+          <LiveArt cfg={cfg} playing stillLoops scale={1} kit={kit} title={caption} hug />
+        </div>
+        <div className={`kp-cmcard${grabbed ? " grabbed" : ""}`}
+          style={{ transform: `translateZ(${tilt.z.toFixed(1)}px) rotateX(${tilt.x.toFixed(2)}deg) rotateY(${tilt.y.toFixed(2)}deg)` }}>
+          <LiveArt cfg={cfg} playing stillLoops scale={1} kit={kit} title={caption} hug />
+        </div>
+        <div className="kp-cmhint">Move the pointer to turn the card. Click anywhere outside to close.</div>
+      </div>
+    </div>
+  );
+}
+
 function Piece(p: PieceOpts & { caption: string; ambient?: boolean; bay?: boolean }) {
   const stagedHidden = useStagedHidden(p.id);
   // the bay is the ONE place a staged piece renders — its cards opt out of
@@ -707,8 +791,40 @@ function PieceInner(p: PieceOpts & { caption: string; ambient?: boolean }) {
   // not the old card overlay
   const shine = shineOn || !!p.shine;
   const shineVars = useShineVars(shine);
+  /* a card opens into the modal (round 73c) — every other piece keeps its
+     own click, which on several of them is a real ceremony */
+  const [open, setOpen] = useState(false);
+  const cardish = CARDISH.has(baseOf(p.id));
+  /* OPENING A CARD (round 73c). Two things had to be learned the hard way
+     and are worth writing down.
+     ONE: the FIGURE is the hit area, not an inner wrapper — a specimen's
+     art is pointer-transparent and hangs outside its own box on negative
+     margins, so a handler nested any deeper never sees the pointer.
+     TWO: there is no CLICK to listen for. The live play surface prevents
+     default on pointerdown (it has to, or every press would start a text
+     selection), and a suppressed mousedown means the browser never
+     synthesizes a click at all — measured: pointerdown and pointerup both
+     reach the figure, click never fires anywhere, not even on document.
+     So the open rides POINTERUP, gated on the pointer having stayed put,
+     which also means a drag across a specimen is not a click. */
+  const downAt = useRef<{ x: number; y: number } | null>(null);
+  const openIfTap = (e: React.PointerEvent) => {
+    const d = downAt.current;
+    downAt.current = null;
+    if (!d) return;
+    if (Math.abs(e.clientX - d.x) > 6 || Math.abs(e.clientY - d.y) > 6) return;
+    // the caption's own buttons handle themselves
+    if ((e.target as HTMLElement).closest?.("button")) return;
+    setOpen(true);
+  };
   return (
-    <figure className="kp-piece" style={shineVars} data-kp={p.id}>
+    <figure className="kp-piece" style={shineVars} data-kp={p.id} data-cardish={cardish ? "1" : undefined}
+      onPointerDown={cardish ? (e) => { downAt.current = { x: e.clientX, y: e.clientY }; } : undefined}
+      onPointerUp={cardish ? openIfTap : undefined}
+      role={cardish ? "button" : undefined} tabIndex={cardish ? 0 : undefined}
+      onKeyDown={cardish ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen(true); } } : undefined}
+      aria-label={cardish ? `Open ${p.caption}` : undefined}>
+      {open && cardish && <CardModal kit={kit} cfg={cfg} caption={p.caption} onClose={() => setOpen(false)} />}
       <LiveArt cfg={cfg} playing stillLoops scale={p.scale ?? PIECE_SCALE} className="kp-live"
         kit={kit} title={p.caption} ambient={p.ambient} shine={shine} hug={p.hug ?? true} />
       <figcaption className="kp-cap">
@@ -2007,6 +2123,10 @@ export function KitPage() {
             kitLabels: st.kitLabels, kitNoText: st.kitNoText, kitSubs: st.kitSubs, kitVals: st.kitVals, kitSlotVals: st.kitSlotVals,
             // per-piece icon overrides — the chip bake and the notices' icon-credit walk read these
             kitIcons: st.kitIcons,
+            /* the maker's own uploaded pictures, plus the registries that
+               name their bytes — the export resolves them to real pixels
+               so a card carries its art to any machine (round 73) */
+            kitPics: st.kitPics, kitPicFx: st.kitPicFx, userAssets: st.userAssets, kitAssets: st.kitAssets,
             // the maker's text-nudge dials — labels bake and seat where the maker pushed them (engine-lane slice 2; cross-lane one-liner, called out in the PR)
             kitTextOy: st.kitTextOy, kitTextOx: st.kitTextOx },
           scope === "full" ? () => buildSpriteSheetBytes(sheetEntries(st), `${name} · visual catalog`, st.cfg.type.font, fdef2?.css ?? null,
@@ -2204,6 +2324,8 @@ const kitTier = useGen((s) => s.tier);
         };
         // user content overrides ride every catalog entry
         o.icon = resolveKitIcon(st.kitIcons[cid], o.icon);
+        if (o.pic === undefined) o.pic = kitPicOf(st, cid);
+        if (o.logo === undefined) o.logo = kitPicOf(st, cid, "logo");
         o.slots = { ...st.kitSlotVals[cid], ...o.slots };
         if (st.kitNoText[cid]) o.label = ""; else if (o.label === undefined) o.label = st.kitLabels[cid];
         if (o.sub === undefined) o.sub = st.kitSubs[cid];
@@ -3273,11 +3395,16 @@ const kitTier = useGen((s) => s.tier);
           <Piece id="hotbar" caption="Hotbar · sandbox" value={0.25} ambient scale={0.5} />
         </div>
         <div className="kp-subhead">Card battler</div>
-        <p className="kp-note">Every set ships its back as a pair, standard and premium foil (the shine sweep), and the same back becomes a deck cover the moment it takes a nameplate. Packs carry the crimped foil caps; click one to tear it open with the themed burst.</p>
+        <p className="kp-note">Every set ships its back as a pair, standard and premium foil (the shine sweep), and the same back becomes a deck cover the moment it takes a nameplate. Packs carry the crimped foil caps; click one to tear it open with the themed burst. The face is the back's other side: one design, and the picture, the two corner numbers and the name are per-copy, so a whole set is this piece over and over rather than a component per card.</p>
         <div className="kp-tray">
           <Piece id="cardback" caption="Card back · standard" scale={0.42} />
           <Piece id="cardback" caption="Card back · premium foil" scale={0.42} shine />
           <Piece id="cardback" caption="Deck cover · nameplate" label="STARTER · 30" scale={0.42} />
+          <Piece id="cardface" caption="Card face · hexagon and circle" scale={0.42} />
+          <Piece id="cardface" caption="Card face · diamond and shield" scale={0.42}
+            slots={{ lshape: "Diamond", rshape: "Shield", lnum: "3", rnum: "12" }} label="EMBER DRAKE" />
+          <Piece id="cardface" caption="Card face · one corner only" scale={0.42}
+            slots={{ lshape: "Dome", rshape: "Off", lnum: "7" }} label="TIDE CALLER" />
           <Piece id="pack" caption="Card pack · click to tear open" scale={0.42} />
         </div>
         <StateStrip variants={[

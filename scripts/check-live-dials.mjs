@@ -1,0 +1,224 @@
+#!/usr/bin/env node
+/* ══════════════════════════════════════════════════════════════════════
+   THE STALE-MEMO GUARD (round 73d)
+
+   This class of bug bit the owner TWICE in one afternoon, the same way
+   both times, and neither time was visible in a diff:
+
+     "uploaded picture not showing up ... it didn't even show up when I
+      reloaded and navigated away from the page, only when I clicked that
+      checkbox"
+     "the logo effects don't take place in real-time ... they seemed to
+      take effect when I navigated away and navigated back"
+
+   Both were ONE mistake: a useMemo that renders a kit piece, whose
+   dependency list holds some of the per-piece maps but not all of them.
+   The render is then frozen at whatever the missing map said on first
+   paint, and the only way to see a change is to disturb a dependency that
+   IS listed — which is exactly why toggling an unrelated checkbox, or
+   navigating away and back, "fixed" it.
+
+   The invariant, stated plainly: these maps all feed renderKit for the
+   SAME piece, so a memo that watches one of them must watch all of them.
+   Watching only some is never correct; it is only ever a bug that has not
+   been noticed yet.
+
+   The guard reads dependency arrays and holds them to that. It is
+   deliberately dumb — it does not parse JSX or resolve scopes, it looks at
+   the arrays themselves — because the failure it prevents is dumb too.
+   ══════════════════════════════════════════════════════════════════════ */
+import { readFileSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const FILES = ["src/ui/CanvasView.tsx", "src/ui/Board.tsx", "src/ui/KitPage.tsx", "src/ui/Panel.tsx"];
+
+/* The per-piece maps renderKit reads. `kitSlotVals` is the sentinel: it is
+   the map every piece-rendering memo already lists, so its presence is a
+   reliable marker that this array feeds a piece render. */
+const SENTINEL = "kitSlotVals";
+const REQUIRED = ["kitPics", "kitPicFx"];
+
+const problems = [];
+
+for (const rel of FILES) {
+  let src;
+  try { src = readFileSync(join(ROOT, rel), "utf8"); } catch { continue; }
+  const lines = src.split("\n");
+  lines.forEach((line, i) => {
+    /* A dependency array, in either shape the codebase actually uses:
+         }, [a, b, c]);          — the array closing the same line
+         [a, b, c]               — the array alone on its own line
+       The first cut of this guard only matched the first shape and so
+       waved through the very file the bug lived in. A guard that has
+       never been watched to FAIL is not a guard; this one was
+       negative-tested by reintroducing the real bug. */
+    const t = line.trim();
+    let deps = null;
+    const inline = /^[)}\]],\s*\[(.*)\]\s*\)?;?$/.exec(t);
+    if (inline) deps = inline[1];
+    else {
+      const alone = /^\[(.*)\]\s*\)?;?,?$/.exec(t);
+      if (alone) deps = alone[1];
+    }
+    if (deps === null) return;
+    if (!deps.includes(SENTINEL)) return;
+    const missing = REQUIRED.filter((r) => !deps.includes(r));
+    if (missing.length) problems.push({ rel, line: i + 1, missing, deps: deps.slice(0, 90) });
+  });
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   THE TRAVELLING-PAIR GUARD (round 73f)
+
+   The same mistake, one layer out. A picture seat's dials (kitPicFx) are
+   useless without the picture they dress (kitPics), so the two are ONE
+   fact wearing two names — and every place that enumerates the per-piece
+   maps has to name both. Three places had named only the first:
+
+     · the export hand-off, so a graded, vignetted card shipped its raw
+       upload and every dial was an app-only illusion
+     · EngineExportState itself, so there was nowhere to put them
+     · the undo snapshot's type
+
+   None of those is a memo, so the guard above could not see them. This
+   one reads any line that ENUMERATES per-piece maps — a Pick<>, a key
+   list, a props object, a hand-off — and holds it to naming both. A line
+   that mentions kitPics alone is plumbing for that one map and is left
+   alone; the tell is a second kit* map on the same line, which is what
+   "enumerating" looks like in this codebase.
+   ══════════════════════════════════════════════════════════════════════ */
+const PAIR_FILES = ["src/generator/store.ts", "src/generator/engineExport.ts", "src/generator/bevel.ts",
+  "src/ui/CanvasView.tsx", "src/ui/Board.tsx", "src/ui/KitPage.tsx", "src/ui/Panel.tsx"];
+const KIT_MAP = /\bkit[A-Z][A-Za-z]*\b/g;
+for (const rel of PAIR_FILES) {
+  let src;
+  try { src = readFileSync(join(ROOT, rel), "utf8"); } catch { continue; }
+  const lines = src.split("\n");
+  lines.forEach((line, i) => {
+    if (!/\bkitPics\b/.test(line) || /\bkitPicFx\b/.test(line)) return;
+    // a comment is prose about the maps, not an enumeration of them
+    if (/^\s*(\/\/|\/?\*)/.test(line.trim())) return;
+    /* The stated opt-out: a site that reads kitPics for a reason the dials
+       have nothing to do with (does a picture EXIST?) says so on the line
+       above and is left alone. Written out, so the exception is a sentence
+       someone can disagree with rather than a silent hole in the guard. */
+    if (lines.slice(Math.max(0, i - 3), i).some((l) => /no-picfx:/.test(l))) return;
+    const others = new Set((line.match(KIT_MAP) ?? []).filter((n) => n !== "kitPics"));
+    if (!others.size) return; // single-map plumbing — kitPics alone means kitPics alone
+    problems.push({ rel, line: i + 1, missing: ["kitPicFx"], deps: line.trim().slice(0, 90), pair: true });
+  });
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   THE TWO-REGISTRY GUARD (round 73h)
+
+   The same shape again, on a different pair. A picture's bytes are named
+   by an id that lives in ONE OF TWO registries — `userAssets` (the
+   maker's own drawer) and `kitAssets` (a loaded or shipped kit's bundled
+   art) — and the store states the contract plainly: "A logo item reads
+   userAssets FIRST and falls through to here."
+
+   The board stage obeyed it. The EXPORT did not: it looked in userAssets
+   alone, so every logo on a loaded kit's board painted perfectly on
+   screen and then reported itself "a deleted My-assets entry" and left
+   the zip. The owner hit this on Brightside, three logos at once.
+
+   A resolution that reads one registry is either the bug or a deliberate
+   drawer-only action (you can only delete or place from your OWN drawer).
+   The rule holds both to saying which.
+   ══════════════════════════════════════════════════════════════════════ */
+const REG_FILES = ["src/generator/store.ts", "src/generator/engineExport.ts",
+  "src/ui/Board.tsx", "src/ui/KitPage.tsx", "src/ui/Panel.tsx", "src/ui/CanvasView.tsx"];
+for (const rel of REG_FILES) {
+  let src;
+  try { src = readFileSync(join(ROOT, rel), "utf8"); } catch { continue; }
+  const lines = src.split("\n");
+  lines.forEach((line, i) => {
+    if (!/\b(userAssets|kitAssets)\b/.test(line) || !/\.find\(/.test(line)) return;
+    if (/^\s*(\/\/|\/?\*)/.test(line.trim())) return;
+    if (lines.slice(Math.max(0, i - 3), i).some((l) => /no-kitassets:/.test(l))) return;
+    /* round 73j: there are THREE registries now (the drawer, the loaded
+       kit, the art that ships with the product), and the only lookup
+       allowed to know that is findAsset in store.ts. Any other line that
+       searches a registry by id is a fourth site waiting to miss one —
+       which is exactly how the Brightside logos reported themselves
+       deleted twice, once per missing fall-through. */
+    const inHelper = rel === "src/generator/store.ts" && (() => {
+      const from = lines.slice(0, i).map((l, k) => [l, k]).reverse().find(([l]) => /^export function findAsset\(/.test(l));
+      return !!from && i - from[1] < 8;
+    })();
+    if (inHelper) return;
+    problems.push({ rel, line: i + 1, deps: line.trim().slice(0, 90), reg: true });
+  });
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   THE LIVEART KEY (round 73i)
+
+   The one piece-rendering memo this guard could not see, because it keys
+   on a hand-built STRING rather than on the store's maps: LiveArt builds
+   `kitKey` from the kit's fields and memoizes the render on it. Every
+   field it forgets is a field whose change never repaints — and it forgot
+   the picture. Owner: "I have to rollover the card back and front in the
+   kit before the artwork loads... feels broken". It was: the bytes landed
+   after first paint, the host re-rendered with the picture, and the key
+   did not move until a hover changed the state.
+
+   The rule: whatever renderKit is handed from `kit`, the key names.
+   Checked for the two seats this class of bug has now cost twice.
+   ══════════════════════════════════════════════════════════════════════ */
+{
+  let la;
+  try { la = readFileSync(join(ROOT, "src/ui/LiveArt.tsx"), "utf8"); } catch { la = null; }
+  if (la === null) problems.push({ rel: "src/ui/LiveArt.tsx", line: 0, deps: "file not found", key: true, missing: ["(file)"] });
+  else {
+    const at = la.indexOf("const kitKey = kit");
+    const keyEnd = at < 0 ? -1 : la.indexOf('\n    : "";', at);
+    const key = at < 0 || keyEnd < 0 ? "" : la.slice(at, keyEnd);
+    if (!key) problems.push({ rel: "src/ui/LiveArt.tsx", line: 0, deps: "kitKey not found — the memo key moved and this guard went blind", key: true, missing: ["kitKey"] });
+    else {
+      const miss = ["kit.pic", "kit.logo"].filter((f) => !key.includes(f));
+      if (miss.length) problems.push({ rel: "src/ui/LiveArt.tsx", line: la.slice(0, at).split("\n").length, deps: "kitKey", key: true, missing: miss });
+    }
+  }
+}
+
+if (problems.length) {
+  console.error("✗ a per-piece map was left behind:\n");
+  for (const p of problems) {
+    console.error(p.key
+      ? `• ${p.rel}:${p.line} LiveArt's kitKey does not name ${p.missing.join(" or ")} — a picture that lands after first paint never repaints`
+      : p.reg
+      ? `• ${p.rel}:${p.line} searches an asset registry by id outside findAsset — the drawer, the loaded kit AND the shipped art are one lookup`
+      : p.pair
+        ? `• ${p.rel}:${p.line} enumerates per-piece maps but names kitPics without kitPicFx`
+        : `• ${p.rel}:${p.line} lists ${SENTINEL} but not ${p.missing.join(" or ")}`);
+    console.error(`  ${p.pair || p.reg ? "line" : "deps"}: ${p.pair || p.reg ? "" : "["}${p.deps}...${p.pair || p.reg ? "" : "]"}`);
+  }
+  console.error(`
+  These maps all feed renderKit for the same piece. A memo that watches one
+  and not the others renders once and then goes deaf: the piece freezes at
+  whatever the unwatched map said on first paint, and only an unrelated
+  edit appears to "fix" it. That is the exact bug the owner reported twice.
+
+  And a hand-off that carries the picture without its dials ships the raw
+  upload: the treatment the maker dialled exists in the app and nowhere
+  else. kitPics and kitPicFx are one fact under two names — wherever a
+  list, a type or a props object names one, it names both.
+
+  An asset id lives in ONE OF TWO registries: userAssets (the maker's own
+  drawer) or kitAssets (a loaded kit's bundled art). The store states it:
+  "A logo item reads userAssets FIRST and falls through to here." A
+  resolution that reads only the first paints on screen and vanishes from
+  the export, which is exactly how three Brightside logos went missing.
+
+  Fix: add the missing map, or the kitAssets fall-through. If a site is
+  DELIBERATELY drawer-only (delete, or place-from-my-drawer), say so in a
+  comment on the line above — "no-picfx:" or "no-kitassets:" plus the
+  reason — and the guard will leave it alone.`);
+  process.exit(1);
+}
+
+console.log("✓ every piece-rendering memo watches all the per-piece maps, and every hand-off carries both");

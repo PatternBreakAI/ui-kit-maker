@@ -1,9 +1,13 @@
 import type { GenConfig, GenStateName, EffectRole, Shape, KitComponentId, KitSize, IconDef, StateDesign } from "./model";
+import type { PicSeatFx } from "./store";
 import { lighten, darken, hexMix, desaturate, saturate, hexRgba, fontByName, DEFAULT_ICON, ICONS_ENABLED, STOCK_ICONS, KIT_SHAPE , isGlyphPiece, isDarkBg, userShapes, seatIconDef, isGlyphButton, glyphOfButton, glyphSeatIcon, KIT_SLOTS, stateSlotKey } from "./model";
 import { iconGroup } from "./icons";
 import { silhouetteMeta, MIRROR_SILHOUETTES } from "./silhouettes";
 import { importedShape, flattenPath, pointInPoly, selfIntersections, type Pt } from "./importedShapes";
 import { glyphShape } from "./glyphLibrary";
+/* the maker's own art wears the SAME filter recipe a board logo does —
+   one road for shadow and glow, never a second one (round 73d) */
+import { bigGlyphFilter, bigGlyphFilterPad, boardBgFilter, picWashSvg, hasWash } from "./bigGlyphs";
 import { innerOffsetLoops } from "./offsetKernel";
 import { tableLabelEm } from "./fontMetrics";
 import { stockShape } from "./stockShapes";
@@ -263,6 +267,105 @@ function roundRect(x: number, y: number, w: number, h: number, r: number): strin
   const rr = Math.min(r, h / 2, w / 2);
   return `M ${x + rr} ${y} H ${x + w - rr} A ${rr} ${rr} 0 0 1 ${x + w} ${y + rr} V ${y + h - rr} A ${rr} ${rr} 0 0 1 ${x + w - rr} ${y + h} H ${x + rr} A ${rr} ${rr} 0 0 1 ${x} ${y + h - rr} V ${y + rr} A ${rr} ${rr} 0 0 1 ${x + rr} ${y} Z`;
 }
+/* ── THE CARD FACE'S CORNER BADGES (round 73, owner's commission: "on the
+   left should be an hexagonal and on the right should be a circle, come up
+   with a few shapes that make sense for a user to choose from, upside down
+   circle, parallelogram, square on its side at 45 degree angle (diamond
+   shape) etc"). Nine plates on ONE contract: every shape is drawn inside
+   the same square of radius r about (cx, cy), so a corner can change shape
+   with the number staying exactly where it was and the export's fixed seat
+   canvas never moving. Names are the owner's where they gave one.
+   The "upside down circle" is a DOME: flat on top, round below — the shape
+   a cost gem takes when it hangs off a frame's edge. ── */
+/* ── CARDS ARE FLAT (owner, round 73d: "card backs and fronts should
+   default to 1% extrusion"). A playing card has no depth to speak of, so
+   the card family starts flat while every other piece keeps the kit's own
+   extrusion. This is a DEFAULT, not a lock: it only applies while the
+   depth dial is still sitting on the app's factory value, so the moment a
+   maker (or their look) moves extrusion, their number is what renders.
+   The one cost of reading it this way is that deliberately dialling a card
+   back TO the factory 15 lands on 1 instead — which is why the rule is
+   written here in the open rather than hidden in a merge. */
+const FACTORY_EXTRUSION_DEPTH = 15;
+function flatCardCfg(cfg: GenConfig, state?: GenStateName): GenConfig {
+  let out = cfg;
+  const d = cfg.candy?.extrusion?.depth;
+  if (d === FACTORY_EXTRUSION_DEPTH) out = { ...out, candy: { ...out.candy, extrusion: { ...out.candy.extrusion, depth: 1 } } };
+  /* AND A DISABLED CARD IS NOT SEE-THROUGH (round 73e). The kit's disabled
+     state carries an opacity dial that build() applies to the whole lift
+     group, so even with every ink graded the card would still fade. For
+     the card family that dial is pinned to full: the grade IS the message
+     here, and a translucent card reads as a rendering fault rather than as
+     unavailable. Every other component keeps the maker's own dial. */
+  if (state === "disabled" && out.states?.disabled && out.states.disabled.opacity !== 100) {
+    out = { ...out, states: { ...out.states, disabled: { ...out.states.disabled, opacity: 100 } } };
+  }
+  return out;
+}
+
+function cardCornerPath(kind: string, cx: number, cy: number, r: number): string {
+  const p = (pts: number[][]) => `M ${pts.map(([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`).join(" L ")} Z`;
+  switch (kind) {
+    case "Circle":
+      return `M ${(cx - r).toFixed(1)} ${cy.toFixed(1)} a ${r.toFixed(1)} ${r.toFixed(1)} 0 1 0 ${(r * 2).toFixed(1)} 0 a ${r.toFixed(1)} ${r.toFixed(1)} 0 1 0 ${(-r * 2).toFixed(1)} 0 Z`;
+    case "Diamond": // a square stood on its point
+      return p([[cx, cy - r], [cx + r, cy], [cx, cy + r], [cx - r, cy]]);
+    case "Dome": { // flat top, round bottom — the owner's "upside down circle"
+      const t = cy - r * 0.72;
+      return `M ${(cx - r).toFixed(1)} ${t.toFixed(1)} H ${(cx + r).toFixed(1)} V ${cy.toFixed(1)} A ${r.toFixed(1)} ${(r * 1.1).toFixed(1)} 0 0 1 ${(cx - r).toFixed(1)} ${cy.toFixed(1)} Z`;
+    }
+    case "Parallelogram": {
+      const sl = r * 0.42, hh = r * 0.78;
+      return p([[cx - r + sl, cy - hh], [cx + r, cy - hh], [cx + r - sl, cy + hh], [cx - r, cy + hh]]);
+    }
+    case "Shield": { // flat shoulders, point below — defense
+      const sh = r * 0.86;
+      return `M ${(cx - sh).toFixed(1)} ${(cy - r * 0.86).toFixed(1)} H ${(cx + sh).toFixed(1)} V ${(cy + r * 0.1).toFixed(1)} Q ${(cx + sh).toFixed(1)} ${(cy + r * 0.66).toFixed(1)} ${cx.toFixed(1)} ${(cy + r).toFixed(1)} Q ${(cx - sh).toFixed(1)} ${(cy + r * 0.66).toFixed(1)} ${(cx - sh).toFixed(1)} ${(cy + r * 0.1).toFixed(1)} Z`;
+    }
+    case "Rounded square":
+      return roundRect(cx - r * 0.88, cy - r * 0.88, r * 1.76, r * 1.76, r * 0.34);
+    case "Starburst": { // a disc notched all round — legendary
+      let d = "";
+      for (let i = 0; i < 24; i++) {
+        const a = (i / 24) * Math.PI * 2 - Math.PI / 2;
+        const rr = i % 2 === 0 ? r : r * 0.84;
+        d += `${i ? " L" : "M"} ${(cx + Math.cos(a) * rr).toFixed(1)} ${(cy + Math.sin(a) * rr).toFixed(1)}`;
+      }
+      return d + " Z";
+    }
+    case "Pennant": // flat top, V below — a hanging ribbon tail
+      return p([[cx - r * 0.9, cy - r * 0.8], [cx + r * 0.9, cy - r * 0.8], [cx + r * 0.9, cy + r * 0.4], [cx, cy + r], [cx - r * 0.9, cy + r * 0.4]]);
+    case "Hexagon":
+    default: { // point-top, the classic cost gem
+      const d: number[][] = [];
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2 - Math.PI / 2;
+        d.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]);
+      }
+      return p(d);
+    }
+  }
+}
+/* ── THE DISABLED GRADE (round 73e) ───────────────────────────────────
+   Owner, of the cards: "for the disabled state for these cards we can't
+   use transparency, just take all of the saturation out of everything and
+   increase the brightness a little".
+
+   That treatment already existed — build()'s own P() has graded the SHELL
+   this way since the disabled-gray round: desaturate 82% toward the
+   colour's own luma gray, then lighten 10% toward white. What it never
+   reached was art a component INJECTS after the shell, which on a card is
+   almost everything. So this is the same expression given a name, not a
+   second road: one place to read it, one place to change it. */
+export function disabledGrade(c: string): string {
+  return lighten(desaturate(c, 0.82), 0.1);
+}
+/* The same grade for RASTER ink, which colour maths cannot touch — a
+   maker's uploaded picture is pixels, not a hex. Saturation to zero and a
+   matching lift, as a CSS filter, composed alongside any filter the
+   element already carries. */
+export const DISABLED_RASTER_FILTER = "saturate(0) brightness(1.12)";
+
 /* Deterministic hash for authored irregularity (hand-drawn) — same output
    every render, every export, every reload. */
 function silhash(i: number): number {
@@ -3148,7 +3251,7 @@ function build(cfg: GenConfig, state: GenStateName, g0: Geom, opts: {
   const disabled = state === "disabled";
   const adj = cfg.states[state];
   const P = (c: string) => {
-    if (disabled) return lighten(desaturate(c, 0.82), 0.1);
+    if (disabled) return disabledGrade(c);
     const sat = clamp(adj.saturation ?? 0, -100, 100);
     return bright(sat ? saturate(c, sat / 100) : c, adj.brightness);
   };
@@ -4483,7 +4586,16 @@ export function addShine(svg: string, o?: { dur?: number; sweep?: number; width?
   const kfs = frac ? `<style>@keyframes kshn${id}{0%{transform:translateX(0)}${frac.toFixed(1)}%,100%{transform:translateX(175%)}}</style>` : "";
   const cls = `kit-shine${o?.armed ? " kit-shine--armed" : ""}`;
   const band = `${kfs}<g clip-path="url(#${id}${text ? "tgc" : "fc"})"${st ? ` style="${st}"` : ""}><g transform="skewX(-14)"><rect class="${cls}"${frac ? ` style="animation-name:kshn${id}"` : ""} x="${(vx - bw).toFixed(1)}" y="${(vy - vh).toFixed(1)}" width="${bw.toFixed(1)}" height="${(vh * 3).toFixed(1)}" fill="url(#${id}shn)"/></g></g>`;
-  return inject(svg.replace("</defs>", grad + "</defs>"), band);
+  const withGrad = svg.replace("</defs>", grad + "</defs>");
+  /* A PIECE MAY SAY WHERE ITS SHINE BELONGS (round 73d, owner: "shine needs
+     to appear behind the corner shapes"). The band is appended last by
+     default, which puts it over everything — right for a button, wrong for
+     a card whose corner badges sit proud of the face. A piece that cares
+     emits an empty `data-shine-seat` group at the depth it wants, and the
+     band lands THERE instead. Everything with no seat is byte-identical. */
+  const SEAT = '<g data-shine-seat="1"></g>';
+  if (withGrad.includes(SEAT)) return withGrad.replace(SEAT, band);
+  return inject(withGrad, band);
 }
 
 /* Stamp the draggable run of a control (slider, progress, segment) onto the
@@ -4508,6 +4620,17 @@ function stampTrack(svg: string, x: number, w: number, y?: number, h?: number): 
  *  `overlay` is a stackable status layer: "locked" | "new" | "check" |
  *  "equipped" | "count:N" | "level:N" | "cooldown:N" | "claimable" | "empty". */
 export interface KitOpts {
+  /** A MAKER'S OWN PICTURE in a piece's art well (round 73: the card
+   *  face, the card back and the deck cover). `href` is already resolved
+   *  by the caller — a bg-vault blob, an `asset://` bucket URL or a
+   *  bundled path — and w/h are the upload's own pixels so the well can
+   *  COVER-fit it without squashing. Per-copy content, never a new
+   *  component: this is what lets one card design carry a whole set. */
+  pic?: { href: string; w: number; h: number; fx?: PicSeatFx } | null;
+  /** A maker's own WORDMARK for a piece's logo seat (round 73d) — the
+   *  card face's bottom band. Resolved by the caller exactly like `pic`;
+   *  absent means the logo is drawn from the kit's own type instead. */
+  logo?: { href: string; w: number; h: number; fx?: PicSeatFx } | null;
   /** Container variant for panels — circle, oval, dialogue strip. */
   kind?: "circle" | "oval" | "strip";
   /** Horizontal 9-slice stretch for the bar family (slider, progress,
@@ -4780,7 +4903,11 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     o2: { anchor?: "start" | "middle" | "end"; opacity?: number; track?: number; keepCase?: boolean; autoInk?: string; list?: boolean; ink?: string; plain?: boolean;
       /** the icon seat this word RIDES (data-seat-rider) — the export
           parents the live word under that plate child (bottomnav grammar) */
-      rider?: string } = {}) => {
+      rider?: string;
+      /** heavier than the kit's own weight for ONE line (the card's rules
+          lead-in: "On Reveal:" carries the weight, the convention every
+          card game shares). Absent keeps the theme's weight. */
+      weight?: number } = {}) => {
     /* per-state type forks apply to self-drawn text too — editing the
        Pressed state's fill must recolor these lines on the Pressed view,
        exactly like built labels (owner: "change the text color") */
@@ -4848,7 +4975,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     const kern4 = kernCollides(cased4, fam4, Math.max(700, T4.weight), !!T4.italic, sp4) ? ' style="font-kerning:none"' : "";
     return (defs4 ? `<defs>${defs4}</defs>` : "") +
       (prims4.length ? `<g filter="url(#${gid4}f)">` : "") +
-      `<text x="${(x2 + typeOxK * k + italNudge).toFixed(1)}" y="${(y2 + typeOyK * k).toFixed(1)}" font-family="'${fam4}', 'Inter Variable', Inter, sans-serif" font-size="${fs2.toFixed(1)}" font-weight="${Math.max(700, T4.weight)}"${T4.italic ? ' font-style="italic"' : ""} letter-spacing="${sp4.toFixed(3)}em"${kern4} fill="${fill4}"${(T4.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T4.fillOpacity / 100).toFixed(2)}"` : ""}${outline4}${o2.anchor ? ` text-anchor="${o2.anchor}"` : ""} dominant-baseline="central" opacity="${(o2.opacity ?? 1).toFixed(2)}"${o2.rider ? ` data-seat-rider="${o2.rider}"` : ""}>${esc(cased4)}</text>` +
+      `<text x="${(x2 + typeOxK * k + italNudge).toFixed(1)}" y="${(y2 + typeOyK * k).toFixed(1)}" font-family="'${fam4}', 'Inter Variable', Inter, sans-serif" font-size="${fs2.toFixed(1)}" font-weight="${o2.weight ?? Math.max(700, T4.weight)}"${T4.italic ? ' font-style="italic"' : ""} letter-spacing="${sp4.toFixed(3)}em"${kern4} fill="${fill4}"${(T4.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T4.fillOpacity / 100).toFixed(2)}"` : ""}${outline4}${o2.anchor ? ` text-anchor="${o2.anchor}"` : ""} dominant-baseline="central" opacity="${(o2.opacity ?? 1).toFixed(2)}"${o2.rider ? ` data-seat-rider="${o2.rider}"` : ""}>${esc(cased4)}</text>` +
       (prims4.length ? `</g>` : "");
   };
   /* fit-down (the unitplate precedent; owner round: type never crops or
@@ -4918,6 +5045,63 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
      instrument wells): white with the tight dark understroke. */
   const hudText = (txt: string, x2: number, y2: number, fs2: number, anchor2: "start" | "middle" | "end" = "start", w2 = 800) =>
     `<text x="${x2.toFixed(1)}" y="${y2.toFixed(1)}" font-family="Inter, sans-serif" font-size="${fs2.toFixed(1)}" font-weight="${w2}" fill="#FFFFFF" text-anchor="${anchor2}" dominant-baseline="central" style="paint-order: stroke; stroke: rgba(8,12,22,0.6); stroke-width: ${Math.max(2, fs2 * 0.17).toFixed(1)}px; stroke-linejoin: round">${esc(txt)}</text>`;
+  /* A MAKER'S OWN PICTURE, cover-fitted into a card's face (round 73 —
+     the owner: "let's also then add this upload ability to the card back
+     and deck covers as well"). Marked ink, so the export ships it as the
+     swappable Image child and the bake stays empty. The picture keeps its
+     aspect and the card crops it; it never squashes. */
+  const picLayer = (pic: NonNullable<KitOpts["pic"]>, clipId: string, clipD: string,
+                    px: number, py: number, pw: number, ph: number, name: string, nick: string, op = 1) => {
+    const seat = picSeat(pic, px, py, pw, ph);
+    return `<defs><clipPath id="${clipId}"><path d="${clipD}"/></clipPath>${seat.defs}</defs>` +
+      `<g data-part="icon" data-icon="${name}" data-icon-nick="${nick}" data-icon-box="${px.toFixed(1)} ${py.toFixed(1)} ${pw.toFixed(1)} ${ph.toFixed(1)}">` +
+      `<g clip-path="url(#${clipId})">${seat.img(op)}</g></g>` +
+      seat.wash(clipId, `${name}wash`, `${nick} wash`, px, py, pw, ph);
+  };
+  /* A PICTURE SEAT'S OWN DIALS (round 73f). Two halves, and they land in
+     two different places on purpose:
+
+     · the GRADE (blur, saturation, hue, brightness, contrast) plus the
+       size, nudge, glow and shadow are properties OF THE PICTURE, so they
+       ride the <image> and bake into its sprite. A colour grade is not a
+       swappable thing; there is nothing to keep separate.
+     · the WASH (the tint, vignette, grain and centre scrim) is a layer
+       ABOVE the picture, so it gets its OWN marked group and its own
+       sprite. Swap the picture in Unity and the vignette is still there,
+       sitting on top, its own child in the Hierarchy — the editability
+       law applied to the one part of the darkroom that can obey it.
+
+     Every value is read straight off PicSeatFx, which IS the board
+     backdrop's vocabulary; boardBgFilter and picWashSvg are the board's
+     own functions, not lookalikes. */
+  const picSeat = (pic: NonNullable<KitOpts["pic"]>, px: number, py: number, pw: number, ph: number) => {
+    const fx = pic.fx ?? {};
+    const uid = `${id}${UID++}`;
+    // a disabled card's picture greys rather than fades (round 73e)
+    const grade = [boardBgFilter(fx), bigGlyphFilter(cfg, { gid: "", ...fx }), state === "disabled" ? DISABLED_RASTER_FILTER : ""].filter(Boolean).join(" ");
+    /* COVER fit, then the size dial off that fit: 100% is the seat filled
+       corner to corner, below it the art pulls in and the well's own
+       ground shows around it — which is exactly when a glow or a dropped
+       shadow on the picture becomes visible at all. */
+    const zoom = Math.max(0.1, (fx.size ?? 100) / 100);
+    const sc = Math.max(pw / Math.max(1, pic.w), ph / Math.max(1, pic.h)) * zoom;
+    const iw = pic.w * sc, ih = pic.h * sc;
+    const ix = px + (pw - iw) / 2 + (fx.dx ?? 0), iy = py + (ph - ih) / 2 + (fx.dy ?? 0);
+    const wash = picWashSvg(fx, uid, px, py, pw, ph);
+    return {
+      defs: wash.defs,
+      img: (op = 1) =>
+        `<image href="${esc(pic.href)}" x="${ix.toFixed(1)}" y="${iy.toFixed(1)}" width="${iw.toFixed(1)}" height="${ih.toFixed(1)}" preserveAspectRatio="none" opacity="${op}"${grade ? ` style="filter:${grade}"` : ""}/>`,
+      /** The wash as its own marked child, clipped to the same shape and
+       *  sharing the picture's exact crop frame so the two sprites land
+       *  registered 1:1 in Unity. Nothing to paint = nothing emitted. */
+      wash: (clipId: string, nm: string, nick: string, wx: number, wy: number, ww: number, wh: number) =>
+        hasWash(fx)
+          ? `<g data-part="icon" data-icon="${nm}" data-icon-nick="${nick}" data-icon-box="${wx.toFixed(1)} ${wy.toFixed(1)} ${ww.toFixed(1)} ${wh.toFixed(1)}">` +
+            `<g clip-path="url(#${clipId})">${wash.body}</g></g>`
+          : "",
+    };
+  };
   const wellOf = (w: number, h: number, inset: number) =>
     // the well follows the same silhouette resolution as the shell: the
     // per-component override wins, then the curated default, then the master
@@ -9731,7 +9915,7 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
          and the set emblem floats on its own radial glow. opts.label turns
          the back into a deck cover — the nameplate rides the bottom rail. */
       const w = 300 * k, h = 420 * k;
-      const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 430 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const track = build(flatCardCfg(cfg, state), state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 430 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const gid = "cb" + UID++;
       const frameP = wellOf(w, h, bw + 12 * k);
       const cxC = 39 + w / 2, cyC = 30 + h * (opts.label ? 0.44 : 0.5);
@@ -9739,6 +9923,10 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       /* the card's own dials (KIT_SLOTS.cardback): emblem footprint,
          corner sparkles, inner frame — first choice is the factory look */
       const slC = opts.slots ?? {};
+      /* the back takes the same disabled grade as the front (round 73e) —
+         it had no dim of its own at all, so a disabled deck cover faded
+         only by the global opacity dial, which the card family now pins */
+      const CDb = (c: string) => (state === "disabled" ? disabledGrade(c) : c);
       /* FOOTPRINT = the dropdown's base figure × the Icons panel's Size
          dial (owner, round 67: "icon sizeing doesn't seem to work on the
          card backs"). The dropdown still means what it always meant — it
@@ -9750,22 +9938,359 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       const sparklesOn = slC.sparkles !== "Off";
       const frameOn = slC.frame !== "Off";
       const spark = (sx: number, sy: number, r: number) =>
-        `<path d="M ${sx.toFixed(1)} ${(sy - r).toFixed(1)} L ${(sx + r * 0.28).toFixed(1)} ${(sy - r * 0.28).toFixed(1)} L ${(sx + r).toFixed(1)} ${sy.toFixed(1)} L ${(sx + r * 0.28).toFixed(1)} ${(sy + r * 0.28).toFixed(1)} L ${sx.toFixed(1)} ${(sy + r).toFixed(1)} L ${(sx - r * 0.28).toFixed(1)} ${(sy + r * 0.28).toFixed(1)} L ${(sx - r).toFixed(1)} ${sy.toFixed(1)} L ${(sx - r * 0.28).toFixed(1)} ${(sy - r * 0.28).toFixed(1)} Z" fill="${hexRgba(hexMix(glow, "#FFFFFF", 0.55), 0.85)}"/>`;
-      let parts = `<defs><radialGradient id="${gid}g"><stop offset="0" stop-color="${glow}" stop-opacity="0.5"/><stop offset="0.6" stop-color="${glow}" stop-opacity="0.18"/><stop offset="1" stop-color="${glow}" stop-opacity="0"/></radialGradient></defs>`;
-      if (frameOn) parts += `<path d="${frameP}" fill="none" stroke="${hexRgba(hexMix(glow, "#FFFFFF", 0.25), 0.55)}" stroke-width="${(2.4 * k).toFixed(1)}"/>`;
+        `<path d="M ${sx.toFixed(1)} ${(sy - r).toFixed(1)} L ${(sx + r * 0.28).toFixed(1)} ${(sy - r * 0.28).toFixed(1)} L ${(sx + r).toFixed(1)} ${sy.toFixed(1)} L ${(sx + r * 0.28).toFixed(1)} ${(sy + r * 0.28).toFixed(1)} L ${sx.toFixed(1)} ${(sy + r).toFixed(1)} L ${(sx - r * 0.28).toFixed(1)} ${(sy + r * 0.28).toFixed(1)} L ${(sx - r).toFixed(1)} ${sy.toFixed(1)} L ${(sx - r * 0.28).toFixed(1)} ${(sy - r * 0.28).toFixed(1)} Z" fill="${hexRgba(CDb(hexMix(glow, "#FFFFFF", 0.55)), 0.85)}"/>`;
+      let parts = `<defs><radialGradient id="${gid}g"><stop offset="0" stop-color="${CDb(glow)}" stop-opacity="0.5"/><stop offset="0.6" stop-color="${CDb(glow)}" stop-opacity="0.18"/><stop offset="1" stop-color="${CDb(glow)}" stop-opacity="0"/></radialGradient></defs>`;
+      /* the maker's own art fills the back BENEATH the set emblem — a deck
+         cover is a picture with a mark on it, and turning the mark off is
+         already one control away (Icon: none) */
+      if (opts.pic) {
+        // the same face-shaped fill as the card front, so the shine reaches
+        // every pixel of a deck cover's art too
+        const spB = shellPaths(flatCardCfg(cfg, state), sov ?? KIT_SHAPE.cardback ?? cfg.shape, 39, 30, w, h);
+        parts += picLayer(opts.pic, `${gid}p`, spB.face,
+          39 + spB.bwF, 30 + spB.bwF, w - spB.bwF * 2, h - spB.bwF * 2, "art", "Card art");
+      }
+      if (frameOn) parts += `<path d="${frameP}" fill="none" stroke="${hexRgba(CDb(hexMix(glow, "#FFFFFF", 0.25)), 0.55)}" stroke-width="${(2.4 * k).toFixed(1)}"/>`;
       if (emb) {
         // data-part stamp: Dissect must find the emblem — it IS this piece's icon
         parts += `<g data-part="icon"><circle cx="${cxC.toFixed(1)}" cy="${cyC.toFixed(1)}" r="${(embS * 0.85).toFixed(1)}" fill="url(#${gid}g)"/>` +
-          `<g${emblemFx(10 * k, glow)}>${themedIcon(emb, cxC - embS / 2, cyC - embS / 2, embS, hexMix(glow, "#FFFFFF", 0.35), 1.8)}</g></g>`;
+          `<g${emblemFx(10 * k, CDb(glow))}>${themedIcon(emb, cxC - embS / 2, cyC - embS / 2, embS, CDb(hexMix(glow, "#FFFFFF", 0.35)), 1.8)}</g></g>`;
       }
       const inX = 39 + bw + 34 * k, inY = 30 + bw + 34 * k;
       if (sparklesOn) parts += spark(inX, inY, 7 * k) + spark(39 + w - bw - 34 * k, inY, 7 * k) + spark(inX, 30 + h - bw - 34 * k, 5 * k) + spark(39 + w - bw - 34 * k, 30 + h - bw - 34 * k, 5 * k);
       if (opts.label) {
         const py = 30 + h - 76 * k;
         parts += `<g data-part="label"><path d="${roundRect(39 + w * 0.12, py, w * 0.76, 46 * k, 12 * k)}" fill="${wellFill}" opacity="0.94" stroke="${hexRgba(darken(bevel, 0.35), 0.6)}" stroke-width="1"/>` +
-          `<text x="${cxC.toFixed(1)}" y="${(py + 23 * k + 1).toFixed(1)}" font-family="'${font}', 'Inter Variable', Inter, sans-serif" font-size="${(17 * k * typeK).toFixed(1)}" font-weight="800" letter-spacing="1.5" fill="${hexMix(glow, "#FFFFFF", 0.4)}" text-anchor="middle" dominant-baseline="central">${esc(opts.label)}</text></g>`;
+          `<text x="${cxC.toFixed(1)}" y="${(py + 23 * k + 1).toFixed(1)}" font-family="'${font}', 'Inter Variable', Inter, sans-serif" font-size="${(17 * k * typeK).toFixed(1)}" font-weight="800" letter-spacing="1.5" fill="${CDb(hexMix(glow, "#FFFFFF", 0.4))}" text-anchor="middle" dominant-baseline="central">${esc(opts.label)}</text></g>`;
       }
       return inject(track.replace("<svg ", '<svg data-cardback="1" '), parts);
+    }
+    case "cardface": {
+      /* Card battler · the card's FRONT (owner commission, round 73).
+         Built off the card back's shell so a set reads as one deck, then
+         given the three things a face has and a back does not: a picture
+         well, two corner badges carrying numbers, and the card's name
+         overlapping the art at the bottom with no plate under it.
+
+         THE SCALE LAW, made structural. A card face is a DESIGN, not a
+         card. The picture, the two numbers and the name are per-copy
+         content — the same fields a board copy already carries — so a
+         hundred-card set is this ONE piece placed a hundred times, and in
+         Unity ONE prefab fed a hundred rows. Nothing here mints a
+         component; only changing the DESIGN does that.
+
+         Everything swappable is a live child: the picture is marked ink,
+         each corner badge is a marked plate with its number RIDING it
+         (the boostercard grammar), and the name is a text seat. No word,
+         icon or image is baked into this art. */
+      const w = 300 * k, h = 420 * k;
+      const track = build(flatCardCfg(cfg, state), state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 430 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const gid = "cf" + UID++;
+      const slF = opts.slots ?? {};
+      /* A DISABLED CARD KEEPS ITS OPACITY (owner, round 73e: "for the
+         disabled state for these cards we can't use transparency, just take
+         all of the saturation out of everything and increase the brightness
+         a little"). A card is a physical object in the player's hand; a
+         see-through one reads as a rendering fault, not as unavailable. So
+         every ink runs through the house's own disabled grade instead, and
+         the alpha that used to carry the message stays at 1. */
+      const CD = (c: string) => (state === "disabled" ? disabledGrade(c) : c);
+      const rasterFx = state === "disabled" ? DISABLED_RASTER_FILTER : "";
+      /* THE PICTURE IS THE CARD (owner, round 73b: "the image area should
+         extend the height of the entire card, the idea is that the text
+         logo will cover up the bottom... part of the raster inserted
+         image"). So the well is not an inset panel any more — it is the
+         card's own silhouette just inside the frame, and the name rides
+         OVER the picture's foot rather than in open space below it. */
+      /* THE ART FILLS THE SHELL'S OWN FACE, not an inset of my choosing
+         (owner, round 73d: "wipe shine doesn't cover the whole card area,
+         it is cropped weird to an inner shape"). The wipe shine clips to
+         the face path build() emits; art laid outside that path is art the
+         shine can never reach, which is exactly the inner-shape crop the
+         owner saw. Taking the face from shellPaths — the same derivation
+         build uses — makes the art, the face and the shine ONE shape by
+         construction, so they cannot drift apart again. */
+      const sp = shellPaths(flatCardCfg(cfg, state), sov ?? KIT_SHAPE.cardface ?? cfg.shape, 39, 30, w, h);
+      const insF = sp.bwF;
+      const wX = 39 + insF, wY = 30 + insF;
+      const wW = w - insF * 2, wH = h - insF * 2;
+      const wellD = sp.face;
+      const frameOnF = slF.frame !== "Off";
+      const fullBleed = slF.art === "Full bleed";
+      let partsF = `<defs>` +
+        `<clipPath id="${gid}w"><path d="${wellD}"/></clipPath>` +
+        /* graded like every other ink: this wash is the LAST colour on a
+           disabled card (it sits behind the glyph, so it survives every
+           grade applied to the glyph itself) and an ungraded one reads as
+           a teal halo on an otherwise grey card */
+        `<radialGradient id="${gid}g"><stop offset="0" stop-color="${CD(glow)}" stop-opacity="0.45"/><stop offset="0.62" stop-color="${CD(glow)}" stop-opacity="0.16"/><stop offset="1" stop-color="${CD(glow)}" stop-opacity="0"/></radialGradient>` +
+        /* the name straddles the well's foot, so the art beneath it goes
+           dark: a card name has to read over ANY picture a maker drops in */
+        `<linearGradient id="${gid}s" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#000000" stop-opacity="0.62"/><stop offset="0.5" stop-color="#000000" stop-opacity="0.22"/><stop offset="1" stop-color="#000000" stop-opacity="0"/></linearGradient>` +
+        `<radialGradient id="${gid}v"><stop offset="0" stop-color="#000000" stop-opacity="0.5"/><stop offset="0.55" stop-color="#000000" stop-opacity="0.34"/><stop offset="1" stop-color="#000000" stop-opacity="0"/></radialGradient>` +
+        `</defs>`;
+      // the well's own ground, so an empty card still reads as a frame
+      partsF += `<path d="${wellD}" fill="${CD(darken(effect(cfg.effects, "Inner Fill"), 0.35))}"/>`;
+      /* THE PICTURE. `opts.pic` is a maker's uploaded art (the My-assets
+         road, same as a board logo) and covers the well corner to corner;
+         with no upload the kit's own glyph centres in it, exactly the way
+         the card back's emblem does. Either way the ink is MARKED, so the
+         export ships it as a swappable Image child on a fixed well-shaped
+         canvas — a dev swaps the sprite and the card is a different card,
+         with no trip back to the app. */
+      const picIcon = opts.icon === null ? null : (opts.icon ?? STOCK_ICONS.gem ?? STOCK_ICONS.star);
+      const picBox = `${wX.toFixed(1)} ${wY.toFixed(1)} ${wW.toFixed(1)} ${wH.toFixed(1)}`;
+      /* COVER fit, its dials, and its darkroom — all of it through the one
+         picSeat road the card back and the pack already ride, so a picture
+         behaves the same wherever a piece holds one */
+      const artSeat = opts.pic ? picSeat(opts.pic, wX, wY, wW, wH) : null;
+      if (artSeat?.defs) partsF += `<defs>${artSeat.defs}</defs>`;
+      partsF += `<g data-part="icon" data-icon="art" data-icon-nick="Card art" data-icon-box="${picBox}" data-icon-well-rect="${picBox}">`;
+      if (artSeat) {
+        partsF += `<g clip-path="url(#${gid}w)">${artSeat.img()}</g>`;
+      } else if (picIcon) {
+        const pS = Math.min(wW, wH) * (fullBleed ? 0.86 : 0.58);
+        const pcx = wX + wW / 2, pcy = wY + wH * 0.46;
+        partsF += `<circle cx="${pcx.toFixed(1)}" cy="${pcy.toFixed(1)}" r="${(pS * 0.78).toFixed(1)}" fill="url(#${gid}g)"/>` +
+          `<g${emblemFx(9 * k, CD(glow))}>${themedIcon(picIcon, pcx - pS / 2, pcy - pS / 2, pS, CD(hexMix(glow, "#FFFFFF", 0.35)), 1.8)}</g>`;
+      }
+      partsF += `</g>`;
+      // the darkroom's wash rides ABOVE the art as its own swappable child
+      if (artSeat) partsF += artSeat.wash(`${gid}w`, "artwash", "Card art wash", wX, wY, wW, wH);
+      // a scrim up from the well's foot so the name reads over any picture
+      partsF += `<g clip-path="url(#${gid}w)"><rect x="${wX.toFixed(1)}" y="${(wY + wH * 0.58).toFixed(1)}" width="${wW.toFixed(1)}" height="${(wH * 0.42).toFixed(1)}" fill="url(#${gid}s)"/></g>`;
+      if (frameOnF) partsF += `<path d="${wellD}" fill="none" stroke="${hexRgba(CD(hexMix(glow, "#FFFFFF", 0.28)), 0.6)}" stroke-width="${(2.4 * k).toFixed(1)}"/>`;
+      /* THE CORNER BADGES. Each is a plate the number rides: the shape
+         ships as its own sprite and the digits stay live TMP, so a dev
+         drives them at runtime and can flash them on a hit or a buff. */
+      /* THE CORNERS BREAK THE FRAME (owner: "they should extend a little
+         beyond the top and side edges"). They sit ON the card's own top
+         corners and overhang outward, which is why the canvas below is
+         padded — an un-padded viewBox would shear exactly the part that
+         is supposed to escape. */
+      const bR0 = 44 * k;
+      /* THE BADGE SCALES ON ITS OWN (owner, round 73d: "can we also effect
+         the size of the corner shape, the current size being 100% with the
+         ability to make it a bit smaller, scaling independently of the
+         numerics"). So the dial moves the SHAPE's radius and nothing else —
+         the digits keep their own size, which is what makes a smaller badge
+         read as a tighter gem around the same number instead of the whole
+         corner shrinking. It rides the house's `dial` slot kind, resting at
+         its factory 100 until touched. */
+      const cSizeRaw = String(slF.cornersize ?? "");
+      /* floored at 55%: below that the badge is smaller than the number it
+         is meant to hold, which is not a smaller badge, it is a broken one.
+         The dial keeps honest percent semantics (100 is the shipped size)
+         and the floor is stated in the slot's note rather than hidden. */
+      const cSize = /^\d+$/.test(cSizeRaw) ? Math.max(55, Math.min(100, +cSizeRaw)) / 100 : 1;
+      const bR = bR0 * cSize;
+      /* the numerals may wear their OWN face — a card's cost and power are
+         allowed to be special without dragging the kit's type with them */
+      const numFontName = String(slF.numfont ?? "");
+      const numFam = numFontName && numFontName !== "Kit font" ? fontByName(numFontName).name : font;
+      const corner = (side: "l" | "r") => {
+        const shape = (slF[`${side}shape`] as string) ?? (side === "l" ? "Hexagon" : "Circle");
+        if (shape === "Off") return "";
+        const num = String(slF[`${side}num`] ?? (side === "l" ? "5" : "9")).trim().slice(0, 3);
+        /* seated off the FULL-size radius on purpose: shrinking the badge
+           should tighten it in place, not walk it away from the corner */
+        const cxB = side === "l" ? 39 + bR0 * 0.30 : 39 + w - bR0 * 0.30;
+        const cyB = 30 + bR0 * 0.26;
+        const nm = side === "l" ? "cornerleft" : "cornerright";
+        const nick = side === "l" ? "Left corner" : "Right corner";
+        const box = `${(cxB - bR0 - 4 * k).toFixed(1)} ${(cyB - bR0 - 4 * k).toFixed(1)} ${(bR0 * 2 + 8 * k).toFixed(1)} ${(bR0 * 2 + 8 * k).toFixed(1)}`;
+        const plate = cardCornerPath(shape, cxB, cyB, bR);
+        /* each corner carries its OWN ground (owner: "we will need to be
+           able to independently control the background color of each
+           corner shape") — the cost gem is blue and the power gem orange
+           on the same card, which one shared ink could never say. Unset
+           falls back to the kit's own mix, so a card nobody has coloured
+           still reads as this kit's card. */
+        const ink = CD((slF[`${side}ink`] as string) || hexMix(bevel, glow, 0.28));
+        /* THE CORNERS TAKE THE CARD'S LIGHT (owner, round 73c: "make sure
+           those corner shapes follow the lighting of the main"). They were
+           flat fills with a flat white wash on top, which read as stickers
+           beside a shell that is lit. This is candyKnob's recipe — the
+           kit's own language for a small solid piece — moved onto an
+           arbitrary path: light from the upper left, the chosen colour
+           still dominant through the middle, a darkened rim, contact shade
+           gathering along the lower edge, and one specular at the same
+           upper-left offset the knobs use. Both shades clip to the badge,
+           so every shape in the menu is lit by its own silhouette. */
+        const gidC = "cc" + UID++;
+        const out = `<g data-part="icon" data-icon="${nm}" data-icon-nick="${nick}" data-icon-box="${box}">` +
+          `<defs>` +
+          `<radialGradient id="${gidC}g" cx="0.35" cy="0.28" r="0.92">` +
+          `<stop offset="0" stop-color="${lighten(ink, 0.62)}"/>` +
+          `<stop offset="0.46" stop-color="${lighten(ink, 0.2)}"/>` +
+          `<stop offset="0.82" stop-color="${ink}"/>` +
+          `<stop offset="1" stop-color="${darken(ink, 0.24)}"/>` +
+          `</radialGradient>` +
+          `<clipPath id="${gidC}c"><path d="${plate}"/></clipPath>` +
+          `</defs>` +
+          `<path d="${plate}" fill="url(#${gidC}g)" stroke="${darken(ink, 0.42)}" stroke-width="${(3 * k).toFixed(1)}"/>` +
+          `<g clip-path="url(#${gidC}c)">` +
+          `<ellipse cx="${cxB.toFixed(1)}" cy="${(cyB + bR * 0.92).toFixed(1)}" rx="${(bR * 1.15).toFixed(1)}" ry="${(bR * 0.6).toFixed(1)}" fill="${darken(ink, 0.55)}" opacity="0.42"/>` +
+          `<ellipse cx="${(cxB - bR * 0.3).toFixed(1)}" cy="${(cyB - bR * 0.46).toFixed(1)}" rx="${(bR * 0.36).toFixed(1)}" ry="${(bR * 0.2).toFixed(1)}" fill="#FFFFFF" opacity="0.8"/>` +
+          `</g>` +
+          `</g>`;
+        let outN = out;
+        if (num) {
+          // sized off the FULL badge, so the dial never shrinks the digits
+          const nFs = Math.min(38 * k, (38 * k * 1.6) / Math.max(1.6, num.length)) * typeK;
+          outN += `<text x="${cxB.toFixed(1)}" y="${(cyB + 1.5 * k).toFixed(1)}" font-family="'${numFam}', 'Inter Variable', Inter, sans-serif" font-size="${nFs.toFixed(1)}" font-weight="900" fill="#FFFFFF" stroke="${darken(CD(bevel), 0.6)}" stroke-width="${(2.4 * k).toFixed(1)}" paint-order="stroke" text-anchor="middle" dominant-baseline="central" data-seat-rider="${nm}">${esc(num)}</text>`;
+        }
+        return outN;
+      };
+      const cornersF = corner("l") + corner("r");
+      /* THE NAME — the card's word, straddling the foot of the art with
+         NO container under it (owner: "space for a logo, no container,
+         but typography that overlaps the card face"). It goes through
+         contentText so it obeys the kit's text controls like every other
+         word, and it is a live seat in the export. */
+      /* the name rides the FOOT of the picture now that the picture is
+         the whole card — the owner's own framing: "the text logo will
+      /* ── THE LOGO AREA (round 73d). The owner named three roads into it:
+         "the user can add a logo by uploading an image of their own or by
+         manipulating type stamps in boards... or the third way is to just
+         add the look's text style in the editor with some controls for
+         sizing and lines (what appears on which line of text)".
+         Road two is the board's own stamps and needs nothing here. Road
+         one is an uploaded wordmark, which wins when it is present. Road
+         three is this: the card's words in the kit's own type, broken
+         across the lines the maker asks for, at the size they pick. It
+         rides the FOOT of the picture, the owner's own framing: "the text
+         logo will cover up the bottom part of the raster inserted image". */
+      const logoBase = 30 + h - 52 * k;
+      const logoSizeK = ({ Small: 0.74, Large: 1.24, Huge: 1.5 } as Record<string, number>)[String(slF.logosize ?? "")] ?? 1;
+      const logoPic = opts.logo;
+      /* NO LOGO AT ALL is a real answer (owner: "need the option of no
+         logo (as it might be added later in boards)") — the No text
+         toggle empties the label, and with no uploaded wordmark either
+         the whole band stands down, vignette included. A darkening over
+         the art with nothing in it would be a container for nothing,
+         which is the one thing the owner ruled out here. */
+      const logoOff = !logoPic && opts.label === "";
+      /* the VIGNETTE first (not a plate: the owner asked for no container)
+         — it darkens the ground under whatever the logo turns out to be,
+         so a wordmark reads over any picture the maker drops in */
+      if (!logoOff) partsF += `<ellipse cx="${(39 + w / 2).toFixed(1)}" cy="${logoBase.toFixed(1)}" rx="${(w * 0.5).toFixed(1)}" ry="${(38 * k * logoSizeK).toFixed(1)}" fill="url(#${gid}v)"/>`;
+      if (logoOff) {
+        // nothing: the foot of the art is left clear for a board stamp
+      } else if (logoPic) {
+        /* ROAD ONE — the maker's own wordmark. It fits INSIDE the logo
+           band keeping its aspect (a logo squashed to fit is a logo
+           ruined), and it is marked ink like every other picture, so a
+           developer swaps the sprite without coming back here. */
+        /* THE WORDMARK'S OWN DIALS (round 73d) ride the body of work, not a
+           new invention: shadow, its pose, glow and glow ink are BigGlyphFx
+           — the very fields a board logo carries — rendered by the very
+           same bigGlyphFilter. Size and the x/y nudge are the two things a
+           board copy gets from its item transform that a seat inside a
+           piece has to carry itself, and they speak the kitTextOx/Oy
+           grammar: percent of the natural fit, then design px. */
+        const lfx = logoPic.fx ?? {};
+        const lSize = Math.max(0.1, (lfx.size ?? 100) / 100);
+        const bandW = w * 0.82 * lSize, bandH = 74 * k * logoSizeK * lSize;
+        const scL = Math.min(bandW / Math.max(1, logoPic.w), bandH / Math.max(1, logoPic.h));
+        const lw = logoPic.w * scL, lh = logoPic.h * scL;
+        const lcx = 39 + w / 2 + (lfx.dx ?? 0), lcy = logoBase + (lfx.dy ?? 0);
+        const lFilter = bigGlyphFilter(cfg, { gid: "", ...lfx });
+        /* the seat's window grows by the filter's own reach so a glow or a
+           dropped shadow is never shorn at the crop (bigGlyphFilterPad is
+           the same measure the board bakes use) */
+        const lPad = bigGlyphFilterPad({ gid: "", ...lfx });
+        partsF += `<g data-part="icon" data-icon="logo" data-icon-nick="Logo" data-icon-box="${(lcx - bandW / 2 - lPad).toFixed(1)} ${(lcy - bandH / 2 - lPad).toFixed(1)} ${(bandW + lPad * 2).toFixed(1)} ${(bandH + lPad * 2).toFixed(1)}">` +
+          `<image href="${esc(logoPic.href)}" x="${(lcx - lw / 2).toFixed(1)}" y="${(lcy - lh / 2).toFixed(1)}" width="${lw.toFixed(1)}" height="${lh.toFixed(1)}" preserveAspectRatio="xMidYMid meet"${(() => { const f = [lFilter, rasterFx].filter(Boolean).join(" "); return f ? ` style="filter:${f}"` : ""; })()}/></g>`;
+      } else {
+        /* ROAD THREE — the look's own type. An explicit | in the words is
+           the exact break; otherwise the words split as evenly as they can
+           across the number of lines asked for, which is what "what
+           appears on which line" means when nobody has said. */
+        const rawL = opts.label ?? "CARD NAME";
+        const want = ({ "Two lines": 2, "Three lines": 3 } as Record<string, number>)[String(slF.logolines ?? "")] ?? 1;
+        let lineArr: string[];
+        if (rawL.includes("|")) {
+          lineArr = rawL.split("|").map((t) => t.trim()).filter(Boolean).slice(0, 3);
+        } else if (want > 1) {
+          const words = rawL.split(/\s+/).filter(Boolean);
+          const n = Math.min(want, Math.max(1, words.length));
+          const acc: string[] = Array.from({ length: n }, () => "");
+          /* fill by running length, so a two-word name never lands as one
+             long line stacked over one short one */
+          const per = Math.ceil(rawL.length / n);
+          let li2 = 0;
+          for (const wd of words) {
+            if (acc[li2].length && acc[li2].length + wd.length > per && li2 < n - 1) li2++;
+            acc[li2] = acc[li2] ? acc[li2] + " " + wd : wd;
+          }
+          lineArr = acc.filter(Boolean);
+        } else lineArr = [rawL];
+        if (!lineArr.length) lineArr = [rawL];
+        const fs0 = 33 * k * typeK * logoSizeK;
+        const lineHL = fs0 * 1.06;
+        const topL = logoBase - ((lineArr.length - 1) * lineHL) / 2;
+        lineArr.forEach((ln, li3) => {
+          /* every line still SHRINKS TO FIT rather than running off the
+             card — the owner's rule from the claim button's ribbon,
+             applied PER LINE because a break exists precisely so a long
+             name can stay big */
+          const fsL = fs0 * clamp((w * 0.88) / Math.max(1, ln.length * fs0 * 0.56), 0.62, 1);
+          partsF += `<g data-part="label"${rasterFx ? ` style="filter:${rasterFx}"` : ""}>${contentText(ln, 39 + w / 2, topL + li3 * lineHL, fsL, {
+            anchor: "middle", keepCase: true, track: 1, autoInk: "#FFFFFF",
+          })}</g>`;
+        });
+      }
+      /* ── THE RULES BLOCK (round 73c, owner: "each of these cards will
+         need a state where we show it with 3 or 4 lines of body copy
+         underneath explaining what the card does, similar to the white
+         tiger image"). It sits UNDER the card on open ground, exactly as
+         the reference does — not inside the frame, because a card's rules
+         are read at rest and the art must not shrink to make room. Empty
+         is the play view; filled is the detail view the modal opens, so
+         the two looks are one piece with one control, and the absence IS
+         the message (no explainer prose, the affordance law). ── */
+      const rulesRaw = String(slF.rules ?? "").trim().slice(0, 140);
+      let belowH = 0;
+      if (rulesRaw) {
+        /* rules copy is READING type, not display type: well under the
+           name's size, the way a card's ability line sits under its
+           wordmark. Too large and four lines will not fit the card's
+           width without breaking mid-phrase. */
+        const fsR = 15 * k * typeK;
+        const lineH = fsR * 1.42;
+        // conservative glyph-width estimate for display faces (~0.55em)
+        const maxCh = Math.max(10, Math.floor((w * 1.0) / (fsR * 0.55)));
+        const lines: string[] = [];
+        let cur = "";
+        for (const wd of rulesRaw.split(/\s+/).filter(Boolean)) {
+          const cand = cur ? cur + " " + wd : wd;
+          if (cand.length > maxCh && cur) { lines.push(cur); cur = wd; } else cur = cand;
+          while (cur.length > maxCh) { lines.push(cur.slice(0, maxCh)); cur = cur.slice(maxCh); }
+        }
+        if (cur) lines.push(cur);
+        const shown = lines.slice(0, 4);
+        /* the LEAD-IN: everything before the first colon carries the
+           weight, the "On Reveal:" convention every card game shares */
+        const colon = rulesRaw.indexOf(":");
+        const lead = colon > 0 && colon < 28 ? rulesRaw.slice(0, colon + 1) : "";
+        const top = 30 + h + 58 * k;
+        shown.forEach((ln, li) => {
+          const y = top + li * lineH + fsR * 0.5;
+          const heavy = !!lead && li === 0 && ln.startsWith(lead.slice(0, Math.min(lead.length, ln.length)));
+          partsF += `<g data-part="rules"${rasterFx ? ` style="filter:${rasterFx}"` : ""}>${contentText(ln, 39 + w / 2, y, fsR, {
+            anchor: "middle", keepCase: true, weight: heavy ? 900 : undefined,
+          })}</g>`;
+        });
+        belowH = 58 * k + shown.length * lineH + 14 * k;
+      }
+      /* the canvas grows so the frame-breaking corners are not shorn off
+         at the viewBox edge — the badge overhang is the design — and far
+         enough for the rules block when the card is carrying one */
+      /* the sweep goes in HERE — over the art and the wordmark, under the
+         corner badges that stand proud of the card */
+      partsF += `<g data-shine-seat="1"></g>` + cornersF;
+      return inject(padSvg(track.replace("<svg ", '<svg data-cardface="1" '), Math.max(104, Math.ceil(belowH + 30))), partsF);
     }
     case "pack": {
       /* Card battler · booster pack — the engine body wears crimped foil
@@ -9790,6 +10315,9 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       const sparkP = (sx: number, sy: number, r: number) =>
         `<path d="M ${sx.toFixed(1)} ${(sy - r).toFixed(1)} L ${(sx + r * 0.28).toFixed(1)} ${(sy - r * 0.28).toFixed(1)} L ${(sx + r).toFixed(1)} ${sy.toFixed(1)} L ${(sx + r * 0.28).toFixed(1)} ${(sy + r * 0.28).toFixed(1)} L ${sx.toFixed(1)} ${(sy + r).toFixed(1)} L ${(sx - r * 0.28).toFixed(1)} ${(sy + r * 0.28).toFixed(1)} L ${(sx - r).toFixed(1)} ${sy.toFixed(1)} L ${(sx - r * 0.28).toFixed(1)} ${(sy - r * 0.28).toFixed(1)} Z" fill="${hexRgba(hexMix(glow, "#FFFFFF", 0.55), 0.85)}"/>`;
       let parts = `<defs><radialGradient id="${gid}g"><stop offset="0" stop-color="${glow}" stop-opacity="0.5"/><stop offset="1" stop-color="${glow}" stop-opacity="0"/></radialGradient></defs>`;
+      /* the pack takes a picture too — same road, cropped by the pack body */
+      if (opts.pic) parts += picLayer(opts.pic, `${gid}p`, wellOf(w, h, bw * 0.72),
+        39 + bw * 0.72, 30 + bw * 0.72, w - bw * 1.44, h - bw * 1.44, "art", "Pack art");
       if (emb) {
         // same stamp as the card back — the pack's emblem answers to Dissect too
         parts += `<g data-part="icon"><circle cx="${cxP.toFixed(1)}" cy="${cyP.toFixed(1)}" r="${(embS * 0.8).toFixed(1)}" fill="url(#${gid}g)"/>` +
@@ -10561,17 +11089,30 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
           ? shapePath(sov ?? cfg.shape, x + insT, pad3 + insT, tw - insT * 2, th - insT * 2, Math.max(0, cfg.bevel.softness - 10))
           : roundRect(x + insT, pad3 + insT, tw - insT * 2, th - insT * 2, 20 * k);
         const gidT = "fc" + UID++;
+        /* THE SPLIT BAR IS ITS OWN LAYER (owner, round 72: "you can't burn
+           the cross bars into the background — they need to sit on top of
+           the dynamic numbers as their own layer"). It always drew OVER the
+           digits here; in Unity the digits are live TMP over a baked base,
+           so a bar living in that base fell behind them. Marked ink now:
+           stripped from the bake, shipped as its own Image child, and
+           `data-icon-over` parks that child ABOVE the Words group — the
+           app's own stack, rebuilt out of real layers. The clip moves into
+           defs so the marked cut keeps it (a bare clipPath's path is
+           drawable ink and the cut would strip it, un-clipping the bar). */
+        const barH = 3.6 * k * 2 + 6;
         return `${themedTiles ? `<g transform="translate(${(x - tsx).toFixed(1)} ${(pad3 - tsy).toFixed(1)})">${tileInner}</g>` : ""}
-          <clipPath id="${gidT}w"><path d="${wellD}"/></clipPath>
+          <defs><clipPath id="${gidT}w"><path d="${wellD}"/></clipPath></defs>
           <path d="${wellD}" fill="${tileFace}"${urgent ? ` stroke="${alarm}" stroke-width="2.5"` : themedTiles ? "" : ` stroke="${hexMix(bevel, glow, 0.3)}" stroke-width="2" stroke-opacity="0.55"`}/>
           <g clip-path="url(#${gidT}w)"><rect x="${x}" y="${pad3}" width="${tw}" height="${(th / 2).toFixed(1)}" fill="#FFFFFF" opacity="0.055"/></g>
           ${contentText(sg, x + tw / 2 + 3 * k, midY + 2, fsD, { anchor: "middle", keepCase: true, opacity: dim })}
-          <g clip-path="url(#${gidT}w)">
-            <rect x="${x}" y="${(midY - 2).toFixed(1)}" width="${tw}" height="4" fill="#04060C" opacity="0.85"/>
-            <rect x="${x}" y="${(midY + 2).toFixed(1)}" width="${tw}" height="1.2" fill="#FFFFFF" opacity="0.1"/>
+          <g data-part="icon" data-icon="split${i + 1}" data-icon-nick="Split Bar ${i + 1}" data-icon-over="1" data-icon-box="${x.toFixed(1)} ${(midY - barH / 2).toFixed(1)} ${tw.toFixed(1)} ${barH.toFixed(1)}">
+            <g clip-path="url(#${gidT}w)">
+              <rect x="${x}" y="${(midY - 2).toFixed(1)}" width="${tw}" height="4" fill="#04060C" opacity="0.85"/>
+              <rect x="${x}" y="${(midY + 2).toFixed(1)}" width="${tw}" height="1.2" fill="#FFFFFF" opacity="0.1"/>
+            </g>
+            <circle cx="${(x + insT + 7 * k).toFixed(1)}" cy="${midY}" r="${(3.6 * k).toFixed(1)}" fill="#04060C" opacity="0.92"/>
+            <circle cx="${(x + tw - insT - 7 * k).toFixed(1)}" cy="${midY}" r="${(3.6 * k).toFixed(1)}" fill="#04060C" opacity="0.92"/>
           </g>
-          <circle cx="${(x + insT + 7 * k).toFixed(1)}" cy="${midY}" r="${(3.6 * k).toFixed(1)}" fill="#04060C" opacity="0.92"/>
-          <circle cx="${(x + tw - insT - 7 * k).toFixed(1)}" cy="${midY}" r="${(3.6 * k).toFixed(1)}" fill="#04060C" opacity="0.92"/>
           <text x="${x + tw / 2}" y="${(pad3 + th + 38 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(12.5 * k).toFixed(1)}" font-weight="800" letter-spacing=".22em" fill="${urgent ? alarm : (onDark ? hexRgba(glow, 0.8) : darken(bevel, 0.3))}" text-anchor="middle" opacity="${dim}">${esc(tags[i] ?? "")}</text>` +
           (i < segs.length - 1
             ? `<circle cx="${(x + tw + gap2 / 2).toFixed(1)}" cy="${(midY - 16 * k).toFixed(1)}" r="${(4 * k).toFixed(1)}" fill="${onDark ? hexRgba(glow, 0.7) : darken(bevel, 0.25)}"/><circle cx="${(x + tw + gap2 / 2).toFixed(1)}" cy="${(midY + 16 * k).toFixed(1)}" r="${(4 * k).toFixed(1)}" fill="${onDark ? hexRgba(glow, 0.7) : darken(bevel, 0.25)}"/>`
@@ -11188,7 +11729,7 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       // gloss swoosh below (both replicate shell inks state-true)
       const adjRb = cfg.states[state];
       const PRb = (c: string) => {
-        if (state === "disabled") return lighten(desaturate(c, 0.82), 0.1);
+        if (state === "disabled") return disabledGrade(c); // the one grade, read not restated
         const satRb = clamp(adjRb?.saturation ?? 0, -100, 100);
         return bright(satRb ? saturate(c, satRb / 100) : c, adjRb?.brightness ?? 0);
       };

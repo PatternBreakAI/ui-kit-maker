@@ -1,15 +1,17 @@
 import { create } from "zustand";
 import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, GridStyle, CandyTokens, Shape, KitDesign, KitSlice } from "./model";
 import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, rollStatement, classicRack, presetById, PRESETS, PATTERN_TYPES, GAME_FONTS, customFontNames, ctaForFont, darken, hexMix, registerCustomFont, pickDesign, designDiff, deepMergeDesign, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, migrateKitSlotVals, clampWeight, fontByName, sanitizeUnitySlug, baseOf, mintCloneId, CLONE_INELIGIBLE, isGlyphPiece, resolveKitIcon } from "./model";
-import type { KitClone } from "./model";
+import { isCloneId, KIT_COMPONENTS } from "./model";
+import type { KitClone, KitPieceId } from "./model";
 import { ensureFont, fontReady, awaitFonts } from "./fonts";
 import { delBgOriginal, getBgOriginal, putBgOriginal } from "./bgvault";
-import { isAssetRef, isBundledArt, resolveBgAsset, assetCloudBacked, bgAssetDisplayUrl } from "./assets";
+import { isAssetRef, isBundledArt, resolveBgAsset, assetCloudBacked, bgAssetDisplayUrl, assetUrlNow, warmAssetUrl } from "./assets";
 import { SILHOUETTES, silhouetteUnpickable, setUnpickableSilhouettes } from "./silhouettes";
 import type { UserShape } from "./model";
 import { addShine, renderBevel, renderKit, renderTypeSpecimen } from "./bevel";
 import { getDef } from "./icons";
-import { bigGlyphById, BIG_GLYPH_BASE, type BigGlyphFx } from "./bigGlyphs";
+import { bigGlyphById, BIG_GLYPH_BASE, type BigGlyphFx, type DarkroomGrade, type DarkroomWash } from "./bigGlyphs";
+import { NAMED_KITS } from "./namedKits";
 import { listCloudPresets, publishCloudPreset, updateCloudPreset, deleteCloudPreset, setCloudPresetSchedule, listHiddenStarters, setHiddenStarters, listHiddenSilhouettes, setHiddenSilhouettes, listDeletedSilhouettes, setDeletedSilhouettes, myProfileTier, cloudStatus, listComponentReleases, saveComponentReleases, listPromos, readPromosLive, noteLocalDocReplaced, readGateSnapshot, writeGateSnapshot, hasStoredSession, type CloudPreset, type PromoDef, type ReleaseStatus } from "./cloud";
 import { capsOf, type Tier } from "./entitlements";
 import siteDefaultJson from "./site-default.json";
@@ -420,6 +422,13 @@ interface GenStore {
    *  (same position/scale/dials), so Edit component opens the saved item;
    *  one board undo restores the pre-save binding. */
   saveBoardItemAsAsset: (id: string, name: string) => void;
+  /** Bring a SAVED COMPONENT into the kit as a live piece: mint a clone
+   *  pinned to the snapshot's exact look, then rebind every placement of
+   *  that saved item, on every board, to the clone. Returns the clone's
+   *  id, or null when the snapshot cannot become one (`savedPromotable`
+   *  answers that question up front). The frozen LibItem is never
+   *  deleted — it only gains `cloneId`. */
+  promoteSavedToKit: (libId: string) => KitComponentId | null;
   /** Append a pre-placed set of pieces (starter templates, ghost drops) —
    *  kit pieces, big-glyph tiles, or saved library assets (`libId`). */
   addBoardItems: (items: { kitId?: KitComponentId; big?: BigGlyphFx; libId?: string; x: number; y: number; scale?: number; ov?: string; v?: number; label?: string; rot?: number }[]) => void;
@@ -641,6 +650,35 @@ interface GenStore {
   /** Per-component icon swap — "none" removes the glyph (text recenters),
    *  null restores the stock one. */
   kitIcons: Partial<Record<KitComponentId, IconDef | "none">>;
+  /** A MAKER'S OWN PICTURE per piece (round 73 — the card face, the card
+   *  back, the deck cover). The value is a userAssets/kitAssets registry
+   *  id; the pixels stay in the vault or the account bucket, never in the
+   *  doc (the fat-pixel rule the backdrops already keep). A piece with no
+   *  row here draws its icon, which is the fallback, not an error. */
+  /*  KEYED BY SEAT (round 73d): a piece can hold more than one picture —
+   *  the card face carries its ART and, separately, its LOGO. The plain
+   *  component id is the piece's main picture; `<id>:<seat>` is a named
+   *  one. Keeping this a flat string map means a new picture seat costs a
+   *  key, not another store field with its own persistence and history. */
+  kitPics: Partial<Record<string, string>>;
+  /** Point a seat at one of the maker's uploads (or clear it with ""). */
+  setKitPic: (id: KitComponentId, aid: string, seat?: string) => void;
+  /** THE SEAT'S DIALS, keyed exactly like kitPics (owner, round 73d: "if i
+   *  upload an logo to the editor I need to be able to affect its size and
+   *  x,y, glow, shadow - we have all of this figured out already so please
+   *  consult the body of work before creating anything new"). It IS the
+   *  body of work: BigGlyphFx verbatim, the same shape a board logo wears,
+   *  read by the same bigGlyphFilter — plus the size and nudge that a board
+   *  copy gets from its own item fields and a seat inside a piece cannot. */
+  kitPicFx: Partial<Record<string, PicSeatFx>>;
+  setKitPicFx: (id: KitComponentId, seat: string | undefined, patch: Partial<PicSeatFx>) => void;
+  /** Bumped whenever a maker's picture finishes resolving to real bytes.
+   *  Renderers are synchronous, so the first paint of a piece carrying an
+   *  upload draws its fallback; without a signal that the bytes landed,
+   *  NOTHING re-renders and the fallback is what the maker keeps looking
+   *  at (owner, round 73d: "uploaded picture not showing up"). Anything
+   *  subscribed to the store re-renders when this moves. */
+  assetTick: number;
   setKitIcon: (id: KitComponentId, def: IconDef | "none" | null) => void;
   /** Per-component label override — null restores the specimen text. */
   kitLabels: Partial<Record<KitComponentId, string>>;
@@ -805,6 +843,26 @@ export interface LibItem {
    *  deleted, the frozen cfg snapshot is the tombstone fallback. */
   cloneId?: string;
 }
+/** Can this saved component join the kit as a live piece (promoteSavedToKit)?
+ *  One question, one answer — the Board asks it to decide whether to offer
+ *  Edit component, and the store asks it again before minting, so the
+ *  button and the action can never disagree.
+ *
+ *  Two snapshots stay frozen, both for the same reason — promotion must not
+ *  change a single pixel on anyone's board:
+ *   · no `kit` — the oldest saves are a bare master-button render with no
+ *     component identity to clone;
+ *   · a base that cannot be duplicated (datarow / panel keep their content
+ *     in store singletons, so a clone would share it — CLONE_INELIGIBLE);
+ *   · a pre-retirement size (the kit stands at L everywhere now and
+ *     per-piece sizes are not persisted, so an M snapshot would render
+ *     right once and grow on the next reload);
+ *   · a component the kit no longer ships — a snapshot can outlive the
+ *     piece it was taken from, and a clone of nothing draws nothing. */
+export function savedPromotable(l: LibItem | undefined | null): boolean {
+  return !!l?.kit && !CLONE_INELIGIBLE.has(l.kit.id) && effKitSize(l.kit.size) === "l"
+    && KIT_COMPONENTS.some((c) => c.id === l.kit!.id);
+}
 export interface StyleItem {
   id: string; name: string;
   style: Pick<GenConfig, "effects" | "face" | "bevel" | "candy" | "lighting" | "shadow" | "transparency" | "type" | "states" | "stateDesigns">;
@@ -895,6 +953,25 @@ export interface UserLogoFx {
   glowInk?: string;
 }
 
+/** A picture seat's dials. BigGlyphFx is the shared vocabulary (shadow,
+ *  its pose overrides, glow and glow ink — the board logo's own fields,
+ *  rendered by the same bigGlyphFilter); `size`, `dx` and `dy` are what a
+ *  board copy gets from its item transform and a seat inside a piece has
+ *  to carry itself. `gid` is unused here, exactly as it is for a logo. */
+export interface PicSeatFx extends Omit<BigGlyphFx, "gid">, DarkroomGrade, DarkroomWash {
+  /** percent of the seat's natural fit — 100 is the band-fitted size */
+  size?: number;
+  /** nudge in design px, the kitTextOx/kitTextOy grammar */
+  dx?: number; dy?: number;
+  /* The DARKROOM rides here too (owner, round 73f: "I also need the same
+     darkening controls that in the editor that we have for the uploaded
+     game screen background images in Boards"), inherited field for field
+     from the board backdrop's own dials rather than restated — bgBlur /
+     bgSat / bgHue / bgBright / bgContrast for the grade, ovMode /
+     ovStrength / ovNoise / ovBlend / ovCenter for the wash. Same names,
+     same ranges, same recipe, so there is only ever one thing to fix. */
+}
+
 /** One uploaded image in the My-assets drawer. The registry is small
  *  JSON under a ui-generator-* key, so it rides the cloud workspace doc
  *  exactly like userShapes/presets — that is the account-follow. The
@@ -925,6 +1002,36 @@ export interface UserAsset {
  *  Refs are bundled paths only (isBundledArt) — payloads arrive from
  *  share links and cloud docs, and a vault id or `asset://` ref here
  *  would be a way to alias somebody else's pixels. */
+/* ══════════════════════════════════════════════════════════════════════
+   THE THIRD REGISTRY (round 73j) — art that ships with the product.
+
+   An asset id lives in the maker's drawer (userAssets) or in the kit they
+   loaded (kitAssets). Both can be EMPTY of an id a board still names: the
+   drawer is a synced key, and applyDoc is replace-all across devices, so
+   a cloud doc that lacks an entry deletes it locally; and kitAssets is
+   filled only by loadKitPayload, which an #/app session of your own kit
+   never runs. The owner exported Brightside from #/app and was told all
+   three of its logos were "a deleted My-assets entry" — the drawer had
+   lost the row, kitAssets was [], and the very same pixels sat in the
+   build at /kit-art/brightside/. An id that names shipped art is never
+   deleted. So every resolution falls through to here last, and reads it
+   through ONE function, because three sites reading two registries is
+   how this went wrong the first time.
+   ══════════════════════════════════════════════════════════════════════ */
+export const SHIPPED_ASSETS: UserAsset[] = (() => {
+  const out: UserAsset[] = [];
+  for (const k of Object.values(NAMED_KITS)) for (const a of sanitizeKitAssets((k.payload as { userAssets?: unknown }).userAssets)) if (!out.some((x) => x.id === a.id)) out.push(a);
+  return out;
+})();
+/** The one asset lookup: the maker's drawer first, then the loaded kit's
+ *  bundled art, then the art that ships with the product. */
+export function findAsset(st: { userAssets?: UserAsset[]; kitAssets?: UserAsset[] }, id: string | undefined | null): UserAsset | undefined {
+  if (!id) return undefined;
+  return (st.userAssets ?? []).find((a) => a.id === id)
+    ?? (st.kitAssets ?? []).find((a) => a.id === id)
+    ?? SHIPPED_ASSETS.find((a) => a.id === id);
+}
+
 export function sanitizeKitAssets(raw: unknown): UserAsset[] {
   if (!Array.isArray(raw)) return [];
   const out: UserAsset[] = [];
@@ -992,7 +1099,39 @@ export const boardScaleMin = (b: Pick<BoardItem, "big" | "logo" | "kitId"> | nul
  *  live (a restyle that changes a piece's size moves its floor with it);
  *  library snapshots, stamps and raster art have no shell to read and
  *  keep the flat legacy floor. */
-export type BoardArtSrc = Pick<GenStore, "cfg" | "kitDesigns" | "kitTextFill" | "kitSizes" | "kitShapes" | "kitVals" | "kitIcons" | "kitLabels" | "kitNoText" | "kitSlotVals" | "library">;
+export type BoardArtSrc = Pick<GenStore, "cfg" | "kitDesigns" | "kitTextFill" | "kitSizes" | "kitShapes" | "kitVals" | "kitIcons" | "kitPics" | "kitPicFx" | "kitLabels" | "kitNoText" | "kitSlotVals" | "library">;
+
+/** The maker's own picture for a piece, in the shape renderKit wants —
+ *  or null, which is not a failure: the piece draws its icon instead.
+ *  renderKit is synchronous, so this reads the ALREADY-resolved url and
+ *  warms an unresolved one for the next paint (the display-url cache is
+ *  the same one the backdrops and board logos use — one road, not two).
+ *  A clone reads its base's picture until it is given its own. */
+export function kitPicOf(
+  st: { kitPics: GenStore["kitPics"]; kitPicFx?: GenStore["kitPicFx"]; userAssets?: UserAsset[]; kitAssets?: UserAsset[] },
+  id: KitComponentId | undefined,
+  /** a NAMED picture seat on the piece ("logo"); absent = its main art */
+  seat?: string,
+): { href: string; w: number; h: number; fx?: PicSeatFx } | null {
+  if (!id) return null;
+  const key = seat ? `${id}:${seat}` : String(id);
+  const baseKey = seat ? `${baseOf(id)}:${seat}` : String(baseOf(id));
+  const aid = st.kitPics?.[key] ?? st.kitPics?.[baseKey];
+  if (!aid) return null;
+  const ua = findAsset(st, aid);
+  if (!ua) return null;
+  const fx = st.kitPicFx?.[key] ?? st.kitPicFx?.[baseKey];
+  const href = assetUrlNow(ua.ref);
+  if (!href) {
+    /* the bytes are not here YET — warm them and ask the app to paint
+       again when they arrive, or this piece shows its fallback forever */
+    warmAssetUrl(ua.ref, () => {
+      try { useGen.setState({ assetTick: useGen.getState().assetTick + 1 }); } catch { /* store not up yet */ }
+    });
+    return null;
+  }
+  return { href, w: ua.w, h: ua.h, ...(fx ? { fx } : {}) };
+}
 export function boardItemArtShort(st: BoardArtSrc, b: BoardItem): number | undefined {
   try {
     if (b.kitId) {
@@ -1000,6 +1139,8 @@ export function boardItemArtShort(st: BoardArtSrc, b: BoardItem): number | undef
       const pc = applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns[b.kitId]), st.kitTextFill[b.kitId]);
       return artShortOf(renderKit(pc, base, size, "default", b.v ?? st.kitVals[b.kitId], st.kitShapes[b.kitId], {
         icon: resolveKitIcon(st.kitIcons[b.kitId], undefined),
+        pic: kitPicOf(st, b.kitId),
+        logo: kitPicOf(st, b.kitId, "logo"),
         label: st.kitNoText[b.kitId] ? "" : (b.label ?? st.kitLabels[b.kitId]),
         slots: st.kitSlotVals[b.kitId], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
       }));
@@ -1016,16 +1157,13 @@ export function boardItemArtShort(st: BoardArtSrc, b: BoardItem): number | undef
 
 /** One filter string for a backdrop's darkroom dials — the stage, the PNG
  *  compositor and the Unity bake all speak THIS. Blur last, so the color
- *  grade lands before the haze. */
-export function boardBgFilter(bd: Pick<BoardDef, "bgBlur" | "bgSat" | "bgHue" | "bgBright" | "bgContrast">): string | undefined {
-  const p: string[] = [];
-  if (bd.bgHue) p.push(`hue-rotate(${bd.bgHue}deg)`);
-  if ((bd.bgSat ?? 100) < 100) p.push(`saturate(${(bd.bgSat ?? 100) / 100})`);
-  if ((bd.bgBright ?? 100) !== 100) p.push(`brightness(${(bd.bgBright ?? 100) / 100})`);
-  if ((bd.bgContrast ?? 100) !== 100) p.push(`contrast(${(bd.bgContrast ?? 100) / 100})`);
-  if (bd.bgBlur) p.push(`blur(${bd.bgBlur}px)`);
-  return p.length ? p.join(" ") : undefined;
-}
+ *  grade lands before the haze.
+ *
+ *  The body moved to bigGlyphs.ts (round 73f) so the RENDERER can read it
+ *  too — a card's picture wears the same darkroom now, and bevel cannot
+ *  import this module without closing a cycle. Re-exported from here so
+ *  every caller that already knew where to find it still does. */
+export { boardBgFilter } from "./bigGlyphs";
 
 /** Seeded film grain, shared by the PNG compositor and the Unity bake —
  *  the same board always exports the same pixels. */
@@ -1485,6 +1623,10 @@ export async function importBoards(raw: unknown): Promise<boolean> {
   if (ticket !== importTicket) return false; // a newer open superseded this one
   useGen.setState({ boards, activeBoard: boards[0].id, boardSel: null, boardPast: [], boardFuture: [] });
   saveBoards(() => useGen.getState());
+  // arriving boards can name components the incoming document forgot to
+  // register (the Brightside boards place eight such copies) — see
+  // healCloneRegistry
+  healCloneRegistry();
   return true;
 }
 
@@ -1496,7 +1638,14 @@ export async function importBoards(raw: unknown): Promise<boolean> {
    broker — importBgAsset, the backdrop road verbatim. Guests keep a
    browser-local copy and the drawer's keep-safe line says so quietly;
    no hard gate, exactly like backdrop uploads. */
-export const USER_ASSET_CAP = 2 * 1024 * 1024;
+/* The per-file ceiling for a maker's own image. It was 2 MB, which was
+   sized for LOGOS — a small transparent wordmark. Round 73d put whole card
+   ILLUSTRATIONS through the same door and the owner hit the wall on their
+   third upload ("its not accepting a third picture"): a 1920px card art
+   lands at 3 MB after import quite normally. The account quota is the real
+   meter (server truth, 50 MB free); this is only a guard against an absurd
+   single file, so it sits where a card's art fits comfortably. */
+export const USER_ASSET_CAP = 8 * 1024 * 1024;
 export async function importUserAssetFile(file: File): Promise<{ ok: true; asset: UserAsset } | { ok: false; message: string }> {
   if (!/^image\/(png|jpeg|webp)$/.test(file.type)) {
     return { ok: false, message: "That file isn't an image this drawer takes — PNG (transparent PNGs shine here), JPG or WebP." };
@@ -1505,7 +1654,7 @@ export async function importUserAssetFile(file: File): Promise<{ ok: true; asset
   const { importBgAsset } = await import("./assets");
   const ship = await normalizeShipCopy(file);
   if (ship.size > USER_ASSET_CAP) {
-    return { ok: false, message: `That image is still ${(ship.size / 1048576).toFixed(1)} MB after import — logo uploads cap at 2 MB. Try a tighter export of it.` };
+    return { ok: false, message: `That image is still ${(ship.size / 1048576).toFixed(1)} MB after import, and one image caps at ${(USER_ASSET_CAP / 1048576).toFixed(0)} MB. Save it as a JPG or WebP, or export it smaller.` };
   }
   let w = 0, h = 0;
   try {
@@ -1622,6 +1771,30 @@ const mutateBoards = (get: BoardsGet, set: LooseSet, key: string | null, fn: (bs
 };
 const mutateItem = (get: BoardsGet, set: LooseSet, key: string, id: string, fn: (b: BoardItem) => BoardItem) =>
   mutateBoards(get, set, key, (bs) => bs.map((bd) => (bd.items.some((b) => b.id === id) ? { ...bd, items: bd.items.map((b) => (b.id === id ? fn(b) : b)) } : bd)));
+/** Point every frozen copy of one saved component at its live kit clone —
+ *  on every board, in one board-history step (⌘Z puts the bindings back).
+ *  Position, scale, rotation, opacity and layer order come across
+ *  untouched; only the identity changes. The kit-copy instance fields are
+ *  DROPPED on the way: a frozen copy's render never read words, value
+ *  pose, overlay, 9-slice stretch or a dialed shadow (all five are gated
+ *  on `kitId` at every render site and unreachable from the Inspector for
+ *  a saved piece), so anything sitting in one is inert today and would
+ *  surface as a visible change tomorrow. The clone carries the saved
+ *  piece's own words and pose instead. */
+const rebindSavedPlacements = (get: BoardsGet, set: LooseSet, libId: string, kitId: KitComponentId) => {
+  if (!get().boards.some((bd) => bd.items.some((x) => !x.kitId && x.libId === libId))) return;
+  mutateBoards(get, set, null, (bs) => bs.map((bd) => (
+    bd.items.some((x) => !x.kitId && x.libId === libId)
+      ? {
+        ...bd,
+        items: bd.items.map((x) => {
+          if (x.kitId || x.libId !== libId) return x;
+          const { label: _l, v: _v, ov: _o, stretch: _s, stretchY: _sy, shadow: _sh, ...rest } = x;
+          return { ...rest, libId: "", kitId };
+        }),
+      }
+      : bd)));
+};
 function loadBoards(): { boards: BoardDef[]; activeBoard: string } {
   const raw = loadJson<unknown>(BOARD_KEY, null);
   if (Array.isArray(raw)) {
@@ -1675,6 +1848,8 @@ const KIT_STORE_KEY: Record<string, string> = {
   kitDesigns: "ui-generator-kitdesigns",
   kitShapes: "ui-generator-kitshapes",
   kitIcons: "ui-generator-kiticons",
+  kitPics: "ui-generator-kitpics",
+  kitPicFx: "ui-generator-kitpicfx",
   kitLabels: "ui-generator-kitlabels",
   kitNoText: "ui-generator-kitnotext",
   kitSubs: "ui-generator-kitsubs",
@@ -1696,7 +1871,7 @@ const KIT_STORE_KEY: Record<string, string> = {
 /* kitSizes left this list with the M/L switch's retirement — the kit is
    documented and exported at L everywhere, so looks neither carry nor
    apply per-piece sizes any more. */
-const WS_MAPS = ["kitClones", "kitDesigns", "kitShapes", "kitIcons", "kitLabels", "kitNoText", "kitSubs", "kitTextFill", "kitTextOy", "kitTextOx", "kitBar", "kitSlotVals", "kitVals", "kitSlices"] as const;
+const WS_MAPS = ["kitClones", "kitDesigns", "kitShapes", "kitIcons", "kitPics", "kitPicFx", "kitLabels", "kitNoText", "kitSubs", "kitTextFill", "kitTextOy", "kitTextOx", "kitBar", "kitSlotVals", "kitVals", "kitSlices"] as const;
 
 /** The kit layer as it stands right now — what a publish attaches. */
 export function workspaceOf(s: Record<string, unknown>): Record<string, unknown> {
@@ -1727,6 +1902,19 @@ function applyWorkspace(ws: Record<string, unknown> | null): void {
   for (const k of WS_MAPS) {
     const v = ws?.[k];
     patch[k] = v && typeof v === "object" ? v : {};
+    /* THE CLONE REGISTRY IS A ROSTER, NOT A LOOK (round 73). It rode this
+       reset with the rest of the kit layer, so applying ANY look saved
+       without clones — a shelf preset, a starter, an older look of the
+       owner's own — deregistered every component they had duplicated or
+       saved to their assets. The forks still reset (a look restyles the
+       whole kit, clones included), but the components themselves survive:
+       a look may bring components WITH it, and it may never take yours
+       away. What the wipe cost, in the owner's own words: "there is even
+       an 'other' section in the kit for these items, not sure what
+       happened" — the section had emptied, their saved pieces stopped
+       being editable from the board, and eight orphaned copies still
+       stand on the shipped Brightside boards. */
+    if (k === "kitClones") patch[k] = { ...useGen.getState().kitClones, ...(patch[k] as Record<string, KitClone>) };
     // slot picks saved before the round-61 state grammar move to their
     // state-segmented seats (the kitDesigns migrate-on-apply precedent)
     if (k === "kitSlotVals") patch[k] = migrateKitSlotVals(patch[k] as GenStore["kitSlotVals"]).vals;
@@ -1737,6 +1925,54 @@ function applyWorkspace(ws: Record<string, unknown> | null): void {
   patch.kitRow = ws?.kitRow && typeof ws.kitRow === "object" ? { ...defaultRow(), ...ws.kitRow } : defaultRow();
   saveJson(KIT_STORE_KEY.kitRow, patch.kitRow);
   useGen.setState(patch as Partial<GenStore>);
+  healCloneRegistry();
+}
+
+/* ── The registry heal ────────────────────────────────────────────────
+   A clone id carries its own base ("copy-<mint4>-<base>", by design: "the
+   base recovers by slicing, no registry in hand"), so a placement whose
+   registry entry has gone missing is recoverable — and until it IS
+   recovered the piece is a ghost: it draws (renderKit reads baseOf), but
+   the kit page has no row for it, the Board's Inspector shows the base's
+   name instead of the owner's, the saved-components tile stops offering
+   Edit, and placing that saved component again lands a frozen copy with
+   no Edit component button at all. That is precisely the report this
+   round started from.
+
+   So: anything the document still REFERENCES gets its registration back —
+   board placements and the saved assets that point at a clone. The name
+   comes back from the saved asset when one names it (the owner's own
+   words for the piece); otherwise the component's own name stands in.
+   Registration is metadata: not one pixel moves. A clone nothing
+   references any more is not resurrected. */
+function healCloneRegistry(opts?: { boards?: { items?: BoardItem[] }[]; persist?: boolean }): number {
+  const st = useGen.getState();
+  const want = new Map<string, string | undefined>();
+  for (const bd of opts?.boards ?? st.boards) {
+    for (const b of bd?.items ?? []) if (b.kitId && isCloneId(b.kitId) && !st.kitClones[b.kitId]) want.set(b.kitId, undefined);
+  }
+  /* a saved asset names the clone it minted — the owner's own words for
+     the piece, worth more than the component's generic name, whether the
+     board placed it or not */
+  for (const l of st.library) {
+    if (l.cloneId && isCloneId(l.cloneId) && !st.kitClones[l.cloneId]) want.set(l.cloneId, l.name);
+  }
+  if (!want.size) return 0;
+  const kitClones = { ...st.kitClones };
+  const now = new Date().toISOString();
+  for (const [id, name] of want) {
+    const base = baseOf(id as KitPieceId);
+    const known = KIT_COMPONENTS.find((c) => c.id === base);
+    // an id whose base the kit no longer ships names nothing to register
+    if (!known) continue;
+    kitClones[id] = { base, name: name ?? known.name, kind: "Other", createdAt: now };
+  }
+  if (Object.keys(kitClones).length === Object.keys(st.kitClones).length) return 0;
+  useGen.setState({ kitClones });
+  // a VIEWER's heal is for the page they are looking at, never for their
+  // own workspace on disk
+  if (opts?.persist !== false) saveJson(KIT_STORE_KEY.kitClones, kitClones);
+  return want.size;
 }
 
 /* ── round 45 · B1 — the ONE look-switch door ───────────────────────────
@@ -1813,8 +2049,8 @@ function requestLook(name: string | null, families: string[], commit: () => void
   run();
 }
 
-type HistSnap = Pick<GenStore, "cfg" | "kitClones" | "kitDesigns" | "kitShapes" | "kitIcons" | "kitLabels" | "kitNoText" | "kitSubs" | "kitTextFill" | "kitTextOy" | "kitTextOx" | "kitBar" | "kitSlotVals" | "kitVals" | "kitSizes" | "kitRow" | "kitSlices">;
-const HIST_KEYS = ["cfg", "kitClones", "kitDesigns", "kitShapes", "kitIcons", "kitLabels", "kitNoText", "kitSubs", "kitTextFill", "kitTextOy", "kitTextOx", "kitBar", "kitSlotVals", "kitVals", "kitSizes", "kitRow", "kitSlices"] as const;
+type HistSnap = Pick<GenStore, "cfg" | "kitClones" | "kitDesigns" | "kitShapes" | "kitIcons" | "kitPics" | "kitPicFx" | "kitLabels" | "kitNoText" | "kitSubs" | "kitTextFill" | "kitTextOy" | "kitTextOx" | "kitBar" | "kitSlotVals" | "kitVals" | "kitSizes" | "kitRow" | "kitSlices">;
+const HIST_KEYS = ["cfg", "kitClones", "kitDesigns", "kitShapes", "kitIcons", "kitPics", "kitPicFx", "kitLabels", "kitNoText", "kitSubs", "kitTextFill", "kitTextOy", "kitTextOx", "kitBar", "kitSlotVals", "kitVals", "kitSizes", "kitRow", "kitSlices"] as const;
 const snapOf = (s: GenStore): HistSnap => Object.fromEntries(HIST_KEYS.map((k) => [k, s[k]])) as unknown as HistSnap;
 const past: HistSnap[] = [];
 const future: HistSnap[] = [];
@@ -2122,6 +2358,113 @@ export const useGen = create<GenStore>((set, get) => ({
         ? { ...bd, items: bd.items.map((x) => (x.id === id ? { ...x, kitId: cloneId as KitComponentId } : x)) }
         : bd)));
   },
+  /* ── Saved components join the kit ────────────────────────────────────
+     A saved component is SUPPOSED to be an ordinary kit piece — saving one
+     from the board mints a clone, files it under "Other", and rebinds the
+     board copy to it, which is why Edit component was there when the owner
+     last looked. Two things put a copy back on the frozen `libId` road,
+     where the Inspector has no Edit component and no Save to my assets:
+
+     · its clone was deregistered underneath it (a look apply used to wipe
+       the whole registry — fixed in applyWorkspace, and healCloneRegistry
+       puts the missing rows back), so the drawer stopped seeing a live
+       twin and started placing frozen copies again; and
+     · the oldest saves, made from the Kit page before any of this, never
+       had a clone at all.
+
+     This is the door back. When the saved item still points at a living
+     clone the copies simply rebind to it — nothing new is minted. When it
+     doesn't, a clone is minted the way the save road mints one, pinned to
+     the snapshot's look so the board does not move a pixel, and EVERY
+     placement of that saved item, on every board, rebinds to it: eight
+     copies of one saved piece were always one component, and they stay
+     one. From there it is an ordinary kit piece — editable, re-saveable,
+     and it rides `kitClones` into the kit document instead of dying at
+     the edge of this browser.
+
+     Nothing is deleted: the LibItem keeps its frozen cfg (the tombstone
+     the drawer falls back to if the clone is ever removed) and gains
+     `cloneId`, which is what turns its drawer tile live. The clone mint
+     is a kit-history step and the rebind a board-history step, exactly
+     like the save road — one ⌘Z on the board puts the binding back. */
+  promoteSavedToKit: (libId) => {
+    const st = get();
+    const item = st.library.find((l) => l.id === libId);
+    if (!item) return null;
+    /* the bridge the save road already built: a living twin needs no mint,
+       only the copies pointed at it */
+    if (item.cloneId && st.kitClones[item.cloneId]) {
+      rebindSavedPlacements(get, set, libId, item.cloneId as KitComponentId);
+      return item.cloneId as KitComponentId;
+    }
+    if (!savedPromotable(item)) return null;
+    const kit = item.kit!;
+    const base = kit.id;
+    const id = mintCloneId(base);
+    pushHistory(st);
+    const snap = item.cfg;
+    /* THE PIN — what the clone must hold so the board does not move, and
+       nothing more. The snapshot is diffed against TODAY'S master, exactly
+       the way a focused edit pins a fork (v70: forks stay sparse), so:
+       · every path where the frozen look departs from the kit is pinned
+         and keeps the piece looking as it was saved;
+       · every path where they already agree stays UNPINNED, so the piece
+         goes on following the kit — which is the whole point of coming
+         back into it, and what makes an untouched snapshot promote to an
+         empty fork that renders the same bytes.
+       State forks, state adjustments, the icon rig, idle motion and the
+       content margin pin the same way: only when they differ. (The dials
+       the fork grammar cannot hold — bar styling, the knob color, the
+       rarity table — are kit-wide and follow the kit from here. That IS
+       being live, and it is why promotion is a deliberate act and never a
+       silent migration.) */
+    const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+    const pin: KitDesign = {
+      ...(designDiff(pickDesign(st.cfg), pickDesign(snap)) ?? {}),
+      ...(same(snap.stateDesigns ?? {}, st.cfg.stateDesigns ?? {}) ? {} : { stateDesigns: snap.stateDesigns ?? {} }),
+      ...(same(snap.states, st.cfg.states) ? {} : { states: snap.states }),
+      ...(same(snap.icon, st.cfg.icon) ? {} : { icon: snap.icon }),
+      ...(snap.idle && !same({ wipe: !!snap.idle.wipe, edge: !!snap.idle.edge }, { wipe: !!st.cfg.idle?.wipe, edge: !!st.cfg.idle?.edge })
+        ? { idle: { wipe: !!snap.idle.wipe, edge: !!snap.idle.edge } } : {}),
+      ...(snap.contentMargin !== undefined && snap.contentMargin !== st.cfg.contentMargin
+        ? { contentMargin: snap.contentMargin } : {}),
+    };
+    /* THE WORDS. A saved snapshot renders with the label it pinned and
+       NOTHING else — so a pinned label (or a text-less save) comes across
+       verbatim, and a snapshot that pinned none keeps following the kit's
+       words like any live piece. The one case that would change the board
+       is a piece drawing the kit's specimen word when that word has moved
+       since the save: then the snapshot's own word is pinned instead. It
+       only pins when the frozen art really is showing it — a readout or a
+       counter draws its own text and must not be handed a button label
+       (owner-visible: a resource counter re-lettered with "Play"). The
+       words land on the CLONE (kitLabels), not on the board copies, so
+       editing the component's words still reaches every copy of it. */
+    let label = kit.label;
+    if (label === undefined && snap.content?.label && snap.content.label !== st.cfg.content?.label) {
+      try {
+        const art = renderKit(snap, base, effKitSize(kit.size), "default", kit.v, kit.shape);
+        if (art.toUpperCase().includes(snap.content.label.toUpperCase())) label = snap.content.label;
+      } catch { /* a piece that will not render keeps the kit's words */ }
+    }
+    const patch: Record<string, unknown> = {
+      kitClones: { ...st.kitClones, [id]: { base, name: item.name, kind: "Other", createdAt: new Date().toISOString() } },
+      kitDesigns: { ...st.kitDesigns, [id]: pin },
+      kitShapes: { ...st.kitShapes, [id]: kit.shape ?? snap.shape },
+      ...(label === "" ? { kitNoText: { ...st.kitNoText, [id]: true as const } }
+        : label !== undefined ? { kitLabels: { ...st.kitLabels, [id]: label } } : {}),
+      ...(kit.v !== undefined ? { kitVals: { ...st.kitVals, [id]: kit.v } } : {}),
+    };
+    set(patch as Partial<GenStore>);
+    markTouched();
+    for (const [k, sk] of Object.entries(KIT_STORE_KEY)) if (patch[k] !== undefined) saveJson(sk, patch[k]);
+    // the drawer tile goes live; the frozen snapshot stays put behind it
+    const library = get().library.map((l) => (l.id === libId ? { ...l, cloneId: id } : l));
+    saveJson(LIB_KEY, library);
+    set({ library });
+    rebindSavedPlacements(get, set, libId, id as KitComponentId);
+    return id as KitComponentId;
+  },
   addToBoard: (libId) => {
     const st = get();
     const item0 = st.library.find((l) => l.id === libId);
@@ -2343,6 +2686,8 @@ export const useGen = create<GenStore>((set, get) => ({
     set({ userAssets });
   },
   removeUserAsset: (id) => {
+    // no-kitassets: you can only delete from YOUR OWN drawer. A loaded
+    // kit's bundled art is the document's, not yours to throw away.
     const dead = get().userAssets.find((a) => a.id === id);
     const userAssets = get().userAssets.filter((a) => a.id !== id);
     saveJson(USERASSETS_KEY, userAssets);
@@ -2355,9 +2700,18 @@ export const useGen = create<GenStore>((set, get) => ({
     /* guest-vault bytes are single-owner like a legacy backdrop record —
        retire them unless another registry entry aliases the same ref;
        `asset://` bytes stay (shared by content, cloud GC is phase 2) */
+    /* a piece pointing at a deleted upload would draw nothing and offer no
+       way back (round 73d) — let the seats go with it, so the card falls
+       back to its icon and its own type instead of a hole */
+    const kitPics = { ...get().kitPics };
+    let dropped = false;
+    for (const key of Object.keys(kitPics)) if (kitPics[key] === id) { delete kitPics[key]; dropped = true; }
+    if (dropped) { saveJson("ui-generator-kitpics", kitPics); set({ kitPics }); }
     if (dead && !isAssetRef(dead.ref) && !userAssets.some((a) => a.ref === dead.ref)) void delBgOriginal(dead.ref);
   },
   addUserAssetToBoard: (aid) => {
+    // no-kitassets: this is the My-assets drawer's own "place it" button,
+    // and the drawer only ever lists userAssets.
     const ua = get().userAssets.find((a) => a.id === aid);
     if (!ua) return;
     // the big glyph's landing contract: centered, shrunk to fit the stage
@@ -2477,7 +2831,7 @@ export const useGen = create<GenStore>((set, get) => ({
     const st = get();
     return {
       v: 1, cfg: st.cfg, kitName: st.kitName, kitClones: st.kitClones, kitShapes: st.kitShapes, kitDesigns: st.kitDesigns,
-      kitTextFill: st.kitTextFill, kitLabels: st.kitLabels, kitNoText: st.kitNoText, kitSubs: st.kitSubs, kitIcons: st.kitIcons, kitSlotVals: st.kitSlotVals, kitVals: st.kitVals,
+      kitTextFill: st.kitTextFill, kitLabels: st.kitLabels, kitNoText: st.kitNoText, kitSubs: st.kitSubs, kitIcons: st.kitIcons, kitPics: st.kitPics, kitPicFx: st.kitPicFx, kitSlotVals: st.kitSlotVals, kitVals: st.kitVals,
       kitBar: st.kitBar, kitTextOy: st.kitTextOy, kitTextOx: st.kitTextOx, kitLocks: st.kitLocks,
       unitySlug: st.unitySlug, unityKitVer: st.unityKitVer,
       // the stage travels with the kit — only portable (data:) backdrops
@@ -2506,9 +2860,28 @@ export const useGen = create<GenStore>((set, get) => ({
       console.warn("UI Kit Maker: board backdrops exceed the project-document budget — layouts saved, backdrop images stay in this browser.");
       boards = boards.map((b) => { const o = { ...b }; delete o.bgData; return o; });
     }
-    return { ...st.kitPayload(), boards };
+    /* SAVED COMPONENTS ride with the boards that place them. A `libId`
+       copy resolves against the maker's LOCAL library, and the library
+       never travelled — so a shared kit, a second machine or a signed-out
+       visitor drew empty space exactly where the maker had placed a saved
+       piece (eight such copies sit on the Brightside Gameplay HUD board
+       to this day). Only the entries the boards actually reference go:
+       the whole drawer would bloat every project row for nothing, and
+       these are precisely the ones without which a board is incomplete.
+       Promoted saves need none of this — they are kit clones and ride
+       kitClones like any other piece. */
+    const used = new Set<string>();
+    for (const bd of st.boards) for (const it of bd.items) if (!it.kitId && it.libId) used.add(it.libId);
+    const library = st.library.filter((l) => used.has(l.id));
+    return { ...st.kitPayload(), boards, ...(library.length ? { library } : {}) };
   },
   loadKitPayload: (p, opts) => {
+    /* a kit arriving from a reload, a share link or the cloud speaks faces
+       in its SLOTS as well as its designs (round 73d) — load them all, or
+       a shared card's numerals wear the fallback for whoever opens it */
+    try {
+      void import("./fonts").then((m) => m.ensureDocFonts(p.cfg, p.kitDesigns, p.kitSlotVals));
+    } catch { /* a face that will not load just stays fallback */ }
     const st = get();
     const viewer = opts?.viewer ?? true;
     lookDeskSettled(); // a fresh document IS the saved state — look browsing won't ask
@@ -2530,6 +2903,8 @@ export const useGen = create<GenStore>((set, get) => ({
       kitNoText: (p.kitNoText as GenStore["kitNoText"]) ?? {},
       kitSubs: (p.kitSubs as GenStore["kitSubs"]) ?? {},
       kitIcons: (p.kitIcons as GenStore["kitIcons"]) ?? {},
+      kitPics: (p.kitPics as GenStore["kitPics"]) ?? {},
+      kitPicFx: (p.kitPicFx as GenStore["kitPicFx"]) ?? {},
       kitSlotVals: migrateKitSlotVals((p.kitSlotVals as GenStore["kitSlotVals"]) ?? {}).vals,
       kitVals: (p.kitVals as GenStore["kitVals"]) ?? {},
       // per-piece sizes in old payloads are ignored — the M/L switch is
@@ -2564,6 +2939,8 @@ export const useGen = create<GenStore>((set, get) => ({
       saveJson("ui-generator-kitvals", next.kitVals);
       saveJson("ui-generator-kitsubs", next.kitSubs);
       saveJson("ui-generator-kiticons", next.kitIcons);
+      saveJson("ui-generator-kitpics", next.kitPics);
+      saveJson("ui-generator-kitpicfx", next.kitPicFx);
       saveJson("ui-generator-kitbar", next.kitBar);
       saveJson("ui-generator-kittextoy", next.kitTextOy);
       saveJson("ui-generator-kittextox", next.kitTextOx);
@@ -2599,7 +2976,33 @@ export const useGen = create<GenStore>((set, get) => ({
        doc (review catch: cross-project contamination). Settings imports
        (no projectId) only replace when boards are present, and viewer /
        share links never touch the workspace boards at all. */
+    /* The saved components the travelling boards place (kitPayloadWithBoards)
+       — landed BEFORE the boards so the first paint already resolves them.
+       MERGE, never replace: an incoming entry lands only when its id is new,
+       so nothing the visitor saved is overwritten, renamed or dropped. A
+       viewer (share link, a shipped kit's public page) keeps them in memory
+       only — their own drawer on disk is untouched. */
+    const pLib = (p as { library?: unknown }).library;
+    if (Array.isArray(pLib) && pLib.length) {
+      const have = new Set(get().library.map((l) => l.id));
+      const add = (pLib as LibItem[]).filter((l) => !!l && typeof l === "object"
+        && typeof l.id === "string" && !have.has(l.id) && !!l.cfg && typeof l.cfg === "object");
+      if (add.length) set({ library: [...get().library, ...add] });
+      /* an OWNED open commits the shelf to disk — the whole merged shelf,
+         not just what this payload added, so a kit that was VIEWED first
+         (its entries merged in memory only) still has them on the next
+         reload rather than losing the pieces its boards place */
+      if (!viewer) saveJson(LIB_KEY, get().library);
+    }
     const pBoards = (p as { boards?: unknown[] }).boards;
+    /* a document can arrive naming components it never registered — the
+       shipped Brightside kit places ten clone copies and registers two.
+       An owned open heals when the boards land (importBoards); a VIEWER's
+       demo boards are drawn straight from the payload, so they are read
+       from there and the visitor's own workspace is left on disk. */
+    if (viewer && Array.isArray(pBoards) && pBoards.length) {
+      healCloneRegistry({ boards: pBoards as { items?: BoardItem[] }[], persist: false });
+    }
     if (!viewer && Array.isArray(pBoards) && pBoards.length) void importBoards(pBoards);
     else if (!viewer && opts?.projectId) {
       importTicket++; // supersede any in-flight board import
@@ -2729,7 +3132,7 @@ export const useGen = create<GenStore>((set, get) => ({
     };
     // the duplicate starts pixel-identical: every per-piece entry the
     // source carries copies over (a fork copy stays master-relative)
-    for (const k of ["kitDesigns", "kitShapes", "kitIcons", "kitLabels", "kitNoText", "kitSubs", "kitTextFill", "kitBar", "kitSlotVals", "kitVals", "kitSizes", "kitSlices"] as const) {
+    for (const k of ["kitDesigns", "kitShapes", "kitIcons", "kitPics", "kitPicFx", "kitLabels", "kitNoText", "kitSubs", "kitTextFill", "kitBar", "kitSlotVals", "kitVals", "kitSizes", "kitSlices"] as const) {
       const m = st[k] as Record<string, unknown>;
       if (m[source] !== undefined) patch[k] = { ...m, [id]: cp(m[source]) };
     }
@@ -2754,7 +3157,7 @@ export const useGen = create<GenStore>((set, get) => ({
     pushHistory(st);
     const drop = <T extends Record<string, unknown>>(m: T): T => { const n = { ...m }; delete n[id]; return n; };
     const patch: Record<string, unknown> = { kitClones: drop(st.kitClones as unknown as Record<string, unknown>) };
-    for (const k of ["kitDesigns", "kitShapes", "kitIcons", "kitLabels", "kitNoText", "kitSubs", "kitTextFill", "kitBar", "kitSlotVals", "kitVals", "kitSizes", "kitSlices"] as const) {
+    for (const k of ["kitDesigns", "kitShapes", "kitIcons", "kitPics", "kitPicFx", "kitLabels", "kitNoText", "kitSubs", "kitTextFill", "kitBar", "kitSlotVals", "kitVals", "kitSizes", "kitSlices"] as const) {
       if ((st[k] as Record<string, unknown>)[id] !== undefined) patch[k] = drop(st[k] as Record<string, unknown>);
     }
     const oy = { ...st.kitTextOy }, ox = { ...st.kitTextOx };
@@ -2827,6 +3230,22 @@ export const useGen = create<GenStore>((set, get) => ({
   /* v57: per-component icon swap — the override rides opts.icon everywhere
      the component draws a glyph (kit page, board, exports). */
   kitIcons: loadJson<Partial<Record<KitComponentId, IconDef | "none">>>("ui-generator-kiticons", {}),
+  kitPics: loadJson<Partial<Record<string, string>>>("ui-generator-kitpics", {}),
+  kitPicFx: loadJson<Partial<Record<string, PicSeatFx>>>("ui-generator-kitpicfx", {}),
+  assetTick: 0,
+  setKitPicFx: (id, seat, patch) => {
+    const k = seat ? `${id}:${seat}` : String(id);
+    const kitPicFx = { ...get().kitPicFx, [k]: { ...(get().kitPicFx[k] ?? {}), ...patch } };
+    saveJson("ui-generator-kitpicfx", kitPicFx);
+    set({ kitPicFx });
+  },
+  setKitPic: (id, aid, seat) => {
+    const kitPics = { ...get().kitPics };
+    const k = seat ? `${id}:${seat}` : String(id);
+    if (aid) kitPics[k] = aid; else delete kitPics[k];
+    saveJson("ui-generator-kitpics", kitPics);
+    set({ kitPics });
+  },
   setKitIcon: (id, def) => {
     if (get().kitLocks[id]) return; // finished pieces don't move
     markTouched();
@@ -2856,6 +3275,12 @@ export const useGen = create<GenStore>((set, get) => ({
     set({ kitSlices });
   },
   setKitSlot: (id, slotId, val) => {
+    /* a slot that NAMES A FACE loads it the moment it is picked (round 73d
+       — the card's corner numerals). Without this the pick is stored, the
+       renderer asks for a family the page has never fetched, and the
+       numerals sit in the fallback until something else happens to load
+       it: a dead-looking control that is really just an unfetched font. */
+    if (/font$/i.test(slotId) && val && val !== "Kit font") { try { ensureFont(val); } catch { /* stays fallback */ } }
     /* a lock freezes the LOOK, not the words — slot DATA stays editable on a
        finished piece (owner: "I need to input data into the input fields").
        Color and dial slots are look, so they stay frozen with the rest.
@@ -3762,6 +4187,12 @@ export const useGen = create<GenStore>((set, get) => ({
     window.location.reload();
   },
 }));
+
+/* Any component the boards or the saved assets still use gets its registry
+   row back before anything reads the document (see healCloneRegistry) —
+   the workspace that boots here may have been through a look apply that
+   deregistered them. */
+healCloneRegistry();
 
 // kick off the site-default fetch once the store exists
 fetchSiteDefault();
