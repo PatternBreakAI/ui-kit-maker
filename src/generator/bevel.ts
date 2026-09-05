@@ -10021,12 +10021,21 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
          logo will cover up the bottom part of the raster inserted image". */
       const logoBase = 30 + h - 52 * k;
       const logoSizeK = ({ Small: 0.74, Large: 1.24, Huge: 1.5 } as Record<string, number>)[String(slF.logosize ?? "")] ?? 1;
+      const logoPic = opts.logo;
+      /* NO LOGO AT ALL is a real answer (owner: "need the option of no
+         logo (as it might be added later in boards)") — the No text
+         toggle empties the label, and with no uploaded wordmark either
+         the whole band stands down, vignette included. A darkening over
+         the art with nothing in it would be a container for nothing,
+         which is the one thing the owner ruled out here. */
+      const logoOff = !logoPic && opts.label === "";
       /* the VIGNETTE first (not a plate: the owner asked for no container)
          — it darkens the ground under whatever the logo turns out to be,
          so a wordmark reads over any picture the maker drops in */
-      partsF += `<ellipse cx="${(39 + w / 2).toFixed(1)}" cy="${logoBase.toFixed(1)}" rx="${(w * 0.5).toFixed(1)}" ry="${(38 * k * logoSizeK).toFixed(1)}" fill="url(#${gid}v)" opacity="${dimF}"/>`;
-      const logoPic = opts.logo;
-      if (logoPic) {
+      if (!logoOff) partsF += `<ellipse cx="${(39 + w / 2).toFixed(1)}" cy="${logoBase.toFixed(1)}" rx="${(w * 0.5).toFixed(1)}" ry="${(38 * k * logoSizeK).toFixed(1)}" fill="url(#${gid}v)" opacity="${dimF}"/>`;
+      if (logoOff) {
+        // nothing: the foot of the art is left clear for a board stamp
+      } else if (logoPic) {
         /* ROAD ONE — the maker's own wordmark. It fits INSIDE the logo
            band keeping its aspect (a logo squashed to fit is a logo
            ruined), and it is marked ink like every other picture, so a

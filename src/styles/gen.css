@@ -3431,3 +3431,10 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
   .kp-cardmodal { animation: none; }
   .kp-cmcard { transition: none; }
 }
+
+/* the piece's own picture row (round 73d) — one thumb and its name, not a
+   library: the drawer of every upload lives in Boards */
+.picrow { display: flex; align-items: center; gap: 8px; margin: 6px 0 7px;
+  padding: 6px 8px; border-radius: 9px; border: 1px solid rgba(127, 127, 127, .22); }
+.picrow img { max-height: 40px; margin: 0 !important; }
+.picname { font-size: 11px; opacity: .72; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

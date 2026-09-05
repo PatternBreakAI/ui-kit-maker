@@ -3337,23 +3337,39 @@ function KitPicThumb({ refId, alt }: { refId: string; alt: string }) {
     : <span aria-hidden="true" style={{ display: "block", width: 30, height: 30, borderRadius: 6, background: "rgba(127,127,127,0.18)", margin: "0 auto" }} />;
 }
 
+/* ONE picture, the one this piece is wearing (owner, round 73d: "I never
+   need to see more than one image there just whatever has been most
+   recently uploaded, then I also need to be able to delete that so there's
+   no image and it goes back to the icon or not"). No library grid: the
+   drawer of every upload lives in Boards, where browsing is the point.
+   Here there is one decision, so there is one picture and one Remove. */
 function KitPicControl({ id, seat }: { id: KitComponentId; seat?: string }) {
   const { kitPics, setKitPic, userAssets, kitAssets } = useGen();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const chosen = kitPics[seat ? `${id}:${seat}` : String(id)];
+  const key = seat ? `${id}:${seat}` : String(id);
+  const chosen = kitPics[key];
   const isLogo = seat === "logo";
-  const pool = [...userAssets, ...kitAssets.filter((k) => !userAssets.some((u) => u.id === k.id))];
+  const asset = chosen
+    ? (userAssets.find((a) => a.id === chosen) ?? kitAssets.find((a) => a.id === chosen) ?? null)
+    : null;
   return (
     <div>
       <div className="sublabel">{isLogo ? "Logo" : "Picture"}</div>
       <div className="helper">
         {isLogo
-          ? "Your own wordmark, sitting over the foot of the art. It keeps its shape inside the logo band, never squashed. Leave it empty and the card's name is drawn in the kit's own type instead, which you size and break below."
-          : "Your own art fills this piece. It travels to Unity as a swappable image, so a developer can drop a different picture in without coming back here."}
+          ? "Your own wordmark, over the foot of the art. It keeps its shape in the logo band, never squashed. With none here the card's name is drawn in the kit's own type, sized and broken below; turn No text on as well and the card carries no logo at all, ready for one stamped on in Boards."
+          : "Your own art fills this piece, and travels to Unity as a swappable image. Remove it and the piece goes back to its icon."}
       </div>
+      {asset && (
+        <div className="picrow">
+          <KitPicThumb refId={asset.ref} alt={asset.name} />
+          <span className="picname" title={asset.name}>{asset.name}</span>
+        </div>
+      )}
       <label className="ghostbtn" style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: busy ? "wait" : "pointer" }}>
-        <Upload size={13} strokeWidth={2.2} /> {busy ? "Adding…" : isLogo ? "Upload a logo" : "Upload a picture"}
+        <Upload size={13} strokeWidth={2.2} />
+        {busy ? "Adding…" : asset ? "Replace" : isLogo ? "Upload a logo" : "Upload a picture"}
         <input type="file" accept="image/png,image/jpeg,image/webp" hidden disabled={busy}
           onChange={(e) => {
             const f = e.target.files?.[0];
@@ -3367,24 +3383,13 @@ function KitPicControl({ id, seat }: { id: KitComponentId; seat?: string }) {
           }} />
       </label>
       {chosen && (
-        <button className="ghostbtn" style={{ marginLeft: 6 }} onClick={() => setKitPic(id, "", seat)}>
-          <X size={13} strokeWidth={2.2} /> Remove
+        <button className="ghostbtn" style={{ marginLeft: 6 }}
+          title={isLogo ? "Take the wordmark off — the card's name goes back to the kit's type" : "Take the picture off — the piece goes back to its icon"}
+          onClick={() => setKitPic(id, "", seat)}>
+          <Trash2 size={13} strokeWidth={2.2} /> Remove
         </button>
       )}
       {err && <div className="helper" role="alert"><AlertTriangle size={11} strokeWidth={2.2} /> {err}</div>}
-      {pool.length > 0 && (
-        <div className="icongrid" style={{ marginTop: 6 }}>
-          {pool.map((a) => (
-            <button key={a.id} className={chosen === a.id ? "on" : ""} title={a.name}
-              onClick={() => setKitPic(id, chosen === a.id ? "" : a.id, seat)}>
-              <KitPicThumb refId={a.ref} alt={a.name} />
-            </button>
-          ))}
-        </div>
-      )}
-      {!pool.length && !chosen && (
-        <div className="helper">Nothing in your assets yet. Upload one and it will be here for every card you make.</div>
-      )}
     </div>
   );
 }

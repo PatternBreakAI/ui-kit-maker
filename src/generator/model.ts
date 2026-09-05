@@ -2190,7 +2190,13 @@ export const KIT_LABEL_EDITABLE = new Set<KitComponentId>([
    wordless tab is a real pattern (icon tabs, spacer tabs); a wordless
    primary button is usually a mistake. NOTE: there is no small-tab
    component — `small` is button-small; the tab family is tab + tabback. */
-export const NO_TEXT_ELIGIBLE = new Set<KitComponentId>(["tab", "tabback"]);
+export const NO_TEXT_ELIGIBLE = new Set<KitComponentId>(["tab", "tabback",
+  /* the card face joins them (owner, round 73d: "need the option of no
+     logo (as it might be added later in boards)"). A card whose wordmark
+     is going to be stamped on in Boards must be able to ship without one
+     here, and with no logo the band's vignette goes too — an empty
+     darkening over the art would be a container for nothing. */
+  "cardface"]);
 
 /* Pieces that can carry A MAKER'S OWN PICTURE (round 73 — the owner:
    "the card face should default to an icon BUT you can upload an image

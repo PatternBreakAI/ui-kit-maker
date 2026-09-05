@@ -662,6 +662,13 @@ interface GenStore {
   kitPics: Partial<Record<string, string>>;
   /** Point a seat at one of the maker's uploads (or clear it with ""). */
   setKitPic: (id: KitComponentId, aid: string, seat?: string) => void;
+  /** Bumped whenever a maker's picture finishes resolving to real bytes.
+   *  Renderers are synchronous, so the first paint of a piece carrying an
+   *  upload draws its fallback; without a signal that the bytes landed,
+   *  NOTHING re-renders and the fallback is what the maker keeps looking
+   *  at (owner, round 73d: "uploaded picture not showing up"). Anything
+   *  subscribed to the store re-renders when this moves. */
+  assetTick: number;
   setKitIcon: (id: KitComponentId, def: IconDef | "none" | null) => void;
   /** Per-component label override — null restores the specimen text. */
   kitLabels: Partial<Record<KitComponentId, string>>;
@@ -1055,7 +1062,14 @@ export function kitPicOf(
   const ua = (st.userAssets ?? []).find((a) => a.id === aid) ?? (st.kitAssets ?? []).find((a) => a.id === aid);
   if (!ua) return null;
   const href = assetUrlNow(ua.ref);
-  if (!href) { warmAssetUrl(ua.ref); return null; }
+  if (!href) {
+    /* the bytes are not here YET — warm them and ask the app to paint
+       again when they arrive, or this piece shows its fallback forever */
+    warmAssetUrl(ua.ref, () => {
+      try { useGen.setState({ assetTick: useGen.getState().assetTick + 1 }); } catch { /* store not up yet */ }
+    });
+    return null;
+  }
   return { href, w: ua.w, h: ua.h };
 }
 export function boardItemArtShort(st: BoardArtSrc, b: BoardItem): number | undefined {
@@ -1567,7 +1581,14 @@ export async function importBoards(raw: unknown): Promise<boolean> {
    broker — importBgAsset, the backdrop road verbatim. Guests keep a
    browser-local copy and the drawer's keep-safe line says so quietly;
    no hard gate, exactly like backdrop uploads. */
-export const USER_ASSET_CAP = 2 * 1024 * 1024;
+/* The per-file ceiling for a maker's own image. It was 2 MB, which was
+   sized for LOGOS — a small transparent wordmark. Round 73d put whole card
+   ILLUSTRATIONS through the same door and the owner hit the wall on their
+   third upload ("its not accepting a third picture"): a 1920px card art
+   lands at 3 MB after import quite normally. The account quota is the real
+   meter (server truth, 50 MB free); this is only a guard against an absurd
+   single file, so it sits where a card's art fits comfortably. */
+export const USER_ASSET_CAP = 8 * 1024 * 1024;
 export async function importUserAssetFile(file: File): Promise<{ ok: true; asset: UserAsset } | { ok: false; message: string }> {
   if (!/^image\/(png|jpeg|webp)$/.test(file.type)) {
     return { ok: false, message: "That file isn't an image this drawer takes — PNG (transparent PNGs shine here), JPG or WebP." };
@@ -1576,7 +1597,7 @@ export async function importUserAssetFile(file: File): Promise<{ ok: true; asset
   const { importBgAsset } = await import("./assets");
   const ship = await normalizeShipCopy(file);
   if (ship.size > USER_ASSET_CAP) {
-    return { ok: false, message: `That image is still ${(ship.size / 1048576).toFixed(1)} MB after import — logo uploads cap at 2 MB. Try a tighter export of it.` };
+    return { ok: false, message: `That image is still ${(ship.size / 1048576).toFixed(1)} MB after import, and one image caps at ${(USER_ASSET_CAP / 1048576).toFixed(0)} MB. Save it as a JPG or WebP, or export it smaller.` };
   }
   let w = 0, h = 0;
   try {
@@ -2619,6 +2640,13 @@ export const useGen = create<GenStore>((set, get) => ({
     /* guest-vault bytes are single-owner like a legacy backdrop record —
        retire them unless another registry entry aliases the same ref;
        `asset://` bytes stay (shared by content, cloud GC is phase 2) */
+    /* a piece pointing at a deleted upload would draw nothing and offer no
+       way back (round 73d) — let the seats go with it, so the card falls
+       back to its icon and its own type instead of a hole */
+    const kitPics = { ...get().kitPics };
+    let dropped = false;
+    for (const key of Object.keys(kitPics)) if (kitPics[key] === id) { delete kitPics[key]; dropped = true; }
+    if (dropped) { saveJson("ui-generator-kitpics", kitPics); set({ kitPics }); }
     if (dead && !isAssetRef(dead.ref) && !userAssets.some((a) => a.ref === dead.ref)) void delBgOriginal(dead.ref);
   },
   addUserAssetToBoard: (aid) => {
@@ -3133,6 +3161,7 @@ export const useGen = create<GenStore>((set, get) => ({
      the component draws a glyph (kit page, board, exports). */
   kitIcons: loadJson<Partial<Record<KitComponentId, IconDef | "none">>>("ui-generator-kiticons", {}),
   kitPics: loadJson<Partial<Record<string, string>>>("ui-generator-kitpics", {}),
+  assetTick: 0,
   setKitPic: (id, aid, seat) => {
     const kitPics = { ...get().kitPics };
     const k = seat ? `${id}:${seat}` : String(id);
