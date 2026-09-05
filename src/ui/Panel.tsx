@@ -7,7 +7,7 @@ import { useGen, importUserAssetFile } from "@/generator/store";
 import { bgAssetDisplayUrl } from "@/generator/assets";
 import { t } from "@/shell/i18n";
 import { LessonBody } from "./LessonCard";
-import { PRESETS, KIT_SLOTS, KIT_STATE_POSES, stateSlotKey, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, GLINT_STYLES, defaultStates, applyKitDesign, applyKitTextFill, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, designDiff, mergeKitDesign, iconRigDiff, baseShape, isFlipShape, flipShape, labelMaxOf, groupOf, ctaForFont, ctaEntry, fontLang, KIT_SLICEABLE, KIT_LABEL_EDITABLE, NO_TEXT_ELIGIBLE, PIC_ELIGIBLE, EDGE_SHINE_DEAF, baseOf, isCloneId, CLONE_KINDS, CLONE_INELIGIBLE, isGlyphButton, resolveKitIcon } from "@/generator/model";
+import { PRESETS, KIT_SLOTS, KIT_STATE_POSES, stateSlotKey, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, GLINT_STYLES, defaultStates, applyKitDesign, applyKitTextFill, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, designDiff, mergeKitDesign, iconRigDiff, baseShape, isFlipShape, flipShape, labelMaxOf, groupOf, ctaForFont, ctaEntry, fontLang, KIT_SLICEABLE, KIT_LABEL_EDITABLE, NO_TEXT_ELIGIBLE, PIC_ELIGIBLE, LOGO_ELIGIBLE, EDGE_SHINE_DEAF, baseOf, isCloneId, CLONE_KINDS, CLONE_INELIGIBLE, isGlyphButton, resolveKitIcon } from "@/generator/model";
 import type { KitSlice, SlotDef } from "@/generator/model";
 import type { GenStateName, BlendMode, GlintStyle, PatternType, KitComponentId, KitDesign, Shape  } from "@/generator/model";
 import { ICON_LIBS, loadLib, libLoaded, searchLib, getDef, previewSvg } from "@/generator/icons";
@@ -2072,6 +2072,11 @@ export function Panel() {
               only on pieces that can actually hold a picture — elsewhere
               the control would be a dead affordance. ── */}
           {PIC_ELIGIBLE.has(baseOf(focus)) && <KitPicControl id={focus} />}
+          {/* the card's LOGO seat is its own picture (round 73d): the art
+              is what the card shows, the logo is who made it, and they are
+              swapped independently. Its absence is not a gap — the kit's
+              own type draws the name instead, which is road three. */}
+          {LOGO_ELIGIBLE.has(baseOf(focus)) && <KitPicControl id={focus} seat="logo" />}
           {(KIT_SLOTS[baseOf(focus)] ?? []).some((sl) => sl.kind === "free" && (!sl.state || (kitOverlay ?? null) === sl.state)) && (
             <div className="slotgrid">
               {(KIT_SLOTS[baseOf(focus)] ?? []).filter((sl) => sl.kind === "free" && (!sl.state || (kitOverlay ?? null) === sl.state)).map((slot) => (
@@ -3332,21 +3337,23 @@ function KitPicThumb({ refId, alt }: { refId: string; alt: string }) {
     : <span aria-hidden="true" style={{ display: "block", width: 30, height: 30, borderRadius: 6, background: "rgba(127,127,127,0.18)", margin: "0 auto" }} />;
 }
 
-function KitPicControl({ id }: { id: KitComponentId }) {
+function KitPicControl({ id, seat }: { id: KitComponentId; seat?: string }) {
   const { kitPics, setKitPic, userAssets, kitAssets } = useGen();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const chosen = kitPics[id];
+  const chosen = kitPics[seat ? `${id}:${seat}` : String(id)];
+  const isLogo = seat === "logo";
   const pool = [...userAssets, ...kitAssets.filter((k) => !userAssets.some((u) => u.id === k.id))];
   return (
     <div>
-      <div className="sublabel">Picture</div>
+      <div className="sublabel">{isLogo ? "Logo" : "Picture"}</div>
       <div className="helper">
-        Your own art fills this piece. It travels to Unity as a swappable image, so a developer can
-        drop a different picture in without coming back here.
+        {isLogo
+          ? "Your own wordmark, sitting over the foot of the art. It keeps its shape inside the logo band, never squashed. Leave it empty and the card's name is drawn in the kit's own type instead, which you size and break below."
+          : "Your own art fills this piece. It travels to Unity as a swappable image, so a developer can drop a different picture in without coming back here."}
       </div>
       <label className="ghostbtn" style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: busy ? "wait" : "pointer" }}>
-        <Upload size={13} strokeWidth={2.2} /> {busy ? "Adding…" : "Upload a picture"}
+        <Upload size={13} strokeWidth={2.2} /> {busy ? "Adding…" : isLogo ? "Upload a logo" : "Upload a picture"}
         <input type="file" accept="image/png,image/jpeg,image/webp" hidden disabled={busy}
           onChange={(e) => {
             const f = e.target.files?.[0];
@@ -3355,12 +3362,12 @@ function KitPicControl({ id }: { id: KitComponentId }) {
             setBusy(true); setErr(null);
             void importUserAssetFile(f).then((r) => {
               setBusy(false);
-              if (r.ok) setKitPic(id, r.asset.id); else setErr(r.message);
+              if (r.ok) setKitPic(id, r.asset.id, seat); else setErr(r.message);
             }).catch(() => { setBusy(false); setErr("That image could not be read."); });
           }} />
       </label>
       {chosen && (
-        <button className="ghostbtn" style={{ marginLeft: 6 }} onClick={() => setKitPic(id, "")}>
+        <button className="ghostbtn" style={{ marginLeft: 6 }} onClick={() => setKitPic(id, "", seat)}>
           <X size={13} strokeWidth={2.2} /> Remove
         </button>
       )}
@@ -3369,7 +3376,7 @@ function KitPicControl({ id }: { id: KitComponentId }) {
         <div className="icongrid" style={{ marginTop: 6 }}>
           {pool.map((a) => (
             <button key={a.id} className={chosen === a.id ? "on" : ""} title={a.name}
-              onClick={() => setKitPic(id, chosen === a.id ? "" : a.id)}>
+              onClick={() => setKitPic(id, chosen === a.id ? "" : a.id, seat)}>
               <KitPicThumb refId={a.ref} alt={a.name} />
             </button>
           ))}

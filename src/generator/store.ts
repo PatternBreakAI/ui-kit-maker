@@ -646,9 +646,14 @@ interface GenStore {
    *  id; the pixels stay in the vault or the account bucket, never in the
    *  doc (the fat-pixel rule the backdrops already keep). A piece with no
    *  row here draws its icon, which is the fallback, not an error. */
-  kitPics: Partial<Record<KitComponentId, string>>;
-  /** Point a piece at one of the maker's uploads (or clear it with ""). */
-  setKitPic: (id: KitComponentId, aid: string) => void;
+  /*  KEYED BY SEAT (round 73d): a piece can hold more than one picture —
+   *  the card face carries its ART and, separately, its LOGO. The plain
+   *  component id is the piece's main picture; `<id>:<seat>` is a named
+   *  one. Keeping this a flat string map means a new picture seat costs a
+   *  key, not another store field with its own persistence and history. */
+  kitPics: Partial<Record<string, string>>;
+  /** Point a seat at one of the maker's uploads (or clear it with ""). */
+  setKitPic: (id: KitComponentId, aid: string, seat?: string) => void;
   setKitIcon: (id: KitComponentId, def: IconDef | "none" | null) => void;
   /** Per-component label override — null restores the specimen text. */
   kitLabels: Partial<Record<KitComponentId, string>>;
@@ -1011,9 +1016,13 @@ export type BoardArtSrc = Pick<GenStore, "cfg" | "kitDesigns" | "kitTextFill" | 
 export function kitPicOf(
   st: { kitPics: GenStore["kitPics"]; userAssets?: UserAsset[]; kitAssets?: UserAsset[] },
   id: KitComponentId | undefined,
+  /** a NAMED picture seat on the piece ("logo"); absent = its main art */
+  seat?: string,
 ): { href: string; w: number; h: number } | null {
   if (!id) return null;
-  const aid = st.kitPics?.[id] ?? st.kitPics?.[baseOf(id) as KitComponentId];
+  const key = seat ? `${id}:${seat}` : String(id);
+  const baseKey = seat ? `${baseOf(id)}:${seat}` : String(baseOf(id));
+  const aid = st.kitPics?.[key] ?? st.kitPics?.[baseKey];
   if (!aid) return null;
   const ua = (st.userAssets ?? []).find((a) => a.id === aid) ?? (st.kitAssets ?? []).find((a) => a.id === aid);
   if (!ua) return null;
@@ -1029,6 +1038,7 @@ export function boardItemArtShort(st: BoardArtSrc, b: BoardItem): number | undef
       return artShortOf(renderKit(pc, base, size, "default", b.v ?? st.kitVals[b.kitId], st.kitShapes[b.kitId], {
         icon: resolveKitIcon(st.kitIcons[b.kitId], undefined),
         pic: kitPicOf(st, b.kitId),
+        logo: kitPicOf(st, b.kitId, "logo"),
         label: st.kitNoText[b.kitId] ? "" : (b.label ?? st.kitLabels[b.kitId]),
         slots: st.kitSlotVals[b.kitId], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
       }));
@@ -2859,10 +2869,11 @@ export const useGen = create<GenStore>((set, get) => ({
   /* v57: per-component icon swap — the override rides opts.icon everywhere
      the component draws a glyph (kit page, board, exports). */
   kitIcons: loadJson<Partial<Record<KitComponentId, IconDef | "none">>>("ui-generator-kiticons", {}),
-  kitPics: loadJson<Partial<Record<KitComponentId, string>>>("ui-generator-kitpics", {}),
-  setKitPic: (id, aid) => {
+  kitPics: loadJson<Partial<Record<string, string>>>("ui-generator-kitpics", {}),
+  setKitPic: (id, aid, seat) => {
     const kitPics = { ...get().kitPics };
-    if (aid) kitPics[id] = aid; else delete kitPics[id];
+    const k = seat ? `${id}:${seat}` : String(id);
+    if (aid) kitPics[k] = aid; else delete kitPics[k];
     saveJson("ui-generator-kitpics", kitPics);
     set({ kitPics });
   },

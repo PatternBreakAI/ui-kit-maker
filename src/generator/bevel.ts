@@ -273,6 +273,22 @@ function roundRect(x: number, y: number, w: number, h: number, r: number): strin
    canvas never moving. Names are the owner's where they gave one.
    The "upside down circle" is a DOME: flat on top, round below — the shape
    a cost gem takes when it hangs off a frame's edge. ── */
+/* ── CARDS ARE FLAT (owner, round 73d: "card backs and fronts should
+   default to 1% extrusion"). A playing card has no depth to speak of, so
+   the card family starts flat while every other piece keeps the kit's own
+   extrusion. This is a DEFAULT, not a lock: it only applies while the
+   depth dial is still sitting on the app's factory value, so the moment a
+   maker (or their look) moves extrusion, their number is what renders.
+   The one cost of reading it this way is that deliberately dialling a card
+   back TO the factory 15 lands on 1 instead — which is why the rule is
+   written here in the open rather than hidden in a merge. */
+const FACTORY_EXTRUSION_DEPTH = 15;
+function flatCardCfg(cfg: GenConfig): GenConfig {
+  const d = cfg.candy?.extrusion?.depth;
+  if (d !== FACTORY_EXTRUSION_DEPTH) return cfg;
+  return { ...cfg, candy: { ...cfg.candy, extrusion: { ...cfg.candy.extrusion, depth: 1 } } };
+}
+
 function cardCornerPath(kind: string, cx: number, cy: number, r: number): string {
   const p = (pts: number[][]) => `M ${pts.map(([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`).join(" L ")} Z`;
   switch (kind) {
@@ -4568,6 +4584,10 @@ export interface KitOpts {
    *  COVER-fit it without squashing. Per-copy content, never a new
    *  component: this is what lets one card design carry a whole set. */
   pic?: { href: string; w: number; h: number } | null;
+  /** A maker's own WORDMARK for a piece's logo seat (round 73d) — the
+   *  card face's bottom band. Resolved by the caller exactly like `pic`;
+   *  absent means the logo is drawn from the kit's own type instead. */
+  logo?: { href: string; w: number; h: number } | null;
   /** Container variant for panels — circle, oval, dialogue strip. */
   kind?: "circle" | "oval" | "strip";
   /** Horizontal 9-slice stretch for the bar family (slider, progress,
@@ -9808,7 +9828,7 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
          and the set emblem floats on its own radial glow. opts.label turns
          the back into a deck cover — the nameplate rides the bottom rail. */
       const w = 300 * k, h = 420 * k;
-      const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 430 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const track = build(flatCardCfg(cfg), state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 430 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const gid = "cb" + UID++;
       const frameP = wellOf(w, h, bw + 12 * k);
       const cxC = 39 + w / 2, cyC = 30 + h * (opts.label ? 0.44 : 0.5);
@@ -9868,7 +9888,7 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
          (the boostercard grammar), and the name is a text seat. No word,
          icon or image is baked into this art. */
       const w = 300 * k, h = 420 * k;
-      const track = build(cfg, state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 430 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
+      const track = build(flatCardCfg(cfg), state, { x: 39, y: 30, h, fs: 0, iconSize: 0, tokenH: 430 }, { iconDef: null, label: "", fixedW: w, shapeOverride: sov });
       const gid = "cf" + UID++;
       const slF = opts.slots ?? {};
       const dimF = state === "disabled" ? 0.45 : 1;
@@ -9988,21 +10008,73 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
          word, and it is a live seat in the export. */
       /* the name rides the FOOT of the picture now that the picture is
          the whole card — the owner's own framing: "the text logo will
-         cover up the bottom part of the raster inserted image" */
-      const nameY = 30 + h - 52 * k;
-      /* the name SHRINKS TO FIT rather than running off the card (the
-         owner's own rule for the claim button's ribbon: grow the plate, or
-         shrink the words). There is no plate here to grow, so the type
-         gives way — down to 62% and no further, because past that a card
-         name stops being readable and the honest answer is a shorter name. */
-      const nameLen = (opts.label ?? "CARD NAME").length;
-      const nameFs = 33 * k * typeK * clamp((w * 0.88) / Math.max(1, nameLen * 33 * k * typeK * 0.56), 0.62, 1);
-      /* the word straddles the well's foot, so half of it lands on the
-         card's own bright face — a VIGNETTE (not a plate: the owner asked
-         for no container) darkens the ground under it on both sides of
-         that edge, so the name reads whatever the picture and the kit do */
-      partsF += `<ellipse cx="${(39 + w / 2).toFixed(1)}" cy="${nameY.toFixed(1)}" rx="${(w * 0.5).toFixed(1)}" ry="${(34 * k).toFixed(1)}" fill="url(#${gid}v)" opacity="${dimF}"/>`;
-      partsF += `<g data-part="label">${contentText(opts.label ?? "CARD NAME", 39 + w / 2, nameY, nameFs, { anchor: "middle", keepCase: true, track: 1, opacity: dimF, autoInk: "#FFFFFF" })}</g>`;
+      /* ── THE LOGO AREA (round 73d). The owner named three roads into it:
+         "the user can add a logo by uploading an image of their own or by
+         manipulating type stamps in boards... or the third way is to just
+         add the look's text style in the editor with some controls for
+         sizing and lines (what appears on which line of text)".
+         Road two is the board's own stamps and needs nothing here. Road
+         one is an uploaded wordmark, which wins when it is present. Road
+         three is this: the card's words in the kit's own type, broken
+         across the lines the maker asks for, at the size they pick. It
+         rides the FOOT of the picture, the owner's own framing: "the text
+         logo will cover up the bottom part of the raster inserted image". */
+      const logoBase = 30 + h - 52 * k;
+      const logoSizeK = ({ Small: 0.74, Large: 1.24, Huge: 1.5 } as Record<string, number>)[String(slF.logosize ?? "")] ?? 1;
+      /* the VIGNETTE first (not a plate: the owner asked for no container)
+         — it darkens the ground under whatever the logo turns out to be,
+         so a wordmark reads over any picture the maker drops in */
+      partsF += `<ellipse cx="${(39 + w / 2).toFixed(1)}" cy="${logoBase.toFixed(1)}" rx="${(w * 0.5).toFixed(1)}" ry="${(38 * k * logoSizeK).toFixed(1)}" fill="url(#${gid}v)" opacity="${dimF}"/>`;
+      const logoPic = opts.logo;
+      if (logoPic) {
+        /* ROAD ONE — the maker's own wordmark. It fits INSIDE the logo
+           band keeping its aspect (a logo squashed to fit is a logo
+           ruined), and it is marked ink like every other picture, so a
+           developer swaps the sprite without coming back here. */
+        const bandW = w * 0.82, bandH = 74 * k * logoSizeK;
+        const scL = Math.min(bandW / Math.max(1, logoPic.w), bandH / Math.max(1, logoPic.h));
+        const lw = logoPic.w * scL, lh = logoPic.h * scL;
+        partsF += `<g data-part="icon" data-icon="logo" data-icon-nick="Logo" data-icon-box="${(39 + w / 2 - bandW / 2).toFixed(1)} ${(logoBase - bandH / 2).toFixed(1)} ${bandW.toFixed(1)} ${bandH.toFixed(1)}">` +
+          `<image href="${esc(logoPic.href)}" x="${(39 + w / 2 - lw / 2).toFixed(1)}" y="${(logoBase - lh / 2).toFixed(1)}" width="${lw.toFixed(1)}" height="${lh.toFixed(1)}" preserveAspectRatio="xMidYMid meet" opacity="${dimF}"/></g>`;
+      } else {
+        /* ROAD THREE — the look's own type. An explicit | in the words is
+           the exact break; otherwise the words split as evenly as they can
+           across the number of lines asked for, which is what "what
+           appears on which line" means when nobody has said. */
+        const rawL = opts.label ?? "CARD NAME";
+        const want = ({ "Two lines": 2, "Three lines": 3 } as Record<string, number>)[String(slF.logolines ?? "")] ?? 1;
+        let lineArr: string[];
+        if (rawL.includes("|")) {
+          lineArr = rawL.split("|").map((t) => t.trim()).filter(Boolean).slice(0, 3);
+        } else if (want > 1) {
+          const words = rawL.split(/\s+/).filter(Boolean);
+          const n = Math.min(want, Math.max(1, words.length));
+          const acc: string[] = Array.from({ length: n }, () => "");
+          /* fill by running length, so a two-word name never lands as one
+             long line stacked over one short one */
+          const per = Math.ceil(rawL.length / n);
+          let li2 = 0;
+          for (const wd of words) {
+            if (acc[li2].length && acc[li2].length + wd.length > per && li2 < n - 1) li2++;
+            acc[li2] = acc[li2] ? acc[li2] + " " + wd : wd;
+          }
+          lineArr = acc.filter(Boolean);
+        } else lineArr = [rawL];
+        if (!lineArr.length) lineArr = [rawL];
+        const fs0 = 33 * k * typeK * logoSizeK;
+        const lineHL = fs0 * 1.06;
+        const topL = logoBase - ((lineArr.length - 1) * lineHL) / 2;
+        lineArr.forEach((ln, li3) => {
+          /* every line still SHRINKS TO FIT rather than running off the
+             card — the owner's rule from the claim button's ribbon,
+             applied PER LINE because a break exists precisely so a long
+             name can stay big */
+          const fsL = fs0 * clamp((w * 0.88) / Math.max(1, ln.length * fs0 * 0.56), 0.62, 1);
+          partsF += `<g data-part="label">${contentText(ln, 39 + w / 2, topL + li3 * lineHL, fsL, {
+            anchor: "middle", keepCase: true, track: 1, opacity: dimF, autoInk: "#FFFFFF",
+          })}</g>`;
+        });
+      }
       /* ── THE RULES BLOCK (round 73c, owner: "each of these cards will
          need a state where we show it with 3 or 4 lines of body copy
          underneath explaining what the card does, similar to the white

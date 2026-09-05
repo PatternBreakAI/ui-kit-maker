@@ -358,7 +358,7 @@ export interface EngineExportState {
       registry id. The pixels are resolved to real bytes at export time
       (vault first, then the account's cloud copy), so a card exported on
       one machine carries its art to any other. */
-  kitPics?: Partial<Record<KitComponentId, string>>;
+  kitPics?: Partial<Record<string, string>>;
   /** The registries those ids name — the export cannot reach the store. */
   userAssets?: { id: string; name: string; ref: string; w: number; h: number }[];
   kitAssets?: { id: string; name: string; ref: string; w: number; h: number }[];
@@ -3016,8 +3016,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      are not on this machine simply does not resolve, and the piece falls
      back to its icon rather than shipping a hole. */
   const picCache = new Map<string, { href: string; w: number; h: number } | null>();
-  const picOf = async (id: KitComponentId): Promise<{ href: string; w: number; h: number } | null> => {
-    const aid = st.kitPics?.[id] ?? st.kitPics?.[baseOf(id)];
+  const picOf = async (id: KitComponentId, seat?: string): Promise<{ href: string; w: number; h: number } | null> => {
+    const pk = seat ? `${id}:${seat}` : String(id);
+    const pb = seat ? `${baseOf(id)}:${seat}` : String(baseOf(id));
+    const aid = st.kitPics?.[pk] ?? st.kitPics?.[pb];
     if (!aid) return null;
     if (picCache.has(aid)) return picCache.get(aid) ?? null;
     const ua = (st.userAssets ?? []).find((a) => a.id === aid) ?? (st.kitAssets ?? []).find((a) => a.id === aid);
@@ -5182,11 +5184,12 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         const isArt = isGlyphPiece(uid);
         const uVal = st.kitVals?.[uid];
         const uPic = isArt ? null : await picOf(uid);
+        const uLogo = isArt ? null : await picOf(uid, "logo");
         const uOpts: Record<string, unknown> = isArt ? {} : {
           label: st.kitNoText?.[uid] ? "" : st.kitLabels?.[uid],
           sub: st.kitSubs?.[uid], slots: st.kitSlotVals?.[uid],
           icon: resolveKitIcon(st.kitIcons?.[uid], undefined),
-          pic: uPic,
+          pic: uPic, logo: uLogo,
           themedText: !!st.kitDesigns?.[uid]?.type || !!st.kitTextFill[uid],
         };
         /* SMIL loops strip before anything downstream parses or rasters —

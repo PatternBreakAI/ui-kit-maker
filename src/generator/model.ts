@@ -1352,6 +1352,10 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
       note: "Icon centres the kit's glyph in the well, the way the card back does. Full bleed lets an uploaded image fill the well corner to corner. Either way the picture is a swappable child, never baked in." },
     { id: "frame", name: "Picture frame", kind: "choice", choices: ["On", "Off"],
       note: "The line around the picture well. Off lets the art sit straight on the card." },
+    { id: "logolines", name: "Logo lines", kind: "choice", choices: ["One line", "Two lines", "Three lines"],
+      note: "How the card's name breaks. The words split as evenly as they can across the lines you ask for; type a | in the Text field to put the break exactly where you want it instead." },
+    { id: "logosize", name: "Logo size", kind: "choice", choices: ["Small", "Medium", "Large", "Huge"],
+      note: "The name's weight on the card. Medium is the factory. Whatever you pick, a line still shrinks rather than running off the card." },
     { id: "rules", name: "Rules text", kind: "free", def: "", maxLen: 140,
       note: "What the card does, in the maker's own words. It wraps to at most four lines under the card, and anything before a colon leads in bold, the way \"On Reveal:\" does. Empty keeps the card bare, which is the play view; filled is the detail view the card modal opens." },
   ],
@@ -2196,6 +2200,13 @@ export const NO_TEXT_ELIGIBLE = new Set<KitComponentId>(["tab", "tabback"]);
    so it needs no separate entry. Anywhere else the control would be a
    dead affordance, and the house rule is to hide what cannot work. */
 export const PIC_ELIGIBLE = new Set<KitComponentId>(["cardface", "cardback", "pack"]);
+
+/* Pieces with their own LOGO SEAT (round 73d) — a second, separate
+   picture: the art is what the card shows, the logo is who made it, and a
+   maker swaps them independently. Only the card face has one for now; the
+   back and the pack carry a set emblem instead, which is already a
+   swappable child. */
+export const LOGO_ELIGIBLE = new Set<KitComponentId>(["cardface"]);
 
 /* Components whose FRAME keeps the Default design in every state — the
    hot element (selected cell, the mark, the knob) carries the state, and

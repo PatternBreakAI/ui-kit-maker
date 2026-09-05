@@ -712,7 +712,7 @@ const CARDISH = new Set<KitComponentId>(["cardface", "cardback"]);
 function CardModal({ kit, cfg, caption, onClose }: {
   kit: LiveKit; cfg: GenConfig; caption: string; onClose: () => void;
 }) {
-  const [tilt, setTilt] = useState({ x: 0, y: 0 });
+  const [tilt, setTilt] = useState({ x: 0, y: 0, z: 0 });
   const [grabbed, setGrabbed] = useState(false);
   const stage = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -721,15 +721,17 @@ function CardModal({ kit, cfg, caption, onClose }: {
     return () => document.removeEventListener("keydown", esc);
   }, [onClose]);
   /* the bend, measured off the card's own box so the feel is the same at
-     any card size — a shallow 16 degrees, because a UI kit specimen is
-     being judged, not flown */
+     any card size. Kept SHALLOW on purpose — a UI kit specimen is being
+     judged, not flown — and the near corner lifts toward the pointer so
+     the turn reads as depth rather than as a sheared rectangle, which is
+     what a wide perspective on a flat card gives you. */
   const steer = (e: React.PointerEvent) => {
     const el = stage.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
-    const nx = (e.clientX - (r.left + r.width / 2)) / (r.width / 2);
-    const ny = (e.clientY - (r.top + r.height / 2)) / (r.height / 2);
-    setTilt({ x: Math.max(-1, Math.min(1, ny)) * -16, y: Math.max(-1, Math.min(1, nx)) * 16 });
+    const nx = Math.max(-1, Math.min(1, (e.clientX - (r.left + r.width / 2)) / (r.width / 2)));
+    const ny = Math.max(-1, Math.min(1, (e.clientY - (r.top + r.height / 2)) / (r.height / 2)));
+    setTilt({ x: ny * -12, y: nx * 12, z: (1 - Math.min(1, Math.hypot(nx, ny))) * 18 });
   };
   return (
     <div className="kp-cardmodal" role="dialog" aria-modal="true" aria-label={`${caption}, expanded`}
@@ -741,9 +743,9 @@ function CardModal({ kit, cfg, caption, onClose }: {
         onPointerMove={steer}
         onPointerDown={() => setGrabbed(true)}
         onPointerUp={() => setGrabbed(false)}
-        onPointerLeave={() => { setGrabbed(false); setTilt({ x: 0, y: 0 }); }}>
+        onPointerLeave={() => { setGrabbed(false); setTilt({ x: 0, y: 0, z: 0 }); }}>
         <div className={`kp-cmcard${grabbed ? " grabbed" : ""}`}
-          style={{ transform: `rotateX(${tilt.x.toFixed(2)}deg) rotateY(${tilt.y.toFixed(2)}deg)` }}>
+          style={{ transform: `translateZ(${tilt.z.toFixed(1)}px) rotateX(${tilt.x.toFixed(2)}deg) rotateY(${tilt.y.toFixed(2)}deg)` }}>
           <LiveArt cfg={cfg} playing stillLoops scale={1} kit={kit} title={caption} hug />
         </div>
         <div className="kp-cmhint">Move the pointer to turn the card. Click anywhere outside to close.</div>
@@ -2302,6 +2304,7 @@ const kitTier = useGen((s) => s.tier);
         // user content overrides ride every catalog entry
         o.icon = resolveKitIcon(st.kitIcons[cid], o.icon);
         if (o.pic === undefined) o.pic = kitPicOf(st, cid);
+        if (o.logo === undefined) o.logo = kitPicOf(st, cid, "logo");
         o.slots = { ...st.kitSlotVals[cid], ...o.slots };
         if (st.kitNoText[cid]) o.label = ""; else if (o.label === undefined) o.label = st.kitLabels[cid];
         if (o.sub === undefined) o.sub = st.kitSubs[cid];
