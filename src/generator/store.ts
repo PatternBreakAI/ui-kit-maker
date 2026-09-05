@@ -2837,6 +2837,12 @@ export const useGen = create<GenStore>((set, get) => ({
     return { ...st.kitPayload(), boards, ...(library.length ? { library } : {}) };
   },
   loadKitPayload: (p, opts) => {
+    /* a kit arriving from a reload, a share link or the cloud speaks faces
+       in its SLOTS as well as its designs (round 73d) — load them all, or
+       a shared card's numerals wear the fallback for whoever opens it */
+    try {
+      void import("./fonts").then((m) => m.ensureDocFonts(p.cfg, p.kitDesigns, p.kitSlotVals));
+    } catch { /* a face that will not load just stays fallback */ }
     const st = get();
     const viewer = opts?.viewer ?? true;
     lookDeskSettled(); // a fresh document IS the saved state — look browsing won't ask
@@ -3230,6 +3236,12 @@ export const useGen = create<GenStore>((set, get) => ({
     set({ kitSlices });
   },
   setKitSlot: (id, slotId, val) => {
+    /* a slot that NAMES A FACE loads it the moment it is picked (round 73d
+       — the card's corner numerals). Without this the pick is stored, the
+       renderer asks for a family the page has never fetched, and the
+       numerals sit in the fallback until something else happens to load
+       it: a dead-looking control that is really just an unfetched font. */
+    if (/font$/i.test(slotId) && val && val !== "Kit font") { try { ensureFont(val); } catch { /* stays fallback */ } }
     /* a lock freezes the LOOK, not the words — slot DATA stays editable on a
        finished piece (owner: "I need to input data into the input fields").
        Color and dial slots are look, so they stay frozen with the rest.

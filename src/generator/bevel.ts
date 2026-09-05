@@ -9975,16 +9975,37 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
          corners and overhang outward, which is why the canvas below is
          padded — an un-padded viewBox would shear exactly the part that
          is supposed to escape. */
-      const bR = 44 * k;
+      const bR0 = 44 * k;
+      /* THE BADGE SCALES ON ITS OWN (owner, round 73d: "can we also effect
+         the size of the corner shape, the current size being 100% with the
+         ability to make it a bit smaller, scaling independently of the
+         numerics"). So the dial moves the SHAPE's radius and nothing else —
+         the digits keep their own size, which is what makes a smaller badge
+         read as a tighter gem around the same number instead of the whole
+         corner shrinking. It rides the house's `dial` slot kind, resting at
+         its factory 100 until touched. */
+      const cSizeRaw = String(slF.cornersize ?? "");
+      /* floored at 55%: below that the badge is smaller than the number it
+         is meant to hold, which is not a smaller badge, it is a broken one.
+         The dial keeps honest percent semantics (100 is the shipped size)
+         and the floor is stated in the slot's note rather than hidden. */
+      const cSize = /^\d+$/.test(cSizeRaw) ? Math.max(55, Math.min(100, +cSizeRaw)) / 100 : 1;
+      const bR = bR0 * cSize;
+      /* the numerals may wear their OWN face — a card's cost and power are
+         allowed to be special without dragging the kit's type with them */
+      const numFontName = String(slF.numfont ?? "");
+      const numFam = numFontName && numFontName !== "Kit font" ? fontByName(numFontName).name : font;
       const corner = (side: "l" | "r") => {
         const shape = (slF[`${side}shape`] as string) ?? (side === "l" ? "Hexagon" : "Circle");
         if (shape === "Off") return "";
         const num = String(slF[`${side}num`] ?? (side === "l" ? "5" : "9")).trim().slice(0, 3);
-        const cxB = side === "l" ? 39 + bR * 0.30 : 39 + w - bR * 0.30;
-        const cyB = 30 + bR * 0.26;
+        /* seated off the FULL-size radius on purpose: shrinking the badge
+           should tighten it in place, not walk it away from the corner */
+        const cxB = side === "l" ? 39 + bR0 * 0.30 : 39 + w - bR0 * 0.30;
+        const cyB = 30 + bR0 * 0.26;
         const nm = side === "l" ? "cornerleft" : "cornerright";
         const nick = side === "l" ? "Left corner" : "Right corner";
-        const box = `${(cxB - bR - 4 * k).toFixed(1)} ${(cyB - bR - 4 * k).toFixed(1)} ${(bR * 2 + 8 * k).toFixed(1)} ${(bR * 2 + 8 * k).toFixed(1)}`;
+        const box = `${(cxB - bR0 - 4 * k).toFixed(1)} ${(cyB - bR0 - 4 * k).toFixed(1)} ${(bR0 * 2 + 8 * k).toFixed(1)} ${(bR0 * 2 + 8 * k).toFixed(1)}`;
         const plate = cardCornerPath(shape, cxB, cyB, bR);
         /* each corner carries its OWN ground (owner: "we will need to be
            able to independently control the background color of each
@@ -10022,8 +10043,9 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
           `</g>`;
         let outN = out;
         if (num) {
+          // sized off the FULL badge, so the dial never shrinks the digits
           const nFs = Math.min(38 * k, (38 * k * 1.6) / Math.max(1.6, num.length)) * typeK;
-          outN += `<text x="${cxB.toFixed(1)}" y="${(cyB + 1.5 * k).toFixed(1)}" font-family="'${font}', 'Inter Variable', Inter, sans-serif" font-size="${nFs.toFixed(1)}" font-weight="900" fill="#FFFFFF" stroke="${darken(bevel, 0.6)}" stroke-width="${(2.4 * k).toFixed(1)}" paint-order="stroke" text-anchor="middle" dominant-baseline="central" opacity="${dimF}" data-seat-rider="${nm}">${esc(num)}</text>`;
+          outN += `<text x="${cxB.toFixed(1)}" y="${(cyB + 1.5 * k).toFixed(1)}" font-family="'${numFam}', 'Inter Variable', Inter, sans-serif" font-size="${nFs.toFixed(1)}" font-weight="900" fill="#FFFFFF" stroke="${darken(bevel, 0.6)}" stroke-width="${(2.4 * k).toFixed(1)}" paint-order="stroke" text-anchor="middle" dominant-baseline="central" opacity="${dimF}" data-seat-rider="${nm}">${esc(num)}</text>`;
         }
         return outN;
       };

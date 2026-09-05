@@ -1213,6 +1213,14 @@ const NAV_GLYPHS = ["Factory", "Map", "Home", "Scroll", "User", "Cart", "Bag", "
    parallelogram, square on its side at 45 degree angle (diamond shape)").
    Each corner picks independently; every one of them is a plate the number
    RIDES, so the shape is a swappable sprite and the number stays live. */
+/* The faces offered for a card's corner numerals ALONE (owner, round 73d:
+   "I want to be able to change the font on the numeric (without changing
+   the whole system font) I think the font here can be different/ special,
+   just on the numericas"). Kit font is the default and means exactly what
+   it says — follow the kit, as every other word does. The rest is the
+   curated GAME_FONTS roster, so a pick here is a face the app already
+   ships, hosts and measures; nothing new enters the font road. */
+export const CARD_NUM_FONTS = ["Kit font", ...GAME_FONTS.map((f) => f.name)];
 export const CARD_CORNER_SHAPES = ["Hexagon", "Circle", "Diamond", "Dome", "Parallelogram", "Shield", "Rounded square", "Starburst", "Pennant", "Off"];
 
 export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
@@ -1348,6 +1356,10 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
       note: "Attack, power, whatever your right corner means. Same live wiring as the left." },
     { id: "rink", name: "Right corner colour", kind: "color", def: "",
       note: "The right corner's own ground, independent of the left." },
+    { id: "cornersize", name: "Corner size", kind: "dial", def: "100",
+      note: "How big the two corner badges sit, 100% being the size they ship at, down to 55%. It scales the SHAPE alone — the numbers keep their own size, so a smaller badge reads as a tighter gem around the same digit rather than everything shrinking together. It stops at 55% because below that the badge is smaller than the number it holds." },
+    { id: "numfont", name: "Corner number font", kind: "choice", choices: CARD_NUM_FONTS,
+      note: "A face for the two corner numbers alone. Kit font follows the kit like everything else; anything else here is this piece's numerals only and changes no other word in the kit." },
     { id: "art", name: "Picture", kind: "choice", choices: ["Icon", "Full bleed"],
       note: "Icon centres the kit's glyph in the well, the way the card back does. Full bleed lets an uploaded image fill the well corner to corner. Either way the picture is a swappable child, never baked in." },
     { id: "frame", name: "Picture frame", kind: "choice", choices: ["On", "Off"],
