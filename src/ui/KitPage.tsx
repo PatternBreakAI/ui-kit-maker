@@ -751,6 +751,20 @@ function CardModal({ kit, cfg, caption, onClose }: {
         onPointerDown={() => setGrabbed(true)}
         onPointerUp={() => setGrabbed(false)}
         onPointerLeave={() => { setGrabbed(false); setTilt({ x: 0, y: 0, z: 0 }); }}>
+        {/* TWO LAYERS, ONE RENDER (owner, round 73e: "I don't think the
+            rules text should move around in 3d that can remain static").
+            The rules are drawn inside the same SVG as the card, so the only
+            way to hold them still is to paint them from an untilted
+            element. Both layers render the piece IDENTICALLY and share one
+            grid cell; CSS then hides the rules on the tilting copy and
+            everything BUT the rules on the static one. Identical props are
+            load-bearing — same viewBox, same size, so the two halves stay
+            registered — and the split uses `visibility`, which getBBox
+            still measures, rather than `display:none`, which it does not.
+            No renderer change, so every exported byte is untouched. */}
+        <div className="kp-cmrules" aria-hidden="true">
+          <LiveArt cfg={cfg} playing stillLoops scale={1} kit={kit} title={caption} hug />
+        </div>
         <div className={`kp-cmcard${grabbed ? " grabbed" : ""}`}
           style={{ transform: `translateZ(${tilt.z.toFixed(1)}px) rotateX(${tilt.x.toFixed(2)}deg) rotateY(${tilt.y.toFixed(2)}deg)` }}>
           <LiveArt cfg={cfg} playing stillLoops scale={1} kit={kit} title={caption} hug />

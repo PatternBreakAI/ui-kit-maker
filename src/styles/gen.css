@@ -3412,13 +3412,21 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
   background: rgba(6, 8, 14, .88); backdrop-filter: blur(12px); animation: kp-cmin .22s ease; }
 @keyframes kp-cmin { from { opacity: 0; } to { opacity: 1; } }
 /* the stage owns the perspective; the card turns inside it */
-.kp-cmstage { perspective: 900px; perspective-origin: 50% 50%; display: grid; place-items: center;
+.kp-cmstage { perspective: 900px; perspective-origin: 50% 50%; display: grid; place-items: center; grid-template-areas: "card";
   max-width: min(92vw, 640px); }
 .kp-cmcard { transform-style: preserve-3d; will-change: transform;
   transition: transform .12s cubic-bezier(.2,.7,.3,1); filter: drop-shadow(0 26px 46px rgba(0,0,0,.55)); }
 /* pointer down = a firmer hold, the card stops easing and tracks exactly */
 .kp-cmcard.grabbed { transition: none; }
-.kp-cmcard svg { display: block; width: 100%; height: auto; }
+.kp-cmcard svg, .kp-cmrules svg { display: block; width: 100%; height: auto; }
+/* the two modal layers share one cell so they stay registered */
+.kp-cmcard, .kp-cmrules { grid-area: 1 / 1; }
+.kp-cmrules { pointer-events: none; }
+/* the tilting copy paints everything EXCEPT the rules... */
+.kp-cmcard [data-part="rules"] { visibility: hidden; }
+/* ...and the static copy paints ONLY the rules */
+.kp-cmrules svg { visibility: hidden; }
+.kp-cmrules [data-part="rules"] { visibility: visible; }
 .kp-cmhint { margin-top: 14px; text-align: center; font-size: 12px; letter-spacing: .04em;
   color: rgba(226, 232, 240, .55); }
 .kp-cmclose { position: fixed; top: 16px; right: 18px; z-index: 91; display: inline-flex; align-items: center;

@@ -7,7 +7,7 @@ import { useGen, importUserAssetFile } from "@/generator/store";
 import { bgAssetDisplayUrl } from "@/generator/assets";
 import { t } from "@/shell/i18n";
 import { LessonBody } from "./LessonCard";
-import { PRESETS, KIT_SLOTS, KIT_STATE_POSES, stateSlotKey, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, GLINT_STYLES, defaultStates, applyKitDesign, applyKitTextFill, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, designDiff, mergeKitDesign, iconRigDiff, baseShape, isFlipShape, flipShape, labelMaxOf, groupOf, ctaForFont, ctaEntry, fontLang, KIT_SLICEABLE, KIT_LABEL_EDITABLE, NO_TEXT_ELIGIBLE, PIC_ELIGIBLE, LOGO_ELIGIBLE, EDGE_SHINE_DEAF, baseOf, isCloneId, CLONE_KINDS, CLONE_INELIGIBLE, isGlyphButton, resolveKitIcon } from "@/generator/model";
+import { PRESETS, KIT_SLOTS, KIT_STATE_POSES, stateSlotKey, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, GLINT_STYLES, defaultStates, applyKitDesign, applyKitTextFill, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, designDiff, mergeKitDesign, iconRigDiff, baseShape, isFlipShape, flipShape, labelMaxOf, groupOf, ctaForFont, ctaEntry, fontLang, KIT_SLICEABLE, KIT_LABEL_EDITABLE, NO_TEXT_ELIGIBLE, PIC_ELIGIBLE, LOGO_ELIGIBLE, SLOT_RESET_HIDDEN, EDGE_SHINE_DEAF, baseOf, isCloneId, CLONE_KINDS, CLONE_INELIGIBLE, isGlyphButton, resolveKitIcon } from "@/generator/model";
 import type { KitSlice, SlotDef } from "@/generator/model";
 import type { GenStateName, BlendMode, GlintStyle, PatternType, KitComponentId, KitDesign, Shape  } from "@/generator/model";
 import { ICON_LIBS, loadLib, libLoaded, searchLib, getDef, previewSvg } from "@/generator/icons";
@@ -378,13 +378,18 @@ function SwatchMem({ value, onChange }: { value: string; onChange: (v: string) =
 }
 
 
-function Well({ label, value, onChange, title, dot }: { label: string; value: string; onChange: (v: string) => void; title?: string;
+function Well({ label, value, onChange, title, dot, onReset }: { label: string; value: string; onChange: (v: string) => void; title?: string;
   /** divergence dot — this well holds the pinned state's OWN fork */
-  dot?: boolean }) {
+  dot?: boolean;
+  /** THE WAY BACK when the reset pill is suppressed (round 73e): the well
+   *  itself resets on double-click, the same idiom every Slider already
+   *  teaches. Removing the pill must not remove the road. */
+  onReset?: () => void }) {
   return (
-    <div className="ctl wellrow" title={title}>
+    <div className="ctl wellrow" title={onReset ? [title, "Double-click the swatch to go back to the factory colour"].filter(Boolean).join(" ") : title}>
       <label>{dot && <i className="forkdot" aria-label="Forked for this state" />}{label}</label>
-      <span className="chipwell sm" style={{ background: value }}>
+      <span className="chipwell sm" style={{ background: value }}
+        onDoubleClick={onReset ? (e) => { e.preventDefault(); onReset(); } : undefined}>
         <input type="color" value={value} aria-label={`${label} color`}
           onChange={(e) => { onChange(e.target.value); recordRecent(e.target.value); }} />
       </span>
@@ -2170,7 +2175,8 @@ export function Panel() {
                       value={eff
                       ?? effSlotColor(applyKitTextFill(cfg, kitTextFill[focus]), baseOf(focus), slot.id, kitSlotVals[focus])
                       ?? slot.def ?? "#FFFFFF"}
-                      onChange={(v) => setKitSlot(focus, seat, v)} />
+                      onChange={(v) => setKitSlot(focus, seat, v)}
+                      onReset={own !== undefined && SLOT_RESET_HIDDEN.has(baseOf(focus)) ? () => setKitSlot(focus, seat, null) : undefined} />
                   )}
                   {slot.allowNone && (
                     /* the slot's OFF switch — stores the "none" sentinel; the
@@ -2188,7 +2194,10 @@ export function Panel() {
                       }} />
                       None (no {slot.name.toLowerCase()})</label>
                   )}
-                  {own !== undefined && own !== "none" && (
+                  {/* the pill is suppressed on pieces that asked for a
+                      clean front (round 73e) — the way back moved onto the
+                      well's own double-click, not away */}
+                  {own !== undefined && own !== "none" && !SLOT_RESET_HIDDEN.has(baseOf(focus)) && (
                     <button className="resetstate"
                       title={slotForked(slot) ? `Drop this ${pinnedPoseName} fork and follow the ${snBaseName} look again` : "Back to the factory color"}
                       onClick={() => setKitSlot(focus, seat, null)}>
@@ -2218,7 +2227,7 @@ export function Panel() {
                   <Slider label={slot.name} value={own ?? restV} min={0} max={100} unit="%"
                     title={[slot.note, own === undefined ? (slot.def !== undefined ? "At the factory strength until you set it." : "Following the kit: mirrors Candy → Extrusion → Base glow until you set it. Setting 0 quiets this piece alone.") : null].filter(Boolean).join(" ")}
                     onChange={(v) => setKitSlot(focus, slotSeat(slot), String(v))} />
-                  {own !== undefined && (
+                  {own !== undefined && !SLOT_RESET_HIDDEN.has(baseOf(focus)) && (
                     <button className="resetstate" title={slot.def !== undefined ? "Back to the factory strength" : "Drop this piece's own strength and mirror the kit's Base glow dial again"}
                       onClick={() => setKitSlot(focus, slotSeat(slot), null)}>
                       <RotateCcw size={13} strokeWidth={2} /> {slot.def !== undefined ? "Factory strength" : "Follow the kit"}
@@ -3415,7 +3424,7 @@ function PicFxSection({ id, seat, title }: { id: KitComponentId; seat?: string; 
    drawer of every upload lives in Boards, where browsing is the point.
    Here there is one decision, so there is one picture and one Remove. */
 function KitPicControl({ id, seat }: { id: KitComponentId; seat?: string }) {
-  const { kitPics, setKitPic, userAssets, kitAssets } = useGen();
+  const { kitPics, setKitPic, setKitSlot, setKitNoText, kitSlotVals, userAssets, kitAssets } = useGen();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const key = seat ? `${id}:${seat}` : String(id);
@@ -3449,7 +3458,19 @@ function KitPicControl({ id, seat }: { id: KitComponentId; seat?: string }) {
             setBusy(true); setErr(null);
             void importUserAssetFile(f).then((r) => {
               setBusy(false);
-              if (r.ok) setKitPic(id, r.asset.id, seat); else setErr(r.message);
+              if (!r.ok) { setErr(r.message); return; }
+              setKitPic(id, r.asset.id, seat);
+              /* THE UPLOAD IS THE DECISION (round 73e). The owner: "the mere
+                 act of uploading a picture (card face image) should switch
+                 the controls from icon to full bleed", and "similarly
+                 uploading a logo automatically checks No Logo Text".
+                 Nobody uploads card art to keep showing the stock glyph, and
+                 nobody uploads a wordmark to have the kit's type printed
+                 over it. Only on a FIRST upload though: a Replace must not
+                 stomp a setting the maker went back and changed on purpose. */
+              if (chosen) return;
+              if (isLogo) setKitNoText(id, true);
+              else if (kitSlotVals[id]?.art === undefined) setKitSlot(id, "art", "Full bleed");
             }).catch(() => { setBusy(false); setErr("That image could not be read."); });
           }} />
       </label>

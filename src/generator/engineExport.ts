@@ -8204,6 +8204,13 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     "Runtime/PatternBreakBuffSweep.cs",
     "Runtime/PatternBreakKitBarFill.cs",
     "Runtime/PatternBreakCellMeter.cs",
+    /* the card rigs land here too (round 73e). They were pushed at the
+       right moment but never listed, so the file rooted per-slug instead
+       of at the shared root — outside the PatternBreak.Runtime assembly
+       and therefore compiled into Assembly-CSharp, where a second kit's
+       copy would collide with the first. A live defect in what already
+       shipped, found by auditing rather than by a bug report. */
+    "Runtime/PatternBreakCardFace.cs",
     "Runtime/PatternBreakKitStepper.cs",
     "Runtime/PatternBreakPageDots.cs", "Runtime/PatternBreakStartLights.cs",
     "Runtime/PatternBreakSkillNode.cs",
@@ -9082,6 +9089,7 @@ namespace PatternBreak {
 const CARD_FACE_RUNTIME = `using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
 #if UNITY_2023_2_OR_NEWER
 using TMPro;
 #endif
@@ -9254,6 +9262,81 @@ namespace PatternBreak {
       if (!swapped) { faceUp = up; Show(up); }
       if (rt != null) rt.localScale = rest;
       run = null;
+    }
+  }
+
+  /* THE BEND (round 73e). The owner, of the app's card modal: "I want to
+     make sure the 3D animation comes through for developers?" The FLIP
+     above already shipped; the pointer TILT did not — it lived only in the
+     app's CSS. This is that tilt, ported 1:1 so a card turns in a game the
+     way it turns in the modal: shallow, eased, the near corner lifting
+     toward the pointer, and easing flat when the pointer leaves.
+
+     ONE CAVEAT, stated plainly because it decides whether this reads as
+     depth or as a shear: a Screen Space - OVERLAY canvas has no
+     perspective, so a rotated card skews rather than turns. Put the canvas
+     on Screen Space - Camera (or World Space) with a PERSPECTIVE camera and
+     it reads correctly. That is Unity's own rule, not this rig's. */
+  [AddComponentMenu("UI Kit Maker/Kit Card Tilt")]
+  public class KitCardTilt : MonoBehaviour, IPointerMoveHandler, IPointerExitHandler {
+    [Tooltip("How far the card turns at the edge of its own box, in degrees. The app modal uses 12.")]
+    [Range(0f, 40f)] public float degrees = 12f;
+    [Tooltip("How far the near corner lifts toward the pointer. 0 disables the lift.")]
+    [Range(0f, 120f)] public float lift = 18f;
+    [Tooltip("How quickly it follows and how quickly it eases back. Higher is snappier.")]
+    [Range(1f, 40f)] public float ease = 12f;
+    [Tooltip("Unscaled time, so a card still turns while the game is paused.")]
+    public bool ignoreTimeScale = true;
+
+    RectTransform rt;
+    Vector3 restPos;
+    Quaternion restRot;
+    Vector2 want;      // -1..1 across the card, 0,0 at rest
+    bool hot;          // is the pointer actually on the card?
+    bool haveRest;
+
+    void OnEnable() {
+      rt = transform as RectTransform;
+      if (rt != null && !haveRest) { restPos = rt.localPosition; restRot = rt.localRotation; haveRest = true; }
+      want = Vector2.zero; hot = false;
+    }
+    void OnDisable() {
+      if (rt != null && haveRest) { rt.localPosition = restPos; rt.localRotation = restRot; }
+      want = Vector2.zero; hot = false;
+    }
+
+    public void OnPointerMove(PointerEventData e) {
+      if (rt == null) return;
+      Vector2 local;
+      if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(rt, e.position, e.pressEventCamera, out local)) return;
+      var r = rt.rect;
+      if (r.width < 0.01f || r.height < 0.01f) return;
+      /* the card's own box, so the feel is identical at any card size —
+         the same normalisation the app modal does off its bounding rect */
+      want = new Vector2(
+        Mathf.Clamp(local.x / (r.width * 0.5f), -1f, 1f),
+        Mathf.Clamp(local.y / (r.height * 0.5f), -1f, 1f));
+      hot = true;
+    }
+    public void OnPointerExit(PointerEventData e) { want = Vector2.zero; hot = false; }
+
+    void LateUpdate() {
+      if (rt == null || !haveRest) return;
+      float dt = ignoreTimeScale ? Time.unscaledDeltaTime : Time.deltaTime;
+      float k = 1f - Mathf.Exp(-Mathf.Max(1f, ease) * dt);   // frame-rate independent
+      /* pointer UP tips the top away (negative X rotation), pointer RIGHT
+         turns the right edge away — the app modal's exact signs */
+      var target = Quaternion.Euler(want.y * degrees, want.x * degrees, 0f);
+      rt.localRotation = Quaternion.Slerp(rt.localRotation, restRot * target, k);
+      /* the app's own curve: the lift is FULL under the pointer at the
+         card's middle and falls off toward the edges, where the turn takes
+         over. With no pointer on the card there is no lift at all — that
+         is what the hot gate is for, because want=(0,0) means BOTH "dead
+         centre" and "not here", and without it a card nobody has touched
+         sits permanently forward (invisible on an Overlay canvas, a quiet
+         size bump on a perspective one). */
+      float near = hot ? lift * (1f - Mathf.Min(1f, want.magnitude)) : 0f;
+      rt.localPosition = Vector3.Lerp(rt.localPosition, restPos + new Vector3(0f, 0f, -near), k);
     }
   }
 }
@@ -13152,6 +13235,18 @@ text is 2023.2+, the same rung rule as the step-4 word note.
   celebration digits at the authored seat, then \`Pop()\` on every
   multiplier tick (clicking the piece in Play mode fires it too). The
   app's exact squash-overshoot-settle.
+- **KitCardFace / KitCardDef / KitCardFlip / KitCardTilt** — a card set is
+  ONE prefab and many rows, not a prefab per card. \`KitCardDef\` is one
+  card's data (art, name, the two corner numbers); \`SetCard(def)\` dresses
+  the whole card in a call, and the corner numbers animate on change:
+  \`SetLeft(4, KitCardFace.Change.Hit)\` punches red, \`Change.Buff\` swells
+  green, and \`NudgeLeft(-2)\` reads the mood from the direction.
+  \`KitCardFlip\` on a parent holding a back and a face gives the reveal
+  (\`Flip()\` / \`Reveal()\` / \`Hide()\`), and \`KitCardTilt\` on the card
+  gives the pointer bend the app's card modal shows. NOTE for the tilt: a
+  Screen Space - **Overlay** canvas has no perspective, so a rotated card
+  skews instead of turning — put the canvas on Screen Space - Camera or
+  World Space with a perspective camera.
 - **PatternBreakDmgNumber** — the damage number as a dev instrument:
   \`Show(n)\` composes the amount from the kit's own damage digits at
   the authored seat (thousands grouped, the app's formatting) and plays
@@ -13876,6 +13971,44 @@ sprite per item (retype the word to match).
 announcement as live text on top — your app words, ready to bind. The
 Achievement's gold-medallion glyph is a live Image child too: swap the
 sprite in the Inspector, or pick it on uikitmaker.com like any icon.
+
+**Cardface / Cardback — ONE prefab, a whole set.** This is the piece
+most likely to make you nervous about scale, so it was built to answer
+that first: a two-hundred-card set is ONE Cardface prefab instanced two
+hundred times, not two hundred prefabs. The design is the prefab; the
+card is a row of data.
+
+- **KitCardDef** is one card's data — a ScriptableObject holding art,
+  name and the two corner numbers. Right-click > Create > UI Kit Maker >
+  Card, or mint them from a spreadsheet in an editor script; either way
+  they are rows, and rows are cheap.
+- **KitCardFace** on the prefab dresses it. \`SetCard(def)\` does the
+  whole card in one call, or drive the parts — \`SetArt\`, \`SetName\`,
+  \`SetLeft\`, \`SetRight\`. Nothing about the card is painted into the
+  art: the picture is a swappable **Image** child, the name is a live
+  TMP seat, and each corner badge is its own child with its number
+  riding it, so you can move, restyle or delete any of them without
+  touching the shell.
+- **The corner numbers animate on change**, which is the whole point of
+  them being live: \`SetLeft(4, KitCardFace.Change.Hit)\` punches the
+  number red, \`Change.Buff\` swells it green, \`Change.Quiet\` just
+  writes it, and \`NudgeLeft(-2)\` reads the mood from the direction so
+  damage and healing need no branch in your code.
+- **KitCardFlip** on a parent holding a Cardback and a Cardface is the
+  reveal: \`Flip()\`, \`Reveal()\`, \`Hide()\`. It swaps the faces at the
+  halfway point of the turn, so the back is never visible edge-on
+  through the front.
+- **KitCardTilt** on the card gives it the pointer bend the app's card
+  modal shows — the card leans toward the cursor and lifts, with its
+  artwork following, and eases home on exit. *Degrees*, *Lift* and
+  *Ease* are Inspector dials.
+
+> **The one thing that will bite you with the tilt:** a Screen Space -
+> **Overlay** canvas has no perspective, so a rotated card SKEWS
+> instead of turning and looks broken. Put the canvas on Screen Space -
+> **Camera** or **World Space** with a perspective camera and the same
+> component reads as a real card in space. Nothing else in the kit
+> cares which canvas mode you use; this one does.
 
 One rule holds for all of them: the sprite is the material, the layout
 is the bones, and anything your game knows better than we do — words,

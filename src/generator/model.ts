@@ -2226,6 +2226,15 @@ export const PIC_ELIGIBLE = new Set<KitComponentId>(["cardface", "cardback", "pa
    swappable child. */
 export const LOGO_ELIGIBLE = new Set<KitComponentId>(["cardface"]);
 
+/* Pieces whose per-slot RESET PILLS are suppressed (owner, round 73e, of
+   the card front: "get rid of the reset to factor pills"). Panel-only —
+   nothing about storage or rendering changes, and the seats still clear
+   through setKitSlot(..., null). The way back is not removed, it MOVES:
+   these wells reset on double-click, the idiom the sliders already teach
+   ("Double-click resets to default"), so the control stays uncluttered
+   without stranding a maker who wants the factory colour again. */
+export const SLOT_RESET_HIDDEN = new Set<KitComponentId>(["cardface"]);
+
 /* Components whose FRAME keeps the Default design in every state — the
    hot element (selected cell, the mark, the knob) carries the state, and
    the Global sliders still apply. Derived from bevel's pinDesign call
