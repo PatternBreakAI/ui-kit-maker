@@ -5,7 +5,7 @@ import { isCloneId, KIT_COMPONENTS } from "./model";
 import type { KitClone, KitPieceId } from "./model";
 import { ensureFont, fontReady, awaitFonts } from "./fonts";
 import { delBgOriginal, getBgOriginal, putBgOriginal } from "./bgvault";
-import { isAssetRef, isBundledArt, resolveBgAsset, assetCloudBacked, bgAssetDisplayUrl } from "./assets";
+import { isAssetRef, isBundledArt, resolveBgAsset, assetCloudBacked, bgAssetDisplayUrl, assetUrlNow, warmAssetUrl } from "./assets";
 import { SILHOUETTES, silhouetteUnpickable, setUnpickableSilhouettes } from "./silhouettes";
 import type { UserShape } from "./model";
 import { addShine, renderBevel, renderKit, renderTypeSpecimen } from "./bevel";
@@ -649,6 +649,19 @@ interface GenStore {
   /** Per-component icon swap — "none" removes the glyph (text recenters),
    *  null restores the stock one. */
   kitIcons: Partial<Record<KitComponentId, IconDef | "none">>;
+  /** A MAKER'S OWN PICTURE per piece (round 73 — the card face, the card
+   *  back, the deck cover). The value is a userAssets/kitAssets registry
+   *  id; the pixels stay in the vault or the account bucket, never in the
+   *  doc (the fat-pixel rule the backdrops already keep). A piece with no
+   *  row here draws its icon, which is the fallback, not an error. */
+  /*  KEYED BY SEAT (round 73d): a piece can hold more than one picture —
+   *  the card face carries its ART and, separately, its LOGO. The plain
+   *  component id is the piece's main picture; `<id>:<seat>` is a named
+   *  one. Keeping this a flat string map means a new picture seat costs a
+   *  key, not another store field with its own persistence and history. */
+  kitPics: Partial<Record<string, string>>;
+  /** Point a seat at one of the maker's uploads (or clear it with ""). */
+  setKitPic: (id: KitComponentId, aid: string, seat?: string) => void;
   setKitIcon: (id: KitComponentId, def: IconDef | "none" | null) => void;
   /** Per-component label override — null restores the specimen text. */
   kitLabels: Partial<Record<KitComponentId, string>>;
@@ -1020,7 +1033,31 @@ export const boardScaleMin = (b: Pick<BoardItem, "big" | "logo" | "kitId"> | nul
  *  live (a restyle that changes a piece's size moves its floor with it);
  *  library snapshots, stamps and raster art have no shell to read and
  *  keep the flat legacy floor. */
-export type BoardArtSrc = Pick<GenStore, "cfg" | "kitDesigns" | "kitTextFill" | "kitSizes" | "kitShapes" | "kitVals" | "kitIcons" | "kitLabels" | "kitNoText" | "kitSlotVals" | "library">;
+export type BoardArtSrc = Pick<GenStore, "cfg" | "kitDesigns" | "kitTextFill" | "kitSizes" | "kitShapes" | "kitVals" | "kitIcons" | "kitPics" | "kitLabels" | "kitNoText" | "kitSlotVals" | "library">;
+
+/** The maker's own picture for a piece, in the shape renderKit wants —
+ *  or null, which is not a failure: the piece draws its icon instead.
+ *  renderKit is synchronous, so this reads the ALREADY-resolved url and
+ *  warms an unresolved one for the next paint (the display-url cache is
+ *  the same one the backdrops and board logos use — one road, not two).
+ *  A clone reads its base's picture until it is given its own. */
+export function kitPicOf(
+  st: { kitPics: GenStore["kitPics"]; userAssets?: UserAsset[]; kitAssets?: UserAsset[] },
+  id: KitComponentId | undefined,
+  /** a NAMED picture seat on the piece ("logo"); absent = its main art */
+  seat?: string,
+): { href: string; w: number; h: number } | null {
+  if (!id) return null;
+  const key = seat ? `${id}:${seat}` : String(id);
+  const baseKey = seat ? `${baseOf(id)}:${seat}` : String(baseOf(id));
+  const aid = st.kitPics?.[key] ?? st.kitPics?.[baseKey];
+  if (!aid) return null;
+  const ua = (st.userAssets ?? []).find((a) => a.id === aid) ?? (st.kitAssets ?? []).find((a) => a.id === aid);
+  if (!ua) return null;
+  const href = assetUrlNow(ua.ref);
+  if (!href) { warmAssetUrl(ua.ref); return null; }
+  return { href, w: ua.w, h: ua.h };
+}
 export function boardItemArtShort(st: BoardArtSrc, b: BoardItem): number | undefined {
   try {
     if (b.kitId) {
@@ -1028,6 +1065,8 @@ export function boardItemArtShort(st: BoardArtSrc, b: BoardItem): number | undef
       const pc = applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns[b.kitId]), st.kitTextFill[b.kitId]);
       return artShortOf(renderKit(pc, base, size, "default", b.v ?? st.kitVals[b.kitId], st.kitShapes[b.kitId], {
         icon: resolveKitIcon(st.kitIcons[b.kitId], undefined),
+        pic: kitPicOf(st, b.kitId),
+        logo: kitPicOf(st, b.kitId, "logo"),
         label: st.kitNoText[b.kitId] ? "" : (b.label ?? st.kitLabels[b.kitId]),
         slots: st.kitSlotVals[b.kitId], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
       }));
@@ -1731,6 +1770,7 @@ const KIT_STORE_KEY: Record<string, string> = {
   kitDesigns: "ui-generator-kitdesigns",
   kitShapes: "ui-generator-kitshapes",
   kitIcons: "ui-generator-kiticons",
+  kitPics: "ui-generator-kitpics",
   kitLabels: "ui-generator-kitlabels",
   kitNoText: "ui-generator-kitnotext",
   kitSubs: "ui-generator-kitsubs",
@@ -1752,7 +1792,7 @@ const KIT_STORE_KEY: Record<string, string> = {
 /* kitSizes left this list with the M/L switch's retirement — the kit is
    documented and exported at L everywhere, so looks neither carry nor
    apply per-piece sizes any more. */
-const WS_MAPS = ["kitClones", "kitDesigns", "kitShapes", "kitIcons", "kitLabels", "kitNoText", "kitSubs", "kitTextFill", "kitTextOy", "kitTextOx", "kitBar", "kitSlotVals", "kitVals", "kitSlices"] as const;
+const WS_MAPS = ["kitClones", "kitDesigns", "kitShapes", "kitIcons", "kitPics", "kitLabels", "kitNoText", "kitSubs", "kitTextFill", "kitTextOy", "kitTextOx", "kitBar", "kitSlotVals", "kitVals", "kitSlices"] as const;
 
 /** The kit layer as it stands right now — what a publish attaches. */
 export function workspaceOf(s: Record<string, unknown>): Record<string, unknown> {
@@ -1930,8 +1970,8 @@ function requestLook(name: string | null, families: string[], commit: () => void
   run();
 }
 
-type HistSnap = Pick<GenStore, "cfg" | "kitClones" | "kitDesigns" | "kitShapes" | "kitIcons" | "kitLabels" | "kitNoText" | "kitSubs" | "kitTextFill" | "kitTextOy" | "kitTextOx" | "kitBar" | "kitSlotVals" | "kitVals" | "kitSizes" | "kitRow" | "kitSlices">;
-const HIST_KEYS = ["cfg", "kitClones", "kitDesigns", "kitShapes", "kitIcons", "kitLabels", "kitNoText", "kitSubs", "kitTextFill", "kitTextOy", "kitTextOx", "kitBar", "kitSlotVals", "kitVals", "kitSizes", "kitRow", "kitSlices"] as const;
+type HistSnap = Pick<GenStore, "cfg" | "kitClones" | "kitDesigns" | "kitShapes" | "kitIcons" | "kitPics" | "kitLabels" | "kitNoText" | "kitSubs" | "kitTextFill" | "kitTextOy" | "kitTextOx" | "kitBar" | "kitSlotVals" | "kitVals" | "kitSizes" | "kitRow" | "kitSlices">;
+const HIST_KEYS = ["cfg", "kitClones", "kitDesigns", "kitShapes", "kitIcons", "kitPics", "kitLabels", "kitNoText", "kitSubs", "kitTextFill", "kitTextOy", "kitTextOx", "kitBar", "kitSlotVals", "kitVals", "kitSizes", "kitRow", "kitSlices"] as const;
 const snapOf = (s: GenStore): HistSnap => Object.fromEntries(HIST_KEYS.map((k) => [k, s[k]])) as unknown as HistSnap;
 const past: HistSnap[] = [];
 const future: HistSnap[] = [];
@@ -2701,7 +2741,7 @@ export const useGen = create<GenStore>((set, get) => ({
     const st = get();
     return {
       v: 1, cfg: st.cfg, kitName: st.kitName, kitClones: st.kitClones, kitShapes: st.kitShapes, kitDesigns: st.kitDesigns,
-      kitTextFill: st.kitTextFill, kitLabels: st.kitLabels, kitNoText: st.kitNoText, kitSubs: st.kitSubs, kitIcons: st.kitIcons, kitSlotVals: st.kitSlotVals, kitVals: st.kitVals,
+      kitTextFill: st.kitTextFill, kitLabels: st.kitLabels, kitNoText: st.kitNoText, kitSubs: st.kitSubs, kitIcons: st.kitIcons, kitPics: st.kitPics, kitSlotVals: st.kitSlotVals, kitVals: st.kitVals,
       kitBar: st.kitBar, kitTextOy: st.kitTextOy, kitTextOx: st.kitTextOx, kitLocks: st.kitLocks,
       unitySlug: st.unitySlug, unityKitVer: st.unityKitVer,
       // the stage travels with the kit — only portable (data:) backdrops
@@ -2767,6 +2807,7 @@ export const useGen = create<GenStore>((set, get) => ({
       kitNoText: (p.kitNoText as GenStore["kitNoText"]) ?? {},
       kitSubs: (p.kitSubs as GenStore["kitSubs"]) ?? {},
       kitIcons: (p.kitIcons as GenStore["kitIcons"]) ?? {},
+      kitPics: (p.kitPics as GenStore["kitPics"]) ?? {},
       kitSlotVals: migrateKitSlotVals((p.kitSlotVals as GenStore["kitSlotVals"]) ?? {}).vals,
       kitVals: (p.kitVals as GenStore["kitVals"]) ?? {},
       // per-piece sizes in old payloads are ignored — the M/L switch is
@@ -2801,6 +2842,7 @@ export const useGen = create<GenStore>((set, get) => ({
       saveJson("ui-generator-kitvals", next.kitVals);
       saveJson("ui-generator-kitsubs", next.kitSubs);
       saveJson("ui-generator-kiticons", next.kitIcons);
+      saveJson("ui-generator-kitpics", next.kitPics);
       saveJson("ui-generator-kitbar", next.kitBar);
       saveJson("ui-generator-kittextoy", next.kitTextOy);
       saveJson("ui-generator-kittextox", next.kitTextOx);
@@ -2992,7 +3034,7 @@ export const useGen = create<GenStore>((set, get) => ({
     };
     // the duplicate starts pixel-identical: every per-piece entry the
     // source carries copies over (a fork copy stays master-relative)
-    for (const k of ["kitDesigns", "kitShapes", "kitIcons", "kitLabels", "kitNoText", "kitSubs", "kitTextFill", "kitBar", "kitSlotVals", "kitVals", "kitSizes", "kitSlices"] as const) {
+    for (const k of ["kitDesigns", "kitShapes", "kitIcons", "kitPics", "kitLabels", "kitNoText", "kitSubs", "kitTextFill", "kitBar", "kitSlotVals", "kitVals", "kitSizes", "kitSlices"] as const) {
       const m = st[k] as Record<string, unknown>;
       if (m[source] !== undefined) patch[k] = { ...m, [id]: cp(m[source]) };
     }
@@ -3017,7 +3059,7 @@ export const useGen = create<GenStore>((set, get) => ({
     pushHistory(st);
     const drop = <T extends Record<string, unknown>>(m: T): T => { const n = { ...m }; delete n[id]; return n; };
     const patch: Record<string, unknown> = { kitClones: drop(st.kitClones as unknown as Record<string, unknown>) };
-    for (const k of ["kitDesigns", "kitShapes", "kitIcons", "kitLabels", "kitNoText", "kitSubs", "kitTextFill", "kitBar", "kitSlotVals", "kitVals", "kitSizes", "kitSlices"] as const) {
+    for (const k of ["kitDesigns", "kitShapes", "kitIcons", "kitPics", "kitLabels", "kitNoText", "kitSubs", "kitTextFill", "kitBar", "kitSlotVals", "kitVals", "kitSizes", "kitSlices"] as const) {
       if ((st[k] as Record<string, unknown>)[id] !== undefined) patch[k] = drop(st[k] as Record<string, unknown>);
     }
     const oy = { ...st.kitTextOy }, ox = { ...st.kitTextOx };
@@ -3090,6 +3132,14 @@ export const useGen = create<GenStore>((set, get) => ({
   /* v57: per-component icon swap — the override rides opts.icon everywhere
      the component draws a glyph (kit page, board, exports). */
   kitIcons: loadJson<Partial<Record<KitComponentId, IconDef | "none">>>("ui-generator-kiticons", {}),
+  kitPics: loadJson<Partial<Record<string, string>>>("ui-generator-kitpics", {}),
+  setKitPic: (id, aid, seat) => {
+    const kitPics = { ...get().kitPics };
+    const k = seat ? `${id}:${seat}` : String(id);
+    if (aid) kitPics[k] = aid; else delete kitPics[k];
+    saveJson("ui-generator-kitpics", kitPics);
+    set({ kitPics });
+  },
   setKitIcon: (id, def) => {
     if (get().kitLocks[id]) return; // finished pieces don't move
     markTouched();

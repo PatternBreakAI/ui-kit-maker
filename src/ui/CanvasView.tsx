@@ -4,7 +4,7 @@ import { routeOf, helpNavigate } from "./smartHelp";
 import { LessonBody } from "./LessonCard";
 import { t } from "@/shell/i18n";
 import { KIT_LESSONS } from "@/generator/model";
-import { useGen, fileToBgDataUrl } from "@/generator/store";
+import { useGen, kitPicOf, fileToBgDataUrl } from "@/generator/store";
 import { normalizeShipCopy } from "@/generator/bgvault";
 import { importBgAsset } from "@/generator/assets";
 import { capsOf, UPGRADE_LINES } from "@/generator/entitlements";
@@ -195,11 +195,15 @@ export function CanvasView() {
      or the state's wells steer art the canvas never draws. */
   const fOv = fBase === "joystick" || fBase === "skillnode" ? (kitOverlay ?? undefined) : undefined;
   const fDock = fBar?.dock ? { icon: resolveKitIcon(kitIcons[focus!], undefined), side: fBar.dockSide ?? "left" as const } : undefined;
+  /* the maker's own picture for this piece (round 73) — null until the
+     bytes resolve, and null is the icon fallback, not a failure */
+  const fPic = kitPicOf(useGen.getState(), focus ?? undefined);
+  const fLogo = kitPicOf(useGen.getState(), focus ?? undefined, "logo");
   // padSvg: the hero's box must not change when the Glow slider leaves 0
   const heroSvg = useMemo(
     // the document's idle wipe rides the design canvas too — same clipped
     // glint LiveArt applies on the playing surfaces
-    () => ((sv: string) => (fWipe && displayed !== "disabled" ? addShine(sv, { dur: cfg.idle?.freq, sweep: cfg.idle?.wipeDur, width: cfg.idle?.wipeWidth, armed: cfg.idle?.trigger === "hover", blend: cfg.idle?.blend }) : sv))(padSvg(focus ? renderKit(applyKitTextFill(applyKitDesign(cfg, kitDesigns[focus]), kitTextFill[focus]), baseOf(focus), fSize, displayed, kitVals[focus] ?? (baseOf(focus) === "toggle" && displayed === "pressed" ? 0 : undefined), kitShapes[focus], { textOy: fOy, textOx: fOx, icon: resolveKitIcon(kitIcons[focus], undefined), label: kitNoText[focus] ? "" : kitLabels[focus], sub: kitSubs[focus], slots: kitSlotVals[focus], dock: fDock, bar: fBar, row: baseOf(focus) === "datarow" ? kitRow : undefined, kind: baseOf(focus) === "panel" ? (kitKind ?? undefined) : undefined, overlay: fOv, themedText: !!kitDesigns[focus]?.type || !!kitTextFill[focus] }) : parentId !== "button" ? renderKit(cfg, parentId, "l", displayed, kitVals[parentId], kitShapes[parentId], { label: kitNoText[parentId] ? "" : kitLabels[parentId], icon: resolveKitIcon(kitIcons[parentId], undefined) }) : renderBevel(cfg, displayed))),
+    () => ((sv: string) => (fWipe && displayed !== "disabled" ? addShine(sv, { dur: cfg.idle?.freq, sweep: cfg.idle?.wipeDur, width: cfg.idle?.wipeWidth, armed: cfg.idle?.trigger === "hover", blend: cfg.idle?.blend }) : sv))(padSvg(focus ? renderKit(applyKitTextFill(applyKitDesign(cfg, kitDesigns[focus]), kitTextFill[focus]), baseOf(focus), fSize, displayed, kitVals[focus] ?? (baseOf(focus) === "toggle" && displayed === "pressed" ? 0 : undefined), kitShapes[focus], { textOy: fOy, textOx: fOx, icon: resolveKitIcon(kitIcons[focus], undefined), pic: fPic, logo: fLogo, label: kitNoText[focus] ? "" : kitLabels[focus], sub: kitSubs[focus], slots: kitSlotVals[focus], dock: fDock, bar: fBar, row: baseOf(focus) === "datarow" ? kitRow : undefined, kind: baseOf(focus) === "panel" ? (kitKind ?? undefined) : undefined, overlay: fOv, themedText: !!kitDesigns[focus]?.type || !!kitTextFill[focus] }) : parentId !== "button" ? renderKit(cfg, parentId, "l", displayed, kitVals[parentId], kitShapes[parentId], { label: kitNoText[parentId] ? "" : kitLabels[parentId], icon: resolveKitIcon(kitIcons[parentId], undefined) }) : renderBevel(cfg, displayed))),
     [cfg, displayed, focus, parentId, kitShapes, fSize, fOy, fOx, kitRow, kitKind, fOv, kitBar, kitTextFill, kitIcons, kitLabels, kitNoText, kitSubs, kitSlotVals, kitVals, kitDesigns]
   );
   /* ── the hero finds the middle of its workspace ──────────────────────

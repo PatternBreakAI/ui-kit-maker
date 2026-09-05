@@ -3400,3 +3400,34 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
      sits on top of the screens the visitor came to look at */
   html[data-kitpublic] .zoolbar { display: none; }
 }
+
+/* ── THE CARD MODAL (round 73c) ───────────────────────────────────────
+   Owner: "let's think of it as a modal since that is exactly what it is...
+   clicking off the card will close it", and "you should be able to bend
+   them in 3d space a bit (with their artwork following them)". The bend
+   is a real perspective transform on the card's own wrapper, so the art,
+   the corners and the words all turn together — there is nothing to keep
+   in sync because it is one element. */
+.kp-cardmodal { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 4vmin;
+  background: rgba(6, 8, 14, .88); backdrop-filter: blur(12px); animation: kp-cmin .22s ease; }
+@keyframes kp-cmin { from { opacity: 0; } to { opacity: 1; } }
+/* the stage owns the perspective; the card turns inside it */
+.kp-cmstage { perspective: 900px; perspective-origin: 50% 50%; display: grid; place-items: center;
+  max-width: min(92vw, 640px); }
+.kp-cmcard { transform-style: preserve-3d; will-change: transform;
+  transition: transform .12s cubic-bezier(.2,.7,.3,1); filter: drop-shadow(0 26px 46px rgba(0,0,0,.55)); }
+/* pointer down = a firmer hold, the card stops easing and tracks exactly */
+.kp-cmcard.grabbed { transition: none; }
+.kp-cmcard svg { display: block; width: 100%; height: auto; }
+.kp-cmhint { margin-top: 14px; text-align: center; font-size: 12px; letter-spacing: .04em;
+  color: rgba(226, 232, 240, .55); }
+.kp-cmclose { position: fixed; top: 16px; right: 18px; z-index: 91; display: inline-flex; align-items: center;
+  gap: 6px; padding: 7px 11px; border-radius: 9px; border: 1px solid rgba(255,255,255,.18);
+  background: rgba(18, 22, 32, .82); color: #e2e8f0; font-size: 12px; cursor: pointer; }
+.kp-cmclose:hover { background: rgba(30, 36, 50, .92); }
+/* a card specimen advertises that it opens */
+.kp-piece[data-cardish="1"] { cursor: zoom-in; }
+@media (prefers-reduced-motion: reduce) {
+  .kp-cardmodal { animation: none; }
+  .kp-cmcard { transition: none; }
+}
