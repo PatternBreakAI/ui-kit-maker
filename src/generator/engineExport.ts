@@ -990,6 +990,27 @@ const PREF_LABEL: Partial<Record<KitComponentId, string>> = {
   ghost: "Ghost", qtybadge: "×250", levelnode: "12",
 };
 
+/** The bytes behind ANY asset ref, by the same three roads the app paints
+ *  them on (round 73h). `resolveBgAsset` covers the two upload roads — the
+ *  browser vault and the account's bucket — but a SHIPPED kit's own art is
+ *  a same-origin path to a file in the build, which it does not know about
+ *  and returns null for. The board stage never had this problem (it just
+ *  puts the path in an <img src>), so bundled art painted on screen and
+ *  vanished from every export. */
+async function assetBlobOf(ref: string): Promise<{ blob: Blob; type: string } | null> {
+  const { resolveBgAsset, isBundledArt } = await import("./assets");
+  if (isBundledArt(ref)) {
+    try {
+      const r = await fetch(ref);
+      if (!r.ok) return null;
+      const blob = await r.blob();
+      return { blob, type: blob.type || r.headers.get("content-type") || "image/png" };
+    } catch { return null; }
+  }
+  const rec = await resolveBgAsset(ref);
+  return rec ? { blob: rec.blob, type: rec.type } : null;
+}
+
 export async function collectExportBoards(st: {
   boards: BoardDef[];
   cfg: GenConfig;
@@ -1013,6 +1034,13 @@ export async function collectExportBoards(st: {
    *  pixels through it and travel the big-glyph road (optional: older
    *  callers ship no logos). */
   userAssets?: { id: string; name: string; ref: string; w: number; h: number }[];
+  /** The LOADED KIT's own bundled art. A saved or shipped kit brings its
+   *  pictures in here, not in userAssets — and the board stage has always
+   *  read both (Board.tsx logoAsset), while this collector read only the
+   *  first. That asymmetry is why a Brightside board could show three
+   *  logos on screen and export none of them, each reported as "a deleted
+   *  My-assets entry" (round 73h). */
+  kitAssets?: { id: string; name: string; ref: string; w: number; h: number }[];
   /** The maker's text-nudge dials — the Board stage renders with them
    *  (textOy/textOx per family:size), so posed bakes and posed label
    *  seats must too (slice-2: the badge's −18 arrived un-nudged). */
@@ -1415,7 +1443,13 @@ export async function collectExportBoards(st: {
            path speaks the truth whatever the upload container was. When
            they resolve NOWHERE the copy cannot ship — and that is said
            out loud rather than dropped (artMissing, see the head). */
-        const ua = st.userAssets?.find((a) => a.id === b.logo!.aid);
+        /* BOTH registries, the way the board stage itself looks (round
+           73h). A kit loaded from a save or a shipped kit carries its art
+           in kitAssets; reading userAssets alone meant every logo on a
+           loaded kit's board reported itself deleted and silently left the
+           zip, while the same board painted them perfectly on screen. */
+        const ua = st.userAssets?.find((a) => a.id === b.logo!.aid)
+          ?? st.kitAssets?.find((a) => a.id === b.logo!.aid);
         const aidSafe = ua ? ua.id.replace(/[^a-z0-9]/gi, "").slice(0, 24).toLowerCase() : "";
         const shipName = ua ? logoShipName(ua.id, ua.name) : "a logo";
         if (!ua || !aidSafe) {
@@ -1428,7 +1462,7 @@ export async function collectExportBoards(st: {
         let file: string;
         let wNat = ua.w, hNat = ua.h;
         try {
-          const rec = await resolveBgAsset(ua.ref);
+          const rec = await assetBlobOf(ua.ref);
           if (!rec) {
             /* the one honest failure: the bytes live in the browser vault
                (or the account's bucket) and this machine has neither */
@@ -3047,8 +3081,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     let out: { href: string; w: number; h: number } | null = null;
     if (ua) {
       try {
-        const { resolveBgAsset } = await import("./assets");
-        const rec = await resolveBgAsset(ua.ref);
+        // all three roads, bundled art included (round 73h)
+        const rec = await assetBlobOf(ua.ref);
         if (rec?.blob) {
           const href = await new Promise<string | null>((res) => {
             const fr = new FileReader();

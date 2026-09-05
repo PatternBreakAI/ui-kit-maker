@@ -2655,6 +2655,8 @@ export const useGen = create<GenStore>((set, get) => ({
     set({ userAssets });
   },
   removeUserAsset: (id) => {
+    // no-kitassets: you can only delete from YOUR OWN drawer. A loaded
+    // kit's bundled art is the document's, not yours to throw away.
     const dead = get().userAssets.find((a) => a.id === id);
     const userAssets = get().userAssets.filter((a) => a.id !== id);
     saveJson(USERASSETS_KEY, userAssets);
@@ -2677,6 +2679,8 @@ export const useGen = create<GenStore>((set, get) => ({
     if (dead && !isAssetRef(dead.ref) && !userAssets.some((a) => a.ref === dead.ref)) void delBgOriginal(dead.ref);
   },
   addUserAssetToBoard: (aid) => {
+    // no-kitassets: this is the My-assets drawer's own "place it" button,
+    // and the drawer only ever lists userAssets.
     const ua = get().userAssets.find((a) => a.id === aid);
     if (!ua) return;
     // the big glyph's landing contract: centered, shrunk to fit the stage

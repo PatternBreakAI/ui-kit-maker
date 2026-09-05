@@ -111,13 +111,50 @@ for (const rel of PAIR_FILES) {
   });
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+   THE TWO-REGISTRY GUARD (round 73h)
+
+   The same shape again, on a different pair. A picture's bytes are named
+   by an id that lives in ONE OF TWO registries — `userAssets` (the
+   maker's own drawer) and `kitAssets` (a loaded or shipped kit's bundled
+   art) — and the store states the contract plainly: "A logo item reads
+   userAssets FIRST and falls through to here."
+
+   The board stage obeyed it. The EXPORT did not: it looked in userAssets
+   alone, so every logo on a loaded kit's board painted perfectly on
+   screen and then reported itself "a deleted My-assets entry" and left
+   the zip. The owner hit this on Brightside, three logos at once.
+
+   A resolution that reads one registry is either the bug or a deliberate
+   drawer-only action (you can only delete or place from your OWN drawer).
+   The rule holds both to saying which.
+   ══════════════════════════════════════════════════════════════════════ */
+const REG_FILES = ["src/generator/store.ts", "src/generator/engineExport.ts",
+  "src/ui/Board.tsx", "src/ui/KitPage.tsx", "src/ui/Panel.tsx", "src/ui/CanvasView.tsx"];
+for (const rel of REG_FILES) {
+  let src;
+  try { src = readFileSync(join(ROOT, rel), "utf8"); } catch { continue; }
+  const lines = src.split("\n");
+  lines.forEach((line, i) => {
+    if (!/\buserAssets\b/.test(line) || !/\.find\(/.test(line)) return;
+    if (/^\s*(\/\/|\/?\*)/.test(line.trim())) return;
+    // the fall-through may wrap onto the next line or two
+    const window = lines.slice(i, i + 3).join("\n");
+    if (/\bkitAssets\b/.test(window)) return;
+    if (lines.slice(Math.max(0, i - 3), i).some((l) => /no-kitassets:/.test(l))) return;
+    problems.push({ rel, line: i + 1, deps: line.trim().slice(0, 90), reg: true });
+  });
+}
+
 if (problems.length) {
   console.error("✗ a per-piece map was left behind:\n");
   for (const p of problems) {
-    console.error(p.pair
-      ? `• ${p.rel}:${p.line} enumerates per-piece maps but names kitPics without kitPicFx`
-      : `• ${p.rel}:${p.line} lists ${SENTINEL} but not ${p.missing.join(" or ")}`);
-    console.error(`  ${p.pair ? "line" : "deps"}: ${p.pair ? "" : "["}${p.deps}...${p.pair ? "" : "]"}`);
+    console.error(p.reg
+      ? `• ${p.rel}:${p.line} resolves an asset id in userAssets but never falls through to kitAssets`
+      : p.pair
+        ? `• ${p.rel}:${p.line} enumerates per-piece maps but names kitPics without kitPicFx`
+        : `• ${p.rel}:${p.line} lists ${SENTINEL} but not ${p.missing.join(" or ")}`);
+    console.error(`  ${p.pair || p.reg ? "line" : "deps"}: ${p.pair || p.reg ? "" : "["}${p.deps}...${p.pair || p.reg ? "" : "]"}`);
   }
   console.error(`
   These maps all feed renderKit for the same piece. A memo that watches one
@@ -130,9 +167,16 @@ if (problems.length) {
   else. kitPics and kitPicFx are one fact under two names — wherever a
   list, a type or a props object names one, it names both.
 
-  Fix: add the missing map. If it genuinely cannot matter here, say so in
-  a comment on the line above and add the file to the skip list in
-  scripts/check-live-dials.mjs with the reason.`);
+  An asset id lives in ONE OF TWO registries: userAssets (the maker's own
+  drawer) or kitAssets (a loaded kit's bundled art). The store states it:
+  "A logo item reads userAssets FIRST and falls through to here." A
+  resolution that reads only the first paints on screen and vanishes from
+  the export, which is exactly how three Brightside logos went missing.
+
+  Fix: add the missing map, or the kitAssets fall-through. If a site is
+  DELIBERATELY drawer-only (delete, or place-from-my-drawer), say so in a
+  comment on the line above — "no-picfx:" or "no-kitassets:" plus the
+  reason — and the guard will leave it alone.`);
   process.exit(1);
 }
 
