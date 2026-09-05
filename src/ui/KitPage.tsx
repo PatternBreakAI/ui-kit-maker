@@ -1,6 +1,6 @@
 import { Component, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import "@/styles/pricing.css"; // the staging bay wears the community desk's cg-curate buttons
-import { ChevronDown, Download, Lock, PenTool, Pin, ShieldCheck, SquarePen, Trash2 } from "lucide-react";
+import { ChevronDown, Download, Lock, PenTool, Pin, ShieldCheck, SquarePen, Trash2, X } from "lucide-react";
 import { useGen, kitPicOf } from "@/generator/store";
 import { CLONE_KINDS, EFFECT_ROLES, GLYPH_BUTTONS, KIT_COMPONENTS, KIT_SHAPE, PRESETS, ROLE_HINT, SHAPES, STOCK_ICONS, STAGED_KIT, applyKitDesign, applyKitTextFill, baseOf, baseShape, fontByName, groupOf, hexMix, isDarkBg, isGlyphButton, effKitSize, kitVisible, resolveKitIcon, sanitizeUnitySlug } from "@/generator/model";
 import { LIVE_GLYPHS } from "@/generator/glyphLibrary";
@@ -14,6 +14,7 @@ import { updateProjectDoc, loadProjectDoc } from "@/generator/cloud";
 import { guardedExport } from "@/generator/exportGate";
 import { kitSpecMarkdown, fontNotesMarkdown, kitFontFamilies } from "@/generator/kitDocs";
 import { detachBBoxNoise, LiveArt, stillSmil } from "./LiveArt";
+import type { LiveKit } from "./LiveArt";
 import { openAuth } from "@/shell/authOverlay";
 import { openGate } from "@/shell/gateModal";
 import { downloadTestKit } from "@/generator/billing";
@@ -691,6 +692,66 @@ function useStagedHidden(id: KitComponentId): boolean {
  *  Every released piece renders for every tier (free-play round, owner
  *  mandate 2026-08-26 — the guest five-component teaser road is retired);
  *  the staging bay stays the one gate, and it's about release, not tier. */
+
+/* ── THE CARD MODAL (round 73c) ───────────────────────────────────────
+   The owner's own framing: "when the cards are in this modal state you
+   should be able to bend them in 3d space a bit (with their artwork
+   following them).. in fact, let's think of it as a modal since that is
+   exactly what it is... clicking off the card will close it".
+
+   The bend is one perspective transform on the card's wrapper, so the
+   artwork follows because it IS the same element — nothing to keep in
+   sync. The pointer steers it; letting go eases it back to flat. The
+   backdrop closes on click and Escape closes from the keyboard, because
+   a modal that traps you is a bug.
+
+   Which pieces open one: the card family only. Everywhere else a click
+   would be a promise the piece cannot keep. */
+const CARDISH = new Set<KitComponentId>(["cardface", "cardback"]);
+
+function CardModal({ kit, cfg, caption, onClose }: {
+  kit: LiveKit; cfg: GenConfig; caption: string; onClose: () => void;
+}) {
+  const [tilt, setTilt] = useState({ x: 0, y: 0 });
+  const [grabbed, setGrabbed] = useState(false);
+  const stage = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", esc);
+    return () => document.removeEventListener("keydown", esc);
+  }, [onClose]);
+  /* the bend, measured off the card's own box so the feel is the same at
+     any card size — a shallow 16 degrees, because a UI kit specimen is
+     being judged, not flown */
+  const steer = (e: React.PointerEvent) => {
+    const el = stage.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const nx = (e.clientX - (r.left + r.width / 2)) / (r.width / 2);
+    const ny = (e.clientY - (r.top + r.height / 2)) / (r.height / 2);
+    setTilt({ x: Math.max(-1, Math.min(1, ny)) * -16, y: Math.max(-1, Math.min(1, nx)) * 16 });
+  };
+  return (
+    <div className="kp-cardmodal" role="dialog" aria-modal="true" aria-label={`${caption}, expanded`}
+      onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <button className="kp-cmclose" onClick={onClose} aria-label="Close">
+        <X size={13} strokeWidth={2.4} /> Close
+      </button>
+      <div className="kp-cmstage" ref={stage}
+        onPointerMove={steer}
+        onPointerDown={() => setGrabbed(true)}
+        onPointerUp={() => setGrabbed(false)}
+        onPointerLeave={() => { setGrabbed(false); setTilt({ x: 0, y: 0 }); }}>
+        <div className={`kp-cmcard${grabbed ? " grabbed" : ""}`}
+          style={{ transform: `rotateX(${tilt.x.toFixed(2)}deg) rotateY(${tilt.y.toFixed(2)}deg)` }}>
+          <LiveArt cfg={cfg} playing stillLoops scale={1} kit={kit} title={caption} hug />
+        </div>
+        <div className="kp-cmhint">Move the pointer to turn the card. Click anywhere outside to close.</div>
+      </div>
+    </div>
+  );
+}
+
 function Piece(p: PieceOpts & { caption: string; ambient?: boolean; bay?: boolean }) {
   const stagedHidden = useStagedHidden(p.id);
   // the bay is the ONE place a staged piece renders — its cards opt out of
@@ -707,8 +768,40 @@ function PieceInner(p: PieceOpts & { caption: string; ambient?: boolean }) {
   // not the old card overlay
   const shine = shineOn || !!p.shine;
   const shineVars = useShineVars(shine);
+  /* a card opens into the modal (round 73c) — every other piece keeps its
+     own click, which on several of them is a real ceremony */
+  const [open, setOpen] = useState(false);
+  const cardish = CARDISH.has(baseOf(p.id));
+  /* OPENING A CARD (round 73c). Two things had to be learned the hard way
+     and are worth writing down.
+     ONE: the FIGURE is the hit area, not an inner wrapper — a specimen's
+     art is pointer-transparent and hangs outside its own box on negative
+     margins, so a handler nested any deeper never sees the pointer.
+     TWO: there is no CLICK to listen for. The live play surface prevents
+     default on pointerdown (it has to, or every press would start a text
+     selection), and a suppressed mousedown means the browser never
+     synthesizes a click at all — measured: pointerdown and pointerup both
+     reach the figure, click never fires anywhere, not even on document.
+     So the open rides POINTERUP, gated on the pointer having stayed put,
+     which also means a drag across a specimen is not a click. */
+  const downAt = useRef<{ x: number; y: number } | null>(null);
+  const openIfTap = (e: React.PointerEvent) => {
+    const d = downAt.current;
+    downAt.current = null;
+    if (!d) return;
+    if (Math.abs(e.clientX - d.x) > 6 || Math.abs(e.clientY - d.y) > 6) return;
+    // the caption's own buttons handle themselves
+    if ((e.target as HTMLElement).closest?.("button")) return;
+    setOpen(true);
+  };
   return (
-    <figure className="kp-piece" style={shineVars} data-kp={p.id}>
+    <figure className="kp-piece" style={shineVars} data-kp={p.id} data-cardish={cardish ? "1" : undefined}
+      onPointerDown={cardish ? (e) => { downAt.current = { x: e.clientX, y: e.clientY }; } : undefined}
+      onPointerUp={cardish ? openIfTap : undefined}
+      role={cardish ? "button" : undefined} tabIndex={cardish ? 0 : undefined}
+      onKeyDown={cardish ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen(true); } } : undefined}
+      aria-label={cardish ? `Open ${p.caption}` : undefined}>
+      {open && cardish && <CardModal kit={kit} cfg={cfg} caption={p.caption} onClose={() => setOpen(false)} />}
       <LiveArt cfg={cfg} playing stillLoops scale={p.scale ?? PIECE_SCALE} className="kp-live"
         kit={kit} title={p.caption} ambient={p.ambient} shine={shine} hug={p.hug ?? true} />
       <figcaption className="kp-cap">

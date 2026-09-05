@@ -1352,6 +1352,8 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
       note: "Icon centres the kit's glyph in the well, the way the card back does. Full bleed lets an uploaded image fill the well corner to corner. Either way the picture is a swappable child, never baked in." },
     { id: "frame", name: "Picture frame", kind: "choice", choices: ["On", "Off"],
       note: "The line around the picture well. Off lets the art sit straight on the card." },
+    { id: "rules", name: "Rules text", kind: "free", def: "", maxLen: 140,
+      note: "What the card does, in the maker's own words. It wraps to at most four lines under the card, and anything before a colon leads in bold, the way \"On Reveal:\" does. Empty keeps the card bare, which is the play view; filled is the detail view the card modal opens." },
   ],
   speedo: [
     { id: "unit", name: "Unit", kind: "choice", choices: ["MPH", "KPH"],

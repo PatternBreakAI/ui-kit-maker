@@ -4840,7 +4840,11 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     o2: { anchor?: "start" | "middle" | "end"; opacity?: number; track?: number; keepCase?: boolean; autoInk?: string; list?: boolean; ink?: string; plain?: boolean;
       /** the icon seat this word RIDES (data-seat-rider) — the export
           parents the live word under that plate child (bottomnav grammar) */
-      rider?: string } = {}) => {
+      rider?: string;
+      /** heavier than the kit's own weight for ONE line (the card's rules
+          lead-in: "On Reveal:" carries the weight, the convention every
+          card game shares). Absent keeps the theme's weight. */
+      weight?: number } = {}) => {
     /* per-state type forks apply to self-drawn text too — editing the
        Pressed state's fill must recolor these lines on the Pressed view,
        exactly like built labels (owner: "change the text color") */
@@ -4908,7 +4912,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     const kern4 = kernCollides(cased4, fam4, Math.max(700, T4.weight), !!T4.italic, sp4) ? ' style="font-kerning:none"' : "";
     return (defs4 ? `<defs>${defs4}</defs>` : "") +
       (prims4.length ? `<g filter="url(#${gid4}f)">` : "") +
-      `<text x="${(x2 + typeOxK * k + italNudge).toFixed(1)}" y="${(y2 + typeOyK * k).toFixed(1)}" font-family="'${fam4}', 'Inter Variable', Inter, sans-serif" font-size="${fs2.toFixed(1)}" font-weight="${Math.max(700, T4.weight)}"${T4.italic ? ' font-style="italic"' : ""} letter-spacing="${sp4.toFixed(3)}em"${kern4} fill="${fill4}"${(T4.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T4.fillOpacity / 100).toFixed(2)}"` : ""}${outline4}${o2.anchor ? ` text-anchor="${o2.anchor}"` : ""} dominant-baseline="central" opacity="${(o2.opacity ?? 1).toFixed(2)}"${o2.rider ? ` data-seat-rider="${o2.rider}"` : ""}>${esc(cased4)}</text>` +
+      `<text x="${(x2 + typeOxK * k + italNudge).toFixed(1)}" y="${(y2 + typeOyK * k).toFixed(1)}" font-family="'${fam4}', 'Inter Variable', Inter, sans-serif" font-size="${fs2.toFixed(1)}" font-weight="${o2.weight ?? Math.max(700, T4.weight)}"${T4.italic ? ' font-style="italic"' : ""} letter-spacing="${sp4.toFixed(3)}em"${kern4} fill="${fill4}"${(T4.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T4.fillOpacity / 100).toFixed(2)}"` : ""}${outline4}${o2.anchor ? ` text-anchor="${o2.anchor}"` : ""} dominant-baseline="central" opacity="${(o2.opacity ?? 1).toFixed(2)}"${o2.rider ? ` data-seat-rider="${o2.rider}"` : ""}>${esc(cased4)}</text>` +
       (prims4.length ? `</g>` : "");
   };
   /* fit-down (the unitplate precedent; owner round: type never crops or
@@ -9942,15 +9946,39 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
            falls back to the kit's own mix, so a card nobody has coloured
            still reads as this kit's card. */
         const ink = (slF[`${side}ink`] as string) || hexMix(bevel, glow, 0.28);
-        let out = `<g data-part="icon" data-icon="${nm}" data-icon-nick="${nick}" data-icon-box="${box}">` +
-          `<path d="${plate}" fill="${ink}" stroke="${darken(ink, 0.45)}" stroke-width="${(3 * k).toFixed(1)}" opacity="${dimF}"/>` +
-          `<path d="${cardCornerPath(shape, cxB, cyB - bR * 0.06, bR * 0.82)}" fill="${hexRgba("#FFFFFF", 0.16)}" opacity="${dimF}"/>` +
+        /* THE CORNERS TAKE THE CARD'S LIGHT (owner, round 73c: "make sure
+           those corner shapes follow the lighting of the main"). They were
+           flat fills with a flat white wash on top, which read as stickers
+           beside a shell that is lit. This is candyKnob's recipe — the
+           kit's own language for a small solid piece — moved onto an
+           arbitrary path: light from the upper left, the chosen colour
+           still dominant through the middle, a darkened rim, contact shade
+           gathering along the lower edge, and one specular at the same
+           upper-left offset the knobs use. Both shades clip to the badge,
+           so every shape in the menu is lit by its own silhouette. */
+        const gidC = "cc" + UID++;
+        const out = `<g data-part="icon" data-icon="${nm}" data-icon-nick="${nick}" data-icon-box="${box}">` +
+          `<defs>` +
+          `<radialGradient id="${gidC}g" cx="0.35" cy="0.28" r="0.92">` +
+          `<stop offset="0" stop-color="${lighten(ink, 0.62)}"/>` +
+          `<stop offset="0.46" stop-color="${lighten(ink, 0.2)}"/>` +
+          `<stop offset="0.82" stop-color="${ink}"/>` +
+          `<stop offset="1" stop-color="${darken(ink, 0.24)}"/>` +
+          `</radialGradient>` +
+          `<clipPath id="${gidC}c"><path d="${plate}"/></clipPath>` +
+          `</defs>` +
+          `<path d="${plate}" fill="url(#${gidC}g)" stroke="${darken(ink, 0.42)}" stroke-width="${(3 * k).toFixed(1)}" opacity="${dimF}"/>` +
+          `<g clip-path="url(#${gidC}c)">` +
+          `<ellipse cx="${cxB.toFixed(1)}" cy="${(cyB + bR * 0.92).toFixed(1)}" rx="${(bR * 1.15).toFixed(1)}" ry="${(bR * 0.6).toFixed(1)}" fill="${darken(ink, 0.55)}" opacity="${(0.42 * dimF).toFixed(2)}"/>` +
+          `<ellipse cx="${(cxB - bR * 0.3).toFixed(1)}" cy="${(cyB - bR * 0.46).toFixed(1)}" rx="${(bR * 0.36).toFixed(1)}" ry="${(bR * 0.2).toFixed(1)}" fill="#FFFFFF" opacity="${(0.8 * dimF).toFixed(2)}"/>` +
+          `</g>` +
           `</g>`;
+        let outN = out;
         if (num) {
           const nFs = Math.min(38 * k, (38 * k * 1.6) / Math.max(1.6, num.length)) * typeK;
-          out += `<text x="${cxB.toFixed(1)}" y="${(cyB + 1.5 * k).toFixed(1)}" font-family="'${font}', 'Inter Variable', Inter, sans-serif" font-size="${nFs.toFixed(1)}" font-weight="900" fill="#FFFFFF" stroke="${darken(bevel, 0.6)}" stroke-width="${(2.4 * k).toFixed(1)}" paint-order="stroke" text-anchor="middle" dominant-baseline="central" opacity="${dimF}" data-seat-rider="${nm}">${esc(num)}</text>`;
+          outN += `<text x="${cxB.toFixed(1)}" y="${(cyB + 1.5 * k).toFixed(1)}" font-family="'${font}', 'Inter Variable', Inter, sans-serif" font-size="${nFs.toFixed(1)}" font-weight="900" fill="#FFFFFF" stroke="${darken(bevel, 0.6)}" stroke-width="${(2.4 * k).toFixed(1)}" paint-order="stroke" text-anchor="middle" dominant-baseline="central" opacity="${dimF}" data-seat-rider="${nm}">${esc(num)}</text>`;
         }
-        return out;
+        return outN;
       };
       partsF += corner("l") + corner("r");
       /* THE NAME — the card's word, straddling the foot of the art with
@@ -9975,9 +10003,53 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
          that edge, so the name reads whatever the picture and the kit do */
       partsF += `<ellipse cx="${(39 + w / 2).toFixed(1)}" cy="${nameY.toFixed(1)}" rx="${(w * 0.5).toFixed(1)}" ry="${(34 * k).toFixed(1)}" fill="url(#${gid}v)" opacity="${dimF}"/>`;
       partsF += `<g data-part="label">${contentText(opts.label ?? "CARD NAME", 39 + w / 2, nameY, nameFs, { anchor: "middle", keepCase: true, track: 1, opacity: dimF, autoInk: "#FFFFFF" })}</g>`;
+      /* ── THE RULES BLOCK (round 73c, owner: "each of these cards will
+         need a state where we show it with 3 or 4 lines of body copy
+         underneath explaining what the card does, similar to the white
+         tiger image"). It sits UNDER the card on open ground, exactly as
+         the reference does — not inside the frame, because a card's rules
+         are read at rest and the art must not shrink to make room. Empty
+         is the play view; filled is the detail view the modal opens, so
+         the two looks are one piece with one control, and the absence IS
+         the message (no explainer prose, the affordance law). ── */
+      const rulesRaw = String(slF.rules ?? "").trim().slice(0, 140);
+      let belowH = 0;
+      if (rulesRaw) {
+        /* rules copy is READING type, not display type: well under the
+           name's size, the way a card's ability line sits under its
+           wordmark. Too large and four lines will not fit the card's
+           width without breaking mid-phrase. */
+        const fsR = 15 * k * typeK;
+        const lineH = fsR * 1.42;
+        // conservative glyph-width estimate for display faces (~0.55em)
+        const maxCh = Math.max(10, Math.floor((w * 1.0) / (fsR * 0.55)));
+        const lines: string[] = [];
+        let cur = "";
+        for (const wd of rulesRaw.split(/\s+/).filter(Boolean)) {
+          const cand = cur ? cur + " " + wd : wd;
+          if (cand.length > maxCh && cur) { lines.push(cur); cur = wd; } else cur = cand;
+          while (cur.length > maxCh) { lines.push(cur.slice(0, maxCh)); cur = cur.slice(maxCh); }
+        }
+        if (cur) lines.push(cur);
+        const shown = lines.slice(0, 4);
+        /* the LEAD-IN: everything before the first colon carries the
+           weight, the "On Reveal:" convention every card game shares */
+        const colon = rulesRaw.indexOf(":");
+        const lead = colon > 0 && colon < 28 ? rulesRaw.slice(0, colon + 1) : "";
+        const top = 30 + h + 58 * k;
+        shown.forEach((ln, li) => {
+          const y = top + li * lineH + fsR * 0.5;
+          const heavy = !!lead && li === 0 && ln.startsWith(lead.slice(0, Math.min(lead.length, ln.length)));
+          partsF += `<g data-part="rules">${contentText(ln, 39 + w / 2, y, fsR, {
+            anchor: "middle", keepCase: true, opacity: dimF, weight: heavy ? 900 : undefined,
+          })}</g>`;
+        });
+        belowH = 58 * k + shown.length * lineH + 14 * k;
+      }
       /* the canvas grows so the frame-breaking corners are not shorn off
-         at the viewBox edge — the badge overhang is the design */
-      return inject(padSvg(track.replace("<svg ", '<svg data-cardface="1" '), 104), partsF);
+         at the viewBox edge — the badge overhang is the design — and far
+         enough for the rules block when the card is carrying one */
+      return inject(padSvg(track.replace("<svg ", '<svg data-cardface="1" '), Math.max(104, Math.ceil(belowH + 30))), partsF);
     }
     case "pack": {
       /* Card battler · booster pack — the engine body wears crimped foil
