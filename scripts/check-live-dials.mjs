@@ -146,10 +146,43 @@ for (const rel of REG_FILES) {
   });
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+   THE LIVEART KEY (round 73i)
+
+   The one piece-rendering memo this guard could not see, because it keys
+   on a hand-built STRING rather than on the store's maps: LiveArt builds
+   `kitKey` from the kit's fields and memoizes the render on it. Every
+   field it forgets is a field whose change never repaints — and it forgot
+   the picture. Owner: "I have to rollover the card back and front in the
+   kit before the artwork loads... feels broken". It was: the bytes landed
+   after first paint, the host re-rendered with the picture, and the key
+   did not move until a hover changed the state.
+
+   The rule: whatever renderKit is handed from `kit`, the key names.
+   Checked for the two seats this class of bug has now cost twice.
+   ══════════════════════════════════════════════════════════════════════ */
+{
+  let la;
+  try { la = readFileSync(join(ROOT, "src/ui/LiveArt.tsx"), "utf8"); } catch { la = null; }
+  if (la === null) problems.push({ rel: "src/ui/LiveArt.tsx", line: 0, deps: "file not found", key: true, missing: ["(file)"] });
+  else {
+    const at = la.indexOf("const kitKey = kit");
+    const keyEnd = at < 0 ? -1 : la.indexOf('\n    : "";', at);
+    const key = at < 0 || keyEnd < 0 ? "" : la.slice(at, keyEnd);
+    if (!key) problems.push({ rel: "src/ui/LiveArt.tsx", line: 0, deps: "kitKey not found — the memo key moved and this guard went blind", key: true, missing: ["kitKey"] });
+    else {
+      const miss = ["kit.pic", "kit.logo"].filter((f) => !key.includes(f));
+      if (miss.length) problems.push({ rel: "src/ui/LiveArt.tsx", line: la.slice(0, at).split("\n").length, deps: "kitKey", key: true, missing: miss });
+    }
+  }
+}
+
 if (problems.length) {
   console.error("✗ a per-piece map was left behind:\n");
   for (const p of problems) {
-    console.error(p.reg
+    console.error(p.key
+      ? `• ${p.rel}:${p.line} LiveArt's kitKey does not name ${p.missing.join(" or ")} — a picture that lands after first paint never repaints`
+      : p.reg
       ? `• ${p.rel}:${p.line} resolves an asset id in userAssets but never falls through to kitAssets`
       : p.pair
         ? `• ${p.rel}:${p.line} enumerates per-piece maps but names kitPics without kitPicFx`
