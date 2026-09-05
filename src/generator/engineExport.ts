@@ -16941,38 +16941,16 @@ namespace PatternBreak {
 #elif ENABLE_INPUT_SYSTEM
         esGo.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
 #endif
-        /* background: the maker's own art, full-stretch behind everything.
-           The zip carries the UPLOAD ORIGINAL when the maker's browser had
-           it (manifest > boards > bg.original); opacity from the app rides
-           the image color. Blur/grain are app-preview niceties — flag them
-           in the log rather than faking them with hidden post-processing. */
-        if (bd.bg != null && !string.IsNullOrEmpty(bd.bg.file)) {
-          var bgSp = S(root + "/" + bd.bg.file);
-          if (bgSp != null) {
-            var bgGo = new GameObject("Background", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-            bgGo.transform.SetParent(canvasGo.transform, false);
-            var brt = bgGo.GetComponent<RectTransform>();
-            brt.anchorMin = Vector2.zero; brt.anchorMax = Vector2.one;
-            brt.offsetMin = Vector2.zero; brt.offsetMax = Vector2.zero;
-            var bimg = bgGo.GetComponent<Image>();
-            bimg.sprite = bgSp;
-            bimg.preserveAspect = false;
-            bimg.raycastTarget = false;
-            bimg.color = new Color(1f, 1f, 1f, Mathf.Clamp01(bd.bg.opacity / 100f));
-            if (bd.bg.overlay != null && bd.bg.overlay != "none") {
-              var ovGo = new GameObject("Overlay", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-              ovGo.transform.SetParent(canvasGo.transform, false);
-              var ort = ovGo.GetComponent<RectTransform>();
-              ort.anchorMin = Vector2.zero; ort.anchorMax = Vector2.one;
-              ort.offsetMin = Vector2.zero; ort.offsetMax = Vector2.zero;
-              var oimg = ovGo.GetComponent<Image>();
-              oimg.raycastTarget = false;
-              float a = Mathf.Clamp01(bd.bg.overlayStrength / 100f);
-              // vignette approximates as a soft dark wash; dark/light are exact
-              oimg.color = bd.bg.overlay == "light" ? new Color(0.96f, 0.97f, 1f, a * 0.5f) : new Color(0.02f, 0.03f, 0.06f, bd.bg.overlay == "vignette" ? a * 0.45f : a * 0.6f);
-            }
-          }
-        }
+        /* ── ORDER (round 73k, the owner: "why didn't the board backgrounds
+           export?"): they did — and the Phone Stage hid them. The stage
+           used to be built AFTER the Background as a later Canvas sibling,
+           so its opaque matte painted over the backdrop in every landscape
+           viewport, and a portrait scene read as a flat navy frame with a
+           small phone column. Now the stage comes first and the backdrop
+           parents INSIDE its frame: it letterboxes with the content, sits
+           above the matte, and on a real portrait device (frame = the whole
+           screen) still bleeds under the cutouts, because it is a sibling
+           of the Safe Area root, not a child of it. ── */
         /* ── the PORTRAIT STAGE (the landscape-Game-view defense): a
            portrait board opened in Unity's default landscape Game view
            (Full HD) used to blow up ~5× under the width-match scaler —
@@ -17014,6 +16992,38 @@ namespace PatternBreak {
           stageC.frame = frameRt;
           stageC.matte = matteGo;
           contentHost = frameGo.transform;
+        }
+        /* background: the maker's own art, full-stretch behind everything.
+           The zip carries the UPLOAD ORIGINAL when the maker's browser had
+           it (manifest > boards > bg.original); opacity from the app rides
+           the image color. Blur/grain are app-preview niceties — flag them
+           in the log rather than faking them with hidden post-processing. */
+        if (bd.bg != null && !string.IsNullOrEmpty(bd.bg.file)) {
+          var bgSp = S(root + "/" + bd.bg.file);
+          if (bgSp != null) {
+            var bgGo = new GameObject("Background", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            bgGo.transform.SetParent(contentHost, false);
+            var brt = bgGo.GetComponent<RectTransform>();
+            brt.anchorMin = Vector2.zero; brt.anchorMax = Vector2.one;
+            brt.offsetMin = Vector2.zero; brt.offsetMax = Vector2.zero;
+            var bimg = bgGo.GetComponent<Image>();
+            bimg.sprite = bgSp;
+            bimg.preserveAspect = false;
+            bimg.raycastTarget = false;
+            bimg.color = new Color(1f, 1f, 1f, Mathf.Clamp01(bd.bg.opacity / 100f));
+            if (bd.bg.overlay != null && bd.bg.overlay != "none") {
+              var ovGo = new GameObject("Overlay", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+              ovGo.transform.SetParent(contentHost, false);
+              var ort = ovGo.GetComponent<RectTransform>();
+              ort.anchorMin = Vector2.zero; ort.anchorMax = Vector2.one;
+              ort.offsetMin = Vector2.zero; ort.offsetMax = Vector2.zero;
+              var oimg = ovGo.GetComponent<Image>();
+              oimg.raycastTarget = false;
+              float a = Mathf.Clamp01(bd.bg.overlayStrength / 100f);
+              // vignette approximates as a soft dark wash; dark/light are exact
+              oimg.color = bd.bg.overlay == "light" ? new Color(0.96f, 0.97f, 1f, a * 0.5f) : new Color(0.02f, 0.03f, 0.06f, bd.bg.overlay == "vignette" ? a * 0.45f : a * 0.6f);
+            }
+          }
         }
         /* ── the SAFE-AREA ROOT (round 29): every piece parents HERE, not
            on the Canvas. KitSafeArea re-anchors this rect to

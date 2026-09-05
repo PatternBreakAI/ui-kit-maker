@@ -4631,6 +4631,12 @@ export interface KitOpts {
    *  card face's bottom band. Resolved by the caller exactly like `pic`;
    *  absent means the logo is drawn from the kit's own type instead. */
   logo?: { href: string; w: number; h: number; fx?: PicSeatFx } | null;
+  /** The DETAIL view (round 73k, the owner: "you should only see the card
+   *  face explanation text in modal mode"). The rules block draws only
+   *  when this is set; the card modal sets it, nothing else does — so the
+   *  kit page, the boards, the thumbnails and every export show the card
+   *  alone, rules-free. */
+  detail?: boolean;
   /** Container variant for panels — circle, oval, dialogue strip. */
   kind?: "circle" | "oval" | "strip";
   /** Horizontal 9-slice stretch for the bar family (slider, progress,
@@ -10252,7 +10258,7 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
          the message (no explainer prose, the affordance law). ── */
       const rulesRaw = String(slF.rules ?? "").trim().slice(0, 140);
       let belowH = 0;
-      if (rulesRaw) {
+      if (rulesRaw && opts.detail) {
         /* rules copy is READING type, not display type: well under the
            name's size, the way a card's ability line sits under its
            wordmark. Too large and four lines will not fit the card's

@@ -763,11 +763,11 @@ function CardModal({ kit, cfg, caption, onClose }: {
             still measures, rather than `display:none`, which it does not.
             No renderer change, so every exported byte is untouched. */}
         <div className="kp-cmrules" aria-hidden="true">
-          <LiveArt cfg={cfg} playing stillLoops scale={1} kit={kit} title={caption} hug />
+          <LiveArt cfg={cfg} playing stillLoops scale={1} kit={{ ...kit, detail: true }} title={caption} hug />
         </div>
         <div className={`kp-cmcard${grabbed ? " grabbed" : ""}`}
           style={{ transform: `translateZ(${tilt.z.toFixed(1)}px) rotateX(${tilt.x.toFixed(2)}deg) rotateY(${tilt.y.toFixed(2)}deg)` }}>
-          <LiveArt cfg={cfg} playing stillLoops scale={1} kit={kit} title={caption} hug />
+          <LiveArt cfg={cfg} playing stillLoops scale={1} kit={{ ...kit, detail: true }} title={caption} hug />
         </div>
         <div className="kp-cmhint">Move the pointer to turn the card. Click anywhere outside to close.</div>
       </div>
