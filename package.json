@@ -6,7 +6,7 @@
   "description": "FORGE — Component Kit Builder. Master-component-first editor that renders one canonical model to canvas, HTML preview, and export.",
   "scripts": {
     "dev": "vite",
-    "prebuild": "node scripts/check-landing-fonts.mjs && node scripts/check-unity-importer.mjs && node scripts/check-component-surfaces.mjs",
+    "prebuild": "node scripts/check-landing-fonts.mjs && node scripts/check-unity-importer.mjs && node scripts/check-component-surfaces.mjs && node scripts/check-live-dials.mjs",
     "build": "tsc -b && vite build",
     "check:fonts": "node scripts/check-landing-fonts.mjs",
     "metrics:fonts": "NODE_USE_ENV_PROXY=1 node scripts/measure-font-metrics.mjs",

@@ -1061,7 +1061,7 @@ export const boardScaleMin = (b: Pick<BoardItem, "big" | "logo" | "kitId"> | nul
  *  live (a restyle that changes a piece's size moves its floor with it);
  *  library snapshots, stamps and raster art have no shell to read and
  *  keep the flat legacy floor. */
-export type BoardArtSrc = Pick<GenStore, "cfg" | "kitDesigns" | "kitTextFill" | "kitSizes" | "kitShapes" | "kitVals" | "kitIcons" | "kitPics" | "kitLabels" | "kitNoText" | "kitSlotVals" | "library">;
+export type BoardArtSrc = Pick<GenStore, "cfg" | "kitDesigns" | "kitTextFill" | "kitSizes" | "kitShapes" | "kitVals" | "kitIcons" | "kitPics" | "kitPicFx" | "kitLabels" | "kitNoText" | "kitSlotVals" | "library">;
 
 /** The maker's own picture for a piece, in the shape renderKit wants —
  *  or null, which is not a failure: the piece draws its icon instead.

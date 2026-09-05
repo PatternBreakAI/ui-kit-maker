@@ -448,7 +448,7 @@ function flatPiece(c: GenConfig, flat?: boolean): GenConfig {
 /** Shared plumbing for every live piece on this page. The page is always
  *  alive — clicking a piece plays it; editing goes through the ✎ button. */
 function usePiece(p: PieceOpts) {
-  const { cfg, kitClones, kitShapes, kitDesigns, kitLocks, kitTextOy, kitTextOx, kitTextFill, kitIcons, kitLabels, kitNoText, kitSubs, kitSlotVals, kitVals, kitRow, kitBar, kitPics, userAssets, kitAssets, assetTick, setFocus, setKitKind, setKitOverlay } = useGen();
+  const { cfg, kitClones, kitShapes, kitDesigns, kitLocks, kitTextOy, kitTextOx, kitTextFill, kitIcons, kitLabels, kitNoText, kitSubs, kitSlotVals, kitVals, kitRow, kitBar, kitPics, kitPicFx, userAssets, kitAssets, assetTick, setFocus, setKitKind, setKitOverlay } = useGen();
   /* clone-aware (mirrors Panel/CanvasView): a duplicated piece renders
      through its BASE component — renderKit and LiveArt refuse clone ids —
      while every per-piece map read stays keyed by the piece's own id */
@@ -500,8 +500,8 @@ function usePiece(p: PieceOpts) {
          road carried neither, so an upload never reached the kit page or
          the card modal at all. assetTick is read above so this recomputes
          the moment the bytes land. */
-      pic: kitPicOf({ kitPics, userAssets, kitAssets }, p.id),
-      logo: kitPicOf({ kitPics, userAssets, kitAssets }, p.id, "logo"),
+      pic: kitPicOf({ kitPics, kitPicFx, userAssets, kitAssets }, p.id),
+      logo: kitPicOf({ kitPics, kitPicFx, userAssets, kitAssets }, p.id, "logo"),
       // instrument readouts default to plain AUTO ink; an explicit type fork
       // or per-piece text color re-themes them (see KitOpts.themedText)
       themedText: !!kitDesigns[p.id]?.type || !!kitTextFill[p.id],

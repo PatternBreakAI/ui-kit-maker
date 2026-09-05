@@ -75,7 +75,7 @@ function ScardBody({ html }: { html: string }) {
 }
 
 export function CanvasView() {
-  const { cfg, update, zoom, setZoom, panMode, setPanMode, gridStyle, setGridStyle, phase, selectedState, setSelectedState, canvasMode, setCanvasMode, bgImage, setBgImage, focus, setFocus, parentId, kitShapes, kitSizes, kitTextOy, kitTextOx, kitTextFill, kitIcons, kitLabels, kitNoText, kitSubs, kitSlotVals, kitVals, kitDesigns, kitRow, kitKind, kitOverlay, setKitOverlay, kitBar, boards, activeBoard, setBoardBg, sliceStage, kitClones } = useGen();
+  const { cfg, update, zoom, setZoom, panMode, setPanMode, gridStyle, setGridStyle, phase, selectedState, setSelectedState, canvasMode, setCanvasMode, bgImage, setBgImage, focus, setFocus, parentId, kitShapes, kitSizes, kitTextOy, kitTextOx, kitTextFill, kitIcons, kitLabels, kitNoText, kitSubs, kitSlotVals, kitVals, kitDesigns, kitPics, kitPicFx, kitRow, kitKind, kitOverlay, setKitOverlay, kitBar, boards, activeBoard, setBoardBg, sliceStage, kitClones } = useGen();
   /* clone-aware: a duplicated piece RENDERS through its base (renderKit and
      LiveArt refuse clone ids), its name lives in the clone registry, and
      every map read stays keyed by the piece's own id */
@@ -211,7 +211,7 @@ export function CanvasView() {
        exactly, "the uploaded image only showed up once I clicked the no
        text checkbox", because that checkbox is in this list and the picture
        was not. */
-    [cfg, displayed, focus, parentId, kitShapes, fSize, fOy, fOx, kitRow, kitKind, fOv, kitBar, kitTextFill, kitIcons, kitLabels, kitNoText, kitSubs, kitSlotVals, kitVals, kitDesigns, fPic?.href, fLogo?.href]
+    [cfg, displayed, focus, parentId, kitShapes, fSize, fOy, fOx, kitRow, kitKind, fOv, kitBar, kitTextFill, kitIcons, kitLabels, kitNoText, kitSubs, kitSlotVals, kitVals, kitDesigns, fPic?.href, fLogo?.href, kitPics, kitPicFx]
   );
   /* ── the hero finds the middle of its workspace ──────────────────────
      The render's canvas reserves the sliders' full travel BELOW the shell
