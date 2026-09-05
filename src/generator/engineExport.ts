@@ -7,7 +7,7 @@
    the display face and its source instead of pixels. The packed sheet is
    a visual catalog only, produced after the atomics. */
 import type { GenConfig, IconDef, KitComponentId, KitDesign, Shape } from "./model";
-import type { BoardDef, LibItem } from "./store";
+import type { BoardDef, LibItem, PicSeatFx } from "./store";
 import { stampFilter, stampFilterPad, boardBgFilter, drawBoardNoise, drawBoardOverlays, stampSvg, warpStampRaster, kitShadowFilter, kitShadowPad, suppressCastShadow } from "./store";
 /* bigGlyphById names the excluded piece in the export-skip warn — the
    PAINTED glyph drop never ships in the Unity download (round 44). The
@@ -365,6 +365,10 @@ export interface EngineExportState {
       (vault first, then the account's cloud copy), so a card exported on
       one machine carries its art to any other. */
   kitPics?: Partial<Record<string, string>>;
+  /** Those pictures' DIALS — size, nudge, glow, shadow and the darkroom
+      (round 73f). Without this the export resolved the bytes and dropped
+      the treatment, so a graded, vignetted card shipped its raw upload. */
+  kitPicFx?: Partial<Record<string, PicSeatFx>>;
   /** The registries those ids name — the export cannot reach the store. */
   userAssets?: { id: string; name: string; ref: string; w: number; h: number }[];
   kitAssets?: { id: string; name: string; ref: string; w: number; h: number }[];
@@ -3024,12 +3028,21 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      are not on this machine simply does not resolve, and the piece falls
      back to its icon rather than shipping a hole. */
   const picCache = new Map<string, { href: string; w: number; h: number } | null>();
-  const picOf = async (id: KitComponentId, seat?: string): Promise<{ href: string; w: number; h: number } | null> => {
+  const picOf = async (id: KitComponentId, seat?: string): Promise<{ href: string; w: number; h: number; fx?: PicSeatFx } | null> => {
     const pk = seat ? `${id}:${seat}` : String(id);
     const pb = seat ? `${baseOf(id)}:${seat}` : String(baseOf(id));
     const aid = st.kitPics?.[pk] ?? st.kitPics?.[pb];
     if (!aid) return null;
-    if (picCache.has(aid)) return picCache.get(aid) ?? null;
+    /* THE SEAT'S DIALS TRAVEL (round 73f). They did not: this resolved the
+       bytes and stopped, so a picture's size, nudge, glow, shadow and its
+       whole darkroom were an app-only illusion — the exported sprite wore
+       the raw upload. The cache is keyed on the ASSET (the bytes are what
+       is expensive); the dials are per SEAT, so they are attached on the
+       way out, after the cache, or two seats sharing one upload would
+       trade treatments. */
+    const fx = st.kitPicFx?.[pk] ?? st.kitPicFx?.[pb];
+    const dress = (v: { href: string; w: number; h: number } | null) => (v && fx ? { ...v, fx } : v);
+    if (picCache.has(aid)) return dress(picCache.get(aid) ?? null);
     const ua = (st.userAssets ?? []).find((a) => a.id === aid) ?? (st.kitAssets ?? []).find((a) => a.id === aid);
     let out: { href: string; w: number; h: number } | null = null;
     if (ua) {
@@ -3048,7 +3061,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       } catch { out = null; }
     }
     picCache.set(aid, out);
-    return out;
+    return dress(out);
   };
 
   /* ── LOGOS THAT COULD NOT SHIP (round 72, owner mandate) ─────────────

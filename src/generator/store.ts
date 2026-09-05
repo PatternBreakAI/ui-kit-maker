@@ -10,7 +10,7 @@ import { SILHOUETTES, silhouetteUnpickable, setUnpickableSilhouettes } from "./s
 import type { UserShape } from "./model";
 import { addShine, renderBevel, renderKit, renderTypeSpecimen } from "./bevel";
 import { getDef } from "./icons";
-import { bigGlyphById, BIG_GLYPH_BASE, type BigGlyphFx } from "./bigGlyphs";
+import { bigGlyphById, BIG_GLYPH_BASE, type BigGlyphFx, type DarkroomGrade, type DarkroomWash } from "./bigGlyphs";
 import { listCloudPresets, publishCloudPreset, updateCloudPreset, deleteCloudPreset, setCloudPresetSchedule, listHiddenStarters, setHiddenStarters, listHiddenSilhouettes, setHiddenSilhouettes, listDeletedSilhouettes, setDeletedSilhouettes, myProfileTier, cloudStatus, listComponentReleases, saveComponentReleases, listPromos, readPromosLive, noteLocalDocReplaced, readGateSnapshot, writeGateSnapshot, hasStoredSession, type CloudPreset, type PromoDef, type ReleaseStatus } from "./cloud";
 import { capsOf, type Tier } from "./entitlements";
 import siteDefaultJson from "./site-default.json";
@@ -957,11 +957,18 @@ export interface UserLogoFx {
  *  rendered by the same bigGlyphFilter); `size`, `dx` and `dy` are what a
  *  board copy gets from its item transform and a seat inside a piece has
  *  to carry itself. `gid` is unused here, exactly as it is for a logo. */
-export interface PicSeatFx extends Omit<BigGlyphFx, "gid"> {
+export interface PicSeatFx extends Omit<BigGlyphFx, "gid">, DarkroomGrade, DarkroomWash {
   /** percent of the seat's natural fit — 100 is the band-fitted size */
   size?: number;
   /** nudge in design px, the kitTextOx/kitTextOy grammar */
   dx?: number; dy?: number;
+  /* The DARKROOM rides here too (owner, round 73f: "I also need the same
+     darkening controls that in the editor that we have for the uploaded
+     game screen background images in Boards"), inherited field for field
+     from the board backdrop's own dials rather than restated — bgBlur /
+     bgSat / bgHue / bgBright / bgContrast for the grade, ovMode /
+     ovStrength / ovNoise / ovBlend / ovCenter for the wash. Same names,
+     same ranges, same recipe, so there is only ever one thing to fix. */
 }
 
 /** One uploaded image in the My-assets drawer. The registry is small
@@ -1119,16 +1126,13 @@ export function boardItemArtShort(st: BoardArtSrc, b: BoardItem): number | undef
 
 /** One filter string for a backdrop's darkroom dials — the stage, the PNG
  *  compositor and the Unity bake all speak THIS. Blur last, so the color
- *  grade lands before the haze. */
-export function boardBgFilter(bd: Pick<BoardDef, "bgBlur" | "bgSat" | "bgHue" | "bgBright" | "bgContrast">): string | undefined {
-  const p: string[] = [];
-  if (bd.bgHue) p.push(`hue-rotate(${bd.bgHue}deg)`);
-  if ((bd.bgSat ?? 100) < 100) p.push(`saturate(${(bd.bgSat ?? 100) / 100})`);
-  if ((bd.bgBright ?? 100) !== 100) p.push(`brightness(${(bd.bgBright ?? 100) / 100})`);
-  if ((bd.bgContrast ?? 100) !== 100) p.push(`contrast(${(bd.bgContrast ?? 100) / 100})`);
-  if (bd.bgBlur) p.push(`blur(${bd.bgBlur}px)`);
-  return p.length ? p.join(" ") : undefined;
-}
+ *  grade lands before the haze.
+ *
+ *  The body moved to bigGlyphs.ts (round 73f) so the RENDERER can read it
+ *  too — a card's picture wears the same darkroom now, and bevel cannot
+ *  import this module without closing a cycle. Re-exported from here so
+ *  every caller that already knew where to find it still does. */
+export { boardBgFilter } from "./bigGlyphs";
 
 /** Seeded film grain, shared by the PNG compositor and the Unity bake —
  *  the same board always exports the same pixels. */
@@ -2014,7 +2018,7 @@ function requestLook(name: string | null, families: string[], commit: () => void
   run();
 }
 
-type HistSnap = Pick<GenStore, "cfg" | "kitClones" | "kitDesigns" | "kitShapes" | "kitIcons" | "kitPics" | "kitLabels" | "kitNoText" | "kitSubs" | "kitTextFill" | "kitTextOy" | "kitTextOx" | "kitBar" | "kitSlotVals" | "kitVals" | "kitSizes" | "kitRow" | "kitSlices">;
+type HistSnap = Pick<GenStore, "cfg" | "kitClones" | "kitDesigns" | "kitShapes" | "kitIcons" | "kitPics" | "kitPicFx" | "kitLabels" | "kitNoText" | "kitSubs" | "kitTextFill" | "kitTextOy" | "kitTextOx" | "kitBar" | "kitSlotVals" | "kitVals" | "kitSizes" | "kitRow" | "kitSlices">;
 const HIST_KEYS = ["cfg", "kitClones", "kitDesigns", "kitShapes", "kitIcons", "kitPics", "kitPicFx", "kitLabels", "kitNoText", "kitSubs", "kitTextFill", "kitTextOy", "kitTextOx", "kitBar", "kitSlotVals", "kitVals", "kitSizes", "kitRow", "kitSlices"] as const;
 const snapOf = (s: GenStore): HistSnap => Object.fromEntries(HIST_KEYS.map((k) => [k, s[k]])) as unknown as HistSnap;
 const past: HistSnap[] = [];

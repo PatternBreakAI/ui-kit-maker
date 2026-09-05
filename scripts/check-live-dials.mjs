@@ -69,11 +69,55 @@ for (const rel of FILES) {
   });
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+   THE TRAVELLING-PAIR GUARD (round 73f)
+
+   The same mistake, one layer out. A picture seat's dials (kitPicFx) are
+   useless without the picture they dress (kitPics), so the two are ONE
+   fact wearing two names — and every place that enumerates the per-piece
+   maps has to name both. Three places had named only the first:
+
+     · the export hand-off, so a graded, vignetted card shipped its raw
+       upload and every dial was an app-only illusion
+     · EngineExportState itself, so there was nowhere to put them
+     · the undo snapshot's type
+
+   None of those is a memo, so the guard above could not see them. This
+   one reads any line that ENUMERATES per-piece maps — a Pick<>, a key
+   list, a props object, a hand-off — and holds it to naming both. A line
+   that mentions kitPics alone is plumbing for that one map and is left
+   alone; the tell is a second kit* map on the same line, which is what
+   "enumerating" looks like in this codebase.
+   ══════════════════════════════════════════════════════════════════════ */
+const PAIR_FILES = ["src/generator/store.ts", "src/generator/engineExport.ts", "src/generator/bevel.ts",
+  "src/ui/CanvasView.tsx", "src/ui/Board.tsx", "src/ui/KitPage.tsx", "src/ui/Panel.tsx"];
+const KIT_MAP = /\bkit[A-Z][A-Za-z]*\b/g;
+for (const rel of PAIR_FILES) {
+  let src;
+  try { src = readFileSync(join(ROOT, rel), "utf8"); } catch { continue; }
+  const lines = src.split("\n");
+  lines.forEach((line, i) => {
+    if (!/\bkitPics\b/.test(line) || /\bkitPicFx\b/.test(line)) return;
+    // a comment is prose about the maps, not an enumeration of them
+    if (/^\s*(\/\/|\/?\*)/.test(line.trim())) return;
+    /* The stated opt-out: a site that reads kitPics for a reason the dials
+       have nothing to do with (does a picture EXIST?) says so on the line
+       above and is left alone. Written out, so the exception is a sentence
+       someone can disagree with rather than a silent hole in the guard. */
+    if (lines.slice(Math.max(0, i - 3), i).some((l) => /no-picfx:/.test(l))) return;
+    const others = new Set((line.match(KIT_MAP) ?? []).filter((n) => n !== "kitPics"));
+    if (!others.size) return; // single-map plumbing — kitPics alone means kitPics alone
+    problems.push({ rel, line: i + 1, missing: ["kitPicFx"], deps: line.trim().slice(0, 90), pair: true });
+  });
+}
+
 if (problems.length) {
-  console.error("✗ a piece-rendering memo is missing per-piece maps:\n");
+  console.error("✗ a per-piece map was left behind:\n");
   for (const p of problems) {
-    console.error(`• ${p.rel}:${p.line} lists ${SENTINEL} but not ${p.missing.join(" or ")}`);
-    console.error(`  deps: [${p.deps}...]`);
+    console.error(p.pair
+      ? `• ${p.rel}:${p.line} enumerates per-piece maps but names kitPics without kitPicFx`
+      : `• ${p.rel}:${p.line} lists ${SENTINEL} but not ${p.missing.join(" or ")}`);
+    console.error(`  ${p.pair ? "line" : "deps"}: ${p.pair ? "" : "["}${p.deps}...${p.pair ? "" : "]"}`);
   }
   console.error(`
   These maps all feed renderKit for the same piece. A memo that watches one
@@ -81,10 +125,15 @@ if (problems.length) {
   whatever the unwatched map said on first paint, and only an unrelated
   edit appears to "fix" it. That is the exact bug the owner reported twice.
 
-  Fix: add the missing map to the dependency array. If a map genuinely
-  cannot matter to this render, say so in a comment on the line above and
-  add the file to SKIP in scripts/check-live-dials.mjs with the reason.`);
+  And a hand-off that carries the picture without its dials ships the raw
+  upload: the treatment the maker dialled exists in the app and nowhere
+  else. kitPics and kitPicFx are one fact under two names — wherever a
+  list, a type or a props object names one, it names both.
+
+  Fix: add the missing map. If it genuinely cannot matter here, say so in
+  a comment on the line above and add the file to the skip list in
+  scripts/check-live-dials.mjs with the reason.`);
   process.exit(1);
 }
 
-console.log("✓ every piece-rendering memo watches all the per-piece maps");
+console.log("✓ every piece-rendering memo watches all the per-piece maps, and every hand-off carries both");

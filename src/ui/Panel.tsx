@@ -2087,6 +2087,9 @@ export function Panel() {
               dialled so a closed fold still tells the truth, and absent
               entirely on a seat with no picture (round 73d) */}
           {PIC_ELIGIBLE.has(baseOf(focus)) && <PicFxSection id={focus} title="Picture effects" />}
+          {/* the darkroom is the PICTURE's alone (owner: "darkening set is
+              for picture only") — a wordmark is not a photograph */}
+          {PIC_ELIGIBLE.has(baseOf(focus)) && <PicDarkroomSection id={focus} />}
           {LOGO_ELIGIBLE.has(baseOf(focus)) && <PicFxSection id={focus} seat="logo" title="Logo effects" />}
           {(KIT_SLOTS[baseOf(focus)] ?? []).some((sl) => sl.kind === "free" && (!sl.state || (kitOverlay ?? null) === sl.state)) && (
             <div className="slotgrid">
@@ -3417,6 +3420,92 @@ function PicFxSection({ id, seat, title }: { id: KitComponentId; seat?: string; 
   );
 }
 
+/* ── THE PICTURE'S DARKROOM (round 73f) ───────────────────────────────
+   Owner: "I also need the same darkening controls that in the editor that
+   we have for the uploaded game screen background images in Boards...
+   i.e., vignette, etc..." and, scoping it: "darkening set is for picture
+   only".
+
+   SAME controls, not a second set that resembles them. The dials write
+   the board backdrop's own field names (bgBlur/bgSat/bgHue/bgBright/
+   bgContrast, ovMode/ovStrength/ovNoise/ovBlend/ovCenter), wear the
+   board's own labels and ranges, and are rendered by the board's own
+   boardBgFilter — so there is one darkroom in this product, reachable
+   from two places.
+
+   Its own fold, not more dials bolted under Picture effects: one fold
+   answers "how does the art sit", this one answers "how is it lit", and
+   a fold that answers two questions is a fold nobody reads. The overlay's
+   sub-dials stay HIDDEN until a mode is picked (the house rule: hide what
+   cannot work, never grey it), and the summary tells the truth while
+   shut so the fold does not have to be opened to be read. */
+function PicDarkroomSection({ id }: { id: KitComponentId }) {
+  const { kitPics, kitPicFx, setKitPicFx } = useGen();
+  const key = String(id);
+  if (!kitPics[key]) return null; // no picture, no darkroom — the absence is the message
+  const fx = kitPicFx[key] ?? {};
+  const set = (patch: Record<string, number | string | undefined>) => setKitPicFx(id, undefined, patch);
+  const mode = fx.ovMode ?? "none";
+  const touched = [
+    fx.bgBlur ? `blur ${fx.bgBlur}px` : "",
+    (fx.bgSat ?? 100) !== 100 ? `saturation ${fx.bgSat}%` : "",
+    fx.bgHue ? `hue ${fx.bgHue}°` : "",
+    (fx.bgBright ?? 100) !== 100 ? `brightness ${fx.bgBright}%` : "",
+    (fx.bgContrast ?? 100) !== 100 ? `contrast ${fx.bgContrast}%` : "",
+    mode !== "none" ? mode : "",
+    fx.ovNoise ? `grain ${fx.ovNoise}%` : "",
+    fx.ovCenter ? `scrim ${fx.ovCenter}%` : "",
+  ].filter(Boolean);
+  return (
+    <Section id={`picdark-${key}`} title="Picture darkroom"
+      summary={<span>{touched.length ? touched.join(", ") : "untouched"}</span>}>
+      <Slider label="Blur" value={fx.bgBlur ?? 0} min={0} max={24} unit="px" def={0}
+        title="Haze the picture so the card's own type and badges read over it. Applied after the colour grade, exactly as on a board backdrop."
+        onChange={(v) => set({ bgBlur: v })} />
+      <Slider label="Saturation" value={fx.bgSat ?? 100} min={0} max={100} unit="%" def={100}
+        title="Drain the colour out of the art. 100% is untouched; 0% is greyscale."
+        onChange={(v) => set({ bgSat: v })} />
+      <Slider label="Hue" value={fx.bgHue ?? 0} min={-180} max={180} unit="°" def={0}
+        title="Rotate every colour in the picture at once, to pull a stock image toward the kit's palette."
+        onChange={(v) => set({ bgHue: v })} />
+      <Slider label="Brightness" value={fx.bgBright ?? 100} min={0} max={200} unit="%" def={100}
+        title="Knock the art back, or lift it. 100% is untouched."
+        onChange={(v) => set({ bgBright: v })} />
+      <Slider label="Contrast" value={fx.bgContrast ?? 100} min={0} max={200} unit="%" def={100}
+        title="Flatten the picture so the card's furniture pops, or harden it. 100% is untouched."
+        onChange={(v) => set({ bgContrast: v })} />
+      <div className="sublabel">Overlay</div>
+      <div className="segmini" role="radiogroup" aria-label="Overlay mode">
+        {(["none", "dark", "light", "vignette"] as const).map((m) => (
+          <button key={m} className={mode === m ? "on" : ""} role="radio" aria-checked={mode === m}
+            onClick={() => set({ ovMode: m === "none" ? undefined : m })}>
+            {m === "none" ? "None" : m[0].toUpperCase() + m.slice(1)}
+          </button>
+        ))}
+      </div>
+      {mode !== "none" && (<>
+        <Slider label="Strength" value={fx.ovStrength ?? 45} min={0} max={100} unit="%" def={45}
+          title="How heavy the wash sits over the art."
+          onChange={(v) => set({ ovStrength: v })} />
+        <Slider label="Grain" value={fx.ovNoise ?? 0} min={0} max={100} unit="%" def={0}
+          title="Film grain through the wash. Deterministic: the same kit exports the same grain every time."
+          onChange={(v) => set({ ovNoise: v })} />
+        <label className="fieldbox" style={{ minWidth: 0 }} title="How the wash mixes with the picture underneath.">
+          <span className="fl">Blend</span>
+          <select value={fx.ovBlend ?? "normal"} aria-label="Overlay blend mode"
+            onChange={(e) => set({ ovBlend: e.target.value === "normal" ? undefined : e.target.value })}>
+            {(["normal", "multiply", "screen", "overlay", "soft-light"] as const).map((b) => <option key={b} value={b}>{b}</option>)}
+          </select>
+          <span className="chev"><ChevronDown size={17} strokeWidth={2} /></span>
+        </label>
+      </>)}
+      <Slider label="Center scrim" value={fx.ovCenter ?? 0} min={0} max={100} unit="%" def={0}
+        title="Dims the MIDDLE of the picture: the move games make behind a menu, the vignette's inverse. Stacks with the overlay above, or works alone."
+        onChange={(v) => set({ ovCenter: v })} />
+    </Section>
+  );
+}
+
 /* ONE picture, the one this piece is wearing (owner, round 73d: "I never
    need to see more than one image there just whatever has been most
    recently uploaded, then I also need to be able to delete that so there's
@@ -3424,6 +3513,8 @@ function PicFxSection({ id, seat, title }: { id: KitComponentId; seat?: string; 
    drawer of every upload lives in Boards, where browsing is the point.
    Here there is one decision, so there is one picture and one Remove. */
 function KitPicControl({ id, seat }: { id: KitComponentId; seat?: string }) {
+  // no-picfx: this control asks only whether a picture EXISTS and swaps it;
+  // the dials that dress it are two folds below, in PicFxSection.
   const { kitPics, setKitPic, setKitSlot, setKitNoText, kitSlotVals, userAssets, kitAssets } = useGen();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);

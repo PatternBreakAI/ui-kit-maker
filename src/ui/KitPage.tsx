@@ -2126,7 +2126,7 @@ export function KitPage() {
             /* the maker's own uploaded pictures, plus the registries that
                name their bytes — the export resolves them to real pixels
                so a card carries its art to any machine (round 73) */
-            kitPics: st.kitPics, userAssets: st.userAssets, kitAssets: st.kitAssets,
+            kitPics: st.kitPics, kitPicFx: st.kitPicFx, userAssets: st.userAssets, kitAssets: st.kitAssets,
             // the maker's text-nudge dials — labels bake and seat where the maker pushed them (engine-lane slice 2; cross-lane one-liner, called out in the PR)
             kitTextOy: st.kitTextOy, kitTextOx: st.kitTextOx },
           scope === "full" ? () => buildSpriteSheetBytes(sheetEntries(st), `${name} · visual catalog`, st.cfg.type.font, fdef2?.css ?? null,

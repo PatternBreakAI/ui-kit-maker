@@ -7,7 +7,7 @@ import { importedShape, flattenPath, pointInPoly, selfIntersections, type Pt } f
 import { glyphShape } from "./glyphLibrary";
 /* the maker's own art wears the SAME filter recipe a board logo does —
    one road for shadow and glow, never a second one (round 73d) */
-import { bigGlyphFilter, bigGlyphFilterPad } from "./bigGlyphs";
+import { bigGlyphFilter, bigGlyphFilterPad, boardBgFilter, picWashSvg, hasWash } from "./bigGlyphs";
 import { innerOffsetLoops } from "./offsetKernel";
 import { tableLabelEm } from "./fontMetrics";
 import { stockShape } from "./stockShapes";
@@ -5052,13 +5052,55 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
      aspect and the card crops it; it never squashes. */
   const picLayer = (pic: NonNullable<KitOpts["pic"]>, clipId: string, clipD: string,
                     px: number, py: number, pw: number, ph: number, name: string, nick: string, op = 1) => {
-    // a disabled card's picture greys rather than fades (round 73e)
-    const rfx = state === "disabled" ? ` style="filter:${DISABLED_RASTER_FILTER}"` : "";
-    const sc = Math.max(pw / Math.max(1, pic.w), ph / Math.max(1, pic.h));
-    const iw = pic.w * sc, ih = pic.h * sc;
-    return `<defs><clipPath id="${clipId}"><path d="${clipD}"/></clipPath></defs>` +
+    const seat = picSeat(pic, px, py, pw, ph);
+    return `<defs><clipPath id="${clipId}"><path d="${clipD}"/></clipPath>${seat.defs}</defs>` +
       `<g data-part="icon" data-icon="${name}" data-icon-nick="${nick}" data-icon-box="${px.toFixed(1)} ${py.toFixed(1)} ${pw.toFixed(1)} ${ph.toFixed(1)}">` +
-      `<g clip-path="url(#${clipId})"><image href="${esc(pic.href)}" x="${(px + (pw - iw) / 2).toFixed(1)}" y="${(py + (ph - ih) / 2).toFixed(1)}" width="${iw.toFixed(1)}" height="${ih.toFixed(1)}" preserveAspectRatio="none" opacity="${op}"${rfx}/></g></g>`;
+      `<g clip-path="url(#${clipId})">${seat.img(op)}</g></g>` +
+      seat.wash(clipId, `${name}wash`, `${nick} wash`, px, py, pw, ph);
+  };
+  /* A PICTURE SEAT'S OWN DIALS (round 73f). Two halves, and they land in
+     two different places on purpose:
+
+     · the GRADE (blur, saturation, hue, brightness, contrast) plus the
+       size, nudge, glow and shadow are properties OF THE PICTURE, so they
+       ride the <image> and bake into its sprite. A colour grade is not a
+       swappable thing; there is nothing to keep separate.
+     · the WASH (the tint, vignette, grain and centre scrim) is a layer
+       ABOVE the picture, so it gets its OWN marked group and its own
+       sprite. Swap the picture in Unity and the vignette is still there,
+       sitting on top, its own child in the Hierarchy — the editability
+       law applied to the one part of the darkroom that can obey it.
+
+     Every value is read straight off PicSeatFx, which IS the board
+     backdrop's vocabulary; boardBgFilter and picWashSvg are the board's
+     own functions, not lookalikes. */
+  const picSeat = (pic: NonNullable<KitOpts["pic"]>, px: number, py: number, pw: number, ph: number) => {
+    const fx = pic.fx ?? {};
+    const uid = `${id}${UID++}`;
+    // a disabled card's picture greys rather than fades (round 73e)
+    const grade = [boardBgFilter(fx), bigGlyphFilter(cfg, { gid: "", ...fx }), state === "disabled" ? DISABLED_RASTER_FILTER : ""].filter(Boolean).join(" ");
+    /* COVER fit, then the size dial off that fit: 100% is the seat filled
+       corner to corner, below it the art pulls in and the well's own
+       ground shows around it — which is exactly when a glow or a dropped
+       shadow on the picture becomes visible at all. */
+    const zoom = Math.max(0.1, (fx.size ?? 100) / 100);
+    const sc = Math.max(pw / Math.max(1, pic.w), ph / Math.max(1, pic.h)) * zoom;
+    const iw = pic.w * sc, ih = pic.h * sc;
+    const ix = px + (pw - iw) / 2 + (fx.dx ?? 0), iy = py + (ph - ih) / 2 + (fx.dy ?? 0);
+    const wash = picWashSvg(fx, uid, px, py, pw, ph);
+    return {
+      defs: wash.defs,
+      img: (op = 1) =>
+        `<image href="${esc(pic.href)}" x="${ix.toFixed(1)}" y="${iy.toFixed(1)}" width="${iw.toFixed(1)}" height="${ih.toFixed(1)}" preserveAspectRatio="none" opacity="${op}"${grade ? ` style="filter:${grade}"` : ""}/>`,
+      /** The wash as its own marked child, clipped to the same shape and
+       *  sharing the picture's exact crop frame so the two sprites land
+       *  registered 1:1 in Unity. Nothing to paint = nothing emitted. */
+      wash: (clipId: string, nm: string, nick: string, wx: number, wy: number, ww: number, wh: number) =>
+        hasWash(fx)
+          ? `<g data-part="icon" data-icon="${nm}" data-icon-nick="${nick}" data-icon-box="${wx.toFixed(1)} ${wy.toFixed(1)} ${ww.toFixed(1)} ${wh.toFixed(1)}">` +
+            `<g clip-path="url(#${clipId})">${wash.body}</g></g>`
+          : "",
+    };
   };
   const wellOf = (w: number, h: number, inset: number) =>
     // the well follows the same silhouette resolution as the shell: the
@@ -9998,13 +10040,14 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
          with no trip back to the app. */
       const picIcon = opts.icon === null ? null : (opts.icon ?? STOCK_ICONS.gem ?? STOCK_ICONS.star);
       const picBox = `${wX.toFixed(1)} ${wY.toFixed(1)} ${wW.toFixed(1)} ${wH.toFixed(1)}`;
+      /* COVER fit, its dials, and its darkroom — all of it through the one
+         picSeat road the card back and the pack already ride, so a picture
+         behaves the same wherever a piece holds one */
+      const artSeat = opts.pic ? picSeat(opts.pic, wX, wY, wW, wH) : null;
+      if (artSeat?.defs) partsF += `<defs>${artSeat.defs}</defs>`;
       partsF += `<g data-part="icon" data-icon="art" data-icon-nick="Card art" data-icon-box="${picBox}" data-icon-well-rect="${picBox}">`;
-      if (opts.pic) {
-        /* COVER fit: the upload keeps its aspect and the card crops it,
-           never a squash (the board's own big-glyph rule) */
-        const sc = Math.max(wW / Math.max(1, opts.pic.w), wH / Math.max(1, opts.pic.h));
-        const iw = opts.pic.w * sc, ih = opts.pic.h * sc;
-        partsF += `<g clip-path="url(#${gid}w)"><image href="${esc(opts.pic.href)}" x="${(wX + (wW - iw) / 2).toFixed(1)}" y="${(wY + (wH - ih) / 2).toFixed(1)}" width="${iw.toFixed(1)}" height="${ih.toFixed(1)}" preserveAspectRatio="none"${rasterFx ? ` style="filter:${rasterFx}"` : ""}/></g>`;
+      if (artSeat) {
+        partsF += `<g clip-path="url(#${gid}w)">${artSeat.img()}</g>`;
       } else if (picIcon) {
         const pS = Math.min(wW, wH) * (fullBleed ? 0.86 : 0.58);
         const pcx = wX + wW / 2, pcy = wY + wH * 0.46;
@@ -10012,6 +10055,8 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
           `<g${emblemFx(9 * k, CD(glow))}>${themedIcon(picIcon, pcx - pS / 2, pcy - pS / 2, pS, CD(hexMix(glow, "#FFFFFF", 0.35)), 1.8)}</g>`;
       }
       partsF += `</g>`;
+      // the darkroom's wash rides ABOVE the art as its own swappable child
+      if (artSeat) partsF += artSeat.wash(`${gid}w`, "artwash", "Card art wash", wX, wY, wW, wH);
       // a scrim up from the well's foot so the name reads over any picture
       partsF += `<g clip-path="url(#${gid}w)"><rect x="${wX.toFixed(1)}" y="${(wY + wH * 0.58).toFixed(1)}" width="${wW.toFixed(1)}" height="${(wH * 0.42).toFixed(1)}" fill="url(#${gid}s)"/></g>`;
       if (frameOnF) partsF += `<path d="${wellD}" fill="none" stroke="${hexRgba(CD(hexMix(glow, "#FFFFFF", 0.28)), 0.6)}" stroke-width="${(2.4 * k).toFixed(1)}"/>`;
