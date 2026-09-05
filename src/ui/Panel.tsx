@@ -2077,6 +2077,12 @@ export function Panel() {
               swapped independently. Its absence is not a gap — the kit's
               own type draws the name instead, which is road three. */}
           {LOGO_ELIGIBLE.has(baseOf(focus)) && <KitPicControl id={focus} seat="logo" />}
+          {/* the seats' DIALS ride their own folds, right here under the
+              content they belong to — shut by default, summarising what is
+              dialled so a closed fold still tells the truth, and absent
+              entirely on a seat with no picture (round 73d) */}
+          {PIC_ELIGIBLE.has(baseOf(focus)) && <PicFxSection id={focus} title="Picture effects" />}
+          {LOGO_ELIGIBLE.has(baseOf(focus)) && <PicFxSection id={focus} seat="logo" title="Logo effects" />}
           {(KIT_SLOTS[baseOf(focus)] ?? []).some((sl) => sl.kind === "free" && (!sl.state || (kitOverlay ?? null) === sl.state)) && (
             <div className="slotgrid">
               {(KIT_SLOTS[baseOf(focus)] ?? []).filter((sl) => sl.kind === "free" && (!sl.state || (kitOverlay ?? null) === sl.state)).map((slot) => (
@@ -3335,6 +3341,71 @@ function KitPicThumb({ refId, alt }: { refId: string; alt: string }) {
   return src
     ? <img src={src} alt={alt} loading="lazy" style={{ maxWidth: "100%", maxHeight: 44, display: "block", margin: "0 auto" }} />
     : <span aria-hidden="true" style={{ display: "block", width: 30, height: 30, borderRadius: 6, background: "rgba(127,127,127,0.18)", margin: "0 auto" }} />;
+}
+
+
+/* ── A PICTURE SEAT'S DIALS (round 73d) ───────────────────────────────
+   Owner: "if i upload an logo to the editor I need to be able to affect
+   its size and x,y, glow, shadow - we have all of this figured out already
+   so please consult the body of work before creating anything new (that is
+   the law)". So none of this is new: shadow, its pose, glow and glow ink
+   are BigGlyphFx, the shape a board logo already wears, rendered by the
+   very same bigGlyphFilter. Only size and the x/y nudge are added, and
+   they are the two things a board copy gets from its item transform that a
+   seat inside a piece has no way to get.
+
+   SURFACING (the owner's other instruction: "I know this is a lot of UI so
+   please think long and hard about the best way to surface this stuff,
+   hide, etc... make it all discoverable via the navigator microscope").
+   The answer is the house's own Section: it collapses, it summarises what
+   is dialled so a shut fold still tells the truth, and the panel search
+   opens every section and hides the ones that do not match — so these are
+   found by typing "glow" or "vignette" without any new search plumbing.
+   And a seat with no picture shows NO section at all, because a dial that
+   cannot move anything is the dead affordance the house rules out. */
+function PicFxSection({ id, seat, title }: { id: KitComponentId; seat?: string; title: string }) {
+  const { kitPics, kitPicFx, setKitPicFx } = useGen();
+  const key = seat ? `${id}:${seat}` : String(id);
+  if (!kitPics[key]) return null; // nothing to dial — the absence is the message
+  const fx = kitPicFx[key] ?? {};
+  const set = (patch: Record<string, number | string | undefined>) => setKitPicFx(id, seat, patch);
+  const touched = [
+    fx.size !== undefined && fx.size !== 100 ? `size ${fx.size}%` : "",
+    fx.dx || fx.dy ? `nudged` : "",
+    fx.glow ? `glow ${fx.glow}` : "",
+    fx.shadow ? `shadow ${fx.shadow}` : "",
+  ].filter(Boolean);
+  return (
+    <Section id={`picfx-${key}`} title={title}
+      summary={<span>{touched.length ? touched.join(", ") : "untouched"}</span>}>
+      <Slider label="Size" value={fx.size ?? 100} min={10} max={300} unit="%" def={100}
+        title="How big the art sits in its seat. 100% is the seat's own fit."
+        onChange={(v) => set({ size: v })} />
+      <Slider label="Nudge X" value={fx.dx ?? 0} min={-160} max={160} unit="px" def={0}
+        title="Slide it left or right of its seat, in design pixels."
+        onChange={(v) => set({ dx: v })} />
+      <Slider label="Nudge Y" value={fx.dy ?? 0} min={-200} max={200} unit="px" def={0}
+        title="Slide it up or down of its seat, in design pixels."
+        onChange={(v) => set({ dy: v })} />
+      <Slider label="Glow" value={fx.glow ?? 0} min={0} max={100} unit="" def={0}
+        title="The same glow a logo wears on a board. 0 is off; the ink follows the kit's Glow role unless you pick one."
+        onChange={(v) => set({ glow: v })} />
+      <Slider label="Shadow" value={fx.shadow ?? 0} min={0} max={100} unit="" def={0}
+        title="The same drop shadow a logo wears on a board. 0 is off."
+        onChange={(v) => set({ shadow: v })} />
+      {!!fx.shadow && (<>
+        <Slider label="Shadow X" value={fx.shadowX ?? 0} min={-40} max={40} unit="px" def={0}
+          title="Where the shadow falls. Left alone it follows the house curve, exactly as the type stamp's does."
+          onChange={(v) => set({ shadowX: v })} />
+        <Slider label="Shadow Y" value={fx.shadowY ?? Math.round(2 + (fx.shadow ?? 0) * 0.1)} min={-40} max={40} unit="px" def={Math.round(2 + (fx.shadow ?? 0) * 0.1)}
+          title="How far below it sits."
+          onChange={(v) => set({ shadowY: v })} />
+        <Slider label="Shadow blur" value={fx.shadowBlur ?? Math.round(2 + (fx.shadow ?? 0) * 0.22)} min={0} max={60} unit="px" def={Math.round(2 + (fx.shadow ?? 0) * 0.22)}
+          title="How soft it is."
+          onChange={(v) => set({ shadowBlur: v })} />
+      </>)}
+    </Section>
+  );
 }
 
 /* ONE picture, the one this piece is wearing (owner, round 73d: "I never

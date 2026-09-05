@@ -1,9 +1,13 @@
 import type { GenConfig, GenStateName, EffectRole, Shape, KitComponentId, KitSize, IconDef, StateDesign } from "./model";
+import type { PicSeatFx } from "./store";
 import { lighten, darken, hexMix, desaturate, saturate, hexRgba, fontByName, DEFAULT_ICON, ICONS_ENABLED, STOCK_ICONS, KIT_SHAPE , isGlyphPiece, isDarkBg, userShapes, seatIconDef, isGlyphButton, glyphOfButton, glyphSeatIcon, KIT_SLOTS, stateSlotKey } from "./model";
 import { iconGroup } from "./icons";
 import { silhouetteMeta, MIRROR_SILHOUETTES } from "./silhouettes";
 import { importedShape, flattenPath, pointInPoly, selfIntersections, type Pt } from "./importedShapes";
 import { glyphShape } from "./glyphLibrary";
+/* the maker's own art wears the SAME filter recipe a board logo does —
+   one road for shadow and glow, never a second one (round 73d) */
+import { bigGlyphFilter, bigGlyphFilterPad } from "./bigGlyphs";
 import { innerOffsetLoops } from "./offsetKernel";
 import { tableLabelEm } from "./fontMetrics";
 import { stockShape } from "./stockShapes";
@@ -4552,7 +4556,16 @@ export function addShine(svg: string, o?: { dur?: number; sweep?: number; width?
   const kfs = frac ? `<style>@keyframes kshn${id}{0%{transform:translateX(0)}${frac.toFixed(1)}%,100%{transform:translateX(175%)}}</style>` : "";
   const cls = `kit-shine${o?.armed ? " kit-shine--armed" : ""}`;
   const band = `${kfs}<g clip-path="url(#${id}${text ? "tgc" : "fc"})"${st ? ` style="${st}"` : ""}><g transform="skewX(-14)"><rect class="${cls}"${frac ? ` style="animation-name:kshn${id}"` : ""} x="${(vx - bw).toFixed(1)}" y="${(vy - vh).toFixed(1)}" width="${bw.toFixed(1)}" height="${(vh * 3).toFixed(1)}" fill="url(#${id}shn)"/></g></g>`;
-  return inject(svg.replace("</defs>", grad + "</defs>"), band);
+  const withGrad = svg.replace("</defs>", grad + "</defs>");
+  /* A PIECE MAY SAY WHERE ITS SHINE BELONGS (round 73d, owner: "shine needs
+     to appear behind the corner shapes"). The band is appended last by
+     default, which puts it over everything — right for a button, wrong for
+     a card whose corner badges sit proud of the face. A piece that cares
+     emits an empty `data-shine-seat` group at the depth it wants, and the
+     band lands THERE instead. Everything with no seat is byte-identical. */
+  const SEAT = '<g data-shine-seat="1"></g>';
+  if (withGrad.includes(SEAT)) return withGrad.replace(SEAT, band);
+  return inject(withGrad, band);
 }
 
 /* Stamp the draggable run of a control (slider, progress, segment) onto the
@@ -4583,11 +4596,11 @@ export interface KitOpts {
    *  bundled path — and w/h are the upload's own pixels so the well can
    *  COVER-fit it without squashing. Per-copy content, never a new
    *  component: this is what lets one card design carry a whole set. */
-  pic?: { href: string; w: number; h: number } | null;
+  pic?: { href: string; w: number; h: number; fx?: PicSeatFx } | null;
   /** A maker's own WORDMARK for a piece's logo seat (round 73d) — the
    *  card face's bottom band. Resolved by the caller exactly like `pic`;
    *  absent means the logo is drawn from the kit's own type instead. */
-  logo?: { href: string; w: number; h: number } | null;
+  logo?: { href: string; w: number; h: number; fx?: PicSeatFx } | null;
   /** Container variant for panels — circle, oval, dialogue strip. */
   kind?: "circle" | "oval" | "strip";
   /** Horizontal 9-slice stretch for the bar family (slider, progress,
@@ -9852,8 +9865,13 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       /* the maker's own art fills the back BENEATH the set emblem — a deck
          cover is a picture with a mark on it, and turning the mark off is
          already one control away (Icon: none) */
-      if (opts.pic) parts += picLayer(opts.pic, `${gid}p`, wellOf(w, h, bw * 0.72),
-        39 + bw * 0.72, 30 + bw * 0.72, w - bw * 1.44, h - bw * 1.44, "art", "Card art");
+      if (opts.pic) {
+        // the same face-shaped fill as the card front, so the shine reaches
+        // every pixel of a deck cover's art too
+        const spB = shellPaths(flatCardCfg(cfg), sov ?? KIT_SHAPE.cardback ?? cfg.shape, 39, 30, w, h);
+        parts += picLayer(opts.pic, `${gid}p`, spB.face,
+          39 + spB.bwF, 30 + spB.bwF, w - spB.bwF * 2, h - spB.bwF * 2, "art", "Card art");
+      }
       if (frameOn) parts += `<path d="${frameP}" fill="none" stroke="${hexRgba(hexMix(glow, "#FFFFFF", 0.25), 0.55)}" stroke-width="${(2.4 * k).toFixed(1)}"/>`;
       if (emb) {
         // data-part stamp: Dissect must find the emblem — it IS this piece's icon
@@ -9898,10 +9916,19 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
          image"). So the well is not an inset panel any more — it is the
          card's own silhouette just inside the frame, and the name rides
          OVER the picture's foot rather than in open space below it. */
-      const insF = bw * 0.72;
+      /* THE ART FILLS THE SHELL'S OWN FACE, not an inset of my choosing
+         (owner, round 73d: "wipe shine doesn't cover the whole card area,
+         it is cropped weird to an inner shape"). The wipe shine clips to
+         the face path build() emits; art laid outside that path is art the
+         shine can never reach, which is exactly the inner-shape crop the
+         owner saw. Taking the face from shellPaths — the same derivation
+         build uses — makes the art, the face and the shine ONE shape by
+         construction, so they cannot drift apart again. */
+      const sp = shellPaths(flatCardCfg(cfg), sov ?? KIT_SHAPE.cardface ?? cfg.shape, 39, 30, w, h);
+      const insF = sp.bwF;
       const wX = 39 + insF, wY = 30 + insF;
       const wW = w - insF * 2, wH = h - insF * 2;
-      const wellD = wellOf(w, h, insF);
+      const wellD = sp.face;
       const frameOnF = slF.frame !== "Off";
       const fullBleed = slF.art === "Full bleed";
       let partsF = `<defs>` +
@@ -10000,7 +10027,7 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
         }
         return outN;
       };
-      partsF += corner("l") + corner("r");
+      const cornersF = corner("l") + corner("r");
       /* THE NAME — the card's word, straddling the foot of the art with
          NO container under it (owner: "space for a logo, no container,
          but typography that overlaps the card face"). It goes through
@@ -10040,11 +10067,26 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
            band keeping its aspect (a logo squashed to fit is a logo
            ruined), and it is marked ink like every other picture, so a
            developer swaps the sprite without coming back here. */
-        const bandW = w * 0.82, bandH = 74 * k * logoSizeK;
+        /* THE WORDMARK'S OWN DIALS (round 73d) ride the body of work, not a
+           new invention: shadow, its pose, glow and glow ink are BigGlyphFx
+           — the very fields a board logo carries — rendered by the very
+           same bigGlyphFilter. Size and the x/y nudge are the two things a
+           board copy gets from its item transform that a seat inside a
+           piece has to carry itself, and they speak the kitTextOx/Oy
+           grammar: percent of the natural fit, then design px. */
+        const lfx = logoPic.fx ?? {};
+        const lSize = Math.max(0.1, (lfx.size ?? 100) / 100);
+        const bandW = w * 0.82 * lSize, bandH = 74 * k * logoSizeK * lSize;
         const scL = Math.min(bandW / Math.max(1, logoPic.w), bandH / Math.max(1, logoPic.h));
         const lw = logoPic.w * scL, lh = logoPic.h * scL;
-        partsF += `<g data-part="icon" data-icon="logo" data-icon-nick="Logo" data-icon-box="${(39 + w / 2 - bandW / 2).toFixed(1)} ${(logoBase - bandH / 2).toFixed(1)} ${bandW.toFixed(1)} ${bandH.toFixed(1)}">` +
-          `<image href="${esc(logoPic.href)}" x="${(39 + w / 2 - lw / 2).toFixed(1)}" y="${(logoBase - lh / 2).toFixed(1)}" width="${lw.toFixed(1)}" height="${lh.toFixed(1)}" preserveAspectRatio="xMidYMid meet" opacity="${dimF}"/></g>`;
+        const lcx = 39 + w / 2 + (lfx.dx ?? 0), lcy = logoBase + (lfx.dy ?? 0);
+        const lFilter = bigGlyphFilter(cfg, { gid: "", ...lfx });
+        /* the seat's window grows by the filter's own reach so a glow or a
+           dropped shadow is never shorn at the crop (bigGlyphFilterPad is
+           the same measure the board bakes use) */
+        const lPad = bigGlyphFilterPad({ gid: "", ...lfx });
+        partsF += `<g data-part="icon" data-icon="logo" data-icon-nick="Logo" data-icon-box="${(lcx - bandW / 2 - lPad).toFixed(1)} ${(lcy - bandH / 2 - lPad).toFixed(1)} ${(bandW + lPad * 2).toFixed(1)} ${(bandH + lPad * 2).toFixed(1)}">` +
+          `<image href="${esc(logoPic.href)}" x="${(lcx - lw / 2).toFixed(1)}" y="${(lcy - lh / 2).toFixed(1)}" width="${lw.toFixed(1)}" height="${lh.toFixed(1)}" preserveAspectRatio="xMidYMid meet" opacity="${dimF}"${lFilter ? ` style="filter:${lFilter}"` : ""}/></g>`;
       } else {
         /* ROAD THREE — the look's own type. An explicit | in the words is
            the exact break; otherwise the words split as evenly as they can
@@ -10130,6 +10172,9 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       /* the canvas grows so the frame-breaking corners are not shorn off
          at the viewBox edge — the badge overhang is the design — and far
          enough for the rules block when the card is carrying one */
+      /* the sweep goes in HERE — over the art and the wordmark, under the
+         corner badges that stand proud of the card */
+      partsF += `<g data-shine-seat="1"></g>` + cornersF;
       return inject(padSvg(track.replace("<svg ", '<svg data-cardface="1" '), Math.max(104, Math.ceil(belowH + 30))), partsF);
     }
     case "pack": {
