@@ -9191,16 +9191,21 @@ namespace PatternBreak {
     static Change Mood(int delta) { return delta < 0 ? Change.Hit : delta > 0 ? Change.Buff : Change.Quiet; }
 
 #if UNITY_2023_2_OR_NEWER
-    readonly System.Collections.Generic.Dictionary<int, Coroutine> live = new System.Collections.Generic.Dictionary<int, Coroutine>();
+    /* keyed on the LABEL ITSELF, not on an instance id. GetInstanceID() is
+       obsolete-as-ERROR from Unity 6.5 (CS0619), and its replacement,
+       GetEntityId(), does not exist on the older editors this kit still
+       supports — so keying on the object sidesteps the version fork
+       entirely. There are two seats; a reference is a perfectly good name
+       for one of them. */
+    readonly System.Collections.Generic.Dictionary<TMP_Text, Coroutine> live = new System.Collections.Generic.Dictionary<TMP_Text, Coroutine>();
 
     void Write(TMP_Text t, Graphic plate, int v, Change how) {
       if (t == null) return;
       t.text = v.ToString(System.Globalization.CultureInfo.InvariantCulture);
       if (how == Change.Quiet || !isActiveAndEnabled) return;
-      int key = t.GetInstanceID();
       Coroutine running;
-      if (live.TryGetValue(key, out running) && running != null) StopCoroutine(running);
-      live[key] = StartCoroutine(Punch(t, plate, how == Change.Hit ? hitTint : buffTint));
+      if (live.TryGetValue(t, out running) && running != null) StopCoroutine(running);
+      live[t] = StartCoroutine(Punch(t, plate, how == Change.Hit ? hitTint : buffTint));
     }
 
     IEnumerator Punch(TMP_Text t, Graphic plate, Color flash) {
@@ -9222,7 +9227,7 @@ namespace PatternBreak {
       tr.localScale = rest;
       t.color = inkRest;
       if (plate != null) plate.color = plateRest;
-      live.Remove(t.GetInstanceID());
+      live.Remove(t);
     }
 #endif
   }

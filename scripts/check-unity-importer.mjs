@@ -4385,6 +4385,52 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the setrow handle lost its band-relative rect — the grip's box goes back to guessing at the cross axis (round 62, S53)");
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+   THE OBSOLETE-API DENY-LIST (round 73g)
+
+   The owner opened the latest export in Unity 6.5 and it would not
+   compile: `Object.GetInstanceID()` is obsolete-as-ERROR there (CS0619,
+   not a warning), so PatternBreakCardFace.cs failed, PatternBreak.Runtime
+   failed with it, and the Editor assembly could not resolve — a whole
+   dead import from one method call.
+
+   This guard reads every C# BLOCK this file ships, not just the importer,
+   and refuses the calls we know Unity has promoted from warning to error.
+   The rule for adding one: it must be error-level obsolete on a Unity the
+   kit supports, AND have a replacement that works on the older editors
+   too — otherwise the fix is a version fork, not a deny-list entry.
+   ══════════════════════════════════════════════════════════════════════ */
+const OBSOLETE = [
+  { call: /\.GetInstanceID\(\)/, why: "Object.GetInstanceID() is obsolete-as-ERROR from Unity 6.5 (CS0619). GetEntityId() is not on older editors — key on the object itself instead of an id." },
+  { call: /\bFindObjectsOfType\s*</, why: "FindObjectsOfType<T>() is obsolete from Unity 2023.1. Use FindObjectsByType<T>(FindObjectsSortMode.None)." },
+];
+{
+  /* every emitted C# lives in a `const NAME_RUNTIME = \`...\`` (or the
+     importer itself); scan the raw source for the calls rather than
+     unescaping each block, since a false positive here is cheap and a
+     miss ships a dead import */
+  const csBlocks = [...src.matchAll(/const [A-Z0-9_]*(?:RUNTIME|IMPORTER)[A-Z0-9_]* = `/g)].map((m) => {
+    const from = m.index + m[0].length;
+    // to the next unescaped backtick that closes it — approximated by the
+    // next `\n`;\n at column 0, which is how every block in this file ends
+    const to = src.indexOf("\n`;", from);
+    return { name: m[0], body: src.slice(from, to < 0 ? src.length : to) };
+  });
+  if (!csBlocks.length) errors.push("obsolete-API guard found no C# blocks to scan — the naming convention changed and this guard went blind");
+  /* comments OUT before matching: the fix for this very bug carries a note
+     naming the banned call, and a guard that cannot tell prose from code
+     would flag the explanation of why it exists */
+  const decomment = (s) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+  for (const b of csBlocks) {
+    const code = decomment(b.body);
+    for (const o of OBSOLETE) {
+      if (!o.call.test(code)) continue;
+      const ln = b.body.split("\n").findIndex((l) => o.call.test(decomment(l))) + 1;
+      errors.push(`${b.name.trim()} line ~${ln} calls a banned API — ${o.why}`);
+    }
+  }
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);
