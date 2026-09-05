@@ -8,7 +8,7 @@
    a visual catalog only, produced after the atomics. */
 import type { GenConfig, IconDef, KitComponentId, KitDesign, Shape } from "./model";
 import type { BoardDef, LibItem, PicSeatFx } from "./store";
-import { stampFilter, stampFilterPad, boardBgFilter, drawBoardNoise, drawBoardOverlays, stampSvg, warpStampRaster, kitShadowFilter, kitShadowPad, suppressCastShadow } from "./store";
+import { stampFilter, stampFilterPad, boardBgFilter, drawBoardNoise, drawBoardOverlays, stampSvg, warpStampRaster, kitShadowFilter, kitShadowPad, suppressCastShadow, findAsset } from "./store";
 /* bigGlyphById names the excluded piece in the export-skip warn — the
    PAINTED glyph drop never ships in the Unity download (round 44). The
    filter/base recipes are for the MAKER'S OWN logos, which do (round 72):
@@ -1448,8 +1448,7 @@ export async function collectExportBoards(st: {
            in kitAssets; reading userAssets alone meant every logo on a
            loaded kit's board reported itself deleted and silently left the
            zip, while the same board painted them perfectly on screen. */
-        const ua = st.userAssets?.find((a) => a.id === b.logo!.aid)
-          ?? st.kitAssets?.find((a) => a.id === b.logo!.aid);
+        const ua = findAsset(st, b.logo!.aid);
         const aidSafe = ua ? ua.id.replace(/[^a-z0-9]/gi, "").slice(0, 24).toLowerCase() : "";
         const shipName = ua ? logoShipName(ua.id, ua.name) : "a logo";
         if (!ua || !aidSafe) {
@@ -3077,7 +3076,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     const fx = st.kitPicFx?.[pk] ?? st.kitPicFx?.[pb];
     const dress = (v: { href: string; w: number; h: number } | null) => (v && fx ? { ...v, fx } : v);
     if (picCache.has(aid)) return dress(picCache.get(aid) ?? null);
-    const ua = (st.userAssets ?? []).find((a) => a.id === aid) ?? (st.kitAssets ?? []).find((a) => a.id === aid);
+    const ua = findAsset(st, aid);
     let out: { href: string; w: number; h: number } | null = null;
     if (ua) {
       try {

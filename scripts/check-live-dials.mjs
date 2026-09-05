@@ -136,12 +136,20 @@ for (const rel of REG_FILES) {
   try { src = readFileSync(join(ROOT, rel), "utf8"); } catch { continue; }
   const lines = src.split("\n");
   lines.forEach((line, i) => {
-    if (!/\buserAssets\b/.test(line) || !/\.find\(/.test(line)) return;
+    if (!/\b(userAssets|kitAssets)\b/.test(line) || !/\.find\(/.test(line)) return;
     if (/^\s*(\/\/|\/?\*)/.test(line.trim())) return;
-    // the fall-through may wrap onto the next line or two
-    const window = lines.slice(i, i + 3).join("\n");
-    if (/\bkitAssets\b/.test(window)) return;
     if (lines.slice(Math.max(0, i - 3), i).some((l) => /no-kitassets:/.test(l))) return;
+    /* round 73j: there are THREE registries now (the drawer, the loaded
+       kit, the art that ships with the product), and the only lookup
+       allowed to know that is findAsset in store.ts. Any other line that
+       searches a registry by id is a fourth site waiting to miss one —
+       which is exactly how the Brightside logos reported themselves
+       deleted twice, once per missing fall-through. */
+    const inHelper = rel === "src/generator/store.ts" && (() => {
+      const from = lines.slice(0, i).map((l, k) => [l, k]).reverse().find(([l]) => /^export function findAsset\(/.test(l));
+      return !!from && i - from[1] < 8;
+    })();
+    if (inHelper) return;
     problems.push({ rel, line: i + 1, deps: line.trim().slice(0, 90), reg: true });
   });
 }
@@ -183,7 +191,7 @@ if (problems.length) {
     console.error(p.key
       ? `• ${p.rel}:${p.line} LiveArt's kitKey does not name ${p.missing.join(" or ")} — a picture that lands after first paint never repaints`
       : p.reg
-      ? `• ${p.rel}:${p.line} resolves an asset id in userAssets but never falls through to kitAssets`
+      ? `• ${p.rel}:${p.line} searches an asset registry by id outside findAsset — the drawer, the loaded kit AND the shipped art are one lookup`
       : p.pair
         ? `• ${p.rel}:${p.line} enumerates per-piece maps but names kitPics without kitPicFx`
         : `• ${p.rel}:${p.line} lists ${SENTINEL} but not ${p.missing.join(" or ")}`);

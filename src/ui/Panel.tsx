@@ -3,7 +3,7 @@ import { AlertTriangle, ArrowLeftRight, ChevronDown, ChevronRight, Dices, Layers
 import { measureAutoSlice, drawNineSlice } from "./sliceProbe";
 import type { SliceProbe } from "./sliceProbe";
 import { patternZones } from "./SliceStage";
-import { useGen, importUserAssetFile } from "@/generator/store";
+import { useGen, importUserAssetFile, findAsset } from "@/generator/store";
 import { bgAssetDisplayUrl } from "@/generator/assets";
 import { t } from "@/shell/i18n";
 import { LessonBody } from "./LessonCard";
@@ -3522,7 +3522,7 @@ function KitPicControl({ id, seat }: { id: KitComponentId; seat?: string }) {
   const chosen = kitPics[key];
   const isLogo = seat === "logo";
   const asset = chosen
-    ? (userAssets.find((a) => a.id === chosen) ?? kitAssets.find((a) => a.id === chosen) ?? null)
+    ? (findAsset({ userAssets, kitAssets }, chosen) ?? null)
     : null;
   return (
     <div>

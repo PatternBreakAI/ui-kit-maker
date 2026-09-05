@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceBetween, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceBetween, ArrowDown, ArrowUp, BookmarkPlus, BringToFront, Copy, Download, Grid3x3, ImagePlus, LayoutTemplate, Lock, Monitor, Plus, RotateCcw, Search, SendToBack, Shield, Smartphone, SquarePen, Trash2, Type, X } from "lucide-react";
-import { useGen, kitPicOf, rehydrateBoardBgs, boardBgFilter, boardScaleMin, boardItemArtShort, drawBoardNoise, drawBoardOverlays, savedPromotable, stampFilter, stampSvg, warpStampRaster, importUserAssetFile, kitShadowFilter, suppressCastShadow } from "@/generator/store";
+import { useGen, kitPicOf, findAsset, rehydrateBoardBgs, boardBgFilter, boardScaleMin, boardItemArtShort, drawBoardNoise, drawBoardOverlays, savedPromotable, stampFilter, stampSvg, warpStampRaster, importUserAssetFile, kitShadowFilter, suppressCastShadow } from "@/generator/store";
 import type { UserAsset, UserLogoFx } from "@/generator/store";
 import { normalizeShipCopy, captureVideoPoster } from "@/generator/bgvault";
 import { importBgAsset, bgAssetStatusLine, onAssetActivity, bgAssetDisplayUrl } from "@/generator/assets";
@@ -1015,7 +1015,7 @@ export function BoardView({ playing }: { playing: boolean }) {
      drawer first, then the open document's bundled art, so the stage,
      the piece name and the PNG bake can never disagree about which
      pixels a logo item means */
-  const logoAsset = (aid: string) => userAssets.find((a) => a.id === aid) ?? kitAssets.find((a) => a.id === aid);
+  const logoAsset = (aid: string) => findAsset({ userAssets, kitAssets }, aid);
   /* ── the board's one gate (free-play round, owner mandate 2026-08-26) ──
      exports (board PNG, piece SVG/PNG) are paid — these composites
      render entirely in the browser, so the gate is client-side by
@@ -3843,7 +3843,7 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
              maker's drawer answers first; a SHIPPED kit's own bundled
              art (kitAssets) answers for the boards a public kit page
              draws, where there is no maker and no vault. */
-          const ua = userAssets.find((a) => a.id === b.logo!.aid) ?? kitAssets.find((a) => a.id === b.logo!.aid);
+          const ua = findAsset({ userAssets, kitAssets }, b.logo!.aid);
           if (!ua) return null;
           return <UserLogoStageArt cfg={cfg} ua={ua} fx={b.logo!} />;
         })() : b.stamp ? (

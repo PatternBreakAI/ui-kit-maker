@@ -11,6 +11,7 @@ import type { UserShape } from "./model";
 import { addShine, renderBevel, renderKit, renderTypeSpecimen } from "./bevel";
 import { getDef } from "./icons";
 import { bigGlyphById, BIG_GLYPH_BASE, type BigGlyphFx, type DarkroomGrade, type DarkroomWash } from "./bigGlyphs";
+import { NAMED_KITS } from "./namedKits";
 import { listCloudPresets, publishCloudPreset, updateCloudPreset, deleteCloudPreset, setCloudPresetSchedule, listHiddenStarters, setHiddenStarters, listHiddenSilhouettes, setHiddenSilhouettes, listDeletedSilhouettes, setDeletedSilhouettes, myProfileTier, cloudStatus, listComponentReleases, saveComponentReleases, listPromos, readPromosLive, noteLocalDocReplaced, readGateSnapshot, writeGateSnapshot, hasStoredSession, type CloudPreset, type PromoDef, type ReleaseStatus } from "./cloud";
 import { capsOf, type Tier } from "./entitlements";
 import siteDefaultJson from "./site-default.json";
@@ -1001,6 +1002,36 @@ export interface UserAsset {
  *  Refs are bundled paths only (isBundledArt) — payloads arrive from
  *  share links and cloud docs, and a vault id or `asset://` ref here
  *  would be a way to alias somebody else's pixels. */
+/* ══════════════════════════════════════════════════════════════════════
+   THE THIRD REGISTRY (round 73j) — art that ships with the product.
+
+   An asset id lives in the maker's drawer (userAssets) or in the kit they
+   loaded (kitAssets). Both can be EMPTY of an id a board still names: the
+   drawer is a synced key, and applyDoc is replace-all across devices, so
+   a cloud doc that lacks an entry deletes it locally; and kitAssets is
+   filled only by loadKitPayload, which an #/app session of your own kit
+   never runs. The owner exported Brightside from #/app and was told all
+   three of its logos were "a deleted My-assets entry" — the drawer had
+   lost the row, kitAssets was [], and the very same pixels sat in the
+   build at /kit-art/brightside/. An id that names shipped art is never
+   deleted. So every resolution falls through to here last, and reads it
+   through ONE function, because three sites reading two registries is
+   how this went wrong the first time.
+   ══════════════════════════════════════════════════════════════════════ */
+export const SHIPPED_ASSETS: UserAsset[] = (() => {
+  const out: UserAsset[] = [];
+  for (const k of Object.values(NAMED_KITS)) for (const a of sanitizeKitAssets((k.payload as { userAssets?: unknown }).userAssets)) if (!out.some((x) => x.id === a.id)) out.push(a);
+  return out;
+})();
+/** The one asset lookup: the maker's drawer first, then the loaded kit's
+ *  bundled art, then the art that ships with the product. */
+export function findAsset(st: { userAssets?: UserAsset[]; kitAssets?: UserAsset[] }, id: string | undefined | null): UserAsset | undefined {
+  if (!id) return undefined;
+  return (st.userAssets ?? []).find((a) => a.id === id)
+    ?? (st.kitAssets ?? []).find((a) => a.id === id)
+    ?? SHIPPED_ASSETS.find((a) => a.id === id);
+}
+
 export function sanitizeKitAssets(raw: unknown): UserAsset[] {
   if (!Array.isArray(raw)) return [];
   const out: UserAsset[] = [];
@@ -1087,7 +1118,7 @@ export function kitPicOf(
   const baseKey = seat ? `${baseOf(id)}:${seat}` : String(baseOf(id));
   const aid = st.kitPics?.[key] ?? st.kitPics?.[baseKey];
   if (!aid) return null;
-  const ua = (st.userAssets ?? []).find((a) => a.id === aid) ?? (st.kitAssets ?? []).find((a) => a.id === aid);
+  const ua = findAsset(st, aid);
   if (!ua) return null;
   const fx = st.kitPicFx?.[key] ?? st.kitPicFx?.[baseKey];
   const href = assetUrlNow(ua.ref);
