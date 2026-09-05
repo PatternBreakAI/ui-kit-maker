@@ -448,10 +448,11 @@ function flatPiece(c: GenConfig, flat?: boolean): GenConfig {
 /** Shared plumbing for every live piece on this page. The page is always
  *  alive — clicking a piece plays it; editing goes through the ✎ button. */
 function usePiece(p: PieceOpts) {
-  const { cfg, kitClones, kitShapes, kitDesigns, kitLocks, kitTextOy, kitTextOx, kitTextFill, kitIcons, kitLabels, kitNoText, kitSubs, kitSlotVals, kitVals, kitRow, kitBar, setFocus, setKitKind, setKitOverlay } = useGen();
+  const { cfg, kitClones, kitShapes, kitDesigns, kitLocks, kitTextOy, kitTextOx, kitTextFill, kitIcons, kitLabels, kitNoText, kitSubs, kitSlotVals, kitVals, kitRow, kitBar, kitPics, userAssets, kitAssets, assetTick, setFocus, setKitKind, setKitOverlay } = useGen();
   /* clone-aware (mirrors Panel/CanvasView): a duplicated piece renders
      through its BASE component — renderKit and LiveArt refuse clone ids —
      while every per-piece map read stays keyed by the piece's own id */
+  void assetTick; // read so a resolved picture re-renders this piece
   const base = baseOf(p.id);
   // an explicit size (the Primary ramp) is fixed; everything else is L —
   // the nav's kit-wide M/L switch is retired (owner: "get rid of the ML
@@ -495,6 +496,12 @@ function usePiece(p: PieceOpts) {
       // instances — the bare catalog tile, boards and exports still follow it
       icon: p.icon !== undefined ? p.icon : resolveKitIcon(kitIcons[p.id], undefined), value: kitVals[p.id] ?? p.value, baseState: p.baseState,
       sub: kitSubs[p.id] ?? p.sub, max: p.max, addBtn: p.addBtn, overlay: p.overlay, iconScale: p.iconScale,
+      /* the maker's own picture and wordmark (round 73d) — the specimen
+         road carried neither, so an upload never reached the kit page or
+         the card modal at all. assetTick is read above so this recomputes
+         the moment the bytes land. */
+      pic: kitPicOf({ kitPics, userAssets, kitAssets }, p.id),
+      logo: kitPicOf({ kitPics, userAssets, kitAssets }, p.id, "logo"),
       // instrument readouts default to plain AUTO ink; an explicit type fork
       // or per-piece text color re-themes them (see KitOpts.themedText)
       themedText: !!kitDesigns[p.id]?.type || !!kitTextFill[p.id],

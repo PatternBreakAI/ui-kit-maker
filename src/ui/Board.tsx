@@ -1009,7 +1009,7 @@ export function BoardView({ playing }: { playing: boolean }) {
     addToBoard, addKitToBoard, moveBoardItem, scaleBoardItem, rotateBoardItem, removeBoardItem,
     duplicateBoardItem, componentReleases, isAdmin, tier,
     applyBoardItemPatches, removeBoardItems, transformBoardItems,
-    userAssets, kitAssets, kitPics, addUserAssetToBoard, boardShadowLast,
+    userAssets, kitAssets, kitPics, assetTick, addUserAssetToBoard, boardShadowLast,
   } = useGen();
   /* one registry read for every logo road on the desk — the maker's own
      drawer first, then the open document's bundled art, so the stage,
@@ -1613,7 +1613,10 @@ export function BoardView({ playing }: { playing: boolean }) {
     // every map the thumb draws from is a dependency; the per-thumb cache
     // above is what keeps a one-piece edit from redrawing the whole catalog
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trayReady, cfg, kitShapes, kitTextFill, kitIcons, kitLabels, kitNoText, kitDesigns, kitSubs, kitSlotVals, kitVals, kitBar, kitSizes, kitTextOy, kitTextOx, kitRow, componentReleases, isAdmin]);
+    /* kitPics + assetTick belong here (round 73d): without them a tray
+       thumb keeps serving the render made before the maker's picture
+       resolved, which is the same cache trap that hid it on the canvas */
+  }, [trayReady, cfg, kitShapes, kitTextFill, kitIcons, kitLabels, kitNoText, kitDesigns, kitSubs, kitSlotVals, kitVals, kitBar, kitSizes, kitTextOy, kitTextOx, kitRow, componentReleases, isAdmin, kitPics, userAssets, kitAssets, assetTick]);
 
   /* the user's duplicated pieces — live kit citizens like the stock roster
      above. Thumbs render the BASE component wearing the clone's own design

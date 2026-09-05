@@ -204,7 +204,14 @@ export function CanvasView() {
     // the document's idle wipe rides the design canvas too — same clipped
     // glint LiveArt applies on the playing surfaces
     () => ((sv: string) => (fWipe && displayed !== "disabled" ? addShine(sv, { dur: cfg.idle?.freq, sweep: cfg.idle?.wipeDur, width: cfg.idle?.wipeWidth, armed: cfg.idle?.trigger === "hover", blend: cfg.idle?.blend }) : sv))(padSvg(focus ? renderKit(applyKitTextFill(applyKitDesign(cfg, kitDesigns[focus]), kitTextFill[focus]), baseOf(focus), fSize, displayed, kitVals[focus] ?? (baseOf(focus) === "toggle" && displayed === "pressed" ? 0 : undefined), kitShapes[focus], { textOy: fOy, textOx: fOx, icon: resolveKitIcon(kitIcons[focus], undefined), pic: fPic, logo: fLogo, label: kitNoText[focus] ? "" : kitLabels[focus], sub: kitSubs[focus], slots: kitSlotVals[focus], dock: fDock, bar: fBar, row: baseOf(focus) === "datarow" ? kitRow : undefined, kind: baseOf(focus) === "panel" ? (kitKind ?? undefined) : undefined, overlay: fOv, themedText: !!kitDesigns[focus]?.type || !!kitTextFill[focus] }) : parentId !== "button" ? renderKit(cfg, parentId, "l", displayed, kitVals[parentId], kitShapes[parentId], { label: kitNoText[parentId] ? "" : kitLabels[parentId], icon: resolveKitIcon(kitIcons[parentId], undefined) }) : renderBevel(cfg, displayed))),
-    [cfg, displayed, focus, parentId, kitShapes, fSize, fOy, fOx, kitRow, kitKind, fOv, kitBar, kitTextFill, kitIcons, kitLabels, kitNoText, kitSubs, kitSlotVals, kitVals, kitDesigns]
+    /* the maker's own picture belongs in here BY ITS HREF (round 73d): the
+       resolved object is a fresh identity every render, so listing it would
+       bust the memo constantly, while listing nothing meant the canvas kept
+       serving the render made before the bytes arrived — the owner's report
+       exactly, "the uploaded image only showed up once I clicked the no
+       text checkbox", because that checkbox is in this list and the picture
+       was not. */
+    [cfg, displayed, focus, parentId, kitShapes, fSize, fOy, fOx, kitRow, kitKind, fOv, kitBar, kitTextFill, kitIcons, kitLabels, kitNoText, kitSubs, kitSlotVals, kitVals, kitDesigns, fPic?.href, fLogo?.href]
   );
   /* ── the hero finds the middle of its workspace ──────────────────────
      The render's canvas reserves the sliders' full travel BELOW the shell
