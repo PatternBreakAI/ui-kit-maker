@@ -1470,7 +1470,20 @@ export async function collectExportBoards(st: {
             continue;
           }
           const bmp = await createImageBitmap(rec.blob);
-          wNat = bmp.width; hNat = bmp.height;
+          /* THE FOOTPRINT IS THE REGISTRY'S, NOT THE FILE'S (round 73l).
+             This used to read wNat/hNat off the decoded bitmap, which is
+             right only while the file behind the ref is the upload itself.
+             A SHIPPED kit's art is a smaller display raster behind a
+             registry row that still states the pixels the board was
+             composed against (the tiered-raster contract on UserAsset),
+             and the stage lays out by the row — so the moment the shipped
+             copy resolved (the third registry), every logo on Brightside
+             landed at 57% of its board size. The owner: "the logo I
+             uploaded in boards came in but really small". The raster is
+             drawn native; only the LAYOUT reads the row, and the filter's
+             px reach is scaled by the raster's ratio so a shadow keeps
+             its design-px size on a smaller file. */
+          const rasterK = bmp.width / Math.max(1, ua.w);
           /* a logo parked off the stage never drew in the app — the
              stage-clip contract, gated before any bytes ship (kBg/padBg
              mirror the kB/padB math below the try) */
@@ -1479,10 +1492,11 @@ export async function collectExportBoards(st: {
           if (!onStage(b.x + (wNat * kBg) / 2, b.y + (hNat * kBg) / 2, (wNat + padBg * 2) * kBg, (hNat + padBg * 2) * kBg, b.rot)) { bmp.close(); continue; }
           const draw = (pad: number, filter?: string): Promise<Uint8Array> => {
             const cv = document.createElement("canvas");
-            cv.width = bmp.width + pad * 2; cv.height = bmp.height + pad * 2;
+            const padPx = Math.ceil(pad * rasterK);
+            cv.width = bmp.width + padPx * 2; cv.height = bmp.height + padPx * 2;
             const cx2 = cv.getContext("2d")!;
             if (filter) cx2.filter = filter;
-            cx2.drawImage(bmp, pad, pad);
+            cx2.drawImage(bmp, padPx, padPx);
             return canvasToPngBytesDilated(cv);
           };
           /* the CLEAN original ships for EVERY used asset, dialed copies
@@ -1497,7 +1511,8 @@ export async function collectExportBoards(st: {
           if (!hasFx) file = cleanFile;
           else {
             const fxB = { gid: "", ...b.logo };
-            const bytesL = await draw(bigGlyphFilterPad(fxB), bigGlyphFilter(st.cfg, fxB));
+            // the pad is design px (scaled inside draw); the filter's own px follow the raster
+            const bytesL = await draw(bigGlyphFilterPad(fxB), bigGlyphFilter(st.cfg, fxB, rasterK));
             file = `bigglyphs/${uid2}-${sidOf(b)}.png`;
             stampFiles.push({ file, bytes: bytesL });
           }

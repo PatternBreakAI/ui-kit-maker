@@ -10321,9 +10321,21 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       const sparkP = (sx: number, sy: number, r: number) =>
         `<path d="M ${sx.toFixed(1)} ${(sy - r).toFixed(1)} L ${(sx + r * 0.28).toFixed(1)} ${(sy - r * 0.28).toFixed(1)} L ${(sx + r).toFixed(1)} ${sy.toFixed(1)} L ${(sx + r * 0.28).toFixed(1)} ${(sy + r * 0.28).toFixed(1)} L ${sx.toFixed(1)} ${(sy + r).toFixed(1)} L ${(sx - r * 0.28).toFixed(1)} ${(sy + r * 0.28).toFixed(1)} L ${(sx - r).toFixed(1)} ${sy.toFixed(1)} L ${(sx - r * 0.28).toFixed(1)} ${(sy - r * 0.28).toFixed(1)} Z" fill="${hexRgba(hexMix(glow, "#FFFFFF", 0.55), 0.85)}"/>`;
       let parts = `<defs><radialGradient id="${gid}g"><stop offset="0" stop-color="${glow}" stop-opacity="0.5"/><stop offset="1" stop-color="${glow}" stop-opacity="0"/></radialGradient></defs>`;
-      /* the pack takes a picture too — same road, cropped by the pack body */
-      if (opts.pic) parts += picLayer(opts.pic, `${gid}p`, wellOf(w, h, bw * 0.72),
-        39 + bw * 0.72, 30 + bw * 0.72, w - bw * 1.44, h - bw * 1.44, "art", "Pack art");
+      /* the pack takes a picture too — same road, cropped to the BODY
+         BETWEEN THE CAPS (round 73l). It used to be cropped to the whole
+         well, which is visually the same here because the crimps are
+         painted last and cover it — but the export cuts the picture as its
+         own child and draws it ABOVE the base sprite that carries the
+         crimps, so in Unity the picture swallowed the top cap (owner:
+         "card pack came in but sizing is off"). Clipping to the band the
+         caps leave open makes the cut sprite transparent where they sit,
+         and then no child order can get it wrong. The band's corners hide
+         under the caps, which overhang the body, so a plain rounded rect
+         is the same picture the well gave. */
+      const capH = 32 * k;
+      const bx0 = 39 + bw * 0.72, by0 = 30 + capH, bw0 = w - bw * 1.44, bh0 = h - capH * 2;
+      if (opts.pic) parts += picLayer(opts.pic, `${gid}p`, roundRect(bx0, by0, bw0, bh0, 6 * k),
+        bx0, by0, bw0, bh0, "art", "Pack art");
       if (emb) {
         // same stamp as the card back — the pack's emblem answers to Dissect too
         parts += `<g data-part="icon"><circle cx="${cxP.toFixed(1)}" cy="${cyP.toFixed(1)}" r="${(embS * 0.8).toFixed(1)}" fill="url(#${gid}g)"/>` +
