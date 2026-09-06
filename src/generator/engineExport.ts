@@ -561,6 +561,12 @@ export interface ExportBoardItemData {
       (bigglyphs/<id>.png), shared by every clean instance. Live-effect
       travel (Unity-side shadow/glow components) is a future option. */
   big?: { id: string; name: string; sprite: string; fx: boolean };
+  /** The copy's own opacity dial, 0..100, present only below 100 (round
+   *  73m — the Board control has promised "Exports honor it" since it
+   *  shipped; it did not, on any road). The importer lays it on the copy
+   *  and its cast shadow as one CanvasGroup, which is what the stage's
+   *  CSS opacity on the art wrapper covers. */
+  opacity?: number;
 }
 export interface ExportBoardData {
   name: string;
@@ -1011,6 +1017,11 @@ async function assetBlobOf(ref: string): Promise<{ blob: Blob; type: string } | 
   return rec ? { blob: rec.blob, type: rec.type } : null;
 }
 
+/** A board copy's opacity dial as an item field — only when it is doing
+ *  something, so every old manifest reads exactly as before. */
+const copyAlpha = (b: { opacity?: number }): { opacity?: number } =>
+  b.opacity !== undefined && b.opacity < 100 ? { opacity: Math.max(0, Math.round(b.opacity)) } : {};
+
 export async function collectExportBoards(st: {
   boards: BoardDef[];
   cfg: GenConfig;
@@ -1372,7 +1383,7 @@ export async function collectExportBoards(st: {
         bmp.close();
         const ax = cx < W / 3 ? 0 : cx > (2 * W) / 3 ? 1 : 0.5;
         const ay = cy < H / 3 ? 1 : cy > (2 * H) / 3 ? 0 : 0.5;
-        exItems.push({
+        exItems.push({ ...copyAlpha(b),
           component: "typestamp", cx: Math.round(cx * 10) / 10, cy: Math.round(cy * 10) / 10,
           w: Math.round(w * 10) / 10, h: Math.round(h * 10) / 10,
           // the pre-filter raster IS the visible art; the canvas pad around
@@ -1529,7 +1540,7 @@ export async function collectExportBoards(st: {
         const cxB = b.x + (wNat * kB) / 2, cyB = b.y + (hNat * kB) / 2;
         const axB = cxB < W / 3 ? 0 : cxB > (2 * W) / 3 ? 1 : 0.5;
         const ayB = cyB < H / 3 ? 1 : cyB > (2 * H) / 3 ? 0 : 0.5;
-        exItems.push({
+        exItems.push({ ...copyAlpha(b),
           component: "bigglyph", cx: Math.round(cxB * 10) / 10, cy: Math.round(cyB * 10) / 10,
           w: Math.round(wB * 10) / 10, h: Math.round(hB * 10) / 10,
           // the logo's own raster is the art box; an fx copy's symmetric
@@ -1591,7 +1602,7 @@ export async function collectExportBoards(st: {
         stampFiles.push({ file, bytes: pb });
         const axL = cxL < W / 3 ? 0 : cxL > (2 * W) / 3 ? 1 : 0.5;
         const ayL = cyL < H / 3 ? 1 : cyL > (2 * H) / 3 ? 0 : 0.5;
-        exItems.push({
+        exItems.push({ ...copyAlpha(b),
           component: "libasset", cx: Math.round(cxL * 10) / 10, cy: Math.round(cyL * 10) / 10,
           w: Math.round(wL * 10) / 10, h: Math.round(hL * 10) / 10,
           rot: b.rot ?? 0, label: null, value: null, ax: axL, ay: ayL,
@@ -1810,7 +1821,7 @@ export async function collectExportBoards(st: {
             }
           } catch { /* a piece without its companion still wipes — clipped to its full bake */ }
         }
-        exItems.push({
+        exItems.push({ ...copyAlpha(b),
           // base id even for a clone — the baked pixels above already wear
           // the clone's fork, and the importer only knows base names
           component: idBase, cx: Math.round(cx * 10) / 10, cy: Math.round(cy * 10) / 10,
@@ -2337,7 +2348,7 @@ export async function collectExportBoards(st: {
           }
         } catch { /* a copy without its dialed shadow still places */ }
       }
-      exItems.push({
+      exItems.push({ ...copyAlpha(b),
         component: fam, cx: Math.round(pcx * 10) / 10, cy: Math.round(pcy * 10) / 10,
         w: Math.round(pw * 10) / 10, h: Math.round(ph * 10) / 10,
         /* the words the maker actually SAW: per-copy label first, the
@@ -5013,10 +5024,12 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           { component: "trophyicon", part: fin, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
             usage: `${fin} podium finish — same geometry as base; swap it onto the Trophy prefab for placements.` }, true, "trophyicon");
       if (p.id === "endturn")
-        await addPng("endturn/arc.png",
-          `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200"><circle cx="100" cy="100" r="86" fill="none" stroke="#FFFFFF" stroke-width="13" stroke-linecap="round"/></svg>`,
-          { component: "endturn", part: "arc", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true,
-            usage: "Countdown ring — Image Type Filled/Radial360, fillAmount = time left. The prefab tints it to the kit Glow and stages it at 0.7." });
+        await addPng("endturn/arc.png", shell("endturn", { part: "arc" }, undefined, 1),
+          { component: "endturn", part: "arc", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, ringV: 0.7,
+            usage: "Countdown ring — the app's own arc at a full turn, on the body's canvas. Image Type Filled/Radial360; fillAmount = time left (staged at 0.7)." },
+          /* the base's own union-crop group, so the ring's canvas IS the
+             body's canvas and the child sits over it with no math */
+          true, "endturn");
       if (p.id === "firebutton") {
         /* the SWIPE RIG's layers (owner: "when you swipe left or right the
            center icon changes… bring that wiring into Unity"): a bare dome
@@ -14369,7 +14382,7 @@ namespace PatternBreak {
      name; false: the asset's clean original, shared). JsonUtility gives
      every row a default instance — an empty id means "not a big glyph". */
   [Serializable] class PBBig { public string id; public string name; public string sprite; public bool fx; }
-  [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float artW; public float artH; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string stampMask; public bool bakedFallback; public int stampLive; public float stampFs; public string stampInk; public string stampSplashInk; public string stampCase; public float stampDx; public float stampDy; public float stampW; public float stampH; public string posed; public float posedW; public float posedH; public float posedDx; public float posedDy; public string posedHover; public string posedPressed; public string posedDisabled; public float posedLabelDx; public float posedLabelDy; public string shadow; public float shadowW; public float shadowH; public float shadowDx; public float shadowDy; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; public PBBig big; public PBIconChild[] posedIcons; }
+  [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float artW; public float artH; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string stampMask; public bool bakedFallback; public int stampLive; public float stampFs; public string stampInk; public string stampSplashInk; public string stampCase; public float stampDx; public float stampDy; public float stampW; public float stampH; public string posed; public float posedW; public float posedH; public float posedDx; public float posedDy; public string posedHover; public string posedPressed; public string posedDisabled; public float posedLabelDx; public float posedLabelDy; public string shadow; public float shadowW; public float shadowH; public float shadowDx; public float shadowDy; public string ov; public float value; public bool flip; public float opacity; public float[] cells; public int cellSel = -1; public PBBig big; public PBIconChild[] posedIcons; }
   [Serializable] class PBBoardBg { public string file; public float opacity; public float blur; public float saturation; public float hue; public float brightness; public float contrast; public float noise; public string overlay; public float overlayStrength; public string overlayBlend; public bool original; }
   /* artMissing (round 72): logos the maker placed whose image the
      exporting browser could not reach, so no sprite shipped for them.
@@ -18031,6 +18044,11 @@ namespace PatternBreak {
           placed++;
           placedRoots.Add(new KeyValuePair<PBBoardItem, RectTransform>(it, rt));
           if (shadowRt != null) placedShadows[it] = shadowRt;
+          /* the copy's opacity dial (round 73m): one CanvasGroup on the piece
+             and one on its grounded shadow — the stage dims both together,
+             since its CSS opacity sits on the wrapper that holds the shadow
+             filter. 0 is JsonUtility's "absent" on older manifests: full. */
+          if (it.opacity > 0f && it.opacity < 100f) { CopyAlpha(rt.gameObject, it.opacity / 100f); if (shadowRt != null) CopyAlpha(shadowRt.gameObject, it.opacity / 100f); }
         }
         /* ── ICON ADOPTION (the third parked-icon field strike): on the
            board, an "item button" is a COMPOSITION — an interactive frame
@@ -18256,6 +18274,13 @@ namespace PatternBreak {
       try { var f = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"); if (f != null) return f; } catch (Exception) { }
       try { return Resources.GetBuiltinResource<Font>("Arial.ttf"); } catch (Exception) { }
       return null;
+    }
+    static void CopyAlpha(GameObject go, float a) {
+      if (go == null) return;
+      var cg = go.GetComponent<CanvasGroup>();
+      if (cg == null) cg = go.AddComponent<CanvasGroup>();
+      cg.alpha = Mathf.Clamp01(a);
+      cg.interactable = true; cg.blocksRaycasts = true;
     }
     static GameObject ImageObject(string n, Sprite sp, int pngScale) {
       var go = new GameObject(n, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
@@ -20201,16 +20226,18 @@ namespace PatternBreak {
           ai.preserveAspect = false; // the ring rect is sized below — Filled owns the draw
           ai.fillMethod = Image.FillMethod.Radial360;
           ai.fillOrigin = (int)Image.Origin360.Top;
-          ai.fillAmount = 0.7f;
+          /* the app's OWN ring (round 73m): the sprite already carries the
+             kit's ink, alpha and glow, and it was cropped in the body's own
+             union group, so it is the body's canvas — stretch it over the
+             body 1:1 and draw it white. The turn left rides the arc row. */
+          PBAsset arcRow = null;
+          foreach (var aAR in m.assets) if (aAR != null && aAR.component == "endturn" && aAR.part == "arc") { arcRow = aAR; break; }
+          ai.fillAmount = arcRow != null && arcRow.ringV > 0f ? Mathf.Clamp01(arcRow.ringV) : 0.7f;
           ai.raycastTarget = false;
-          Color arcC;
-          if (m != null && m.palette != null && !string.IsNullOrEmpty(m.palette.glow) && ColorUtility.TryParseHtmlString(m.palette.glow, out arcC)) ai.color = arcC;
+          ai.color = Color.white;
           var art2 = arcGo.GetComponent<RectTransform>();
-          // the ring hugs the SHELL, not the sprite rect (extrusion air)
-          Vector2 shlA;
-          var hostSz9 = ShellCenterAnchor(arcGo, go, baseAsset.component, m, out shlA) ? shlA : go.GetComponent<RectTransform>().sizeDelta;
-          float ring = Mathf.Min(hostSz9.x, hostSz9.y) * 0.92f;
-          art2.sizeDelta = new Vector2(ring, ring);
+          art2.anchorMin = Vector2.zero; art2.anchorMax = Vector2.one;
+          art2.offsetMin = Vector2.zero; art2.offsetMax = Vector2.zero;
         }
       }
       /* the badge shell reads unfinished bare (owner: "shouldn't this

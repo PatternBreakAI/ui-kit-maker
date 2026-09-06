@@ -9374,6 +9374,22 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       const vT0 = clamp(value ?? 0.7, 0, 1);
       const arcR = Math.min(sw, sh) / 2 - bw - 6 * k;
       const circT = 2 * Math.PI * arcR;
+      /* THE ARC AS ITS OWN PART (round 73m). Unity drives the turn timer as
+         a Filled/Radial360 Image, which needs the FULL ring as a sprite.
+         The export used to bake a hand-written stand-in for it — a white
+         circle of its own radius and stroke, tinted and stretched over the
+         button in the importer — and the owner saw the difference at a
+         glance ("a little bit of a difference here with the End Turn
+         button... I wonder if it points to a general error in
+         translation"). It did: the one place a sprite was invented rather
+         than rendered. This returns the app's own ring at a full turn —
+         same centre, radius, stroke, ink, alpha and glow, on the shell's
+         own canvas — so the importer places it over the body 1:1 and only
+         ever touches fillAmount. */
+      if (opts.part === "arc") {
+        const full = `<circle cx="${ccx.toFixed(1)}" cy="${ccy.toFixed(1)}" r="${arcR.toFixed(1)}" fill="none" stroke="${hexRgba(glow, 0.75)}" stroke-width="${(4 * k).toFixed(1)}" stroke-linecap="round" transform="rotate(-90 ${ccx.toFixed(1)} ${ccy.toFixed(1)})" style="filter: drop-shadow(0 0 ${(3 * k).toFixed(1)}px ${hexRgba(glow, 0.55)})"/>`;
+        return shell.slice(0, shell.indexOf(">") + 1) + full + "</svg>";
+      }
       const arc = vT0 > 0.01 && state !== "disabled"
         ? `<circle cx="${ccx.toFixed(1)}" cy="${ccy.toFixed(1)}" r="${arcR.toFixed(1)}" fill="none" stroke="${hexRgba(glow, 0.75)}" stroke-width="${(4 * k).toFixed(1)}" stroke-linecap="round" stroke-dasharray="${(circT * vT0).toFixed(1)} ${circT.toFixed(1)}" transform="rotate(-90 ${ccx.toFixed(1)} ${ccy.toFixed(1)})" style="filter: drop-shadow(0 0 ${(3 * k).toFixed(1)}px ${hexRgba(glow, 0.55)})"/>`
         : "";
