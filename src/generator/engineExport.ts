@@ -6790,9 +6790,16 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   }
   {
     const ltSvg = shell("loottag", { overlay: "frame" }, slim);
+    /* the GEM rides the un-burn's icon-seat road (round 73n): the full
+       render marks it, the seat is measured at the raster and the sprite
+       ships in the app's own ink — the formula-tinted white gem the
+       importer used to build sat high and wore the tier where the app
+       wears the type fill. The kit's own icon pick reaches it. */
+    const ltFull = shell("loottag", { icon: resolveKitIcon(st.kitIcons?.loottag, undefined) }, slim);
+    const ltSeats = await iconSeatsOf("loottag", ltFull);
     await addPng("loottag/base.9.png", ltSvg,
-      { component: "loottag", part: "base", nineSlice: sliceOf("loottag", 92), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Loot-tag plate, bare. The LootTag prefab rebuilds the tier stripe + gem LIVE (manifest > loot geometry, tinted per manifest > rarity); the item name and tier word arrive as live text.",
-        loot: lootOf(ltSvg), ...textSeatsOf("loottag", ltSvg, {}, slim) }, true);
+      { component: "loottag", part: "base", nineSlice: sliceOf("loottag", 92), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Loot-tag plate, bare. The LootTag prefab rebuilds the tier stripe LIVE (manifest > loot geometry, tinted per manifest > rarity) and the gem as a live icon child at the app's seat; the item name and tier word arrive as live text.",
+        loot: lootOf(ltSvg), ...(ltSeats ? { iconSeats: ltSeats } : {}), ...textSeatsOf("loottag", ltSvg, {}, slim) }, true);
     // the stripe pill, WHITE — the prefab tints it to the tier (round 16:
     // the app's left color bar was stripped and never rebuilt)
     await addPng("loottag/stripe.png", shell("loottag", { part: "stripe" }, slim), { component: "loottag", part: "stripe", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "The loot tag's rarity stripe, white — tint to the tier color (manifest > rarity). The LootTag prefab wears it as a live, re-tintable layer." });
@@ -7017,8 +7024,15 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     if (!lm) return null;
     const v = lm[1].split(" ").map(Number);
     if (v.length !== 7 || v.some((n) => !Number.isFinite(n))) return null;
-    return { sx: Math.round(v[0] * PNG_SCALE), sy: Math.round(v[1] * PNG_SCALE), sw: Math.round(v[2] * PNG_SCALE * 10) / 10, sh: Math.round(v[3] * PNG_SCALE * 10) / 10,
-      gx: Math.round(v[4] * PNG_SCALE), gy: Math.round(v[5] * PNG_SCALE), gs: Math.round(v[6] * PNG_SCALE * 10) / 10 };
+    /* the stamp speaks RAW (pre-rise) coordinates, the drawn stripe and
+       gem ride inject()'s lift group — the chart zone's own riseC rule.
+       Without it the dress sat the whole headroom above the face (owner,
+       fresh Unity project: the stripe and gem "off compared to the kit"). */
+    const shDl = /data-shell="([-\d. ]+)"/.exec(frameSvg)?.[1].split(" ").map(Number);
+    const sh0l = /data-shell0="([-\d. ]+)"/.exec(frameSvg)?.[1].split(" ").map(Number);
+    const riseL = shDl && sh0l && shDl.length === 4 && sh0l.length === 4 ? shDl[1] - sh0l[1] : 0;
+    return { sx: Math.round(v[0] * PNG_SCALE), sy: Math.round((v[1] + riseL) * PNG_SCALE), sw: Math.round(v[2] * PNG_SCALE * 10) / 10, sh: Math.round(v[3] * PNG_SCALE * 10) / 10,
+      gx: Math.round(v[4] * PNG_SCALE), gy: Math.round((v[5] + riseL) * PNG_SCALE), gs: Math.round(v[6] * PNG_SCALE * 10) / 10 };
   }
   {
     const spFace = shell("speedo", { part: "face" }, undefined, 0);
@@ -17879,9 +17893,17 @@ namespace PatternBreak {
                 var stT2 = inst.transform.Find("Stripe");
                 var stI2 = stT2 != null ? stT2.GetComponent<Image>() : null;
                 if (stI2 != null) stI2.color = tcL;
+                /* the gem follows the tier ONLY where the app's ink does
+                   (round 73n): a seat-shipped gem carries a tint when its
+                   ink is tier-driven and none when it wears the type fill
+                   — that one is a fixed picture and stays as drawn */
+                PBAsset rowLT = null;
+                foreach (var aLT in m.assets) if (aLT != null && aLT.component == "loottag" && aLT.part == "base") { rowLT = aLT; break; }
+                var gemSeatT = LootGemSeat(rowLT);
+                bool gemFollows = gemSeatT == null || !string.IsNullOrEmpty(gemSeatT.tint);
                 var gmT2 = inst.transform.Find("Gem");
                 var gmI2 = gmT2 != null ? gmT2.GetComponent<Image>() : null;
-                if (gmI2 != null) gmI2.color = Color.Lerp(tcL, Color.white, 0.15f);
+                if (gmI2 != null && gemFollows) gmI2.color = Color.Lerp(tcL, Color.white, 0.15f);
               }
             }
             if (it.component == "countbadge" && it.value > 0f) {
@@ -22034,6 +22056,11 @@ namespace PatternBreak {
       if (m.rarity != null && m.rarity.tiers != null && m.rarity.tiers.Length > 2 && m.rarity.tiers[2] != null && !string.IsNullOrEmpty(m.rarity.tiers[2].color))
         ColorUtility.TryParseHtmlString(m.rarity.tiers[2].color, out tier);
       var l = rowL.loot;
+      /* round 73n: a manifest shipping the gem as an icon SEAT (the
+         un-burn road — the app's own picture at the measured seat) owns
+         the Gem child; this hand builds only the stripe. Older zips
+         without the seat keep the formula gem exactly as shipped. */
+      bool seatGem = LootGemSeat(rowL) != null;
       var sSp = S(root + "/assets/loottag/loottag-stripe.png");
       if (sSp != null) {
         var sGo = new GameObject("Stripe", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
@@ -22046,7 +22073,7 @@ namespace PatternBreak {
         sRt.anchorMax = new Vector2((l.sx + l.sw) / rw, 1f - l.sy / rh);
         sRt.offsetMin = Vector2.zero; sRt.offsetMax = Vector2.zero;
       }
-      var gSp = S(root + "/assets/icons/gem.png");
+      var gSp = seatGem ? null : S(root + "/assets/icons/gem.png");
       if (gSp != null) {
         var gGo = new GameObject("Gem", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
         gGo.transform.SetParent(go.transform, false);
@@ -22061,6 +22088,13 @@ namespace PatternBreak {
         gRt.anchoredPosition = Vector2.zero;
         gRt.sizeDelta = new Vector2(l.gs / pngScale, l.gs / pngScale);
       }
+    }
+    /* the loot tag's gem SEAT on its base row (round 73n) — null on
+       older manifests, whose Gem is the formula child above */
+    static PBIconChild LootGemSeat(PBAsset rowL) {
+      if (rowL == null || rowL.iconSeats == null) return null;
+      foreach (var icL in rowL.iconSeats) if (icL != null && IconChildName(icL) == "Gem") return icL;
+      return null;
     }
     static bool PicturePrefab(string dir, string root, int pngScale, PBManifest m, string file, string goName, bool sliced) {
       var sp = S(root + "/assets/" + file);

@@ -7721,7 +7721,19 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       // (size, weight, opacity, rotation, fx, color) drives it — exactly
       // what that panel's helper promises. null = removed.
       const icL = opts.icon !== undefined ? opts.icon : STOCK_ICONS.gem;
-      const gem = icL ? wellGlyph(icL, 39 + inset + 45 * k, cy, 30 * k, lighten(tier.c, 0.15)) : "";
+      /* the gem is MARKED ink (round 73n — owner, fresh Unity project:
+         the gem sat high and blue where the app draws it centred and in
+         the type's cream). It ships through the un-burn's icon-seat road
+         like every other glyph — measured at the raster, full colour by
+         construction — instead of a white sprite the importer tinted to
+         the tier by formula. The tint attribute rides ONLY when the app's
+         own ink is tier-driven (themedIcon's inherit road: no custom icon
+         colour, no solid/gradient type fill), so a scene copy's staged
+         tier can still re-tint it; a type-fill gem is fixed ink and ships
+         as the picture it is. */
+      const gemTone = lighten(tier.c, 0.15);
+      const gemTierInk = !ICR.color && typeKT.fillMode !== "gradient" && typeKT.fillMode !== "solid";
+      const gem = icL ? `<g data-part="icon" data-icon="gem" data-icon-nick="Gem"${gemTierInk ? ` data-icon-tint="${gemTone}"` : ""}>${wellGlyph(icL, 39 + inset + 45 * k, cy, 30 * k, gemTone)}</g>` : "";
       const name = contentText(opts.label ?? "Ember Blade", 39 + inset + 74 * k, cy - (10 * k), 25 * k * typeK, { keepCase: true });
       const tag = `<text x="${(39 + inset + 74 * k).toFixed(1)}" y="${(cy + 18 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(13 * k).toFixed(1)}" font-weight="800" letter-spacing="0.16em" fill="${state === "disabled" ? "rgba(255,255,255,0.4)" : lighten(tier.c, 0.3)}" dominant-baseline="central">${esc(tier.name)}</text>`;
       // overlay "frame": engine-export cut — the bare plate; stripe, item
