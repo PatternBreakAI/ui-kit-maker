@@ -10729,6 +10729,12 @@ namespace PatternBreak {
     public Material disabledInkMaterial;
     Sprite[] gsWrote;
     Material[] gsPrevMat; bool[] gsInked;
+    /* graphics the app draws ONLY on a live piece (the end-turn ring: a
+       disabled button shows no countdown) — hidden while disabled, shown
+       again on re-enable. One a dev hid themselves is never touched. */
+    [Tooltip("Live children that HIDE while the piece is disabled — the app draws the countdown ring only on a live button. Re-enable shows them again; one you disabled yourself stays yours. Clear the list to keep them visible in every state.")]
+    public Graphic[] hideWhenDisabled;
+    bool[] hwdHid;
 
     RectTransform rt, glowRt;
     Image glowImg;
@@ -10852,6 +10858,11 @@ namespace PatternBreak {
           if (gsInked[i] && glyphSwaps[i] != null && glyphSwaps[i].target != null && glyphSwaps[i].target.material == disabledInkMaterial)
             glyphSwaps[i].target.material = gsPrevMat[i];
       gsPrevMat = null; gsInked = null;
+      // and the live-only graphics come back — only the ones THIS rig hid
+      if (hideWhenDisabled != null && hwdHid != null)
+        for (int i = 0; i < hideWhenDisabled.Length && i < hwdHid.Length; i++)
+          if (hwdHid[i] && hideWhenDisabled[i] != null) hideWhenDisabled[i].enabled = true;
+      hwdHid = null;
     }
     static bool legacyGlowHinted;
     void BuildGlow() {
@@ -11067,6 +11078,8 @@ namespace PatternBreak {
           lastWroteY = baseY + liftNow;
         } else lastWroteY = rt.anchoredPosition.y; // the adoption logic stays quiet
       }
+      // the live-only graphics answer the state the same instant
+      PushHides();
       // the glyph dress follows the same state, instantly (a sprite has
       // no in-between) — the frame's Sprite Swap and this stay one move
       PushGlyphSwaps();
@@ -11111,6 +11124,20 @@ namespace PatternBreak {
           if (g.target.material == disabledInkMaterial) g.target.material = gsPrevMat[i];
           gsInked[i] = false; gsPrevMat[i] = null;
         }
+      }
+    }
+    /* the LIVE-ONLY graphics: hidden on disable, shown on re-enable —
+       write-once identity again: a graphic already off when the piece
+       disables was the dev's call and is never switched back on here */
+    void PushHides() {
+      if (hideWhenDisabled == null || hideWhenDisabled.Length == 0) return;
+      if (hwdHid == null || hwdHid.Length != hideWhenDisabled.Length) hwdHid = new bool[hideWhenDisabled.Length];
+      bool dis = sel != null && !sel.IsInteractable();
+      for (int i = 0; i < hideWhenDisabled.Length; i++) {
+        var g = hideWhenDisabled[i];
+        if (g == null) continue;
+        if (dis) { if (!hwdHid[i] && g.enabled) { g.enabled = false; hwdHid[i] = true; } }
+        else if (hwdHid[i]) { if (!g.enabled) g.enabled = true; hwdHid[i] = false; }
       }
     }
     /* a parent CanvasGroup flipping interactable is a DISABLE the pointer
@@ -20238,6 +20265,11 @@ namespace PatternBreak {
           var art2 = arcGo.GetComponent<RectTransform>();
           art2.anchorMin = Vector2.zero; art2.anchorMax = Vector2.one;
           art2.offsetMin = Vector2.zero; art2.offsetMax = Vector2.zero;
+          /* the app draws the ring only on a LIVE button — the state rig
+             hides it while disabled and brings it back, the glyph dress's
+             own road (armed once; a list a dev already holds is theirs) */
+          var fxET = go.GetComponent<StateFx>();
+          if (fxET != null && (fxET.hideWhenDisabled == null || fxET.hideWhenDisabled.Length == 0)) fxET.hideWhenDisabled = new Graphic[] { ai };
         }
       }
       /* the badge shell reads unfinished bare (owner: "shouldn't this

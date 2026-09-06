@@ -9388,7 +9388,14 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
          ever touches fillAmount. */
       if (opts.part === "arc") {
         const full = `<circle cx="${ccx.toFixed(1)}" cy="${ccy.toFixed(1)}" r="${arcR.toFixed(1)}" fill="none" stroke="${hexRgba(glow, 0.75)}" stroke-width="${(4 * k).toFixed(1)}" stroke-linecap="round" transform="rotate(-90 ${ccx.toFixed(1)} ${ccy.toFixed(1)})" style="filter: drop-shadow(0 0 ${(3 * k).toFixed(1)}px ${hexRgba(glow, 0.55)})"/>`;
-        return shell.slice(0, shell.indexOf(">") + 1) + full + "</svg>";
+        /* the ring rides the shell's OWN rise. inject() seats the app's
+           arc inside build()'s lift group, which translates every drawn
+           thing down by the extrusion headroom (data-shell vs data-shell0)
+           — the bare circle on the canvas sat that far above the face in
+           Unity (owner, fresh project: "alignment issues"). */
+        const drawnM = /data-shell="([-\d. ]+)"/.exec(shell);
+        const riseA = drawnM ? Number(drawnM[1].split(" ")[1]) - sy : 0;
+        return shell.slice(0, shell.indexOf(">") + 1) + `<g transform="translate(0 ${riseA.toFixed(1)})">` + full + "</g></svg>";
       }
       const arc = vT0 > 0.01 && state !== "disabled"
         ? `<circle cx="${ccx.toFixed(1)}" cy="${ccy.toFixed(1)}" r="${arcR.toFixed(1)}" fill="none" stroke="${hexRgba(glow, 0.75)}" stroke-width="${(4 * k).toFixed(1)}" stroke-linecap="round" stroke-dasharray="${(circT * vT0).toFixed(1)} ${circT.toFixed(1)}" transform="rotate(-90 ${ccx.toFixed(1)} ${ccy.toFixed(1)})" style="filter: drop-shadow(0 0 ${(3 * k).toFixed(1)}px ${hexRgba(glow, 0.55)})"/>`
