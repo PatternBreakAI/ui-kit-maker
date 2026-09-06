@@ -8345,8 +8345,15 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
    native language names — Español, Français, Português — ride live labels
    through the baked faces; the slice fence proves every option string
    against this set, so tofu can't ship). The kit face's fallback chain
-   draws any glyph the display font lacks, exactly as the app does. */
-const BAKE_GLYPHS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!?.,:;%+-'&()×éèêëàâäçîïíìôöóòûüúùñãõÉÈÊÀÇÑ";
+   draws any glyph the display font lacks, exactly as the app does.
+   Round 73o (owner, fresh Unity project: "price button in unity isn't
+   picking up the correct color for the money sign"): the set covered
+   letters, digits and a dozen marks — no $, no /, no # — so the price
+   button's own "$4.99" and the XP bar's "900 / 2,000 XP" drew those
+   glyphs from TMP's default grey font. Every printable-ASCII symbol
+   rides now, plus the three currency signs a store button types. */
+// (the quote and the backslash ride as \u escapes — the importer guard reads this literal raw)
+const BAKE_GLYPHS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!?.,:;%+-'&()×éèêëàâäçîïíìôöóòûüúùñãõÉÈÊÀÇÑ$/#@*=<>\u0022_[]{}|\u005C~^`€£¥";
 const BAKE_S = 3; // raster scale over the 52px specimen em → 156px baked em
 
 async function rasterCanvas(svg: string, scale: number): Promise<HTMLCanvasElement> {
@@ -18942,7 +18949,7 @@ namespace PatternBreak {
       // a half-assembled survivor of a failed pass (created, then TMP threw
       // before the tables landed) counts as missing — rebuild it in place
       bool broken = existing != null && (existing.characterTable == null || existing.characterTable.Count == 0);
-      if (existing != null && !refresh && !broken) return; // yours after first assembly; Regenerate refreshes
+      if (existing != null && !refresh && !broken) { LinkBakedFallback(existing, root); return; } // yours after first assembly; Regenerate refreshes
       var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(texPath);
       if (tex == null) return; // atlas not imported yet — the next pass retries
       try {
@@ -19039,6 +19046,7 @@ namespace PatternBreak {
           AssetDatabase.AddObjectToAsset(mat, fa);
         }
         fa.ReadFontAssetDefinition();
+        LinkBakedFallback(fa, root);
         EditorUtility.SetDirty(fa);
         AssetDatabase.SaveAssetIfDirty(fa); // ours alone — never flush the world (immutable-package policy)
         Debug.Log("UI Kit Maker: " + faceName + " assembled at " + assetPath + " — " + fa.characterTable.Count
@@ -19051,6 +19059,20 @@ namespace PatternBreak {
       } catch (Exception e) {
         Debug.LogWarning("UI Kit Maker: " + faceName + " couldn't self-assemble on this Unity version (" + e.Message + "). The atlas and metrics are intact in fonts/ — send this line to uikitmaker.com and we'll wire it.");
       }
+    }
+    /* round 73o (owner: the price button's "$" drew grey): a glyph outside
+       the bake set falls to the KIT's own SDF face — same typeface, the
+       kit-styled material — never to TMP's default grey font. Linked on
+       every pass (the SDF face may assemble after the baked one on a
+       fresh project); a table a dev already filled is theirs. */
+    static void LinkBakedFallback(TMP_FontAsset fa, string root) {
+      if (fa == null) return;
+      var sdfFb = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
+      if (sdfFb == null || sdfFb == fa) return;
+      if (fa.fallbackFontAssetTable == null) fa.fallbackFontAssetTable = new List<TMP_FontAsset>();
+      if (fa.fallbackFontAssetTable.Count > 0) return;
+      fa.fallbackFontAssetTable.Add(sdfFb);
+      EditorUtility.SetDirty(fa);
     }
     /* ── the kit's fill as a one-click Color Gradient preset: prefab labels
        arrive wearing the gradient automatically, but a HAND-made text

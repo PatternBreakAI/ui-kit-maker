@@ -1946,9 +1946,22 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   // glyph coverage at the source: the language names' accents ride BAKE_GLYPHS
   const bg = src.match(/const BAKE_GLYPHS = "([^"]+)";/);
   if (!bg) errors.push("BAKE_GLYPHS not found");
-  else for (const opt of ["English", "Español", "Français", "Deutsch", "Português", "Italiano"])
-    for (const ch of opt.replace(/ /g, ""))
-      if (!bg[1].includes(ch)) errors.push(`BAKE_GLYPHS lacks '${ch}' (needed by dropdown option "${opt}") — tofu in the baked faces (slice 3)`);
+  else {
+    for (const opt of ["English", "Español", "Français", "Deutsch", "Português", "Italiano"])
+      for (const ch of opt.replace(/ /g, ""))
+        if (!bg[1].includes(ch)) errors.push(`BAKE_GLYPHS lacks '${ch}' (needed by dropdown option "${opt}") — tofu in the baked faces (slice 3)`);
+    /* round 73o (owner: the price button's "$" drew in TMP's default grey
+       font): every printable-ASCII glyph rides the baked faces — a kit
+       label may type any of them ("$4.99", "900 / 2,000 XP", "#1"). The
+       literal carries the quote and the backslash as \u escapes; decode
+       before checking. */
+    let bakeSet = bg[1];
+    try { bakeSet = JSON.parse('"' + bg[1] + '"'); } catch { /* raw literal — the check below then speaks for the raw text */ }
+    for (let cc = 33; cc < 127; cc++) {
+      const ch = String.fromCharCode(cc);
+      if (!bakeSet.includes(ch)) errors.push(`BAKE_GLYPHS lacks '${ch}' — a kit label typing it draws from TMP's default grey font instead of the baked face (round 73o)`);
+    }
+  }
 }
 
 /* ── Unity-exporter follow-up round (2026-08-27): the COMPLETE PLAYGROUND.
