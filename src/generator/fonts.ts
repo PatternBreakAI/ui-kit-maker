@@ -95,7 +95,7 @@ export async function awaitFonts(names: string[], timeoutMs = 2400): Promise<voi
    thumbnail wears a fallback instead of the author's design. Structural on
    purpose — docs arrive as unknown JSON, and a malformed field should skip,
    not throw. */
-export function ensureDocFonts(cfg: unknown, kitDesigns?: unknown): void {
+export function ensureDocFonts(cfg: unknown, kitDesigns?: unknown, kitSlotVals?: unknown): void {
   const fams = new Set<string>();
   const addType = (t: unknown) => {
     const ty = t as { font?: unknown; listFont?: unknown } | null | undefined;
@@ -110,5 +110,22 @@ export function ensureDocFonts(cfg: unknown, kitDesigns?: unknown): void {
   };
   addDesign(cfg);
   for (const kd of Object.values((kitDesigns ?? {}) as Record<string, unknown>)) addDesign(kd);
+  /* SLOT-BORNE FACES (round 73d): a piece may name a face for ONE part of
+     itself without moving the kit's own type — the card's corner numerals
+     are the first ("I want to be able to change the font on the numeric
+     without changing the whole system font"). Those live in the slot
+     values, not in any design fork, so a doc walk that reads only designs
+     would load every face the kit speaks EXCEPT this one, and the numerals
+     would quietly wear the fallback. Structural like the rest: unknown
+     JSON, so a malformed row skips rather than throws. */
+  for (const sv of Object.values((kitSlotVals ?? {}) as Record<string, unknown>)) {
+    const row = sv as Record<string, unknown> | null | undefined;
+    if (!row) continue;
+    for (const [key, val] of Object.entries(row)) {
+      if (!/font$/i.test(key) || typeof val !== "string") continue;
+      if (!val || val === "Kit font") continue;
+      fams.add(val);
+    }
+  }
   fams.forEach((f) => ensureFont(f));
 }

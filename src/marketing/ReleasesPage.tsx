@@ -15,6 +15,48 @@ type Release = { date: string; title: string; items: RelItem[]; lab?: RelItem[] 
 
 const RELEASES: Release[] = [
   {
+    date: "September 2026",
+    title: "What you see is what Unity gets",
+    items: [
+      {
+        h: "Brightside is one click away, for everyone",
+        p: "Our shipped kit now sits at the head of the Looks rack for every visitor, account or not. One click applies the whole kit, and a fresh desk gets its eight screens dealt with it, so the kit shows itself on the stage and not just in the book. Its own page at #/kit/brightside stays as the store-listing address.",
+      },
+      {
+        h: "Every preset pack is open",
+        p: "The preset packs used to lock below Pro. They are open to everyone now, applied from the same rack, and the release machinery stays ready for scheduled drops. Exporting your own designs is still the paid step.",
+      },
+      {
+        h: "A picture on the card back and the pack, with its own darkroom",
+        p: "Give a card back or a card pack a picture of your own and light it with the same darkroom the Boards backdrop already has: brightness, contrast, saturation, blur, a vignette and film grain. One darkroom, reachable from two places. The grade shows live in the editor and rides the download; the vignette and grain land in Unity as their own layer above the art, so a swapped picture keeps its mood.",
+      },
+      {
+        h: "Saved components come home",
+        p: "A piece you saved from a board opens in the editor again, restyles with the kit, and lives in the kit's Other section for good. Applying a look no longer takes your saved pieces away, a copy that lost its twin gets it back, and saved pieces travel with the document, so a shared link draws them too.",
+      },
+      {
+        h: "Kits open clean in Unity 6.5",
+        p: "Unity 6.5 turned a deprecated call into a compile error, which stopped a whole import at the door. Exports compile clean there now, alongside 2022.3 and everything between.",
+      },
+      {
+        h: "Every picture makes the download",
+        p: "The export used to lose track of art that came with a loaded kit and report it as deleted. Nothing was deleted. The maker's own uploads, a loaded kit's art and the shipped kits' pieces are all found by one lookup, and the kit page paints a card's picture on first paint instead of on rollover.",
+      },
+      {
+        h: "Scenes arrive as composed",
+        p: "Portrait boards show their backdrops behind the phone stage, a logo placed on a board lands at the board's size, a copy's opacity carries into the scene, and the card pack's picture stays between its caps.",
+      },
+      {
+        h: "Prefabs to the pixel",
+        p: "A field round against the app, piece by piece. The End Turn ring is the app's own arc, seated on the face and hidden while the button is disabled. The loot tag's stripe and gem sit where the app draws them, in the app's ink. The flip clock's split bar and the emblem bar's cap are live layers instead of pixels in the base. And the baked kit face now carries every printable glyph, so a price button's dollar sign wears the kit's type like the digits beside it.",
+      },
+      {
+        h: "Disabled reads as grey, not ghostly",
+        p: "A disabled card back takes a grade, desaturated and lifted, instead of a fade, so a picture on it stays a picture and the download carries the same grey.",
+      },
+    ],
+  },
+  {
     date: "August 2026",
     title: "Play first, and a button for every glyph",
     items: [

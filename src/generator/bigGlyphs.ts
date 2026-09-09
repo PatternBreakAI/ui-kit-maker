@@ -192,3 +192,115 @@ export function bigGlyphFilterPad(fx: BigGlyphFx): number {
   if (fx.glow) pad = Math.max(pad, (6 + fx.glow * 0.5) * 3);
   return Math.ceil(pad);
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   THE DARKROOM — one vocabulary for every uploaded picture
+
+   These dials were built for a board's backdrop ("the same darkening
+   controls that in the editor that we have for the uploaded game screen
+   background images in Boards... i.e., vignette, etc..."), and the owner
+   then asked for them on a card's picture. They are the SAME dials, not
+   a second set that resembles them: same field names, same ranges, same
+   recipe. `boardBgFilter` moved here from the store so a renderer can
+   read it without importing the store (the store already imports the
+   renderer — the other direction is a cycle), and every existing caller
+   still imports it from the store, which re-exports it.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/** The colour grade half of the darkroom — structural, so a BoardDef and
+ *  a picture seat's fx both satisfy it without either knowing about the
+ *  other. */
+export interface DarkroomGrade {
+  bgBlur?: number;
+  bgSat?: number;      // 0..100
+  bgHue?: number;      // -180..180 deg
+  bgBright?: number;   // 0..200 %
+  bgContrast?: number; // 0..200 %
+}
+/** The overlay half — the tint wash, its grain, and the centre scrim. */
+export interface DarkroomWash {
+  ovMode?: "none" | "dark" | "light" | "vignette";
+  ovStrength?: number;  // 0..100 — tint opacity
+  ovNoise?: number;     // 0..100 — film-grain amount
+  ovBlend?: "normal" | "multiply" | "screen" | "overlay" | "soft-light";
+  ovCenter?: number;    // 0..100 — scrim opacity
+}
+
+/** One filter string for a backdrop's darkroom dials — the stage, the PNG
+ *  compositor and the Unity bake all speak THIS. Blur last, so the color
+ *  grade lands before the haze. */
+export function boardBgFilter(bd: DarkroomGrade): string | undefined {
+  const p: string[] = [];
+  if (bd.bgHue) p.push(`hue-rotate(${bd.bgHue}deg)`);
+  if ((bd.bgSat ?? 100) < 100) p.push(`saturate(${(bd.bgSat ?? 100) / 100})`);
+  if ((bd.bgBright ?? 100) !== 100) p.push(`brightness(${(bd.bgBright ?? 100) / 100})`);
+  if ((bd.bgContrast ?? 100) !== 100) p.push(`contrast(${(bd.bgContrast ?? 100) / 100})`);
+  if (bd.bgBlur) p.push(`blur(${bd.bgBlur}px)`);
+  return p.length ? p.join(" ") : undefined;
+}
+
+/** Is there anything for the wash to paint? Cheap enough to ask twice. */
+export function hasWash(fx: DarkroomWash): boolean {
+  return ((fx.ovMode ?? "none") !== "none" && (fx.ovStrength ?? 45) > 0) || (fx.ovCenter ?? 0) > 0;
+}
+
+/** The overlay stack as SVG, over the rect (x,y,w,h) — `drawBoardOverlays`
+ *  recipe for recipe: the tint wash with its blend, its grain, then the
+ *  centre scrim.
+ *
+ *  Why SVG here and canvas there: a card's picture lives INSIDE the piece's
+ *  own document, and the export cuts its sprite out of that very document.
+ *  Painting the wash in the SVG therefore makes the app, the PNG and the
+ *  Unity sprite identical BY CONSTRUCTION — there is no second compositor
+ *  to keep in step. The one place the two roads differ is the grain: the
+ *  board's is a seeded 256px tile, this is feTurbulence with a fixed seed.
+ *  Both are deterministic (the same kit always exports the same pixels);
+ *  they are not the same grain, and nothing composites them together, so
+ *  they never have to agree.
+ *
+ *  Returns the defs and the body separately — the caller owns where each
+ *  goes, because a piece's <defs> is not always where it is standing. */
+export function picWashSvg(fx: DarkroomWash, uid: string, x: number, y: number, w: number, h: number): { defs: string; body: string } {
+  if (!hasWash(fx)) return { defs: "", body: "" };
+  const mode = fx.ovMode ?? "none";
+  const r1 = (n: number) => n.toFixed(1);
+  let defs = "", body = "";
+  if (mode !== "none" && (fx.ovStrength ?? 45) > 0) {
+    const op = (Math.min(100, Math.max(0, fx.ovStrength ?? 45)) / 100).toFixed(2);
+    const blend = fx.ovBlend ?? "normal";
+    const bl = blend !== "normal" ? ` style="mix-blend-mode:${blend}"` : "";
+    if (mode === "vignette") {
+      /* the canvas recipe: transparent out to min(w,h)*0.3, opaque-ish at
+         hypot(w,h)*0.58, centred a touch above the middle */
+      const cx = x + w / 2, cy = y + h * 0.42;
+      const rOut = Math.hypot(w, h) * 0.58, rIn = Math.min(w, h) * 0.3;
+      defs += `<radialGradient id="${uid}vg" gradientUnits="userSpaceOnUse" cx="${r1(cx)}" cy="${r1(cy)}" r="${r1(rOut)}">` +
+        `<stop offset="${(rIn / rOut).toFixed(3)}" stop-color="#04070E" stop-opacity="0"/>` +
+        `<stop offset="1" stop-color="#04070E" stop-opacity="0.92"/></radialGradient>`;
+      body += `<rect x="${r1(x)}" y="${r1(y)}" width="${r1(w)}" height="${r1(h)}" fill="url(#${uid}vg)" opacity="${op}"${bl}/>`;
+    } else {
+      body += `<rect x="${r1(x)}" y="${r1(y)}" width="${r1(w)}" height="${r1(h)}" fill="${mode === "dark" ? "#060A14" : "#F4F6FF"}" opacity="${op}"${bl}/>`;
+    }
+    const grain = fx.ovNoise ?? 0;
+    if (grain > 0) {
+      /* mid-grey noise in overlay blend at (amount/100)*0.6 — the board's
+         own alpha curve. baseFrequency is tuned to the design-px grid the
+         cards are drawn on, so the grain reads as film, not as static. */
+      defs += `<filter id="${uid}gr" x="0" y="0" width="100%" height="100%" filterUnits="objectBoundingBox" color-interpolation-filters="sRGB">` +
+        `<feTurbulence type="fractalNoise" baseFrequency="0.72" numOctaves="3" seed="7" result="n"/>` +
+        `<feColorMatrix in="n" type="saturate" values="0"/></filter>`;
+      body += `<rect x="${r1(x)}" y="${r1(y)}" width="${r1(w)}" height="${r1(h)}" filter="url(#${uid}gr)" opacity="${((grain / 100) * 0.6).toFixed(2)}" style="mix-blend-mode:overlay"/>`;
+    }
+  }
+  if ((fx.ovCenter ?? 0) > 0) {
+    // the centre scrim — same ellipse as the live CSS (62% × 62% at 50% 46%)
+    const cx = x + w / 2, cy = y + h * 0.46;
+    defs += `<radialGradient id="${uid}cs" gradientUnits="userSpaceOnUse" cx="${r1(cx)}" cy="${r1(cy)}" r="${r1(Math.max(w, h) * 0.62)}"` +
+      ` gradientTransform="translate(${r1(cx)} ${r1(cy)}) scale(${(w * 0.62 / Math.max(w, h) / 0.62).toFixed(4)} ${(h * 0.62 / Math.max(w, h) / 0.62).toFixed(4)}) translate(${r1(-cx)} ${r1(-cy)})">` +
+      `<stop offset="0" stop-color="#04070E" stop-opacity="0.85"/>` +
+      `<stop offset="0.45" stop-color="#04070E" stop-opacity="0.5"/>` +
+      `<stop offset="1" stop-color="#04070E" stop-opacity="0"/></radialGradient>`;
+    body += `<rect x="${r1(x)}" y="${r1(y)}" width="${r1(w)}" height="${r1(h)}" fill="url(#${uid}cs)" opacity="${(Math.min(100, fx.ovCenter ?? 0) / 100).toFixed(2)}"/>`;
+  }
+  return { defs, body };
+}

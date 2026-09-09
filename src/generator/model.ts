@@ -1086,7 +1086,7 @@ export type KitComponentId =
   | "flipclock" | "stopwatch" | "timerdigits"
   | "speedo" | "speedo2" | "tacho" | "circuit" | "leaderboard" | "trophy"
   | "laptimes" | "telemetry" | "startlights"
-  | "cardback" | "pack"
+  | "cardback" | "cardface" | "pack"
   | "dialog" | "toast" | "tooltip" | "keycap" | "padbtn"
   | "listmenu" | "scrollbar" | "pagedots" | "steps" | "spinner"
   | "loadbar" | "setrow" | "searchfield" | "notifydot" | "avatarframe"
@@ -1207,6 +1207,21 @@ const STREAK_GLYPHS = ["Factory", "None", "Zap", "Star", "Skull", "Trophy", "Swo
    Factory keeps each cell's own stock glyph (the wheels' honesty rule);
    every name resolves to STOCK_ICONS keys by lowercasing. */
 const NAV_GLYPHS = ["Factory", "Map", "Home", "Scroll", "User", "Cart", "Bag", "Trophy", "Gear", "Star", "Heart", "Gem", "Sword", "Shield", "Gift", "Key", "Zap"];
+/* The card face's corner badges (owner, round 73: "on the left should be
+   an hexagonal and on the right should be a circle, come up with a few
+   shapes that make sense for a user to choose from, upside down circle,
+   parallelogram, square on its side at 45 degree angle (diamond shape)").
+   Each corner picks independently; every one of them is a plate the number
+   RIDES, so the shape is a swappable sprite and the number stays live. */
+/* The faces offered for a card's corner numerals ALONE (owner, round 73d:
+   "I want to be able to change the font on the numeric (without changing
+   the whole system font) I think the font here can be different/ special,
+   just on the numericas"). Kit font is the default and means exactly what
+   it says — follow the kit, as every other word does. The rest is the
+   curated GAME_FONTS roster, so a pick here is a face the app already
+   ships, hosts and measures; nothing new enters the font road. */
+export const CARD_NUM_FONTS = ["Kit font", ...GAME_FONTS.map((f) => f.name)];
+export const CARD_CORNER_SHAPES = ["Hexagon", "Circle", "Diamond", "Dome", "Parallelogram", "Shield", "Rounded square", "Starburst", "Pennant", "Off"];
 
 export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
   segment: [
@@ -1327,6 +1342,34 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
       note: "The four corner glints. Off reads cleaner on busy themes and photo backdrops." },
     { id: "frame", name: "Inner frame", kind: "choice", choices: ["On", "Off"],
       note: "The frame line echoing the silhouette inside the wall, the classic card-back border." },
+  ],
+  cardface: [
+    { id: "lshape", name: "Left corner shape", kind: "choice", choices: CARD_CORNER_SHAPES,
+      note: "The badge under the left number. Hexagon is the factory. Off removes the corner entirely, number and all." },
+    { id: "lnum", name: "Left number", kind: "free", def: "5", maxLen: 3,
+      note: "Cost, mana, whatever your left corner means. It ships as live text riding its own badge, so your game writes it at runtime and it can take a hit or a buff." },
+    { id: "link", name: "Left corner colour", kind: "color", def: "",
+      note: "This corner's own ground. Cost blue on the left and power orange on the right is the classic pairing, and one shared colour could never say it. Leave it unset and the corner wears the kit's own mix." },
+    { id: "rshape", name: "Right corner shape", kind: "choice", choices: CARD_CORNER_SHAPES,
+      note: "The badge under the right number. Circle is the factory. Off removes the corner entirely, number and all." },
+    { id: "rnum", name: "Right number", kind: "free", def: "9", maxLen: 3,
+      note: "Attack, power, whatever your right corner means. Same live wiring as the left." },
+    { id: "rink", name: "Right corner colour", kind: "color", def: "",
+      note: "The right corner's own ground, independent of the left." },
+    { id: "cornersize", name: "Corner size", kind: "dial", def: "100",
+      note: "How big the two corner badges sit, 100% being the size they ship at, down to 55%. It scales the SHAPE alone — the numbers keep their own size, so a smaller badge reads as a tighter gem around the same digit rather than everything shrinking together. It stops at 55% because below that the badge is smaller than the number it holds." },
+    { id: "numfont", name: "Corner number font", kind: "choice", choices: CARD_NUM_FONTS,
+      note: "A face for the two corner numbers alone. Kit font follows the kit like everything else; anything else here is this piece's numerals only and changes no other word in the kit." },
+    { id: "art", name: "Picture", kind: "choice", choices: ["Icon", "Full bleed"],
+      note: "Icon centres the kit's glyph in the well, the way the card back does. Full bleed lets an uploaded image fill the well corner to corner. Either way the picture is a swappable child, never baked in." },
+    { id: "frame", name: "Picture frame", kind: "choice", choices: ["On", "Off"],
+      note: "The line around the picture well. Off lets the art sit straight on the card." },
+    { id: "logolines", name: "Logo lines", kind: "choice", choices: ["One line", "Two lines", "Three lines"],
+      note: "How the card's name breaks. The words split as evenly as they can across the lines you ask for; type a | in the Text field to put the break exactly where you want it instead." },
+    { id: "logosize", name: "Logo size", kind: "choice", choices: ["Small", "Medium", "Large", "Huge"],
+      note: "The name's weight on the card. Medium is the factory. Whatever you pick, a line still shrinks rather than running off the card." },
+    { id: "rules", name: "Rules text", kind: "free", def: "", maxLen: 140,
+      note: "What the card does, in the maker's own words. It wraps to at most four lines under the card, and anything before a colon leads in bold, the way \"On Reveal:\" does. Empty keeps the card bare, which is the play view; filled is the detail view the card modal opens." },
   ],
   speedo: [
     { id: "unit", name: "Unit", kind: "choice", choices: ["MPH", "KPH"],
@@ -1988,6 +2031,11 @@ export const KIT_COMPONENTS: { id: KitComponentId; name: string; staged?: true; 
   { id: "laptimes", name: "Lap comparison" },
   { id: "telemetry", name: "Telemetry" },
   { id: "cardback", name: "Card back" },
+  /* the card's FRONT (owner commission, round 73). Staged until released.
+     A card face is a DESIGN, never one card: the picture, the two corner
+     numbers and the name are per-copy content, so a hundred-card set is
+     this one piece a hundred times over, not a hundred components. */
+  { id: "cardface", name: "Card face", staged: true },
   { id: "pack", name: "Card pack" },
   /* the semantic glyph rack — roster derives from the registry, so a new
      glyph needs only its glyphLibrary entry. Staged per the standing rule.
@@ -2020,7 +2068,7 @@ export const KIT_GROUPS: { id: string; name: string; members: KitComponentId[] }
   { id: "rpg", name: "RPG & MMO", members: ["questpanel", "dialoguebox", "choicelist", "partyframe", "invgrid", "slot", "quickslots", "datarow", "nameplate", "loottag", "skillnode", "equipslot", "levelnode"] },
   { id: "shooter", name: "Shooter & action", members: ["ammo", "killfeed", "dmgnumber", "respawn", "waypoint", "weaponwheel", "equipselector", "buffframe", "hotbar", "crosshair"] },
   { id: "casual", name: "Casual & mobile", members: ["combo", "movecounter", "booster", "dailycell", "spinwheel", "flipclock", "resource", "currency"] },
-  { id: "rewards", name: "Rewards & chests", members: ["chest", "giftbox", "rewardcard", "rewardtray", "pack", "cardback", "qtybadge", "seasontrack"] },
+  { id: "rewards", name: "Rewards & chests", members: ["chest", "giftbox", "rewardcard", "rewardtray", "pack", "cardback", "cardface", "qtybadge", "seasontrack"] },
   { id: "social", name: "Strategy & social", members: ["friendrow", "chatbubble", "clancrest", "emotewheel", "unitplate", "buildqueue", "techcard", "scorebug", "leaderboard", "achievetoast"] },
   /* the glyph-button fleet is its OWN family — a group restyle sweeps the
      47 buttons together without ever touching the stock button ladder */
@@ -2124,7 +2172,10 @@ export const KIT_LABEL_EDITABLE = new Set<KitComponentId>([
      no hint of which side it was (owner: "text entry field for the team
      name on the left should be clearer") — both names now live in the
      Words grid as Home/Away slots; old label edits still read through. */
-  "achievetoast", "endturn", "pack", "cardback", "orderticket",
+  /* the card face's Text field IS the card's name, the word that overlaps
+     the bottom of the art — per-copy by construction, because the name is
+     what changes card to card while the design stays put */
+  "achievetoast", "endturn", "pack", "cardback", "cardface", "orderticket",
   "rewardcard", "qtybadge", "claimbtn", "chestpanel", "boostercard",
   /* THE COUNTER FAMILY (owner, round 71: "I should be able to edit the
      numbers of the badge in the right drawer just like text"). Each of
@@ -2151,7 +2202,38 @@ export const KIT_LABEL_EDITABLE = new Set<KitComponentId>([
    wordless tab is a real pattern (icon tabs, spacer tabs); a wordless
    primary button is usually a mistake. NOTE: there is no small-tab
    component — `small` is button-small; the tab family is tab + tabback. */
-export const NO_TEXT_ELIGIBLE = new Set<KitComponentId>(["tab", "tabback"]);
+export const NO_TEXT_ELIGIBLE = new Set<KitComponentId>(["tab", "tabback",
+  /* the card face joins them (owner, round 73d: "need the option of no
+     logo (as it might be added later in boards)"). A card whose wordmark
+     is going to be stamped on in Boards must be able to ship without one
+     here, and with no logo the band's vignette goes too — an empty
+     darkening over the art would be a container for nothing. */
+  "cardface"]);
+
+/* Pieces that can carry A MAKER'S OWN PICTURE (round 73 — the owner:
+   "the card face should default to an icon BUT you can upload an image
+   that will appear in the face and obviously travel to Unity", then: "we
+   should also then add this upload ability to the card back and deck
+   covers as well"). The deck cover IS the card back wearing a nameplate,
+   so it needs no separate entry. Anywhere else the control would be a
+   dead affordance, and the house rule is to hide what cannot work. */
+export const PIC_ELIGIBLE = new Set<KitComponentId>(["cardface", "cardback", "pack"]);
+
+/* Pieces with their own LOGO SEAT (round 73d) — a second, separate
+   picture: the art is what the card shows, the logo is who made it, and a
+   maker swaps them independently. Only the card face has one for now; the
+   back and the pack carry a set emblem instead, which is already a
+   swappable child. */
+export const LOGO_ELIGIBLE = new Set<KitComponentId>(["cardface"]);
+
+/* Pieces whose per-slot RESET PILLS are suppressed (owner, round 73e, of
+   the card front: "get rid of the reset to factor pills"). Panel-only —
+   nothing about storage or rendering changes, and the seats still clear
+   through setKitSlot(..., null). The way back is not removed, it MOVES:
+   these wells reset on double-click, the idiom the sliders already teach
+   ("Double-click resets to default"), so the control stays uncluttered
+   without stranding a maker who wants the factory colour again. */
+export const SLOT_RESET_HIDDEN = new Set<KitComponentId>(["cardface"]);
 
 /* Components whose FRAME keeps the Default design in every state — the
    hot element (selected cell, the mark, the knob) carries the state, and
@@ -2464,6 +2546,7 @@ export const KIT_SHAPE: Partial<Record<KitComponentId, Shape>> = {
   laptimes: "kenneyRect",    // plots are rectangular too
   telemetry: "kenneyRect",
   cardback: "round",         // portrait card — rounded rect reads as a card
+  cardface: "round",         // the same card, front side up
   pack: "round",
   speedo: "pill",            // v72 · instruments live in CIRCULAR enclosures —
   speedo2: "pill",           // a pill on a square box is a perfect circle

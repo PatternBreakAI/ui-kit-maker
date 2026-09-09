@@ -3,10 +3,11 @@ import { AlertTriangle, ArrowLeftRight, ChevronDown, ChevronRight, Dices, Layers
 import { measureAutoSlice, drawNineSlice } from "./sliceProbe";
 import type { SliceProbe } from "./sliceProbe";
 import { patternZones } from "./SliceStage";
-import { useGen } from "@/generator/store";
+import { useGen, importUserAssetFile, findAsset } from "@/generator/store";
+import { bgAssetDisplayUrl } from "@/generator/assets";
 import { t } from "@/shell/i18n";
 import { LessonBody } from "./LessonCard";
-import { PRESETS, KIT_SLOTS, KIT_STATE_POSES, stateSlotKey, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, GLINT_STYLES, defaultStates, applyKitDesign, applyKitTextFill, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, designDiff, mergeKitDesign, iconRigDiff, baseShape, isFlipShape, flipShape, labelMaxOf, groupOf, ctaForFont, ctaEntry, fontLang, KIT_SLICEABLE, KIT_LABEL_EDITABLE, NO_TEXT_ELIGIBLE, EDGE_SHINE_DEAF, baseOf, isCloneId, CLONE_KINDS, CLONE_INELIGIBLE, isGlyphButton, resolveKitIcon } from "@/generator/model";
+import { PRESETS, KIT_SLOTS, KIT_STATE_POSES, stateSlotKey, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, GLINT_STYLES, defaultStates, applyKitDesign, applyKitTextFill, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, designDiff, mergeKitDesign, iconRigDiff, baseShape, isFlipShape, flipShape, labelMaxOf, groupOf, ctaForFont, ctaEntry, fontLang, KIT_SLICEABLE, KIT_LABEL_EDITABLE, NO_TEXT_ELIGIBLE, PIC_ELIGIBLE, LOGO_ELIGIBLE, SLOT_RESET_HIDDEN, EDGE_SHINE_DEAF, baseOf, isCloneId, CLONE_KINDS, CLONE_INELIGIBLE, isGlyphButton, resolveKitIcon } from "@/generator/model";
 import type { KitSlice, SlotDef } from "@/generator/model";
 import type { GenStateName, BlendMode, GlintStyle, PatternType, KitComponentId, KitDesign, Shape  } from "@/generator/model";
 import { ICON_LIBS, loadLib, libLoaded, searchLib, getDef, previewSvg } from "@/generator/icons";
@@ -21,6 +22,7 @@ import { capsOf, UPGRADE_LINES } from "@/generator/entitlements";
 import { openAuth } from "@/shell/authOverlay";
 import { currentSession, promoIsLive, promoIsNew } from "@/generator/cloud";
 import { promoArt, promoGo } from "./PromoShelf";
+import { NAMED_KITS } from "@/generator/namedKits";
 import { tightenSvg } from "@/marketing/engine";
 
 /* Every Looks card shows its art at the NEW tile's presence — cropped
@@ -28,11 +30,6 @@ import { tightenSvg } from "@/marketing/engine";
    much bigger/better than the others, can they all be that big?").
    Thumbs without a data-shell stamp pass through untouched. */
 const lookArt = (svg: string | null | undefined) => (svg ? tightenSvg(svg, 20) : "");
-
-/* Pack tiles pitch the PACKS, not the playground. The generic guest
-   upgrade line went save-centric with the free-play round and would read
-   wrong on a locked pack, so the tiles carry their own road-to-Pro line. */
-const PACK_PITCH_GUEST = "Monthly preset packs ship with Pro. Sign in free to get started.";
 
 /* Rendered mini-previews for the style presets — built once, by the same
    renderer as everything else, from the EXACT document a click lands
@@ -377,13 +374,18 @@ function SwatchMem({ value, onChange }: { value: string; onChange: (v: string) =
 }
 
 
-function Well({ label, value, onChange, title, dot }: { label: string; value: string; onChange: (v: string) => void; title?: string;
+function Well({ label, value, onChange, title, dot, onReset }: { label: string; value: string; onChange: (v: string) => void; title?: string;
   /** divergence dot — this well holds the pinned state's OWN fork */
-  dot?: boolean }) {
+  dot?: boolean;
+  /** THE WAY BACK when the reset pill is suppressed (round 73e): the well
+   *  itself resets on double-click, the same idiom every Slider already
+   *  teaches. Removing the pill must not remove the road. */
+  onReset?: () => void }) {
   return (
-    <div className="ctl wellrow" title={title}>
+    <div className="ctl wellrow" title={onReset ? [title, "Double-click the swatch to go back to the factory colour"].filter(Boolean).join(" ") : title}>
       <label>{dot && <i className="forkdot" aria-label="Forked for this state" />}{label}</label>
-      <span className="chipwell sm" style={{ background: value }}>
+      <span className="chipwell sm" style={{ background: value }}
+        onDoubleClick={onReset ? (e) => { e.preventDefault(); onReset(); } : undefined}>
         <input type="color" value={value} aria-label={`${label} color`}
           onChange={(e) => { onChange(e.target.value); recordRecent(e.target.value); }} />
       </span>
@@ -764,7 +766,7 @@ const SIL_TEMPLATE = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" heigh
 `;
 
 export function Panel() {
-  const { cfg: cfgMaster, update: updateParent, setPreset: setPresetParent, randomize, randomizeColors, selectedState, setSelectedState, sectionFilter, phase, setPhase, inheritDefaults, makeStateDefault, library, addToLibrary, removeFromLibrary, loadFromLibrary, addToBoard, focus, setFocus, kitShapes, setKitShape, kitDesigns, setKitDesign, kitSizes, kitTextOy, setKitTextOy, kitTextOx, setKitTextOx, kitTextFill, setKitTextFill, kitLocks, toggleKitLock, kitRow, setKitRow, styleLib, saveStyle, applyStyle, removeStyle, userShapes, addUserShape, removeUserShape, userPresets, applyUserPreset, removeUserPreset, cloudPresets, isAdmin, applyCloudPreset, applyLookDoc, publishPreset, schedulePreset, removeCloudPresetById, hiddenStarters, hideStarterPreset, restoreStarterPresets, hiddenSilhouettes, restoreSilhouettes, deletedSilhouettes, deleteSilhouetteForever, activeCloudPreset, overwriteActivePreset, tier, kitName, canvasMode, boards, activeBoard, setBoardBg, kitIcons, setKitIcon, kitLabels, setKitLabel, kitNoText, setKitNoText, kitSubs, setKitSub, kitSlotVals, setKitSlot, kitVals, setKitVal, kitBar, setKitBar, refreshLibraryItem, replaceConfig, resetAll, panelQuery, setPanelQuery, scope, setScope, allStates, setAllStates, kitClones, duplicateKitPiece, removeKitClone, renameKitClone, kitOverlay, setKitOverlay } = useGen();
+  const { cfg: cfgMaster, update: updateParent, setPreset: setPresetParent, randomize, randomizeColors, selectedState, setSelectedState, sectionFilter, phase, setPhase, inheritDefaults, makeStateDefault, library, addToLibrary, removeFromLibrary, loadFromLibrary, addToBoard, focus, setFocus, kitShapes, setKitShape, kitDesigns, setKitDesign, kitSizes, kitTextOy, setKitTextOy, kitTextOx, setKitTextOx, kitTextFill, setKitTextFill, kitLocks, toggleKitLock, kitRow, setKitRow, styleLib, saveStyle, applyStyle, removeStyle, userShapes, addUserShape, removeUserShape, userPresets, applyUserPreset, removeUserPreset, cloudPresets, isAdmin, applyCloudPreset, applyLookDoc, applyNamedKit, publishPreset, schedulePreset, removeCloudPresetById, hiddenStarters, hideStarterPreset, restoreStarterPresets, hiddenSilhouettes, restoreSilhouettes, deletedSilhouettes, deleteSilhouetteForever, activeCloudPreset, overwriteActivePreset, tier, kitName, canvasMode, boards, activeBoard, setBoardBg, kitIcons, setKitIcon, kitLabels, setKitLabel, kitNoText, setKitNoText, kitSubs, setKitSub, kitSlotVals, setKitSlot, kitVals, setKitVal, kitBar, setKitBar, refreshLibraryItem, replaceConfig, resetAll, panelQuery, setPanelQuery, scope, setScope, allStates, setAllStates, kitClones, duplicateKitPiece, removeKitClone, renameKitClone, kitOverlay, setKitOverlay } = useGen();
   const actBd = boards.find((b) => b.id === activeBoard);
   const cfg = focus && kitDesigns[focus] ? applyKitDesign(cfgMaster, kitDesigns[focus]) : cfgMaster;
   const { parentId, setParent } = useGen();
@@ -808,6 +810,14 @@ export function Panel() {
   useEffect(() => {
     if (spotPromo?.cfg) { try { ensureDocFonts(spotPromo.cfg); } catch { /* falls back */ } }
   }, [spotPromo]);
+  /* the SHIPPED kits' cards (round 76): art from each kit's own bundled
+     document, rendered once — and their faces warmed like every other
+     desk, so the card never wears a stand-in */
+  const shippedKits = useMemo(() => Object.values(NAMED_KITS), []);
+  const shippedArt = useMemo(() => Object.fromEntries(shippedKits.map((k) => [k.slug, promoArt(k.payload.cfg as Record<string, unknown>)])) as Record<string, string | null>, [shippedKits]);
+  useEffect(() => {
+    for (const k of shippedKits) { try { ensureDocFonts(k.payload.cfg as Parameters<typeof ensureDocFonts>[0]); } catch { /* falls back */ } }
+  }, [shippedKits]);
   // the Looks rack collapses to the freshest few (owner: "we are showing
   // too many looks at once, they should be sorted by newest")
   const [looksAll, setLooksAll] = useState(false);
@@ -1623,8 +1633,18 @@ export function Panel() {
              a pack can be rescheduled or deleted. */
           const normName = (s: string) => s.trim().toLowerCase();
           const userNames = new Set(userPresets.map((u) => normName(u.name)));
-          const cloudVisible = cloudSorted.filter((p) => isAdmin || !userNames.has(normName(p.name)));
-          const belowSpot = new Set([...userNames, ...cloudVisible.map((p) => normName(p.name))]);
+          /* THE SHIPPED KITS (round 76 — owner: "Brightside should appear on
+             the free link for everyone, not just on its own preview link").
+             Every kit the site ships is a card here, for every tier, fed
+             from the bundle: no cloud row, no promo switch, no lock. Your
+             own saved look of the same name still wins (one card per name);
+             a pack row or a Spotlight tile of the same name stands behind
+             the shipped card — except for an admin, who always sees pack
+             rows (the rack is where a pack is rescheduled or deleted). */
+          const shippedShow = shippedKits.filter((k) => !userNames.has(normName(k.name)));
+          const shippedNames = new Set(shippedShow.map((k) => normName(k.name)));
+          const cloudVisible = cloudSorted.filter((p) => isAdmin || (!userNames.has(normName(p.name)) && !shippedNames.has(normName(p.name))));
+          const belowSpot = new Set([...userNames, ...shippedNames, ...cloudVisible.map((p) => normName(p.name))]);
           const spotShown = spotPromo != null && !belowSpot.has(normName(spotPromo.title));
           /* the NEW chip survives the dedupe — a tile that yields to its
              same-named pack row hands the chip to that row (a look you
@@ -1636,7 +1656,7 @@ export function Panel() {
              same-named card above hides one — a hidden starter must never
              slide a locked one into the free window */
           const starters = presetArt().filter((p) => !hiddenStarters.includes(p.id)).map((p, pi) => ({ ...p, pi })).filter((p) => !takenAbove.has(normName(p.name)));
-          const total = userPresets.length + cloudVisible.length + starters.length;
+          const total = userPresets.length + shippedShow.length + cloudVisible.length + starters.length;
           const capLeft = (used: number) => looksAll ? Infinity : Math.max(0, LOOKS_CAP - used);
           const userShow = userPresets.slice(0, looksAll ? undefined : LOOKS_CAP);
           const cloudShow = cloudVisible.slice(0, capLeft(userShow.length));
@@ -1650,10 +1670,11 @@ export function Panel() {
                the same tier gate as every pack tile. Otherwise it routes to
                the card's destination, like the shelf. */
             const match = cloudPresets.find((cp) => cp.name.toLowerCase() === spotPromo.title.toLowerCase());
-            const locked = match && tier !== "pro";
+            /* every pack is open to everyone (owner, 2026-09-09: "all packs
+               unlocked for all users... we can do release packs later") —
+               the tile applies its pack row outright, for every tier */
             const go = () => {
-              if (match && !locked) { applyCloudPreset(match.id); return; }
-              if (locked) { if (tier === "guest") openAuth("signin"); else window.location.hash = "#/pricing"; return; }
+              if (match) { applyCloudPreset(match.id); return; }
               /* a promo carrying its frozen look APPLIES it, like every
                  other Looks card (owner: "I would expect it to load the
                  look?") — the route glow stays only for kit-less promos */
@@ -1662,16 +1683,24 @@ export function Panel() {
             };
             return (
               <button className={`presetcard promo${match && kitName === match.name ? " on" : ""}`}
-                title={match
-                  ? (locked ? `${spotPromo.title}: the newest pack drop. ${tier === "guest" ? PACK_PITCH_GUEST : "A new pack drops every month with Pro."}` : `${spotPromo.title} just landed; apply it`)
-                  : `${spotPromo.title}: see what's new`}
+                title={match ? `${spotPromo.title} just landed; apply it` : `${spotPromo.title}: see what's new`}
                 onClick={go}>
                 {promoIsNew(spotPromo) && <span className="presetnew">NEW</span>}
                 {spotArtSvg ? <span className="presetart" dangerouslySetInnerHTML={{ __html: spotArtSvg }} /> : <span className="presetart" />}
-                <span className="presetname">{locked ? <Lock size={11} strokeWidth={2.4} /> : null} {spotPromo.title}</span>
+                <span className="presetname">{spotPromo.title}</span>
               </button>
             );
           })()}
+          {/* the shipped kits, first after the Spotlight tile: the house's
+              own designs, free to apply on every tier, never folded away */}
+          {shippedShow.map((k) => (
+            <button key={`shipped-${k.slug}`} className={`presetcard shipped${kitName === k.name ? " on" : ""}`}
+              title={`${k.name}: a kit we ship, free for everyone. Applies the whole kit; an empty desk gets its screens too.`}
+              onClick={() => applyNamedKit(k.slug)}>
+              {shippedArt[k.slug] ? <span className="presetart" dangerouslySetInnerHTML={{ __html: shippedArt[k.slug] as string }} /> : <span className="presetart" />}
+              <span className="presetname">{k.name}</span>
+            </button>
+          ))}
           {userShow.map((u) => (
             <button key={u.id} className={`presetcard user${kitName === u.name ? " on" : ""}`} title={`${u.name} (your saved kit)`}
               onClick={() => applyUserPreset(u.id)}>
@@ -1682,18 +1711,13 @@ export function Panel() {
                 onClick={(e) => { e.stopPropagation(); removeUserPreset(u.id); }}>×</span>
             </button>
           ))}
-          {/* The shared library is where the monthly preset packs land, so
-              this lock is about the packs — not about capability. A student
-              has the whole tool; what they don't have is the pack drops. */}
-          {cloudShow.map((p) => tier !== "pro" ? (
-            <button key={p.id} className="presetcard shared lockedp"
-              title={`${p.name}, from the monthly preset packs. ${tier === "guest" ? PACK_PITCH_GUEST : "A new pack drops every month with Pro."}`}
-              onClick={() => { if (tier === "guest") openAuth("signin"); else window.location.hash = "#/pricing"; }}>
-              {chipName === normName(p.name) && <span className="presetnew">NEW</span>}
-              <span className="presetart" dangerouslySetInnerHTML={{ __html: lookArt(p.thumb ?? cloudArt[p.id]) }} />
-              <span className="presetname"><Lock size={11} strokeWidth={2.4} /> {p.name}</span>
-            </button>
-          ) : (
+          {/* The shared library is where the preset packs land. They used to
+              lock below Pro; every pack is open to everyone now (owner,
+              2026-09-09: "all packs unlocked for all users... we can do
+              release packs later") — the release machinery (held rows,
+              scheduled drops) stands untouched for the day packs are a
+              perk again. */}
+          {cloudShow.map((p) => (
             <button key={p.id} className={`presetcard shared${kitName === p.name ? " on" : ""}${heldUntil(p.publish_at) ? " held" : ""}`}
               title={heldUntil(p.publish_at) ? `${p.name} is held until ${heldUntil(p.publish_at)}. Only you can see it.` : `${p.name} (preset pack)`}
               onClick={() => applyCloudPreset(p.id)}>
@@ -2062,6 +2086,29 @@ export function Panel() {
               </div>
             </div>
           )}
+          {/* ── THE MAKER'S OWN PICTURE (round 73, owner: "get the upload
+              stuff going it's crucial, we have upload elsewhere so see what
+              has already been done and leverage existing knowledge"). It
+              does exactly that: the same content-hashed vault-plus-cloud
+              road the backdrops and board logos already ride, so an upload
+              here follows the account and survives a cleared cache. Shown
+              only on pieces that can actually hold a picture — elsewhere
+              the control would be a dead affordance. ── */}
+          {PIC_ELIGIBLE.has(baseOf(focus)) && <KitPicControl id={focus} />}
+          {/* the card's LOGO seat is its own picture (round 73d): the art
+              is what the card shows, the logo is who made it, and they are
+              swapped independently. Its absence is not a gap — the kit's
+              own type draws the name instead, which is road three. */}
+          {LOGO_ELIGIBLE.has(baseOf(focus)) && <KitPicControl id={focus} seat="logo" />}
+          {/* the seats' DIALS ride their own folds, right here under the
+              content they belong to — shut by default, summarising what is
+              dialled so a closed fold still tells the truth, and absent
+              entirely on a seat with no picture (round 73d) */}
+          {PIC_ELIGIBLE.has(baseOf(focus)) && <PicFxSection id={focus} title="Picture effects" />}
+          {/* the darkroom is the PICTURE's alone (owner: "darkening set is
+              for picture only") — a wordmark is not a photograph */}
+          {PIC_ELIGIBLE.has(baseOf(focus)) && <PicDarkroomSection id={focus} />}
+          {LOGO_ELIGIBLE.has(baseOf(focus)) && <PicFxSection id={focus} seat="logo" title="Logo effects" />}
           {(KIT_SLOTS[baseOf(focus)] ?? []).some((sl) => sl.kind === "free" && (!sl.state || (kitOverlay ?? null) === sl.state)) && (
             <div className="slotgrid">
               {(KIT_SLOTS[baseOf(focus)] ?? []).filter((sl) => sl.kind === "free" && (!sl.state || (kitOverlay ?? null) === sl.state)).map((slot) => (
@@ -2149,7 +2196,8 @@ export function Panel() {
                       value={eff
                       ?? effSlotColor(applyKitTextFill(cfg, kitTextFill[focus]), baseOf(focus), slot.id, kitSlotVals[focus])
                       ?? slot.def ?? "#FFFFFF"}
-                      onChange={(v) => setKitSlot(focus, seat, v)} />
+                      onChange={(v) => setKitSlot(focus, seat, v)}
+                      onReset={own !== undefined && SLOT_RESET_HIDDEN.has(baseOf(focus)) ? () => setKitSlot(focus, seat, null) : undefined} />
                   )}
                   {slot.allowNone && (
                     /* the slot's OFF switch — stores the "none" sentinel; the
@@ -2167,7 +2215,10 @@ export function Panel() {
                       }} />
                       None (no {slot.name.toLowerCase()})</label>
                   )}
-                  {own !== undefined && own !== "none" && (
+                  {/* the pill is suppressed on pieces that asked for a
+                      clean front (round 73e) — the way back moved onto the
+                      well's own double-click, not away */}
+                  {own !== undefined && own !== "none" && !SLOT_RESET_HIDDEN.has(baseOf(focus)) && (
                     <button className="resetstate"
                       title={slotForked(slot) ? `Drop this ${pinnedPoseName} fork and follow the ${snBaseName} look again` : "Back to the factory color"}
                       onClick={() => setKitSlot(focus, seat, null)}>
@@ -2197,7 +2248,7 @@ export function Panel() {
                   <Slider label={slot.name} value={own ?? restV} min={0} max={100} unit="%"
                     title={[slot.note, own === undefined ? (slot.def !== undefined ? "At the factory strength until you set it." : "Following the kit: mirrors Candy → Extrusion → Base glow until you set it. Setting 0 quiets this piece alone.") : null].filter(Boolean).join(" ")}
                     onChange={(v) => setKitSlot(focus, slotSeat(slot), String(v))} />
-                  {own !== undefined && (
+                  {own !== undefined && !SLOT_RESET_HIDDEN.has(baseOf(focus)) && (
                     <button className="resetstate" title={slot.def !== undefined ? "Back to the factory strength" : "Drop this piece's own strength and mirror the kit's Base glow dial again"}
                       onClick={() => setKitSlot(focus, slotSeat(slot), null)}>
                       <RotateCcw size={13} strokeWidth={2} /> {slot.def !== undefined ? "Factory strength" : "Follow the kit"}
@@ -3299,5 +3350,247 @@ export function Panel() {
         Reset everything back to the factory kit
       </button>
     </aside>
+  );
+}
+
+
+/* ── THE PICTURE CONTROL (round 73). The owner asked for the upload road
+   to be leveraged, not rebuilt, so this is a thin face over machinery that
+   already exists: importUserAssetFile vaults and content-hashes the bytes
+   and (signed in) puts them in the account bucket, and bgAssetDisplayUrl
+   resolves them back on any browser. Everything the maker has already
+   uploaded is here to pick from, because a card set reuses art constantly
+   and re-uploading the same file for every card would be its own tax. ── */
+function KitPicThumb({ refId, alt }: { refId: string; alt: string }) {
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    let dead = false;
+    void bgAssetDisplayUrl(refId).then((u) => { if (!dead) setSrc(u); }).catch(() => { /* stays blank */ });
+    return () => { dead = true; };
+  }, [refId]);
+  return src
+    ? <img src={src} alt={alt} loading="lazy" style={{ maxWidth: "100%", maxHeight: 44, display: "block", margin: "0 auto" }} />
+    : <span aria-hidden="true" style={{ display: "block", width: 30, height: 30, borderRadius: 6, background: "rgba(127,127,127,0.18)", margin: "0 auto" }} />;
+}
+
+
+/* ── A PICTURE SEAT'S DIALS (round 73d) ───────────────────────────────
+   Owner: "if i upload an logo to the editor I need to be able to affect
+   its size and x,y, glow, shadow - we have all of this figured out already
+   so please consult the body of work before creating anything new (that is
+   the law)". So none of this is new: shadow, its pose, glow and glow ink
+   are BigGlyphFx, the shape a board logo already wears, rendered by the
+   very same bigGlyphFilter. Only size and the x/y nudge are added, and
+   they are the two things a board copy gets from its item transform that a
+   seat inside a piece has no way to get.
+
+   SURFACING (the owner's other instruction: "I know this is a lot of UI so
+   please think long and hard about the best way to surface this stuff,
+   hide, etc... make it all discoverable via the navigator microscope").
+   The answer is the house's own Section: it collapses, it summarises what
+   is dialled so a shut fold still tells the truth, and the panel search
+   opens every section and hides the ones that do not match — so these are
+   found by typing "glow" or "vignette" without any new search plumbing.
+   And a seat with no picture shows NO section at all, because a dial that
+   cannot move anything is the dead affordance the house rules out. */
+function PicFxSection({ id, seat, title }: { id: KitComponentId; seat?: string; title: string }) {
+  const { kitPics, kitPicFx, setKitPicFx } = useGen();
+  const key = seat ? `${id}:${seat}` : String(id);
+  if (!kitPics[key]) return null; // nothing to dial — the absence is the message
+  const fx = kitPicFx[key] ?? {};
+  const set = (patch: Record<string, number | string | undefined>) => setKitPicFx(id, seat, patch);
+  const touched = [
+    fx.size !== undefined && fx.size !== 100 ? `size ${fx.size}%` : "",
+    fx.dx || fx.dy ? `nudged` : "",
+    fx.glow ? `glow ${fx.glow}` : "",
+    fx.shadow ? `shadow ${fx.shadow}` : "",
+  ].filter(Boolean);
+  return (
+    <Section id={`picfx-${key}`} title={title}
+      summary={<span>{touched.length ? touched.join(", ") : "untouched"}</span>}>
+      <Slider label="Size" value={fx.size ?? 100} min={10} max={300} unit="%" def={100}
+        title="How big the art sits in its seat. 100% is the seat's own fit."
+        onChange={(v) => set({ size: v })} />
+      <Slider label="Nudge X" value={fx.dx ?? 0} min={-160} max={160} unit="px" def={0}
+        title="Slide it left or right of its seat, in design pixels."
+        onChange={(v) => set({ dx: v })} />
+      <Slider label="Nudge Y" value={fx.dy ?? 0} min={-200} max={200} unit="px" def={0}
+        title="Slide it up or down of its seat, in design pixels."
+        onChange={(v) => set({ dy: v })} />
+      <Slider label="Glow" value={fx.glow ?? 0} min={0} max={100} unit="" def={0}
+        title="The same glow a logo wears on a board. 0 is off; the ink follows the kit's Glow role unless you pick one."
+        onChange={(v) => set({ glow: v })} />
+      <Slider label="Shadow" value={fx.shadow ?? 0} min={0} max={100} unit="" def={0}
+        title="The same drop shadow a logo wears on a board. 0 is off."
+        onChange={(v) => set({ shadow: v })} />
+      {!!fx.shadow && (<>
+        <Slider label="Shadow X" value={fx.shadowX ?? 0} min={-40} max={40} unit="px" def={0}
+          title="Where the shadow falls. Left alone it follows the house curve, exactly as the type stamp's does."
+          onChange={(v) => set({ shadowX: v })} />
+        <Slider label="Shadow Y" value={fx.shadowY ?? Math.round(2 + (fx.shadow ?? 0) * 0.1)} min={-40} max={40} unit="px" def={Math.round(2 + (fx.shadow ?? 0) * 0.1)}
+          title="How far below it sits."
+          onChange={(v) => set({ shadowY: v })} />
+        <Slider label="Shadow blur" value={fx.shadowBlur ?? Math.round(2 + (fx.shadow ?? 0) * 0.22)} min={0} max={60} unit="px" def={Math.round(2 + (fx.shadow ?? 0) * 0.22)}
+          title="How soft it is."
+          onChange={(v) => set({ shadowBlur: v })} />
+      </>)}
+    </Section>
+  );
+}
+
+/* ── THE PICTURE'S DARKROOM (round 73f) ───────────────────────────────
+   Owner: "I also need the same darkening controls that in the editor that
+   we have for the uploaded game screen background images in Boards...
+   i.e., vignette, etc..." and, scoping it: "darkening set is for picture
+   only".
+
+   SAME controls, not a second set that resembles them. The dials write
+   the board backdrop's own field names (bgBlur/bgSat/bgHue/bgBright/
+   bgContrast, ovMode/ovStrength/ovNoise/ovBlend/ovCenter), wear the
+   board's own labels and ranges, and are rendered by the board's own
+   boardBgFilter — so there is one darkroom in this product, reachable
+   from two places.
+
+   Its own fold, not more dials bolted under Picture effects: one fold
+   answers "how does the art sit", this one answers "how is it lit", and
+   a fold that answers two questions is a fold nobody reads. The overlay's
+   sub-dials stay HIDDEN until a mode is picked (the house rule: hide what
+   cannot work, never grey it), and the summary tells the truth while
+   shut so the fold does not have to be opened to be read. */
+function PicDarkroomSection({ id }: { id: KitComponentId }) {
+  const { kitPics, kitPicFx, setKitPicFx } = useGen();
+  const key = String(id);
+  if (!kitPics[key]) return null; // no picture, no darkroom — the absence is the message
+  const fx = kitPicFx[key] ?? {};
+  const set = (patch: Record<string, number | string | undefined>) => setKitPicFx(id, undefined, patch);
+  const mode = fx.ovMode ?? "none";
+  const touched = [
+    fx.bgBlur ? `blur ${fx.bgBlur}px` : "",
+    (fx.bgSat ?? 100) !== 100 ? `saturation ${fx.bgSat}%` : "",
+    fx.bgHue ? `hue ${fx.bgHue}°` : "",
+    (fx.bgBright ?? 100) !== 100 ? `brightness ${fx.bgBright}%` : "",
+    (fx.bgContrast ?? 100) !== 100 ? `contrast ${fx.bgContrast}%` : "",
+    mode !== "none" ? mode : "",
+    fx.ovNoise ? `grain ${fx.ovNoise}%` : "",
+    fx.ovCenter ? `scrim ${fx.ovCenter}%` : "",
+  ].filter(Boolean);
+  return (
+    <Section id={`picdark-${key}`} title="Picture darkroom"
+      summary={<span>{touched.length ? touched.join(", ") : "untouched"}</span>}>
+      <Slider label="Blur" value={fx.bgBlur ?? 0} min={0} max={24} unit="px" def={0}
+        title="Haze the picture so the card's own type and badges read over it. Applied after the colour grade, exactly as on a board backdrop."
+        onChange={(v) => set({ bgBlur: v })} />
+      <Slider label="Saturation" value={fx.bgSat ?? 100} min={0} max={100} unit="%" def={100}
+        title="Drain the colour out of the art. 100% is untouched; 0% is greyscale."
+        onChange={(v) => set({ bgSat: v })} />
+      <Slider label="Hue" value={fx.bgHue ?? 0} min={-180} max={180} unit="°" def={0}
+        title="Rotate every colour in the picture at once, to pull a stock image toward the kit's palette."
+        onChange={(v) => set({ bgHue: v })} />
+      <Slider label="Brightness" value={fx.bgBright ?? 100} min={0} max={200} unit="%" def={100}
+        title="Knock the art back, or lift it. 100% is untouched."
+        onChange={(v) => set({ bgBright: v })} />
+      <Slider label="Contrast" value={fx.bgContrast ?? 100} min={0} max={200} unit="%" def={100}
+        title="Flatten the picture so the card's furniture pops, or harden it. 100% is untouched."
+        onChange={(v) => set({ bgContrast: v })} />
+      <div className="sublabel">Overlay</div>
+      <div className="segmini" role="radiogroup" aria-label="Overlay mode">
+        {(["none", "dark", "light", "vignette"] as const).map((m) => (
+          <button key={m} className={mode === m ? "on" : ""} role="radio" aria-checked={mode === m}
+            onClick={() => set({ ovMode: m === "none" ? undefined : m })}>
+            {m === "none" ? "None" : m[0].toUpperCase() + m.slice(1)}
+          </button>
+        ))}
+      </div>
+      {mode !== "none" && (<>
+        <Slider label="Strength" value={fx.ovStrength ?? 45} min={0} max={100} unit="%" def={45}
+          title="How heavy the wash sits over the art."
+          onChange={(v) => set({ ovStrength: v })} />
+        <Slider label="Grain" value={fx.ovNoise ?? 0} min={0} max={100} unit="%" def={0}
+          title="Film grain through the wash. Deterministic: the same kit exports the same grain every time."
+          onChange={(v) => set({ ovNoise: v })} />
+        <label className="fieldbox" style={{ minWidth: 0 }} title="How the wash mixes with the picture underneath.">
+          <span className="fl">Blend</span>
+          <select value={fx.ovBlend ?? "normal"} aria-label="Overlay blend mode"
+            onChange={(e) => set({ ovBlend: e.target.value === "normal" ? undefined : e.target.value })}>
+            {(["normal", "multiply", "screen", "overlay", "soft-light"] as const).map((b) => <option key={b} value={b}>{b}</option>)}
+          </select>
+          <span className="chev"><ChevronDown size={17} strokeWidth={2} /></span>
+        </label>
+      </>)}
+      <Slider label="Center scrim" value={fx.ovCenter ?? 0} min={0} max={100} unit="%" def={0}
+        title="Dims the MIDDLE of the picture: the move games make behind a menu, the vignette's inverse. Stacks with the overlay above, or works alone."
+        onChange={(v) => set({ ovCenter: v })} />
+    </Section>
+  );
+}
+
+/* ONE picture, the one this piece is wearing (owner, round 73d: "I never
+   need to see more than one image there just whatever has been most
+   recently uploaded, then I also need to be able to delete that so there's
+   no image and it goes back to the icon or not"). No library grid: the
+   drawer of every upload lives in Boards, where browsing is the point.
+   Here there is one decision, so there is one picture and one Remove. */
+function KitPicControl({ id, seat }: { id: KitComponentId; seat?: string }) {
+  // no-picfx: this control asks only whether a picture EXISTS and swaps it;
+  // the dials that dress it are two folds below, in PicFxSection.
+  const { kitPics, setKitPic, setKitSlot, setKitNoText, kitSlotVals, userAssets, kitAssets } = useGen();
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const key = seat ? `${id}:${seat}` : String(id);
+  const chosen = kitPics[key];
+  const isLogo = seat === "logo";
+  const asset = chosen
+    ? (findAsset({ userAssets, kitAssets }, chosen) ?? null)
+    : null;
+  return (
+    <div>
+      <div className="sublabel">{isLogo ? "Logo" : "Picture"}</div>
+      <div className="helper">
+        {isLogo
+          ? "Your own wordmark, over the foot of the art. It keeps its shape in the logo band, never squashed. With none here the card's name is drawn in the kit's own type, sized and broken below; turn No text on as well and the card carries no logo at all, ready for one stamped on in Boards."
+          : "Your own art fills this piece, and travels to Unity as a swappable image. Remove it and the piece goes back to its icon."}
+      </div>
+      {asset && (
+        <div className="picrow">
+          <KitPicThumb refId={asset.ref} alt={asset.name} />
+          <span className="picname" title={asset.name}>{asset.name}</span>
+        </div>
+      )}
+      <label className="ghostbtn" style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: busy ? "wait" : "pointer" }}>
+        <Upload size={13} strokeWidth={2.2} />
+        {busy ? "Adding…" : asset ? "Replace" : isLogo ? "Upload a logo" : "Upload a picture"}
+        <input type="file" accept="image/png,image/jpeg,image/webp" hidden disabled={busy}
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            e.target.value = "";
+            if (!f) return;
+            setBusy(true); setErr(null);
+            void importUserAssetFile(f).then((r) => {
+              setBusy(false);
+              if (!r.ok) { setErr(r.message); return; }
+              setKitPic(id, r.asset.id, seat);
+              /* THE UPLOAD IS THE DECISION (round 73e). The owner: "the mere
+                 act of uploading a picture (card face image) should switch
+                 the controls from icon to full bleed", and "similarly
+                 uploading a logo automatically checks No Logo Text".
+                 Nobody uploads card art to keep showing the stock glyph, and
+                 nobody uploads a wordmark to have the kit's type printed
+                 over it. Only on a FIRST upload though: a Replace must not
+                 stomp a setting the maker went back and changed on purpose. */
+              if (chosen) return;
+              if (isLogo) setKitNoText(id, true);
+              else if (kitSlotVals[id]?.art === undefined) setKitSlot(id, "art", "Full bleed");
+            }).catch(() => { setBusy(false); setErr("That image could not be read."); });
+          }} />
+      </label>
+      {chosen && (
+        <button className="ghostbtn" style={{ marginLeft: 6 }}
+          title={isLogo ? "Take the wordmark off — the card's name goes back to the kit's type" : "Take the picture off — the piece goes back to its icon"}
+          onClick={() => setKitPic(id, "", seat)}>
+          <Trash2 size={13} strokeWidth={2.2} /> Remove
+        </button>
+      )}
+      {err && <div className="helper" role="alert"><AlertTriangle size={11} strokeWidth={2.2} /> {err}</div>}
+    </div>
   );
 }

@@ -259,6 +259,26 @@ export async function bgAssetDisplayUrl(id: string): Promise<string | null> {
   return url;
 }
 
+/** The url for an asset IF it is already resolved — no promise, no wait.
+ *  A component renderer is synchronous (renderKit returns a string), so a
+ *  piece that draws a maker's own picture needs to ask "do we have this
+ *  yet?" mid-render and fall back to its icon if not. Pair it with
+ *  `warmAssetUrl` on mount: the first paint draws the fallback, the warm
+ *  lands, and the re-render draws the picture. */
+export function assetUrlNow(id: string | null | undefined): string | null {
+  if (!id) return null;
+  if (isBundledArt(id)) return id;
+  return displayUrls.get(id) ?? null;
+}
+/** Kick off resolution for an asset id and call back once (and only once)
+ *  when it lands, so a caller can re-render. Safe to call every render:
+ *  an already-resolved id calls back synchronously-ish and mints nothing. */
+export function warmAssetUrl(id: string | null | undefined, done?: () => void): void {
+  if (!id) return;
+  if (assetUrlNow(id)) { done?.(); return; }
+  void bgAssetDisplayUrl(id).then((u) => { if (u) done?.(); }).catch(() => { /* stays on the fallback */ });
+}
+
 /* ── the quiet line under the import control ────────────────────────── */
 
 function fmtBytes(n: number): string {

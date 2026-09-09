@@ -7,8 +7,8 @@
    the display face and its source instead of pixels. The packed sheet is
    a visual catalog only, produced after the atomics. */
 import type { GenConfig, IconDef, KitComponentId, KitDesign, Shape } from "./model";
-import type { BoardDef, LibItem } from "./store";
-import { stampFilter, stampFilterPad, boardBgFilter, drawBoardNoise, drawBoardOverlays, stampSvg, warpStampRaster, kitShadowFilter, kitShadowPad, suppressCastShadow } from "./store";
+import type { BoardDef, LibItem, PicSeatFx } from "./store";
+import { stampFilter, stampFilterPad, boardBgFilter, drawBoardNoise, drawBoardOverlays, stampSvg, warpStampRaster, kitShadowFilter, kitShadowPad, suppressCastShadow, findAsset } from "./store";
 /* bigGlyphById names the excluded piece in the export-skip warn — the
    PAINTED glyph drop never ships in the Unity download (round 44). The
    filter/base recipes are for the MAKER'S OWN logos, which do (round 72):
@@ -334,6 +334,12 @@ interface AssetMeta {
      *  to this hex, so a dev retint is one clean color edit and the
      *  app's color slots land exactly. */
     tint?: string;
+    /** OVER THE WORDS (data-icon-over — the flip clock's split bar): the
+     *  app draws this ink ON TOP of the live text, so the child must land
+     *  ABOVE the Words group instead of under it. Seat order is paint
+     *  order, and the default is under (picture ink beneath the words);
+     *  this flag is the exception, for structure that crosses a number. */
+    over?: boolean;
     /** the PER-STATE GLYPH DRESS (round 53): a state icon fork (the ICR
      *  ladder — stateDesigns[state].icon) ships that state's cut on the
      *  SAME window as the resting sprite; the StateFx rig swaps the live
@@ -354,6 +360,18 @@ export interface EngineExportState {
   /** Per-piece 9-slice override from the app's slicing editor, design px —
       absent = borders measured from the rendered pixels. */
   kitSlices?: Partial<Record<KitComponentId, { left: number; right: number; top: number; bottom: number }>>;
+  /** A MAKER'S OWN PICTURE per piece (round 73) — a userAssets/kitAssets
+      registry id. The pixels are resolved to real bytes at export time
+      (vault first, then the account's cloud copy), so a card exported on
+      one machine carries its art to any other. */
+  kitPics?: Partial<Record<string, string>>;
+  /** Those pictures' DIALS — size, nudge, glow, shadow and the darkroom
+      (round 73f). Without this the export resolved the bytes and dropped
+      the treatment, so a graded, vignetted card shipped its raw upload. */
+  kitPicFx?: Partial<Record<string, PicSeatFx>>;
+  /** The registries those ids name — the export cannot reach the store. */
+  userAssets?: { id: string; name: string; ref: string; w: number; h: number }[];
+  kitAssets?: { id: string; name: string; ref: string; w: number; h: number }[];
   kitName: string;
   /** I1 — the kit's PERMANENT address inside the user's Unity project
       (Assets/UIKitMaker/<slug>/). Minted at first export, survives display
@@ -543,6 +561,12 @@ export interface ExportBoardItemData {
       (bigglyphs/<id>.png), shared by every clean instance. Live-effect
       travel (Unity-side shadow/glow components) is a future option. */
   big?: { id: string; name: string; sprite: string; fx: boolean };
+  /** The copy's own opacity dial, 0..100, present only below 100 (round
+   *  73m — the Board control has promised "Exports honor it" since it
+   *  shipped; it did not, on any road). The importer lays it on the copy
+   *  and its cast shadow as one CanvasGroup, which is what the stage's
+   *  CSS opacity on the art wrapper covers. */
+  opacity?: number;
 }
 export interface ExportBoardData {
   name: string;
@@ -602,12 +626,12 @@ function inheritedPaint(el: Element, attr: string): string | null {
    for ink whose flatness only the EXPORT can prove (it rasters the cut
    and reads the drawn color back; see skillFlatInkOf). Keyed by the
    group's data-icon name. */
-function markedIconOnlySvgs(svgIn: string, tintOverride?: Record<string, string>): { name: string; btn: boolean; well: number[] | null; box: number[] | null; nick: string | null; tint: string | null; svg: string }[] {
+function markedIconOnlySvgs(svgIn: string, tintOverride?: Record<string, string>): { name: string; btn: boolean; well: number[] | null; box: number[] | null; nick: string | null; tint: string | null; over: boolean; svg: string }[] {
   try {
     const dom0 = new DOMParser().parseFromString(svgIn, "image/svg+xml");
     const gs0 = Array.from(dom0.querySelectorAll('[data-part="icon"]'));
     if (!gs0.length) return [];
-    const out: { name: string; btn: boolean; well: number[] | null; box: number[] | null; nick: string | null; tint: string | null; svg: string }[] = [];
+    const out: { name: string; btn: boolean; well: number[] | null; box: number[] | null; nick: string | null; tint: string | null; over: boolean; svg: string }[] = [];
     for (let gi = 0; gi < gs0.length; gi++) {
       const dom = new DOMParser().parseFromString(svgIn, "image/svg+xml");
       const gs = Array.from(dom.querySelectorAll('[data-part="icon"]'));
@@ -651,6 +675,8 @@ function markedIconOnlySvgs(svgIn: string, tintOverride?: Record<string, string>
         box: gs0[gi].getAttribute("data-icon-box")?.split(" ").map(Number) ?? null,
         nick: gs0[gi].getAttribute("data-icon-nick") || null,
         tint,
+        /* draws ON TOP of the live words (the flip clock's split bar) */
+        over: gs0[gi].getAttribute("data-icon-over") === "1",
         svg: new XMLSerializer().serializeToString(dom.documentElement),
       });
     }
@@ -853,7 +879,7 @@ const PREFAB_FAMILY: Partial<Record<KitComponentId, string>> = {
   chatbubble: "chatbubble", emotewheel: "emotewheel", buildqueue: "buildqueue",
   unitplate: "unitplate", techcard: "techcard", popmeter: "popmeter",
   // the Rewards slice (S6)
-  pack: "pack", cardback: "cardback", orderticket: "orderticket",
+  pack: "pack", cardback: "cardback", cardface: "cardface", orderticket: "orderticket",
   chest: "chest", giftbox: "giftbox", rewardtray: "rewardtray", chestpanel: "chestpanel",
 };
 // the glyph rack: pure-art silhouettes, one Image prefab each — placeable,
@@ -917,7 +943,7 @@ const UNIVERSAL_DISPLAY = new Set<KitComponentId>(["qtybadge", "resource", "curr
   "scorebug", "friendrow", "clancrest", "chatbubble", "emotewheel", "buildqueue", "unitplate", "techcard", "popmeter",
   /* Rewards slice: the released card twins join the shelf; the staged
      tray and ceremony ride gated (stagedShips) until the owner's bless. */
-  "pack", "cardback", "rewardtray", "chestpanel"]);
+  "pack", "cardback", "cardface", "rewardtray", "chestpanel"]);
 /* the glyph-button fleet (round 52 — the owner: "stock the kit with the
    entire semantic glyph set as buttons… I don't want to have to have one
    master then go round about to save one"): 47 REAL components join the
@@ -970,6 +996,32 @@ const PREF_LABEL: Partial<Record<KitComponentId, string>> = {
   ghost: "Ghost", qtybadge: "×250", levelnode: "12",
 };
 
+/** The bytes behind ANY asset ref, by the same three roads the app paints
+ *  them on (round 73h). `resolveBgAsset` covers the two upload roads — the
+ *  browser vault and the account's bucket — but a SHIPPED kit's own art is
+ *  a same-origin path to a file in the build, which it does not know about
+ *  and returns null for. The board stage never had this problem (it just
+ *  puts the path in an <img src>), so bundled art painted on screen and
+ *  vanished from every export. */
+async function assetBlobOf(ref: string): Promise<{ blob: Blob; type: string } | null> {
+  const { resolveBgAsset, isBundledArt } = await import("./assets");
+  if (isBundledArt(ref)) {
+    try {
+      const r = await fetch(ref);
+      if (!r.ok) return null;
+      const blob = await r.blob();
+      return { blob, type: blob.type || r.headers.get("content-type") || "image/png" };
+    } catch { return null; }
+  }
+  const rec = await resolveBgAsset(ref);
+  return rec ? { blob: rec.blob, type: rec.type } : null;
+}
+
+/** A board copy's opacity dial as an item field — only when it is doing
+ *  something, so every old manifest reads exactly as before. */
+const copyAlpha = (b: { opacity?: number }): { opacity?: number } =>
+  b.opacity !== undefined && b.opacity < 100 ? { opacity: Math.max(0, Math.round(b.opacity)) } : {};
+
 export async function collectExportBoards(st: {
   boards: BoardDef[];
   cfg: GenConfig;
@@ -993,6 +1045,13 @@ export async function collectExportBoards(st: {
    *  pixels through it and travel the big-glyph road (optional: older
    *  callers ship no logos). */
   userAssets?: { id: string; name: string; ref: string; w: number; h: number }[];
+  /** The LOADED KIT's own bundled art. A saved or shipped kit brings its
+   *  pictures in here, not in userAssets — and the board stage has always
+   *  read both (Board.tsx logoAsset), while this collector read only the
+   *  first. That asymmetry is why a Brightside board could show three
+   *  logos on screen and export none of them, each reported as "a deleted
+   *  My-assets entry" (round 73h). */
+  kitAssets?: { id: string; name: string; ref: string; w: number; h: number }[];
   /** The maker's text-nudge dials — the Board stage renders with them
    *  (textOy/textOx per family:size), so posed bakes and posed label
    *  seats must too (slice-2: the badge's −18 arrived un-nudged). */
@@ -1324,7 +1383,7 @@ export async function collectExportBoards(st: {
         bmp.close();
         const ax = cx < W / 3 ? 0 : cx > (2 * W) / 3 ? 1 : 0.5;
         const ay = cy < H / 3 ? 1 : cy > (2 * H) / 3 ? 0 : 0.5;
-        exItems.push({
+        exItems.push({ ...copyAlpha(b),
           component: "typestamp", cx: Math.round(cx * 10) / 10, cy: Math.round(cy * 10) / 10,
           w: Math.round(w * 10) / 10, h: Math.round(h * 10) / 10,
           // the pre-filter raster IS the visible art; the canvas pad around
@@ -1395,7 +1454,12 @@ export async function collectExportBoards(st: {
            path speaks the truth whatever the upload container was. When
            they resolve NOWHERE the copy cannot ship — and that is said
            out loud rather than dropped (artMissing, see the head). */
-        const ua = st.userAssets?.find((a) => a.id === b.logo!.aid);
+        /* BOTH registries, the way the board stage itself looks (round
+           73h). A kit loaded from a save or a shipped kit carries its art
+           in kitAssets; reading userAssets alone meant every logo on a
+           loaded kit's board reported itself deleted and silently left the
+           zip, while the same board painted them perfectly on screen. */
+        const ua = findAsset(st, b.logo!.aid);
         const aidSafe = ua ? ua.id.replace(/[^a-z0-9]/gi, "").slice(0, 24).toLowerCase() : "";
         const shipName = ua ? logoShipName(ua.id, ua.name) : "a logo";
         if (!ua || !aidSafe) {
@@ -1408,7 +1472,7 @@ export async function collectExportBoards(st: {
         let file: string;
         let wNat = ua.w, hNat = ua.h;
         try {
-          const rec = await resolveBgAsset(ua.ref);
+          const rec = await assetBlobOf(ua.ref);
           if (!rec) {
             /* the one honest failure: the bytes live in the browser vault
                (or the account's bucket) and this machine has neither */
@@ -1417,7 +1481,20 @@ export async function collectExportBoards(st: {
             continue;
           }
           const bmp = await createImageBitmap(rec.blob);
-          wNat = bmp.width; hNat = bmp.height;
+          /* THE FOOTPRINT IS THE REGISTRY'S, NOT THE FILE'S (round 73l).
+             This used to read wNat/hNat off the decoded bitmap, which is
+             right only while the file behind the ref is the upload itself.
+             A SHIPPED kit's art is a smaller display raster behind a
+             registry row that still states the pixels the board was
+             composed against (the tiered-raster contract on UserAsset),
+             and the stage lays out by the row — so the moment the shipped
+             copy resolved (the third registry), every logo on Brightside
+             landed at 57% of its board size. The owner: "the logo I
+             uploaded in boards came in but really small". The raster is
+             drawn native; only the LAYOUT reads the row, and the filter's
+             px reach is scaled by the raster's ratio so a shadow keeps
+             its design-px size on a smaller file. */
+          const rasterK = bmp.width / Math.max(1, ua.w);
           /* a logo parked off the stage never drew in the app — the
              stage-clip contract, gated before any bytes ship (kBg/padBg
              mirror the kB/padB math below the try) */
@@ -1426,10 +1503,11 @@ export async function collectExportBoards(st: {
           if (!onStage(b.x + (wNat * kBg) / 2, b.y + (hNat * kBg) / 2, (wNat + padBg * 2) * kBg, (hNat + padBg * 2) * kBg, b.rot)) { bmp.close(); continue; }
           const draw = (pad: number, filter?: string): Promise<Uint8Array> => {
             const cv = document.createElement("canvas");
-            cv.width = bmp.width + pad * 2; cv.height = bmp.height + pad * 2;
+            const padPx = Math.ceil(pad * rasterK);
+            cv.width = bmp.width + padPx * 2; cv.height = bmp.height + padPx * 2;
             const cx2 = cv.getContext("2d")!;
             if (filter) cx2.filter = filter;
-            cx2.drawImage(bmp, pad, pad);
+            cx2.drawImage(bmp, padPx, padPx);
             return canvasToPngBytesDilated(cv);
           };
           /* the CLEAN original ships for EVERY used asset, dialed copies
@@ -1444,7 +1522,8 @@ export async function collectExportBoards(st: {
           if (!hasFx) file = cleanFile;
           else {
             const fxB = { gid: "", ...b.logo };
-            const bytesL = await draw(bigGlyphFilterPad(fxB), bigGlyphFilter(st.cfg, fxB));
+            // the pad is design px (scaled inside draw); the filter's own px follow the raster
+            const bytesL = await draw(bigGlyphFilterPad(fxB), bigGlyphFilter(st.cfg, fxB, rasterK));
             file = `bigglyphs/${uid2}-${sidOf(b)}.png`;
             stampFiles.push({ file, bytes: bytesL });
           }
@@ -1461,7 +1540,7 @@ export async function collectExportBoards(st: {
         const cxB = b.x + (wNat * kB) / 2, cyB = b.y + (hNat * kB) / 2;
         const axB = cxB < W / 3 ? 0 : cxB > (2 * W) / 3 ? 1 : 0.5;
         const ayB = cyB < H / 3 ? 1 : cyB > (2 * H) / 3 ? 0 : 0.5;
-        exItems.push({
+        exItems.push({ ...copyAlpha(b),
           component: "bigglyph", cx: Math.round(cxB * 10) / 10, cy: Math.round(cyB * 10) / 10,
           w: Math.round(wB * 10) / 10, h: Math.round(hB * 10) / 10,
           // the logo's own raster is the art box; an fx copy's symmetric
@@ -1523,7 +1602,7 @@ export async function collectExportBoards(st: {
         stampFiles.push({ file, bytes: pb });
         const axL = cxL < W / 3 ? 0 : cxL > (2 * W) / 3 ? 1 : 0.5;
         const ayL = cyL < H / 3 ? 1 : cyL > (2 * H) / 3 ? 0 : 0.5;
-        exItems.push({
+        exItems.push({ ...copyAlpha(b),
           component: "libasset", cx: Math.round(cxL * 10) / 10, cy: Math.round(cyL * 10) / 10,
           w: Math.round(wL * 10) / 10, h: Math.round(hL * 10) / 10,
           rot: b.rot ?? 0, label: null, value: null, ax: axL, ay: ayL,
@@ -1742,7 +1821,7 @@ export async function collectExportBoards(st: {
             }
           } catch { /* a piece without its companion still wipes — clipped to its full bake */ }
         }
-        exItems.push({
+        exItems.push({ ...copyAlpha(b),
           // base id even for a clone — the baked pixels above already wear
           // the clone's fork, and the importer only knows base names
           component: idBase, cx: Math.round(cx * 10) / 10, cy: Math.round(cy * 10) / 10,
@@ -2269,7 +2348,7 @@ export async function collectExportBoards(st: {
           }
         } catch { /* a copy without its dialed shadow still places */ }
       }
-      exItems.push({
+      exItems.push({ ...copyAlpha(b),
         component: fam, cx: Math.round(pcx * 10) / 10, cy: Math.round(pcy * 10) / 10,
         w: Math.round(pw * 10) / 10, h: Math.round(ph * 10) / 10,
         /* the words the maker actually SAW: per-copy label first, the
@@ -2997,6 +3076,53 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   };
   setEmbedFont("", null); // never inherit a stale embed from a crashed export
 
+  /* ── A MAKER'S PICTURE, MADE SHIPPABLE (round 73) ────────────────────
+     The app paints a maker's uploaded art from a blob url; an export
+     cannot, because the raster runs through a canvas and a stale or
+     foreign url is either empty or a tainted canvas. So each picture is
+     resolved to real bytes ONCE per export and inlined as a data url, and
+     the marked-ink road does the rest: the picture becomes the piece's
+     swappable Image child and the bake stays empty, which is the same
+     contract every other live child already has. A picture whose pixels
+     are not on this machine simply does not resolve, and the piece falls
+     back to its icon rather than shipping a hole. */
+  const picCache = new Map<string, { href: string; w: number; h: number } | null>();
+  const picOf = async (id: KitComponentId, seat?: string): Promise<{ href: string; w: number; h: number; fx?: PicSeatFx } | null> => {
+    const pk = seat ? `${id}:${seat}` : String(id);
+    const pb = seat ? `${baseOf(id)}:${seat}` : String(baseOf(id));
+    const aid = st.kitPics?.[pk] ?? st.kitPics?.[pb];
+    if (!aid) return null;
+    /* THE SEAT'S DIALS TRAVEL (round 73f). They did not: this resolved the
+       bytes and stopped, so a picture's size, nudge, glow, shadow and its
+       whole darkroom were an app-only illusion — the exported sprite wore
+       the raw upload. The cache is keyed on the ASSET (the bytes are what
+       is expensive); the dials are per SEAT, so they are attached on the
+       way out, after the cache, or two seats sharing one upload would
+       trade treatments. */
+    const fx = st.kitPicFx?.[pk] ?? st.kitPicFx?.[pb];
+    const dress = (v: { href: string; w: number; h: number } | null) => (v && fx ? { ...v, fx } : v);
+    if (picCache.has(aid)) return dress(picCache.get(aid) ?? null);
+    const ua = findAsset(st, aid);
+    let out: { href: string; w: number; h: number } | null = null;
+    if (ua) {
+      try {
+        // all three roads, bundled art included (round 73h)
+        const rec = await assetBlobOf(ua.ref);
+        if (rec?.blob) {
+          const href = await new Promise<string | null>((res) => {
+            const fr = new FileReader();
+            fr.onload = () => res(typeof fr.result === "string" ? fr.result : null);
+            fr.onerror = () => res(null);
+            fr.readAsDataURL(rec.blob);
+          });
+          if (href) out = { href, w: ua.w, h: ua.h };
+        }
+      } catch { out = null; }
+    }
+    picCache.set(aid, out);
+    return dress(out);
+  };
+
   /* ── LOGOS THAT COULD NOT SHIP (round 72, owner mandate) ─────────────
      A maker's logo travels into the scene as its own live child. When its
      pixels live only in a vault this machine hasn't got, the copy cannot
@@ -3692,6 +3818,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         ...(mk.well ? { wellR: r1(mk.well[2]) } : {}),
         ...(mk.nick ? { nick: mk.nick } : {}),
         ...(mk.tint ? { tint: mk.tint } : {}),
+        ...(mk.over ? { over: true } : {}),
       };
       SEAT_CUTS.set(seatRow, { spr, box: [bx, by, bw9, bh9] });
       seats.push(seatRow);
@@ -3825,15 +3952,42 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         prof.push(s9 / Math.max(1, y1 - y0));
       }
       const mn = Math.min(...prof), mx = Math.max(...prof);
-      /* flat/gradient center (vertical dressing constant along the run):
-         SLICED — stretch is invisible on it, and there is nothing to
-         tile. Patterned center: TILED — the owner's density truth
-         ("the pattern reveals at natural density, never stretches");
-         Unity's tile is the whole center region, so repeats beyond the
-         native width wrap on the art's own phase — the fence measures
-         that wrap per family (the borders stay EXACT for the floor
-         circle; no snap may widen them). */
-      const mode: "tiled" | "sliced" = mx - mn < 2.5 ? "sliced" : "tiled";
+      /* flat center (vertical dressing constant along the run): SLICED —
+         stretch is invisible on it, and there is nothing to tile. */
+      if (mx - mn < 2.5) return { nineSlice: { left, right, top, bottom }, mode: "sliced" };
+      /* ── ROUND 72b, the RAMP's own mode (owner: "the emblem bar still
+         has a weird cap on the mercury end", with the Unity Inspector
+         showing emblembar-fill.9 on Image Type TILED). Range alone can't
+         tell a lengthwise RAMP from a PATTERN, and the kit's mercury
+         dressing is a ramp: measured, emblembar/progress/slider all run
+         129 → 168 → 206 across the center, dead monotonic. Tiling a ramp
+         is the bug the owner sees — Unity's tile CLIPS a center narrower
+         than native, so the run shows the ramp's dark head and then butts
+         straight into the right border cut from the ramp's bright tail: a
+         hard luminance step exactly at the cap. Sliced compresses it
+         instead, which IS the app's own squeeze (the round-60 vsbar
+         ruling, now carried by measurement for the whole class).
+         The discriminator is SHAPE, not size: net travel over gross
+         travel on the smoothed profile. A ramp spends all its movement
+         going one way (→1); a real repeat returns to where it started
+         (→0). Measured across every shipped bar the two groups sit at
+         0.80-1.00 and 0.00-0.005 with nothing in between, so the cut at
+         0.5 is nowhere near either. Genuine patterns (xpbar, loadbar)
+         keep TILED and the owner's density truth ("the pattern reveals at
+         natural density, never stretches"); Unity's tile is the whole
+         center region, so repeats beyond the native width wrap on the
+         art's own phase — the fence measures that wrap per family (the
+         borders stay EXACT for the floor circle; no snap may widen). */
+      const sm = prof.map((_, i9) => {
+        const a9 = Math.max(0, i9 - 2), b9 = Math.min(prof.length, i9 + 3);
+        let s8 = 0;
+        for (let k9 = a9; k9 < b9; k9++) s8 += prof[k9];
+        return s8 / (b9 - a9);
+      });
+      let gross = 0;
+      for (let i9 = 1; i9 < sm.length; i9++) gross += Math.abs(sm[i9] - sm[i9 - 1]);
+      const monotone = gross > 0.01 ? Math.abs(sm[sm.length - 1] - sm[0]) / gross : 1;
+      const mode: "tiled" | "sliced" = monotone >= 0.5 ? "sliced" : "tiled";
       return { nineSlice: { left, right, top, bottom }, mode };
     } catch { return null; }
   };
@@ -4870,10 +5024,12 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           { component: "trophyicon", part: fin, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
             usage: `${fin} podium finish — same geometry as base; swap it onto the Trophy prefab for placements.` }, true, "trophyicon");
       if (p.id === "endturn")
-        await addPng("endturn/arc.png",
-          `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200"><circle cx="100" cy="100" r="86" fill="none" stroke="#FFFFFF" stroke-width="13" stroke-linecap="round"/></svg>`,
-          { component: "endturn", part: "arc", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true,
-            usage: "Countdown ring — Image Type Filled/Radial360, fillAmount = time left. The prefab tints it to the kit Glow and stages it at 0.7." });
+        await addPng("endturn/arc.png", shell("endturn", { part: "arc" }, undefined, 1),
+          { component: "endturn", part: "arc", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, ringV: 0.7,
+            usage: "Countdown ring — the app's own arc at a full turn, on the body's canvas. Image Type Filled/Radial360; fillAmount = time left (staged at 0.7)." },
+          /* the base's own union-crop group, so the ring's canvas IS the
+             body's canvas and the child sits over it with no math */
+          true, "endturn");
       if (p.id === "firebutton") {
         /* the SWIPE RIG's layers (owner: "when you swipe left or right the
            center icon changes… bring that wiring into Unity"): a bare dome
@@ -5104,7 +5260,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         pathconnector: "Saga path connector — DRIVABLE (round 44): the Pathconnector prefab deals nine live beads along the kit's own S-curve and PatternBreakPathConnector lights them by value (SetProgress / SetValue 0..1). This baked sheet stays for older scenes and board stamps.",
         combo: "Combo burst — DYNAMIC (round 47): ComboPop.SetCount(n) deals the ×N numeral from the kit's own celebration digits at the authored seat (the Multiplier child holds the app-staged pose at rest; the Combo plaque is its own live child); Pop() replays the app's exact squash-overshoot-settle on whatever count is set, and ClaimBurst throws the sparks. CLICK IT IN PLAY.",
         booster: "Booster button — a REAL button (Sprite Swap states); the booster glyph is a LIVE Image child and the count badge a live plate child with its count RIDING it (the ×0 FREE ribbon ships the same way).",
-        flipclock: "Flip countdown — the tile digits and caption are LIVE seats; drive them from your own clock. Display piece.",
+        flipclock: "Flip countdown — the tile digits and caption are LIVE seats; drive them from your own clock. Each tile's Split Bar is its own Image child sitting ABOVE the digits (never baked into the tile), so the hinge crosses the number exactly as the app draws it — move it, restyle it or delete it per tile. Display piece.",
         stopwatch: "Stopwatch — the dial FUNCTIONS (round 44): PatternBreakStopwatch drives the remaining-time arc (Radial360 + rotating round head), the sweep hand, the alarm mood below 25% and the m:ss readout from ONE value (SetValue 0..1, or SetSeconds on the 90s dial). The readout stays a LIVE seat — retype it and it is yours. Display piece.",
         scorebug: "Match score bug — Home and Away names, both scores and the clock are LIVE seats (the app's Home/Away word slots land verbatim); each team's color bar is a LIVE TINTABLE child (its sprite ships white, the slot color rides Image.color — retint a side in one edit). Display piece; the value slider stays the match clock, exactly as in the app.",
         friendrow: "Friend row — drop YOUR sprite on the Portrait child (the well clips it round); name, status and time are LIVE seats, the JOIN capsule is a REAL small-button child with its word riding it, and the presence dot a LIVE Image child (move it, delete it, or tint a copy for offline). Display piece.",
@@ -5117,6 +5273,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         popmeter: "Population meter — LIVE: the population glyph is a LIVE Image child, the count a seat, and the supply bar a KitBarFill bar (the Value slider or SetValue; the app's near-cap alarm red stays an app-side draw for now). Display piece.",
         pack: "Card pack — the pack art with its live word; open ceremonies are your game's (ClaimBurst fires on CLAIM-labeled copies). Display piece.",
         cardback: "Card back — the deck's face-down art with its live emblem child. Display piece.",
+        cardface: "Card face — ONE design, any number of cards. KitCardFace makes the whole card data: SetCard(art, name, left, right) dresses it in one call, or drive the parts (SetArt / SetName / SetLeft / SetRight). The two corner numbers animate on change — SetLeft(v, KitCardFace.Change.Hit) punches red, Change.Buff swells green, Change.Quiet just writes it. The picture is a swappable Image child (drop your own sprite, or feed a CardDef), the name is a LIVE seat, and each corner badge is its own child with its number riding it, so a set is this prefab instanced per row rather than a prefab per card. Pair it with KitCardFlip on a parent holding a Cardback and this face to get the reveal: Flip(), Reveal(), Hide().",
         orderticket: "Kitchen order ticket — a REAL button; dish name and recipe lines are LIVE seats, the dish glyph a LIVE Image child, and the countdown bar is LIVE (a KitBarFill bar — the Value slider or SetValue; the ≤25% alarm recolor + pulse are the game's runtime to add). Served poses ride per-copy posed skins.",
         chest: "Treasure chest — a REAL button; tier and gate poses ride per-copy posed skins.",
         giftbox: "Gift box — a REAL button; tag and readiness poses ride per-copy posed skins.",
@@ -5136,10 +5293,13 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         if (isGlyphButton(uid) && !gbtnFull.has(uid)) continue;
         const isArt = isGlyphPiece(uid);
         const uVal = st.kitVals?.[uid];
+        const uPic = isArt ? null : await picOf(uid);
+        const uLogo = isArt ? null : await picOf(uid, "logo");
         const uOpts: Record<string, unknown> = isArt ? {} : {
           label: st.kitNoText?.[uid] ? "" : st.kitLabels?.[uid],
           sub: st.kitSubs?.[uid], slots: st.kitSlotVals?.[uid],
           icon: resolveKitIcon(st.kitIcons?.[uid], undefined),
+          pic: uPic, logo: uLogo,
           themedText: !!st.kitDesigns?.[uid]?.type || !!st.kitTextFill[uid],
         };
         /* SMIL loops strip before anything downstream parses or rasters —
@@ -5156,7 +5316,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
            export-side attribute, the app render untouched). Seats then
            speak canvas-center offsets; the importer's child math follows
            the row's shell like any family. */
-        if ((uid === "combo" || uid === "dmgnumber") && !/data-shell=/.test(fullU)) {
+        /* the flip clock joins them (round 72): its tiles carry their own
+           shells but the board itself declares none, so the split-bar
+           seats had no reference frame to speak offsets from. */
+        if ((uid === "combo" || uid === "dmgnumber" || uid === "flipclock") && !/data-shell=/.test(fullU)) {
           const vbC9 = /viewBox="0 0 ([\d.]+) ([\d.]+)"/.exec(fullU);
           if (vbC9) fullU = fullU.replace("<svg ", `<svg data-shell="0 0 ${vbC9[1]} ${vbC9[2]}" `);
         }
@@ -6627,9 +6790,16 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   }
   {
     const ltSvg = shell("loottag", { overlay: "frame" }, slim);
+    /* the GEM rides the un-burn's icon-seat road (round 73n): the full
+       render marks it, the seat is measured at the raster and the sprite
+       ships in the app's own ink — the formula-tinted white gem the
+       importer used to build sat high and wore the tier where the app
+       wears the type fill. The kit's own icon pick reaches it. */
+    const ltFull = shell("loottag", { icon: resolveKitIcon(st.kitIcons?.loottag, undefined) }, slim);
+    const ltSeats = await iconSeatsOf("loottag", ltFull);
     await addPng("loottag/base.9.png", ltSvg,
-      { component: "loottag", part: "base", nineSlice: sliceOf("loottag", 92), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Loot-tag plate, bare. The LootTag prefab rebuilds the tier stripe + gem LIVE (manifest > loot geometry, tinted per manifest > rarity); the item name and tier word arrive as live text.",
-        loot: lootOf(ltSvg), ...textSeatsOf("loottag", ltSvg, {}, slim) }, true);
+      { component: "loottag", part: "base", nineSlice: sliceOf("loottag", 92), pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Loot-tag plate, bare. The LootTag prefab rebuilds the tier stripe LIVE (manifest > loot geometry, tinted per manifest > rarity) and the gem as a live icon child at the app's seat; the item name and tier word arrive as live text.",
+        loot: lootOf(ltSvg), ...(ltSeats ? { iconSeats: ltSeats } : {}), ...textSeatsOf("loottag", ltSvg, {}, slim) }, true);
     // the stripe pill, WHITE — the prefab tints it to the tier (round 16:
     // the app's left color bar was stripped and never rebuilt)
     await addPng("loottag/stripe.png", shell("loottag", { part: "stripe" }, slim), { component: "loottag", part: "stripe", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: true, usage: "The loot tag's rarity stripe, white — tint to the tier color (manifest > rarity). The LootTag prefab wears it as a live, re-tintable layer." });
@@ -6854,8 +7024,15 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     if (!lm) return null;
     const v = lm[1].split(" ").map(Number);
     if (v.length !== 7 || v.some((n) => !Number.isFinite(n))) return null;
-    return { sx: Math.round(v[0] * PNG_SCALE), sy: Math.round(v[1] * PNG_SCALE), sw: Math.round(v[2] * PNG_SCALE * 10) / 10, sh: Math.round(v[3] * PNG_SCALE * 10) / 10,
-      gx: Math.round(v[4] * PNG_SCALE), gy: Math.round(v[5] * PNG_SCALE), gs: Math.round(v[6] * PNG_SCALE * 10) / 10 };
+    /* the stamp speaks RAW (pre-rise) coordinates, the drawn stripe and
+       gem ride inject()'s lift group — the chart zone's own riseC rule.
+       Without it the dress sat the whole headroom above the face (owner,
+       fresh Unity project: the stripe and gem "off compared to the kit"). */
+    const shDl = /data-shell="([-\d. ]+)"/.exec(frameSvg)?.[1].split(" ").map(Number);
+    const sh0l = /data-shell0="([-\d. ]+)"/.exec(frameSvg)?.[1].split(" ").map(Number);
+    const riseL = shDl && sh0l && shDl.length === 4 && sh0l.length === 4 ? shDl[1] - sh0l[1] : 0;
+    return { sx: Math.round(v[0] * PNG_SCALE), sy: Math.round((v[1] + riseL) * PNG_SCALE), sw: Math.round(v[2] * PNG_SCALE * 10) / 10, sh: Math.round(v[3] * PNG_SCALE * 10) / 10,
+      gx: Math.round(v[4] * PNG_SCALE), gy: Math.round((v[5] + riseL) * PNG_SCALE), gs: Math.round(v[6] * PNG_SCALE * 10) / 10 };
   }
   {
     const spFace = shell("speedo", { part: "face" }, undefined, 0);
@@ -8017,6 +8194,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Runtime/PatternBreakBuffSweep.cs", data: BUFF_SWEEP_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitBarFill.cs", data: KIT_BAR_FILL_RUNTIME });
   files.push({ path: "Runtime/PatternBreakCellMeter.cs", data: CELL_METER_RUNTIME });
+  files.push({ path: "Runtime/PatternBreakCardFace.cs", data: CARD_FACE_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitStepper.cs", data: KIT_STEPPER_RUNTIME });
   files.push({ path: "Runtime/PatternBreakPageDots.cs", data: PAGE_DOTS_RUNTIME });
   files.push({ path: "Runtime/PatternBreakStartLights.cs", data: START_LIGHTS_RUNTIME });
@@ -8114,6 +8292,13 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     "Runtime/PatternBreakBuffSweep.cs",
     "Runtime/PatternBreakKitBarFill.cs",
     "Runtime/PatternBreakCellMeter.cs",
+    /* the card rigs land here too (round 73e). They were pushed at the
+       right moment but never listed, so the file rooted per-slug instead
+       of at the shared root — outside the PatternBreak.Runtime assembly
+       and therefore compiled into Assembly-CSharp, where a second kit's
+       copy would collide with the first. A live defect in what already
+       shipped, found by auditing rather than by a bug report. */
+    "Runtime/PatternBreakCardFace.cs",
     "Runtime/PatternBreakKitStepper.cs",
     "Runtime/PatternBreakPageDots.cs", "Runtime/PatternBreakStartLights.cs",
     "Runtime/PatternBreakSkillNode.cs",
@@ -8160,8 +8345,15 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
    native language names — Español, Français, Português — ride live labels
    through the baked faces; the slice fence proves every option string
    against this set, so tofu can't ship). The kit face's fallback chain
-   draws any glyph the display font lacks, exactly as the app does. */
-const BAKE_GLYPHS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!?.,:;%+-'&()×éèêëàâäçîïíìôöóòûüúùñãõÉÈÊÀÇÑ";
+   draws any glyph the display font lacks, exactly as the app does.
+   Round 73o (owner, fresh Unity project: "price button in unity isn't
+   picking up the correct color for the money sign"): the set covered
+   letters, digits and a dozen marks — no $, no /, no # — so the price
+   button's own "$4.99" and the XP bar's "900 / 2,000 XP" drew those
+   glyphs from TMP's default grey font. Every printable-ASCII symbol
+   rides now, plus the three currency signs a store button types. */
+// (the quote and the backslash ride as \u escapes — the importer guard reads this literal raw)
+const BAKE_GLYPHS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!?.,:;%+-'&()×éèêëàâäçîïíìôöóòûüúùñãõÉÈÊÀÇÑ$/#@*=<>\u0022_[]{}|\u005C~^`€£¥";
 const BAKE_S = 3; // raster scale over the 52px specimen em → 156px baked em
 
 async function rasterCanvas(svg: string, scale: number): Promise<HTMLCanvasElement> {
@@ -8968,6 +9160,284 @@ namespace PatternBreak {
     void OnEnable() { Apply(); }
     // a raw fillAmount write reads as the VALUE and re-snaps to whole cells
     void LateUpdate() { if (lit != null && !Mathf.Approximately(lit.fillAmount, wrote)) { value = Mathf.Clamp01(lit.fillAmount); Apply(); } }
+  }
+}
+`;
+
+/* ── THE CARD FACE'S BRAIN (round 73, the owner's commission). Their own
+   worry named the design: "if someone makes sets of cards the kit will
+   grow enormously, and with each card being it's own individual asset,
+   things could get out of control quickly (what do you think here?)".
+
+   The answer is that a card face is a DESIGN and a card is a ROW. One
+   prefab, one KitCardDef per card, and a set of two hundred is two hundred
+   small assets and ONE prefab instead of two hundred prefabs with two
+   hundred sprite sets. Everything that varies card to card is a field
+   here; only a change to the FRAME is a new component back in the app.
+
+   The corner numbers answer the second half ("leave options in for those
+   dynamic numbers in the corners to take hits or buffs and animate
+   accordingly"): SetLeft/SetRight take a Change, and Nudge infers it from
+   the direction so a dev who does not want to think about it never has
+   to. The animation is the app's own punch-and-settle, scale plus a tint
+   flash, and it never allocates after the first call. ── */
+const CARD_FACE_RUNTIME = `using System.Collections;
+using UnityEngine;
+using UnityEngine.UI;
+using UnityEngine.EventSystems;
+#if UNITY_2023_2_OR_NEWER
+using TMPro;
+#endif
+
+namespace PatternBreak {
+  /* ONE CARD'S DATA. A set is a folder of these plus one prefab. */
+  [CreateAssetMenu(menuName = "UI Kit Maker/Card", fileName = "Card")]
+  public class KitCardDef : ScriptableObject {
+    public string cardName = "CARD NAME";
+    public Sprite art;
+    public int left = 5;
+    public int right = 9;
+  }
+
+  [AddComponentMenu("UI Kit Maker/Kit Card Face")]
+  public class KitCardFace : MonoBehaviour {
+    /* how a number arrived: Quiet just writes it, Hit punches red, Buff
+       swells green. Nudge picks Hit or Buff from the direction. */
+    public enum Change { Quiet, Hit, Buff }
+
+    [Header("The card's parts (wired on import)")]
+    [Tooltip("The picture. Drop any sprite here and the card is a different card — no trip back to the app.")]
+    public Image art;
+    [Tooltip("The left badge plate — flashed behind its number on a hit or a buff.")]
+    public Graphic leftBadge;
+    [Tooltip("The right badge plate.")]
+    public Graphic rightBadge;
+#if UNITY_2023_2_OR_NEWER
+    [Tooltip("The card's name, the word straddling the foot of the picture.")]
+    public TMP_Text nameLabel;
+    [Tooltip("The left corner's number. It rides the left badge, so moving the badge moves both.")]
+    public TMP_Text leftNumber;
+    [Tooltip("The right corner's number.")]
+    public TMP_Text rightNumber;
+#endif
+
+    [Header("This card")]
+    public int left = 5;
+    public int right = 9;
+
+    [Header("Hit and buff")]
+    [Tooltip("The flash when a number goes DOWN.")]
+    public Color hitTint = new Color(1f, 0.30f, 0.33f, 1f);
+    [Tooltip("The flash when a number goes UP.")]
+    public Color buffTint = new Color(0.44f, 1f, 0.55f, 1f);
+    [Range(0.05f, 1.5f)] public float punchSeconds = 0.34f;
+    [Range(1f, 2.5f)] public float punchScale = 1.42f;
+
+    /* ── the whole card in one call ── */
+    public void SetCard(KitCardDef def) {
+      if (def == null) return;
+      SetCard(def.art, def.cardName, def.left, def.right);
+    }
+    public void SetCard(Sprite picture, string cardName, int l, int r) {
+      SetArt(picture); SetName(cardName);
+      SetLeft(l, Change.Quiet); SetRight(r, Change.Quiet);
+    }
+
+    public void SetArt(Sprite s) { if (art != null && s != null) art.sprite = s; }
+
+    public void SetName(string s) {
+#if UNITY_2023_2_OR_NEWER
+      if (nameLabel != null) nameLabel.text = s == null ? "" : s;
+#endif
+    }
+
+    public void SetLeft(int v) { SetLeft(v, Change.Quiet); }
+    public void SetRight(int v) { SetRight(v, Change.Quiet); }
+    public void SetLeft(int v, Change how) {
+      left = v;
+#if UNITY_2023_2_OR_NEWER
+      Write(leftNumber, leftBadge, v, how);
+#endif
+    }
+    public void SetRight(int v, Change how) {
+      right = v;
+#if UNITY_2023_2_OR_NEWER
+      Write(rightNumber, rightBadge, v, how);
+#endif
+    }
+
+    /* the road for devs who would rather not name the mood: down is a
+       hit, up is a buff, no change is quiet */
+    public void NudgeLeft(int delta) { SetLeft(left + delta, Mood(delta)); }
+    public void NudgeRight(int delta) { SetRight(right + delta, Mood(delta)); }
+    static Change Mood(int delta) { return delta < 0 ? Change.Hit : delta > 0 ? Change.Buff : Change.Quiet; }
+
+#if UNITY_2023_2_OR_NEWER
+    /* keyed on the LABEL ITSELF, not on an instance id. GetInstanceID() is
+       obsolete-as-ERROR from Unity 6.5 (CS0619), and its replacement,
+       GetEntityId(), does not exist on the older editors this kit still
+       supports — so keying on the object sidesteps the version fork
+       entirely. There are two seats; a reference is a perfectly good name
+       for one of them. */
+    readonly System.Collections.Generic.Dictionary<TMP_Text, Coroutine> live = new System.Collections.Generic.Dictionary<TMP_Text, Coroutine>();
+
+    void Write(TMP_Text t, Graphic plate, int v, Change how) {
+      if (t == null) return;
+      t.text = v.ToString(System.Globalization.CultureInfo.InvariantCulture);
+      if (how == Change.Quiet || !isActiveAndEnabled) return;
+      Coroutine running;
+      if (live.TryGetValue(t, out running) && running != null) StopCoroutine(running);
+      live[t] = StartCoroutine(Punch(t, plate, how == Change.Hit ? hitTint : buffTint));
+    }
+
+    IEnumerator Punch(TMP_Text t, Graphic plate, Color flash) {
+      var tr = t.rectTransform;
+      Vector3 rest = Vector3.one;
+      Color inkRest = t.color;
+      Color plateRest = plate != null ? plate.color : Color.white;
+      float d = Mathf.Max(0.05f, punchSeconds), e = 0f;
+      while (e < d) {
+        e += Time.unscaledDeltaTime;
+        float u = Mathf.Clamp01(e / d);
+        /* out fast, back slow — the app's own squash-overshoot-settle */
+        float kk = u < 0.32f ? (u / 0.32f) : 1f - Mathf.SmoothStep(0f, 1f, (u - 0.32f) / 0.68f);
+        tr.localScale = Vector3.LerpUnclamped(rest, rest * punchScale, kk);
+        t.color = Color.LerpUnclamped(inkRest, flash, kk);
+        if (plate != null) plate.color = Color.LerpUnclamped(plateRest, flash, kk * 0.55f);
+        yield return null;
+      }
+      tr.localScale = rest;
+      t.color = inkRest;
+      if (plate != null) plate.color = plateRest;
+      live.Remove(t);
+    }
+#endif
+  }
+
+  /* THE REVEAL (owner: "I'd like to have a card reveal animation in the kit
+     that flips the card from back to front"). Park a Cardback and a
+     Cardface as two children of one parent, drop this on the parent, and
+     Flip() turns it over: the card squashes to nothing edge-on, the sides
+     swap at the halfway mark, and it opens out again. Reveal() and Hide()
+     go one way only. */
+  [AddComponentMenu("UI Kit Maker/Kit Card Flip")]
+  public class KitCardFlip : MonoBehaviour {
+    [Tooltip("The face-down side (a Cardback).")] public RectTransform back;
+    [Tooltip("The face-up side (a Cardface).")] public RectTransform face;
+    [Tooltip("Which way up the card starts.")] public bool faceUp;
+    [Range(0.08f, 2f)] public float seconds = 0.42f;
+    [Tooltip("Unscaled time, so a reveal still plays while the game is paused.")]
+    public bool ignoreTimeScale = true;
+    Coroutine run;
+
+    void OnEnable() { Show(faceUp); }
+    void Show(bool up) {
+      if (back != null) back.gameObject.SetActive(!up);
+      if (face != null) face.gameObject.SetActive(up);
+      var rt = transform as RectTransform;
+      if (rt != null) rt.localScale = Vector3.one;
+    }
+    public void Flip() { Go(!faceUp); }
+    public void Reveal() { Go(true); }
+    public void Hide() { Go(false); }
+    void Go(bool up) {
+      if (run != null) StopCoroutine(run);
+      if (!isActiveAndEnabled) { faceUp = up; Show(up); return; }
+      run = StartCoroutine(Turn(up));
+    }
+    IEnumerator Turn(bool up) {
+      var rt = transform as RectTransform;
+      float d = Mathf.Max(0.08f, seconds), e = 0f;
+      Vector3 rest = rt != null ? rt.localScale : Vector3.one;
+      bool swapped = false;
+      while (e < d) {
+        e += ignoreTimeScale ? Time.unscaledDeltaTime : Time.deltaTime;
+        float u = Mathf.Clamp01(e / d);
+        /* edge-on at the halfway mark: |cos| carries the card to zero
+           width and back, which is the flat-canvas reading of a turn */
+        if (rt != null) { var sc = rest; sc.x = rest.x * Mathf.Abs(Mathf.Cos(u * Mathf.PI)); rt.localScale = sc; }
+        if (!swapped && u >= 0.5f) { swapped = true; faceUp = up; Show(up); }
+        yield return null;
+      }
+      if (!swapped) { faceUp = up; Show(up); }
+      if (rt != null) rt.localScale = rest;
+      run = null;
+    }
+  }
+
+  /* THE BEND (round 73e). The owner, of the app's card modal: "I want to
+     make sure the 3D animation comes through for developers?" The FLIP
+     above already shipped; the pointer TILT did not — it lived only in the
+     app's CSS. This is that tilt, ported 1:1 so a card turns in a game the
+     way it turns in the modal: shallow, eased, the near corner lifting
+     toward the pointer, and easing flat when the pointer leaves.
+
+     ONE CAVEAT, stated plainly because it decides whether this reads as
+     depth or as a shear: a Screen Space - OVERLAY canvas has no
+     perspective, so a rotated card skews rather than turns. Put the canvas
+     on Screen Space - Camera (or World Space) with a PERSPECTIVE camera and
+     it reads correctly. That is Unity's own rule, not this rig's. */
+  [AddComponentMenu("UI Kit Maker/Kit Card Tilt")]
+  public class KitCardTilt : MonoBehaviour, IPointerMoveHandler, IPointerExitHandler {
+    [Tooltip("How far the card turns at the edge of its own box, in degrees. The app modal uses 12.")]
+    [Range(0f, 40f)] public float degrees = 12f;
+    [Tooltip("How far the near corner lifts toward the pointer. 0 disables the lift.")]
+    [Range(0f, 120f)] public float lift = 18f;
+    [Tooltip("How quickly it follows and how quickly it eases back. Higher is snappier.")]
+    [Range(1f, 40f)] public float ease = 12f;
+    [Tooltip("Unscaled time, so a card still turns while the game is paused.")]
+    public bool ignoreTimeScale = true;
+
+    RectTransform rt;
+    Vector3 restPos;
+    Quaternion restRot;
+    Vector2 want;      // -1..1 across the card, 0,0 at rest
+    bool hot;          // is the pointer actually on the card?
+    bool haveRest;
+
+    void OnEnable() {
+      rt = transform as RectTransform;
+      if (rt != null && !haveRest) { restPos = rt.localPosition; restRot = rt.localRotation; haveRest = true; }
+      want = Vector2.zero; hot = false;
+    }
+    void OnDisable() {
+      if (rt != null && haveRest) { rt.localPosition = restPos; rt.localRotation = restRot; }
+      want = Vector2.zero; hot = false;
+    }
+
+    public void OnPointerMove(PointerEventData e) {
+      if (rt == null) return;
+      Vector2 local;
+      if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(rt, e.position, e.pressEventCamera, out local)) return;
+      var r = rt.rect;
+      if (r.width < 0.01f || r.height < 0.01f) return;
+      /* the card's own box, so the feel is identical at any card size —
+         the same normalisation the app modal does off its bounding rect */
+      want = new Vector2(
+        Mathf.Clamp(local.x / (r.width * 0.5f), -1f, 1f),
+        Mathf.Clamp(local.y / (r.height * 0.5f), -1f, 1f));
+      hot = true;
+    }
+    public void OnPointerExit(PointerEventData e) { want = Vector2.zero; hot = false; }
+
+    void LateUpdate() {
+      if (rt == null || !haveRest) return;
+      float dt = ignoreTimeScale ? Time.unscaledDeltaTime : Time.deltaTime;
+      float k = 1f - Mathf.Exp(-Mathf.Max(1f, ease) * dt);   // frame-rate independent
+      /* pointer UP tips the top away (negative X rotation), pointer RIGHT
+         turns the right edge away — the app modal's exact signs */
+      var target = Quaternion.Euler(want.y * degrees, want.x * degrees, 0f);
+      rt.localRotation = Quaternion.Slerp(rt.localRotation, restRot * target, k);
+      /* the app's own curve: the lift is FULL under the pointer at the
+         card's middle and falls off toward the edges, where the turn takes
+         over. With no pointer on the card there is no lift at all — that
+         is what the hot gate is for, because want=(0,0) means BOTH "dead
+         centre" and "not here", and without it a card nobody has touched
+         sits permanently forward (invisible on an Overlay canvas, a quiet
+         size bump on a perspective one). */
+      float near = hot ? lift * (1f - Mathf.Min(1f, want.magnitude)) : 0f;
+      rt.localPosition = Vector3.Lerp(rt.localPosition, restPos + new Vector3(0f, 0f, -near), k);
+    }
   }
 }
 `;
@@ -10280,6 +10750,12 @@ namespace PatternBreak {
     public Material disabledInkMaterial;
     Sprite[] gsWrote;
     Material[] gsPrevMat; bool[] gsInked;
+    /* graphics the app draws ONLY on a live piece (the end-turn ring: a
+       disabled button shows no countdown) — hidden while disabled, shown
+       again on re-enable. One a dev hid themselves is never touched. */
+    [Tooltip("Live children that HIDE while the piece is disabled — the app draws the countdown ring only on a live button. Re-enable shows them again; one you disabled yourself stays yours. Clear the list to keep them visible in every state.")]
+    public Graphic[] hideWhenDisabled;
+    bool[] hwdHid;
 
     RectTransform rt, glowRt;
     Image glowImg;
@@ -10403,6 +10879,11 @@ namespace PatternBreak {
           if (gsInked[i] && glyphSwaps[i] != null && glyphSwaps[i].target != null && glyphSwaps[i].target.material == disabledInkMaterial)
             glyphSwaps[i].target.material = gsPrevMat[i];
       gsPrevMat = null; gsInked = null;
+      // and the live-only graphics come back — only the ones THIS rig hid
+      if (hideWhenDisabled != null && hwdHid != null)
+        for (int i = 0; i < hideWhenDisabled.Length && i < hwdHid.Length; i++)
+          if (hwdHid[i] && hideWhenDisabled[i] != null) hideWhenDisabled[i].enabled = true;
+      hwdHid = null;
     }
     static bool legacyGlowHinted;
     void BuildGlow() {
@@ -10618,6 +11099,8 @@ namespace PatternBreak {
           lastWroteY = baseY + liftNow;
         } else lastWroteY = rt.anchoredPosition.y; // the adoption logic stays quiet
       }
+      // the live-only graphics answer the state the same instant
+      PushHides();
       // the glyph dress follows the same state, instantly (a sprite has
       // no in-between) — the frame's Sprite Swap and this stay one move
       PushGlyphSwaps();
@@ -10662,6 +11145,20 @@ namespace PatternBreak {
           if (g.target.material == disabledInkMaterial) g.target.material = gsPrevMat[i];
           gsInked[i] = false; gsPrevMat[i] = null;
         }
+      }
+    }
+    /* the LIVE-ONLY graphics: hidden on disable, shown on re-enable —
+       write-once identity again: a graphic already off when the piece
+       disables was the dev's call and is never switched back on here */
+    void PushHides() {
+      if (hideWhenDisabled == null || hideWhenDisabled.Length == 0) return;
+      if (hwdHid == null || hwdHid.Length != hideWhenDisabled.Length) hwdHid = new bool[hideWhenDisabled.Length];
+      bool dis = sel != null && !sel.IsInteractable();
+      for (int i = 0; i < hideWhenDisabled.Length; i++) {
+        var g = hideWhenDisabled[i];
+        if (g == null) continue;
+        if (dis) { if (!hwdHid[i] && g.enabled) { g.enabled = false; hwdHid[i] = true; } }
+        else if (hwdHid[i]) { if (!g.enabled) g.enabled = true; hwdHid[i] = false; }
       }
     }
     /* a parent CanvasGroup flipping interactable is a DISABLE the pointer
@@ -12865,6 +13362,18 @@ text is 2023.2+, the same rung rule as the step-4 word note.
   celebration digits at the authored seat, then \`Pop()\` on every
   multiplier tick (clicking the piece in Play mode fires it too). The
   app's exact squash-overshoot-settle.
+- **KitCardFace / KitCardDef / KitCardFlip / KitCardTilt** — a card set is
+  ONE prefab and many rows, not a prefab per card. \`KitCardDef\` is one
+  card's data (art, name, the two corner numbers); \`SetCard(def)\` dresses
+  the whole card in a call, and the corner numbers animate on change:
+  \`SetLeft(4, KitCardFace.Change.Hit)\` punches red, \`Change.Buff\` swells
+  green, and \`NudgeLeft(-2)\` reads the mood from the direction.
+  \`KitCardFlip\` on a parent holding a back and a face gives the reveal
+  (\`Flip()\` / \`Reveal()\` / \`Hide()\`), and \`KitCardTilt\` on the card
+  gives the pointer bend the app's card modal shows. NOTE for the tilt: a
+  Screen Space - **Overlay** canvas has no perspective, so a rotated card
+  skews instead of turning — put the canvas on Screen Space - Camera or
+  World Space with a perspective camera.
 - **PatternBreakDmgNumber** — the damage number as a dev instrument:
   \`Show(n)\` composes the amount from the kit's own damage digits at
   the authored seat (thousands grouped, the app's formatting) and plays
@@ -13590,6 +14099,44 @@ announcement as live text on top — your app words, ready to bind. The
 Achievement's gold-medallion glyph is a live Image child too: swap the
 sprite in the Inspector, or pick it on uikitmaker.com like any icon.
 
+**Cardface / Cardback — ONE prefab, a whole set.** This is the piece
+most likely to make you nervous about scale, so it was built to answer
+that first: a two-hundred-card set is ONE Cardface prefab instanced two
+hundred times, not two hundred prefabs. The design is the prefab; the
+card is a row of data.
+
+- **KitCardDef** is one card's data — a ScriptableObject holding art,
+  name and the two corner numbers. Right-click > Create > UI Kit Maker >
+  Card, or mint them from a spreadsheet in an editor script; either way
+  they are rows, and rows are cheap.
+- **KitCardFace** on the prefab dresses it. \`SetCard(def)\` does the
+  whole card in one call, or drive the parts — \`SetArt\`, \`SetName\`,
+  \`SetLeft\`, \`SetRight\`. Nothing about the card is painted into the
+  art: the picture is a swappable **Image** child, the name is a live
+  TMP seat, and each corner badge is its own child with its number
+  riding it, so you can move, restyle or delete any of them without
+  touching the shell.
+- **The corner numbers animate on change**, which is the whole point of
+  them being live: \`SetLeft(4, KitCardFace.Change.Hit)\` punches the
+  number red, \`Change.Buff\` swells it green, \`Change.Quiet\` just
+  writes it, and \`NudgeLeft(-2)\` reads the mood from the direction so
+  damage and healing need no branch in your code.
+- **KitCardFlip** on a parent holding a Cardback and a Cardface is the
+  reveal: \`Flip()\`, \`Reveal()\`, \`Hide()\`. It swaps the faces at the
+  halfway point of the turn, so the back is never visible edge-on
+  through the front.
+- **KitCardTilt** on the card gives it the pointer bend the app's card
+  modal shows — the card leans toward the cursor and lifts, with its
+  artwork following, and eases home on exit. *Degrees*, *Lift* and
+  *Ease* are Inspector dials.
+
+> **The one thing that will bite you with the tilt:** a Screen Space -
+> **Overlay** canvas has no perspective, so a rotated card SKEWS
+> instead of turning and looks broken. Put the canvas on Screen Space -
+> **Camera** or **World Space** with a perspective camera and the same
+> component reads as a real card in space. Nothing else in the kit
+> cares which canvas mode you use; this one does.
+
 One rule holds for all of them: the sprite is the material, the layout
 is the bones, and anything your game knows better than we do — words,
 numbers, tracks, rows — was left out of the pixels so you could put it
@@ -13807,6 +14354,10 @@ namespace PatternBreak {
      box center vs the shell center (design px, y down), box size. btn =
      a REAL small-button plate; wellR > 0 = circular-masked image well. */
   [Serializable] class PBIconChild { public string name; public string file; public float dx; public float dy; public float w; public float h; public bool btn; public float wellR; public bool pinRight; public float rightGap; public string nick; public string tint;
+    /* OVER THE WORDS (round 72 — the flip clock's split bar): the app
+       draws this ink on top of the live text, so the child lands ABOVE
+       the Words group instead of under it. */
+    public bool over;
     /* the PER-STATE GLYPH DRESS (round 53): a state icon fork ships that
        state's cut on the resting sprite's exact canvas — WireGlyphStateSwaps
        arms the StateFx rig to swap the live child in lockstep with the
@@ -13879,7 +14430,7 @@ namespace PatternBreak {
      name; false: the asset's clean original, shared). JsonUtility gives
      every row a default instance — an empty id means "not a big glyph". */
   [Serializable] class PBBig { public string id; public string name; public string sprite; public bool fx; }
-  [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float artW; public float artH; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string stampMask; public bool bakedFallback; public int stampLive; public float stampFs; public string stampInk; public string stampSplashInk; public string stampCase; public float stampDx; public float stampDy; public float stampW; public float stampH; public string posed; public float posedW; public float posedH; public float posedDx; public float posedDy; public string posedHover; public string posedPressed; public string posedDisabled; public float posedLabelDx; public float posedLabelDy; public string shadow; public float shadowW; public float shadowH; public float shadowDx; public float shadowDy; public string ov; public float value; public bool flip; public float[] cells; public int cellSel = -1; public PBBig big; public PBIconChild[] posedIcons; }
+  [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float artW; public float artH; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string stampMask; public bool bakedFallback; public int stampLive; public float stampFs; public string stampInk; public string stampSplashInk; public string stampCase; public float stampDx; public float stampDy; public float stampW; public float stampH; public string posed; public float posedW; public float posedH; public float posedDx; public float posedDy; public string posedHover; public string posedPressed; public string posedDisabled; public float posedLabelDx; public float posedLabelDy; public string shadow; public float shadowW; public float shadowH; public float shadowDx; public float shadowDy; public string ov; public float value; public bool flip; public float opacity; public float[] cells; public int cellSel = -1; public PBBig big; public PBIconChild[] posedIcons; }
   [Serializable] class PBBoardBg { public string file; public float opacity; public float blur; public float saturation; public float hue; public float brightness; public float contrast; public float noise; public string overlay; public float overlayStrength; public string overlayBlend; public bool original; }
   /* artMissing (round 72): logos the maker placed whose image the
      exporting browser could not reach, so no sprite shipped for them.
@@ -16466,38 +17017,16 @@ namespace PatternBreak {
 #elif ENABLE_INPUT_SYSTEM
         esGo.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
 #endif
-        /* background: the maker's own art, full-stretch behind everything.
-           The zip carries the UPLOAD ORIGINAL when the maker's browser had
-           it (manifest > boards > bg.original); opacity from the app rides
-           the image color. Blur/grain are app-preview niceties — flag them
-           in the log rather than faking them with hidden post-processing. */
-        if (bd.bg != null && !string.IsNullOrEmpty(bd.bg.file)) {
-          var bgSp = S(root + "/" + bd.bg.file);
-          if (bgSp != null) {
-            var bgGo = new GameObject("Background", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-            bgGo.transform.SetParent(canvasGo.transform, false);
-            var brt = bgGo.GetComponent<RectTransform>();
-            brt.anchorMin = Vector2.zero; brt.anchorMax = Vector2.one;
-            brt.offsetMin = Vector2.zero; brt.offsetMax = Vector2.zero;
-            var bimg = bgGo.GetComponent<Image>();
-            bimg.sprite = bgSp;
-            bimg.preserveAspect = false;
-            bimg.raycastTarget = false;
-            bimg.color = new Color(1f, 1f, 1f, Mathf.Clamp01(bd.bg.opacity / 100f));
-            if (bd.bg.overlay != null && bd.bg.overlay != "none") {
-              var ovGo = new GameObject("Overlay", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-              ovGo.transform.SetParent(canvasGo.transform, false);
-              var ort = ovGo.GetComponent<RectTransform>();
-              ort.anchorMin = Vector2.zero; ort.anchorMax = Vector2.one;
-              ort.offsetMin = Vector2.zero; ort.offsetMax = Vector2.zero;
-              var oimg = ovGo.GetComponent<Image>();
-              oimg.raycastTarget = false;
-              float a = Mathf.Clamp01(bd.bg.overlayStrength / 100f);
-              // vignette approximates as a soft dark wash; dark/light are exact
-              oimg.color = bd.bg.overlay == "light" ? new Color(0.96f, 0.97f, 1f, a * 0.5f) : new Color(0.02f, 0.03f, 0.06f, bd.bg.overlay == "vignette" ? a * 0.45f : a * 0.6f);
-            }
-          }
-        }
+        /* ── ORDER (round 73k, the owner: "why didn't the board backgrounds
+           export?"): they did — and the Phone Stage hid them. The stage
+           used to be built AFTER the Background as a later Canvas sibling,
+           so its opaque matte painted over the backdrop in every landscape
+           viewport, and a portrait scene read as a flat navy frame with a
+           small phone column. Now the stage comes first and the backdrop
+           parents INSIDE its frame: it letterboxes with the content, sits
+           above the matte, and on a real portrait device (frame = the whole
+           screen) still bleeds under the cutouts, because it is a sibling
+           of the Safe Area root, not a child of it. ── */
         /* ── the PORTRAIT STAGE (the landscape-Game-view defense): a
            portrait board opened in Unity's default landscape Game view
            (Full HD) used to blow up ~5× under the width-match scaler —
@@ -16539,6 +17068,38 @@ namespace PatternBreak {
           stageC.frame = frameRt;
           stageC.matte = matteGo;
           contentHost = frameGo.transform;
+        }
+        /* background: the maker's own art, full-stretch behind everything.
+           The zip carries the UPLOAD ORIGINAL when the maker's browser had
+           it (manifest > boards > bg.original); opacity from the app rides
+           the image color. Blur/grain are app-preview niceties — flag them
+           in the log rather than faking them with hidden post-processing. */
+        if (bd.bg != null && !string.IsNullOrEmpty(bd.bg.file)) {
+          var bgSp = S(root + "/" + bd.bg.file);
+          if (bgSp != null) {
+            var bgGo = new GameObject("Background", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            bgGo.transform.SetParent(contentHost, false);
+            var brt = bgGo.GetComponent<RectTransform>();
+            brt.anchorMin = Vector2.zero; brt.anchorMax = Vector2.one;
+            brt.offsetMin = Vector2.zero; brt.offsetMax = Vector2.zero;
+            var bimg = bgGo.GetComponent<Image>();
+            bimg.sprite = bgSp;
+            bimg.preserveAspect = false;
+            bimg.raycastTarget = false;
+            bimg.color = new Color(1f, 1f, 1f, Mathf.Clamp01(bd.bg.opacity / 100f));
+            if (bd.bg.overlay != null && bd.bg.overlay != "none") {
+              var ovGo = new GameObject("Overlay", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+              ovGo.transform.SetParent(contentHost, false);
+              var ort = ovGo.GetComponent<RectTransform>();
+              ort.anchorMin = Vector2.zero; ort.anchorMax = Vector2.one;
+              ort.offsetMin = Vector2.zero; ort.offsetMax = Vector2.zero;
+              var oimg = ovGo.GetComponent<Image>();
+              oimg.raycastTarget = false;
+              float a = Mathf.Clamp01(bd.bg.overlayStrength / 100f);
+              // vignette approximates as a soft dark wash; dark/light are exact
+              oimg.color = bd.bg.overlay == "light" ? new Color(0.96f, 0.97f, 1f, a * 0.5f) : new Color(0.02f, 0.03f, 0.06f, bd.bg.overlay == "vignette" ? a * 0.45f : a * 0.6f);
+            }
+          }
         }
         /* ── the SAFE-AREA ROOT (round 29): every piece parents HERE, not
            on the Canvas. KitSafeArea re-anchors this rect to
@@ -17339,9 +17900,17 @@ namespace PatternBreak {
                 var stT2 = inst.transform.Find("Stripe");
                 var stI2 = stT2 != null ? stT2.GetComponent<Image>() : null;
                 if (stI2 != null) stI2.color = tcL;
+                /* the gem follows the tier ONLY where the app's ink does
+                   (round 73n): a seat-shipped gem carries a tint when its
+                   ink is tier-driven and none when it wears the type fill
+                   — that one is a fixed picture and stays as drawn */
+                PBAsset rowLT = null;
+                foreach (var aLT in m.assets) if (aLT != null && aLT.component == "loottag" && aLT.part == "base") { rowLT = aLT; break; }
+                var gemSeatT = LootGemSeat(rowLT);
+                bool gemFollows = gemSeatT == null || !string.IsNullOrEmpty(gemSeatT.tint);
                 var gmT2 = inst.transform.Find("Gem");
                 var gmI2 = gmT2 != null ? gmT2.GetComponent<Image>() : null;
-                if (gmI2 != null) gmI2.color = Color.Lerp(tcL, Color.white, 0.15f);
+                if (gmI2 != null && gemFollows) gmI2.color = Color.Lerp(tcL, Color.white, 0.15f);
               }
             }
             if (it.component == "countbadge" && it.value > 0f) {
@@ -17531,6 +18100,11 @@ namespace PatternBreak {
           placed++;
           placedRoots.Add(new KeyValuePair<PBBoardItem, RectTransform>(it, rt));
           if (shadowRt != null) placedShadows[it] = shadowRt;
+          /* the copy's opacity dial (round 73m): one CanvasGroup on the piece
+             and one on its grounded shadow — the stage dims both together,
+             since its CSS opacity sits on the wrapper that holds the shadow
+             filter. 0 is JsonUtility's "absent" on older manifests: full. */
+          if (it.opacity > 0f && it.opacity < 100f) { CopyAlpha(rt.gameObject, it.opacity / 100f); if (shadowRt != null) CopyAlpha(shadowRt.gameObject, it.opacity / 100f); }
         }
         /* ── ICON ADOPTION (the third parked-icon field strike): on the
            board, an "item button" is a COMPOSITION — an interactive frame
@@ -17756,6 +18330,13 @@ namespace PatternBreak {
       try { var f = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"); if (f != null) return f; } catch (Exception) { }
       try { return Resources.GetBuiltinResource<Font>("Arial.ttf"); } catch (Exception) { }
       return null;
+    }
+    static void CopyAlpha(GameObject go, float a) {
+      if (go == null) return;
+      var cg = go.GetComponent<CanvasGroup>();
+      if (cg == null) cg = go.AddComponent<CanvasGroup>();
+      cg.alpha = Mathf.Clamp01(a);
+      cg.interactable = true; cg.blocksRaycasts = true;
     }
     static GameObject ImageObject(string n, Sprite sp, int pngScale) {
       var go = new GameObject(n, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
@@ -18368,7 +18949,7 @@ namespace PatternBreak {
       // a half-assembled survivor of a failed pass (created, then TMP threw
       // before the tables landed) counts as missing — rebuild it in place
       bool broken = existing != null && (existing.characterTable == null || existing.characterTable.Count == 0);
-      if (existing != null && !refresh && !broken) return; // yours after first assembly; Regenerate refreshes
+      if (existing != null && !refresh && !broken) { LinkBakedFallback(existing, root); return; } // yours after first assembly; Regenerate refreshes
       var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(texPath);
       if (tex == null) return; // atlas not imported yet — the next pass retries
       try {
@@ -18465,6 +19046,7 @@ namespace PatternBreak {
           AssetDatabase.AddObjectToAsset(mat, fa);
         }
         fa.ReadFontAssetDefinition();
+        LinkBakedFallback(fa, root);
         EditorUtility.SetDirty(fa);
         AssetDatabase.SaveAssetIfDirty(fa); // ours alone — never flush the world (immutable-package policy)
         Debug.Log("UI Kit Maker: " + faceName + " assembled at " + assetPath + " — " + fa.characterTable.Count
@@ -18477,6 +19059,20 @@ namespace PatternBreak {
       } catch (Exception e) {
         Debug.LogWarning("UI Kit Maker: " + faceName + " couldn't self-assemble on this Unity version (" + e.Message + "). The atlas and metrics are intact in fonts/ — send this line to uikitmaker.com and we'll wire it.");
       }
+    }
+    /* round 73o (owner: the price button's "$" drew grey): a glyph outside
+       the bake set falls to the KIT's own SDF face — same typeface, the
+       kit-styled material — never to TMP's default grey font. Linked on
+       every pass (the SDF face may assemble after the baked one on a
+       fresh project); a table a dev already filled is theirs. */
+    static void LinkBakedFallback(TMP_FontAsset fa, string root) {
+      if (fa == null) return;
+      var sdfFb = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
+      if (sdfFb == null || sdfFb == fa) return;
+      if (fa.fallbackFontAssetTable == null) fa.fallbackFontAssetTable = new List<TMP_FontAsset>();
+      if (fa.fallbackFontAssetTable.Count > 0) return;
+      fa.fallbackFontAssetTable.Add(sdfFb);
+      EditorUtility.SetDirty(fa);
     }
     /* ── the kit's fill as a one-click Color Gradient preset: prefab labels
        arrive wearing the gradient automatically, but a HAND-made text
@@ -19285,6 +19881,24 @@ namespace PatternBreak {
        "Selected ring", "Badge plate" — everything else keeps the generic
        icon grammar */
     static string IconChildName(PBIconChild ic) { return !string.IsNullOrEmpty(ic.nick) ? ic.nick : (ic.wellR > 0.5f ? "Portrait Well" : (ic.btn ? NiceName(ic.name) + " button" : "Icon " + ic.name)); }
+    /* THE OVER LAYER STAYS ON TOP (round 72 — the flip clock's split bar).
+       Icon children are wired BEFORE the Words group exists, so an over
+       seat that took the top of the stack would be buried the instant
+       Words arrived. Rather than chase it afterwards, seat the fresh
+       Words group UNDER the lowest over child: everything else keeps the
+       order it already had, and a piece with no over seats never moves. */
+    static void SeatWordsUnderOverInk(GameObject host, GameObject words, PBAsset row) {
+      if (host == null || words == null || row == null || row.iconSeats == null) return;
+      int lowest = -1;
+      foreach (var icO in row.iconSeats) {
+        if (icO == null || !icO.over) continue;
+        var tO = host.transform.Find(IconChildName(icO));
+        if (tO == null) continue;
+        int si = tO.GetSiblingIndex();
+        if (lowest < 0 || si < lowest) lowest = si;
+      }
+      if (lowest >= 0) words.transform.SetSiblingIndex(lowest);
+    }
     static List<string> WireIconChildren(GameObject go, string root, PBManifest m, string fam) {
       return WireIconChildrenRow(go, root, m, LabelRow(m, fam));
     }
@@ -19345,11 +19959,17 @@ namespace PatternBreak {
            slot in before the NEXT seat's existing child; failing that,
            before Words (picture ink draws UNDER the words, the app's own
            stack); fresh builds have neither yet and keep their order */
-        Transform beforeIC = null;
-        for (int nxI = icI + 1; nxI < row.iconSeats.Length && beforeIC == null; nxI++)
-          if (row.iconSeats[nxI] != null) beforeIC = go.transform.Find(IconChildName(row.iconSeats[nxI]));
-        if (beforeIC == null) beforeIC = go.transform.Find("Words");
-        if (beforeIC != null) cgo.transform.SetSiblingIndex(beforeIC.GetSiblingIndex());
+        /* an OVER seat is the exception (round 72 — the flip clock's split
+           bar crosses the digits in the app): it takes the top of the
+           stack instead, so the live words pass UNDER it. */
+        if (ic.over) { cgo.transform.SetAsLastSibling(); }
+        else {
+          Transform beforeIC = null;
+          for (int nxI = icI + 1; nxI < row.iconSeats.Length && beforeIC == null; nxI++)
+            if (row.iconSeats[nxI] != null && !row.iconSeats[nxI].over) beforeIC = go.transform.Find(IconChildName(row.iconSeats[nxI]));
+          if (beforeIC == null) beforeIC = go.transform.Find("Words");
+          if (beforeIC != null) cgo.transform.SetSiblingIndex(beforeIC.GetSiblingIndex());
+        }
         var crt = cgo.GetComponent<RectTransform>();
         float fxC = (row.shell.x + row.shell.w / 2f + ic.dx * psIC) / bsIC.rect.width;
         float fyC = 1f - (row.shell.y + row.shell.h / 2f + ic.dy * psIC) / bsIC.rect.height;
@@ -19677,16 +20297,23 @@ namespace PatternBreak {
           ai.preserveAspect = false; // the ring rect is sized below — Filled owns the draw
           ai.fillMethod = Image.FillMethod.Radial360;
           ai.fillOrigin = (int)Image.Origin360.Top;
-          ai.fillAmount = 0.7f;
+          /* the app's OWN ring (round 73m): the sprite already carries the
+             kit's ink, alpha and glow, and it was cropped in the body's own
+             union group, so it is the body's canvas — stretch it over the
+             body 1:1 and draw it white. The turn left rides the arc row. */
+          PBAsset arcRow = null;
+          foreach (var aAR in m.assets) if (aAR != null && aAR.component == "endturn" && aAR.part == "arc") { arcRow = aAR; break; }
+          ai.fillAmount = arcRow != null && arcRow.ringV > 0f ? Mathf.Clamp01(arcRow.ringV) : 0.7f;
           ai.raycastTarget = false;
-          Color arcC;
-          if (m != null && m.palette != null && !string.IsNullOrEmpty(m.palette.glow) && ColorUtility.TryParseHtmlString(m.palette.glow, out arcC)) ai.color = arcC;
+          ai.color = Color.white;
           var art2 = arcGo.GetComponent<RectTransform>();
-          // the ring hugs the SHELL, not the sprite rect (extrusion air)
-          Vector2 shlA;
-          var hostSz9 = ShellCenterAnchor(arcGo, go, baseAsset.component, m, out shlA) ? shlA : go.GetComponent<RectTransform>().sizeDelta;
-          float ring = Mathf.Min(hostSz9.x, hostSz9.y) * 0.92f;
-          art2.sizeDelta = new Vector2(ring, ring);
+          art2.anchorMin = Vector2.zero; art2.anchorMax = Vector2.one;
+          art2.offsetMin = Vector2.zero; art2.offsetMax = Vector2.zero;
+          /* the app draws the ring only on a LIVE button — the state rig
+             hides it while disabled and brings it back, the glyph dress's
+             own road (armed once; a list a dev already holds is theirs) */
+          var fxET = go.GetComponent<StateFx>();
+          if (fxET != null && (fxET.hideWhenDisabled == null || fxET.hideWhenDisabled.Length == 0)) fxET.hideWhenDisabled = new Graphic[] { ai };
         }
       }
       /* the badge shell reads unfinished bare (owner: "shouldn't this
@@ -21451,6 +22078,11 @@ namespace PatternBreak {
       if (m.rarity != null && m.rarity.tiers != null && m.rarity.tiers.Length > 2 && m.rarity.tiers[2] != null && !string.IsNullOrEmpty(m.rarity.tiers[2].color))
         ColorUtility.TryParseHtmlString(m.rarity.tiers[2].color, out tier);
       var l = rowL.loot;
+      /* round 73n: a manifest shipping the gem as an icon SEAT (the
+         un-burn road — the app's own picture at the measured seat) owns
+         the Gem child; this hand builds only the stripe. Older zips
+         without the seat keep the formula gem exactly as shipped. */
+      bool seatGem = LootGemSeat(rowL) != null;
       var sSp = S(root + "/assets/loottag/loottag-stripe.png");
       if (sSp != null) {
         var sGo = new GameObject("Stripe", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
@@ -21463,7 +22095,7 @@ namespace PatternBreak {
         sRt.anchorMax = new Vector2((l.sx + l.sw) / rw, 1f - l.sy / rh);
         sRt.offsetMin = Vector2.zero; sRt.offsetMax = Vector2.zero;
       }
-      var gSp = S(root + "/assets/icons/gem.png");
+      var gSp = seatGem ? null : S(root + "/assets/icons/gem.png");
       if (gSp != null) {
         var gGo = new GameObject("Gem", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
         gGo.transform.SetParent(go.transform, false);
@@ -21478,6 +22110,13 @@ namespace PatternBreak {
         gRt.anchoredPosition = Vector2.zero;
         gRt.sizeDelta = new Vector2(l.gs / pngScale, l.gs / pngScale);
       }
+    }
+    /* the loot tag's gem SEAT on its base row (round 73n) — null on
+       older manifests, whose Gem is the formula child above */
+    static PBIconChild LootGemSeat(PBAsset rowL) {
+      if (rowL == null || rowL.iconSeats == null) return null;
+      foreach (var icL in rowL.iconSeats) if (icL != null && IconChildName(icL) == "Gem") return icL;
+      return null;
     }
     static bool PicturePrefab(string dir, string root, int pngScale, PBManifest m, string file, string goName, bool sliced) {
       var sp = S(root + "/assets/" + file);
@@ -22711,6 +23350,7 @@ namespace PatternBreak {
       var words = new GameObject("Words", typeof(RectTransform));
       words.transform.SetParent(host.transform, false);
       StretchFull(words.GetComponent<RectTransform>());
+      SeatWordsUnderOverInk(host, words, row);
       var wordsT = words.transform;
       Dictionary<int, int> rowCount; Dictionary<int, float> rowFy; Dictionary<int, float> rowFfs;
       SeatRows(row, out rowCount, out rowFy, out rowFfs);
@@ -22888,6 +23528,7 @@ namespace PatternBreak {
       var wordsL = new GameObject("Words", typeof(RectTransform));
       wordsL.transform.SetParent(host.transform, false);
       StretchFull(wordsL.GetComponent<RectTransform>());
+      SeatWordsUnderOverInk(host, wordsL, row);
       Dictionary<int, int> rowCountL; Dictionary<int, float> rowFyL; Dictionary<int, float> rowFfsL;
       SeatRows(row, out rowCountL, out rowFyL, out rowFfsL);
       var kitFaceL = LtsKitFace(root, m);
