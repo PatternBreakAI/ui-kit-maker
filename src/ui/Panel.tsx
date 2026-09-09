@@ -22,6 +22,7 @@ import { capsOf, UPGRADE_LINES } from "@/generator/entitlements";
 import { openAuth } from "@/shell/authOverlay";
 import { currentSession, promoIsLive, promoIsNew } from "@/generator/cloud";
 import { promoArt, promoGo } from "./PromoShelf";
+import { NAMED_KITS } from "@/generator/namedKits";
 import { tightenSvg } from "@/marketing/engine";
 
 /* Every Looks card shows its art at the NEW tile's presence — cropped
@@ -29,11 +30,6 @@ import { tightenSvg } from "@/marketing/engine";
    much bigger/better than the others, can they all be that big?").
    Thumbs without a data-shell stamp pass through untouched. */
 const lookArt = (svg: string | null | undefined) => (svg ? tightenSvg(svg, 20) : "");
-
-/* Pack tiles pitch the PACKS, not the playground. The generic guest
-   upgrade line went save-centric with the free-play round and would read
-   wrong on a locked pack, so the tiles carry their own road-to-Pro line. */
-const PACK_PITCH_GUEST = "Monthly preset packs ship with Pro. Sign in free to get started.";
 
 /* Rendered mini-previews for the style presets — built once, by the same
    renderer as everything else, from the EXACT document a click lands
@@ -770,7 +766,7 @@ const SIL_TEMPLATE = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" heigh
 `;
 
 export function Panel() {
-  const { cfg: cfgMaster, update: updateParent, setPreset: setPresetParent, randomize, randomizeColors, selectedState, setSelectedState, sectionFilter, phase, setPhase, inheritDefaults, makeStateDefault, library, addToLibrary, removeFromLibrary, loadFromLibrary, addToBoard, focus, setFocus, kitShapes, setKitShape, kitDesigns, setKitDesign, kitSizes, kitTextOy, setKitTextOy, kitTextOx, setKitTextOx, kitTextFill, setKitTextFill, kitLocks, toggleKitLock, kitRow, setKitRow, styleLib, saveStyle, applyStyle, removeStyle, userShapes, addUserShape, removeUserShape, userPresets, applyUserPreset, removeUserPreset, cloudPresets, isAdmin, applyCloudPreset, applyLookDoc, publishPreset, schedulePreset, removeCloudPresetById, hiddenStarters, hideStarterPreset, restoreStarterPresets, hiddenSilhouettes, restoreSilhouettes, deletedSilhouettes, deleteSilhouetteForever, activeCloudPreset, overwriteActivePreset, tier, kitName, canvasMode, boards, activeBoard, setBoardBg, kitIcons, setKitIcon, kitLabels, setKitLabel, kitNoText, setKitNoText, kitSubs, setKitSub, kitSlotVals, setKitSlot, kitVals, setKitVal, kitBar, setKitBar, refreshLibraryItem, replaceConfig, resetAll, panelQuery, setPanelQuery, scope, setScope, allStates, setAllStates, kitClones, duplicateKitPiece, removeKitClone, renameKitClone, kitOverlay, setKitOverlay } = useGen();
+  const { cfg: cfgMaster, update: updateParent, setPreset: setPresetParent, randomize, randomizeColors, selectedState, setSelectedState, sectionFilter, phase, setPhase, inheritDefaults, makeStateDefault, library, addToLibrary, removeFromLibrary, loadFromLibrary, addToBoard, focus, setFocus, kitShapes, setKitShape, kitDesigns, setKitDesign, kitSizes, kitTextOy, setKitTextOy, kitTextOx, setKitTextOx, kitTextFill, setKitTextFill, kitLocks, toggleKitLock, kitRow, setKitRow, styleLib, saveStyle, applyStyle, removeStyle, userShapes, addUserShape, removeUserShape, userPresets, applyUserPreset, removeUserPreset, cloudPresets, isAdmin, applyCloudPreset, applyLookDoc, applyNamedKit, publishPreset, schedulePreset, removeCloudPresetById, hiddenStarters, hideStarterPreset, restoreStarterPresets, hiddenSilhouettes, restoreSilhouettes, deletedSilhouettes, deleteSilhouetteForever, activeCloudPreset, overwriteActivePreset, tier, kitName, canvasMode, boards, activeBoard, setBoardBg, kitIcons, setKitIcon, kitLabels, setKitLabel, kitNoText, setKitNoText, kitSubs, setKitSub, kitSlotVals, setKitSlot, kitVals, setKitVal, kitBar, setKitBar, refreshLibraryItem, replaceConfig, resetAll, panelQuery, setPanelQuery, scope, setScope, allStates, setAllStates, kitClones, duplicateKitPiece, removeKitClone, renameKitClone, kitOverlay, setKitOverlay } = useGen();
   const actBd = boards.find((b) => b.id === activeBoard);
   const cfg = focus && kitDesigns[focus] ? applyKitDesign(cfgMaster, kitDesigns[focus]) : cfgMaster;
   const { parentId, setParent } = useGen();
@@ -814,6 +810,14 @@ export function Panel() {
   useEffect(() => {
     if (spotPromo?.cfg) { try { ensureDocFonts(spotPromo.cfg); } catch { /* falls back */ } }
   }, [spotPromo]);
+  /* the SHIPPED kits' cards (round 76): art from each kit's own bundled
+     document, rendered once — and their faces warmed like every other
+     desk, so the card never wears a stand-in */
+  const shippedKits = useMemo(() => Object.values(NAMED_KITS), []);
+  const shippedArt = useMemo(() => Object.fromEntries(shippedKits.map((k) => [k.slug, promoArt(k.payload.cfg as Record<string, unknown>)])) as Record<string, string | null>, [shippedKits]);
+  useEffect(() => {
+    for (const k of shippedKits) { try { ensureDocFonts(k.payload.cfg as Parameters<typeof ensureDocFonts>[0]); } catch { /* falls back */ } }
+  }, [shippedKits]);
   // the Looks rack collapses to the freshest few (owner: "we are showing
   // too many looks at once, they should be sorted by newest")
   const [looksAll, setLooksAll] = useState(false);
@@ -1629,8 +1633,18 @@ export function Panel() {
              a pack can be rescheduled or deleted. */
           const normName = (s: string) => s.trim().toLowerCase();
           const userNames = new Set(userPresets.map((u) => normName(u.name)));
-          const cloudVisible = cloudSorted.filter((p) => isAdmin || !userNames.has(normName(p.name)));
-          const belowSpot = new Set([...userNames, ...cloudVisible.map((p) => normName(p.name))]);
+          /* THE SHIPPED KITS (round 76 — owner: "Brightside should appear on
+             the free link for everyone, not just on its own preview link").
+             Every kit the site ships is a card here, for every tier, fed
+             from the bundle: no cloud row, no promo switch, no lock. Your
+             own saved look of the same name still wins (one card per name);
+             a pack row or a Spotlight tile of the same name stands behind
+             the shipped card — except for an admin, who always sees pack
+             rows (the rack is where a pack is rescheduled or deleted). */
+          const shippedShow = shippedKits.filter((k) => !userNames.has(normName(k.name)));
+          const shippedNames = new Set(shippedShow.map((k) => normName(k.name)));
+          const cloudVisible = cloudSorted.filter((p) => isAdmin || (!userNames.has(normName(p.name)) && !shippedNames.has(normName(p.name))));
+          const belowSpot = new Set([...userNames, ...shippedNames, ...cloudVisible.map((p) => normName(p.name))]);
           const spotShown = spotPromo != null && !belowSpot.has(normName(spotPromo.title));
           /* the NEW chip survives the dedupe — a tile that yields to its
              same-named pack row hands the chip to that row (a look you
@@ -1642,7 +1656,7 @@ export function Panel() {
              same-named card above hides one — a hidden starter must never
              slide a locked one into the free window */
           const starters = presetArt().filter((p) => !hiddenStarters.includes(p.id)).map((p, pi) => ({ ...p, pi })).filter((p) => !takenAbove.has(normName(p.name)));
-          const total = userPresets.length + cloudVisible.length + starters.length;
+          const total = userPresets.length + shippedShow.length + cloudVisible.length + starters.length;
           const capLeft = (used: number) => looksAll ? Infinity : Math.max(0, LOOKS_CAP - used);
           const userShow = userPresets.slice(0, looksAll ? undefined : LOOKS_CAP);
           const cloudShow = cloudVisible.slice(0, capLeft(userShow.length));
@@ -1656,10 +1670,11 @@ export function Panel() {
                the same tier gate as every pack tile. Otherwise it routes to
                the card's destination, like the shelf. */
             const match = cloudPresets.find((cp) => cp.name.toLowerCase() === spotPromo.title.toLowerCase());
-            const locked = match && tier !== "pro";
+            /* every pack is open to everyone (owner, 2026-09-09: "all packs
+               unlocked for all users... we can do release packs later") —
+               the tile applies its pack row outright, for every tier */
             const go = () => {
-              if (match && !locked) { applyCloudPreset(match.id); return; }
-              if (locked) { if (tier === "guest") openAuth("signin"); else window.location.hash = "#/pricing"; return; }
+              if (match) { applyCloudPreset(match.id); return; }
               /* a promo carrying its frozen look APPLIES it, like every
                  other Looks card (owner: "I would expect it to load the
                  look?") — the route glow stays only for kit-less promos */
@@ -1668,16 +1683,24 @@ export function Panel() {
             };
             return (
               <button className={`presetcard promo${match && kitName === match.name ? " on" : ""}`}
-                title={match
-                  ? (locked ? `${spotPromo.title}: the newest pack drop. ${tier === "guest" ? PACK_PITCH_GUEST : "A new pack drops every month with Pro."}` : `${spotPromo.title} just landed; apply it`)
-                  : `${spotPromo.title}: see what's new`}
+                title={match ? `${spotPromo.title} just landed; apply it` : `${spotPromo.title}: see what's new`}
                 onClick={go}>
                 {promoIsNew(spotPromo) && <span className="presetnew">NEW</span>}
                 {spotArtSvg ? <span className="presetart" dangerouslySetInnerHTML={{ __html: spotArtSvg }} /> : <span className="presetart" />}
-                <span className="presetname">{locked ? <Lock size={11} strokeWidth={2.4} /> : null} {spotPromo.title}</span>
+                <span className="presetname">{spotPromo.title}</span>
               </button>
             );
           })()}
+          {/* the shipped kits, first after the Spotlight tile: the house's
+              own designs, free to apply on every tier, never folded away */}
+          {shippedShow.map((k) => (
+            <button key={`shipped-${k.slug}`} className={`presetcard shipped${kitName === k.name ? " on" : ""}`}
+              title={`${k.name}: a kit we ship, free for everyone. Applies the whole kit; an empty desk gets its screens too.`}
+              onClick={() => applyNamedKit(k.slug)}>
+              {shippedArt[k.slug] ? <span className="presetart" dangerouslySetInnerHTML={{ __html: shippedArt[k.slug] as string }} /> : <span className="presetart" />}
+              <span className="presetname">{k.name}</span>
+            </button>
+          ))}
           {userShow.map((u) => (
             <button key={u.id} className={`presetcard user${kitName === u.name ? " on" : ""}`} title={`${u.name} (your saved kit)`}
               onClick={() => applyUserPreset(u.id)}>
@@ -1688,18 +1711,13 @@ export function Panel() {
                 onClick={(e) => { e.stopPropagation(); removeUserPreset(u.id); }}>×</span>
             </button>
           ))}
-          {/* The shared library is where the monthly preset packs land, so
-              this lock is about the packs — not about capability. A student
-              has the whole tool; what they don't have is the pack drops. */}
-          {cloudShow.map((p) => tier !== "pro" ? (
-            <button key={p.id} className="presetcard shared lockedp"
-              title={`${p.name}, from the monthly preset packs. ${tier === "guest" ? PACK_PITCH_GUEST : "A new pack drops every month with Pro."}`}
-              onClick={() => { if (tier === "guest") openAuth("signin"); else window.location.hash = "#/pricing"; }}>
-              {chipName === normName(p.name) && <span className="presetnew">NEW</span>}
-              <span className="presetart" dangerouslySetInnerHTML={{ __html: lookArt(p.thumb ?? cloudArt[p.id]) }} />
-              <span className="presetname"><Lock size={11} strokeWidth={2.4} /> {p.name}</span>
-            </button>
-          ) : (
+          {/* The shared library is where the preset packs land. They used to
+              lock below Pro; every pack is open to everyone now (owner,
+              2026-09-09: "all packs unlocked for all users... we can do
+              release packs later") — the release machinery (held rows,
+              scheduled drops) stands untouched for the day packs are a
+              perk again. */}
+          {cloudShow.map((p) => (
             <button key={p.id} className={`presetcard shared${kitName === p.name ? " on" : ""}${heldUntil(p.publish_at) ? " held" : ""}`}
               title={heldUntil(p.publish_at) ? `${p.name} is held until ${heldUntil(p.publish_at)}. Only you can see it.` : `${p.name} (preset pack)`}
               onClick={() => applyCloudPreset(p.id)}>

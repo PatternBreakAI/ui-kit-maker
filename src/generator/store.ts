@@ -726,6 +726,9 @@ interface GenStore {
   /** Apply ANY full look document — a Spotlight promo's frozen snapshot —
    *  exactly like a preset: component restyled, stage and rarity kept. */
   applyLookDoc: (doc: unknown, name?: string) => void;
+  /** A SHIPPED kit (generator/namedKits) applied as a look, for every tier —
+   *  its screens dealt too when the desk is empty (round 76). */
+  applyNamedKit: (slug: string) => void;
   /** Round 45 · B1 — the look-switch door's UI state. lookBusy names the
    *  look whose faces are still arriving (the brief "loading the look"
    *  moment); pendingLook parks a switch behind the are-you-sure sheet
@@ -3479,6 +3482,38 @@ export const useGen = create<GenStore>((set, get) => ({
       applyWorkspace(ws);
       if (name) get().setKitName(name);
       set({ activeCloudPreset: null });
+    });
+  },
+  applyNamedKit: (slug) => {
+    /* round 76 — the SHIPPED kits are looks for everyone (owner: "Brightside
+       should appear on the free link for everyone, not just on its own
+       preview link"). The bundled document walks the same look-switch door
+       as every pack and starter: guarded, fonts first, master config and
+       the whole kit layer landing together. Boards are the maker's own and
+       a look never takes them away — but an EMPTY desk (a first visit, a
+       fresh kit) gets the kit's screens dealt with it, bundled art
+       included, so the one link shows the whole kit and not a restyled
+       book over a bare stage. */
+    const kit = NAMED_KITS[slug];
+    if (!kit) return;
+    const p = JSON.parse(JSON.stringify(kit.payload)) as Record<string, unknown>;
+    const raw = p.cfg as Record<string, unknown> | undefined;
+    if (!raw || typeof raw !== "object") return;
+    const ws = workspaceOf(p);
+    requestLook(kit.name, lookFontFamilies(raw, ws), () => {
+      const next = healStateIconPins(raw as unknown as GenConfig);
+      next.canvas = get().cfg.canvas; // looks restyle the component, never the stage
+      next.rarity = get().cfg.rarity; // the rarity system is the game's, not the look's
+      get().replaceConfig(next);
+      applyWorkspace(ws);
+      get().setKitName(kit.name);
+      set({ activeCloudPreset: null });
+      const deskEmpty = get().boards.every((b) => !(b.items?.length));
+      const pBoards = (p as { boards?: unknown[] }).boards;
+      if (deskEmpty && Array.isArray(pBoards) && pBoards.length) {
+        set({ kitAssets: sanitizeKitAssets((p as { userAssets?: unknown }).userAssets) });
+        void importBoards(pBoards);
+      }
     });
   },
   lookBusy: null,

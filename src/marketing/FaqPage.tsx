@@ -60,7 +60,7 @@ const FAQ: FaqCat[] = [
       },
       {
         q: "Presets — starter styles and packs",
-        a: "One click applies a complete style recipe to the whole kit. Starter presets ship with the product; **preset packs** are curated drops that appear here for Pro members. Applying a preset replaces the style but never your content — labels, icons and per-piece text stay yours. Your canvas color is also left alone; the stage belongs to you.",
+        a: "One click applies a complete style recipe to the whole kit. Starter presets ship with the product; **preset packs** are curated drops that appear here for everyone, and our shipped kits (Brightside first) sit in the same rack, free to apply. Applying a preset replaces the style but never your content — labels, icons and per-piece text stay yours. Your canvas color is also left alone; the stage belongs to you.",
       },
       {
         q: "Silhouette — the shape of things",
@@ -238,7 +238,7 @@ const FAQ: FaqCat[] = [
     items: [
       {
         q: "What new presets are coming?",
-        a: "Preset packs are made and banked — plural, finished, waiting — and the release machinery (scheduled drops that unlock on their day) is already built and tested. They'll release on a cadence rather than all at once. We're deliberately not announcing themes or dates: when a pack is buyable or included, you'll see it in the product, not in a promise.",
+        a: "Preset packs are made and banked — plural, finished, waiting — and the release machinery (scheduled drops that unlock on their day) is already built and tested. They'll release on a cadence rather than all at once. We're deliberately not announcing themes or dates: when a pack lands, you'll see it in the Looks rack, not in a promise.",
       },
       {
         q: "Will there be other kits beyond the hard-candy look?",

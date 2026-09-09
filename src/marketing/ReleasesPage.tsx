@@ -19,6 +19,14 @@ const RELEASES: Release[] = [
     title: "What you see is what Unity gets",
     items: [
       {
+        h: "Brightside is one click away, for everyone",
+        p: "Our shipped kit now sits at the head of the Looks rack for every visitor, account or not. One click applies the whole kit, and a fresh desk gets its eight screens dealt with it, so the kit shows itself on the stage and not just in the book. Its own page at #/kit/brightside stays as the store-listing address.",
+      },
+      {
+        h: "Every preset pack is open",
+        p: "The preset packs used to lock below Pro. They are open to everyone now, applied from the same rack, and the release machinery stays ready for scheduled drops. Exporting your own designs is still the paid step.",
+      },
+      {
         h: "A picture on the card back and the pack, with its own darkroom",
         p: "Give a card back or a card pack a picture of your own and light it with the same darkroom the Boards backdrop already has: brightness, contrast, saturation, blur, a vignette and film grain. One darkroom, reachable from two places. The grade shows live in the editor and rides the download; the vignette and grain land in Unity as their own layer above the art, so a swapped picture keeps its mood.",
       },
