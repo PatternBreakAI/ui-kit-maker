@@ -59,7 +59,21 @@ export const flipShape = (s: Shape): Shape => (isFlipShape(s) ? baseShape(s) : `
    bounding box; the renderer stretches it into each component's frame.
    The registry is module state so the pure renderer can read it without
    store imports; the store hydrates and persists it. */
-export interface UserShape { id: `user:${string}`; name: string; d: string; vb: [number, number, number, number] }
+export interface UserShape {
+  id: `user:${string}`; name: string; d: string; vb: [number, number, number, number];
+  /** when the maker last claimed this record — an import, a restore under
+   *  a lost id, a look that carried it in (round 77c). Absent on records
+   *  from before, whose id (base36 import time) says the same thing. The
+   *  sync engine's union lets the newer of a claim and a removal win. */
+  at?: number;
+}
+/** The moment a silhouette record was claimed: its `at`, else the import
+ *  time its id encodes. */
+export function shapeClaimAt(r: { id: string; at?: unknown }): number {
+  if (typeof r.at === "number" && Number.isFinite(r.at)) return r.at;
+  const m = /^user:([0-9a-z]+)$/.exec(r.id);
+  return m ? parseInt(m[1], 36) || 0 : 0;
+}
 let USER_SHAPES: UserShape[] = [];
 /* THE DESIGN'S OWN OUTLINES (round 77 — owner, on the landing hero and a
    saved look both drawing a rounded rectangle where the flames belong):

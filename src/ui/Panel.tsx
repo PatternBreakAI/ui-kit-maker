@@ -23,6 +23,7 @@ import { openAuth } from "@/shell/authOverlay";
 import { currentSession, promoIsLive, promoIsNew } from "@/generator/cloud";
 import { promoArt, promoGo } from "./PromoShelf";
 import { NAMED_KITS } from "@/generator/namedKits";
+import { missingUserShapes } from "@/generator/store";
 import { tightenSvg } from "@/marketing/engine";
 
 /* Every Looks card shows its art at the NEW tile's presence — cropped
@@ -64,6 +65,24 @@ export function lookArtOf(cfg: GenConfig): string {
 }
 /** …and one STARTER as look-art, by id (the setPreset road). */
 export const starterArt = (id: string): string => lookArtOf(presetLookConfig(id));
+
+/* One parse for every silhouette import road (the fresh import and the
+   restore of a lost id, round 77c): a single filled <path>, measured in
+   a throwaway svg so its viewBox is its own bounds. */
+function parseSilhouetteSvg(txt: string): { d: string; vb: [number, number, number, number] } | { error: string } {
+  const doc = new DOMParser().parseFromString(txt, "image/svg+xml");
+  const d = doc.querySelector("path")?.getAttribute("d");
+  if (!d) return { error: "No <path> found. Flatten the artwork to a single filled path first." };
+  const NS = "http://www.w3.org/2000/svg";
+  const tmp = document.createElementNS(NS, "svg");
+  tmp.setAttribute("style", "position:absolute;opacity:0;pointer-events:none");
+  const pp = document.createElementNS(NS, "path");
+  pp.setAttribute("d", d);
+  tmp.appendChild(pp); document.body.appendChild(tmp);
+  const bb = pp.getBBox(); document.body.removeChild(tmp);
+  if (!bb.width || !bb.height) return { error: "That path has no area. Export the filled outline, not a stroke." };
+  return { d, vb: [bb.x, bb.y, bb.width, bb.height] };
+}
 
 /* A saved look's card, drawn LIVE from its stored config (round 77b —
    owner: "thumb should just read from the kit"). Same recipe as the
@@ -2019,29 +2038,38 @@ export function Panel() {
           title="Breathing room between labels and the silhouette's ends. While a piece is focused it pins to that piece alone."
           onChange={(v) => update((c) => { c.contentMargin = v; })} />
         <div className="actionrow">
+        {/* LOST IMPORTS (round 77c — the owner's Hot Rod primary wore a
+            silhouette whose outline no surface still knew): the kit wears
+            an id nothing can draw. Restore it from the SVG under the SAME
+            id, and every piece wearing it heals at once — no re-pointing. */}
+        {missingUserShapes().map((m) => (
+          <label key={m.id} className="fileadd" title={`${m.id} is worn by ${m.wornBy.map((w) => (w === "master" ? "the master" : w)).join(", ")}, but its outline is gone from this account. Pick the original SVG to restore it under the same id — every piece wearing it heals at once.`}>
+            <Upload size={13} strokeWidth={2} /> Restore lost silhouette ({m.wornBy.map((w) => (w === "master" ? "master" : w)).slice(0, 3).join(", ")}{m.wornBy.length > 3 ? "…" : ""})
+            <input type="file" accept=".svg,image/svg+xml" hidden onChange={(e) => {
+              const f = e.target.files?.[0]; e.target.value = "";
+              if (!f) return;
+              void f.text().then((txt) => {
+                const r = parseSilhouetteSvg(txt);
+                if ("error" in r) { setShapeErr(r.error); return; }
+                setShapeErr(null);
+                addUserShape({ id: m.id as `user:${string}`, name: f.name.replace(/\.svg$/i, "").replace(/[-_]+/g, " ").slice(0, 22) || "Custom", d: r.d, vb: r.vb });
+              });
+            }} />
+          </label>
+        ))}
         <label className="fileadd">
           <Upload size={13} strokeWidth={2} /> Import silhouette (SVG)
           <input type="file" accept=".svg,image/svg+xml" hidden onChange={(e) => {
             const f = e.target.files?.[0]; e.target.value = "";
             if (!f) return;
-            f.text().then((txt) => {
-              const doc = new DOMParser().parseFromString(txt, "image/svg+xml");
-              const path = doc.querySelector("path");
-              const d = path?.getAttribute("d");
-              if (!d) { setShapeErr("No <path> found. Flatten the artwork to a single filled path first."); return; }
-              const NS = "http://www.w3.org/2000/svg";
-              const tmp = document.createElementNS(NS, "svg");
-              tmp.setAttribute("style", "position:absolute;opacity:0;pointer-events:none");
-              const pp = document.createElementNS(NS, "path");
-              pp.setAttribute("d", d);
-              tmp.appendChild(pp); document.body.appendChild(tmp);
-              const bb = pp.getBBox(); document.body.removeChild(tmp);
-              if (!bb.width || !bb.height) { setShapeErr("That path has no area. Export the filled outline, not a stroke."); return; }
+            void f.text().then((txt) => {
+              const r = parseSilhouetteSvg(txt);
+              if ("error" in r) { setShapeErr(r.error); return; }
               setShapeErr(null);
               addUserShape({
                 id: `user:${Date.now().toString(36)}`,
                 name: f.name.replace(/\.svg$/i, "").replace(/[-_]+/g, " ").slice(0, 22) || "Custom",
-                d, vb: [bb.x, bb.y, bb.width, bb.height],
+                d: r.d, vb: r.vb,
               });
             });
           }} />

@@ -28,6 +28,7 @@
       restorable from the account menu and never silently overwritten. */
 
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
+import { shapeClaimAt } from "./model";
 
 export const TERMS_VERSION = "v1-2026-07-23";
 
@@ -120,6 +121,49 @@ export function applyDoc(doc: Record<string, string>): boolean {
   } catch { /* quota — verification below reports the truth */ }
   finally { applying = false; }
   return docSignature(collectDoc()) === docSignature(doc);
+}
+
+/* ── IMPORTED SILHOUETTES NEVER LOSE (round 77c) ───────────────────────
+   The registry of imported silhouettes rides the doc like every other
+   key, and replace-all plus last-writer-wins is exactly how a record one
+   side held vanished from the account: the owner's Hot Rod flames drew
+   as a rectangle on every surface for weeks. Before either copy wins,
+   BOTH take the union of their records, minus the ids either side
+   deliberately removed (the tombstone list the store writes on remove).
+   Whichever way the decision then goes, no silhouette is lost: a pull
+   applies the patched server copy, a push carries the patched local
+   one. Records are immutable after import, so a shared id keeps the
+   local copy. */
+const K_SHAPES = "ui-generator-usershapes";
+const K_SHAPES_GONE = "ui-generator-usershapes-gone";
+type ShapeRec = { id: string; at?: unknown };
+type Tombstone = { id: string; at: number };
+/** Merge two copies of the silhouette registry. A record is claimed at
+ *  its `at` (or the import time its id encodes); a removal is a tombstone
+ *  stamped when the maker removed it. Per id, the NEWER of the two wins:
+ *  a removal after the claim takes the record out everywhere, a restore
+ *  (or a look carrying it back in) after the removal retires the
+ *  tombstone everywhere. Nothing else ever drops a record. */
+export function mergeUserShapeDocs(local: Record<string, string>, server: Record<string, string> | null): { localChanged: boolean; serverChanged: boolean; shapes: string; gone: string } {
+  const records = (doc: Record<string, string> | null): ShapeRec[] => {
+    try { const v = JSON.parse(doc?.[K_SHAPES] ?? "[]"); return Array.isArray(v) ? v.filter((r) => r && typeof r === "object" && typeof r.id === "string") : []; } catch { return []; }
+  };
+  const tombs = (doc: Record<string, string> | null): Tombstone[] => {
+    try { const v = JSON.parse(doc?.[K_SHAPES_GONE] ?? "[]"); return Array.isArray(v) ? v.filter((t): t is Tombstone => !!t && typeof t === "object" && typeof t.id === "string" && typeof t.at === "number" && Number.isFinite(t.at)) : []; } catch { return []; }
+  };
+  const tomb = new Map<string, number>();
+  for (const t of [...tombs(local), ...tombs(server)]) tomb.set(t.id, Math.max(tomb.get(t.id) ?? 0, t.at));
+  // per id the newest claim; local first, so an equal claim keeps the local copy
+  const byId = new Map<string, ShapeRec>();
+  for (const r of [...records(local), ...records(server)]) { const cur = byId.get(r.id); if (!cur || shapeClaimAt(r) > shapeClaimAt(cur)) byId.set(r.id, r); }
+  const shapes = [...byId.values()].filter((r) => shapeClaimAt(r) > (tomb.get(r.id) ?? -1));
+  const kept = new Set(shapes.map((r) => r.id));
+  const gone = [...tomb].filter(([id]) => !kept.has(id)).map(([id, at]) => ({ id, at })).sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const rsig = (rs: ShapeRec[]) => rs.map((r) => `${r.id}@${shapeClaimAt(r)}`).sort().join("|");
+  const tsig = (ts: Tombstone[]) => ts.map((t) => `${t.id}@${t.at}`).sort().join("|");
+  const localChanged = rsig(records(local)) !== rsig(shapes) || tsig(tombs(local)) !== tsig(gone);
+  const serverChanged = server !== null && (rsig(records(server)) !== rsig(shapes) || tsig(tombs(server)) !== tsig(gone));
+  return { localChanged, serverChanged, shapes: JSON.stringify(shapes), gone: JSON.stringify(gone) };
 }
 
 /** FNV-1a over sorted keys+values — full-content signature, order-proof. */
@@ -396,8 +440,8 @@ async function reconcile(client: SupabaseClient, s: Session): Promise<void> {
   }
   pushAttempts = 0;
 
-  const localDoc = collectDoc();
-  const localSig = docSignature(localDoc);
+  let localDoc = collectDoc();
+  let localSig = docSignature(localDoc);
   let prevOwner: string | null = null;
   try { prevOwner = localStorage.getItem(K_OWNER); } catch { /* ignore */ }
   // invariant 4: a doc produced under another account is never pushable
@@ -406,7 +450,29 @@ async function reconcile(client: SupabaseClient, s: Session): Promise<void> {
 
   const serverDoc = (data?.doc ?? null) as Record<string, string> | null;
   const serverAt = data ? (Date.parse(data.updated_at as string) || 0) : 0;
-  const serverSig = serverDoc ? docSignature(serverDoc) : "";
+  let serverSig = serverDoc ? docSignature(serverDoc) : "";
+  /* the imported-silhouette union (round 77c) — never across an account
+     boundary: a foreign device's records belong to the other person */
+  let shapesForServer = false;
+  if (!foreignLocal) {
+    const mg = mergeUserShapeDocs(localDoc, serverDoc);
+    if (mg.localChanged) {
+      applying = true; // a merge is not a local edit — the write hook stays quiet
+      try { localStorage.setItem(K_SHAPES, mg.shapes); localStorage.setItem(K_SHAPES_GONE, mg.gone); } catch { /* quota — the union stays in memory this session */ }
+      finally { applying = false; }
+      localDoc = collectDoc(); localSig = docSignature(localDoc);
+      try { window.dispatchEvent(new CustomEvent("uikm:usershapes")); } catch { /* no window */ }
+    }
+    if (mg.serverChanged && serverDoc) {
+      // the server copy lacks records this device holds: a pull applies the
+      // PATCHED copy (so the records survive it), a push carries them up.
+      // The decision itself is untouched — never let a silhouette union
+      // turn a rightful pull into a push that stomps another device's work.
+      serverDoc[K_SHAPES] = mg.shapes; serverDoc[K_SHAPES_GONE] = mg.gone;
+      serverSig = docSignature(serverDoc);
+      shapesForServer = true;
+    }
+  }
 
   const finishInSync = () => {
     reconciled = true;
@@ -440,13 +506,17 @@ async function reconcile(client: SupabaseClient, s: Session): Promise<void> {
       return;
     }
     setOwner();
+    try { window.dispatchEvent(new CustomEvent("uikm:usershapes")); } catch { /* no window */ }
     if (!reloadGuarded()) {
       // reload cap hit: stay put; the local keyspace now equals the server
       reconciled = true;
       lastSeenServerAt = serverAt;
-      pushedSig = docSignature(doc);
+      // …except the silhouettes the server still lacks (round 77c): an
+      // empty pushed signature makes the next push carry them up
+      pushedSig = shapesForServer ? "" : docSignature(doc);
       setStatus({ state: "synced", email: email(), syncedAt: Date.now() });
       startWatch();
+      if (shapesForServer) schedulePush();
     }
   };
 
@@ -460,7 +530,9 @@ async function reconcile(client: SupabaseClient, s: Session): Promise<void> {
     }
     return;
   }
-  if (serverSig === localSig) { finishInSync(); return; }
+  // identical apart from silhouettes the server still lacks: push them up
+  // (the docs agree on everything else, so nothing on the server is lost)
+  if (serverSig === localSig) { if (shapesForServer) await finishPushLocal(); else finishInSync(); return; }
   if (foreignLocal) { finishPullServer(serverDoc); return; }
 
   let lastEdit = 0;

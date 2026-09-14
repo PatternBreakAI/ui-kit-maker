@@ -142,11 +142,15 @@ function adoptEmbeddedShapes(list: unknown, persist: boolean): number {
   const st = useGen.getState();
   const have = new Set(st.userShapes.map((u) => u.id));
   const add: UserShape[] = [];
-  for (const r of list) if (isUserShapeRecord(r) && !have.has(r.id)) { add.push({ id: r.id, name: r.name, d: r.d, vb: [...r.vb] as UserShape["vb"] }); have.add(r.id); }
+  // a persisted adoption is a fresh CLAIM (stamped now): the maker opened
+  // something that wears the silhouette, so it outranks any older removal
+  // in the account's tombstone list (cloud.ts mergeUserShapeDocs)
+  const at = Date.now();
+  for (const r of list) if (isUserShapeRecord(r) && !have.has(r.id)) { add.push({ id: r.id, name: r.name, d: r.d, vb: [...r.vb] as UserShape["vb"], ...(persist ? { at } : {}) }); have.add(r.id); }
   if (!add.length) return 0;
   const userShapes = [...st.userShapes, ...add];
   setUserShapes(userShapes);
-  if (persist) saveJson("ui-generator-usershapes", userShapes);
+  if (persist) { saveJson("ui-generator-usershapes", userShapes); clearTombstones(add.map((a) => a.id)); }
   // a fresh identity on cfg re-renders every memo that keys on it — the
   // outline that just arrived paints now, not on the next dial move
   useGen.setState((s) => ({ userShapes, cfg: { ...s.cfg } }));
@@ -200,6 +204,61 @@ function healUserShapesFromThumbs(): number {
   const n = adoptEmbeddedShapes(found, true);
   if (n) console.info(`UI Kit Maker: rebuilt ${n} imported silhouette${n === 1 ? "" : "s"} from a look's thumbnail — ${found.map((f) => f.id).join(", ")}.`);
   return n;
+}
+/* THE PRE-SIGN-IN SNAPSHOT (round 77c): when a cloud copy wins over a
+   device's own work, the sync engine parks that work under
+   forge-cloud-prevlocal (cloud.ts, K_PREVLOCAL) and the account page
+   offers it back whole. A silhouette the account lost can still be in
+   there — read it back record by record, never the whole snapshot. */
+function healUserShapesFromSnapshot(): number {
+  let snap: Record<string, string> | null = null;
+  try { snap = JSON.parse(localStorage.getItem("forge-cloud-prevlocal") ?? "null"); } catch { return 0; }
+  const raw = snap?.["ui-generator-usershapes"];
+  if (typeof raw !== "string") return 0;
+  let list: unknown = null;
+  try { list = JSON.parse(raw); } catch { return 0; }
+  const st = useGen.getState();
+  const have = new Set<string>(resolvableShapes().map((u) => u.id));
+  const missing = new Set(referencedUserShapeIds(st.cfg, st.kitShapes, st.kitDesigns).filter((id) => !have.has(id)));
+  const found = (Array.isArray(list) ? list : []).filter((r): r is UserShape => isUserShapeRecord(r) && missing.has(r.id));
+  const n = adoptEmbeddedShapes(found, true);
+  if (n) console.info(`UI Kit Maker: recovered ${n} imported silhouette${n === 1 ? "" : "s"} from this device's pre-sign-in snapshot — ${found.map((f) => f.id).join(", ")}.`);
+  return n;
+}
+/** Every heal road, in order: a look's thumbnail, then the device's own
+ *  pre-sign-in snapshot. Returns how many records came back. */
+function healUserShapes(): number {
+  return healUserShapesFromThumbs() + healUserShapesFromSnapshot();
+}
+/** The imported silhouettes the open kit references but nothing can draw
+ *  — for the Silhouette panel's restore rows. */
+export function missingUserShapes(): { id: string; wornBy: string[] }[] {
+  const st = useGen.getState();
+  const have = new Set<string>(resolvableShapes().map((u) => u.id));
+  const out = new Map<string, Set<string>>();
+  const note = (id: string, who: string) => { if (have.has(id)) return; if (!out.has(id)) out.set(id, new Set()); out.get(id)!.add(who); };
+  for (const id of referencedUserShapeIds(st.cfg)) note(id, "master");
+  for (const [cid, sh] of Object.entries(st.kitShapes)) for (const id of referencedUserShapeIds(sh)) note(id, cid);
+  for (const [cid, kd] of Object.entries(st.kitDesigns)) for (const id of referencedUserShapeIds(kd)) note(id, cid);
+  return [...out].map(([id, who]) => ({ id, wornBy: [...who] }));
+}
+/* TOMBSTONES (round 77c): a silhouette the maker REMOVES is remembered
+   by id in a synced list, so the cross-device union in the sync engine
+   (cloud.ts mergeUserShapeDocs) never resurrects it from another
+   device's copy. Any registration — an import, a look that carries the
+   record, a heal — clears the tombstone: that is the maker asking for
+   it back. */
+const GONE_KEY = "ui-generator-usershapes-gone";
+type Tombstone = { id: string; at: number };
+function readGone(): Tombstone[] {
+  const g = loadJson<unknown>(GONE_KEY, []);
+  return Array.isArray(g) ? g.filter((t): t is Tombstone => !!t && typeof t === "object" && typeof (t as Tombstone).id === "string" && Number.isFinite((t as Tombstone).at)) : [];
+}
+function clearTombstones(ids: string[]): void {
+  if (!ids.length) return;
+  const gone = readGone();
+  const next = gone.filter((t) => !ids.includes(t.id));
+  if (next.length !== gone.length) saveJson(GONE_KEY, next);
 }
 
 const LS_KEY = "ui-generator-v10"; // v10: specular modes, solid extrusion, gloss layering
@@ -3530,7 +3589,7 @@ export const useGen = create<GenStore>((set, get) => ({
       set({ activeCloudPreset: null });
       // a look brings its imported silhouettes with it (round 77)
       adoptEmbeddedShapes(next.userShapes, true);
-      healUserShapesFromThumbs();
+      healUserShapes();
     });
   },
   removeUserPreset: (id) => {
@@ -3599,7 +3658,7 @@ export const useGen = create<GenStore>((set, get) => ({
        comes back from a look's thumbnail (round 77 — the owner's Hot Rod
        flames, drawn as a rectangle on every surface after the account
        registry dropped the record) */
-    healUserShapesFromThumbs();
+    healUserShapes();
   },
   applyCloudPreset: (id) => {
     const p = get().cloudPresets.find((x) => x.id === id);
@@ -3616,7 +3675,7 @@ export const useGen = create<GenStore>((set, get) => ({
       set({ activeCloudPreset: { id: p.id, name: p.name } });
       // a look brings its imported silhouettes with it (round 77)
       adoptEmbeddedShapes(next.userShapes, true);
-      healUserShapesFromThumbs();
+      healUserShapes();
     });
   },
   applyLookDoc: (doc, name) => {
@@ -3633,7 +3692,7 @@ export const useGen = create<GenStore>((set, get) => ({
       set({ activeCloudPreset: null });
       // a look brings its imported silhouettes with it (round 77)
       adoptEmbeddedShapes(next.userShapes, true);
-      healUserShapesFromThumbs();
+      healUserShapes();
     });
   },
   applyNamedKit: (slug) => {
@@ -3801,15 +3860,24 @@ export const useGen = create<GenStore>((set, get) => ({
   userShapes: (() => { const l = loadJson<UserShape[]>("ui-generator-usershapes", []); setUserShapes(l); return l; })(),
   addUserShape: (u) => {
     markTouched();
-    const userShapes = [...get().userShapes.filter((x) => x.id !== u.id), u];
+    // stamped now: an import (or a restore under a lost id) is the maker's
+    // claim, and it outranks any older removal in the account's tombstones
+    const rec: UserShape = { ...u, at: Date.now() };
+    const userShapes = [...get().userShapes.filter((x) => x.id !== u.id), rec];
     setUserShapes(userShapes); saveJson("ui-generator-usershapes", userShapes);
-    set({ userShapes });
+    clearTombstones([u.id]);
+    // a fresh identity on cfg re-renders every memo keyed on it — a restored
+    // silhouette paints on every piece that wears it, now
+    set((s) => ({ userShapes, cfg: { ...s.cfg } }));
   },
-  healUserShapesFromThumbs: () => healUserShapesFromThumbs(),
+  healUserShapesFromThumbs: () => healUserShapes(),
   removeUserShape: (id) => {
     markTouched();
     const userShapes = get().userShapes.filter((x) => x.id !== id);
     setUserShapes(userShapes); saveJson("ui-generator-usershapes", userShapes);
+    // the tombstone (round 77c), stamped now: it beats every older claim on
+    // every device, and a later restore beats it
+    saveJson(GONE_KEY, [...readGone().filter((t) => t.id !== id), { id, at: Date.now() }]);
     // anything still wearing the removed silhouette falls back to Rounded
     const st = get();
     const kitShapes = Object.fromEntries(Object.entries(st.kitShapes).filter(([, v]) => v !== id));
@@ -4388,6 +4456,17 @@ healCloneRegistry();
 
 // kick off the site-default fetch once the store exists
 fetchSiteDefault();
+/* the sync engine's cross-device UNION of imported silhouettes (cloud.ts,
+   round 77c) can add records to the registry key without a reload — on
+   the push road the page stays put. It says so with one event; the
+   registry re-reads and every piece wearing a returned silhouette paints. */
+if (typeof window !== "undefined") {
+  window.addEventListener("uikm:usershapes", () => {
+    const l = loadJson<UserShape[]>("ui-generator-usershapes", []);
+    setUserShapes(l);
+    useGen.setState((s) => ({ userShapes: l, cfg: { ...s.cfg } }));
+  });
+}
 
 /* Fonts land AFTER first paint, and the renderer sizes canvases from real
    glyph measurements when the face is loaded (see measureLabel in bevel).
