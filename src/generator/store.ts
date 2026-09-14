@@ -8,6 +8,8 @@ import { delBgOriginal, getBgOriginal, putBgOriginal } from "./bgvault";
 import { isAssetRef, isBundledArt, resolveBgAsset, assetCloudBacked, bgAssetDisplayUrl, assetUrlNow, warmAssetUrl } from "./assets";
 import { SILHOUETTES, silhouetteUnpickable, setUnpickableSilhouettes } from "./silhouettes";
 import type { UserShape } from "./model";
+import { userShapes as resolvableShapes } from "./model";
+import { flattenPath, bounds as pointBounds } from "./importedShapes";
 import { addShine, renderBevel, renderKit, renderTypeSpecimen } from "./bevel";
 import { getDef } from "./icons";
 import { bigGlyphById, BIG_GLYPH_BASE, type BigGlyphFx, type DarkroomGrade, type DarkroomWash } from "./bigGlyphs";
@@ -64,13 +66,140 @@ export function retintText(c: GenConfig) {
 /* One snapshot recipe for shared presets — publish and overwrite must agree:
    the stored cfg is the current look verbatim; the thumbnail is the same
    glow-free "PLAY" card a local user preset gets. */
-function presetSnapshot(srcCfg: GenConfig): { cfg: GenConfig; thumb: string } {
+function presetSnapshot(srcCfg: GenConfig): { cfg: GenConfig; thumb: string; missing: string[] } {
+  const st = useGen.getState();
+  // a look carries the outlines of every imported silhouette it references (round 77)
+  const { cfg, missing } = embedUserShapes(srcCfg, st.kitShapes, st.kitDesigns);
   const clone = (typeof structuredClone === "function" ? structuredClone : (x: unknown) => JSON.parse(JSON.stringify(x)));
-  const cfg = clone(srcCfg) as GenConfig;
   const tc = clone(cfg) as GenConfig;
-  for (const st of Object.values(tc.states)) st.glow = 0;
+  for (const s of Object.values(tc.states)) s.glow = 0;
   tc.content.label = "PLAY"; tc.icon.show = false;
-  return { cfg, thumb: renderBevel(tc, "default") };
+  return { cfg, thumb: renderBevel(tc, "default"), missing };
+}
+
+/* ── IMPORTED SILHOUETTES TRAVEL WITH THE DESIGN (round 77) ─────────────
+   Owner, on the landing hero and on a saved look in the app: "this
+   silhouette isn't showing up… it should match the thumbnail". An imported
+   silhouette (a `user:` shape) lived only in the maker's registry
+   (ui-generator-usershapes, synced per ACCOUNT with the whole workspace,
+   replace-all), and every design carried just its id. So the landing
+   page, which never boots the registry, drew the miss fallback for every
+   visitor; a share link, a preset pack or a hero designation did the same
+   on any other machine; and once the account's registry lost the record,
+   the maker saw the rectangle too. The look's own thumbnail was the one
+   render that still knew the outline.
+   Four hands:
+   · embedUserShapes — every writer (project doc, share, preset, look)
+     attaches the referenced records under cfg.userShapes;
+   · the renderer seats cfg.userShapes at every door (bevel.setDocShapes);
+   · adoptEmbeddedShapes — every reader fills the registry on a miss (an
+     owned open persists; a look brings its silhouettes with it);
+   · healUserShapesFromThumbs — a referenced record the registry lacks is
+     rebuilt from a look's thumbnail: the outer path at the thumb's raw
+     shell frame IS the silhouette fitted to that frame, so it re-fits
+     anywhere by the same cap-band rule the import road uses. */
+const USER_SHAPE_ID = /^user:([a-z0-9]{1,32})(?:~flip)?$/;
+function isUserShapeRecord(r: unknown): r is UserShape {
+  if (!r || typeof r !== "object") return false;
+  const a = r as Partial<UserShape>;
+  return typeof a.id === "string" && USER_SHAPE_ID.test(a.id) && !a.id.endsWith("~flip")
+    && typeof a.name === "string" && a.name.length <= 120
+    && typeof a.d === "string" && a.d.length > 8 && a.d.length <= 400_000
+    && Array.isArray(a.vb) && a.vb.length === 4 && a.vb.every((n) => Number.isFinite(n)) && a.vb[2] > 0 && a.vb[3] > 0;
+}
+/** Every `user:` silhouette id a design references — the master shape,
+ *  the state forks, the per-piece kit shapes and forks, a board's copies. */
+export function referencedUserShapeIds(...roots: unknown[]): string[] {
+  const out = new Set<string>();
+  const walk = (v: unknown, depth: number) => {
+    if (depth > 8 || v == null) return;
+    if (typeof v === "string") { const m = USER_SHAPE_ID.exec(v); if (m) out.add(`user:${m[1]}`); return; }
+    if (Array.isArray(v)) { for (const x of v) walk(x, depth + 1); return; }
+    if (typeof v === "object") for (const [k, x] of Object.entries(v as Record<string, unknown>)) { if (k === "userShapes") continue; walk(x, depth + 1); }
+  };
+  for (const r of roots) walk(r, 0);
+  return [...out];
+}
+/** The design with its referenced silhouettes embedded (a clone — the
+ *  live config is never mutated). `missing` names ids no record answers
+ *  for anywhere: the registry, the render overlay, or the design's own
+ *  earlier embed. */
+export function embedUserShapes(cfg: GenConfig, ...extras: unknown[]): { cfg: GenConfig; missing: string[] } {
+  const ids = referencedUserShapeIds(cfg, ...extras);
+  const pool = new Map<string, UserShape>();
+  for (const u of resolvableShapes()) pool.set(u.id, u);
+  if (Array.isArray(cfg.userShapes)) for (const u of cfg.userShapes) if (isUserShapeRecord(u) && !pool.has(u.id)) pool.set(u.id, u);
+  const out = JSON.parse(JSON.stringify(cfg)) as GenConfig;
+  const found = ids.map((id) => pool.get(id)).filter((u): u is UserShape => !!u).map((u) => ({ id: u.id, name: u.name, d: u.d, vb: [...u.vb] as UserShape["vb"] }));
+  if (found.length) out.userShapes = found; else delete out.userShapes;
+  return { cfg: out, missing: ids.filter((id) => !pool.has(id)) };
+}
+/** Fill the registry on a miss from a design's embedded records — never
+ *  overwrite a record the maker already holds. Persisted for an owned
+ *  document or an applied look; a viewer keeps them in memory only. */
+function adoptEmbeddedShapes(list: unknown, persist: boolean): number {
+  if (!Array.isArray(list) || !list.length) return 0;
+  const st = useGen.getState();
+  const have = new Set(st.userShapes.map((u) => u.id));
+  const add: UserShape[] = [];
+  for (const r of list) if (isUserShapeRecord(r) && !have.has(r.id)) { add.push({ id: r.id, name: r.name, d: r.d, vb: [...r.vb] as UserShape["vb"] }); have.add(r.id); }
+  if (!add.length) return 0;
+  const userShapes = [...st.userShapes, ...add];
+  setUserShapes(userShapes);
+  if (persist) saveJson("ui-generator-usershapes", userShapes);
+  // a fresh identity on cfg re-renders every memo that keys on it — the
+  // outline that just arrived paints now, not on the next dial move
+  useGen.setState((s) => ({ userShapes, cfg: { ...s.cfg } }));
+  return add.length;
+}
+/** Rebuild a silhouette record from a look's thumbnail: the path whose
+ *  bounds match the thumb's raw shell frame (data-shell0) is the outline
+ *  fitted to that frame, so the frame is its viewBox. */
+export function recoverShapeFromThumb(thumb: string, id: UserShape["id"], name: string): UserShape | null {
+  const fm = /data-shell0="([-\d. ]+)"/.exec(thumb) ?? /data-shell="([-\d. ]+)"/.exec(thumb);
+  if (!fm) return null;
+  const [fx, fy, fw, fh] = fm[1].split(" ").map(Number);
+  if (!(fw > 1) || !(fh > 1)) return null;
+  let best: { d: string; score: number } | null = null;
+  for (const m of thumb.matchAll(/<path\b[^>]*?\sd="([^"]+)"/g)) {
+    const d = m[1];
+    if (d.length < 40) continue;
+    let bb: { minX: number; minY: number; maxX: number; maxY: number };
+    try {
+      const pts = flattenPath(d).flat();
+      if (pts.length < 8) continue;
+      bb = pointBounds(pts);
+    } catch { continue; }
+    const score = Math.abs(bb.minX - fx) + Math.abs(bb.minY - fy) + Math.abs(bb.maxX - (fx + fw)) + Math.abs(bb.maxY - (fy + fh));
+    if (!best || score < best.score) best = { d, score };
+  }
+  // the silhouette fills its frame by contract — a path off by more than
+  // a tenth of the frame's perimeter is a shadow, a rim or a glyph
+  if (!best || best.score > 0.1 * 2 * (fw + fh)) return null;
+  return { id, name, d: best.d, vb: [fx, fy, fw, fh] };
+}
+/** Every silhouette the open design references but the registry lacks,
+ *  rebuilt from the thumbnail of a look whose master shape is that id
+ *  (your own saved looks first, then the shared presets). */
+function healUserShapesFromThumbs(): number {
+  const st = useGen.getState();
+  const have = new Set<string>(resolvableShapes().map((u) => u.id));
+  const missing = referencedUserShapeIds(st.cfg, st.kitShapes, st.kitDesigns).filter((id) => !have.has(id));
+  if (!missing.length) return 0;
+  const sources = [
+    ...st.userPresets.map((u) => ({ name: u.name, cfg: u.cfg as unknown as { shape?: unknown } | null, thumb: u.thumb })),
+    ...st.cloudPresets.map((p) => ({ name: p.name, cfg: p.cfg as unknown as { shape?: unknown } | null, thumb: p.thumb })),
+  ];
+  const found: UserShape[] = [];
+  for (const id of missing) {
+    const src = sources.find((s) => !!s.thumb && !!s.cfg && s.cfg.shape === id);
+    if (!src || !src.thumb) continue;
+    const rec = recoverShapeFromThumb(src.thumb, id as UserShape["id"], `${src.name} silhouette`);
+    if (rec) found.push(rec);
+  }
+  const n = adoptEmbeddedShapes(found, true);
+  if (n) console.info(`UI Kit Maker: rebuilt ${n} imported silhouette${n === 1 ? "" : "s"} from a look's thumbnail — ${found.map((f) => f.id).join(", ")}.`);
+  return n;
 }
 
 const LS_KEY = "ui-generator-v10"; // v10: specular modes, solid extrusion, gloss layering
@@ -791,6 +920,9 @@ interface GenStore {
   userShapes: UserShape[];
   addUserShape: (u: UserShape) => void;
   removeUserShape: (id: string) => void;
+  /** Rebuild any referenced imported silhouette the registry lacks from a
+   *  look's thumbnail (round 77); returns how many came back. */
+  healUserShapesFromThumbs: () => number;
   styleLib: StyleItem[];
   saveStyle: (name: string) => void;
   applyStyle: (id: string) => void;
@@ -2833,7 +2965,8 @@ export const useGen = create<GenStore>((set, get) => ({
   kitPayload: () => {
     const st = get();
     return {
-      v: 1, cfg: st.cfg, kitName: st.kitName, kitClones: st.kitClones, kitShapes: st.kitShapes, kitDesigns: st.kitDesigns,
+      // the document carries the imported silhouettes it references (round 77)
+      v: 1, cfg: embedUserShapes(st.cfg, st.kitShapes, st.kitDesigns).cfg, kitName: st.kitName, kitClones: st.kitClones, kitShapes: st.kitShapes, kitDesigns: st.kitDesigns,
       kitTextFill: st.kitTextFill, kitLabels: st.kitLabels, kitNoText: st.kitNoText, kitSubs: st.kitSubs, kitIcons: st.kitIcons, kitPics: st.kitPics, kitPicFx: st.kitPicFx, kitSlotVals: st.kitSlotVals, kitVals: st.kitVals,
       kitBar: st.kitBar, kitTextOy: st.kitTextOy, kitTextOx: st.kitTextOx, kitLocks: st.kitLocks,
       unitySlug: st.unitySlug, unityKitVer: st.unityKitVer,
@@ -2970,6 +3103,10 @@ export const useGen = create<GenStore>((set, get) => ({
       projectDirty: false,
       projectSavedAt: !viewer && opts?.projectId ? (opts?.savedAt ?? Date.now()) : null,
     });
+    /* the document's embedded silhouettes fill the registry on a miss
+       (round 77): an owned open persists them, a viewer keeps them in
+       memory — the render seats them from the config either way */
+    adoptEmbeddedShapes(cfg.userShapes, !viewer);
     /* boards ride the project document (owner: "when i save a kit, I
        expect to save the boards with it when i reopen it") — an OWNED
        open replaces the workspace boards with the project's, re-vaulting
@@ -3361,7 +3498,8 @@ export const useGen = create<GenStore>((set, get) => ({
   saveUserPreset: (name) => {
     markTouched();
     const clone = (typeof structuredClone === "function" ? structuredClone : (x: unknown) => JSON.parse(JSON.stringify(x)));
-    const cfg = clone(get().cfg) as GenConfig;
+    // your saved look carries its imported silhouettes (round 77)
+    const cfg = embedUserShapes(get().cfg, get().kitShapes, get().kitDesigns).cfg;
     const tc = clone(cfg) as GenConfig;
     for (const st of Object.values(tc.states)) st.glow = 0;
     tc.content.label = "PLAY"; tc.icon.show = false;
@@ -3390,6 +3528,9 @@ export const useGen = create<GenStore>((set, get) => ({
       applyWorkspace(ws);             // …and the whole kit layer, atomically
       get().setKitName(u.name);
       set({ activeCloudPreset: null });
+      // a look brings its imported silhouettes with it (round 77)
+      adoptEmbeddedShapes(next.userShapes, true);
+      healUserShapesFromThumbs();
     });
   },
   removeUserPreset: (id) => {
@@ -3454,6 +3595,11 @@ export const useGen = create<GenStore>((set, get) => ({
     if (get().zoom > capsOf(tier).zoomMax) set({ zoom: capsOf(tier).zoomMax });
     const act = get().activeCloudPreset;
     if (act && !presets.some((p) => p.id === act.id)) set({ activeCloudPreset: null });
+    /* with the looks in hand, an imported silhouette the registry lost
+       comes back from a look's thumbnail (round 77 — the owner's Hot Rod
+       flames, drawn as a rectangle on every surface after the account
+       registry dropped the record) */
+    healUserShapesFromThumbs();
   },
   applyCloudPreset: (id) => {
     const p = get().cloudPresets.find((x) => x.id === id);
@@ -3468,6 +3614,9 @@ export const useGen = create<GenStore>((set, get) => ({
       applyWorkspace(ws);             // …and the whole kit layer, atomically
       get().setKitName(p.name);
       set({ activeCloudPreset: { id: p.id, name: p.name } });
+      // a look brings its imported silhouettes with it (round 77)
+      adoptEmbeddedShapes(next.userShapes, true);
+      healUserShapesFromThumbs();
     });
   },
   applyLookDoc: (doc, name) => {
@@ -3482,6 +3631,9 @@ export const useGen = create<GenStore>((set, get) => ({
       applyWorkspace(ws);
       if (name) get().setKitName(name);
       set({ activeCloudPreset: null });
+      // a look brings its imported silhouettes with it (round 77)
+      adoptEmbeddedShapes(next.userShapes, true);
+      healUserShapesFromThumbs();
     });
   },
   applyNamedKit: (slug) => {
@@ -3508,6 +3660,7 @@ export const useGen = create<GenStore>((set, get) => ({
       applyWorkspace(ws);
       get().setKitName(kit.name);
       set({ activeCloudPreset: null });
+      adoptEmbeddedShapes(next.userShapes, true); // a shipped kit's own silhouettes ride in (round 77)
       const deskEmpty = get().boards.every((b) => !(b.items?.length));
       const pBoards = (p as { boards?: unknown[] }).boards;
       if (deskEmpty && Array.isArray(pBoards) && pBoards.length) {
@@ -3526,7 +3679,9 @@ export const useGen = create<GenStore>((set, get) => ({
   },
   cancelPendingLook: () => set({ pendingLook: null }),
   publishPreset: async (name, publishAt = null) => {
-    const { cfg, thumb } = presetSnapshot(get().cfg);
+    const { cfg, thumb, missing } = presetSnapshot(get().cfg);
+    // a pack must carry every silhouette it draws with (round 77)
+    if (missing.length) return `This look uses an imported silhouette this browser no longer holds (${missing.join(", ")}). Re-import it, or apply a look that carries it, then publish.`;
     // a pack ships the WHOLE kit: master look + every per-piece change
     const payload = { ...cfg, [WORKSPACE_KEY]: workspaceOf(get() as unknown as Record<string, unknown>) };
     const { preset, error } = await publishCloudPreset(name, payload, thumb, publishAt);
@@ -3553,7 +3708,8 @@ export const useGen = create<GenStore>((set, get) => ({
   overwriteActivePreset: async () => {
     const target = get().activeCloudPreset;
     if (!target) return "Apply a shared preset first — then Overwrite saves your tweaks back into it.";
-    const { cfg, thumb } = presetSnapshot(get().cfg);
+    const { cfg, thumb, missing } = presetSnapshot(get().cfg);
+    if (missing.length) return `This look uses an imported silhouette this browser no longer holds (${missing.join(", ")}). Re-import it, or apply a look that carries it, then overwrite.`;
     // Overwrite ships the whole kit back, same as a fresh publish
     const payload = { ...cfg, [WORKSPACE_KEY]: workspaceOf(get() as unknown as Record<string, unknown>) };
     const err = await updateCloudPreset(target.id, payload, thumb);
@@ -3649,6 +3805,7 @@ export const useGen = create<GenStore>((set, get) => ({
     setUserShapes(userShapes); saveJson("ui-generator-usershapes", userShapes);
     set({ userShapes });
   },
+  healUserShapesFromThumbs: () => healUserShapesFromThumbs(),
   removeUserShape: (id) => {
     markTouched();
     const userShapes = get().userShapes.filter((x) => x.id !== id);

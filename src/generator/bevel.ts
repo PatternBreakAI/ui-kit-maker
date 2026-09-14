@@ -1,6 +1,6 @@
 import type { GenConfig, GenStateName, EffectRole, Shape, KitComponentId, KitSize, IconDef, StateDesign } from "./model";
 import type { PicSeatFx } from "./store";
-import { lighten, darken, hexMix, desaturate, saturate, hexRgba, fontByName, DEFAULT_ICON, ICONS_ENABLED, STOCK_ICONS, KIT_SHAPE , isGlyphPiece, isDarkBg, userShapes, seatIconDef, isGlyphButton, glyphOfButton, glyphSeatIcon, KIT_SLOTS, stateSlotKey } from "./model";
+import { lighten, darken, hexMix, desaturate, saturate, hexRgba, fontByName, DEFAULT_ICON, ICONS_ENABLED, STOCK_ICONS, KIT_SHAPE , isGlyphPiece, isDarkBg, userShapes, setDocShapes, seatIconDef, isGlyphButton, glyphOfButton, glyphSeatIcon, KIT_SLOTS, stateSlotKey } from "./model";
 import { iconGroup } from "./icons";
 import { silhouetteMeta, MIRROR_SILHOUETTES } from "./silhouettes";
 import { importedShape, flattenPath, pointInPoly, selfIntersections, type Pt } from "./importedShapes";
@@ -4249,6 +4249,7 @@ export function padSvg(svg: string, min = 90): string {
  *  inset math, not a copy of it. Mirrors build()'s derivation (bw, bwF,
  *  rimW, softness offsets); keep the two in lockstep. */
 export function shellPaths(cfg: GenConfig, shape: Shape, x: number, y: number, w: number, h: number): { outer: string; rim: string; face: string; bw: number; bwF: number; rimW: number } {
+  setDocShapes(cfg.userShapes); // the design's own embedded outlines resolve here too (round 77)
   const D = designFor(cfg, "default");
   const K = h / 168;
   const bw = effectiveWall(D.bevel.width, shape, D.bevel.off) * K;
@@ -4267,6 +4268,11 @@ export function shellPaths(cfg: GenConfig, shape: Shape, x: number, y: number, w
 /** Master component — width follows the label. Margins are 1.5× so large
  *  shadow distances never clip against the invisible canvas bounds. */
 export function renderBevel(cfg: GenConfig, state: GenStateName): string {
+  /* every render door seats the design's OWN embedded outlines first
+     (round 77): a design that travelled with its imported silhouette
+     draws it on the landing page, in a share link, in a preset pack and
+     on a stranger's machine — none of which hold the maker's registry */
+  setDocShapes(cfg.userShapes);
   return build(cfg, state, { x: 52, y: 36, h: 168, fs: 52, iconSize: 46 });
 }
 
@@ -4274,6 +4280,7 @@ export function renderBevel(cfg: GenConfig, state: GenStateName): string {
  *  pipeline as every production render — nothing here is shape-specific.
  *  `fs` is the pre-scale type size (build multiplies by type.size/52). */
 export function renderShell(cfg: GenConfig, state: GenStateName, w: number, h: number, opts: { label?: string; iconDef?: IconDef | null; fs?: number } = {}): string {
+  setDocShapes(cfg.userShapes);
   return build(cfg, state, { x: 40, y: 32, h, fs: opts.fs ?? h * 0.31, iconSize: h * 0.3 }, {
     label: opts.label, iconDef: opts.iconDef === undefined ? null : opts.iconDef, fixedW: w,
   });
@@ -4842,6 +4849,7 @@ export function effSlotColor(cfg: GenConfig, cid: KitComponentId, slotId: string
 }
 
 export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, state: GenStateName = "default", value?: number, shapeOv?: Shape, opts: KitOpts = {}): string {
+  setDocShapes(cfg.userShapes); // the design's own embedded outlines (round 77) — see renderBevel
   /* ── the glyph-button fleet (round 52): identity = the slot button
      wearing its rack glyph's treated seat art. Peeled up front, before
      any shared setup, so the whole slotbtn road runs ONCE and the switch

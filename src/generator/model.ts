@@ -61,8 +61,22 @@ export const flipShape = (s: Shape): Shape => (isFlipShape(s) ? baseShape(s) : `
    store imports; the store hydrates and persists it. */
 export interface UserShape { id: `user:${string}`; name: string; d: string; vb: [number, number, number, number] }
 let USER_SHAPES: UserShape[] = [];
-export const userShapes = (): UserShape[] => USER_SHAPES;
+/* THE DESIGN'S OWN OUTLINES (round 77 — owner, on the landing hero and a
+   saved look both drawing a rounded rectangle where the flames belong):
+   an imported silhouette used to live ONLY in the maker's registry, and
+   every design carried just its id — so the landing page (which never
+   boots the registry), a share link, a preset pack or a hero designation
+   drew the miss fallback for everyone, and a registry that lost the
+   record drew it for the maker too. A design now embeds the outlines it
+   references (GenConfig.userShapes); the renderer sets them here at
+   every entry, and resolution reads the registry first, the document
+   second. The overlay is render-scoped and only ever ADDS a miss — it
+   can never repaint a shape the maker's own registry already has. */
+let DOC_SHAPES: UserShape[] = [];
+export const userShapes = (): UserShape[] =>
+  DOC_SHAPES.length ? [...USER_SHAPES, ...DOC_SHAPES.filter((d) => !USER_SHAPES.some((u) => u.id === d.id))] : USER_SHAPES;
 export function setUserShapes(list: UserShape[]) { USER_SHAPES = list; }
+export function setDocShapes(list: unknown) { DOC_SHAPES = Array.isArray(list) ? (list as UserShape[]) : []; }
 
 export const SHAPES: { id: Shape; name: string }[] = [
   { id: "round", name: "Rounded" },
@@ -732,6 +746,11 @@ export interface GenConfig extends StateDesign {
   presetId: string;
   /** Forked designs for non-default states. Absent = live mirror of Default. */
   stateDesigns: Partial<Record<Exclude<GenStateName, "default">, StateDesign>>;
+  /** The imported silhouettes this design references, embedded so the
+   *  design draws the same anywhere it travels (round 77). Written by the
+   *  document and look writers (embedUserShapes), read by the renderer at
+   *  every entry; absent when no imported silhouette is in play. */
+  userShapes?: UserShape[];
   content: { label: string };
   icon: IconCfg;
   states: Record<GenStateName, StateAdjust>;
