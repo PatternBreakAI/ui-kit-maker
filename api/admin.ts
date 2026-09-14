@@ -510,6 +510,28 @@ export async function POST(req: Request): Promise<Response> {
     if (!proj.doc || typeof proj.doc !== "object" || !proj.doc.cfg) {
       return json({ error: "That kit's saved payload has no design in it — open and re-save it first." }, 400);
     }
+    /* round 77 — a design that draws an IMPORTED silhouette (a `user:` shape)
+       must carry the outline with it (cfg.userShapes, embedded by the app's
+       writers since this round): a hero or a pack drawn from a bare id shows
+       a rounded rectangle to every visitor, because the outline lived only
+       in the maker's own registry. Mirrors referencedUserShapeIds in
+       src/generator/store.ts — keep the two in step. */
+    {
+      const ID = /^user:([a-z0-9]{1,32})(?:~flip)?$/;
+      const refs = new Set<string>(), recs = new Set<string>();
+      const walk = (v: unknown, depth: number) => {
+        if (depth > 12 || v == null) return;
+        if (typeof v === "string") { const m = ID.exec(v); if (m) refs.add(`user:${m[1]}`); return; }
+        if (Array.isArray(v)) { for (const x of v) walk(x, depth + 1); return; }
+        if (typeof v === "object") for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
+          if (k === "userShapes" && Array.isArray(x)) { for (const r of x) { const rr = r as { id?: unknown; d?: unknown }; if (rr && typeof rr.id === "string" && typeof rr.d === "string") recs.add(rr.id); } continue; }
+          walk(x, depth + 1);
+        }
+      };
+      walk(proj.doc.cfg, 0);
+      const bare = [...refs].filter((id) => !recs.has(id));
+      if (bare.length) return json({ error: `This kit draws an imported silhouette (${bare.join(", ")}) whose outline isn't in its saved document. Open the project in the app on the current build, Save it again, then designate.` }, 400);
+    }
     const owner = await fetch(`${supaUrl}/rest/v1/profiles?id=eq.${proj.user_id}&select=email`, { headers: svc });
     const ownerEmail = owner.ok ? (((await owner.json()) as { email: string | null }[])[0]?.email ?? null) : null;
 
