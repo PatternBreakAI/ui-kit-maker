@@ -35,6 +35,14 @@ const RELEASES: Release[] = [
         p: "A piece you saved from a board opens in the editor again, restyles with the kit, and lives in the kit's Other section for good. Applying a look no longer takes your saved pieces away, a copy that lost its twin gets it back, and saved pieces travel with the document, so a shared link draws them too.",
       },
       {
+        h: "Imported silhouettes travel with the design, and a lost one comes back",
+        p: "A silhouette you imported used to live only in your own registry. A shared link, a preset card and the landing page drew a plain rounded rectangle in its place, and a registry that lost the record drew that rectangle for you too. A design now carries the outlines it wears, so it draws right anywhere. A lost outline comes back on its own from a saved look's thumbnail or from your device's earlier copy, and when nothing can rebuild it, the Silhouette section shows a Restore row naming the pieces that wear it: pick the original SVG and every one of them heals at once. Your imported silhouettes also stay with your account on every device now, instead of the last device to sync deciding which ones you keep.",
+      },
+      {
+        h: "Look cards draw from the kit",
+        p: "Every card in the Looks rack, your saved looks and the shared presets alike, now draws live from its own saved settings with the current engine, so a card always shows exactly what applying it gives you. A stored picture only stands in when a look cannot be drawn.",
+      },
+      {
         h: "Kits open clean in Unity 6.5",
         p: "Unity 6.5 turned a deprecated call into a compile error, which stopped a whole import at the door. Exports compile clean there now, alongside 2022.3 and everything between.",
       },
