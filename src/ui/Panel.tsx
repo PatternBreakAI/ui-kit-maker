@@ -65,6 +65,45 @@ export function lookArtOf(cfg: GenConfig): string {
 /** …and one STARTER as look-art, by id (the setPreset road). */
 export const starterArt = (id: string): string => lookArtOf(presetLookConfig(id));
 
+/* A saved look's card, drawn LIVE from its stored config (round 77b —
+   owner: "thumb should just read from the kit"). Same recipe as the
+   stored thumbnail at save time — label PLAY, no icon, no state glow —
+   so a card and its fallback look alike.
+   CIRCUIT BREAKER (field: "site freezes before I can do anything"): a
+   poisoned cfg can wedge the renderer forever, and this runs on every
+   signed-in boot — one bad row froze every session. Each render marks
+   itself in localStorage before starting and clears the mark on
+   completion; a mark that survives means that render killed the tab, so
+   every later boot SKIPS that look (its stored thumbnail stands in,
+   named in the console). The key sits OUTSIDE the sync prefix on
+   purpose — a local scar, never synced to other devices. */
+function liveLookArt(rows: { id: string; name: string; cfg: unknown }[]): Record<string, string> {
+  const GUARD = "forge-thumbguard";
+  const readGuard = (): string[] => { try { const v = JSON.parse(localStorage.getItem(GUARD) ?? "[]"); return Array.isArray(v) ? v : []; } catch { return []; } };
+  const writeGuard = (ids: string[]) => { try { localStorage.setItem(GUARD, JSON.stringify(ids)); } catch { /* ignore */ } };
+  const out: Record<string, string> = {};
+  for (const p of rows) {
+    if (!p.cfg || typeof p.cfg !== "object") continue;
+    const guard = readGuard();
+    if (guard.includes(p.id)) {
+      console.warn(`Looks: skipping the live card of "${p.name}" (${p.id}) — rendering it froze a previous session; its stored thumbnail stands in. Fix or delete that look in the Release Desk.`);
+      continue;
+    }
+    try {
+      writeGuard([...guard, p.id]);
+      const t0 = performance.now();
+      const tc = hydrate(JSON.parse(JSON.stringify(p.cfg)) as Record<string, unknown>);
+      for (const st of Object.values(tc.states)) st.glow = 0;
+      tc.content.label = "PLAY"; tc.icon.show = false;
+      out[p.id] = renderBevel(tc, "default");
+      const ms = performance.now() - t0;
+      if (ms > 2000) console.warn(`Looks: "${p.name}" (${p.id}) card took ${Math.round(ms)}ms to render — this look is close to freezing sessions.`);
+    } catch { /* a cfg we can't read keeps its stored thumbnail rather than crashing the tray */ }
+    finally { writeGuard(readGuard().filter((id) => id !== p.id)); }
+  }
+  return out;
+}
+
 let presetArtCache: { id: string; name: string; svg: string }[] | null = null;
 let presetArtGen = -1;
 export function presetArt() {
@@ -836,32 +875,16 @@ export function Panel() {
      every later boot SKIPS that preset (blank card, named in the console)
      instead of freezing again. The key sits OUTSIDE the sync prefix on
      purpose — a local scar, never synced to other devices. */
-  const cloudArt = useMemo(() => {
-    const GUARD = "forge-thumbguard";
-    const readGuard = (): string[] => { try { const v = JSON.parse(localStorage.getItem(GUARD) ?? "[]"); return Array.isArray(v) ? v : []; } catch { return []; } };
-    const writeGuard = (ids: string[]) => { try { localStorage.setItem(GUARD, JSON.stringify(ids)); } catch { /* ignore */ } };
-    const out: Record<string, string> = {};
-    for (const p of cloudPresets) {
-      if (p.thumb) continue;
-      const guard = readGuard();
-      if (guard.includes(p.id)) {
-        console.warn(`Looks: skipping the thumbnail of "${p.name}" (${p.id}) — rendering it froze a previous session. Fix or delete that preset in the Release Desk.`);
-        continue;
-      }
-      try {
-        writeGuard([...guard, p.id]);
-        const t0 = performance.now();
-        const tc = hydrate(JSON.parse(JSON.stringify(p.cfg)) as Record<string, unknown>);
-        for (const st of Object.values(tc.states)) st.glow = 0;
-        tc.content.label = "PLAY"; tc.icon.show = false;
-        out[p.id] = renderBevel(tc, "default");
-        const ms = performance.now() - t0;
-        if (ms > 2000) console.warn(`Looks: "${p.name}" (${p.id}) thumbnail took ${Math.round(ms)}ms to render — this preset is close to freezing sessions.`);
-      } catch { /* a cfg we can't read just stays blank rather than crashing the tray */ }
-      finally { writeGuard(readGuard().filter((id) => id !== p.id)); }
-    }
-    return out;
-  }, [cloudPresets]);
+  /* THE THUMB READS FROM THE KIT (round 77b — owner: "thumb should just
+     read from the kit TBH"). Every look's card is drawn LIVE from its own
+     stored config: the current engine, the registry as healed, the
+     outlines the look carries. The stored thumbnail is the fallback for a
+     look the renderer can't draw (the circuit breaker) — and the durable
+     copy the silhouette heal reads, so it keeps being written at save.
+     Both racks re-draw when the registry changes: a silhouette that just
+     came back paints on its cards now, not on the next reload. */
+  const cloudArt = useMemo(() => liveLookArt(cloudPresets), [cloudPresets, userShapes]);
+  const userArt = useMemo(() => liveLookArt(userPresets), [userPresets, userShapes]);
   /* Looks thumbs render in each look's own typeface, but a face used to
      load only when a look was APPLIED — the rack sat in fallback lettering
      until clicked (owner: "I have to click on the Looks thumbnails for the
@@ -881,8 +904,8 @@ export function Panel() {
       const cf = (u.cfg as { type?: { customFonts?: unknown } } | undefined)?.type?.customFonts;
       if (Array.isArray(cf)) for (const c of cf) if (typeof c === "string") registerCustomFont(c);
     }
-    userPresets.forEach((u) => harvest(u.thumb));
-    cloudPresets.forEach((p) => harvest(p.thumb ?? cloudArt[p.id]));
+    userPresets.forEach((u) => harvest(userArt[u.id] ?? u.thumb));
+    cloudPresets.forEach((p) => harvest(cloudArt[p.id] ?? p.thumb));
     presetArt().forEach((s) => harvest(s.svg));
     const queue = [...fams];
     let stop = false;
@@ -894,7 +917,7 @@ export function Panel() {
     };
     pump();
     return () => { stop = true; };
-  }, [userPresets, cloudPresets, cloudArt]);
+  }, [userPresets, cloudPresets, cloudArt, userArt]);
   /* honest stand-in flag: a saved look whose face genuinely can't load
      (a deleted custom family, a dead CDN) must SAY it wears a stand-in
      rather than silently showing the wrong letterforms. Judged only once
@@ -926,13 +949,14 @@ export function Panel() {
     try { inFlight = document.fonts?.status === "loading"; } catch { /* judge anyway */ }
     if (inFlight) return out;
     for (const u of userPresets) {
-      if (!u.thumb) continue;
-      for (const m of u.thumb.matchAll(/font-family="'([^']+)'/g)) {
+      const art = userArt[u.id] ?? u.thumb;
+      if (!art) continue;
+      for (const m of art.matchAll(/font-family="'([^']+)'/g)) {
         if (!fontReady(m[1])) { out[u.id] = m[1]; break; }
       }
     }
     return out;
-  }, [userPresets, fontsTick]);
+  }, [userPresets, userArt, fontsTick]);
   /* parent eligibility: the component must expose the complete recipe —
      a full silhouette shell, an inset face, a typography label and all four
      states — otherwise other components have nothing to inherit from. */
@@ -1704,7 +1728,7 @@ export function Panel() {
           {userShow.map((u) => (
             <button key={u.id} className={`presetcard user${kitName === u.name ? " on" : ""}`} title={`${u.name} (your saved kit)`}
               onClick={() => applyUserPreset(u.id)}>
-              {u.thumb ? <span className="presetart" dangerouslySetInnerHTML={{ __html: lookArt(u.thumb) }} /> : <span className="presetart" />}
+              {(userArt[u.id] ?? u.thumb) ? <span className="presetart" dangerouslySetInnerHTML={{ __html: lookArt(userArt[u.id] ?? u.thumb) }} /> : <span className="presetart" />}
               {standInFonts[u.id] && <span className="presetstandin" title={`Saved with “${standInFonts[u.id]}”, which isn't available right now, so the preview wears a stand-in face. Applying the look keeps its real settings.`}>stand-in face</span>}
               <span className="presetname">{u.name}</span>
               <span className="shapedel" role="button" aria-label={`Delete preset ${u.name}`} title="Delete"
@@ -1722,7 +1746,7 @@ export function Panel() {
               title={heldUntil(p.publish_at) ? `${p.name} is held until ${heldUntil(p.publish_at)}. Only you can see it.` : `${p.name} (preset pack)`}
               onClick={() => applyCloudPreset(p.id)}>
               {chipName === normName(p.name) && <span className="presetnew">NEW</span>}
-              <span className="presetart" dangerouslySetInnerHTML={{ __html: lookArt(p.thumb ?? cloudArt[p.id]) }} />
+              <span className="presetart" dangerouslySetInnerHTML={{ __html: lookArt(cloudArt[p.id] ?? p.thumb) }} />
               <span className="presetname">{p.name}</span>
               {/* Only an admin ever reaches this branch with a held pack —
                   the read policy hides unreleased rows from everyone else. */}
