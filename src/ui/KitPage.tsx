@@ -1758,6 +1758,213 @@ function KitDebugStrip() {
   );
 }
 
+/* Every catalog entry, rendered live from the kit — the visual catalog
+   sheet, the SVG pack and the engine export's atlas/catalog.png all read
+   this one list (module-level so tests and tools can call it too). */
+export const sheetEntries = (st: ReturnType<typeof useGen.getState>) => {
+  {
+    const pieceCfg = (cid: KitComponentId) => applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns[cid]), st.kitTextFill[cid]);
+    const rk = (cid: KitComponentId, name: string, extra: Parameters<typeof renderKit>[6] = {}, v?: number, gstate: GenStateName = "default") => {
+      const o = {
+        expand: true, textOy: st.kitTextOy[`${cid}:${effKitSize(st.kitSizes[cid])}`], textOx: st.kitTextOx[`${cid}:${effKitSize(st.kitSizes[cid])}`],
+        row: cid === "datarow" ? st.kitRow : undefined,
+        themedText: !!st.kitDesigns[cid]?.type || !!st.kitTextFill[cid], ...extra,
+      };
+      // user content overrides ride every catalog entry
+      o.icon = resolveKitIcon(st.kitIcons[cid], o.icon);
+      if (o.pic === undefined) o.pic = kitPicOf(st, cid);
+      if (o.logo === undefined) o.logo = kitPicOf(st, cid, "logo");
+      o.slots = { ...st.kitSlotVals[cid], ...o.slots };
+      if (st.kitNoText[cid]) o.label = ""; else if (o.label === undefined) o.label = st.kitLabels[cid];
+      if (o.sub === undefined) o.sub = st.kitSubs[cid];
+      if (cid === "progress" || cid === "segbar") {
+        const kb = st.kitBar[cid];
+        if (o.bar === undefined) o.bar = kb;
+        if (o.dock === undefined && kb?.dock) o.dock = { icon: resolveKitIcon(st.kitIcons[cid], undefined), side: kb.dockSide ?? "left" };
+      }
+      return { cid, name, svg: renderKit(pieceCfg(cid), cid, effKitSize(st.kitSizes[cid]), gstate, v, st.kitShapes[cid], o) };
+    };
+    const entries = [
+      /* the staged Value rides each base entry — the Component-content
+         slider's pose is part of the kit, so it exports too */
+      ...KIT_COMPONENTS.map((c2) => rk(c2.id, c2.name, {}, st.kitVals[c2.id])),
+      rk("panel", "Container · Round", { kind: "circle" }),
+      rk("panel", "Container · Oval", { kind: "oval" }),
+      rk("panel", "Container · Strip", { kind: "strip" }),
+      rk("reticle", "Reticle · Brackets", { overlay: "brackets" }),
+      rk("minimap", "Mini-map · Radar", { overlay: "square" }),
+      rk("joystick", "Joystick · Ghost", { overlay: "ghost" }),
+      rk("slot", "Slot · Level", { icon: STOCK_ICONS.gem, overlay: "level:42" }),
+      rk("slot", "Slot · Locked", { icon: STOCK_ICONS.gem, overlay: "locked" }),
+      rk("flipclock", "Flip countdown · Urgent", {}, 0.13),
+      rk("stopwatch", "Stopwatch · Urgent", {}, 0.13),
+      /* the state block — engines skin the full interaction, not just the
+         resting pose, so every stateful piece ships its other faces too */
+      rk("primary", "Primary · Hover", {}, undefined, "hover"),
+      rk("primary", "Primary · Pressed", {}, undefined, "pressed"),
+      rk("primary", "Primary · Disabled", {}, undefined, "disabled"),
+      rk("secondary", "Secondary · Hover", {}, undefined, "hover"),
+      rk("secondary", "Secondary · Disabled", {}, undefined, "disabled"),
+      rk("small", "Small · Hover", {}, undefined, "hover"),
+      rk("small", "Small · Pressed", {}, undefined, "pressed"),
+      rk("iconbtn", "Icon button · Hover", {}, undefined, "hover"),
+      rk("iconbtn", "Icon button · Pressed", {}, undefined, "pressed"),
+      rk("chip", "Chip · Hover", {}, undefined, "hover"),
+      rk("tab", "Tab · Selected", {}, undefined, "pressed"),
+      rk("tab", "Tab · Disabled", {}, undefined, "disabled"),
+      rk("tabback", "Back tab · Selected", {}, undefined, "pressed"),
+      rk("tabback", "Back tab · Disabled", {}, undefined, "disabled"),
+      rk("badge", "Badge · Awarded", {}, undefined, "pressed"),
+      rk("toggle", "Toggle · Off", {}, 0),
+      rk("toggle", "Toggle · Disabled", {}, 1, "disabled"),
+      rk("checkbox", "Checkbox · Off", {}, 0),
+      rk("radio", "Radio · Off", {}, 0),
+      rk("orb", "Glow orb · Off", {}, 0),
+      rk("segment", "Segment · First", {}, 0),
+      rk("slider", "Slider · Low", {}, 0.15),
+      rk("progress", "Progress · Full", {}, 1),
+      rk("emblembar", "Emblem bar", {}, 0.55),
+      rk("segbar", "Segmented · 3 of 5", {}, 0.62),
+      rk("segbar", "Segmented · 8", { bar: { segments: 8 } }, 0.55),
+      rk("vsbar", "VS health bar", {}, 0.72),
+      rk("hotbar", "Hotbar · slot 3", {}, 0.25),
+      rk("dialog", "Dialog"),
+      rk("toast", "Toast"),
+      rk("tooltip", "Tooltip"),
+      rk("keycap", "Keycap · E"),
+      rk("keycap", "Keycap · SPACE", { label: "SPACE" }),
+      rk("padbtn", "Pad · A"),
+      rk("padbtn", "Pad · B", { label: "B" }),
+      rk("padbtn", "Pad · X", { label: "X" }),
+      rk("padbtn", "Pad · Y", { label: "Y" }),
+      rk("listmenu", "List menu", {}, 0.34),
+      rk("scrollbar", "Scrollbar", {}, 0.3),
+      rk("pagedots", "Page dots", {}, 0.25),
+      rk("steps", "Step indicator", {}, 0.42),
+      rk("spinner", "Spinner"),
+      rk("loadbar", "Loading bar", {}, 0.62),
+      rk("setrow", "Settings row", {}, 0.7),
+      rk("searchfield", "Search field"),
+      rk("searchfield", "Search field · query", { label: "health potion" }),
+      rk("notifydot", "Notification badge", {}, 0.3),
+      rk("countbadge", "Count badge", {}, 0.03),
+      rk("countbadge", "Count badge · 42", {}, 0.42),
+      rk("avatarframe", "Avatar frame", {}, 0.12),
+      rk("nameplate", "Nameplate"),
+      rk("currency", "Currency pill", {}, 0.125),
+      rk("buffframe", "Buff frame", {}, 0.65),
+      rk("cooldown", "Cooldown radial", {}, 0.4),
+      rk("stepper", "Stepper", {}, 0.62),
+      rk("cardback", "Card back", {}),
+      rk("cardback", "Deck cover", { label: "STARTER · 30" }),
+      rk("pack", "Card pack", {}),
+      rk("tacho", "Rev meter · 7.4", {}, 0.82),
+      rk("input", "Input · Focus", {}, undefined, "hover"),
+      rk("input", "Input · Disabled", {}, undefined, "disabled"),
+      rk("dropdown", "Dropdown · Open", {}, undefined, "pressed"),
+      rk("datarow", "Data row · Selected", {}, undefined, "hover"),
+      rk("datarow", "Data row · Disabled", {}, undefined, "disabled"),
+      rk("slot", "Slot · Claimable", { icon: STOCK_ICONS.gem, overlay: "claimable" }, undefined, "hover"),
+      rk("reticle", "Reticle · Locked", {}, undefined, "hover"),
+      rk("ring", "Ring · Complete", {}, 1),
+      /* P2/P3 build parts — every meaningful pose of the RPG and shooter
+         vocabularies ships in the catalog, same rule as the state block */
+      rk("healthglobe", "Health globe · Low", {}, 0.2),
+      rk("partyframe", "Party frame · Hurt", {}, 0.24),
+      rk("rarityframe", "Rarity · Common", {}, 0),
+      rk("rarityframe", "Rarity · Uncommon", {}, 0.25),
+      rk("rarityframe", "Rarity · Rare", {}, 0.5),
+      rk("rarityframe", "Rarity · Epic", {}, 0.75),
+      rk("rarityframe", "Rarity · Legendary", {}, 1),
+      rk("equipslot", "Socket · Head", { icon: STOCK_ICONS.helmet }),
+      rk("equipslot", "Socket · Chest", { icon: STOCK_ICONS.shirt }),
+      rk("equipslot", "Socket · Hands", { icon: STOCK_ICONS.hand }),
+      rk("equipslot", "Socket · Feet", { icon: STOCK_ICONS.boots }),
+      rk("equipslot", "Socket · Weapon", { icon: STOCK_ICONS.sword }),
+      rk("equipslot", "Socket · Offhand", { icon: STOCK_ICONS.shield }),
+      rk("skillnode", "Skill node · Learned", { overlay: "learned" }),
+      rk("skillnode", "Skill node · Locked", { overlay: "locked" }),
+      rk("dmgnumber", "Damage · Critical", {}, 0.9),
+      /* the loot tag's FULL ladder ships — a dev skins every tier their
+         items can drop at, not just the poster child */
+      rk("loottag", "Loot tag · Common", {}, 0),
+      rk("loottag", "Loot tag · Uncommon", {}, 0.25),
+      rk("loottag", "Loot tag · Rare", {}, 0.5),
+      rk("loottag", "Loot tag · Epic", {}, 0.75),
+      rk("loottag", "Loot tag · Legendary", { label: "Dawnbreaker" }, 1),
+      rk("crosshair", "Crosshair · Wide", {}, 0.85),
+      rk("crosshair", "Crosshair · Dot", { overlay: "dot" }),
+      rk("hitmarker", "Hit marker · Critical", {}, 0.9),
+      rk("killfeed", "Kill feed · You", { label: "YOU", sub: "NOVA_KNIGHT" }, undefined, "hover"),
+      rk("magazine", "Magazine · Last rounds", {}, 0.16),
+      rk("streakmeter", "Streak · Ignited", {}, 1),
+      rk("capturemeter", "Capture · Contested", {}, 0.55),
+      rk("respawn", "Respawn · Ready", {}, 0),
+      /* P4/P5 build parts — every meaningful pose ships in the catalog */
+      rk("starrating", "Stars · Two", {}, 0.67),
+      rk("starrating", "Stars · One", {}, 0.34),
+      rk("levelnode", "Level node · Completed", { label: "11", overlay: "stars:3" }),
+      rk("levelnode", "Level node · Locked", { label: "13", overlay: "locked" }),
+      rk("movecounter", "Moves · Last", {}, 0.12),
+      // staging-bay pieces list their poses here too — the visibility
+      // filter at the end keeps them admin-only until released
+      rk("vitalbar", "Vital · Health", { slots: { readout: "1,250 / 1,500", tint: "Health" } }, 0.83),
+      rk("vitalbar", "Vital · Mana", { slots: { readout: "650 / 1,000", tint: "Mana" } }, 0.65),
+      rk("vitalbar", "Vital · Kit glow", {}, 0.72),
+      rk("vitalbar", "Vital · Low", { slots: { readout: "180 / 1,500", tint: "Health" } }, 0.12),
+      rk("quickslots", "Quadrant · Loadout", { slots: { q1: "3", q4: "5", active: "Down" } }),
+      rk("quickslots", "Quadrant · Custom", { slots: { g1: "Scroll", g2: "Key", g3: "Zap", g4: "Heart", q4: "2" } }),
+      rk("quickslots", "Quadrant · Bare", { slots: { g1: "Empty", g2: "Empty", g3: "Empty", g4: "Empty" } }),
+      rk("orderticket", "Order ticket · Urgent", {}, 0.1),
+      rk("orderticket", "Order ticket · Served", {}, 0.62, "disabled"),
+      rk("gearicon", "Settings gear"),
+      rk("gearicon", "Settings gear · Disabled", {}, undefined, "disabled"),
+      rk("trophyicon", "Trophy"),
+      rk("trophyicon", "Trophy · Gold", { overlay: "gold" }),
+      rk("trophyicon", "Trophy · Silver", { overlay: "silver" }),
+      rk("trophyicon", "Trophy · Bronze", { overlay: "bronze" }),
+      rk("trophyicon", "Trophy · Disabled", {}, undefined, "disabled"),
+      rk("gifticon", "Gift box"),
+      rk("gifticon", "Gift box · Disabled", {}, undefined, "disabled"),
+      rk("firebutton", "Fire button"),
+      rk("firebutton", "Fire button · Volt armed", {}, 0.3),
+      rk("firebutton", "Fire button · Pressed", {}, undefined, "pressed"),
+      rk("chest", "Chest · Small wood", { slots: { tier: "Wood", variant: "Plain" } }, 0.4),
+      rk("chest", "Chest · Medium iron", { slots: { tier: "Iron", variant: "Plain" } }, 0.4),
+      rk("chest", "Chest · Large gold", { slots: { tier: "Gold", variant: "Plain" } }, 0.4),
+      rk("chest", "Chest · Premium", { slots: { tier: "Premium", variant: "Plain" } }, 0.4),
+      rk("chest", "Chest · Event", { slots: { tier: "Event", variant: "Plain" } }, 0.4),
+      rk("chest", "Chest · Timed", {}, 0.55),
+      rk("chest", "Chest · Ready", {}, 0),
+      rk("chest", "Chest · Locked", { slots: { variant: "Locked" } }, 0.5),
+      rk("chest", "Chest · Opened", {}, 0.62, "disabled"),
+      rk("giftbox", "Gift · Daily ready", { slots: { tag: "Daily" } }, 1),
+      rk("giftbox", "Gift · Surprise", { slots: { tag: "Surprise" } }, 0.4),
+      rk("giftbox", "Gift · Milestone", { slots: { tag: "Milestone" } }, 0.7),
+      rk("giftbox", "Gift · Claimed", {}, 0.4, "disabled"),
+      rk("rewardcard", "Reward · Legendary", {}, 1),
+      rk("rewardcard", "Reward · Mystery", { slots: { kind: "Mystery" } }, 0.5),
+      rk("rewardtray", "Tray · Revealing", {}, 0.5),
+      rk("rewardtray", "Tray · Summary", {}, 1),
+      rk("claimbtn", "Claim · 2× by ad", { slots: { mode: "2x by ad" } }),
+      rk("dailycell", "Daily · Claimed", { label: "DAY 3", overlay: "check" }),
+      rk("dailycell", "Daily · Locked", { label: "DAY 5", overlay: "locked" }),
+      rk("booster", "Booster · Free", { icon: STOCK_ICONS.gem }, 0),
+      rk("popmeter", "Population · Near cap", {}, 0.95),
+      rk("techcard", "Tech · Researched", { label: "KEEN SIGHT", icon: STOCK_ICONS.crosshair, overlay: "done" }),
+      rk("techcard", "Tech · Locked", { label: "???", overlay: "locked" }),
+      rk("friendrow", "Friend · Offline", { label: "STORM_BREW" }, 0),
+      // the semantic glyph rack — catalog entries derive from the registry;
+      // the visibility filter below keeps them admin-only until released
+      ...LIVE_GLYPHS.map((g) => rk(`glyph${g.id}` as KitComponentId, `Glyph · ${g.name}`)),
+    ];
+    // the catalog is tier-blind since the free-play round — the sheet
+    // export itself is paid-gated upstream. Staging-bay pieces ride
+    // only for the admin (or once released) — same rule as the page.
+    return entries.filter((e) => kitVisible(e.cid, st.componentReleases, st.isAdmin));
+  }
+};
+
 export function KitPage() {
   const { cfg, kitClones, kitName, setKitName, saveUserPreset, updateMaster, viewer, isAdmin, componentReleases: releases, setComponentRelease, setComponentReleasesBatch } = useGen();
   /* Is this the public page of a kit we SHIP (`#/kit/<slug>`)? The hash
@@ -2313,209 +2520,6 @@ const kitTier = useGen((s) => s.tier);
     { id: "sprite", name: "Sprite sheet (PNG)", desc: "One labeled catalog image of every asset: for humans, not for slicing.", busy: sheetBusy, locked: !paidTier, run: () => { if (paidTier) void downloadAllAssets(); else openGate("export"); } },
     { id: "stamps", name: "Type stamps (PNG)", desc: "Your phrases in the kit's full display treatment, baked crisp at 4x: hero titles, banners, victory text. Lands in the same Unity folder as the kit.", busy: stampBusy, locked: !mayEngine, run: openStamps },
   ];
-  const sheetEntries = (st: ReturnType<typeof useGen.getState>) => {
-    {
-      const pieceCfg = (cid: KitComponentId) => applyKitTextFill(applyKitDesign(st.cfg, st.kitDesigns[cid]), st.kitTextFill[cid]);
-      const rk = (cid: KitComponentId, name: string, extra: Parameters<typeof renderKit>[6] = {}, v?: number, gstate: GenStateName = "default") => {
-        const o = {
-          expand: true, textOy: st.kitTextOy[`${cid}:${effKitSize(st.kitSizes[cid])}`], textOx: st.kitTextOx[`${cid}:${effKitSize(st.kitSizes[cid])}`],
-          row: cid === "datarow" ? st.kitRow : undefined,
-          themedText: !!st.kitDesigns[cid]?.type || !!st.kitTextFill[cid], ...extra,
-        };
-        // user content overrides ride every catalog entry
-        o.icon = resolveKitIcon(st.kitIcons[cid], o.icon);
-        if (o.pic === undefined) o.pic = kitPicOf(st, cid);
-        if (o.logo === undefined) o.logo = kitPicOf(st, cid, "logo");
-        o.slots = { ...st.kitSlotVals[cid], ...o.slots };
-        if (st.kitNoText[cid]) o.label = ""; else if (o.label === undefined) o.label = st.kitLabels[cid];
-        if (o.sub === undefined) o.sub = st.kitSubs[cid];
-        if (cid === "progress" || cid === "segbar") {
-          const kb = st.kitBar[cid];
-          if (o.bar === undefined) o.bar = kb;
-          if (o.dock === undefined && kb?.dock) o.dock = { icon: resolveKitIcon(st.kitIcons[cid], undefined), side: kb.dockSide ?? "left" };
-        }
-        return { cid, name, svg: renderKit(pieceCfg(cid), cid, effKitSize(st.kitSizes[cid]), gstate, v, st.kitShapes[cid], o) };
-      };
-      const entries = [
-        /* the staged Value rides each base entry — the Component-content
-           slider's pose is part of the kit, so it exports too */
-        ...KIT_COMPONENTS.map((c2) => rk(c2.id, c2.name, {}, st.kitVals[c2.id])),
-        rk("panel", "Container · Round", { kind: "circle" }),
-        rk("panel", "Container · Oval", { kind: "oval" }),
-        rk("panel", "Container · Strip", { kind: "strip" }),
-        rk("reticle", "Reticle · Brackets", { overlay: "brackets" }),
-        rk("minimap", "Mini-map · Radar", { overlay: "square" }),
-        rk("joystick", "Joystick · Ghost", { overlay: "ghost" }),
-        rk("slot", "Slot · Level", { icon: STOCK_ICONS.gem, overlay: "level:42" }),
-        rk("slot", "Slot · Locked", { icon: STOCK_ICONS.gem, overlay: "locked" }),
-        rk("flipclock", "Flip countdown · Urgent", {}, 0.13),
-        rk("stopwatch", "Stopwatch · Urgent", {}, 0.13),
-        /* the state block — engines skin the full interaction, not just the
-           resting pose, so every stateful piece ships its other faces too */
-        rk("primary", "Primary · Hover", {}, undefined, "hover"),
-        rk("primary", "Primary · Pressed", {}, undefined, "pressed"),
-        rk("primary", "Primary · Disabled", {}, undefined, "disabled"),
-        rk("secondary", "Secondary · Hover", {}, undefined, "hover"),
-        rk("secondary", "Secondary · Disabled", {}, undefined, "disabled"),
-        rk("small", "Small · Hover", {}, undefined, "hover"),
-        rk("small", "Small · Pressed", {}, undefined, "pressed"),
-        rk("iconbtn", "Icon button · Hover", {}, undefined, "hover"),
-        rk("iconbtn", "Icon button · Pressed", {}, undefined, "pressed"),
-        rk("chip", "Chip · Hover", {}, undefined, "hover"),
-        rk("tab", "Tab · Selected", {}, undefined, "pressed"),
-        rk("tab", "Tab · Disabled", {}, undefined, "disabled"),
-        rk("tabback", "Back tab · Selected", {}, undefined, "pressed"),
-        rk("tabback", "Back tab · Disabled", {}, undefined, "disabled"),
-        rk("badge", "Badge · Awarded", {}, undefined, "pressed"),
-        rk("toggle", "Toggle · Off", {}, 0),
-        rk("toggle", "Toggle · Disabled", {}, 1, "disabled"),
-        rk("checkbox", "Checkbox · Off", {}, 0),
-        rk("radio", "Radio · Off", {}, 0),
-        rk("orb", "Glow orb · Off", {}, 0),
-        rk("segment", "Segment · First", {}, 0),
-        rk("slider", "Slider · Low", {}, 0.15),
-        rk("progress", "Progress · Full", {}, 1),
-        rk("emblembar", "Emblem bar", {}, 0.55),
-        rk("segbar", "Segmented · 3 of 5", {}, 0.62),
-        rk("segbar", "Segmented · 8", { bar: { segments: 8 } }, 0.55),
-        rk("vsbar", "VS health bar", {}, 0.72),
-        rk("hotbar", "Hotbar · slot 3", {}, 0.25),
-        rk("dialog", "Dialog"),
-        rk("toast", "Toast"),
-        rk("tooltip", "Tooltip"),
-        rk("keycap", "Keycap · E"),
-        rk("keycap", "Keycap · SPACE", { label: "SPACE" }),
-        rk("padbtn", "Pad · A"),
-        rk("padbtn", "Pad · B", { label: "B" }),
-        rk("padbtn", "Pad · X", { label: "X" }),
-        rk("padbtn", "Pad · Y", { label: "Y" }),
-        rk("listmenu", "List menu", {}, 0.34),
-        rk("scrollbar", "Scrollbar", {}, 0.3),
-        rk("pagedots", "Page dots", {}, 0.25),
-        rk("steps", "Step indicator", {}, 0.42),
-        rk("spinner", "Spinner"),
-        rk("loadbar", "Loading bar", {}, 0.62),
-        rk("setrow", "Settings row", {}, 0.7),
-        rk("searchfield", "Search field"),
-        rk("searchfield", "Search field · query", { label: "health potion" }),
-        rk("notifydot", "Notification badge", {}, 0.3),
-        rk("countbadge", "Count badge", {}, 0.03),
-        rk("countbadge", "Count badge · 42", {}, 0.42),
-        rk("avatarframe", "Avatar frame", {}, 0.12),
-        rk("nameplate", "Nameplate"),
-        rk("currency", "Currency pill", {}, 0.125),
-        rk("buffframe", "Buff frame", {}, 0.65),
-        rk("cooldown", "Cooldown radial", {}, 0.4),
-        rk("stepper", "Stepper", {}, 0.62),
-        rk("cardback", "Card back", {}),
-        rk("cardback", "Deck cover", { label: "STARTER · 30" }),
-        rk("pack", "Card pack", {}),
-        rk("tacho", "Rev meter · 7.4", {}, 0.82),
-        rk("input", "Input · Focus", {}, undefined, "hover"),
-        rk("input", "Input · Disabled", {}, undefined, "disabled"),
-        rk("dropdown", "Dropdown · Open", {}, undefined, "pressed"),
-        rk("datarow", "Data row · Selected", {}, undefined, "hover"),
-        rk("datarow", "Data row · Disabled", {}, undefined, "disabled"),
-        rk("slot", "Slot · Claimable", { icon: STOCK_ICONS.gem, overlay: "claimable" }, undefined, "hover"),
-        rk("reticle", "Reticle · Locked", {}, undefined, "hover"),
-        rk("ring", "Ring · Complete", {}, 1),
-        /* P2/P3 build parts — every meaningful pose of the RPG and shooter
-           vocabularies ships in the catalog, same rule as the state block */
-        rk("healthglobe", "Health globe · Low", {}, 0.2),
-        rk("partyframe", "Party frame · Hurt", {}, 0.24),
-        rk("rarityframe", "Rarity · Common", {}, 0),
-        rk("rarityframe", "Rarity · Uncommon", {}, 0.25),
-        rk("rarityframe", "Rarity · Rare", {}, 0.5),
-        rk("rarityframe", "Rarity · Epic", {}, 0.75),
-        rk("rarityframe", "Rarity · Legendary", {}, 1),
-        rk("equipslot", "Socket · Head", { icon: STOCK_ICONS.helmet }),
-        rk("equipslot", "Socket · Chest", { icon: STOCK_ICONS.shirt }),
-        rk("equipslot", "Socket · Hands", { icon: STOCK_ICONS.hand }),
-        rk("equipslot", "Socket · Feet", { icon: STOCK_ICONS.boots }),
-        rk("equipslot", "Socket · Weapon", { icon: STOCK_ICONS.sword }),
-        rk("equipslot", "Socket · Offhand", { icon: STOCK_ICONS.shield }),
-        rk("skillnode", "Skill node · Learned", { overlay: "learned" }),
-        rk("skillnode", "Skill node · Locked", { overlay: "locked" }),
-        rk("dmgnumber", "Damage · Critical", {}, 0.9),
-        /* the loot tag's FULL ladder ships — a dev skins every tier their
-           items can drop at, not just the poster child */
-        rk("loottag", "Loot tag · Common", {}, 0),
-        rk("loottag", "Loot tag · Uncommon", {}, 0.25),
-        rk("loottag", "Loot tag · Rare", {}, 0.5),
-        rk("loottag", "Loot tag · Epic", {}, 0.75),
-        rk("loottag", "Loot tag · Legendary", { label: "Dawnbreaker" }, 1),
-        rk("crosshair", "Crosshair · Wide", {}, 0.85),
-        rk("crosshair", "Crosshair · Dot", { overlay: "dot" }),
-        rk("hitmarker", "Hit marker · Critical", {}, 0.9),
-        rk("killfeed", "Kill feed · You", { label: "YOU", sub: "NOVA_KNIGHT" }, undefined, "hover"),
-        rk("magazine", "Magazine · Last rounds", {}, 0.16),
-        rk("streakmeter", "Streak · Ignited", {}, 1),
-        rk("capturemeter", "Capture · Contested", {}, 0.55),
-        rk("respawn", "Respawn · Ready", {}, 0),
-        /* P4/P5 build parts — every meaningful pose ships in the catalog */
-        rk("starrating", "Stars · Two", {}, 0.67),
-        rk("starrating", "Stars · One", {}, 0.34),
-        rk("levelnode", "Level node · Completed", { label: "11", overlay: "stars:3" }),
-        rk("levelnode", "Level node · Locked", { label: "13", overlay: "locked" }),
-        rk("movecounter", "Moves · Last", {}, 0.12),
-        // staging-bay pieces list their poses here too — the visibility
-        // filter at the end keeps them admin-only until released
-        rk("vitalbar", "Vital · Health", { slots: { readout: "1,250 / 1,500", tint: "Health" } }, 0.83),
-        rk("vitalbar", "Vital · Mana", { slots: { readout: "650 / 1,000", tint: "Mana" } }, 0.65),
-        rk("vitalbar", "Vital · Kit glow", {}, 0.72),
-        rk("vitalbar", "Vital · Low", { slots: { readout: "180 / 1,500", tint: "Health" } }, 0.12),
-        rk("quickslots", "Quadrant · Loadout", { slots: { q1: "3", q4: "5", active: "Down" } }),
-        rk("quickslots", "Quadrant · Custom", { slots: { g1: "Scroll", g2: "Key", g3: "Zap", g4: "Heart", q4: "2" } }),
-        rk("quickslots", "Quadrant · Bare", { slots: { g1: "Empty", g2: "Empty", g3: "Empty", g4: "Empty" } }),
-        rk("orderticket", "Order ticket · Urgent", {}, 0.1),
-        rk("orderticket", "Order ticket · Served", {}, 0.62, "disabled"),
-        rk("gearicon", "Settings gear"),
-        rk("gearicon", "Settings gear · Disabled", {}, undefined, "disabled"),
-        rk("trophyicon", "Trophy"),
-        rk("trophyicon", "Trophy · Gold", { overlay: "gold" }),
-        rk("trophyicon", "Trophy · Silver", { overlay: "silver" }),
-        rk("trophyicon", "Trophy · Bronze", { overlay: "bronze" }),
-        rk("trophyicon", "Trophy · Disabled", {}, undefined, "disabled"),
-        rk("gifticon", "Gift box"),
-        rk("gifticon", "Gift box · Disabled", {}, undefined, "disabled"),
-        rk("firebutton", "Fire button"),
-        rk("firebutton", "Fire button · Volt armed", {}, 0.3),
-        rk("firebutton", "Fire button · Pressed", {}, undefined, "pressed"),
-        rk("chest", "Chest · Small wood", { slots: { tier: "Wood", variant: "Plain" } }, 0.4),
-        rk("chest", "Chest · Medium iron", { slots: { tier: "Iron", variant: "Plain" } }, 0.4),
-        rk("chest", "Chest · Large gold", { slots: { tier: "Gold", variant: "Plain" } }, 0.4),
-        rk("chest", "Chest · Premium", { slots: { tier: "Premium", variant: "Plain" } }, 0.4),
-        rk("chest", "Chest · Event", { slots: { tier: "Event", variant: "Plain" } }, 0.4),
-        rk("chest", "Chest · Timed", {}, 0.55),
-        rk("chest", "Chest · Ready", {}, 0),
-        rk("chest", "Chest · Locked", { slots: { variant: "Locked" } }, 0.5),
-        rk("chest", "Chest · Opened", {}, 0.62, "disabled"),
-        rk("giftbox", "Gift · Daily ready", { slots: { tag: "Daily" } }, 1),
-        rk("giftbox", "Gift · Surprise", { slots: { tag: "Surprise" } }, 0.4),
-        rk("giftbox", "Gift · Milestone", { slots: { tag: "Milestone" } }, 0.7),
-        rk("giftbox", "Gift · Claimed", {}, 0.4, "disabled"),
-        rk("rewardcard", "Reward · Legendary", {}, 1),
-        rk("rewardcard", "Reward · Mystery", { slots: { kind: "Mystery" } }, 0.5),
-        rk("rewardtray", "Tray · Revealing", {}, 0.5),
-        rk("rewardtray", "Tray · Summary", {}, 1),
-        rk("claimbtn", "Claim · 2× by ad", { slots: { mode: "2x by ad" } }),
-        rk("dailycell", "Daily · Claimed", { label: "DAY 3", overlay: "check" }),
-        rk("dailycell", "Daily · Locked", { label: "DAY 5", overlay: "locked" }),
-        rk("booster", "Booster · Free", { icon: STOCK_ICONS.gem }, 0),
-        rk("popmeter", "Population · Near cap", {}, 0.95),
-        rk("techcard", "Tech · Researched", { label: "KEEN SIGHT", icon: STOCK_ICONS.crosshair, overlay: "done" }),
-        rk("techcard", "Tech · Locked", { label: "???", overlay: "locked" }),
-        rk("friendrow", "Friend · Offline", { label: "STORM_BREW" }, 0),
-        // the semantic glyph rack — catalog entries derive from the registry;
-        // the visibility filter below keeps them admin-only until released
-        ...LIVE_GLYPHS.map((g) => rk(`glyph${g.id}` as KitComponentId, `Glyph · ${g.name}`)),
-      ];
-      // the catalog is tier-blind since the free-play round — the sheet
-      // export itself is paid-gated upstream. Staging-bay pieces ride
-      // only for the admin (or once released) — same rule as the page.
-      return entries.filter((e) => kitVisible(e.cid, st.componentReleases, st.isAdmin));
-    }
-  };
   const downloadAllAssets = async () => {
     if (sheetBusy) return;
     setSheetBusy(true);
