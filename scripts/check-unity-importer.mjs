@@ -2103,8 +2103,20 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/static void StampDynamicSource\(TMP_FontAsset fa, Font ttf\)/.test(cs)
       || !/m_SourceFontFileGUID/.test(cs) || !/m_SourceFontFile_EditorRef/.test(cs))
     errors.push("StampDynamicSource is missing (or lost its serialized-property stamps) — dynamic faces forget their source font across reloads and text drops to the LiberationSans fallback (the owner's 'kinda' font)");
-  if (!/if \(existing != null\) \{ StampDynamicSource\(existing, ttf\); return existing; \}/.test(cs))
-    errors.push("EnsureTmpFace must stamp EXISTING faces too — projects minted before the fix must heal on re-import (the 'kinda' font)");
+  if (!/if \(existing != null\) \{ StampDynamicSource\(existing, ttf\); TuneSyntheticBold\(existing\); return existing; \}/.test(cs))
+    errors.push("EnsureTmpFace must stamp AND tune EXISTING faces too — projects minted before the fix must heal on re-import (the 'kinda' font, the wide synthetic bold)");
+  /* round 79 (Hot Rod 2 on Audiowide, a one-cut family): TextMeshPro's
+     synthetic bold adds its bold spacing (7% of the font size) to every
+     glyph advance; the browser's synthetic bold adds none, and the app
+     measures with the browser. Every face the importer mints or loads
+     must zero that spacing, on both rungs, through reflection (the
+     surface is a field on TMP 3.0 and a property on TMP 3.2+ / uGUI 2.0). */
+  if (!/static void TuneSyntheticBold\(TMPro\.TMP_FontAsset fa\)/.test(cs)
+      || !/GetProperty\("boldStyleSpacing"\)/.test(cs) || !/GetField\("boldSpacing"\)/.test(cs))
+    errors.push("TuneSyntheticBold is missing (or lost a TMP surface) — synthetic-bold words run 7% of the font size wider per letter than the app and walk out of their plates");
+  const tuneCalls = (cs.match(/TuneSyntheticBold\((fa|existing)\)/g) || []).length;
+  if (tuneCalls < 10)
+    errors.push(`TuneSyntheticBold must run at every face mint and every existing-face load (KitFace, Content, Instrument, Rider, LTS: 10 sites), found ${tuneCalls}`);
   if (!/var itFace = EnsureTmpFace\(root, m, kitFont\);\s*\n\s*if \(itFace != null\) itLb\.font = itFace;/.test(cs))
     errors.push("the dropdown's Item Label must bind the kit face at rig build (itLb.font = itFace) — rows otherwise ride TMP's fallback face");
   if (!/itLbF\.font == null \|\| itLbF\.font\.name\.StartsWith\("LiberationSans"\)/.test(cs))

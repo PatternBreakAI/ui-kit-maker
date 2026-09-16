@@ -49,7 +49,10 @@ Not the silhouette. Hot Rod's type has an outline, a glow and a shadow, and the 
 Same cause for both. The stock glyph buttons that are not customized ship as thin variants of the slot button. The plain white glyph was sized to a box measured from the kit's own glyph, glow included. Hot Rod's glow made that box much bigger than the glyph itself. The manifest now carries the glyph's real ink size, and the thin variants use that. The check tile was the `Check` glyph button, not the checkbox.
 
 **13. The download notice about Audiowide.**
-Audiowide only comes in one weight, so "couldn't be downloaded just now, re-export" was the wrong message. It now says the family has no Bold cut and that re-exporting will not change that. Pick a family with a Bold cut if the weight matters.
+Audiowide only comes in one weight, so "couldn't be downloaded just now, re-export" was the wrong message. There were two copies of it, one for the label face and one for body text, and Chevon hit the second one a few times. Both now say the family has no Bold cut and that re-exporting will not change that. Pick a family with a Bold cut if the weight matters.
+
+**14. Bold text on a one-weight kit keeps the app's width.**
+Hot Rod designs its type heavier than Audiowide can supply, so every label and seat in Unity wears TextMeshPro's synthetic bold. TextMeshPro adds 7 percent of the font size to every letter when it fakes bold. The browser fakes bold without touching letter spacing, and that is what the app draws. So live words in Unity ran about a tenth wider than in the app and walked out of their plates. The importer now zeroes that extra spacing on every font asset it makes or loads, so the stroke is the only difference left. Existing projects fix themselves on the next import, no rebuild needed.
 
 ## What we chose not to do
 
@@ -68,4 +71,5 @@ Audiowide only comes in one weight, so "couldn't be downloaded just now, re-expo
 - Card face in a scene: call `SetCard`, then hit and buff the corner numbers.
 - Settings row: delete the Well child and confirm a bare plate.
 - Hot Rod: labels single, glyph buttons and the Check button at the right size, flames on every piece after Chevon's restore.
+- Hot Rod: live words (labels and seats) sitting inside their plates at the app's width, not spilling past the edges.
 - Anything the rename moved that a scene lost track of. It should not happen, since the GUIDs do not change.

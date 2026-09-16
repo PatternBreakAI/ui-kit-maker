@@ -7452,6 +7452,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   const designedW = Math.min(900, Math.max(100, Math.round((base.type.weight || 400) / 100) * 100));
   const W_TAGS: Record<number, string> = { 100: "Thin", 200: "ExtraLight", 300: "Light", 400: "Regular", 500: "Medium", 600: "SemiBold", 700: "Bold", 800: "ExtraBold", 900: "Black" };
   let shippedWeight = 400;
+  let kitFaceSaidNoCut = false; // the kit-face notice already told the one-cut story (the content notice below must not repeat it)
   for (const fam of famList) {
     const wantAxis = fam === st.cfg.type.font && designedW !== 400;
     let got = wantAxis ? await fetchKitFont(fam, `wght@${designedW}`, W_TAGS[designedW] ?? `W${designedW}`).catch(() => null) : null;
@@ -7482,8 +7483,9 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
            network miss, and no re-export will ever change it */
         const capsW = fontByName(fam).caps?.weights;
         const noSuchCut = Array.isArray(capsW) && capsW.length > 0 && !capsW.includes(designedW);
+        if (noSuchCut) kitFaceSaidNoCut = true;
         onWarn?.(noSuchCut
-          ? `Heads up — your kit designs its type at weight ${designedW}, but "${fam}" has no ${W_TAGS[designedW] ?? designedW} cut (it comes in ${capsW.map((w9) => W_TAGS[w9] ?? String(w9)).join(", ")} only), so this zip carries ${aboard}. Unity approximates the difference with synthetic bold, which reads lighter than your design. For a true ${W_TAGS[designedW] ?? designedW}, pick a family that has one. Nothing to re-export.`
+          ? `Heads up: your kit designs its type at weight ${designedW}, but "${fam}" has no ${W_TAGS[designedW] ?? designedW} cut (it comes in ${capsW.map((w9) => W_TAGS[w9] ?? String(w9)).join(", ")} only), so this zip carries ${aboard}. Unity synthesizes the extra weight from that cut, the same way your browser does in the app. For a true ${W_TAGS[designedW] ?? designedW}, pick a family that has one. Nothing to re-export.`
           : `Heads up — your kit designs its type at weight ${designedW}, but the real ${W_TAGS[designedW] ?? designedW} cut of "${fam}" couldn't be downloaded just now, so this zip ships ${aboard}. Unity will approximate the difference with synthetic bold, which reads lighter than your design. Re-export when fonts.gstatic.com is reachable and the kit heals itself on the next import — nothing you type in Unity is lost.`);
       }
     }
@@ -7522,12 +7524,24 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      exactly as before. */
   let contentFile: string | null = null;
   if (primaryFontFile && shippedWeight < 700) {
-    const got = await fetchKitFont(st.cfg.type.font, "wght@700", W_TAGS[700]).catch(() => null);
+    const fam7 = st.cfg.type.font;
+    /* the honest version, content edition (round 79: the field re-exported
+       Hot Rod 2 "a few times" on the network message below and Audiowide,
+       a one-cut family, never gained a Bold). A family without a 700 is
+       not a download miss: nothing is fetched, nothing is re-exported,
+       and the note says so once. The kit-face notice above already told
+       the one-cut story when the design weight rounds to 700, so the
+       content note stays quiet then. */
+    const capsW7 = fontByName(fam7).caps?.weights;
+    const has700 = !Array.isArray(capsW7) || capsW7.length === 0 || capsW7.includes(700);
+    const got = has700 ? await fetchKitFont(fam7, "wght@700", W_TAGS[700]).catch(() => null) : null;
     if (got && !got.variable && got.realWeight === 700) {
       contentFile = `fonts/${got.file}`;
       if (!files.some((f) => f.path === contentFile)) files.push({ path: contentFile, data: got.bytes });
+    } else if (!has700) {
+      if (!kitFaceSaidNoCut) onWarn?.(`Note: "${fam7}" comes in ${capsW7!.map((w9) => W_TAGS[w9] ?? String(w9)).join(", ")} only, so bold body text in Unity is synthesized from that cut, the same way your browser draws it in the app. Nothing to re-export.`);
     } else {
-      onWarn?.(`Heads up — the Bold (700) cut of "${st.cfg.type.font}" for content text couldn't be downloaded just now, so bold body text in Unity will wear a synthetic bold that reads lighter than the app. Re-export when fonts.gstatic.com is reachable and the kit heals itself on the next import.`);
+      onWarn?.(`Heads up: the Bold (700) cut of "${fam7}" for content text couldn't be downloaded just now, so bold body text in Unity will wear a synthetic bold that reads lighter than the app. Re-export when fonts.gstatic.com is reachable and the kit heals itself on the next import.`);
     }
   }
   /* a fontless zip must NEVER leave the browser silently again (round-9
@@ -18724,7 +18738,7 @@ namespace PatternBreak {
       HonestizeTypeWeights(root, m);
       var path = root + "/fonts/KitFace SDF.asset";
       var existing = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(path);
-      if (existing != null) { StampDynamicSource(existing, ttf); return existing; }
+      if (existing != null) { StampDynamicSource(existing, ttf); TuneSyntheticBold(existing); return existing; }
       if (ttf == null) return null; // the import pass logs the font story
       TMP_FontAsset fa = null;
       try { fa = TMP_FontAsset.CreateFontAsset(ttf, 96, 16, UnityEngine.TextCore.LowLevel.GlyphRenderMode.SDFAA, 2048, 2048, AtlasPopulationMode.Dynamic); }
@@ -18739,6 +18753,7 @@ namespace PatternBreak {
       fa.name = "KitFace SDF";
       AssetDatabase.CreateAsset(fa, path);
       StampDynamicSource(fa, ttf);
+      TuneSyntheticBold(fa);
       if (fa.material != null) {
         fa.material.name = "KitFace SDF Material";
         AssetDatabase.AddObjectToAsset(fa.material, fa);
@@ -22903,7 +22918,7 @@ namespace PatternBreak {
       var instTtf = m != null && m.typography != null && !string.IsNullOrEmpty(m.typography.instrumentFile)
         ? AssetDatabase.LoadAssetAtPath<Font>(root + "/" + m.typography.instrumentFile) : null;
       var existing = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(path);
-      if (existing != null) { StampDynamicSource(existing, instTtf); return existing; }
+      if (existing != null) { StampDynamicSource(existing, instTtf); TuneSyntheticBold(existing); return existing; }
       var ttf = instTtf;
       if (ttf == null) return null;
       TMP_FontAsset fa = null;
@@ -22912,6 +22927,7 @@ namespace PatternBreak {
       fa.name = "Instrument SDF";
       AssetDatabase.CreateAsset(fa, path);
       StampDynamicSource(fa, ttf); // the dynamic atlas keeps its source across reloads
+      TuneSyntheticBold(fa);
       if (fa.material != null) { fa.material.name = "Instrument SDF Material"; AssetDatabase.AddObjectToAsset(fa.material, fa); }
       if (fa.atlasTextures != null && fa.atlasTextures.Length > 0 && fa.atlasTextures[0] != null) { fa.atlasTextures[0].name = "Instrument SDF Atlas"; AssetDatabase.AddObjectToAsset(fa.atlasTextures[0], fa); }
       EditorUtility.SetDirty(fa);
@@ -22934,7 +22950,7 @@ namespace PatternBreak {
       var srcTtf = m != null && m.typography != null && !string.IsNullOrEmpty(m.typography.contentFile)
         ? AssetDatabase.LoadAssetAtPath<Font>(root + "/" + m.typography.contentFile) : null;
       var existing = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(path);
-      if (existing != null) { StampDynamicSource(existing, srcTtf); return existing; }
+      if (existing != null) { StampDynamicSource(existing, srcTtf); TuneSyntheticBold(existing); return existing; }
       var ttf = srcTtf;
       if (ttf == null) return null;
       TMP_FontAsset fa = null;
@@ -22943,6 +22959,7 @@ namespace PatternBreak {
       fa.name = "KitFace Content SDF";
       AssetDatabase.CreateAsset(fa, path);
       StampDynamicSource(fa, ttf); // the dynamic atlas keeps its source across reloads
+      TuneSyntheticBold(fa);
       if (fa.material != null) { fa.material.name = "KitFace Content SDF Material"; AssetDatabase.AddObjectToAsset(fa.material, fa); ApplyStyle(fa.material, m, root); }
       if (fa.atlasTextures != null && fa.atlasTextures.Length > 0 && fa.atlasTextures[0] != null) { fa.atlasTextures[0].name = "KitFace Content SDF Atlas"; AssetDatabase.AddObjectToAsset(fa.atlasTextures[0], fa); }
       EditorUtility.SetDirty(fa);
@@ -23243,6 +23260,39 @@ namespace PatternBreak {
       rrt.sizeDelta = sz;
       rrt.anchoredPosition = Vector2.zero;
       return false;
+    }
+    /* SYNTHETIC BOLD, the app's way (round 79: Hot Rod 2 on Audiowide, a
+       one-cut family, "all kinds of layout problems in Unity"). When a
+       label or seat bolds over a lighter cut, TextMeshPro adds its bold
+       spacing (7, i.e. 7% of the font size) to EVERY glyph advance on top
+       of the stroke dilation. The browser's synthetic bold thickens the
+       strokes and leaves the advances alone (measured: identical widths
+       at 400 and 700). So every live word on a bolded kit ran roughly a
+       tenth wider than the app drew it and walked out of its plate. Zero
+       the extra spacing on every face the importer mints or loads, so
+       the stroke is the only difference left. Written through reflection
+       because the surface moved between TMP generations: TMP 3.0 (2022.3)
+       exposes the public field boldSpacing, TMP 3.2+ / uGUI 2.0 the
+       property boldStyleSpacing. Idempotent, so existing faces converge on
+       the next import without dirtying anything that already agrees.
+       Rung-agnostic (fully-qualified TMP, the LTS face mints call it). */
+    static void TuneSyntheticBold(TMPro.TMP_FontAsset fa) {
+      if (fa == null) return;
+      try {
+        bool wrote = false;
+        var tFa = typeof(TMPro.TMP_FontAsset);
+        var pSp = tFa.GetProperty("boldStyleSpacing");
+        if (pSp != null && pSp.PropertyType == typeof(float) && pSp.CanWrite) {
+          if (Mathf.Abs((float)pSp.GetValue(fa, null)) > 0.001f) { pSp.SetValue(fa, 0f, null); wrote = true; }
+        } else {
+          var fSp = tFa.GetField("boldSpacing");
+          if (fSp != null && fSp.FieldType == typeof(float) && Mathf.Abs((float)fSp.GetValue(fa)) > 0.001f) { fSp.SetValue(fa, 0f); wrote = true; }
+        }
+        if (wrote) {
+          EditorUtility.SetDirty(fa);
+          AssetDatabase.SaveAssetIfDirty(fa); // ours alone, never a blanket save (immutable-package policy)
+        }
+      } catch (Exception) { /* a TMP with neither surface keeps its own spacing */ }
     }
     /* round 48 (the smashed-pair guard, cross-lane): a kern-guarded seat
        word renders with TMP kerning OFF — per label, never global, on
@@ -23701,7 +23751,7 @@ namespace PatternBreak {
     static TMPro.TMP_FontAsset RiderFace(string root, PBManifest m) {
       var pathRF = root + "/fonts/Instrument SDF.asset";
       var existing = AssetDatabase.LoadAssetAtPath<TMPro.TMP_FontAsset>(pathRF);
-      if (existing != null) return existing;
+      if (existing != null) { TuneSyntheticBold(existing); return existing; }
       var ttf = m != null && m.typography != null && !string.IsNullOrEmpty(m.typography.instrumentFile)
         ? AssetDatabase.LoadAssetAtPath<Font>(root + "/" + m.typography.instrumentFile) : null;
       if (ttf == null) return null;
@@ -23710,6 +23760,7 @@ namespace PatternBreak {
       if (fa == null) return null;
       fa.name = "Instrument SDF";
       AssetDatabase.CreateAsset(fa, pathRF);
+      TuneSyntheticBold(fa);
       if (fa.material != null) { fa.material.name = "Instrument SDF Material"; AssetDatabase.AddObjectToAsset(fa.material, fa); }
       if (fa.atlasTextures != null && fa.atlasTextures.Length > 0 && fa.atlasTextures[0] != null) { fa.atlasTextures[0].name = "Instrument SDF Atlas"; AssetDatabase.AddObjectToAsset(fa.atlasTextures[0], fa); }
       EditorUtility.SetDirty(fa);
@@ -23725,7 +23776,7 @@ namespace PatternBreak {
     static TMPro.TMP_FontAsset LtsKitFace(string root, PBManifest m) {
       var pathKL = root + "/fonts/KitFace LTS.asset";
       var existing = AssetDatabase.LoadAssetAtPath<TMPro.TMP_FontAsset>(pathKL);
-      if (existing != null) return existing;
+      if (existing != null) { TuneSyntheticBold(existing); return existing; }
       var ttf = m != null && m.typography != null && !string.IsNullOrEmpty(m.typography.fontFile)
         ? AssetDatabase.LoadAssetAtPath<Font>(root + "/" + m.typography.fontFile) : null;
       if (ttf == null) return null;
@@ -23734,6 +23785,7 @@ namespace PatternBreak {
       if (fa == null) return null;
       fa.name = "KitFace LTS";
       AssetDatabase.CreateAsset(fa, pathKL);
+      TuneSyntheticBold(fa);
       if (fa.material != null) { fa.material.name = "KitFace LTS Material"; AssetDatabase.AddObjectToAsset(fa.material, fa); }
       if (fa.atlasTextures != null && fa.atlasTextures.Length > 0 && fa.atlasTextures[0] != null) { fa.atlasTextures[0].name = "KitFace LTS Atlas"; AssetDatabase.AddObjectToAsset(fa.atlasTextures[0], fa); }
       EditorUtility.SetDirty(fa);
