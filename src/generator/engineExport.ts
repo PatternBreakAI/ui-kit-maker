@@ -320,6 +320,11 @@ interface AssetMeta {
    *  pill); `wellR` (design px) marks a circular-masked image well (the
    *  avatar's portrait) — the importer builds mask + swappable Portrait. */
   iconSeats?: { name: string; file: string; dx: number; dy: number; w: number; h: number; btn?: boolean; wellR?: number;
+    /** the mark's INK box (alpha ≥ half, design px) inside the reach box —
+     *  what a plain glyph swapped into the seat should be sized to, never
+     *  the halo's reach (round 78: Hot Rod's glow made the thin fleet's
+     *  white glyphs giants) */
+    iw?: number; ih?: number;
     /** right-edge pin (the dropdown's caret): the child anchors to the
      *  RECT's right edge and keeps `rightGap` design px between the
      *  drawn shell's right edge and its own box — the app's constant
@@ -3726,6 +3731,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
          (the masked child stretches the sprite over the well rect 1:1);
          everything else crops to its drawn alpha box + 2px of AA air */
       let bx: number, by: number, bw9: number, bh9: number;
+      let iw9 = 0, ih9 = 0; // the ink box (round 78) — measured where the reach box is
       let measured = false; // the alpha-branch box may verify-and-widen below
       if (mk.box && mk.box.length === 4 && mk.box.every(Number.isFinite) && mk.box[2] > 1 && mk.box[3] > 1) {
         // fixed frame (round 44): every look of this mark shares one canvas
@@ -3764,6 +3770,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         const pad = 2;
         if (rb) {
           const abW = await svgAlphaBox(wide, PNG_SCALE, 8).catch(() => null) ?? rb;
+          const ink9 = await svgAlphaBox(wide, PNG_SCALE, 128).catch(() => null);
+          if (ink9) { iw9 = (ink9.x1 - ink9.x0 + 1) / (PNG_SCALE * dscX); ih9 = (ink9.y1 - ink9.y0 + 1) / (PNG_SCALE * dscY); }
           bx = (vx - p9) + Math.min(abW.x0, rb.x0) / (PNG_SCALE * dscX) - pad;
           by = (vy - p9) + Math.min(abW.y0, rb.y0) / (PNG_SCALE * dscY) - pad;
           bw9 = (Math.max(abW.x1, rb.x1) - Math.min(abW.x0, rb.x0) + 1) / (PNG_SCALE * dscX) + pad * 2;
@@ -3814,6 +3822,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         dx: r1(bx + bw9 / 2 - (s0[0] + s0[2] / 2)),
         dy: r1(by + bh9 / 2 - (s0[1] + s0[3] / 2)),
         w: r1(bw9), h: r1(bh9),
+        ...(iw9 > 1 && ih9 > 1 ? { iw: r1(iw9), ih: r1(ih9) } : {}),
         ...(mk.btn ? { btn: true } : {}),
         ...(mk.well ? { wellR: r1(mk.well[2]) } : {}),
         ...(mk.nick ? { nick: mk.nick } : {}),
@@ -4477,7 +4486,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      by the importer from those rows, the rest ride the THIN variant road
      off the slotbtn frame. Empty whenever the set is staged, or out of
      full scope — no entry ever names a sprite this zip does not hold. */
-  const glyphFleetOut: { name: string; fam: string; file: string; dx: number; dy: number; w: number; h: number }[] = [];
+  const glyphFleetOut: { name: string; fam: string; file: string; dx: number; dy: number; w: number; h: number; iw: number; ih: number }[] = [];
   const glyphFleetIds: string[] = [];
   /* ── the fleet's ROAD SPLIT (round 52) ─────────────────────────────
      A button whose render still equals "the kit's slotbtn frame wearing
@@ -5363,7 +5372,16 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
               };
               try {
                 const lgN = new DOMParser().parseFromString(fullU, "image/svg+xml").querySelector('[data-part="label"]');
-                const w0 = (lgN?.textContent ?? "").replace(/\s+/g, " ").trim();
+                /* a LAYERED label (outline + glow + shadow + fill — Hot Rod)
+                   draws the same words once per layer; the word is ONE
+                   period of that repeat, never the four-fold echo the field
+                   saw stacked on the ghost button (round 78) */
+                const tNodes = lgN ? Array.from(lgN.querySelectorAll("text")).map((t) => (t.textContent ?? "").replace(/\s+/g, " ").trim()).filter(Boolean) : [];
+                let w0 = (lgN?.textContent ?? "").replace(/\s+/g, " ").trim();
+                for (let per9 = 1; tNodes.length > 1 && per9 <= tNodes.length; per9++) {
+                  if (tNodes.length % per9 !== 0) continue;
+                  if (tNodes.every((t, i) => t === tNodes[i % per9])) { w0 = tNodes.slice(0, per9).join(" "); break; }
+                }
                 if (w0) uWord = w0;
               } catch { /* the seat road still carries the piece */ }
             }
@@ -5782,6 +5800,41 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
             }
           } catch { knobSvgSR = null; }
         }
+        /* ── the SETROW WELL (round 78 — Jimi: "the SetRow prefab has the
+           slider baked into the rectangular shape… just the background
+           shape ready to go"): the well un-burns as its own sprite (the
+           editability law — frames separate from what they hold), so the
+           plate ships bare and the prefab mounts the well as a child
+           behind the mercury. Delete or restyle either without the other.
+           Gated like the knob. ── */
+        let wellSvgSR: string | null = null;
+        if (uid === "setrow" && barFillSvgU && barCapSvgU) {
+          try {
+            const svW = stripLoopsU(shell(uid, uOpts, undefined, uVal));
+            const domW = new DOMParser().parseFromString(svW, "image/svg+xml");
+            const keepW = domW.querySelector("[data-setrow-well]");
+            if (keepW) {
+              for (const el of Array.from(domW.querySelectorAll(ICON_DRAWABLE_SEL)))
+                if (!el.closest("defs") && !keepW.contains(el)) el.remove();
+              const onlyW = new XMLSerializer().serializeToString(domW.documentElement);
+              const wb9 = (keepW.getAttribute("data-setrow-well") ?? "").split(" ").map(Number);
+              const shDW = /data-shell="([-\d. ]+)"/.exec(svW)?.[1].split(" ").map(Number);
+              const sh0W = /data-shell0="([-\d. ]+)"/.exec(svW)?.[1].split(" ").map(Number);
+              const riseW = shDW && sh0W && shDW.length === 4 && sh0W.length === 4 ? shDW[1] - sh0W[1] : 0;
+              if (wb9.length === 4 && wb9.every(Number.isFinite) && wb9[2] > 2 && wb9[3] > 2) {
+                const padW = 1;
+                const bxW = wb9[0] - padW, byW = wb9[1] + riseW - padW, bwW = wb9[2] + padW * 2, bhW = wb9[3] + padW * 2;
+                wellSvgSR = onlyW
+                  .replace(/viewBox="[^"]+"/, `viewBox="${bxW.toFixed(1)} ${byW.toFixed(1)} ${bwW.toFixed(1)} ${bhW.toFixed(1)}"`)
+                  .replace(/ width="[\d.]+"/, ` width="${Math.ceil(bwW)}"`)
+                  .replace(/ height="[\d.]+"/, ` height="${Math.ceil(bhW)}"`);
+                const domB2 = new DOMParser().parseFromString(baseSvgU, "image/svg+xml");
+                for (const g9 of Array.from(domB2.querySelectorAll("[data-setrow-well]"))) g9.remove();
+                baseSvgU = new XMLSerializer().serializeToString(domB2.documentElement);
+              }
+            }
+          } catch { wellSvgSR = null; }
+        }
         /* ── the STEPPER becomes a WORKING control (round 44, item 37 —
            RIG-2 + RIG-4 + RIG-7): base re-bakes with EMPTY cells and the
            caps stripped; the lit strip overlays at value 1 for the cell
@@ -5984,6 +6037,12 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           await addPng(`${uid}/knob.png`, knobSvgSR, {
             component: uid, part: "knob", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
             usage: "The candy knob — the mini Slider's Handle wears it (generated wiring). Swap the sprite to restyle the grip.",
+          }, false);
+        }
+        if (wellSvgSR) {
+          await addPng(`${uid}/well.png`, wellSvgSR, {
+            component: uid, part: "well", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+            usage: "The slider's WELL, bare — the Setrow prefab mounts it as its own child behind the mercury (generated wiring). Delete it for a plain settings row, or swap the sprite to restyle the trough.",
           }, false);
         }
         if (stepperOut) {
@@ -6754,7 +6813,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           /* the FULL road already shipped this component's own rows —
              the roster entry names the family; geometry rides the base
              row's iconSeats, so the entry's box is deliberately zero */
-          glyphFleetOut.push({ name: bGF.glyphName, fam: bGF.id, file: `assets/${bGF.id}/${bGF.id}-base.png`, dx: 0, dy: 0, w: 0, h: 0 });
+          glyphFleetOut.push({ name: bGF.glyphName, fam: bGF.id, file: `assets/${bGF.id}/${bGF.id}-base.png`, dx: 0, dy: 0, w: 0, h: 0, iw: 0, ih: 0 });
           glyphFleetIds.push(gid);
           continue;
         }
@@ -6770,7 +6829,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         const seatsG = await iconSeatsOf("slotbtn", fullG, undefined, `glyph-${gid}`);
         const seatG = seatsG && seatsG.length === 1 && seatsG[0].name === `glyph-${gid}` ? seatsG[0] : null;
         if (!seatG) continue; // this glyph waits for a later wave; the class ships without it
-        glyphFleetOut.push({ name: bGF.glyphName, fam: bGF.id, file: seatG.file, dx: seatG.dx, dy: seatG.dy, w: seatG.w, h: seatG.h });
+        glyphFleetOut.push({ name: bGF.glyphName, fam: bGF.id, file: seatG.file, dx: seatG.dx, dy: seatG.dy, w: seatG.w, h: seatG.h, iw: seatG.iw ?? 0, ih: seatG.ih ?? 0 });
         glyphFleetIds.push(gid);
       }
     }
@@ -7417,7 +7476,15 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         const aboard = got.variable
           ? `a VARIABLE file whose default instance renders at weight ${got.realWeight ?? "unknown"} (Unity's TextMeshPro cannot select variable-font weights)`
           : `the weight-${got.realWeight ?? 400} cut`;
-        onWarn?.(`Heads up — your kit designs its type at weight ${designedW}, but the real ${W_TAGS[designedW] ?? designedW} cut of "${fam}" couldn't be downloaded just now, so this zip ships ${aboard}. Unity will approximate the difference with synthetic bold, which reads lighter than your design. Re-export when fonts.gstatic.com is reachable and the kit heals itself on the next import — nothing you type in Unity is lost.`);
+        /* the honest version (round 78 — the field saw "couldn't be
+           downloaded just now… re-export" for Audiowide, a family that
+           ships ONE cut): a weight the family does not have is not a
+           network miss, and no re-export will ever change it */
+        const capsW = fontByName(fam).caps?.weights;
+        const noSuchCut = Array.isArray(capsW) && capsW.length > 0 && !capsW.includes(designedW);
+        onWarn?.(noSuchCut
+          ? `Heads up — your kit designs its type at weight ${designedW}, but "${fam}" has no ${W_TAGS[designedW] ?? designedW} cut (it comes in ${capsW.map((w9) => W_TAGS[w9] ?? String(w9)).join(", ")} only), so this zip carries ${aboard}. Unity approximates the difference with synthetic bold, which reads lighter than your design. For a true ${W_TAGS[designedW] ?? designedW}, pick a family that has one. Nothing to re-export.`
+          : `Heads up — your kit designs its type at weight ${designedW}, but the real ${W_TAGS[designedW] ?? designedW} cut of "${fam}" couldn't be downloaded just now, so this zip ships ${aboard}. Unity will approximate the difference with synthetic bold, which reads lighter than your design. Re-export when fonts.gstatic.com is reachable and the kit heals itself on the next import — nothing you type in Unity is lost.`);
       }
     }
   }
@@ -13198,7 +13265,7 @@ async function readmeFigures(base: GenConfig): Promise<{ path: string; data: Uin
       }
       body += txt(padX, 26, "ANATOMY OF A GENERATED PREFAB", { size: 12, weight: 800, fill: DIM });
       const { bytes } = await svgToPngBytes(plate(W, H, body), 2);
-      out.push({ path: "docs/button-anatomy.png", data: bytes });
+      out.push({ path: "Documentation/button-anatomy.png", data: bytes });
     }
   }
 
@@ -13225,7 +13292,7 @@ async function readmeFigures(base: GenConfig): Promise<{ path: string; data: Uin
       });
       body += txt(padX, 26, "STATES — PRE-WIRED ON EVERY BUTTON PREFAB", { size: 12, weight: 800, fill: DIM });
       const { bytes } = await svgToPngBytes(plate(W, H, body), 2);
-      out.push({ path: "docs/states.png", data: bytes });
+      out.push({ path: "Documentation/states.png", data: bytes });
     }
   }
   return out;
@@ -13461,7 +13528,7 @@ re-exporting. Skim the titles; stop where your question lives.
 
 **Remix this kit:** https://uikitmaker.com/?src=unity-asset-store — restyle every piece, retype every word, re-export; the new zip drops over this folder and heals in place.
 ${figures ? `
-![Anatomy of a generated prefab: the nine-sliced sprite, the one-text echo label, and the Hero Label box that drives it](docs/button-anatomy.png)
+![Anatomy of a generated prefab: the nine-sliced sprite, the one-text echo label, and the Hero Label box that drives it](Documentation/button-anatomy.png)
 
 *Every picture in this README is YOUR kit, rendered at export time —
 this is not a stock manual.*
@@ -13479,6 +13546,19 @@ on the Button, a live label. ${st.scope === "free"
 The Project window highlights **${root}/Prefabs** when they land, right
 after the Console receipt. They're generated once and never touched
 again — edit them freely.
+
+**Finding a prefab.** The Prefabs folder is shelved by chapter, the same
+chapters the Playground shows — **Buttons**, **Choice Controls**,
+**Sliders and Progress**, **Navigation and Chrome**, **HUD and Data**,
+**Gauges**, **Game Systems**, **RPG and MMO**, **Shooter and Action**,
+**Casual and Saga**, **Strategy and Social**, **Rewards** — plus
+**Glyphs** (the icon rack), **Art** (your board pictures) and
+**Labels**. Every flavor sits beside its family under a plain name:
+\`GlyphButton_Coin\`, \`SlotButton_Gem\`, \`ButtonPrimary_BOOST\`,
+\`DataRow_TiledFace\`. Open **Playground.unity** for the picture index:
+every piece is captioned with its folder and name. Move prefabs
+wherever you like — the importer finds them by name on re-import and
+never re-shelves what you moved.
 
 > **Why aren't the prefabs just in the zip?** A prefab file can only
 > reference sprites through the identity (GUID) that YOUR Unity assigns
@@ -13672,7 +13752,7 @@ already resolved; the prefab is the piece that wants your hands on it.
 
 ## 03 · States — designed, shipped, pre-wired
 ${figures ? `
-![The four button states — default, hover, pressed and disabled — as the Button component swaps them](docs/states.png)
+![The four button states — default, hover, pressed and disabled — as the Button component swaps them](Documentation/states.png)
 ` : ""}
 Interactive pieces ship their DESIGNED states (base-hover /
 base-pressed / base-disabled next to base), and the generated Button
@@ -13967,11 +14047,11 @@ simply isn't visible.
 ### The stretch-safe face (no compromise)
 
 When a kit wears a pattern, the wide pieces also ship **split into
-layers**, and the importer builds them as ready prefabs in their own
-folder — **Prefabs/Tiled face/** — so the two flavors never blur
-together: \`Prefabs/\` is the plain drag-in pieces, \`Prefabs/Tiled face/\`
-is the stretch-safe pattern flavor of the same names (panel, header,
-both buttons, data row, item slot). The buttons in there carry the same
+layers**, and the importer builds them as ready prefabs beside their
+families, named with a \`_TiledFace\` suffix — so the two flavors never
+blur together: \`ButtonPrimary\` is the plain drag-in piece,
+\`ButtonPrimary_TiledFace\` is the stretch-safe pattern flavor (panel,
+header, both buttons, data row, item slot). The tiled buttons carry the same
 live label and engine-side states (glow, lift, label ink) as their
 plain siblings — no sprite swap, because swapping one layer of a
 layered build would double the pattern.
@@ -14133,7 +14213,9 @@ card is a row of data.
   name and the two corner numbers. Right-click > Create > UI Kit Maker >
   Card, or mint them from a spreadsheet in an editor script; either way
   they are rows, and rows are cheap.
-- **KitCardFace** on the prefab dresses it. \`SetCard(def)\` does the
+- **Kit Card Face** is on the Cardface prefab (the component lives in
+  Runtime/PatternBreakCardFace.cs; to add it to a card of your own,
+  Add Component > UI Kit Maker > Kit Card Face). \`SetCard(def)\` does the
   whole card in one call, or drive the parts — \`SetArt\`, \`SetName\`,
   \`SetLeft\`, \`SetRight\`. Nothing about the card is painted into the
   art: the picture is a swappable **Image** child, the name is a live
@@ -14169,8 +14251,8 @@ in.
 ### Label variants — one prefab per word
 
 Every distinct word you pinned on a board copy (a button that says
-BOOST while the family says PLAY) arrives as its own prefab in
-**Prefabs/Variants/** — e.g. "ButtonPrimary – BOOST.prefab". These are
+BOOST while the family says PLAY) arrives as its own prefab beside its
+family — e.g. \`Buttons/ButtonPrimary_BOOST.prefab\`. These are
 native Unity **Prefab Variants** of the family prefab: the only thing a
 variant owns is its word, so when you restyle the kit and re-import,
 the new art flows into every variant automatically — BOOST stays BOOST,
@@ -14480,7 +14562,7 @@ namespace PatternBreak {
      the prefab builds FULL from the rows; otherwise the entry is a THIN
      variant off the slotbtn frame. Old zips carry no fam and ride the
      thin road exactly as before. */
-  [Serializable] class PBGlyphFleetEntry { public string name; public string file; public float dx; public float dy; public float w; public float h; public string fam; }
+  [Serializable] class PBGlyphFleetEntry { public string name; public string file; public float dx; public float dy; public float w; public float h; public float iw; public float ih; public string fam; }
   /* pendingMissing rides PARALLEL to pendingScenes (same index = same
      scene): the missing count the last build ended on. Two builds in a
      row ending on the SAME count is the un-armable-forever tripwire —
@@ -21718,6 +21800,23 @@ namespace PatternBreak {
       // own box, dead centre on the mercury band
       float bandHSR = go.GetComponent<RectTransform>().sizeDelta.y + areaSR.offsetMax.y - areaSR.offsetMin.y;
       hrtSR.sizeDelta = new Vector2(thW, thH - bandHSR);
+      /* the WELL rides as its own child (round 78): behind the mercury,
+         spanning the app's stamped well end to end, its own sprite height
+         centered on the band — the plate underneath ships bare now */
+      var wellSpSR = S(root + "/assets/setrow/setrow-well.png");
+      if (wellSpSR != null && go.transform.Find("Well") == null) {
+        var wellGo = ImageObject("Well", wellSpSR, pngScale);
+        wellGo.transform.SetParent(go.transform, false);
+        wellGo.transform.SetSiblingIndex(Mathf.Max(0, areaSR.GetSiblingIndex()));
+        var wiSR = wellGo.GetComponent<Image>();
+        wiSR.type = Image.Type.Simple; wiSR.preserveAspect = false; wiSR.raycastTarget = false;
+        var wrtSR = wellGo.GetComponent<RectTransform>();
+        float wellHSR = wellSpSR.rect.height / psSR;
+        float dySR = (wellHSR - bandHSR) * 0.5f;
+        wrtSR.anchorMin = new Vector2(0f, areaSR.anchorMin.y); wrtSR.anchorMax = new Vector2(1f, areaSR.anchorMax.y);
+        wrtSR.offsetMin = new Vector2(wellL, areaSR.offsetMin.y - dySR);
+        wrtSR.offsetMax = new Vector2(-wellR, areaSR.offsetMax.y + dySR);
+      }
       var slSR = go.AddComponent<Slider>();
       slSR.handleRect = hrtSR;
       slSR.targetGraphic = hiSR;
@@ -25656,7 +25755,8 @@ namespace PatternBreak {
               float fyGB = 1f - (rowGB.shell.y + rowGB.shell.h / 2f + fe.dy * psGB) / bsGB.rect.height;
               grt.anchorMin = grt.anchorMax = new Vector2(fxGB, fyGB);
               grt.anchoredPosition = Vector2.zero;
-              grt.sizeDelta = new Vector2(fe.w, fe.h);
+              // the glyph's INK box, not the halo's reach (round 78: Hot Rod's glow made the plain white glyph a giant)
+              grt.sizeDelta = fe.iw > 1f && fe.ih > 1f ? new Vector2(fe.iw, fe.ih) : new Vector2(fe.w, fe.h);
               PrefabUtility.RecordPrefabInstancePropertyModifications(grt);
             }
             var saved = PrefabUtility.SaveAsPrefabAsset(inst, path);

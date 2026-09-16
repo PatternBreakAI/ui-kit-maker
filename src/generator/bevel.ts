@@ -6484,7 +6484,8 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const gidR = "sr" + UID++;
       const gR = 2.5 * k, mHR = trH - gR * 2, mWR = Math.max(0, (trW - gR * 2) * vS0);
       const parts = contentText(opts.label ?? "MUSIC VOLUME", 39 + inset + 18 * k, cy + 1, 24 * k * typeK) +
-        `<rect x="${trX.toFixed(1)}" y="${(cy - trH / 2).toFixed(1)}" width="${trW.toFixed(1)}" height="${trH.toFixed(1)}" rx="${(trH / 2).toFixed(1)}" fill="${wellFill}"/>` +
+        // the WELL is marked (round 78): the export cuts it as its own sprite and ships the plate bare
+        `<g data-setrow-well="${trX.toFixed(1)} ${(cy - trH / 2).toFixed(1)} ${trW.toFixed(1)} ${trH.toFixed(1)}"><rect x="${trX.toFixed(1)}" y="${(cy - trH / 2).toFixed(1)}" width="${trW.toFixed(1)}" height="${trH.toFixed(1)}" rx="${(trH / 2).toFixed(1)}" fill="${wellFill}"/></g>` +
         `<defs><linearGradient id="${gidR}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(glow, 0.5)}"/><stop offset="0.5" stop-color="${glow}"/><stop offset="1" stop-color="${darken(glow, 0.25)}"/></linearGradient></defs>` +
         (mWR > 1 ? `<g data-barfill="${(trX + gR).toFixed(1)} ${(cy - mHR / 2).toFixed(1)} ${mWR.toFixed(1)} ${mHR.toFixed(1)}"><rect x="${(trX + gR).toFixed(1)}" y="${(cy - mHR / 2).toFixed(1)}" width="${mWR.toFixed(1)}" height="${mHR.toFixed(1)}" rx="${(mHR / 2).toFixed(1)}" fill="url(#${gidR})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 3px ${hexRgba(glow, 0.6)})"` : ""}/></g>` : "") +
         // the mark stamps the DISC center + a symmetric half-frame, so the

@@ -3691,7 +3691,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the manifest lost the glyphFleet roster — entries and sprites can disagree (round 51, S42)");
   if (!/for \(const gidF of glyphFleetIds\) tpnGlyphIds\.add\(`glyph\$\{gidF\}`\);/.test(src))
     errors.push("the shipped semantic cuts lost their CC-BY credit road (glyphAttribution via tpnGlyphIds) — game-icons art would ship uncredited (round 51, S42)");
-  if (!/class PBGlyphFleetEntry \{ public string name; public string file; public float dx; public float dy; public float w; public float h; public string fam; \}/.test(cs)
+  if (!/class PBGlyphFleetEntry \{ public string name; public string file; public float dx; public float dy; public float w; public float h; public float iw; public float ih; public string fam; \}/.test(cs)
       || !/public PBGlyphFleetEntry\[\] glyphFleet;/.test(cs))
     errors.push("PBManifest lost the glyph-fleet entries (name + file + measured seat + fam) (round 51+52, S42)");
   if (!/static bool GlyphFleetPrefabs\(string dir, string root, PBManifest m, bool quiet, int pngScale, Font kitFont\) \{/.test(cs)
@@ -3702,7 +3702,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/if \(glyphSp == null\) \{ missing\+\+; continue; \}/.test(gfp42)
       || !/\{ kept\+\+; continue; \}/.test(gfp42))
     errors.push("the glyph fleet lost its missing-sprite tolerance or its keep-theirs-after-creation rule (round 51, S42)");
-  if (!/grt\.sizeDelta = new Vector2\(fe\.w, fe\.h\);/.test(gfp42)
+  if (!/grt\.sizeDelta = fe\.iw > 1f && fe\.ih > 1f \? new Vector2\(fe\.iw, fe\.ih\) : new Vector2\(fe\.w, fe\.h\);/.test(gfp42)
       || !/float fxGB = \(rowGB\.shell\.x \+ rowGB\.shell\.w \/ 2f \+ fe\.dx \* psGB\) \/ bsGB\.rect\.width;/.test(gfp42)
       || !/var gT = inst\.transform\.Find\("Icon glyph"\);/.test(gfp42))
     errors.push("the glyph fleet variant no longer reseats the LIVE glyph child to the entry's app-measured box (round 51, S42)");
@@ -3731,7 +3731,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/if \(isGlyphButton\(uid\) && !gbtnFull\.has\(uid\)\) continue;/.test(src))
     errors.push("the universal loop lost the thin-road skip — every released glyph button would ship 47 full family bakes (round 52, S43)");
   if (!/if \(gbtnFull\.has\(bGF\.id\)\) \{/.test(src)
-      || !/glyphFleetOut\.push\(\{ name: bGF\.glyphName, fam: bGF\.id, file: `assets\/\$\{bGF\.id\}\/\$\{bGF\.id\}-base\.png`, dx: 0, dy: 0, w: 0, h: 0 \}\);/.test(src))
+      || !/glyphFleetOut\.push\(\{ name: bGF\.glyphName, fam: bGF\.id, file: `assets\/\$\{bGF\.id\}\/\$\{bGF\.id\}-base\.png`, dx: 0, dy: 0, w: 0, h: 0, iw: 0, ih: 0 \}\);/.test(src))
     errors.push("the roster no longer names FULL-road buttons (fam + their own base file) — the importer can't build their true prefabs (round 52, S43)");
   if (!/\.\.\.\[\.\.\.gbtnFull\]\.flatMap\(\(gid9\) => \{/.test(src))
     errors.push("FULL-road glyph buttons lost their own stateFx dial rows — a forked button would press without its glow/lift (round 52, S43)");

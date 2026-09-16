@@ -915,15 +915,53 @@ export async function buildSpriteSheetBytes(
   return await canvasToPngBytesDilated(cv).catch(() => null);
 }
 
-/** The packed sheet stays available as a VISUAL CATALOG download. */
+/** The packed sheet stays available as a VISUAL CATALOG download — in
+ *  PAGES no taller than 8192 px (round 78: the one-sheet version had
+ *  grown past 29000 px, which Unity refuses to open), each page its own
+ *  file. One page = the plain file name. */
+export async function buildSpriteSheetPages(
+  entries: { name: string; svg: string }[],
+  title: string,
+  fontFamily: string,
+  fontCss: string | null,
+  maxPageH = 8192,
+): Promise<Uint8Array[]> {
+  const PAGE = Math.max(1200, maxPageH);
+  const out: Uint8Array[] = [];
+  let page: { name: string; svg: string }[] = [];
+  let y = 96, x = 28, rowH = 0;
+  // the same packing arithmetic as the sheet builder, run ahead to cut pages at row edges
+  const meas = await Promise.all(entries.map((e) => new Promise<{ w: number; h: number }>((resolve) => {
+    const cropped = cropSheetPad(e.svg);
+    resolve({ w: +(/width="([\d.]+)"/.exec(cropped)?.[1] ?? 200), h: +(/height="([\d.]+)"/.exec(cropped)?.[1] ?? 100) });
+  })));
+  for (let i = 0; i < entries.length; i++) {
+    const S = Math.min(2, 430 / meas[i].h, 1400 / meas[i].w);
+    const w = Math.round(meas[i].w * S), h = Math.round(meas[i].h * S);
+    if (x + w + 28 > 2560 && x > 28) { x = 28; y += rowH + 44 + 28; rowH = 0; }
+    if (page.length && x === 28 && y + h + 44 + 28 > PAGE) {
+      out.push(...(await pageBytes(page, out.length, title, fontFamily, fontCss)));
+      page = []; y = 96; rowH = 0;
+    }
+    page.push(entries[i]);
+    rowH = Math.max(rowH, h);
+    x += w + 28;
+  }
+  if (page.length) out.push(...(await pageBytes(page, out.length, title, fontFamily, fontCss)));
+  return out;
+}
+async function pageBytes(page: { name: string; svg: string }[], index: number, title: string, fontFamily: string, fontCss: string | null): Promise<Uint8Array[]> {
+  const b = await buildSpriteSheetBytes(page, index === 0 ? title : `${title} · page ${index + 1}`, fontFamily, fontCss);
+  return b ? [b] : [];
+}
 export async function downloadSpriteSheet(
   entries: { name: string; svg: string }[],
   title: string,
   fontFamily: string,
   fontCss: string | null,
 ): Promise<void> {
-  const bytes = await buildSpriteSheetBytes(entries, title, fontFamily, fontCss);
-  if (bytes) download("kit-sprite-sheet.png", new Blob([bytes.buffer as ArrayBuffer], { type: "image/png" }));
+  const pages = await buildSpriteSheetPages(entries, title, fontFamily, fontCss);
+  pages.forEach((bytes, i) => download(pages.length === 1 ? "kit-sprite-sheet.png" : `kit-sprite-sheet-${i + 1}.png`, new Blob([bytes.buffer as ArrayBuffer], { type: "image/png" })));
 }
 
 export function buildHtml(cfg: GenConfig): string {

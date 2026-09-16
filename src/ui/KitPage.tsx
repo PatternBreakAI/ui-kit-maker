@@ -8,7 +8,7 @@ import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, Shape }
 import { renderBevel, renderKit, renderTypeSpecimen } from "@/generator/bevel";
 import { silhouetteMeta, SILHOUETTES } from "@/generator/silhouettes";
 import { previewSvg } from "@/generator/icons";
-import { downloadSettings, downloadSvg, downloadZip, downloadSpriteSheet, buildSpriteSheetBytes, svgToPngBytesTight, setEmbedFont, fontDataUri, measureSliceRGBA } from "@/generator/exportUtils";
+import { downloadSettings, downloadSvg, downloadZip, downloadSpriteSheet, svgToPngBytesTight, setEmbedFont, fontDataUri, measureSliceRGBA } from "@/generator/exportUtils";
 import { downloadEngineExport, fetchKitFont, collectExportBoards } from "@/generator/engineExport";
 import { updateProjectDoc, loadProjectDoc } from "@/generator/cloud";
 import { guardedExport } from "@/generator/exportGate";
@@ -1961,7 +1961,13 @@ export const sheetEntries = (st: ReturnType<typeof useGen.getState>) => {
     // the catalog is tier-blind since the free-play round — the sheet
     // export itself is paid-gated upstream. Staging-bay pieces ride
     // only for the admin (or once released) — same rule as the page.
-    return entries.filter((e) => kitVisible(e.cid, st.componentReleases, st.isAdmin));
+    /* variants and states sit beside their base (round 78 — the field:
+       the catalog's twins "quite far apart"): a stable sort by the
+       base's first appearance keeps every family's entries together */
+    const firstAt = new Map<string, number>();
+    entries.forEach((e, i) => { if (!firstAt.has(e.cid)) firstAt.set(e.cid, i); });
+    const grouped = entries.map((e, i) => ({ e, i })).sort((a, b) => ((firstAt.get(a.e.cid) ?? 0) - (firstAt.get(b.e.cid) ?? 0)) || (a.i - b.i)).map((x) => x.e);
+    return grouped.filter((e) => kitVisible(e.cid, st.componentReleases, st.isAdmin));
   }
 };
 
@@ -2313,7 +2319,6 @@ export function KitPage() {
            The tier fallback only covers cloud-off local builds, where the
            whole paid layer is inert anyway. */
         const scope = grant.scope ?? (st.tier === "student" || st.tier === "pro" ? "full" as const : "free" as const);
-        const fdef2 = fontByName(st.cfg.type.font);
         /* Boards→Scenes rides the FULL scope only — the server's grant is
            the door (a remix never exits the browser on the free tier) */
         /* the briefing plays from here — the scope is settled, the wait
@@ -2336,8 +2341,10 @@ export function KitPage() {
             kitPics: st.kitPics, kitPicFx: st.kitPicFx, userAssets: st.userAssets, kitAssets: st.kitAssets,
             // the maker's text-nudge dials — labels bake and seat where the maker pushed them (engine-lane slice 2; cross-lane one-liner, called out in the PR)
             kitTextOy: st.kitTextOy, kitTextOx: st.kitTextOx },
-          scope === "full" ? () => buildSpriteSheetBytes(sheetEntries(st), `${name} · visual catalog`, st.cfg.type.font, fdef2?.css ?? null,
-            (d, t) => setEngineProg({ done: d, total: t, label: "catalog" })) : undefined,
+          /* no catalog image in the Unity zip (round 78): the Playground is
+             the reference a dev actually uses, and the packed sheet had
+             grown past what Unity will open. It stays a kit-page download. */
+          undefined,
           grant.licence,
           (done, total, label) => setEngineProg({ done, total, label }),
           // a fontless zip is a real defect downstream — say it to the maker's face
