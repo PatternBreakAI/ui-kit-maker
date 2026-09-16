@@ -4987,9 +4987,36 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
     const fam4 = (o2.list && (T4.listFont ?? cfg.type.listFont)) || T4.font;
     const sp4 = ((o2.track ?? 0) + T4.spacing) / 100;
     const kern4 = kernCollides(cased4, fam4, Math.max(700, T4.weight), !!T4.italic, sp4) ? ' style="font-kerning:none"' : "";
+    /* the HIGHLIGHT PHRASE lights self-drawn words too (owner: "highlight
+       phrase doesn't seem to be working for this banner"): the ribbon
+       banner, the quest title and every other contentText word skipped
+       the lift that built labels get. Same recipe as build(): the first
+       match wears a gradient lifted from the word's own ink toward the
+       Highlight and Glow tokens by the intensity dial; outline, shadow
+       and glow stay the word's own. Reading voices (list), muted voices
+       (plain) and per-part inks keep their color. */
+    let inner4 = esc(cased4);
+    const hiRaw4 = (T4.highlight ?? cfg.type.highlight ?? "").trim();
+    if (hiRaw4 && !o2.plain && !o2.ink && !o2.list) {
+      const needle4 = o2.keepCase ? hiRaw4
+        : T4.case === "upper" ? hiRaw4.toUpperCase()
+        : T4.case === "lower" ? hiRaw4.toLowerCase()
+        : T4.case === "title" ? hiRaw4.replace(/\b\w/g, (m2) => m2.toUpperCase())
+        : hiRaw4;
+      const hi4 = needle4 ? cased4.indexOf(needle4) : -1;
+      if (hi4 >= 0) {
+        const hb4 = clamp((T4.highlightBoost ?? cfg.type.highlightBoost ?? 70) / 100, 0, 1);
+        const hex4 = (c9: string, fb: string) => (/^#[0-9a-fA-F]{6}$/.test(c9) ? c9 : fb);
+        const baseTop4 = T4.fillMode === "solid" || T4.fillMode === "gradient" ? hex4(T4.fill, "#FFFFFF") : hex4(o2.autoInk ?? "#FFFFFF", "#FFFFFF");
+        const baseBot4 = T4.fillMode === "gradient" ? hex4(T4.fill2, baseTop4) : baseTop4;
+        const hiTok4 = hex4(effect(cfg.effects, "Highlight"), "#FFFFFF"), glowTok4 = hex4(effect(cfg.effects, "Glow"), "#FFFFFF");
+        defs4 += `<linearGradient id="${gid4}h" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${hexMix(baseTop4, hexMix(hiTok4, "#FFFFFF", 0.89), hb4)}"/><stop offset="1" stop-color="${hexMix(baseBot4, hexMix(glowTok4, "#FFFFFF", 0.41), hb4)}"/></linearGradient>`;
+        inner4 = `${esc(cased4.slice(0, hi4))}<tspan fill="url(#${gid4}h)">${esc(cased4.slice(hi4, hi4 + needle4.length))}</tspan>${esc(cased4.slice(hi4 + needle4.length))}`;
+      }
+    }
     return (defs4 ? `<defs>${defs4}</defs>` : "") +
       (prims4.length ? `<g filter="url(#${gid4}f)">` : "") +
-      `<text x="${(x2 + typeOxK * k + italNudge).toFixed(1)}" y="${(y2 + typeOyK * k).toFixed(1)}" font-family="'${fam4}', 'Inter Variable', Inter, sans-serif" font-size="${fs2.toFixed(1)}" font-weight="${o2.weight ?? Math.max(700, T4.weight)}"${T4.italic ? ' font-style="italic"' : ""} letter-spacing="${sp4.toFixed(3)}em"${kern4} fill="${fill4}"${(T4.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T4.fillOpacity / 100).toFixed(2)}"` : ""}${outline4}${o2.anchor ? ` text-anchor="${o2.anchor}"` : ""} dominant-baseline="central" opacity="${(o2.opacity ?? 1).toFixed(2)}"${o2.rider ? ` data-seat-rider="${o2.rider}"` : ""}>${esc(cased4)}</text>` +
+      `<text x="${(x2 + typeOxK * k + italNudge).toFixed(1)}" y="${(y2 + typeOyK * k).toFixed(1)}" font-family="'${fam4}', 'Inter Variable', Inter, sans-serif" font-size="${fs2.toFixed(1)}" font-weight="${o2.weight ?? Math.max(700, T4.weight)}"${T4.italic ? ' font-style="italic"' : ""} letter-spacing="${sp4.toFixed(3)}em"${kern4} fill="${fill4}"${(T4.fillOpacity ?? 100) < 100 ? ` fill-opacity="${(T4.fillOpacity / 100).toFixed(2)}"` : ""}${outline4}${o2.anchor ? ` text-anchor="${o2.anchor}"` : ""} dominant-baseline="central" opacity="${(o2.opacity ?? 1).toFixed(2)}"${o2.rider ? ` data-seat-rider="${o2.rider}"` : ""}>${inner4}</text>` +
       (prims4.length ? `</g>` : "");
   };
   /* fit-down (the unitplate precedent; owner round: type never crops or
