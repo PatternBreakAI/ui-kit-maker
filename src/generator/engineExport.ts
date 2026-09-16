@@ -9119,6 +9119,27 @@ namespace PatternBreak {
       if (!Mathf.Approximately(fill.fillAmount, wroteFill)) { value = Snap(fill.fillAmount); Apply(); }
     }
   }
+  /* the number that follows a slider (round 78 — the settings row's
+     readout was a live seat the Slider never spoke to): wired as a
+     persistent onValueChanged listener on import, Editor and Runtime,
+     beside the mercury's. Scale 100 reads a percent. */
+  [AddComponentMenu("UI Kit Maker/Kit Slider Readout")]
+  public class KitSliderReadout : MonoBehaviour {
+#if UNITY_2023_2_OR_NEWER
+    [Tooltip("The number that follows the slider.")]
+    public TMPro.TMP_Text readout;
+#endif
+    [Tooltip("The value at 1.0 — 100 for a percent.")]
+    public float scale = 100f;
+    [Tooltip("Text after the number, e.g. %.")]
+    public string suffix = "";
+    public void SetValue(float v) {
+      var s = Mathf.RoundToInt(v * scale).ToString(System.Globalization.CultureInfo.InvariantCulture) + (suffix == null ? "" : suffix);
+#if UNITY_2023_2_OR_NEWER
+      if (readout != null) readout.text = s;
+#endif
+    }
+  }
 }
 `;
 
@@ -9212,8 +9233,10 @@ namespace PatternBreak {
     public Graphic leftBadge;
     [Tooltip("The right badge plate.")]
     public Graphic rightBadge;
+    [Tooltip("The card's name when it is a layered Hero Label — set here and every layer follows.")]
+    public HeroLabel nameHero;
 #if UNITY_2023_2_OR_NEWER
-    [Tooltip("The card's name, the word straddling the foot of the picture.")]
+    [Tooltip("The card's name, the word straddling the foot of the picture (a plain TMP seat).")]
     public TMP_Text nameLabel;
     [Tooltip("The left corner's number. It rides the left badge, so moving the badge moves both.")]
     public TMP_Text leftNumber;
@@ -9246,6 +9269,7 @@ namespace PatternBreak {
     public void SetArt(Sprite s) { if (art != null && s != null) art.sprite = s; }
 
     public void SetName(string s) {
+      if (nameHero != null) nameHero.text = s == null ? "" : s;
 #if UNITY_2023_2_OR_NEWER
       if (nameLabel != null) nameLabel.text = s == null ? "" : s;
 #endif
@@ -14774,12 +14798,20 @@ namespace PatternBreak {
           var rpN = rp.Replace("\\\\", "/");
           var newer = new List<string>();
           foreach (var fA in pkgFiles) {
-            try { if (File.GetLastWriteTimeUtc(fA).Ticks > median + TimeSpan.TicksPerMinute * 2) newer.Add(fA.Replace("\\\\", "/").Substring(rpN.Length + 1)); }
+            try {
+              var relA = fA.Replace("\\\\", "/").Substring(rpN.Length + 1);
+              // package.json is the Package Manager's own to rewrite at resolve time — never drift (round 78: 29 false alarms in one field console)
+              if (relA == "package.json" || relA == "package.json.meta") continue;
+              if (File.GetLastWriteTimeUtc(fA).Ticks > median + TimeSpan.TicksPerMinute * 2) newer.Add(relA);
+            }
             catch (Exception) { }
           }
           if (newer.Count > 0 && newer.Count <= pkgFiles.Length / 4) {
+            // once per package per editor session — a repeat says nothing new
+            if (!always && SessionState.GetBool("pbPkgAudited:" + pkgA.name, false)) continue;
+            SessionState.SetBool("pbPkgAudited:" + pkgA.name, true);
             findings++;
-            Debug.LogWarning("UI Kit Maker package audit: '" + pkgA.name + "' (immutable) carries " + newer.Count + " file(s) written well after the package landed — this drift is what Unity's 'assets located in immutable packages were unexpectedly altered' warning reports: "
+            Debug.LogWarning("UI Kit Maker package audit: '" + pkgA.name + "' (immutable) carries " + newer.Count + " file(s) written well after the package landed — this may be the drift Unity's 'assets located in immutable packages were unexpectedly altered' warning reports: "
               + string.Join(", ", newer.GetRange(0, Math.Min(10, newer.Count)).ToArray()) + (newer.Count > 10 ? " …" : "")
               + "\\nThe kit only ever writes under Assets/ (its tripwire blocks and names any save aimed into an immutable package). To heal the package, delete its Library/PackageCache entry and let Unity re-resolve, or restore it from version control.");
           }
@@ -15809,7 +15841,9 @@ namespace PatternBreak {
         CheckTag(safeT, "TOP RIGHT", 30f * tagK, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-24f * tagK, -24f * tagK), 1);
         CheckTag(safeT, "BOTTOM LEFT", 30f * tagK, new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(24f * tagK, 24f * tagK), -1);
         CheckTag(safeT, "BOTTOM RIGHT", 30f * tagK, new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-24f * tagK, 24f * tagK), 1);
-        CheckTag(safeT, "green outline = live Screen.safeArea · backdrop bleeds under cutouts · try other Game-view aspects or the Device Simulator", 22f * tagK, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 64f * tagK), 0);
+        // the hint on two lines (round 78): one long line cropped at both edges on a phone-referenced kit
+        CheckTag(safeT, "green outline = live Screen.safeArea · backdrop bleeds under cutouts", 22f * tagK, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 94f * tagK), 0);
+        CheckTag(safeT, "try other Game-view aspects, or the Device Simulator", 22f * tagK, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 64f * tagK), 0);
         // a couple of live kit pieces so the check shows the real kit
         int livePlaced = 0;
         var pfBtn = KitPrefab(root, "ButtonPrimary");
@@ -15820,6 +15854,7 @@ namespace PatternBreak {
           if (rtB != null) {
             rtB.anchorMin = new Vector2(0.5f, 0.5f); rtB.anchorMax = new Vector2(0.5f, 0.5f);
             rtB.anchoredPosition = Vector2.zero;
+            rtB.localScale = new Vector3(tagK, tagK, 1f); // sized to the reference frame (round 78: a phone kit blew these up to giants)
             livePlaced++;
           }
         }
@@ -15830,7 +15865,8 @@ namespace PatternBreak {
           var rtP = iP.GetComponent<RectTransform>();
           if (rtP != null) {
             rtP.anchorMin = new Vector2(0.5f, 1f); rtP.anchorMax = new Vector2(0.5f, 1f);
-            rtP.anchoredPosition = new Vector2(0f, -90f);
+            rtP.anchoredPosition = new Vector2(0f, -90f * tagK);
+            rtP.localScale = new Vector3(tagK, tagK, 1f);
             livePlaced++;
           }
         }
@@ -15905,6 +15941,43 @@ namespace PatternBreak {
       } finally {
         if (!wasLoaded) UnityEditor.SceneManagement.EditorSceneManager.CloseScene(scene, true);
       }
+    }
+    /* the shelf caption (round 78): "Prefabs/Buttons/ButtonPrimary" in
+       small quiet type under the piece — the Playground as the index */
+    static void ShelfCaption(RectTransform board, string prefabName, string prefabPath, string root, float left, float bottom, float width) {
+      var rel = (prefabPath ?? "").Replace("\\\\", "/");
+      var pre = root + "/";
+      if (rel.StartsWith(pre)) rel = rel.Substring(pre.Length);
+      if (rel.EndsWith(".prefab")) rel = rel.Substring(0, rel.Length - 7);
+      if (rel.Length == 0) rel = prefabName;
+#if UNITY_2023_2_OR_NEWER
+      var go = new GameObject("Caption — " + prefabName, typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+      go.transform.SetParent(board, false);
+      var t = go.GetComponent<TextMeshProUGUI>();
+      t.text = rel; t.fontSize = 14f;
+      t.color = new Color(0.59f, 0.63f, 0.72f, 0.9f);
+      t.alignment = TextAlignmentOptions.TopLeft;
+      t.raycastTarget = false;
+      t.overflowMode = TMPro.TextOverflowModes.Overflow;
+#pragma warning disable 0618
+      t.enableWordWrapping = false;
+#pragma warning restore 0618
+#else
+      var go = new GameObject("Caption — " + prefabName, typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
+      go.transform.SetParent(board, false);
+      var t = go.GetComponent<Text>();
+      t.text = rel; t.fontSize = 14;
+      t.color = new Color(0.59f, 0.63f, 0.72f, 0.9f);
+      t.alignment = TextAnchor.UpperLeft;
+      t.horizontalOverflow = HorizontalWrapMode.Overflow;
+      t.raycastTarget = false;
+      var bfC = BuiltinFont();
+      if (bfC != null) t.font = bfC;
+#endif
+      var rt = (RectTransform)go.transform;
+      rt.anchorMin = new Vector2(0f, 1f); rt.anchorMax = new Vector2(0f, 1f); rt.pivot = new Vector2(0f, 1f);
+      rt.sizeDelta = new Vector2(Mathf.Max(width, 120f), 18f);
+      rt.anchoredPosition = new Vector2(left, bottom - 6f);
     }
     static void BuildPlayground(string root) {
       var scenePath = root + "/Playground.unity";
@@ -16073,6 +16146,11 @@ namespace PatternBreak {
           ht.text = sec.title;
           ht.fontSize = 30f; ht.fontStyle = FontStyles.Bold;
           ht.color = new Color(0.59f, 0.63f, 0.72f);
+          /* the chapter head in the kit's own face (round 78 — owner:
+             "make sure the playground looks great"): the styled SDF the
+             labels wear, when the kit ships one; quiet grey otherwise */
+          var faceH = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
+          if (faceH != null) { ht.font = faceH; ht.fontStyle = FontStyles.Normal; ht.fontSize = 36f; ht.color = Color.white; }
           ht.alignment = TextAlignmentOptions.MidlineLeft;
           var hrt = head.GetComponent<RectTransform>();
           hrt.anchorMin = new Vector2(0f, 1f); hrt.anchorMax = new Vector2(0f, 1f); hrt.pivot = new Vector2(0f, 1f);
@@ -16111,15 +16189,32 @@ namespace PatternBreak {
             inst.transform.SetParent(board, false);
             var rt = inst.GetComponent<RectTransform>();
             if (rt == null) continue;
-            float w = Mathf.Max(80f, rt.sizeDelta.x), h = Mathf.Max(40f, rt.sizeDelta.y);
+            /* the piece's TRUE footprint (round 78 — Jimi: the fire
+               button's chambers over the music row, the equip selector's
+               name over its neighbors): art that hangs outside the root
+               rect (satellites, a wheel, a name seat) counts, so nothing
+               lands on anything. Measured in board space at the origin;
+               the visual CENTER is what the cell holds. */
+            rt.anchorMin = new Vector2(0f, 1f); rt.anchorMax = new Vector2(0f, 1f);
+            rt.anchoredPosition = Vector2.zero;
+            rt.localScale = Vector3.one;
+            var b0 = RectTransformUtility.CalculateRelativeRectTransformBounds(board, inst.transform);
+            float w = Mathf.Max(80f, Mathf.Max(rt.sizeDelta.x, b0.size.x)), h = Mathf.Max(40f, Mathf.Max(rt.sizeDelta.y, b0.size.y));
             // oversized furniture scales down to sit in the flow
             float ps2 = Mathf.Min(1f, Mathf.Min(300f / h, 620f / w));
             if (x + w * ps2 > rowW && x > 91f) { x = 90f; y -= rowH + gut; rowH = 0f; }
-            rt.anchorMin = new Vector2(0f, 1f); rt.anchorMax = new Vector2(0f, 1f);
-            rt.anchoredPosition = new Vector2(x + w * ps2 * 0.5f, y - h * ps2 * 0.5f);
             if (ps2 < 1f) rt.localScale = new Vector3(ps2, ps2, 1f);
-            x += w * ps2 + gut;
-            if (h * ps2 > rowH) rowH = h * ps2;
+            var b1 = RectTransformUtility.CalculateRelativeRectTransformBounds(board, inst.transform);
+            // the bounds were measured with the pivot at the origin, so their center IS the pivot-to-visual offset
+            float cellL = x, cellW = w * ps2, cellH = h * ps2;
+            rt.anchoredPosition = new Vector2(cellL + cellW * 0.5f - b1.center.x, y - cellH * 0.5f - b1.center.y);
+            /* the INDEX caption (round 78 — Jimi: "some way to visualize
+               the prefabs as you navigate the folder"): the prefab's
+               chapter folder and name right under the piece, so the
+               shelf doubles as the Prefabs index */
+            ShelfCaption(board, n, pathOf[pf], root, cellL, y - cellH, cellW);
+            x += cellW + gut;
+            if (cellH + 26f > rowH) rowH = cellH + 26f;
             if (x > widest) widest = x;
             placed++;
           }
@@ -16139,6 +16234,31 @@ namespace PatternBreak {
         srPg.horizontal = false;
         srPg.movementType = ScrollRect.MovementType.Clamped;
         srPg.scrollSensitivity = 48f;
+        /* the SCROLL HINT (round 78 — Jimi: "some kind of scroll bar or
+           suggestion that the scene is scrollable"): a quiet vertical
+           scrollbar on the right edge, wired to the catalog scroll; it
+           hides itself when the whole shelf fits the view */
+        var sbGo = new GameObject("Scrollbar Vertical", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Scrollbar));
+        sbGo.transform.SetParent(scrollGo.transform, false);
+        var sbRt = (RectTransform)sbGo.transform;
+        sbRt.anchorMin = new Vector2(1f, 0f); sbRt.anchorMax = new Vector2(1f, 1f); sbRt.pivot = new Vector2(1f, 1f);
+        sbRt.sizeDelta = new Vector2(14f, 0f); sbRt.anchoredPosition = Vector2.zero;
+        sbGo.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0.06f);
+        var sbArea = new GameObject("Sliding Area", typeof(RectTransform));
+        sbArea.transform.SetParent(sbGo.transform, false);
+        var sbAreaRt = (RectTransform)sbArea.transform;
+        sbAreaRt.anchorMin = Vector2.zero; sbAreaRt.anchorMax = Vector2.one; sbAreaRt.offsetMin = new Vector2(3f, 3f); sbAreaRt.offsetMax = new Vector2(-3f, -3f);
+        var sbHandle = new GameObject("Handle", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        sbHandle.transform.SetParent(sbArea.transform, false);
+        var sbHRt = (RectTransform)sbHandle.transform;
+        sbHRt.anchorMin = Vector2.zero; sbHRt.anchorMax = Vector2.one; sbHRt.offsetMin = Vector2.zero; sbHRt.offsetMax = Vector2.zero;
+        sbHandle.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0.35f);
+        var sbPg = sbGo.GetComponent<Scrollbar>();
+        sbPg.direction = Scrollbar.Direction.BottomToTop;
+        sbPg.handleRect = sbHRt;
+        sbPg.targetGraphic = sbHandle.GetComponent<Image>();
+        srPg.verticalScrollbar = sbPg;
+        srPg.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHide;
         /* no help card in the scene (owner call: the Playground stays
            clean) — the driving instructions live in the README instead */
         if (UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene, scenePath))
@@ -17266,7 +17386,7 @@ namespace PatternBreak {
                name lives there ("Prize Wheel", "Piggy Bank"), never in a
                mechanical NiceName */
             else if (it.component != null && it.component.StartsWith("gbtn") && m.glyphFleet != null)
-              foreach (var feSc in m.glyphFleet) if (feSc != null && feSc.fam == it.component && !string.IsNullOrEmpty(feSc.name)) { pfName = "GlyphButton_" + PlainWord(feSc.name); break; }
+              foreach (var feSc in m.glyphFleet) if (feSc != null && feSc.fam == it.component && !string.IsNullOrEmpty(feSc.name)) { pfName = "GlyphButton_" + PlainName(feSc.name); break; }
             /* the glyph rack lives on its own shelf now (Prefabs/Glyphs —
                the BigGlyphs pattern); a kept project may still hold its
                glyphs at the root, so both addresses answer */
@@ -18525,7 +18645,7 @@ namespace PatternBreak {
       if (existing != null) { StampDynamicSource(existing, ttf); return existing; }
       if (ttf == null) return null; // the import pass logs the font story
       TMP_FontAsset fa = null;
-      try { fa = TMP_FontAsset.CreateFontAsset(ttf); }
+      try { fa = TMP_FontAsset.CreateFontAsset(ttf, 96, 16, UnityEngine.TextCore.LowLevel.GlyphRenderMode.SDFAA, 2048, 2048, AtlasPopulationMode.Dynamic); }
       catch (Exception e) {
         Debug.LogWarning("UI Kit Maker: couldn't build the SDF face from " + ttf.name + " (" + e.Message + ") — labels use the shipped TTF instead.");
         return null;
@@ -20790,6 +20910,8 @@ namespace PatternBreak {
 #endif
       // last child = drawn last: the streak crosses the label, like the app
       AddSpecular(go, root, baseAsset.component, m);
+      if (baseAsset.component == "cardface") WireCardFace(go); // round 78: the promised component, on the prefab
+      SweepEmptySeatRows(go);
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/" + goName + ".prefab");
       UnityEngine.Object.DestroyImmediate(go);
       return true;
@@ -21617,6 +21739,24 @@ namespace PatternBreak {
       } else {
         slSR.fillRect = fillSR as RectTransform;
       }
+      /* the READOUT follows the slider (round 78 — Jimi: "music slider
+         not hooked up to text value"): the numeric seat under Words gets
+         a KitSliderReadout, wired as a persistent listener beside the
+         mercury's, Editor and Runtime */
+#if UNITY_2023_2_OR_NEWER
+      var wordsSR = go.transform.Find("Words");
+      TMP_Text readSR = null;
+      if (wordsSR != null)
+        foreach (var tSR in wordsSR.GetComponentsInChildren<TMP_Text>(true)) { float numSR; if (float.TryParse((tSR.text ?? "").Trim().TrimEnd('%'), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out numSR)) { readSR = tSR; break; } }
+      if (readSR != null && go.GetComponent<KitSliderReadout>() == null) {
+        var ksr = go.AddComponent<KitSliderReadout>();
+        ksr.readout = readSR;
+        ksr.suffix = (readSR.text ?? "").Trim().EndsWith("%") ? "%" : "";
+        UnityEditor.Events.UnityEventTools.AddPersistentListener(slSR.onValueChanged, ksr.SetValue);
+        slSR.onValueChanged.SetPersistentListenerState(slSR.onValueChanged.GetPersistentEventCount() - 1, UnityEngine.Events.UnityEventCallState.EditorAndRuntime);
+        ksr.SetValue(slSR.value);
+      }
+#endif
     }
     static void WireNamedRails(GameObject go, Sprite baseSp, PBAsset baseRow, string root, int pngScale, PBManifest m, string fam, string[] rails, string[] nices) {
       if (baseSp == null || baseRow == null || baseRow.shell == null || baseRow.shell.w < 4f || baseSp.rect.width < 2f) return;
@@ -22123,6 +22263,7 @@ namespace PatternBreak {
       // display or not, the piece's raycast stops at its drawn ink
       // (round 50: shell row where authored, measured ink box where not)
       ShellRaycastPad(go, famP, m);
+      SweepEmptySeatRows(go);
       PrefabUtility.SaveAsPrefabAsset(go, dir + "/" + goName + ".prefab");
       UnityEngine.Object.DestroyImmediate(go);
       return true;
@@ -22667,7 +22808,7 @@ namespace PatternBreak {
       var ttf = instTtf;
       if (ttf == null) return null;
       TMP_FontAsset fa = null;
-      try { fa = TMP_FontAsset.CreateFontAsset(ttf); } catch (Exception) { }
+      try { fa = TMP_FontAsset.CreateFontAsset(ttf, 96, 16, UnityEngine.TextCore.LowLevel.GlyphRenderMode.SDFAA, 2048, 2048, AtlasPopulationMode.Dynamic); } catch (Exception) { }
       if (fa == null) return null;
       fa.name = "Instrument SDF";
       AssetDatabase.CreateAsset(fa, path);
@@ -22698,7 +22839,7 @@ namespace PatternBreak {
       var ttf = srcTtf;
       if (ttf == null) return null;
       TMP_FontAsset fa = null;
-      try { fa = TMP_FontAsset.CreateFontAsset(ttf); } catch (Exception) { }
+      try { fa = TMP_FontAsset.CreateFontAsset(ttf, 96, 16, UnityEngine.TextCore.LowLevel.GlyphRenderMode.SDFAA, 2048, 2048, AtlasPopulationMode.Dynamic); } catch (Exception) { }
       if (fa == null) return null;
       fa.name = "KitFace Content SDF";
       AssetDatabase.CreateAsset(fa, path);
@@ -23466,7 +23607,7 @@ namespace PatternBreak {
         ? AssetDatabase.LoadAssetAtPath<Font>(root + "/" + m.typography.instrumentFile) : null;
       if (ttf == null) return null;
       TMPro.TMP_FontAsset fa = null;
-      try { fa = TMPro.TMP_FontAsset.CreateFontAsset(ttf); } catch (Exception) { }
+      try { fa = TMPro.TMP_FontAsset.CreateFontAsset(ttf, 96, 16, UnityEngine.TextCore.LowLevel.GlyphRenderMode.SDFAA, 2048, 2048, TMPro.AtlasPopulationMode.Dynamic); } catch (Exception) { }
       if (fa == null) return null;
       fa.name = "Instrument SDF";
       AssetDatabase.CreateAsset(fa, pathRF);
@@ -23490,7 +23631,7 @@ namespace PatternBreak {
         ? AssetDatabase.LoadAssetAtPath<Font>(root + "/" + m.typography.fontFile) : null;
       if (ttf == null) return null;
       TMPro.TMP_FontAsset fa = null;
-      try { fa = TMPro.TMP_FontAsset.CreateFontAsset(ttf); } catch (Exception) { }
+      try { fa = TMPro.TMP_FontAsset.CreateFontAsset(ttf, 96, 16, UnityEngine.TextCore.LowLevel.GlyphRenderMode.SDFAA, 2048, 2048, TMPro.AtlasPopulationMode.Dynamic); } catch (Exception) { }
       if (fa == null) return null;
       fa.name = "KitFace LTS";
       AssetDatabase.CreateAsset(fa, pathKL);
@@ -23718,7 +23859,7 @@ namespace PatternBreak {
     static string EnsureVariantAsset(string vdir, GameObject basePf, string baseName, string word,
         Dictionary<string, string> ledger, Dictionary<string, string> newLedger, HashSet<string> livePaths,
         UnityEngine.SceneManagement.Scene pscene, PBVariantTally tally) {
-      var path = vdir + "/" + baseName + "_" + PlainWord(word) + ".prefab";
+      var path = vdir + "/" + baseName + "_" + PlainName(word) + ".prefab";
       /* OCCUPANT RESOLUTION (ledger-backed): the file is OURS for this
          word iff the ledger (or, pre-ledger, its own label) says so AND
          it is a real Variant of our base. Anything else — a squatter
@@ -23849,7 +23990,7 @@ namespace PatternBreak {
               }
         }
       } catch (Exception) { }
-      var plainV = KitPrefab(root, baseName + "_" + PlainWord(word));
+      var plainV = KitPrefab(root, baseName + "_" + PlainName(word));
       if (plainV != null) return plainV;
       return KitPrefab(root, baseName + " – " + FileSafeWord(word)); // a kept project mid-rename
     }
@@ -25409,7 +25550,7 @@ namespace PatternBreak {
           if (fe == null || string.IsNullOrEmpty(fe.name) || string.IsNullOrEmpty(fe.file)) continue;
           var glyphSp = S(root + "/" + fe.file);
           if (glyphSp == null) { missing++; continue; } // a wave ahead of its sprites — quietly ready
-          var path = vdir + "/SlotButton_" + PlainWord(fe.name) + ".prefab";
+          var path = vdir + "/SlotButton_" + PlainName(fe.name) + ".prefab";
           if (KitPrefab(root, Path.GetFileNameWithoutExtension(path)) != null) { kept++; continue; } // theirs after creation, wherever it is shelved
           var inst = (GameObject)PrefabUtility.InstantiatePrefab(basePf, pscene);
           if (inst == null) continue;
@@ -25482,7 +25623,7 @@ namespace PatternBreak {
       try {
         foreach (var fe in m.glyphFleet) {
           if (fe == null || string.IsNullOrEmpty(fe.name) || string.IsNullOrEmpty(fe.file)) continue;
-          var path = vdir + "/GlyphButton_" + PlainWord(fe.name) + ".prefab";
+          var path = vdir + "/GlyphButton_" + PlainName(fe.name) + ".prefab";
           /* the FULL road (round 52): this button's own family rows are
              aboard — build its true prefab from them, under the class
              name. One prefab per glyph, whichever road: the path is the
@@ -25492,7 +25633,7 @@ namespace PatternBreak {
             foreach (var aGF in m.assets) if (aGF != null && aGF.component == fe.fam && aGF.part == "base") { famRowGF = aGF; break; }
           if (famRowGF != null) {
             if (KitPrefab(root, Path.GetFileNameWithoutExtension(path)) != null) { kept++; continue; } // theirs after creation, wherever it is shelved
-            if (FamilyPrefab(vdir, root, famRowGF, "GlyphButton_" + PlainWord(fe.name), null, pngScale, kitFont, m)) made++;
+            if (FamilyPrefab(vdir, root, famRowGF, "GlyphButton_" + PlainName(fe.name), null, pngScale, kitFont, m)) made++;
             continue;
           }
           if (basePf == null) { missing++; continue; } // thin needs the slotbtn frame — staged (or pruned), quietly ready
@@ -25926,7 +26067,7 @@ namespace PatternBreak {
     /* plain ASCII prefab names (round 78): a word becomes one token —
        spaces and dashes to single underscores, the file-unsafe set
        already swapped by FileSafeWord */
-    static string PlainWord(string w) {
+    static string PlainName(string w) {
       var safe = FileSafeWord(w);
       var sb = new System.Text.StringBuilder();
       bool gap = false;
@@ -25945,12 +26086,12 @@ namespace PatternBreak {
        A name already plain comes back unchanged. */
     static string PlainPrefabName(string legacy) {
       var nm = legacy;
-      if (nm.StartsWith("Glyph Button – ")) return "GlyphButton_" + PlainWord(nm.Substring(15));
-      if (nm.StartsWith("Slot Button – ")) return "SlotButton_" + PlainWord(nm.Substring(14));
+      if (nm.StartsWith("Glyph Button – ")) return "GlyphButton_" + PlainName(nm.Substring(15));
+      if (nm.StartsWith("Slot Button – ")) return "SlotButton_" + PlainName(nm.Substring(14));
       bool tiled = nm.EndsWith(" (tiled face)");
       if (tiled) nm = nm.Substring(0, nm.Length - 13);
       int dash = nm.IndexOf(" – ");
-      if (dash > 0) nm = nm.Substring(0, dash) + "_" + PlainWord(nm.Substring(dash + 3));
+      if (dash > 0) nm = nm.Substring(0, dash) + "_" + PlainName(nm.Substring(dash + 3));
       else if (nm.EndsWith(" x")) nm = nm.Substring(0, nm.Length - 2) + "_x";
       if (tiled) nm += "_TiledFace";
       return nm;
@@ -26000,6 +26141,62 @@ namespace PatternBreak {
         foreach (var nm in prevLock.seededPrefabs) if (nm != null && !string.Equals(nm, "movecounter.prefab", StringComparison.OrdinalIgnoreCase)) keep.Add(nm);
         prevLock.seededPrefabs = keep.ToArray();
       }
+    }
+    /* ── KIT CARD FACE, wired (round 78 — Jimi: "I can't find KitCardFace
+       anywhere in the assets folder"): the runtime has shipped since
+       round 73, but no prefab ever carried it — the README promised a
+       component the Cardface prefab did not have. It wears it now, parts
+       bound: the picture child, the two corner plates, the name (a
+       HeroLabel stack or a plain TMP seat) and the two corner numbers,
+       so SetCard(def) works out of the box. ── */
+    static void WireCardFace(GameObject go) {
+      if (go == null || go.GetComponent<KitCardFace>() != null) return;
+      var face = go.AddComponent<KitCardFace>();
+      Image art = null, leftPlate = null, rightPlate = null;
+      foreach (var img in go.GetComponentsInChildren<Image>(true)) {
+        if (img.gameObject == go) continue;
+        var n = img.gameObject.name.ToLowerInvariant();
+        if (art == null && n.Contains("art")) art = img;
+        else if (leftPlate == null && (n.Contains("cornerleft") || n.Contains("left corner"))) leftPlate = img;
+        else if (rightPlate == null && (n.Contains("cornerright") || n.Contains("right corner"))) rightPlate = img;
+      }
+      face.art = art; face.leftBadge = leftPlate; face.rightBadge = rightPlate;
+      var labelT = go.transform.Find("Label");
+      if (labelT != null) face.nameHero = labelT.GetComponent<HeroLabel>();
+#if UNITY_2023_2_OR_NEWER
+      TMP_Text nameT = null, leftT = null, rightT = null;
+      foreach (var t in go.GetComponentsInChildren<TMP_Text>(true)) {
+        if (labelT != null && t.transform.IsChildOf(labelT) && nameT == null) { nameT = t; continue; }
+        if (leftPlate != null && t.transform.IsChildOf(leftPlate.transform) && leftT == null) { leftT = t; continue; }
+        if (rightPlate != null && t.transform.IsChildOf(rightPlate.transform) && rightT == null) { rightT = t; continue; }
+      }
+      // numbers still parked in the Words rows (no rider yet): the first two numeric seats, left then right by x
+      if (leftT == null || rightT == null) {
+        var nums = new List<TMP_Text>();
+        foreach (var t in go.GetComponentsInChildren<TMP_Text>(true)) { int v; if ((labelT == null || !t.transform.IsChildOf(labelT)) && int.TryParse((t.text ?? "").Trim(), out v)) nums.Add(t); }
+        nums.Sort((a, b) => a.transform.position.x.CompareTo(b.transform.position.x));
+        if (leftT == null && nums.Count > 0) leftT = nums[0];
+        if (rightT == null && nums.Count > 1) rightT = nums[nums.Count - 1];
+      }
+      face.nameLabel = nameT; face.leftNumber = leftT; face.rightNumber = rightT;
+      int lv, rv;
+      if (leftT != null && int.TryParse((leftT.text ?? "").Trim(), out lv)) face.left = lv;
+      if (rightT != null && int.TryParse((rightT.text ?? "").Trim(), out rv)) face.right = rv;
+#endif
+    }
+    /* a seat ROW whose words rode off with their plates (the card's
+       corner numbers ride the corner badges) leaves no empty shell
+       behind — nor an empty Words group (round 78, Jimi: "an additional
+       words component that appears to be empty") */
+    static void SweepEmptySeatRows(GameObject host) {
+      if (host == null) return;
+      var words = host.transform.Find("Words");
+      if (words == null) return;
+      for (int i = words.childCount - 1; i >= 0; i--) {
+        var c = words.GetChild(i);
+        if (c.name.StartsWith("Row ") && c.childCount == 0 && c.GetComponent<Graphic>() == null) UnityEngine.Object.DestroyImmediate(c.gameObject);
+      }
+      if (words.childCount == 0 && words.GetComponent<Graphic>() == null) UnityEngine.Object.DestroyImmediate(words.gameObject);
     }
     static void ShelveGlyphPrefabs(string root) {
       var dir = root + "/Prefabs";
@@ -27855,7 +28052,7 @@ namespace PatternBreak {
          are human-facing or hand-use images: lossless Default textures,
          never sprites, never compressed — and the face tile wraps Repeat
          because the Face Texture slot tiles it. */
-      if (path.Contains("UIKitMaker/") && (path.Contains("/docs/") || path.Contains("/atlas/") || path.EndsWith("/fonts/face-pattern.png"))) {
+      if (path.Contains("UIKitMaker/") && (path.Contains("/docs/") || path.Contains("/Documentation/") || path.Contains("/atlas/") || path.EndsWith("/fonts/face-pattern.png"))) {
         var dti = (TextureImporter)assetImporter;
         dti.textureType = TextureImporterType.Default;
         dti.mipmapEnabled = false;

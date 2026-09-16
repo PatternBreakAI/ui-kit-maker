@@ -1391,8 +1391,8 @@ if (!/files\.push\(\{ path: "Documentation\/QuickStart\.md", data: quickStartDoc
    when both sides are multiples of 4 (otherwise Unity logs one Console
    warning per import) — checked via the editor's own source-size read,
    falling back to lossless if that read ever disappears. */
-if (!/path\.Contains\("\/docs\/"\) \|\| path\.Contains\("\/atlas\/"\) \|\| path\.EndsWith\("\/fonts\/face-pattern\.png"\)/.test(cs))
-  errors.push("the round-31 human-facing texture road (docs/, atlas/, face-pattern) is missing — those NPOT images would import as compressed sprites and warn on clean 2D projects");
+if (!/path\.Contains\("\/docs\/"\) \|\| path\.Contains\("\/Documentation\/"\) \|\| path\.Contains\("\/atlas\/"\) \|\| path\.EndsWith\("\/fonts\/face-pattern\.png"\)/.test(cs))
+  errors.push("the round-31 human-facing texture road (docs/, Documentation/, atlas/, face-pattern) is missing — those NPOT images would import as compressed sprites and warn on clean 2D projects");
 if (!/dti\.npotScale = TextureImporterNPOTScale\.None;/.test(cs) || !/dti\.textureCompression = TextureImporterCompression\.Uncompressed;/.test(cs))
   errors.push("the human-facing road must import lossless Default with NPOT scaling off (round 31)");
 if (!/if \(path\.EndsWith\("\/fonts\/face-pattern\.png"\)\) dti\.wrapMode = TextureWrapMode\.Repeat;/.test(cs))
@@ -3617,7 +3617,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/static bool SlotFleetPrefabs\(string dir, string root, PBManifest m, bool quiet\) \{/.test(cs)
       || !/SlotFleetPrefabs\(dir, root, m, staging\)/.test(cs)
       || !/var gT = inst\.transform\.Find\("Icon glyph"\);/.test(cs)
-      || !/"\/SlotButton_" \+ PlainWord\(fe\.name\) \+ "\.prefab"/.test(cs)
+      || !/"\/SlotButton_" \+ PlainName\(fe\.name\) \+ "\.prefab"/.test(cs)
       || !/PrefabUtility\.GetPrefabAssetType\(saved\) == PrefabAssetType\.Variant\s*&& \(GameObject\)PrefabUtility\.GetCorrespondingObjectFromSource\(saved\) == basePf;[\s\S]{0,900}Slot Button fleet/.test(cs))
     errors.push("the slot fleet builder (thin Prefab Variants off the live glyph child) left the importer (round 49, S40)");
   if (!/"Slotbtn", "SlotButton_Gem", "SlotButton_Sword", "SlotButton_Key", "SlotButton_Hammer", "SlotButton_Gear", "SlotButton_Check"/.test(cs)
@@ -3696,7 +3696,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("PBManifest lost the glyph-fleet entries (name + file + measured seat + fam) (round 51+52, S42)");
   if (!/static bool GlyphFleetPrefabs\(string dir, string root, PBManifest m, bool quiet, int pngScale, Font kitFont\) \{/.test(cs)
       || !/GlyphFleetPrefabs\(dir, root, m, staging, pngScale, kitFont\)/.test(cs)
-      || !/"\/GlyphButton_" \+ PlainWord\(fe\.name\) \+ "\.prefab"/.test(cs))
+      || !/"\/GlyphButton_" \+ PlainName\(fe\.name\) \+ "\.prefab"/.test(cs))
     errors.push("the glyph fleet builder (one 'GlyphButton_<Name>' prefab per entry) left the importer (round 51+52, S42; plain names round 78)");
   const gfp42 = /static bool GlyphFleetPrefabs\(string dir, string root, PBManifest m, bool quiet, int pngScale, Font kitFont\) \{[\s\S]*?\n    \}/.exec(cs)?.[0] ?? "";
   if (!/if \(glyphSp == null\) \{ missing\+\+; continue; \}/.test(gfp42)
@@ -3739,11 +3739,11 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the generic family loop no longer skips gbtn — a second 'Gbtncoin' copy would split the class (round 52, S43)");
   const gfp43 = /static bool GlyphFleetPrefabs\(string dir, string root, PBManifest m, bool quiet, int pngScale, Font kitFont\) \{[\s\S]*?\n    \}/.exec(cs)?.[0] ?? "";
   if (!/if \(famRowGF != null\) \{/.test(gfp43)
-      || !/if \(FamilyPrefab\(vdir, root, famRowGF, "GlyphButton_" \+ PlainWord\(fe\.name\), null, pngScale, kitFont, m\)\) made\+\+;/.test(gfp43))
+      || !/if \(FamilyPrefab\(vdir, root, famRowGF, "GlyphButton_" \+ PlainName\(fe\.name\), null, pngScale, kitFont, m\)\) made\+\+;/.test(gfp43))
     errors.push("the importer's FULL road (family rows -> class-named prefab in Variants) left GlyphFleetPrefabs (round 52, S43)");
   if (!/if \(basePf == null\) \{ missing\+\+; continue; \}/.test(gfp43))
     errors.push("the thin road no longer waits on the slotbtn frame — a set released without slotbtn would throw instead of shipping full (round 52, S43)");
-  if (!/foreach \(var feSc in m\.glyphFleet\) if \(feSc != null && feSc\.fam == it\.component && !string\.IsNullOrEmpty\(feSc\.name\)\) \{ pfName = "GlyphButton_" \+ PlainWord\(feSc\.name\); break; \}/.test(cs)
+  if (!/foreach \(var feSc in m\.glyphFleet\) if \(feSc != null && feSc\.fam == it\.component && !string\.IsNullOrEmpty\(feSc\.name\)\) \{ pfName = "GlyphButton_" \+ PlainName\(feSc\.name\); break; \}/.test(cs)
       || !/GameObject pf = KitPrefab\(root, pfName\);/.test(cs))
     errors.push("the scene road can no longer place a glyph button (class-name resolve via the roster + the by-name finder) (round 52, S43; round 78)");
 }
