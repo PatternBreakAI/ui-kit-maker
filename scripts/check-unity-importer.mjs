@@ -523,8 +523,8 @@ if (!/static string BigGlyphPrefabName\(PBBig bg\)/.test(cs))
   errors.push("BigGlyphPrefabName is missing — builder and placement must derive the prefab file name from ONE helper or they diverge (round 23)");
 if (!/static bool BigGlyphPrefabs\(/.test(cs) || !/if \(BigGlyphPrefabs\(dir, root, m\)\) any = true;/.test(cs))
   errors.push("BigGlyphPrefabs is missing or never runs — used big glyphs would ship no prefab (round 23, the owner mandate)");
-if (!/"\/Prefabs\/BigGlyphs\/" \+ BigGlyphPrefabName\(it\.big\) \+ "\.prefab"/.test(cs))
-  errors.push("board placement must converge big-glyph instances on Prefabs/BigGlyphs/<Name>.prefab (round 23)");
+if (!/var bigPf = KitPrefab\(root, BigGlyphPrefabName\(it\.big\)\);/.test(cs))
+  errors.push("board placement must converge big-glyph instances on the by-name prefab finder (round 23; round 78 chapters)");
 if (!/if \(bigSp != null && bigImg != null\) bigImg\.sprite = bigSp;/.test(cs))
   errors.push("an fx copy's baked sprite must land on the INSTANCE Image (override), never the prefab (round 23)");
 if (!/the clean art stands in and the scene rebuilds itself/.test(cs)
@@ -1971,7 +1971,8 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
    into the zip stay off the shelf (manifest.stagedFamilies — emitted
    TS-side as staged AND not board-blessed). */
 {
-  if (!/\("CHOICE CONTROLS & FIELDS", new\[\]/.test(cs) || !/\("GAME SYSTEMS", new\[\]/.test(cs)
+  if (!/\("CHOICE CONTROLS & FIELDS", "Choice Controls", new\[\]/.test(cs) || !/\("GAME SYSTEMS", "Game Systems", new\[\]/.test(cs)
+      || !/foreach \(var chS in CHAPTERS\) SECTIONS\.Add\(\(chS\.title, chS\.names\)\);/.test(cs)
       || !/allSecs\.Add\(\("GLYPHS \(Prefabs\/Glyphs\)", glyphNames\.ToArray\(\)\)\);/.test(cs))
     errors.push("the Playground's chapter sections (kit-page order + the Glyphs shelf) are missing (slice 5)");
   if (!/new GameObject\("Catalog Scroll", typeof\(RectTransform\), typeof\(ScrollRect\)\);/.test(cs)
@@ -1996,9 +1997,9 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("glyph family prefabs must build into Prefabs/Glyphs (the BigGlyphs pattern) — the folder call (slice 4)");
   if (!/if \(!anyGlyph && !hadGlyphDir && AssetDatabase\.IsValidFolder\(glyphDir\)\) AssetDatabase\.DeleteAsset\(glyphDir\);/.test(cs))
     errors.push("a glyph-less kit must leave no empty Glyphs folder (slice 4)");
-  if (!/pf = AssetDatabase\.LoadAssetAtPath<GameObject>\(root \+ "\/Prefabs\/Glyphs\/" \+ pfName \+ "\.prefab"\);/.test(cs)
-      || !/if \(pf == null\) pf = AssetDatabase\.LoadAssetAtPath<GameObject>\(root \+ "\/Prefabs\/" \+ pfName \+ "\.prefab"\);/.test(cs))
-    errors.push("board scenes must answer BOTH glyph addresses (Prefabs/Glyphs first, the root for kept projects) (slice 4)");
+  if (!/GameObject pf = KitPrefab\(root, pfName\);/.test(cs)
+      || !/static string KitPrefabPath\(string root, string name\) \{[\s\S]{0,900}AssetDatabase\.FindAssets\("t:Prefab", new string\[\] \{ dir \}\)/.test(cs))
+    errors.push("board scenes must find a prefab on ANY shelf by name (Prefabs/Glyphs, the chapter folders, a kept project's root) (slice 4; round 78)");
   if (!/static void ShelveGlyphPrefabs\(string root\)/.test(cs)
       || !/spPathG\.StartsWith\(root \+ "\/assets\/glyph"\)/.test(cs)
       || !/AssetDatabase\.MoveAsset\(pG, targetG\)/.test(cs))
@@ -2412,7 +2413,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/static void RenameDataRowPrefab\(string root\)/.test(cs)
       || !/RenameDataRowPrefab\(root\); \/\/ the owner's language, healed on every import/.test(cs)
       || !/RenameDataRowPrefab\(root\); \/\/ and the rename valet, so a rebuild can't mint ListRow beside DataRow/.test(cs)
-      || !/if \(pf == null && it\.component == "list-row"\) pf = AssetDatabase\.LoadAssetAtPath<GameObject>\(root \+ "\/Prefabs\/ListRow\.prefab"\);/.test(cs))
+      || !/if \(pf == null && it\.component == "list-row"\) pf = KitPrefab\(root, "ListRow"\);/.test(cs))
     errors.push("the ListRow→DataRow rename valet (GUID-keeping MoveAsset + old-address fallback) is missing");
   if (!/\? \{ row: \{ title: "", sub: "" \} as never, icon: resolveKitIcon\(st\.kitIcons\?\.datarow, undefined\) \}/.test(src)
       || !/const nineIconSeats = n\.id === "datarow" \? await iconSeatsOf\(n\.id, fullSvg, n\.family\) : null;/.test(src))
@@ -2422,13 +2423,15 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/PicturePrefab\(dir, root, pngScale, m, "orb\/orb-lit\.png", "Orb", false\)/.test(cs)
       || !/"Qtybadge", "Orb", "Achievement"/.test(cs))
     errors.push("the glow orb fell off the Playground shelf (no prefab or no HUD & DATA spot)");
-  if (!/claimed\.Add\("MoveCounter"\);/.test(cs))
-    errors.push("the MoveCounter twin is back on the shelf — the universal Movecounter must be the family's one spot (zero overlaps)");
+  if (/PicturePrefab\(dir, root, pngScale, m, "extras\/extras-movecounter\.png", "MoveCounter", false\)/.test(cs)
+      || !/static void RetireMoveCounterTwin\(string root, PBLock prevLock\)/.test(cs)
+      || !/RetireMoveCounterTwin\(root, prevLock\);/.test(cs))
+    errors.push("the MoveCounter picture twin is back (a case-only twin of the universal Movecounter: one file on Windows) — the universal prefab must be the family's one spot and kept projects must retire the twin (round 78)");
   /* the TILED TWIN (editability paper cut 4): the stretch-safe builder
      names through the same PrefabNameOf seam the scene road resolves
      with, and the kept-project valet renames the old twin GUID-keeping —
      BEFORE the staged rebuild, so no DataRow-named twin can mint. */
-  if (!/var goName = PrefabNameOf\(fam\) \+ " \(tiled face\)";/.test(cs))
+  if (!/var goName = PrefabNameOf\(fam\) \+ "_TiledFace";/.test(cs))
     errors.push("the tiled-face builder no longer names through PrefabNameOf — patterned kits' stretched data-row copies silently fall back to the base face again");
   if (!/static void RenameDataRowTiledFace\(string root\)/.test(cs)
       || !/RenameDataRowTiledFace\(root\); \/\/ and its stretch-safe twin — the scene road's one name/.test(cs)
@@ -2451,8 +2454,8 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the Art-shelf rename valet (GUID-keeping folder MoveAsset + its three call sites) is missing");
   if (!/var sub = dir \+ "\/Art";/.test(cs) || !/AssetDatabase\.CreateFolder\(dir, "Art"\);/.test(cs))
     errors.push("board-art prefabs no longer build into Prefabs/Art");
-  if (!/root \+ "\/Prefabs\/Art\/" \+ BigGlyphPrefabName\(it\.big\) \+ "\.prefab"/.test(cs))
-    errors.push("scene placement no longer looks at Prefabs/Art first (the BigGlyphs load must be the FALLBACK only)");
+  if (!/var bigPf = KitPrefab\(root, BigGlyphPrefabName\(it\.big\)\);/.test(cs))
+    errors.push("scene placement no longer resolves board art through the by-name finder (Art, the legacy BigGlyphs shelf and a hand re-shelve all answer) (round 78)");
   if (!/pp\.Contains\("\/Prefabs\/Art\/"\) \|\| pp\.Contains\("\/Prefabs\/BigGlyphs\/"\)/.test(cs)
       || !/allSecs\.Add\(\("ART", bigNames\.ToArray\(\)\)\);/.test(cs))
     errors.push("the Playground's ART chapter is gone (gather or label) — the owner's rename");
@@ -2504,7 +2507,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   for (const id of [...S2D, "skillnode"])
     if (!new RegExp(`${id}: "${id}"`).test(src))
       errors.push(`${id} lost its PREFAB_FAMILY entry — board copies of it bake dead again`);
-  if (!/\("RPG & MMO", new\[\] \{ "Questpanel", "Dialoguebox", "Choicelist", "Manarails", "Xpbar", "Invgrid", "Partyframe", "Skillnode", "Dmgnumber", "Equipslot" \}\)/.test(cs))
+  if (!/\("RPG & MMO", "RPG and MMO", new\[\] \{ "Questpanel", "Dialoguebox", "Choicelist", "Manarails", "Xpbar", "Invgrid", "Partyframe", "Skillnode", "Dmgnumber", "Equipslot" \}\)/.test(cs))
     errors.push("the Playground's RPG & MMO chapter is gone or reshuffled");
   if (!/"Minimap", "Compass"/.test(cs))
     errors.push("the compass fell off the HUD & DATA shelf");
@@ -2535,7 +2538,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     if (!new RegExp(`${id}: "${id}"`).test(src))
       errors.push(`${id} lost its PREFAB_FAMILY entry`);
   }
-  if (!/\("SHOOTER & ACTION", new\[\] \{ "Crosshair", "Hitmarker", "Dmgarc", "Weaponwheel", "Equipselector", "Magazine", "Ammo", "Streakmeter", "Killfeed", "Waypoint", "Capturemeter", "Respawn", "Buffframe", "Hotbar", "Lives" \}\)/.test(cs))
+  if (!/\("SHOOTER & ACTION", "Shooter and Action", new\[\] \{ "Crosshair", "Hitmarker", "Dmgarc", "Weaponwheel", "Equipselector", "Magazine", "Ammo", "Streakmeter", "Killfeed", "Waypoint", "Capturemeter", "Respawn", "Buffframe", "Hotbar", "Lives" \}\)/.test(cs))
     errors.push("the Playground's SHOOTER & ACTION chapter is gone or reshuffled");
   // the un-burn marks
   if (!/data-icon="weapon"/.test(bevelSrc)) errors.push("the kill feed's weapon glyph lost its marker");
@@ -2568,7 +2571,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   for (const id of [...S4D, "booster"])
     if (!new RegExp(`${id}: "${id}"`).test(src))
       errors.push(`${id} lost its PREFAB_FAMILY entry`);
-  if (!/\("CASUAL & SAGA", new\[\] \{ "Heartmeter", "Energymeter", "Starrating", "Pathconnector", "Combo", "Booster", "Flipclock", "Stopwatch" \}\)/.test(cs))
+  if (!/\("CASUAL & SAGA", "Casual and Saga", new\[\] \{ "Heartmeter", "Energymeter", "Starrating", "Pathconnector", "Combo", "Booster", "Flipclock", "Stopwatch" \}\)/.test(cs))
     errors.push("the Playground's CASUAL & SAGA chapter is gone or reshuffled");
   // the meters' live icon slots (the c98eade Unity half)
   if (!/data-icon="pip\$\{i \+ 1\}"/.test(bevelSrc))
@@ -2598,7 +2601,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     if (!new RegExp(`${id}: "${id}"`).test(src))
       errors.push(`${id} lost its PREFAB_FAMILY entry`);
   }
-  if (!/\("STRATEGY & SOCIAL", new\[\] \{ "Scorebug", "Friendrow", "Chatbubble", "Emotewheel", "Clancrest", "Unitplate", "Buildqueue", "Techcard", "Popmeter" \}\)/.test(cs))
+  if (!/\("STRATEGY & SOCIAL", "Strategy and Social", new\[\] \{ "Scorebug", "Friendrow", "Chatbubble", "Emotewheel", "Clancrest", "Unitplate", "Buildqueue", "Techcard", "Popmeter" \}\)/.test(cs))
     errors.push("the Playground's STRATEGY & SOCIAL chapter is gone or reshuffled");
   // the Match Score's Unity half (ba34520): tintable team bars, live names
   if (!/data-icon="homebar" data-icon-nick="Home color bar" data-icon-tint="\$\{TA\}"/.test(bevelSrc)
@@ -2640,7 +2643,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
       || !/suffix: "legendary"/.test(src) || !/suffix: "mystery"/.test(src)
       || !/suffix: "claimed"/.test(src) || !/suffix: "locked"/.test(src))
     errors.push("the rewards state-variant emission is gone — ALL rewards states stop shelving");
-  if (!/\("REWARDS", new\[\] \{ "Pack", "Cardback", "ClaimbtnDouble", "RewardcardLegendary", "RewardcardMystery", "DailycellClaimed", "DailycellLocked", "Chest", "Giftbox", "Rewardtray", "Chestpanel", "Orderticket" \}\)/.test(cs))
+  if (!/\("REWARDS", "Rewards", new\[\] \{ "Pack", "Cardback", "ClaimbtnDouble", "RewardcardLegendary", "RewardcardMystery", "DailycellClaimed", "DailycellLocked", "Chest", "Giftbox", "Rewardtray", "Chestpanel", "Orderticket" \}\)/.test(cs))
     errors.push("the Playground's REWARDS chapter is gone or reshuffled");
 }
 
@@ -3614,11 +3617,11 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/static bool SlotFleetPrefabs\(string dir, string root, PBManifest m, bool quiet\) \{/.test(cs)
       || !/SlotFleetPrefabs\(dir, root, m, staging\)/.test(cs)
       || !/var gT = inst\.transform\.Find\("Icon glyph"\);/.test(cs)
-      || !/"\/Slot Button – " \+ FileSafeWord\(fe\.name\) \+ "\.prefab"/.test(cs)
+      || !/"\/SlotButton_" \+ PlainWord\(fe\.name\) \+ "\.prefab"/.test(cs)
       || !/PrefabUtility\.GetPrefabAssetType\(saved\) == PrefabAssetType\.Variant\s*&& \(GameObject\)PrefabUtility\.GetCorrespondingObjectFromSource\(saved\) == basePf;[\s\S]{0,900}Slot Button fleet/.test(cs))
     errors.push("the slot fleet builder (thin Prefab Variants off the live glyph child) left the importer (round 49, S40)");
-  if (!/"Slotbtn", "Slot Button – Gem", "Slot Button – Sword", "Slot Button – Key", "Slot Button – Hammer", "Slot Button – Gear", "Slot Button – Check"/.test(cs)
-      || !/else if \(sf == "slotbtn"\) foreach \(var fv in new\[\] \{ "Slot Button – Gem"/.test(cs))
+  if (!/"Slotbtn", "SlotButton_Gem", "SlotButton_Sword", "SlotButton_Key", "SlotButton_Hammer", "SlotButton_Gear", "SlotButton_Check"/.test(cs)
+      || !/else if \(sf == "slotbtn"\) foreach \(var fv in new\[\] \{ "SlotButton_Gem"/.test(cs))
     errors.push("the Playground lost the slot button's representative row or its staged hiding (round 49, S40)");
 }
 
@@ -3693,8 +3696,8 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("PBManifest lost the glyph-fleet entries (name + file + measured seat + fam) (round 51+52, S42)");
   if (!/static bool GlyphFleetPrefabs\(string dir, string root, PBManifest m, bool quiet, int pngScale, Font kitFont\) \{/.test(cs)
       || !/GlyphFleetPrefabs\(dir, root, m, staging, pngScale, kitFont\)/.test(cs)
-      || !/"\/Glyph Button – " \+ FileSafeWord\(fe\.name\) \+ "\.prefab"/.test(cs))
-    errors.push("the glyph fleet builder (one 'Glyph Button – <Name>' prefab per entry) left the importer (round 51+52, S42)");
+      || !/"\/GlyphButton_" \+ PlainWord\(fe\.name\) \+ "\.prefab"/.test(cs))
+    errors.push("the glyph fleet builder (one 'GlyphButton_<Name>' prefab per entry) left the importer (round 51+52, S42; plain names round 78)");
   const gfp42 = /static bool GlyphFleetPrefabs\(string dir, string root, PBManifest m, bool quiet, int pngScale, Font kitFont\) \{[\s\S]*?\n    \}/.exec(cs)?.[0] ?? "";
   if (!/if \(glyphSp == null\) \{ missing\+\+; continue; \}/.test(gfp42)
       || !/\{ kept\+\+; continue; \}/.test(gfp42))
@@ -3736,13 +3739,13 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the generic family loop no longer skips gbtn — a second 'Gbtncoin' copy would split the class (round 52, S43)");
   const gfp43 = /static bool GlyphFleetPrefabs\(string dir, string root, PBManifest m, bool quiet, int pngScale, Font kitFont\) \{[\s\S]*?\n    \}/.exec(cs)?.[0] ?? "";
   if (!/if \(famRowGF != null\) \{/.test(gfp43)
-      || !/if \(FamilyPrefab\(vdir, root, famRowGF, "Glyph Button – " \+ FileSafeWord\(fe\.name\), null, pngScale, kitFont, m\)\) made\+\+;/.test(gfp43))
+      || !/if \(FamilyPrefab\(vdir, root, famRowGF, "GlyphButton_" \+ PlainWord\(fe\.name\), null, pngScale, kitFont, m\)\) made\+\+;/.test(gfp43))
     errors.push("the importer's FULL road (family rows -> class-named prefab in Variants) left GlyphFleetPrefabs (round 52, S43)");
   if (!/if \(basePf == null\) \{ missing\+\+; continue; \}/.test(gfp43))
     errors.push("the thin road no longer waits on the slotbtn frame — a set released without slotbtn would throw instead of shipping full (round 52, S43)");
-  if (!/foreach \(var feSc in m\.glyphFleet\) if \(feSc != null && feSc\.fam == it\.component && !string\.IsNullOrEmpty\(feSc\.name\)\) \{ pfName = "Glyph Button – " \+ FileSafeWord\(feSc\.name\); break; \}/.test(cs)
-      || !/if \(pf == null && it\.component != null && it\.component\.StartsWith\("gbtn"\)\)\s*\n\s*pf = AssetDatabase\.LoadAssetAtPath<GameObject>\(root \+ "\/Prefabs\/Variants\/" \+ pfName \+ "\.prefab"\);/.test(cs))
-    errors.push("the scene road can no longer place a glyph button (class-name resolve via the roster + the Variants address) (round 52, S43)");
+  if (!/foreach \(var feSc in m\.glyphFleet\) if \(feSc != null && feSc\.fam == it\.component && !string\.IsNullOrEmpty\(feSc\.name\)\) \{ pfName = "GlyphButton_" \+ PlainWord\(feSc\.name\); break; \}/.test(cs)
+      || !/GameObject pf = KitPrefab\(root, pfName\);/.test(cs))
+    errors.push("the scene road can no longer place a glyph button (class-name resolve via the roster + the by-name finder) (round 52, S43; round 78)");
 }
 
 /* ── ROUND 53 · S44 (the per-state glyph dress — reviewer blocker: a

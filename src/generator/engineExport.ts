@@ -14602,9 +14602,9 @@ namespace PatternBreak {
       } catch (Exception) { return false; }
     }
     static void PlaceFromRoot(string root, string pfName, string altName, GameObject ctxGo) {
-      var pf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/" + pfName + ".prefab");
+      var pf = KitPrefab(root, pfName);
       // graceful fallback (e.g. CheckboxToggle -> Checkbox on older zips)
-      if (pf == null && !string.IsNullOrEmpty(altName)) pf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/" + altName + ".prefab");
+      if (pf == null && !string.IsNullOrEmpty(altName)) pf = KitPrefab(root, altName);
       if (pf == null) {
         /* the HeroLabel dead-end, honestly (F4): on a layerless kit the
            old remedy ("run the kit import") was false FOREVER — no import
@@ -14704,7 +14704,7 @@ namespace PatternBreak {
         try { m = JsonUtility.FromJson<PBManifest>(File.ReadAllText(mPath)); } catch (Exception) { }
         if (m == null) continue;
         foreach (var fam in new string[] { "button-primary", "button-secondary", "button-small", "chip", "tab", "tab-back" }) {
-          var pf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/" + NiceName(fam) + ".prefab");
+          var pf = KitPrefab(root, NiceName(fam));
           if (pf == null) continue;
           var inkc = pf.GetComponent<LabelStateInk>();
           /* the "export build" tag rides along so a Console search filter
@@ -15308,7 +15308,7 @@ namespace PatternBreak {
       // missing state wiring is added, stale label dress is re-applied —
       // in place, surgical, no menu hunt (fresh generations are current
       // by construction and skip this)
-      if (prefabsReady && !prefabsNew) { MaintainExamplePrefabs(root, manifest, prev); GenerateMissingPrefabs(root, manifest, prev); HealScrollView(root, manifest); HealScrollbar(root, manifest); }
+      if (prefabsReady && !prefabsNew) { MaintainExamplePrefabs(root, manifest, prev); GenerateMissingPrefabs(root, manifest, prev); HealScrollView(root, manifest); HealScrollbar(root, manifest); ShelveIntoChapters(root); }
       /* the renamed files' short-named twins go LAST — the maintenance
          pass above has re-pointed every prefab reference off them */
       foreach (var twin in renameTwins) AssetDatabase.DeleteAsset(root + "/" + twin);
@@ -15812,7 +15812,7 @@ namespace PatternBreak {
         CheckTag(safeT, "green outline = live Screen.safeArea · backdrop bleeds under cutouts · try other Game-view aspects or the Device Simulator", 22f * tagK, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 64f * tagK), 0);
         // a couple of live kit pieces so the check shows the real kit
         int livePlaced = 0;
-        var pfBtn = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/ButtonPrimary.prefab");
+        var pfBtn = KitPrefab(root, "ButtonPrimary");
         if (pfBtn != null) {
           var iB = (GameObject)PrefabUtility.InstantiatePrefab(pfBtn, scene);
           iB.transform.SetParent(safeT, false);
@@ -15823,7 +15823,7 @@ namespace PatternBreak {
             livePlaced++;
           }
         }
-        var pfBar = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/ProgressBar.prefab");
+        var pfBar = KitPrefab(root, "ProgressBar");
         if (pfBar != null) {
           var iP = (GameObject)PrefabUtility.InstantiatePrefab(pfBar, scene);
           iP.transform.SetParent(safeT, false);
@@ -16002,38 +16002,20 @@ namespace PatternBreak {
             /* the slot button's shelved fleet representatives hide with
                their family (round 49) — the full set lives in
                Prefabs/Variants, which the shelf never walks */
-            else if (sf == "slotbtn") foreach (var fv in new[] { "Slot Button – Gem", "Slot Button – Sword", "Slot Button – Key", "Slot Button – Hammer", "Slot Button – Gear", "Slot Button – Check" }) stagedNames.Add(fv);
+            else if (sf == "slotbtn") foreach (var fv in new[] { "SlotButton_Gem", "SlotButton_Sword", "SlotButton_Key", "SlotButton_Hammer", "SlotButton_Gear", "SlotButton_Check" }) stagedNames.Add(fv);
           }
-        var SECTIONS = new (string title, string[] names)[] {
-          /* the slot button shelves with a REPRESENTATIVE handful of its
-             glyph fleet (round 49 — the shelf stays sane; all 28 live in
-             Prefabs/Variants, which the walk below never shelves) */
-          ("BUTTONS", new[] { "ButtonPrimary", "ButtonSecondary", "ButtonSmall", "Iconbtn", "Slotbtn", "Slot Button – Gem", "Slot Button – Sword", "Slot Button – Key", "Slot Button – Hammer", "Slot Button – Gear", "Slot Button – Check", "Chip", "Endturn", "Keycap", "KeycapSpace", "Padbtn", "PadbtnB", "PadbtnX", "PadbtnY", "Pricebtn", "Claimbtn", "Ghost" }),
-          ("CHOICE CONTROLS & FIELDS", new[] { "Checkbox", "Radio", "CheckboxToggle", "RadioToggle", "Switch", "Stepper", "Input", "Dropdown", "Setrow", "Listmenu", "Joystick", "JoystickGhost", "Firebutton" }),
-          ("SLIDERS & PROGRESS", new[] { "Slider", "ProgressBar", "SegmentMeter", "VsBar", "EmblemBar", "Loadbar", "HealthGlobe", "Ring", "SeasonTrack", "Cooldown", "Vitalbar" }),
-          ("NAVIGATION & CHROME", new[] { "Tab", "TabBack", "Bottomnav", "HeaderBanner", "Panel", "Dialog", "DataRow", "ItemSlot", "ScrollView", "Scrollbar", "Badge", "CountBadge", "Notifydot", "Avatarframe", "Pagedots", "Steps", "Spinner" }),
-          ("HUD & DATA", new[] { "Timer", "Resource", "Currency", "Nameplate", "Movecounter", "Qtybadge", "Orb", "Achievement", "Leaderboard", "LapTimes", "Telemetry", "Minimap", "Compass" }),
-          ("GAUGES", new[] { "Speedo", "SpeedoArc", "RevMeter" }),
-          ("GAME SYSTEMS", new[] { "Levelnode", "Dailycell", "Boostercard", "Rewardcard", "Gifticon", "Trophyicon", "Gearicon", "LootTag", "RarityFrame", "Circuit", "Startlights" }),
-          ("RPG & MMO", new[] { "Questpanel", "Dialoguebox", "Choicelist", "Manarails", "Xpbar", "Invgrid", "Partyframe", "Skillnode", "Dmgnumber", "Equipslot" }),
-          ("SHOOTER & ACTION", new[] { "Crosshair", "Hitmarker", "Dmgarc", "Weaponwheel", "Equipselector", "Magazine", "Ammo", "Streakmeter", "Killfeed", "Waypoint", "Capturemeter", "Respawn", "Buffframe", "Hotbar", "Lives" }),
-          ("CASUAL & SAGA", new[] { "Heartmeter", "Energymeter", "Starrating", "Pathconnector", "Combo", "Booster", "Flipclock", "Stopwatch" }),
-          ("STRATEGY & SOCIAL", new[] { "Scorebug", "Friendrow", "Chatbubble", "Emotewheel", "Clancrest", "Unitplate", "Buildqueue", "Techcard", "Popmeter" }),
-          /* the rewards chapter: the released card twins, every shelved
-             reward STATE (the 2x button, reveals, daily poses) and the
-             staged bay's rewards — which stay off the shelf until the
-             owner releases them (stagedFamilies filters them here). */
-          ("REWARDS", new[] { "Pack", "Cardback", "ClaimbtnDouble", "RewardcardLegendary", "RewardcardMystery", "DailycellClaimed", "DailycellLocked", "Chest", "Giftbox", "Rewardtray", "Chestpanel", "Orderticket" }),
-        };
+        /* the shelf chapters ARE the Prefabs chapter folders (round 78):
+           one table, CHAPTERS, feeds both */
+        var SECTIONS = new List<(string title, string[] names)>();
+        foreach (var chS in CHAPTERS) SECTIONS.Add((chS.title, chS.names));
         var byName = new Dictionary<string, GameObject>();
         foreach (var p in prefabs) if (!byName.ContainsKey(p.name)) byName[p.name] = p;
         var claimed = new HashSet<string>();
         foreach (var sec in SECTIONS) foreach (var n in sec.names) claimed.Add(n);
-        /* zero overlaps (slice 4b): the extras MoveCounter picture twin
-           stays a Prefabs/ flavor — the universal Movecounter (live
-           seats, posed skins) is the family's one shelf spot. Claimed
-           without a section = never shelved, never resurrected by MORE. */
-        claimed.Add("MoveCounter");
+        /* the extras MoveCounter picture twin is retired (round 78): its
+           name differed from the universal Movecounter by case alone —
+           one file on Windows — and RetireMoveCounterTwin removes a kept
+           project's copy; the universal prefab is the one shelf spot */
         /* the glyph rack and the kit's board art shelve as their own
            chapters, names gathered from their folders (any count) */
         var glyphNames = new List<string>();
@@ -16041,7 +16023,9 @@ namespace PatternBreak {
         var moreNames = new List<string>();
         foreach (var p in prefabs) {
           var pp = pathOf[p];
-          if (pp.Contains("/Prefabs/Variants/") || p.name.Contains("(tiled face)") || p.name == "HeroLabel") continue;
+          if (pp.Contains("/Prefabs/Variants/") || p.name.Contains("(tiled face)") || p.name.Contains("_TiledFace") || p.name == "HeroLabel") continue;
+          // flavors (word variants, the slot and glyph fleets) live in their family's chapter folder now (round 78) — only the listed representatives shelve
+          if (p.name.Contains("_") && !claimed.Contains(p.name)) continue;
           if (pp.Contains("/Prefabs/Glyphs/")) { glyphNames.Add(p.name); continue; }
           if (pp.Contains("/Prefabs/Art/") || pp.Contains("/Prefabs/BigGlyphs/")) { bigNames.Add(p.name); continue; }
           if (!claimed.Contains(p.name)) moreNames.Add(p.name);
@@ -16682,7 +16666,7 @@ namespace PatternBreak {
           int ghostFixed = 0;
           foreach (var gsw in ghostSwaps) {
             var oldT = gsw.Key; var itG = gsw.Value;
-            var ghostPf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/JoystickGhost.prefab");
+            var ghostPf = KitPrefab(root, "JoystickGhost");
             if (ghostPf == null) { Debug.LogWarning("UI Kit Maker: '" + bd.name + "' places the GHOST stick but Prefabs/JoystickGhost.prefab is missing — re-export the kit (round-18+ zips ship the ghost art)."); break; }
             var gInst = (GameObject)PrefabUtility.InstantiatePrefab(ghostPf, scene);
             gInst.transform.SetParent(oldT.parent, false);
@@ -16823,7 +16807,7 @@ namespace PatternBreak {
         }
         t.raycastTarget = false;
       } else {
-        var hlPf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/HeroLabel.prefab");
+        var hlPf = KitPrefab(root, "HeroLabel");
         if (hlPf == null) return null;
         go = (GameObject)PrefabUtility.InstantiatePrefab(hlPf, scene);
         go.name = "Stamp (live) — " + word;
@@ -17145,9 +17129,8 @@ namespace PatternBreak {
           if (it.big != null && !string.IsNullOrEmpty(it.big.id)) {
             var bigNm = string.IsNullOrEmpty(it.big.name) ? it.big.id : it.big.name;
             var bigSp = string.IsNullOrEmpty(it.big.sprite) ? null : S(root + "/" + it.big.sprite);
-            var bigPf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/Art/" + BigGlyphPrefabName(it.big) + ".prefab");
+            var bigPf = KitPrefab(root, BigGlyphPrefabName(it.big));
             // a kept project mid-heal may still hold the pre-rename shelf
-            if (bigPf == null) bigPf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/BigGlyphs/" + BigGlyphPrefabName(it.big) + ".prefab");
             if (bigPf != null) {
               inst = (GameObject)PrefabUtility.InstantiatePrefab(bigPf, scene);
               inst.name = bigNm + (it.big.fx ? " (fx)" : "");
@@ -17200,7 +17183,7 @@ namespace PatternBreak {
                the live-stamp fields existed. */
             if (inst == null && it.stampLive != 1 && it.component == "typestamp" && !string.IsNullOrEmpty(it.label)
                 && System.Text.RegularExpressions.Regex.IsMatch(it.label.Trim(), "^[0-9][0-9.,:+xX% ]*$")) {
-              var hlPf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/HeroLabel.prefab");
+              var hlPf = KitPrefab(root, "HeroLabel");
               if (hlPf == null)
                 Debug.LogWarning("UI Kit Maker: numeric stamp '" + it.label.Trim() + "' stays a baked image — no HeroLabel prefab yet (it ships when the kit bakes its layered face; run Tools > PatternBreak > Rebuild Kit Board Scenes after prefabs generate).");
               if (hlPf != null) {
@@ -17283,19 +17266,17 @@ namespace PatternBreak {
                name lives there ("Prize Wheel", "Piggy Bank"), never in a
                mechanical NiceName */
             else if (it.component != null && it.component.StartsWith("gbtn") && m.glyphFleet != null)
-              foreach (var feSc in m.glyphFleet) if (feSc != null && feSc.fam == it.component && !string.IsNullOrEmpty(feSc.name)) { pfName = "Glyph Button – " + FileSafeWord(feSc.name); break; }
+              foreach (var feSc in m.glyphFleet) if (feSc != null && feSc.fam == it.component && !string.IsNullOrEmpty(feSc.name)) { pfName = "GlyphButton_" + PlainWord(feSc.name); break; }
             /* the glyph rack lives on its own shelf now (Prefabs/Glyphs —
                the BigGlyphs pattern); a kept project may still hold its
                glyphs at the root, so both addresses answer */
-            GameObject pf = null;
-            if (it.component != null && it.component.StartsWith("glyph"))
-              pf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/Glyphs/" + pfName + ".prefab");
-            // the glyph-button class lives in Variants beside its thin siblings
-            if (pf == null && it.component != null && it.component.StartsWith("gbtn"))
-              pf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/Variants/" + pfName + ".prefab");
-            if (pf == null) pf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/" + pfName + ".prefab");
-            // a kept project mid-heal may still hold the pre-rename file
-            if (pf == null && it.component == "list-row") pf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/ListRow.prefab");
+            /* one finder for every shelf (round 78): the chapter folders,
+               the glyph rack, a kept project's flat root — plus the
+               pre-rename spellings a mid-heal project may still hold */
+            GameObject pf = KitPrefab(root, pfName);
+            if (pf == null && it.component != null && it.component.StartsWith("gbtn") && m.glyphFleet != null)
+              foreach (var feL in m.glyphFleet) if (feL != null && feL.fam == it.component && !string.IsNullOrEmpty(feL.name)) { pf = KitPrefab(root, "Glyph Button – " + FileSafeWord(feL.name)); break; }
+            if (pf == null && it.component == "list-row") pf = KitPrefab(root, "ListRow");
             /* a STRETCHED piece smears its face pattern through the
                nine-slice center (owner: "look at how the pattern inside
                the button scales") — the tiled-face build is made for
@@ -17308,7 +17289,8 @@ namespace PatternBreak {
             if (string.IsNullOrEmpty(it.posed) && baseGeo != null && baseGeo.shell.w > 4f && baseGeo.shell.h > 4f && it.h > 1f) {
               float aspRatio = (it.w / it.h) / (baseGeo.shell.w / baseGeo.shell.h);
               if (Mathf.Abs(aspRatio - 1f) > 0.08f) {
-                var tfPf = AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/Tiled face/" + pfName + " (tiled face).prefab");
+                var tfPf = KitPrefab(root, pfName + "_TiledFace");
+                if (tfPf == null) tfPf = KitPrefab(root, pfName + " (tiled face)");
                 if (tfPf != null) { pf = tfPf; tiledFace = true; }
               }
             }
@@ -21901,7 +21883,7 @@ namespace PatternBreak {
          resolves with (PrefabNameOf), or a patterned kit's stretched
          list-row copies look up "DataRow (tiled face)" and silently fall
          back to the base while the builder minted "ListRow (tiled face)" */
-      var goName = PrefabNameOf(fam) + " (tiled face)";
+      var goName = PrefabNameOf(fam) + "_TiledFace";
       var go = ImageObject(goName, under, pngScale);
       var ui = go.GetComponent<Image>();
       ui.type = Image.Type.Sliced;
@@ -23701,7 +23683,7 @@ namespace PatternBreak {
       try {
       foreach (var pr in pairs) {
         var baseName = NiceName(pr.family);
-        var basePf = AssetDatabase.LoadAssetAtPath<GameObject>(dir + "/" + baseName + ".prefab");
+        var basePf = KitPrefab(root, baseName);
         if (basePf == null) continue; // family shipped no prefab this kit
         EnsureVariantAsset(vdir, basePf, baseName, pr.word, ledger, newLedger, livePaths, pscene, tally);
       }
@@ -23725,6 +23707,7 @@ namespace PatternBreak {
       // the ALWAYS-printed completion line — zero requests is a result too
       Debug.Log("UI Kit Maker: label variants — " + pairs.Count + " request(s) from board-pinned words: " + tally.made + " built, " + tally.kept + " kept (yours after creation), " + tally.squatters + " path collision(s) stepped aside, " + tally.disconnected + " failed to variant-link." + (tally.made > 0 ? " True Prefab Variants in Prefabs/Variants: restyle the kit and their art follows; only the word is theirs." : ""));
       ClearVariantsPending(lockPath, lockNow, newLedger);
+      ShelveIntoChapters(root); // fresh variants shelve with their family (round 78)
     }
     class PBVariantTally { public int made, kept, squatters, disconnected; }
     /* The per-pair core BOTH passes share — batch (LabelVariantPrefabs)
@@ -23735,15 +23718,20 @@ namespace PatternBreak {
     static string EnsureVariantAsset(string vdir, GameObject basePf, string baseName, string word,
         Dictionary<string, string> ledger, Dictionary<string, string> newLedger, HashSet<string> livePaths,
         UnityEngine.SceneManagement.Scene pscene, PBVariantTally tally) {
-      var path = vdir + "/" + baseName + " – " + FileSafeWord(word) + ".prefab";
+      var path = vdir + "/" + baseName + "_" + PlainWord(word) + ".prefab";
       /* OCCUPANT RESOLUTION (ledger-backed): the file is OURS for this
          word iff the ledger (or, pre-ledger, its own label) says so AND
          it is a real Variant of our base. Anything else — a squatter
          prefab, or a DIFFERENT pin truncation-colliding into the same
          filename — steps aside via the suffix path, receipted. */
       while (true) {
-        if (livePaths.Contains(path)) { path = path.Substring(0, path.Length - 7) + " x.prefab"; continue; }
+        if (livePaths.Contains(path)) { path = path.Substring(0, path.Length - 7) + "_x.prefab"; continue; }
         var occupant = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+        if (occupant == null && vdir.EndsWith("/Prefabs/Variants")) {
+          // shelved into its chapter folder (round 78): the variant lives by NAME anywhere under Prefabs/
+          var shelvedV = KitPrefabPath(vdir.Substring(0, vdir.Length - 17), Path.GetFileNameWithoutExtension(path));
+          if (shelvedV != null) { path = shelvedV; occupant = AssetDatabase.LoadAssetAtPath<GameObject>(path); }
+        }
         if (occupant == null) break; // free — create here
         bool isOurVariant = PrefabUtility.GetPrefabAssetType(occupant) == PrefabAssetType.Variant
           && (GameObject)PrefabUtility.GetCorrespondingObjectFromSource(occupant) == basePf;
@@ -23762,7 +23750,7 @@ namespace PatternBreak {
         // squatter / collision: step aside and say so
         tally.squatters++;
         Debug.Log("UI Kit Maker: '" + Path.GetFileName(path) + "' is occupied by " + (isOurVariant ? "a variant of a DIFFERENT pinned word (filename collision)" : "a prefab that isn't our variant") + " — building this pin alongside it.");
-        path = path.Substring(0, path.Length - 7) + " x.prefab";
+        path = path.Substring(0, path.Length - 7) + "_x.prefab";
       }
       livePaths.Add(path);
       var inst = (GameObject)PrefabUtility.InstantiatePrefab(basePf, pscene);
@@ -23815,7 +23803,7 @@ namespace PatternBreak {
       var have = ResolveVariantPrefab(root, baseName, word);
       if (have != null) return have;
       var dir = root + "/Prefabs";
-      var basePf = AssetDatabase.LoadAssetAtPath<GameObject>(dir + "/" + baseName + ".prefab");
+      var basePf = KitPrefab(root, baseName);
       if (basePf == null) return null; // no base yet — the caller counts and receipts
       var vdir = dir + "/Variants";
       if (!AssetDatabase.IsValidFolder(vdir)) AssetDatabase.CreateFolder(dir, "Variants");
@@ -23855,13 +23843,15 @@ namespace PatternBreak {
           var l = JsonUtility.FromJson<PBLock>(File.ReadAllText(lockPath));
           if (l != null && l.seededVariants != null)
             foreach (var e in l.seededVariants)
-              if (e != null && e.word == word && !string.IsNullOrEmpty(e.path) && Path.GetFileName(e.path).StartsWith(baseName + " – ")) {
+              if (e != null && e.word == word && !string.IsNullOrEmpty(e.path) && (Path.GetFileName(e.path).StartsWith(baseName + "_") || Path.GetFileName(e.path).StartsWith(baseName + " – "))) {
                 var viaLedger = AssetDatabase.LoadAssetAtPath<GameObject>(e.path);
                 if (viaLedger != null) return viaLedger;
               }
         }
       } catch (Exception) { }
-      return AssetDatabase.LoadAssetAtPath<GameObject>(root + "/Prefabs/Variants/" + baseName + " – " + FileSafeWord(word) + ".prefab");
+      var plainV = KitPrefab(root, baseName + "_" + PlainWord(word));
+      if (plainV != null) return plainV;
+      return KitPrefab(root, baseName + " – " + FileSafeWord(word)); // a kept project mid-rename
     }
     /* the variant JOB completed: clear the receipt's pending flag and
        write the file→word ledger (kit.lock.json survives domain reloads,
@@ -24865,7 +24855,8 @@ namespace PatternBreak {
        children. Rebuild it wired; a prefab the dev reshaped is theirs
        (Regenerate stays the explicit escape hatch). */
     static void HealScrollbar(string root, PBManifest m) {
-      var pathSB = root + "/Prefabs/Scrollbar.prefab";
+      var pathSB = KitPrefabPath(root, "Scrollbar");
+      if (pathSB == null) return;
       var assetSB = AssetDatabase.LoadAssetAtPath<GameObject>(pathSB);
       if (assetSB == null) return;
       if (assetSB.GetComponent<Scrollbar>() != null) return; // already wired
@@ -24884,7 +24875,8 @@ namespace PatternBreak {
        empty. A bar the dev moved or a view they filled is theirs; the
        Regenerate menu remains their explicit upgrade road. */
     static void HealScrollView(string root, PBManifest m) {
-      var path = root + "/Prefabs/ScrollView.prefab";
+      var path = KitPrefabPath(root, "ScrollView");
+      if (path == null) return;
       var asset = AssetDatabase.LoadAssetAtPath<GameObject>(path);
       if (asset == null) return;
       var sbT = asset.transform.Find("Scrollbar") as RectTransform;
@@ -25188,7 +25180,6 @@ namespace PatternBreak {
       if (PicturePrefab(dir, root, pngScale, m, "laptimes/laptimes-base.9.png", "LapTimes", true)) any = true;
       if (PicturePrefab(dir, root, pngScale, m, "leaderboard/leaderboard-base.9.png", "Leaderboard", true)) any = true;
       if (PicturePrefab(dir, root, pngScale, m, "telemetry/telemetry-base.9.png", "Telemetry", true)) any = true;
-      if (PicturePrefab(dir, root, pngScale, m, "extras/extras-movecounter.png", "MoveCounter", false)) any = true;
       if (PicturePrefab(dir, root, pngScale, m, "extras/extras-achievement.png", "Achievement", false)) any = true;
       if (RarityFramePrefab(dir, root, pngScale, m)) any = true;
       // big glyphs used on this export's boards — one prefab per asset
@@ -25407,6 +25398,7 @@ namespace PatternBreak {
     static bool SlotFleetPrefabs(string dir, string root, PBManifest m, bool quiet) {
       if (m == null || m.slotFleet == null || m.slotFleet.Length == 0) return false;
       var basePf = AssetDatabase.LoadAssetAtPath<GameObject>(dir + "/Slotbtn.prefab");
+      if (basePf == null) basePf = KitPrefab(root, "Slotbtn"); // shelved in Buttons (round 78)
       if (basePf == null) return false; // staged (or pruned) — nothing to wear the glyphs
       var vdir = dir + "/Variants";
       if (!AssetDatabase.IsValidFolder(vdir)) AssetDatabase.CreateFolder(dir, "Variants");
@@ -25417,8 +25409,8 @@ namespace PatternBreak {
           if (fe == null || string.IsNullOrEmpty(fe.name) || string.IsNullOrEmpty(fe.file)) continue;
           var glyphSp = S(root + "/" + fe.file);
           if (glyphSp == null) { missing++; continue; } // a wave ahead of its sprites — quietly ready
-          var path = vdir + "/Slot Button – " + FileSafeWord(fe.name) + ".prefab";
-          if (AssetDatabase.LoadAssetAtPath<GameObject>(path) != null) { kept++; continue; } // theirs after creation
+          var path = vdir + "/SlotButton_" + PlainWord(fe.name) + ".prefab";
+          if (KitPrefab(root, Path.GetFileNameWithoutExtension(path)) != null) { kept++; continue; } // theirs after creation, wherever it is shelved
           var inst = (GameObject)PrefabUtility.InstantiatePrefab(basePf, pscene);
           if (inst == null) continue;
           try {
@@ -25479,6 +25471,7 @@ namespace PatternBreak {
     static bool GlyphFleetPrefabs(string dir, string root, PBManifest m, bool quiet, int pngScale, Font kitFont) {
       if (m == null || m.glyphFleet == null || m.glyphFleet.Length == 0) return false;
       var basePf = AssetDatabase.LoadAssetAtPath<GameObject>(dir + "/Slotbtn.prefab");
+      if (basePf == null) basePf = KitPrefab(root, "Slotbtn"); // shelved in Buttons (round 78)
       PBAsset rowGB = null;
       if (m.assets != null) foreach (var aGB in m.assets) if (aGB != null && aGB.component == "slotbtn" && aGB.part == "base") { rowGB = aGB; break; }
       float psGB = pngScale > 0 ? pngScale : 2f;
@@ -25489,7 +25482,7 @@ namespace PatternBreak {
       try {
         foreach (var fe in m.glyphFleet) {
           if (fe == null || string.IsNullOrEmpty(fe.name) || string.IsNullOrEmpty(fe.file)) continue;
-          var path = vdir + "/Glyph Button – " + FileSafeWord(fe.name) + ".prefab";
+          var path = vdir + "/GlyphButton_" + PlainWord(fe.name) + ".prefab";
           /* the FULL road (round 52): this button's own family rows are
              aboard — build its true prefab from them, under the class
              name. One prefab per glyph, whichever road: the path is the
@@ -25498,14 +25491,14 @@ namespace PatternBreak {
           if (!string.IsNullOrEmpty(fe.fam) && m.assets != null)
             foreach (var aGF in m.assets) if (aGF != null && aGF.component == fe.fam && aGF.part == "base") { famRowGF = aGF; break; }
           if (famRowGF != null) {
-            if (AssetDatabase.LoadAssetAtPath<GameObject>(path) != null) { kept++; continue; } // theirs after creation
-            if (FamilyPrefab(vdir, root, famRowGF, "Glyph Button – " + FileSafeWord(fe.name), null, pngScale, kitFont, m)) made++;
+            if (KitPrefab(root, Path.GetFileNameWithoutExtension(path)) != null) { kept++; continue; } // theirs after creation, wherever it is shelved
+            if (FamilyPrefab(vdir, root, famRowGF, "GlyphButton_" + PlainWord(fe.name), null, pngScale, kitFont, m)) made++;
             continue;
           }
           if (basePf == null) { missing++; continue; } // thin needs the slotbtn frame — staged (or pruned), quietly ready
           var glyphSp = S(root + "/" + fe.file);
           if (glyphSp == null) { missing++; continue; } // a wave ahead of its sprites — quietly ready
-          if (AssetDatabase.LoadAssetAtPath<GameObject>(path) != null) { kept++; continue; } // theirs after creation
+          if (KitPrefab(root, Path.GetFileNameWithoutExtension(path)) != null) { kept++; continue; } // theirs after creation, wherever it is shelved
           var inst = (GameObject)PrefabUtility.InstantiatePrefab(basePf, pscene);
           if (inst == null) continue;
           try {
@@ -25591,6 +25584,7 @@ namespace PatternBreak {
         seededG.Sort();
         passSeededPrefabs = seededG.ToArray();
       }
+      if (any) ShelveIntoChapters(root); // the chapter folders (round 78)
       return any;
     }
     /* MaintainExamplePrefabs' surgical sibling: a kit UPDATE can carry
@@ -25844,6 +25838,169 @@ namespace PatternBreak {
        Runs on every import (maintenance) AND before a manual
        Regenerate, so a rebuild can never mint Glyphs/ twins beside
        root-level originals. */
+    /* ── PREFAB CHAPTERS (round 78 — Jimi's field round, and the folder
+       shape of the store's top casual kit): the Prefabs folder reads like
+       the Playground. One folder per chapter, every prefab findable by
+       name and by kind, plain ASCII names (GlyphButton_Coin — never a
+       dash and spaces). The builders still mint where they always did
+       (the root, Variants/, Tiled face/); ShelveIntoChapters runs at the
+       end of every import and moves each prefab into its chapter by
+       NAME — MoveAsset keeps the GUID, so every scene reference and
+       Playground copy follows (the Glyphs/Art precedent). Every lookup
+       goes through KitPrefab(root, name), which finds a prefab anywhere
+       under Prefabs/, so a dev may re-shelve by hand and nothing breaks.
+       A prefab already in ANY chapter folder is never re-shelved: where
+       the dev put it is where it stays. ── */
+    static readonly (string title, string folder, string[] names)[] CHAPTERS = new (string title, string folder, string[] names)[] {
+      ("BUTTONS", "Buttons", new[] { "ButtonPrimary", "ButtonSecondary", "ButtonSmall", "Iconbtn", "Slotbtn", "SlotButton_Gem", "SlotButton_Sword", "SlotButton_Key", "SlotButton_Hammer", "SlotButton_Gear", "SlotButton_Check", "Chip", "Endturn", "Keycap", "KeycapSpace", "Padbtn", "PadbtnB", "PadbtnX", "PadbtnY", "Pricebtn", "Claimbtn", "Ghost" }),
+      ("CHOICE CONTROLS & FIELDS", "Choice Controls", new[] { "Checkbox", "Radio", "CheckboxToggle", "RadioToggle", "Switch", "Stepper", "Input", "Dropdown", "Setrow", "Listmenu", "Joystick", "JoystickGhost", "Firebutton" }),
+      ("SLIDERS & PROGRESS", "Sliders and Progress", new[] { "Slider", "ProgressBar", "SegmentMeter", "VsBar", "EmblemBar", "Loadbar", "HealthGlobe", "Ring", "SeasonTrack", "Cooldown", "Vitalbar" }),
+      ("NAVIGATION & CHROME", "Navigation and Chrome", new[] { "Tab", "TabBack", "Bottomnav", "HeaderBanner", "Panel", "Dialog", "DataRow", "ItemSlot", "ScrollView", "Scrollbar", "Badge", "CountBadge", "Notifydot", "Avatarframe", "Pagedots", "Steps", "Spinner" }),
+      ("HUD & DATA", "HUD and Data", new[] { "Timer", "Resource", "Currency", "Nameplate", "Movecounter", "Qtybadge", "Orb", "Achievement", "Leaderboard", "LapTimes", "Telemetry", "Minimap", "Compass" }),
+      ("GAUGES", "Gauges", new[] { "Speedo", "SpeedoArc", "RevMeter" }),
+      ("GAME SYSTEMS", "Game Systems", new[] { "Levelnode", "Dailycell", "Boostercard", "Rewardcard", "Gifticon", "Trophyicon", "Gearicon", "LootTag", "RarityFrame", "Circuit", "Startlights" }),
+      ("RPG & MMO", "RPG and MMO", new[] { "Questpanel", "Dialoguebox", "Choicelist", "Manarails", "Xpbar", "Invgrid", "Partyframe", "Skillnode", "Dmgnumber", "Equipslot" }),
+      ("SHOOTER & ACTION", "Shooter and Action", new[] { "Crosshair", "Hitmarker", "Dmgarc", "Weaponwheel", "Equipselector", "Magazine", "Ammo", "Streakmeter", "Killfeed", "Waypoint", "Capturemeter", "Respawn", "Buffframe", "Hotbar", "Lives" }),
+      ("CASUAL & SAGA", "Casual and Saga", new[] { "Heartmeter", "Energymeter", "Starrating", "Pathconnector", "Combo", "Booster", "Flipclock", "Stopwatch" }),
+      ("STRATEGY & SOCIAL", "Strategy and Social", new[] { "Scorebug", "Friendrow", "Chatbubble", "Emotewheel", "Clancrest", "Unitplate", "Buildqueue", "Techcard", "Popmeter" }),
+      ("REWARDS", "Rewards", new[] { "Pack", "Cardback", "ClaimbtnDouble", "RewardcardLegendary", "RewardcardMystery", "DailycellClaimed", "DailycellLocked", "Chest", "Giftbox", "Rewardtray", "Chestpanel", "Orderticket" }),
+    };
+    static string ChapterFolderOf(string prefabName, string currentSub) {
+      if (currentSub == "Glyphs" || currentSub == "Art") return currentSub; // the rack and the board art keep their own shelves
+      if (prefabName == "HeroLabel") return "Labels";
+      var baseName = prefabName;
+      int us = baseName.IndexOf('_');
+      if (us > 0) baseName = baseName.Substring(0, us); // a flavor (GlyphButton_Coin, ButtonPrimary_BOOST, DataRow_TiledFace) shelves with its family
+      if (baseName == "GlyphButton" || baseName == "SlotButton") return "Buttons";
+      foreach (var ch in CHAPTERS) foreach (var n in ch.names) if (n == baseName) return ch.folder;
+      return "More";
+    }
+    static void ShelveIntoChapters(string root) {
+      var dir = root + "/Prefabs";
+      if (!AssetDatabase.IsValidFolder(dir)) return;
+      int moved = 0;
+      var misses = new List<string>();
+      foreach (var g in AssetDatabase.FindAssets("t:Prefab", new string[] { dir })) {
+        var p = AssetDatabase.GUIDToAssetPath(g).Replace("\\\\", "/");
+        var parent = Path.GetDirectoryName(p).Replace("\\\\", "/");
+        var sub = parent.Length > dir.Length ? parent.Substring(dir.Length + 1) : "";
+        // only OUR shelves re-shelve: the flat root and the builders' flavor folders; a chapter folder or the dev's own layout stays
+        if (sub != "" && sub != "Variants" && sub != "Tiled face" && sub != "Glyphs" && sub != "Art") continue;
+        var fn = Path.GetFileName(p);
+        var folder = ChapterFolderOf(Path.GetFileNameWithoutExtension(fn), sub);
+        if (folder == sub) continue;
+        if (!AssetDatabase.IsValidFolder(dir + "/" + folder)) AssetDatabase.CreateFolder(dir, folder);
+        var target = dir + "/" + folder + "/" + fn;
+        if (File.Exists(target)) { misses.Add(fn); continue; }
+        if (string.IsNullOrEmpty(AssetDatabase.MoveAsset(p, target))) moved++; else misses.Add(fn);
+      }
+      // the flavor shelves fold into the chapters — an emptied one goes
+      foreach (var flavor in new[] { "Variants", "Tiled face" }) {
+        var fdir = dir + "/" + flavor;
+        if (AssetDatabase.IsValidFolder(fdir) && AssetDatabase.FindAssets("", new string[] { fdir }).Length == 0) AssetDatabase.DeleteAsset(fdir);
+      }
+      if (moved > 0)
+        Debug.Log("UI Kit Maker: shelved " + moved + " prefab(s) into chapter folders under " + dir + " — Buttons, Choice Controls, Sliders and Progress, Navigation and Chrome, HUD and Data and the rest, the Playground's own chapters (same files, same GUIDs; every scene reference follows).");
+      if (misses.Count > 0)
+        Debug.LogWarning("UI Kit Maker: " + misses.Count + " prefab(s) stayed where they were (" + string.Join(", ", misses.ToArray()) + ") — a file with that name already lives in the chapter folder. Nothing was overwritten; remove or rename one and re-import.");
+    }
+    /* a kit prefab by NAME, wherever it is shelved under Prefabs/ (the
+       flat root first, then every chapter and flavor folder) */
+    static string KitPrefabPath(string root, string name) {
+      if (string.IsNullOrEmpty(name)) return null;
+      var dir = root + "/Prefabs";
+      if (!AssetDatabase.IsValidFolder(dir)) return null;
+      var direct = dir + "/" + name + ".prefab";
+      if (File.Exists(direct)) return direct;
+      var want = name + ".prefab";
+      foreach (var g in AssetDatabase.FindAssets("t:Prefab", new string[] { dir })) {
+        var p = AssetDatabase.GUIDToAssetPath(g).Replace("\\\\", "/");
+        if (Path.GetFileName(p) == want) return p;
+      }
+      return null;
+    }
+    static GameObject KitPrefab(string root, string name) {
+      var p = KitPrefabPath(root, name);
+      return p == null ? null : AssetDatabase.LoadAssetAtPath<GameObject>(p);
+    }
+    /* plain ASCII prefab names (round 78): a word becomes one token —
+       spaces and dashes to single underscores, the file-unsafe set
+       already swapped by FileSafeWord */
+    static string PlainWord(string w) {
+      var safe = FileSafeWord(w);
+      var sb = new System.Text.StringBuilder();
+      bool gap = false;
+      foreach (var ch in safe) {
+        if (ch == ' ' || ch == '_' || ch == '-') { gap = true; continue; }
+        if (gap && sb.Length > 0) sb.Append('_');
+        gap = false;
+        sb.Append(ch);
+      }
+      return sb.Length > 0 ? sb.ToString() : "word";
+    }
+    /* the legacy spelling → the plain one: "Glyph Button – Coin" →
+       GlyphButton_Coin, "Slot Button – Gem" → SlotButton_Gem,
+       "ButtonPrimary – BOOST NOW" → ButtonPrimary_BOOST_NOW, "DataRow
+       (tiled face)" → DataRow_TiledFace, the " x" collision suffix → _x.
+       A name already plain comes back unchanged. */
+    static string PlainPrefabName(string legacy) {
+      var nm = legacy;
+      if (nm.StartsWith("Glyph Button – ")) return "GlyphButton_" + PlainWord(nm.Substring(15));
+      if (nm.StartsWith("Slot Button – ")) return "SlotButton_" + PlainWord(nm.Substring(14));
+      bool tiled = nm.EndsWith(" (tiled face)");
+      if (tiled) nm = nm.Substring(0, nm.Length - 13);
+      int dash = nm.IndexOf(" – ");
+      if (dash > 0) nm = nm.Substring(0, dash) + "_" + PlainWord(nm.Substring(dash + 3));
+      else if (nm.EndsWith(" x")) nm = nm.Substring(0, nm.Length - 2) + "_x";
+      if (tiled) nm += "_TiledFace";
+      return nm;
+    }
+    static void RenamePlainNames(string root) {
+      var dir = root + "/Prefabs";
+      if (!AssetDatabase.IsValidFolder(dir)) return;
+      int renamed = 0;
+      var misses = new List<string>();
+      foreach (var g in AssetDatabase.FindAssets("t:Prefab", new string[] { dir })) {
+        var p = AssetDatabase.GUIDToAssetPath(g).Replace("\\\\", "/");
+        var stem = Path.GetFileNameWithoutExtension(p);
+        var plain = PlainPrefabName(stem);
+        if (plain == stem) continue;
+        var target = Path.GetDirectoryName(p).Replace("\\\\", "/") + "/" + plain + ".prefab";
+        if (File.Exists(target)) { misses.Add(stem); continue; }
+        if (string.IsNullOrEmpty(AssetDatabase.RenameAsset(p, plain))) renamed++; else misses.Add(stem);
+      }
+      if (renamed > 0)
+        Debug.Log("UI Kit Maker: renamed " + renamed + " prefab(s) to plain names — GlyphButton_Coin, SlotButton_Gem, ButtonPrimary_BOOST, DataRow_TiledFace: no dashes, no spaces (same files, same GUIDs; every scene reference follows).");
+      if (misses.Count > 0)
+        Debug.LogWarning("UI Kit Maker: " + misses.Count + " prefab(s) kept their old name (" + string.Join(", ", misses.ToArray()) + ") — the plain name is already taken beside it. Nothing was overwritten; remove or rename one and re-import.");
+    }
+    /* the extras MoveCounter picture twin, retired (round 78): its name
+       differed from the universal Movecounter only by case — ONE file on
+       Windows and macOS, and whichever builder wrote last owned it (the
+       "inconsistent casing" warning in Jimi's console). A kept project's
+       twin is the piece wearing the bare extras tile; it goes, both
+       spellings leave the seeding ledger, and the universal family prefab
+       (live seats, posed skins) seeds fresh on this import — the one
+       shelf spot, in HUD and Data. */
+    static void RetireMoveCounterTwin(string root, PBLock prevLock) {
+      var dir = root + "/Prefabs";
+      if (!AssetDatabase.IsValidFolder(dir)) return;
+      bool retired = false;
+      foreach (var g in AssetDatabase.FindAssets("t:Prefab", new string[] { dir })) {
+        var p = AssetDatabase.GUIDToAssetPath(g).Replace("\\\\", "/");
+        if (!string.Equals(Path.GetFileNameWithoutExtension(p), "movecounter", StringComparison.OrdinalIgnoreCase)) continue;
+        var go = AssetDatabase.LoadAssetAtPath<GameObject>(p);
+        var img = go != null ? go.GetComponent<Image>() : null;
+        var spPath = img != null && img.sprite != null ? AssetDatabase.GetAssetPath(img.sprite).Replace("\\\\", "/") : null;
+        if (spPath == null || !spPath.EndsWith("/extras/extras-movecounter.png")) continue; // the universal prefab, or the dev's own piece — never touched
+        if (AssetDatabase.DeleteAsset(p)) { retired = true; Debug.Log("UI Kit Maker: retired the MoveCounter picture twin (" + p + ") — its name clashed with the universal Movecounter prefab by case alone. The family prefab, live seats and all, seeds in HUD and Data on this import."); }
+      }
+      if (retired && prevLock != null && prevLock.seededPrefabs != null) {
+        var keep = new List<string>();
+        foreach (var nm in prevLock.seededPrefabs) if (nm != null && !string.Equals(nm, "movecounter.prefab", StringComparison.OrdinalIgnoreCase)) keep.Add(nm);
+        prevLock.seededPrefabs = keep.ToArray();
+      }
+    }
     static void ShelveGlyphPrefabs(string root) {
       var dir = root + "/Prefabs";
       if (!AssetDatabase.IsValidFolder(dir)) return;
@@ -25923,6 +26080,8 @@ namespace PatternBreak {
       RenameDataRowPrefab(root); // the owner's language, healed on every import
       RenameDataRowTiledFace(root); // and its stretch-safe twin — the scene road's one name
       RenameArtShelf(root); // BigGlyphs → Art, the class's name everywhere
+      RenamePlainNames(root); // plain ASCII names (round 78), healed on every import
+      RetireMoveCounterTwin(root, prevLock); // the case-twin that shadowed the universal Movecounter
       int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, glyphSeated = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0, reseeded = 0, wordKept = 0, rebodied = 0, mapGrafted = 0, padTuned = 0, rigGrafted = 0, sinkTuned = 0, barRigged = 0, capRigged = 0, pieceBound = 0, ddRigged = 0, unburned = 0, retiredIc = 0, medalWorded = 0;
       /* the ROOT-RECT ownership ledger (F5 — the resize pass was the one
          maintenance heal with NO ours-vs-theirs guard): rects we last
