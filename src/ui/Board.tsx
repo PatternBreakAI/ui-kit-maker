@@ -6,7 +6,7 @@ import { normalizeShipCopy, captureVideoPoster } from "@/generator/bgvault";
 import { importBgAsset, bgAssetStatusLine, onAssetActivity, bgAssetDisplayUrl } from "@/generator/assets";
 import { BACKDROP_LIBRARY, BACKDROP_CATEGORIES, backdropThumb, backdropUrl } from "@/generator/backdropLibrary";
 import type { BoardDef, BoardItem } from "@/generator/store";
-import { renderBevel, renderKit, VALUE_DRIVEN } from "@/generator/bevel";
+import { renderBevel, renderKit, VALUE_DRIVEN, segmentCaptions } from "@/generator/bevel";
 import { CLONE_INELIGIBLE, GLYPH_BUTTONS, KIT_COMPONENTS, applyKitDesign, applyKitTextFill, baseOf, fontByName, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
 import { LIVE_GLYPHS } from "@/generator/glyphLibrary";
 import { BIG_GLYPHS, BIG_GLYPH_BASE, bigGlyphById, bigGlyphThumb, bigGlyphMid, bigGlyphUrl, bigGlyphFilter, type BigGlyphDef, type BigGlyphFx } from "@/generator/bigGlyphs";
@@ -1689,7 +1689,9 @@ export function BoardView({ playing }: { playing: boolean }) {
       // (owner: "changing the speedo component in edit did not update it
       // on the the board")
       const bSize = kitSizes[b.kitId] ?? "l";
-      return { svg: renderKit(pc, bBase, bSize, "default", b.v ?? kitVals[b.kitId], kitShapes[b.kitId], { icon: resolveKitIcon(kitIcons[b.kitId], undefined), pic: kitPicOf({ kitPics, kitPicFx, userAssets, kitAssets }, b.kitId), logo: kitPicOf({ kitPics, kitPicFx, userAssets, kitAssets }, b.kitId, "logo"), label: kitNoText[b.kitId] ? "" : (b.label ?? kitLabels[b.kitId]), sub: kitSubs[b.kitId], slots: kitSlotVals[b.kitId], textOy: kitTextOy[`${b.kitId}:${bSize}`], textOx: kitTextOx[`${b.kitId}:${bSize}`], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov, dock: kb?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kb.dockSide ?? "left" } : undefined, bar: kb, row: bBase === "datarow" ? kitRow : undefined, themedText: !!kitDesigns[b.kitId]?.type || !!kitTextFill[b.kitId] }), cfg: pc };
+      const bLabel = kitNoText[b.kitId] ? "" : (b.label ?? kitLabels[b.kitId]);
+      // the segmented control's option words ride the copy's label (round 81)
+      return { svg: renderKit(pc, bBase, bSize, "default", b.v ?? kitVals[b.kitId], kitShapes[b.kitId], { icon: resolveKitIcon(kitIcons[b.kitId], undefined), pic: kitPicOf({ kitPics, kitPicFx, userAssets, kitAssets }, b.kitId), logo: kitPicOf({ kitPics, kitPicFx, userAssets, kitAssets }, b.kitId, "logo"), label: bLabel, segments: bBase === "segment" ? segmentCaptions(bLabel) : undefined, sub: kitSubs[b.kitId], slots: kitSlotVals[b.kitId], textOy: kitTextOy[`${b.kitId}:${bSize}`], textOx: kitTextOx[`${b.kitId}:${bSize}`], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov, dock: kb?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kb.dockSide ?? "left" } : undefined, bar: kb, row: bBase === "datarow" ? kitRow : undefined, themedText: !!kitDesigns[b.kitId]?.type || !!kitTextFill[b.kitId] }), cfg: pc };
     }
     if (b.stamp) return { svg: stampSvg(cfg, b.stamp), cfg };
     // big glyphs and user logos are raster art — the PNG compositor
@@ -2889,6 +2891,13 @@ export function BoardView({ playing }: { playing: boolean }) {
                     title="The kit's font at one flat color you pick, for labels that stay readable on any backdrop"
                     onClick={() => { if (!st.plain) patch({ plain: { color: "#FFFFFF" } }); }}>Plain</button>
                 </div>
+                {/* the READING VOICE (round 81): body copy on a board. The
+                    kit's reading face, sentence case as typed, book weight,
+                    no display treatment. Works with either tier. */}
+                <label className="bd-inkchk" title="Set these words in the kit's reading face (the list font), sentence case, no lettering treatment. For body copy, captions and rules text.">
+                  <input type="checkbox" checked={st.voice === "list"}
+                    onChange={(e) => patch({ voice: e.target.checked ? "list" : undefined })} /> Reading voice
+                </label>
                 {st.plain && (
                   <label className="bd-slider bd-inkrow">Text color
                     <input type="color" value={st.plain.color} aria-label="Plain text color"
@@ -3523,7 +3532,7 @@ function StampArt({ cfg, stamp }: { cfg: GenConfig; stamp: NonNullable<BoardItem
   }, []);
   /* a 400% specimen is a real engine render — memo it, or every board
      interaction re-renders every stamp (the tray-click sluggishness) */
-  const svg = useMemo(() => stampSvg(cfg, stamp), [cfg, stamp.text, stamp.size, stamp.plain?.color, stamp.plain?.outline, fontTick]); // eslint-disable-line react-hooks/exhaustive-deps
+  const svg = useMemo(() => stampSvg(cfg, stamp), [cfg, stamp.text, stamp.size, stamp.plain?.color, stamp.plain?.outline, stamp.voice, fontTick]); // eslint-disable-line react-hooks/exhaustive-deps
   const warped = !!stamp.warp && stamp.warp.style !== "none" && !!stamp.warp.amount;
   /* Round 45 · B3 — the UNWARPED stamp's selection box hugs the LETTERING.
      The specimen's own data-shell is the invisible button shell it was
@@ -3872,7 +3881,10 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
              A CLONE item hands LiveArt its BASE id (LiveArt refuses clone
              ids) while every per-piece read stays keyed by b.kitId. */
           <LiveArt cfg={forkCfg} playing={playing} anchorContent onArt={onArtDim}
-            kit={{ id: baseOf(b.kitId), size: kitSizes[b.kitId] ?? "l", shape: kitShapes[b.kitId], icon: resolveKitIcon(kitIcons[b.kitId], undefined), pic: kitPicOf({ kitPics, kitPicFx, userAssets, kitAssets }, b.kitId), logo: kitPicOf({ kitPics, kitPicFx, userAssets, kitAssets }, b.kitId, "logo"), label: kitNoText[b.kitId] ? "" : (b.label ?? kitLabels[b.kitId]), value: b.v ?? kitVals[b.kitId], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
+            kit={{ id: baseOf(b.kitId), size: kitSizes[b.kitId] ?? "l", shape: kitShapes[b.kitId], icon: resolveKitIcon(kitIcons[b.kitId], undefined), pic: kitPicOf({ kitPics, kitPicFx, userAssets, kitAssets }, b.kitId), logo: kitPicOf({ kitPics, kitPicFx, userAssets, kitAssets }, b.kitId, "logo"), label: kitNoText[b.kitId] ? "" : (b.label ?? kitLabels[b.kitId]),
+              // the segmented control's option words ride the copy's label (round 81)
+              segments: baseOf(b.kitId) === "segment" ? segmentCaptions(kitNoText[b.kitId] ? "" : (b.label ?? kitLabels[b.kitId])) : undefined,
+              value: b.v ?? kitVals[b.kitId], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
               sub: kitSubs[b.kitId], slots: kitSlotVals[b.kitId],
               textOy: kitTextOy[`${b.kitId}:${kitSizes[b.kitId] ?? "l"}`], textOx: kitTextOx[`${b.kitId}:${kitSizes[b.kitId] ?? "l"}`],
               dock: (baseOf(b.kitId) === "progress" || baseOf(b.kitId) === "segbar") && kitBar[b.kitId]?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kitBar[b.kitId]?.dockSide ?? "left" } : undefined,

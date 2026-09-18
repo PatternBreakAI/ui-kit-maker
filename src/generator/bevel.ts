@@ -4385,6 +4385,20 @@ export const VALUE_DRIVEN = new Set<KitComponentId>([
  *  prefab as rotation, so every word inside stays a live seat. */
 export const KIT_TILT: Partial<Record<KitComponentId, number>> = { verdict: -8 };
 
+/** The segmented control's OPTION WORDS from a board copy's label (round
+ *  81, the Stand on Business boards): a label carrying " | " (space, pipe,
+ *  space) splits into captions, two to five of them. Anything else, an
+ *  empty part or a count outside that range = no captions (the renderer
+ *  keeps its ONE TWO THREE default). One reader for the stage, the PNG
+ *  compositor, the exporter's bakes and the renderer itself, so the same
+ *  label can never split differently on two surfaces. */
+export function segmentCaptions(label: string | undefined | null): string[] | undefined {
+  if (!label || !label.includes(" | ")) return undefined;
+  const caps = label.split(" | ").map((s) => s.trim());
+  if (caps.length < 2 || caps.length > 5 || caps.some((s) => !s)) return undefined;
+  return caps;
+}
+
 /** Factory rarity tiers — exported so the Panel's palette editor shows
  *  the same names and hues it resets to. */
 export const RARITY_FACTORY = [
@@ -5562,10 +5576,20 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          labels get the same air to the edge as every inner gap */
       const capIn = h * 0.2;
       const zoneX = 39 + bw + capIn, zoneW = w - bw * 2 - capIn * 2;
-      const segW = zoneW / 3;
+      /* the OPTION WORDS (round 81): explicit captions (opts.segments) or
+         a piped label ("Small | Normal | Large") give two to five
+         captions, distributed evenly across the zone; the selected one
+         is the value read as a 0..1 fraction of the caption index
+         (Math.round(v * (n - 1))). No captions = the ONE TWO THREE
+         default with its legacy index-valued pick, byte-still. */
+      const capsIn = opts.segments && opts.segments.length >= 2 && opts.segments.length <= 5 && opts.segments.every((s) => !!s)
+        ? opts.segments : segmentCaptions(opts.label);
+      const caps = capsIn ?? ["ONE", "TWO", "THREE"];
+      const nSeg = caps.length;
+      const segW = zoneW / nSeg;
       // value picks the active segment (0..2) — play mode drives it live;
       // the resting default stays on the middle segment, as it always has
-      const sel = clamp(Math.round(value ?? 1), 0, 2);
+      const sel = capsIn ? clamp(Math.round((value ?? 0) * (nSeg - 1)), 0, nSeg - 1) : clamp(Math.round(value ?? 1), 0, 2);
       const selX = zoneX + segW * sel;
       const well = `<path d="${roundRect(selX + 4, 30 + bw + 4, segW - 8, h - bw * 2 - 8, (h - bw * 2 - 8) * 0.3)}" fill="rgba(255,255,255,0.25)" stroke="rgba(255,255,255,0.35)" stroke-width="1"/>`;
       // selected keeps the full type flavor; unselected go QUIET AND PLAIN —
@@ -5574,9 +5598,15 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          them (owner: "If I could control opacity, etc in its off-state") */
       const offOp = ({ "Readable · 70%": 0.7, "Strong · 85%": 0.85, "Full · 100%": 1 } as Record<string, number>)[opts.slots?.offvis ?? ""] ?? 0.45;
       const offPlain = (opts.slots?.offstyle ?? "") !== "Full type style";
+      /* five captions on the same pill share the room: ONE caption size
+         for the whole control, fitted down to the longest option's cell
+         (fitFs, the dialogue box's measure-true road) so a long option
+         never runs into its neighbour and no two options read at
+         different sizes. The stock trio keeps its size byte-still. */
+      const capFs0 = 30 * k * typeK;
+      const capFs = capsIn ? Math.min(capFs0, ...caps.map((cap) => fitFs(cap, capFs0, segW - 10 * k))) : capFs0;
       const t = (label: string, cx: number, op: number, plain = false) =>
-        contentText(label, cx, cy, 30 * k * typeK, { anchor: "middle", opacity: op, plain });
-      const caps = opts.segments && opts.segments.length === 3 ? opts.segments : ["ONE", "TWO", "THREE"];
+        contentText(label, cx, cy, capFs, { anchor: "middle", opacity: op, plain });
       return stampTrack(inject(track, well + caps.map((cap, i) => t(cap, zoneX + segW * (i + 0.5), i === sel ? 1 : offOp, i !== sel && offPlain)).join("")), zoneX, zoneW);
     }
     case "checkbox": {
