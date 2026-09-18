@@ -40,6 +40,7 @@
    ever ask for; the boards do not move. */
 
 import brightsideKit from "./kit-brightside.json";
+import standOnBusinessKit from "./kit-stand-on-business.json";
 import type { BoardDef, BoardItem } from "./store";
 
 /** One demo screen in the showcase strip, in the order a player meets it. */
@@ -115,8 +116,40 @@ const BRIGHTSIDE: NamedKitDef = {
   payload: brightsideKit as unknown as Record<string, unknown>,
 };
 
+/* Stand on Business (round 80) — the chrome for a card battler, designed
+   on request from the game's own coordinating session: one look (gilded
+   navy, Cinzel display, Crimson Pro reading voice) and eleven boards, one
+   per screen, on the 1920 × 1080 stage. STAGED: the owner tweaks and
+   blesses it board by board before anyone else sees it; the game's
+   importer reads the export, never these boards directly. Captions
+   describe what is on each board as rendered. NO EM DASHES in anything a
+   visitor reads. */
+const STAND_ON_BUSINESS: NamedKitDef = {
+  slug: "stand-on-business",
+  name: "Stand on Business",
+  lede: "Eleven screens of chrome for a card battler, from one gilded-navy kit. Every window the game draws into is a named placeholder.",
+  platform: "Composed for landscape · 1920 × 1080",
+  storeUrl: null,
+  staged: true,
+  screens: [
+    { board: "landing", title: "Landing", caption: "The first screen: a wordmark slot, four big buttons with icon tiles, the deck picker, the wallet, the speaker button with its menu open, five card holes and the teaser hole." },
+    { board: "match", title: "Match", caption: "The main board: both profile plates, the Stand button with the Legacy coin and the plan timer, three Locations (one hidden, one won), the hand hole, Sit Down, Lock In, the toast and the replay banner." },
+    { board: "sheets", title: "Sheets", caption: "Every bottom sheet once: the bare sheet, the two confirms, the Threat, the Location, the profile, the turn log and the chat." },
+    { board: "result", title: "Result", caption: "The verdict banner with its Legacy line, three Location results with their winner chips, the ledger rows and the three buttons." },
+    { board: "compendium", title: "Compendium", caption: "The Cards screen: filter tabs, a row of card holes, two Location plates, the Legacy plate, the rank ladder, the promote button and the References sheet." },
+    { board: "rules", title: "Rules", caption: "A long read: a title, three headed plates of the game's own sentences, a scrollbar and a Back tab." },
+    { board: "settings", title: "Settings", caption: "The full settings sheet: three switches, two volume rows, text size and colour-blind tints, and Done." },
+    { board: "tutorial", title: "Tutorial", caption: "The guide's chrome over a faint board: the coach plate with Next, two spotlight rings and the lesson plate with its picture window." },
+    { board: "deck-builder", title: "Deck builder", caption: "Era and archetype tabs, ten card holes, the 24-slot tray with filled and invalid slots, the validity line in both poses, Save deck, Reset and three steppers." },
+    { board: "store", title: "Store", caption: "The finishes store: the wallet, four catalogue tiles across their four states, the empty state and the Buy confirm with its cost line." },
+    { board: "history", title: "History", caption: "The profile plate with its portrait window, five match rows with won, lost and draw chips, and the empty state." },
+  ],
+  payload: standOnBusinessKit as unknown as Record<string, unknown>,
+};
+
 export const NAMED_KITS: Record<string, NamedKitDef> = {
   [BRIGHTSIDE.slug]: BRIGHTSIDE,
+  [STAND_ON_BUSINESS.slug]: STAND_ON_BUSINESS,
 };
 
 /** `#/kit/<slug>` → the slug, for any shipped kit. Anything else → null.
