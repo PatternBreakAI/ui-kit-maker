@@ -2954,15 +2954,16 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("respawn's conditional zone stamp left bevel — Barheight Hidden must ship no zone (round 44, item 30)");
   if (!/function barFillOnlySvg\(/.test(src) || !/function stripBarFill\(/.test(src))
     errors.push("the RIG-1 bar un-burn hands (barFillOnlySvg/stripBarFill) left the exporter");
-  if (!/const barRigU = uid === "loadbar" \|\| uid === "popmeter" \|\| uid === "respawn" \|\| uid === "buildqueue" \|\| uid === "xpbar" \|\| uid === "unitplate" \|\| uid === "questpanel" \|\| uid === "setrow" \|\| uid === "orderticket" \|\| uid === "vitalbar";/.test(src))
-    errors.push("the display-bar rig gate left the universal loop (eight families incl. xpbar/unitplate/questpanel/setrow)");
+  // round 80: the plan timer joins the gate (appended; every earlier family stays pinned in place)
+  if (!/const barRigU = uid === "loadbar" \|\| uid === "popmeter" \|\| uid === "respawn" \|\| uid === "buildqueue" \|\| uid === "xpbar" \|\| uid === "unitplate" \|\| uid === "questpanel" \|\| uid === "setrow" \|\| uid === "orderticket" \|\| uid === "vitalbar" \|\| uid === "timerbar";/.test(src))
+    errors.push("the display-bar rig gate left the universal loop (eight families incl. xpbar/unitplate/questpanel/setrow, plus the round-80 timerbar)");
   if (!/tzy \+ riseDyT/.test(src))
     errors.push("the track band lost its riseDy correction — the zone would seat a full extrusion headroom too high (round 44 field lesson)");
   if (!/track\?: \{ x: number; w: number; y\?: number; h\?: number \} \| null;/.test(src))
     errors.push("AssetMeta.track lost the optional vertical band");
   if (!/float bandCy = -1f;/.test(cs) || !/float topGap = bandCy - fillH \* 0\.5f, botGap = trackH - bandCy - fillH \* 0\.5f;/.test(cs))
     errors.push("BuildBarFill lost the vertical-band seat (round 44) — off-centerline bars would center mid-shell");
-  if (!/if \(baseAsset\.component == "loadbar" \|\| baseAsset\.component == "popmeter" \|\| baseAsset\.component == "respawn" \|\| baseAsset\.component == "buildqueue" \|\| baseAsset\.component == "xpbar" \|\| baseAsset\.component == "unitplate" \|\| baseAsset\.component == "questpanel" \|\| baseAsset\.component == "setrow" \|\| baseAsset\.component == "orderticket" \|\| baseAsset\.component == "vitalbar"\)/.test(cs)
+  if (!/if \(baseAsset\.component == "loadbar" \|\| baseAsset\.component == "popmeter" \|\| baseAsset\.component == "respawn" \|\| baseAsset\.component == "buildqueue" \|\| baseAsset\.component == "xpbar" \|\| baseAsset\.component == "unitplate" \|\| baseAsset\.component == "questpanel" \|\| baseAsset\.component == "setrow" \|\| baseAsset\.component == "orderticket" \|\| baseAsset\.component == "vitalbar" \|\| baseAsset\.component == "timerbar"\)/.test(cs)
       || !/string famDB = spritePath\.EndsWith\("\/loadbar-base\.png"\) \? "loadbar"/.test(cs))
     errors.push("the display bars' FamilyPrefab wiring or kept-project Fill graft left the importer (round 44)");
   const liveArtSrc = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../src/ui/LiveArt.tsx"), "utf8");
@@ -3366,7 +3367,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the rewardtray slot glyphs lost their marks (round 44, item 31 — gated road)");
   if (!/data-barfill="\$\{\(barX \+ gV\)\.toFixed\(1\)\}/.test(bevelSrc))
     errors.push("the vitalbar mercury lost its mark (round 44 — gated road)");
-  if (!/uid === "orderticket" \|\| uid === "vitalbar";/.test(src)
+  if (!/uid === "orderticket" \|\| uid === "vitalbar" \|\| uid === "timerbar";/.test(src)
       || !/orderticket: 0\.62, vitalbar: 0\.72/.test(src))
     errors.push("the staged families left the bar-rig emission roster (round 44, items 23 + vitalbar)");
   if (!/barRigU \? stripBarFill\(sOut\)\.svg : sOut/.test(src))
@@ -4457,6 +4458,62 @@ const OBSOLETE = [
       errors.push(`${b.name.trim()} line ~${ln} calls a banned API — ${o.why}`);
     }
   }
+}
+
+/* ── ROUND 80 (the Stand on Business set): seven staged card-battler pieces
+   ride the universal road, the placeholder window bakes fully transparent
+   with its guide stripped, the verdict stamp bakes upright and turns at the
+   prefab, and the plan timer joins the display-bar rig. ── */
+{
+  const R80 = ["placeholder", "coin", "timerbar", "spotlight", "trayslot", "validity", "verdict"];
+  const usageM80 = /const UNIVERSAL_USAGE: Partial<Record<KitComponentId, string>> = \{([\s\S]*?)\n {6}\};/.exec(src);
+  for (const id of R80) {
+    if (!new RegExp(`${id}: "${id}"`).test(src))
+      errors.push(`${id} lost its PREFAB_FAMILY entry — board copies of it bake dead again (round 80)`);
+    if (!usageM80 || !new RegExp(`\\n\\s+${id}: "`).test(usageM80[1]))
+      errors.push(`${id} lost its usage row — the manifest would ship the piece unexplained (round 80)`);
+    if (!new RegExp(`case "${id}": \\{`).test(bevelSrc))
+      errors.push(`${id} lost its render case (round 80)`);
+  }
+  const dispM80 = /const UNIVERSAL_DISPLAY = new Set<KitComponentId>\(\[([\s\S]*?)\]\);/.exec(src);
+  for (const id of ["placeholder", "coin", "timerbar", "spotlight", "validity", "verdict"])
+    if (!dispM80 || !new RegExp(`"${id}"`).test(dispM80[1]))
+      errors.push(`${id} left the universal display road (round 80)`);
+  if (!/UNIVERSAL_INTERACTIVE\.add\("trayslot"\);/.test(src))
+    errors.push("trayslot left the universal interactive road — the tray cell stops pressing (round 80)");
+  // the guide strip and the un-tilt, and every render passing through them
+  if (!/function exportNormalizeSvg\(svg: string\): string/.test(src)
+      || !/querySelectorAll\("\[data-guide\]"\)\)\) g\.remove\(\);/.test(src)
+      || !/querySelectorAll\("\[data-tilt\]"\)\)\) g\.removeAttribute\("transform"\);/.test(src))
+    errors.push("the export-side normalisation (guide strip + un-tilt) left the exporter (round 80)");
+  if (!/const renderKit: typeof renderKitRaw = \(\.\.\.args\) => exportNormalizeSvg\(renderKitRaw\(\.\.\.args\)\);/.test(src))
+    errors.push("the exporter's renders no longer pass through exportNormalizeSvg — a placeholder would bake its guide and the stamp its turned word (round 80)");
+  if (!/<g data-guide="1">/.test(bevelSrc) || !/<g data-tilt="\$\{tiltD\}" transform="rotate\(\$\{tiltD\}/.test(bevelSrc))
+    errors.push("the placeholder guide mark or the verdict tilt mark left bevel (round 80)");
+  if (!/export const KIT_TILT: Partial<Record<KitComponentId, number>> = \{ verdict: -8 \};/.test(bevelSrc))
+    errors.push("KIT_TILT left bevel or changed shape (round 80)");
+  // the transparent window
+  if (!/if \(uid === "placeholder"\) \{[\s\S]{0,1400}await addPng\(`\$\{uid\}\/base\.png`, blankP, \{[\s\S]{0,400}\}, false\);[\s\S]{0,80}continue;/.test(src))
+    errors.push("the placeholder window's transparent full-size bake left the universal loop (round 80)");
+  // the tilt rides the manifest, the rows and the prefab
+  if ((src.match(/rot: \(b\.rot \?\? 0\) \+ \(KIT_TILT\[idBase\] \?\? 0\)/g) ?? []).length !== 2)
+    errors.push("board rows stopped adding the family tilt to rot on both roads (round 80)");
+  if (!/\.\.\.\(KIT_TILT\[uid\] \? \{ tilt: KIT_TILT\[uid\] \} : \{\}\),/.test(src))
+    errors.push("the base row lost its tilt field (round 80)");
+  if (!/public float tilt;/.test(cs) || !/rtTilt\.localRotation = Quaternion\.Euler\(0f, 0f, -baseAsset\.tilt\);/.test(cs))
+    errors.push("the importer lost the prefab tilt (round 80)");
+  // the plan timer on the bar rig
+  if (!/vitalbar: 0\.72, timerbar: 0\.62/.test(src))
+    errors.push("the plan timer left the bar-rig staged-value roster (round 80)");
+  if (!/baseAsset\.component == "vitalbar" \|\| baseAsset\.component == "timerbar"/.test(cs)
+      || !/it\.component == "vitalbar" \|\| it\.component == "timerbar"/.test(cs))
+    errors.push("the plan timer left the importer's bar wiring or board strike (round 80)");
+  if (!/data-barfill="\$\{gT\.toFixed\(1\)\} \$\{gT\.toFixed\(1\)\}/.test(bevelSrc))
+    errors.push("the plan timer's mercury lost its mark (round 80)");
+  // the shelf claims
+  if (!/\("CARD BATTLER", "Card Battler", new\[\] \{ "Coin", "Trayslot", "Validity", "Verdict", "Spotlight", "Placeholder" \}\)/.test(cs)
+      || !/"Cooldown", "Vitalbar", "Timerbar" \}\)/.test(cs))
+    errors.push("the Playground's CARD BATTLER chapter or the Timerbar shelf claim left the importer (round 80)");
 }
 
 if (errors.length) {

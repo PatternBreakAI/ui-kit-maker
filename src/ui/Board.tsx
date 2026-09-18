@@ -76,7 +76,7 @@ const ASSET_GROUPS: { name: string; ids: string[] }[] = [
      appear, exactly like the ribbon in round 60. */
   { name: "Containers & overlays", ids: ["panel", "header", "ribbonbanner", "tab", "tabback", "bottomnav", "dropdown", "dialog", "toast", "tooltip", "listmenu", "choicelist", "scrollbar", "input", "searchfield", "setrow"] },
   { name: "HUD & readouts", ids: ["resource", "chip", "badge", "datarow", "slot", "orb", "ring", "bignum", "xpbar", "vitalbar", "currency", "healthglobe", "manarails", "buffframe", "cooldown", "notifydot", "countbadge", "avatarframe", "nameplate", "loadbar", "spinner", "pagedots", "steps", "stepper"] },
-  { name: "Timers", ids: ["flipclock", "stopwatch", "timerdigits"] },
+  { name: "Timers", ids: ["flipclock", "stopwatch", "timerdigits", "timerbar"] },
   { name: "Controls", ids: ["toggle", "slider", "progress", "segbar", "emblembar", "vsbar", "hotbar", "segment", "checkbox", "radio", "joystick", "gearicon", "trophyicon", "trophyicon~gold", "trophyicon~silver", "trophyicon~bronze", "gifticon"] },
   { name: "Shooter", ids: ["reticle", "crosshair", "hitmarker", "ammo", "magazine", "lives", "minimap", "compass", "killfeed", "weaponwheel", "equipselector", "firebutton", "joystick~ghost", "streakmeter", "waypoint", "capturemeter", "respawn", "dmgarc", "dmgnumber"] },
   { name: "RPG & progression", ids: ["questpanel", "dialoguebox", "partyframe", "unitplate", "invgrid", "rarityframe", "equipslot", "quickslots", "skillnode", "levelnode", "pathconnector", "loottag", "seasontrack", "achievetoast"] },
@@ -86,7 +86,11 @@ const ASSET_GROUPS: { name: string; ids: string[] }[] = [
   { name: "Racing", ids: ["speedo", "speedo2", "tacho", "circuit", "leaderboard", "laptimes", "telemetry", "startlights"] },
   { name: "Strategy & score", ids: ["buildqueue", "techcard", "scorebug", "trophy"] },
   { name: "Social", ids: ["friendrow", "chatbubble", "clancrest", "emotewheel"] },
-  { name: "Card battler", ids: ["cardback", "cardface", "pack"] },
+  /* the round-80 set follows the cards: the coin readout, the deck tray's
+     slot, the validity line, the verdict stamp, the tutorial spotlight and
+     the named placeholder window (staged, so kitVisible keeps them admin-
+     only until released) */
+  { name: "Card battler", ids: ["cardback", "cardface", "pack", "coin", "trayslot", "validity", "verdict", "spotlight", "placeholder"] },
   /* the semantic glyph rack — registry-derived so the tray and the kit page
      can't drift; the kitVisible filter below keeps it admin-only while
      staged, then per-glyph as releases land. LIVE only — a retired glyph
@@ -145,6 +149,14 @@ const SEARCH_TERMS: Partial<Record<KitComponentId, string>> = {
   popmeter: "population supply cap strategy",
   quickslots: "equipment quadrant dpad loadout souls",
   vitalbar: "health mana bar readout hud",
+  // the card-battler set (round 80)
+  placeholder: "placeholder window hole slot blank transparent card portrait banner wordmark art layout",
+  coin: "legacy coin medallion stake readout number target arrow unit hud",
+  timerbar: "timer bar plan turn countdown thin fill warn red mercury",
+  spotlight: "spotlight ring halo tutorial highlight frame pulse glow guide",
+  trayslot: "tray slot deck builder cell card well empty filled invalid numeral tag",
+  validity: "validity status line ready error check deck builder plate sentence",
+  verdict: "verdict stamp banished holds sent back won word tilted rubber stamp",
 };
 // glyph pieces answer to "icon", their semantic name and their category
 // ("currencies", "boosters"…) — registry-derived like the tray group
@@ -776,11 +788,14 @@ const checkVideoUrl = async (raw: string): Promise<{ url?: string; err?: string 
 /* The bar family stretches HORIZONTALLY, 9-slice style (owner): the side
    handles re-render the track wider — caps, knob and inset stay true —
    while corners keep proportional scale. Only these components. */
-const STRETCHABLE = new Set<string>(["slider", "progress", "emblembar", "segbar", "vsbar", "panel"]);
+const STRETCHABLE = new Set<string>(["slider", "progress", "emblembar", "segbar", "vsbar", "panel",
+  // round 80: the plan timer stretches like a bar; the window and the
+  // spotlight ring size both ways like the blank panel
+  "timerbar", "placeholder", "spotlight"]);
 /* Blank panels stretch BOTH ways (owner: "two modes — 9-slice stretchable
    and scale... just the blank panels for now"): top/bottom handles pull the
    height, left/right the width, corners keep proportional scale. */
-const STRETCHABLE_V = new Set<string>(["panel", "scrollbar"]);
+const STRETCHABLE_V = new Set<string>(["panel", "scrollbar", "placeholder", "spotlight"]);
 
 const OV_TINT: Record<string, string> = { dark: "#060A14", light: "#F4F6FF" };
 const ovBackground = (mode: string): string =>

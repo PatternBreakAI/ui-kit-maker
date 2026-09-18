@@ -1912,6 +1912,15 @@ export const sheetEntries = (st: ReturnType<typeof useGen.getState>) => {
       rk("vitalbar", "Vital · Mana", { slots: { readout: "650 / 1,000", tint: "Mana" } }, 0.65),
       rk("vitalbar", "Vital · Kit glow", {}, 0.72),
       rk("vitalbar", "Vital · Low", { slots: { readout: "180 / 1,500", tint: "Health" } }, 0.12),
+      /* the card-battler set's overlay poses (round 80) — the app's own
+         variants ride the catalog like every other staged pose */
+      rk("coin", "Legacy coin · Raised", { overlay: "raised" }),
+      rk("timerbar", "Plan timer · Warn", { overlay: "warn" }, 0.12),
+      rk("spotlight", "Spotlight · Pulse", { overlay: "pulse" }),
+      rk("trayslot", "Tray slot · Filled", { overlay: "filled" }),
+      rk("trayslot", "Tray slot · Invalid", { overlay: "invalid" }),
+      rk("validity", "Validity · Error", { overlay: "error", label: "Too many Events" }),
+      rk("verdict", "Verdict · Won", { overlay: "won", label: "WON" }),
       rk("quickslots", "Quadrant · Loadout", { slots: { q1: "3", q4: "5", active: "Down" } }),
       rk("quickslots", "Quadrant · Custom", { slots: { g1: "Scroll", g2: "Key", g3: "Zap", g4: "Heart", q4: "2" } }),
       rk("quickslots", "Quadrant · Bare", { slots: { g1: "Empty", g2: "Empty", g3: "Empty", g4: "Empty" } }),
@@ -3417,6 +3426,15 @@ const kitTier = useGen((s) => s.tier);
           <Piece id="cardface" caption="Card face · one corner only" scale={0.42}
             slots={{ lshape: "Dome", rshape: "Off", lnum: "7" }} label="TIDE CALLER" />
           <Piece id="pack" caption="Card pack · click to tear open" scale={0.42} />
+          {/* the round-80 card-battler set joins the shelf as the owner
+              releases each piece (staged pieces live in the bay until then) */}
+          {kitVisible("coin", releases, false) && <Piece id="coin" caption="Legacy coin" scale={0.5} />}
+          {kitVisible("trayslot", releases, false) && <Piece id="trayslot" caption="Tray slot" label="1" scale={0.6} />}
+          {kitVisible("verdict", releases, false) && <Piece id="verdict" caption="Verdict stamp" scale={0.5} />}
+          {kitVisible("validity", releases, false) && <Piece id="validity" caption="Validity line" scale={0.5} />}
+          {kitVisible("spotlight", releases, false) && <Piece id="spotlight" caption="Spotlight ring" scale={0.5} />}
+          {kitVisible("timerbar", releases, false) && <Piece id="timerbar" caption="Plan timer" value={0.62} scale={0.5} />}
+          {kitVisible("placeholder", releases, false) && <Piece id="placeholder" caption="Placeholder window" label="card-hole" scale={0.5} />}
         </div>
         <StateStrip variants={[
           { cap: "Min", piece: { id: "slider", value: 0, scale: 0.26 } },

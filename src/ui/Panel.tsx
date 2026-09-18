@@ -22,7 +22,7 @@ import { capsOf, UPGRADE_LINES } from "@/generator/entitlements";
 import { openAuth } from "@/shell/authOverlay";
 import { currentSession, promoIsLive, promoIsNew } from "@/generator/cloud";
 import { promoArt, promoGo } from "./PromoShelf";
-import { NAMED_KITS } from "@/generator/namedKits";
+import { NAMED_KITS, namedKitVisible } from "@/generator/namedKits";
 import { missingUserShapes } from "@/generator/store";
 import { tightenSvg } from "@/marketing/engine";
 
@@ -871,7 +871,9 @@ export function Panel() {
   /* the SHIPPED kits' cards (round 76): art from each kit's own bundled
      document, rendered once — and their faces warmed like every other
      desk, so the card never wears a stand-in */
-  const shippedKits = useMemo(() => Object.values(NAMED_KITS), []);
+  /* a STAGED kit (round 80) stays out of the rack for everyone but the
+     admin, the kitVisible rule for whole kits */
+  const shippedKits = useMemo(() => Object.values(NAMED_KITS).filter((k) => namedKitVisible(k, isAdmin)), [isAdmin]);
   const shippedArt = useMemo(() => Object.fromEntries(shippedKits.map((k) => [k.slug, promoArt(k.payload.cfg as Record<string, unknown>)])) as Record<string, string | null>, [shippedKits]);
   useEffect(() => {
     for (const k of shippedKits) { try { ensureDocFonts(k.payload.cfg as Parameters<typeof ensureDocFonts>[0]); } catch { /* falls back */ } }

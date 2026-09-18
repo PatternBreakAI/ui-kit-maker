@@ -18,11 +18,36 @@ import { applyKitDesign, applyKitTextFill, baseOf, darken, hexMix, lighten, font
 /* the glyph-button fleet's registry (round 52) — aliased: this module's own
    GLYPH_BUTTONS is the round-40 ACTION-glyph set (pause/play/replay/home) */
 import { GLYPH_BUTTONS as GLYPH_BUTTON_FLEET, isGlyphButton } from "./model";
-import { renderKit, renderBevel, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps, padSvg, resolveMenuStyle, effSlotColor, kernCollides } from "./bevel";
+import { renderKit as renderKitRaw, KIT_TILT, renderBevel, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps, padSvg, resolveMenuStyle, effSlotColor, kernCollides } from "./bevel";
 import type { KitOpts } from "./bevel";
 import { flattenPath } from "./importedShapes";
 import { silhouetteMeta } from "./silhouettes";
 import { download, makeZip, svgToPngBytes, svgToPngBytesTight, svgsToPngBytesTightUnion, svgAlphaBox, glowFromPng, setEmbedFont, inlineKitFace, measureSliceRGBA, canvasToPngBytesDilated, probeSfntWeight, padGlowCanvas, svgEdgeAlphaMax, FONT_STATIC_TTF, GSTATIC_ORIGIN } from "./exportUtils";
+
+/* ── round 80: EXPORT-SIDE NORMALISATION of every render ──────────────
+   Two app-only marks leave a render before any exporter road reads it,
+   family sprites and posed board bakes alike (every renderKit call in
+   this file goes through the wrapper below):
+   · [data-guide] groups (the placeholder window's dashed guide and its
+     name) are removed outright, so a window bakes fully transparent and
+     no word of it reaches a seat or a label; the window's name rides the
+     board row's label, which is how the game learns what goes there.
+   · [data-tilt] groups (the verdict stamp) lose their rotate transform,
+     so the sprite bakes UPRIGHT and every word inside stays a clean TMP
+     seat (a rotated text can never be one); the angle travels as prefab
+     rotation instead: KIT_TILT on the base row, and added to the board
+     rows' rot.
+   Renders carrying neither mark pass through byte-for-byte. */
+function exportNormalizeSvg(svg: string): string {
+  if (!svg.includes("data-guide=") && !svg.includes("data-tilt=")) return svg;
+  try {
+    const dom = new DOMParser().parseFromString(svg, "image/svg+xml");
+    for (const g of Array.from(dom.querySelectorAll("[data-guide]"))) g.remove();
+    for (const g of Array.from(dom.querySelectorAll("[data-tilt]"))) g.removeAttribute("transform");
+    return new XMLSerializer().serializeToString(dom.documentElement);
+  } catch { return svg; }
+}
+const renderKit: typeof renderKitRaw = (...args) => exportNormalizeSvg(renderKitRaw(...args));
 import type { CropBox } from "./exportUtils";
 import { kitSpecMarkdown, fontNotesMarkdown, kitFontFamilies } from "./kitDocs";
 import { glyphAttribution } from "./glyphLibrary";
@@ -98,6 +123,11 @@ interface AssetMeta {
    *  the sprite rect compared a glow-padded board box against a cropped
    *  sprite and every prefab landed oversized (owner: "weird sizing"). */
   shell?: { x: number; y: number; w: number; h: number } | null;
+  /** A piece the app draws TURNED (round 80, the verdict stamp): the
+   *  sprite bakes upright and the prefab carries this angle as its own
+   *  rotation, in the Board's rot grammar (negative = counter-clockwise).
+   *  Board copies add it to their own rot. */
+  tilt?: number;
   /** The bar family's WELL ZONE inside the shipped sprite (x, w in file
    *  px at pngScale), parsed from the render's own data-track stamp —
    *  the bar prefabs seat their mercury exactly on the app's zone
@@ -886,6 +916,11 @@ const PREFAB_FAMILY: Partial<Record<KitComponentId, string>> = {
   // the Rewards slice (S6)
   pack: "pack", cardback: "cardback", cardface: "cardface", orderticket: "orderticket",
   chest: "chest", giftbox: "giftbox", rewardtray: "rewardtray", chestpanel: "chestpanel",
+  /* the card-battler set (round 80, Stand on Business): every one places
+     LIVE under its own family name; staged, so stagedShips gates them
+     until the owner releases them or a board places one */
+  placeholder: "placeholder", coin: "coin", timerbar: "timerbar", spotlight: "spotlight",
+  trayslot: "trayslot", validity: "validity", verdict: "verdict",
 };
 // the glyph rack: pure-art silhouettes, one Image prefab each — placeable,
 // tintable, never fake buttons (the mandate's non-interactive lane)
@@ -916,6 +951,9 @@ const UNIVERSAL_INTERACTIVE = new Set<KitComponentId>(["ghost", "claimbtn", "lev
      its riding count. Staged like the family — roads ready, ships on
      the owner's release. */
   "slotbtn"]);
+/* the deck tray's slot (round 80): a real pressing cell, a drop target the
+   builder taps; hover lights the rim, press sinks the face */
+UNIVERSAL_INTERACTIVE.add("trayslot");
 const UNIVERSAL_DISPLAY = new Set<KitComponentId>(["qtybadge", "resource", "currency", "movecounter", "ring", "avatarframe", "bottomnav",
   /* the FULL-CATALOG round (owner roster, 2026-08-28: "Include the following
      exports in the Playground scene") — chrome & foundations first: every
@@ -948,7 +986,11 @@ const UNIVERSAL_DISPLAY = new Set<KitComponentId>(["qtybadge", "resource", "curr
   "scorebug", "friendrow", "clancrest", "chatbubble", "emotewheel", "buildqueue", "unitplate", "techcard", "popmeter",
   /* Rewards slice: the released card twins join the shelf; the staged
      tray and ceremony ride gated (stagedShips) until the owner's bless. */
-  "pack", "cardback", "cardface", "rewardtray", "chestpanel"]);
+  "pack", "cardback", "cardface", "rewardtray", "chestpanel",
+  /* the card-battler set (round 80): the window, the coin readout, the
+     plan timer, the spotlight ring, the validity line and the verdict
+     stamp are display pieces; the tray slot presses (interactive above) */
+  "placeholder", "coin", "timerbar", "spotlight", "validity", "verdict"]);
 /* the glyph-button fleet (round 52 — the owner: "stock the kit with the
    entire semantic glyph set as buttons… I don't want to have to have one
    master then go round about to save one"): 47 REAL components join the
@@ -1840,7 +1882,7 @@ export async function collectExportBoards(st: {
              Safe for the shipped importer: every label/value consumer in
              the C# guards on string.IsNullOrEmpty(it.stamp), so a baked
              row's fields are provenance only until a rig opts in. */
-          rot: b.rot ?? 0, label: st.kitNoText?.[id] ? "" : (b.label ?? st.kitLabels[id] ?? null),
+          rot: (b.rot ?? 0) + (KIT_TILT[idBase] ?? 0), label: st.kitNoText?.[id] ? "" : (b.label ?? st.kitLabels[id] ?? null),
           value: b.v ?? st.kitVals[id] ?? null, ax, ay, anchor, stamp: file,
           ...(maskFileK ? { stampMask: maskFileK } : {}),
           ...(cells ? { cells, cellSel } : {}),
@@ -2364,7 +2406,8 @@ export async function collectExportBoards(st: {
         /* kitNoText ships "" — a DELIBERATE blank the importer must keep
            (Unity agent: not heal-to-stock, GameObject name falls back to
            the family name, variant scan skips blank pins) */
-        rot: b.rot ?? 0, label: st.kitNoText?.[id] ? "" : (b.label ?? st.kitLabels[id] ?? null),
+        // round 80: a turned family (the verdict stamp) adds its own tilt
+        rot: (b.rot ?? 0) + (KIT_TILT[idBase] ?? 0), label: st.kitNoText?.[id] ? "" : (b.label ?? st.kitLabels[id] ?? null),
         // the EFFECTIVE pose — the importer drives live content from it
         // (count badge number, end-turn ring, slider value, switch on/off);
         // instance value wins, and the settings rigs always send their
@@ -5289,6 +5332,15 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         rewardtray: "Reward tray — the multi-reward strip; title and quantities are LIVE seats and every revealed slot glyph is a LIVE Image child (swap any sprite in the Inspector; icons/* fit the seats). Reveal states ride posed skins. Display piece.",
         chestpanel: "Chest-opening ceremony panel — words are LIVE seats; stage poses ride posed skins. Display piece.",
         bottomnav: "Bottom nav bar — one placeable piece; the item words are LIVE seats and every tab glyph a LIVE Image child (swap any sprite in the Inspector). The Selected ring child IS the selection: move it a cell over (one cell pitch) or disable it. The Badge plate child carries its live count with it — move, restyle or delete the pair as one. Wire your own per-item buttons over it (the bar itself is not one button).",
+        /* the card-battler set (round 80). No em dashes in these rows: they
+           are read by the developer in the manifest and the README. */
+        placeholder: "Placeholder window: a NAMED, fully transparent rect for something the game draws itself (a card, a portrait, a banner, the wordmark). The sprite is empty on purpose; the name of the window rides each board row's label, so read it there and parent your own art under the instance. Stretch it freely (Simple, no slicing needed). Display piece.",
+        coin: "Legacy coin: the stake readout. The big number, the arrow target and the unit word are three LIVE seats; drive all three from your match state. The raised pose (the target lit) rides a posed skin on board copies. Display piece.",
+        timerbar: "Plan timer: a thin bar with no knob and no cap. LIVE: the mercury is a KitBarFill bar (the Value slider or SetValue, 0..1) on the track; the warn pose (red mercury) rides a posed skin on board copies. Longer bar = widen the rect. Display piece.",
+        spotlight: "Spotlight ring: the tutorial halo around one piece, transparent inside. Scale or stretch it around whatever you are pointing at; the pulse pose (wider, brighter glow) rides a posed skin on board copies. Display piece.",
+        trayslot: "Tray slot: one cell of the deck tray, a REAL button (Sprite Swap states). The corner tag is a LIVE Image child and its numeral a LIVE seat; the filled pose (a card-shaped well) and the invalid pose (red rim, red numeral) ride posed skins on board copies.",
+        validity: "Validity line: the deck builder's status plate. The status sentence is a LIVE seat in the reading voice and the status glyph a LIVE Image child (icons/check ships by default; swap it for icons/close on an error). The error pose (red ink and rim) rides a posed skin on board copies. Display piece.",
+        verdict: "Verdict stamp: the word slammed on a tile. The word is a LIVE seat; the sprite bakes upright and the prefab carries the stamp's own tilt as rotation (board copies add it to their own), so re-angle it in the Inspector. The won pose (gold ink) rides a posed skin on board copies. Display piece; your game plays the pop-in.",
       };
       const universalIds: KitComponentId[] = [
         ...UNIVERSAL_ROAD,
@@ -5682,7 +5734,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
            vitalbar) — orderticket and vitalbar ride the same rig, but
            stagedShips gates their whole emission until the owner
            releases the families */
-        const barRigU = uid === "loadbar" || uid === "popmeter" || uid === "respawn" || uid === "buildqueue" || uid === "xpbar" || uid === "unitplate" || uid === "questpanel" || uid === "setrow" || uid === "orderticket" || uid === "vitalbar";
+        const barRigU = uid === "loadbar" || uid === "popmeter" || uid === "respawn" || uid === "buildqueue" || uid === "xpbar" || uid === "unitplate" || uid === "questpanel" || uid === "setrow" || uid === "orderticket" || uid === "vitalbar" || uid === "timerbar";
         let barFillSvgU: string | null = null, barCapSvgU: string | null = null;
         if (barRigU) {
           try {
@@ -5948,8 +6000,27 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
             comboSeatG = { gauge: { x: 0, y: 0, fs: 0, unitY: 0, unitFs: 0, dialX: sdx9 * PNG_SCALE, dialY: sdy9 * PNG_SCALE } };
           }
         }
+        /* round 80: the placeholder window ships as a fully transparent
+           sprite of EXACTLY the window's size, uncropped. Its guide left at
+           render (exportNormalizeSvg), so the canvas is rebuilt on the
+           drawn shell alone; nothing else of the family road applies to a
+           window (no seats, no skins, no atoms), so it ships here and the
+           loop moves on. */
+        if (uid === "placeholder") {
+          const shP = /data-shell="([-\d. ]+)"/.exec(fullU)?.[1].split(" ").map(Number);
+          if (shP && shP.length === 4 && shP.every(Number.isFinite) && shP[2] > 0 && shP[3] > 0) {
+            const blankP = `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(shP[2])}" height="${Math.ceil(shP[3])}" viewBox="${shP[0].toFixed(1)} ${shP[1].toFixed(1)} ${Math.ceil(shP[2])} ${Math.ceil(shP[3])}" data-shell="${shP[0].toFixed(1)} ${shP[1].toFixed(1)} ${shP[2].toFixed(1)} ${shP[3].toFixed(1)}"></svg>`;
+            await addPng(`${uid}/base.png`, blankP, {
+              component: uid, part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+              usage: UNIVERSAL_USAGE.placeholder ?? "Placeholder window: a named, fully transparent rect.",
+            }, false);
+          }
+          continue;
+        }
         await addPng(`${uid}/base.png`, baseSvgU, {
           component: uid, part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+          // a piece the app draws turned (round 80): the prefab's own rotation
+          ...(KIT_TILT[uid] ? { tilt: KIT_TILT[uid] } : {}),
           usage: UNIVERSAL_USAGE[uid] ?? (isGlyphButton(uid)
             ? "Glyph button — this component's OWN look (it diverged from the shared slot-button frame, so it ships its true render): a REAL button (Sprite Swap states, glow + lift); the glyph is a LIVE Image child and a typed qty pins the corner chip as a real small-button child."
             : GLYPH_BUTTONS.has(uid)
@@ -5999,7 +6070,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           }
         }
         if (barRigU && barFillSvgU && barCapSvgU) {
-          const stagedBar = Math.max(0, Math.min(1, uVal ?? ({ loadbar: 0.62, popmeter: 0.84, respawn: 0.6, buildqueue: 0.55, xpbar: 0.45, unitplate: 0.82, questpanel: 2 / 3, setrow: 0.7, orderticket: 0.62, vitalbar: 0.72 } as Record<string, number>)[uid] ?? 0.62));
+          const stagedBar = Math.max(0, Math.min(1, uVal ?? ({ loadbar: 0.62, popmeter: 0.84, respawn: 0.6, buildqueue: 0.55, xpbar: 0.45, unitplate: 0.82, questpanel: 2 / 3, setrow: 0.7, orderticket: 0.62, vitalbar: 0.72, timerbar: 0.62 } as Record<string, number>)[uid] ?? 0.62));
           await addPng(`${uid}/fill.png`, barFillSvgU, {
             component: uid, part: "fill", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
             usage: "The mercury — the app's own dressing (gradient, gloss, glow) as a bordered stadium: the sprite's 9-slice caps round the ends and KitBarFill drives the rect's WIDTH (SetValue, or write fillAmount and the rig adopts it) — seam-impossible, pattern at natural density. Longer bar = widen the rect; bigger bar = uniform scale (height is the design's anatomy, not a stretch axis).",
@@ -14488,6 +14559,9 @@ namespace PatternBreak {
        (wordDx/wordDy = word center from the CHILD center, board px). */
     public string word; public float wordFs; public float wordDx; public float wordDy; public string wordInk; public int wordW; }
   [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public PBTrack track; public PBTrack body; public PBShellBox ink; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelInk; public string labelInk2; public float leading; public string labelText; public PBIconSeat icon; public PBGauge gauge; public PBChart chart; public PBLoot loot; public PBSeat[] textSeats; public PBStyle seatInk; public float ringV; public PBIconChild[] iconSeats; public float fireDx; public float fireDy; public float fireW; public float railDx; public float railDy; public float railW; public float railH; public string labelAnchor; public string barMode;
+    /* a piece the app draws TURNED (round 80, the verdict stamp): the base
+       row's own rotation, in the board rows' rot grammar */
+    public float tilt;
     /* the manifest has always carried this; the importer reads it from
        round 61f on — a WHITE-cut atom whose color rides Image.color (the
        skill node's padlock, on the flat-ink road). */
@@ -18189,7 +18263,7 @@ namespace PatternBreak {
             /* the RIG-1 display bars strike the board's pose too (round 44
                — future-proof: their board copies bake as stamps today,
                but a live copy must land on its own value) */
-            if ((it.component == "loadbar" || it.component == "popmeter" || it.component == "respawn" || it.component == "buildqueue" || it.component == "xpbar" || it.component == "unitplate" || it.component == "questpanel" || it.component == "orderticket" || it.component == "vitalbar") && it.value > 0f) {
+            if ((it.component == "loadbar" || it.component == "popmeter" || it.component == "respawn" || it.component == "buildqueue" || it.component == "xpbar" || it.component == "unitplate" || it.component == "questpanel" || it.component == "orderticket" || it.component == "vitalbar" || it.component == "timerbar") && it.value > 0f) {
               var dbT = inst.transform.Find("Fill Area/Fill");
               var dbI = dbT != null ? dbT.GetComponent<Image>() : null;
               if (dbI != null && dbI.type == Image.Type.Filled) {
@@ -20673,13 +20747,20 @@ namespace PatternBreak {
           lgoCM.transform.SetSiblingIndex(0);
         }
       }
+      /* ── round 80: a piece the app draws TURNED (the verdict stamp) bakes
+         upright so its word stays a live seat; the base row's tilt is the
+         prefab's own rotation, and board copies add it to their rot. ── */
+      if (Mathf.Abs(baseAsset.tilt) > 0.01f) {
+        var rtTilt = go.GetComponent<RectTransform>();
+        if (rtTilt != null) rtTilt.localRotation = Quaternion.Euler(0f, 0f, -baseAsset.tilt);
+      }
       /* ── the RIG-1 DISPLAY BARS (round 44, items 19/27/30 + buildqueue):
          the mercury left the base — the fill atom + rounded cap ride
          KitBarFill at the manifest's staged value (ringV on the fill
          row); the zone (horizontal + vertical band) rides the base row's
          data-track stamp. Old zips ship no fill atom and keep today's
          baked look untouched. ── */
-      if (baseAsset.component == "loadbar" || baseAsset.component == "popmeter" || baseAsset.component == "respawn" || baseAsset.component == "buildqueue" || baseAsset.component == "xpbar" || baseAsset.component == "unitplate" || baseAsset.component == "questpanel" || baseAsset.component == "setrow" || baseAsset.component == "orderticket" || baseAsset.component == "vitalbar") {
+      if (baseAsset.component == "loadbar" || baseAsset.component == "popmeter" || baseAsset.component == "respawn" || baseAsset.component == "buildqueue" || baseAsset.component == "xpbar" || baseAsset.component == "unitplate" || baseAsset.component == "questpanel" || baseAsset.component == "setrow" || baseAsset.component == "orderticket" || baseAsset.component == "vitalbar" || baseAsset.component == "timerbar") {
         var famB4 = baseAsset.component;
         var fillB4 = S(root + "/assets/" + famB4 + "/" + famB4 + "-fill.png");
         if (fillB4 != null) {
@@ -26147,7 +26228,7 @@ namespace PatternBreak {
     static readonly (string title, string folder, string[] names)[] CHAPTERS = new (string title, string folder, string[] names)[] {
       ("BUTTONS", "Buttons", new[] { "ButtonPrimary", "ButtonSecondary", "ButtonSmall", "Iconbtn", "Slotbtn", "SlotButton_Gem", "SlotButton_Sword", "SlotButton_Key", "SlotButton_Hammer", "SlotButton_Gear", "SlotButton_Check", "Chip", "Endturn", "Keycap", "KeycapSpace", "Padbtn", "PadbtnB", "PadbtnX", "PadbtnY", "Pricebtn", "Claimbtn", "Ghost" }),
       ("CHOICE CONTROLS & FIELDS", "Choice Controls", new[] { "Checkbox", "Radio", "CheckboxToggle", "RadioToggle", "Switch", "Stepper", "Input", "Dropdown", "Setrow", "Listmenu", "Joystick", "JoystickGhost", "Firebutton" }),
-      ("SLIDERS & PROGRESS", "Sliders and Progress", new[] { "Slider", "ProgressBar", "SegmentMeter", "VsBar", "EmblemBar", "Loadbar", "HealthGlobe", "Ring", "SeasonTrack", "Cooldown", "Vitalbar" }),
+      ("SLIDERS & PROGRESS", "Sliders and Progress", new[] { "Slider", "ProgressBar", "SegmentMeter", "VsBar", "EmblemBar", "Loadbar", "HealthGlobe", "Ring", "SeasonTrack", "Cooldown", "Vitalbar", "Timerbar" }),
       ("NAVIGATION & CHROME", "Navigation and Chrome", new[] { "Tab", "TabBack", "Bottomnav", "HeaderBanner", "Panel", "Dialog", "DataRow", "ItemSlot", "ScrollView", "Scrollbar", "Badge", "CountBadge", "Notifydot", "Avatarframe", "Pagedots", "Steps", "Spinner" }),
       ("HUD & DATA", "HUD and Data", new[] { "Timer", "Resource", "Currency", "Nameplate", "Movecounter", "Qtybadge", "Orb", "Achievement", "Leaderboard", "LapTimes", "Telemetry", "Minimap", "Compass" }),
       ("GAUGES", "Gauges", new[] { "Speedo", "SpeedoArc", "RevMeter" }),
@@ -26157,6 +26238,9 @@ namespace PatternBreak {
       ("CASUAL & SAGA", "Casual and Saga", new[] { "Heartmeter", "Energymeter", "Starrating", "Pathconnector", "Combo", "Booster", "Flipclock", "Stopwatch" }),
       ("STRATEGY & SOCIAL", "Strategy and Social", new[] { "Scorebug", "Friendrow", "Chatbubble", "Emotewheel", "Clancrest", "Unitplate", "Buildqueue", "Techcard", "Popmeter" }),
       ("REWARDS", "Rewards", new[] { "Pack", "Cardback", "ClaimbtnDouble", "RewardcardLegendary", "RewardcardMystery", "DailycellClaimed", "DailycellLocked", "Chest", "Giftbox", "Rewardtray", "Chestpanel", "Orderticket" }),
+      /* round 80: the card-battler set (Stand on Business) shelves as its
+         own chapter; the plan timer sits with the bars above */
+      ("CARD BATTLER", "Card Battler", new[] { "Coin", "Trayslot", "Validity", "Verdict", "Spotlight", "Placeholder" }),
     };
     static string ChapterFolderOf(string prefabName, string currentSub) {
       if (currentSub == "Glyphs" || currentSub == "Art") return currentSub; // the rack and the board art keep their own shelves

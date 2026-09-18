@@ -4374,7 +4374,16 @@ export const VALUE_DRIVEN = new Set<KitComponentId>([
   "timerdigits", "speedo", "speedo2", "tacho", "laptimes", "orderticket",
   "chest", "giftbox", "rewardcard", "rewardtray", "firebutton",
   "bottomnav", "boostercard",
+  // round 80: the plan timer fills 0..1 like the progress bar
+  "timerbar",
 ]);
+
+/** Pieces the app draws TURNED (round 80, the verdict stamp): the render
+ *  wraps its art in a data-tilt group carrying this angle, in CSS/SVG
+ *  degrees (negative = counter-clockwise, the Board's own rot grammar).
+ *  The exporter bakes the sprite upright and hands the angle to the
+ *  prefab as rotation, so every word inside stays a live seat. */
+export const KIT_TILT: Partial<Record<KitComponentId, number>> = { verdict: -8 };
 
 /** Factory rarity tiers — exported so the Panel's palette editor shows
  *  the same names and hues it resets to. */
@@ -4615,6 +4624,23 @@ export function addShine(svg: string, o?: { dur?: number; sweep?: number; width?
 function stampTrack(svg: string, x: number, w: number, y?: number, h?: number): string {
   const band = y !== undefined && h !== undefined ? ` ${y.toFixed(1)} ${h.toFixed(1)}` : "";
   return svg.replace("<svg ", `<svg data-track="${x.toFixed(1)} ${w.toFixed(1)}${band}" `);
+}
+
+/* ── round 80: a SHELL-FREE root in build()'s own root grammar ────────
+   The card-battler pieces that are windows, rings, thin bars, medallions
+   and stamps carry no candy shell, and build() would reserve the
+   extrusion travel and the shadow allowance under them (a 36 px timer
+   would ship in a 300 px box). This root speaks build()'s root grammar
+   exactly: the glow pad as the viewBox origin, data-shell and data-shell0
+   as the drawn box at the origin, so LiveArt, the Board's selection box,
+   the render harness and the exporter's shell-center seats all read it
+   like any built piece. The drawn box IS the piece's natural size. */
+function bareRoot(cfg: GenConfig, w: number, h: number, inner: string, o: { label?: string; state?: string; attrs?: string } = {}): string {
+  const pad = glowPadOf(cfg);
+  const vw = w + pad * 2, vh = h + pad * 2;
+  return `<svg xmlns="http://www.w3.org/2000/svg" overflow="visible" width="${vw.toFixed(0)}" height="${vh.toFixed(0)}" viewBox="${-pad} ${-pad} ${vw.toFixed(0)} ${vh.toFixed(0)}" font-family="'${cfg.type.font}', 'Inter Variable', Inter, sans-serif" data-shell="0 0 ${w.toFixed(1)} ${h.toFixed(1)}" data-shell0="0 0 ${w.toFixed(1)} ${h.toFixed(1)}" ${o.attrs ? `${o.attrs} ` : ""}role="img" aria-label="${esc(o.label ?? "component")}, ${o.state ?? "default"} state">
+${inner}
+</svg>`;
 }
 
 /** Per-piece overrides for the Kit page and its pattern mocks — labels,
@@ -7038,6 +7064,222 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
   })()}
 </g>
 </svg>`;
+    }
+    case "placeholder": {
+      /* Card battler · placeholder window (round 80) — a NAMED transparent
+         window for the things the game draws itself (cards, portraits,
+         banners, the wordmark). Natural 400 by 400; stretch and stretchY
+         multiply the two axes exactly as the blank panel's do, with a
+         wider range because a hand-hole is a full-width sliver. Everything
+         visible sits inside ONE data-guide group: the app draws the dashed
+         guide and the window's name so a maker can see and place the hole,
+         and the exporter strips the group before any raster, so the
+         shipped sprite is a fully transparent PNG of the right size and the
+         prefab carries no text at all. The name still rides the board
+         row's label, which is how the game learns what goes there. */
+      const wP = 400 * clamp(opts.stretch ?? 1, 0.1, 12), hP = 400 * clamp(opts.stretchY ?? 1, 0.1, 12);
+      const nameP = (opts.label ?? "window").slice(0, 24);
+      const hiP = effect(cfg.effects, "Highlight");
+      const opP = state === "disabled" ? 0.3 : state === "pressed" ? 0.9 : state === "hover" ? 0.8 : 0.55;
+      const dP = 3, inP = dP / 2 + 1;
+      const guideP = shapePath(sov ?? "round", inP, inP, wP - inP * 2, hP - inP * 2, Math.max(0, cfg.bevel.softness - 10));
+      const fsP = fitFs(nameP, Math.min(26 * k, hP * 0.32), wP - 24, 0.62, { keepCase: true });
+      const innerP = `<g data-guide="1">
+  <path d="${guideP}" fill="${hexRgba(hiP, 0.06)}" stroke="${hiP}" stroke-width="${dP}" stroke-dasharray="12 8" stroke-linejoin="round" opacity="${opP.toFixed(2)}"/>
+  ${contentText(nameP, wP / 2, hP / 2, fsP, { anchor: "middle", keepCase: true, plain: true, ink: hiP, opacity: Math.min(1, opP + 0.15) })}
+</g>`;
+      return bareRoot(cfg, wP, hP, innerP, { label: nameP, state, attrs: 'data-placeholder="1"' });
+    }
+    case "coin": {
+      /* Card battler · Legacy coin (round 80) — the stake readout under the
+         Stand button: a round medallion in the kit's roles (a Bevel ring
+         lit on the kit's light axis around the face colour) with THREE live
+         words: the big number (the piece's label), the arrow target (a
+         slot) and the unit word (a slot, in the reading voice). Overlay
+         raised: the target lit in the Glow role. A display piece with a
+         display piece's states: the ring brightens on hover, sinks a shade
+         on press, and disabled drains it. */
+      const dC = 262 * k, cxC = dC / 2, cyC = dC / 2;
+      const dimC = state === "disabled";
+      const ringC = dimC ? desaturate(bevel, 0.6) : state === "hover" ? lighten(bevel, 0.1) : state === "pressed" ? darken(bevel, 0.08) : bevel;
+      const faceC0 = cfg.face.mode === "dark" ? hexMix(bevel, "#0B0714", 0.72) : effect(cfg.effects, "Inner Fill");
+      const faceC = dimC ? desaturate(faceC0, 0.5) : faceC0;
+      const ringW = clamp(bw, 6, 26) * k;
+      const rOut = dC / 2 - 1.5, rFace = rOut - ringW;
+      const gidC = "co" + UID++;
+      const aC = (((cfg.lighting.angle % 360) + 360) % 360) * Math.PI / 180;
+      const lxC = Math.cos(aC), lyC = -Math.sin(aC);
+      const gpC = (v: number) => (0.5 + clamp(v, -1, 1) * 0.5).toFixed(3);
+      const raisedC = opts.overlay === "raised";
+      const numC = (opts.label ?? "4").slice(0, 4);
+      const tgtC = (opts.slots?.target ?? "→8").slice(0, 6);
+      const unitC = (opts.slots?.unit ?? "legacy").slice(0, 12);
+      const fsNum = fitFs(numC, 84 * k * typeK, rFace * 1.3);
+      const innerC = `<defs>
+  <linearGradient id="${gidC}b" x1="${gpC(-lxC)}" y1="${gpC(-lyC)}" x2="${gpC(lxC)}" y2="${gpC(lyC)}"><stop offset="0" stop-color="${lighten(ringC, 0.42)}"/><stop offset="0.5" stop-color="${ringC}"/><stop offset="1" stop-color="${darken(ringC, 0.34)}"/></linearGradient>
+  <radialGradient id="${gidC}f" cx="0.38" cy="0.32" r="0.8"><stop offset="0" stop-color="${lighten(faceC, 0.16)}"/><stop offset="1" stop-color="${darken(faceC, 0.18)}"/></radialGradient>
+</defs>
+<g${!dimC ? ` style="filter: drop-shadow(0 0 ${(7 * k).toFixed(1)}px ${hexRgba(glow, raisedC ? 0.55 : 0.3)})"` : ""}>
+  <circle cx="${cxC.toFixed(1)}" cy="${cyC.toFixed(1)}" r="${rOut.toFixed(1)}" fill="url(#${gidC}b)" stroke="${darken(ringC, 0.5)}" stroke-width="1.5"/>
+  <circle cx="${cxC.toFixed(1)}" cy="${cyC.toFixed(1)}" r="${(rOut - 2.5 * k).toFixed(1)}" fill="none" stroke="${effect(cfg.effects, "Highlight")}" stroke-width="${(1.6 * k).toFixed(1)}" opacity="${dimC ? 0.25 : 0.55}"/>
+  <circle cx="${cxC.toFixed(1)}" cy="${cyC.toFixed(1)}" r="${rFace.toFixed(1)}" fill="url(#${gidC}f)" stroke="${darken(ringC, 0.45)}" stroke-width="${(1.2 * k).toFixed(1)}"/>
+  <circle cx="${cxC.toFixed(1)}" cy="${cyC.toFixed(1)}" r="${(rFace - 5 * k).toFixed(1)}" fill="none" stroke="${ringC}" stroke-width="${(1.2 * k).toFixed(1)}" stroke-dasharray="${(3 * k).toFixed(1)} ${(4 * k).toFixed(1)}" opacity="${dimC ? 0.3 : 0.6}"/>
+</g>
+<g data-part="label">${contentText(numC, cxC, cyC - 18 * k, fsNum, { anchor: "middle", opacity: dimC ? 0.6 : 1 })}</g>
+${raisedC && !dimC ? `<g style="filter: drop-shadow(0 0 ${(6 * k).toFixed(1)}px ${hexRgba(glow, 0.9)})">` : ""}${contentText(tgtC, cxC, cyC + 42 * k, 28 * k * typeK, { anchor: "middle", keepCase: true, ...(raisedC ? { ink: glow } : {}), opacity: dimC ? 0.6 : 1 })}${raisedC && !dimC ? "</g>" : ""}
+${contentText(unitC, cxC, cyC + 78 * k, 21 * k * typeK, { anchor: "middle", list: true, plain: true, keepCase: true, opacity: dimC ? 0.5 : 0.9 })}`;
+      return bareRoot(cfg, dC, dC, innerC, { label: `${numC} ${tgtC} ${unitC}`, state, attrs: 'data-coin="1"' });
+    }
+    case "timerbar": {
+      /* Card battler · plan timer (round 80) — the thin bar under the match
+         HUD: no knob, no cap, no shell, value-driven 0..1. The track is a
+         dark well with the kit's Bevel rim; the mercury runs Bevel to Glow
+         like the progress bar and is MARKED ink (data-barfill), so the
+         export un-burns it into a live Filled atom on the vital bar's rig.
+         Overlay warn: the mercury goes red (#CC0C24 mixed toward the kit's
+         Shadow role) with a soft glow, the near-empty alarm. */
+      const wT = 738 * k * clamp(opts.stretch ?? 1, 0.3, 6), hT = 29.5 * k;
+      const dimT = state === "disabled";
+      const vT = clamp(value ?? 0.62, 0, 1);
+      const gT = 4 * k, runW = wT - gT * 2, runH = hT - gT * 2;
+      const mW = Math.max(0, runW * vT);
+      const warnT = opts.overlay === "warn";
+      const redT = hexMix("#CC0C24", effect(cfg.effects, "Shadow"), 0.22);
+      const c0T = warnT ? darken(redT, 0.1) : bevel, c1T = warnT ? lighten(redT, 0.25) : glow;
+      const rimT = dimT ? desaturate(bevel, 0.6) : state === "hover" ? lighten(bevel, 0.12) : bevel;
+      const gidT = "tb" + UID++;
+      const glowT = warnT ? hexRgba(redT, 0.75) : hexRgba(glow, 0.5);
+      const innerT = `<defs><linearGradient id="${gidT}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${c0T}"/><stop offset="1" stop-color="${c1T}"/></linearGradient></defs>
+<path d="${roundRect(0, 0, wT, hT, hT / 2)}" fill="${wellFill}" stroke="${rimT}" stroke-width="${(2 * k).toFixed(1)}" opacity="${dimT ? 0.6 : 0.95}"/>
+${mW > 0.5 ? `<g data-barfill="${gT.toFixed(1)} ${gT.toFixed(1)} ${mW.toFixed(1)} ${runH.toFixed(1)}"><rect x="${gT.toFixed(1)}" y="${gT.toFixed(1)}" width="${mW.toFixed(1)}" height="${runH.toFixed(1)}" rx="${(runH / 2).toFixed(1)}" fill="url(#${gidT})" opacity="${dimT ? 0.35 : 0.95}"${!dimT ? ` style="filter: drop-shadow(0 0 ${((warnT ? 6 : 4) * k).toFixed(1)}px ${glowT})"` : ""}/>
+  <rect x="${(gT + 3 * k).toFixed(1)}" y="${(gT + 2 * k).toFixed(1)}" width="${Math.max(0, mW - 6 * k).toFixed(1)}" height="${(runH * 0.32).toFixed(1)}" rx="${(runH * 0.16).toFixed(1)}" fill="#FFFFFF" opacity="${dimT ? 0.12 : 0.3}"/></g>` : ""}`;
+      return stampTrack(bareRoot(cfg, wT, hT, innerT, { label: `timer ${Math.round(vT * 100)}%`, state, attrs: 'data-timerbar="1"' }), gT, runW, gT, runH);
+    }
+    case "spotlight": {
+      /* Card battler · spotlight ring (round 80) — the tutorial's halo
+         around one piece: a rounded-rect ring in the Glow role with an
+         outer glow and NOTHING inside, so the piece it frames shows
+         through. Stretch and stretchY size it like the blank panel.
+         Overlay pulse: a wider, brighter glow (the guide's look-here
+         beat). No words, by design. */
+      const wS = 344 * k * clamp(opts.stretch ?? 1, 0.2, 8), hS = 213 * k * clamp(opts.stretchY ?? 1, 0.2, 8);
+      const dimS = state === "disabled";
+      const pulseS = opts.overlay === "pulse";
+      const swS = (pulseS ? 9 : 6.5) * k;
+      const ringS = dimS ? desaturate(glow, 0.6) : state === "hover" || pulseS ? lighten(glow, 0.12) : state === "pressed" ? darken(glow, 0.1) : glow;
+      const pathS = shapePath(sov ?? "round", swS / 2 + 1, swS / 2 + 1, wS - swS - 2, hS - swS - 2, Math.max(0, cfg.bevel.softness - 8));
+      const innerRingS = shapePath(sov ?? "round", swS + 3 * k, swS + 3 * k, wS - swS * 2 - 6 * k, hS - swS * 2 - 6 * k, Math.max(0, cfg.bevel.softness - 12));
+      const haloS = dimS ? "" : ` style="filter: drop-shadow(0 0 ${((pulseS ? 16 : 9) * k).toFixed(1)}px ${hexRgba(ringS, pulseS ? 0.95 : 0.8)}) drop-shadow(0 0 ${((pulseS ? 34 : 20) * k).toFixed(1)}px ${hexRgba(ringS, pulseS ? 0.6 : 0.35)})"`;
+      const innerS = `<g${haloS} opacity="${dimS ? 0.4 : 1}">
+  <path d="${pathS}" fill="none" stroke="${ringS}" stroke-width="${swS.toFixed(1)}" stroke-linejoin="round"/>
+  <path d="${innerRingS}" fill="none" stroke="${effect(cfg.effects, "Highlight")}" stroke-width="${(1.4 * k).toFixed(1)}" opacity="0.45"/>
+</g>`;
+      return bareRoot(cfg, wS, hS, innerS, { label: "spotlight", state, attrs: 'data-spotlight="1"' });
+    }
+    case "trayslot": {
+      /* Card battler · tray slot (round 80) — one cell of the deck
+         builder's 24-slot tray: a square well in the kit's own silhouette
+         (the card frame's cut corners under Stand on Business), the Bevel
+         rim, and a small corner tag (marked ink, a live child) whose
+         numeral is the piece's live label. Overlay filled: a card-shaped
+         inner well (1103:1426) tinted with the Inner Fill role, the numeral
+         kept; overlay invalid: a red rim (#CC0C24) and the numeral in red.
+         A real pressing cell: hover lights the rim, press sinks the face,
+         disabled drains it. */
+      const sS = 148 * k;
+      const dimSl = state === "disabled";
+      const filledS = opts.overlay === "filled", invalidS = opts.overlay === "invalid";
+      const redS = "#CC0C24";
+      const rimS = invalidS ? (dimSl ? desaturate(redS, 0.5) : state === "hover" ? lighten(redS, 0.12) : redS)
+        : dimSl ? desaturate(bevel, 0.6) : state === "hover" ? lighten(bevel, 0.14) : state === "pressed" ? darken(bevel, 0.06) : bevel;
+      const tagC = dimSl ? desaturate(bevel, 0.6) : bevel;
+      const faceS0 = darken(effect(cfg.effects, "Inner Fill"), state === "pressed" ? 0.62 : 0.5);
+      const faceS = dimSl ? desaturate(faceS0, 0.5) : faceS0;
+      const softS = Math.max(0, cfg.bevel.softness - 10);
+      const rimW = 3 * k;
+      const outerS = shapePath(sov ?? cfg.shape, rimW / 2 + 1, rimW / 2 + 1, sS - rimW - 2, sS - rimW - 2, softS);
+      const dashS = shapePath(sov ?? cfg.shape, rimW + 8 * k, rimW + 8 * k, sS - rimW * 2 - 16 * k, sS - rimW * 2 - 16 * k, Math.max(0, softS - 4));
+      const numS = (opts.label ?? "1").slice(0, 3);
+      const tagW = Math.max(30 * k, 14 * k + numS.length * 12 * k), tagH = 24 * k;
+      const tagX = rimW + 5 * k, tagY = rimW + 5 * k;
+      const shadowC = darken(effect(cfg.effects, "Shadow"), 0.1);
+      const tagInk = invalidS ? (dimSl ? desaturate(redS, 0.5) : darken(redS, 0.12))
+        : contrastOf("#FFFFFF", tagC) >= contrastOf(shadowC, tagC) ? "#FFFFFF" : shadowC;
+      let cardS = "";
+      if (filledS) {
+        const chS = sS - rimW * 2 - 20 * k, cwS = chS * 1103 / 1426;
+        cardS = `<path d="${roundRect((sS - cwS) / 2, (sS - chS) / 2, cwS, chS, 6 * k)}" fill="${effect(cfg.effects, "Inner Fill")}" fill-opacity="${dimSl ? 0.5 : 0.9}" stroke="${rimS}" stroke-width="${(1.5 * k).toFixed(1)}" opacity="0.95"/>`;
+      }
+      const glowS = !dimSl && (invalidS || state === "hover") ? ` style="filter: drop-shadow(0 0 ${(6 * k).toFixed(1)}px ${hexRgba(rimS, 0.7)})"` : "";
+      const innerSl = `<g${glowS}>
+  <path d="${outerS}" fill="${faceS}" stroke="${rimS}" stroke-width="${rimW.toFixed(1)}" stroke-linejoin="round"/>
+</g>
+${filledS ? "" : `<path d="${dashS}" fill="none" stroke="${effect(cfg.effects, "Highlight")}" stroke-width="${(1.4 * k).toFixed(1)}" stroke-dasharray="${(7 * k).toFixed(1)} ${(6 * k).toFixed(1)}" opacity="${dimSl ? 0.2 : 0.4}"/>`}
+${cardS}
+<g data-part="icon" data-icon="tag" data-icon-nick="Corner tag"><path d="${roundRect(tagX, tagY, tagW, tagH, 5 * k)}" fill="${tagC}" stroke="${darken(tagC, 0.45)}" stroke-width="1.2" opacity="${dimSl ? 0.6 : 0.96}"/></g>
+<g data-part="label">${contentText(numS, tagX + tagW / 2, tagY + tagH / 2 + 0.5, 15 * k * typeK, { anchor: "middle", plain: true, ink: tagInk })}</g>`;
+      return bareRoot(cfg, sS, sS, innerSl, { label: `slot ${numS}`, state, attrs: 'data-trayslot="1"' });
+    }
+    case "validity": {
+      /* Card battler · validity line (round 80) — the deck builder's one-
+         line status plate: the kit's own plate (pinned frame), a status
+         stripe, an icon seat on the left (a check by default, swappable
+         like every seat: the Icons panel kit-wide, ov "icon:<pick>" per
+         copy) and the status sentence as the piece's live label in the
+         reading voice. Overlay error: red ink and rim (#CC0C24) and the
+         seat's default swaps to the close glyph. */
+      const wV = 623 * k, hV = 69 * k;
+      const shellV = build(cfg, state, { x: 39, y: 30, h: hV, fs: 0, iconSize: 0, tokenH: 110 }, { pinDesign: true, iconDef: null, label: "", fixedW: wV, shapeOverride: sov, faceLayer: opts.faceLayer });
+      if (opts.faceLayer === "specular") return shellV;
+      const dimV = state === "disabled";
+      const errV = opts.overlay === "error";
+      const redV = "#CC0C24";
+      const statusC = dimV ? "#9AA0AB" : errV ? redV : glow;
+      const insetV = bw + 4;
+      const cyV = 30 + hV / 2;
+      const ovIcV = /^icon:([\w:]+)$/.exec(opts.overlay ?? "");
+      const icV = ovIcV ? seatIconDef(ovIcV[1]) : opts.icon !== undefined ? opts.icon : (errV ? STOCK_ICONS.close : STOCK_ICONS.check);
+      const stripeV = `<rect x="${(39 + insetV + 9 * k).toFixed(1)}" y="${(30 + insetV + 9 * k).toFixed(1)}" width="${(5 * k).toFixed(1)}" height="${(hV - insetV * 2 - 18 * k).toFixed(1)}" rx="${(2.5 * k).toFixed(1)}" fill="${statusC}"${!dimV ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(statusC, 0.7)})"` : ""}/>`;
+      const icX = 39 + insetV + 26 * k, icY = cyV - 14 * k, icS = 28 * k;
+      const seatV = icV
+        ? `<g data-part="icon" data-icon="glyph"${icV.lib === "glyph" ? ` data-icon-glyph="${icV.name}"` : ""}>${errV && !dimV
+          ? iconGroup(icV, icX, icY, icS, redV, { strokeWidth: 2.6 * iconWK, fillWeight: iconWK })
+          : themedIcon(icV, icX, icY, icS, statusC, 2.6)}</g>`
+        : "";
+      const txtV = (opts.label ?? "24 of 24 · at most two Events · ready").slice(0, 48);
+      const xT = 39 + insetV + 58 * k, availV = wV - insetV * 2 - 58 * k - 14 * k;
+      const fsV = fitFs(txtV, 25 * k * typeK, availV, 0.55, { list: true, keepCase: true });
+      const wordV = `<g data-part="label">${contentText(txtV, xT, cyV + 1, fsV, { keepCase: true, list: true, ...(errV ? { ink: dimV ? desaturate(redV, 0.5) : lighten(redV, 0.28) } : {}) })}</g>`;
+      const rimV = errV ? `<path d="${shapePath(sov ?? cfg.shape, 39, 30, wV, hV, Math.max(0, cfg.bevel.softness - 10))}" fill="none" stroke="${redV}" stroke-width="${(2.5 * k).toFixed(1)}" opacity="${dimV ? 0.4 : 0.9}"${!dimV ? ` style="filter: drop-shadow(0 0 ${(5 * k).toFixed(1)}px ${hexRgba(redV, 0.6)})"` : ""}/>` : "";
+      return inject(shellV.replace("<svg ", '<svg data-validity="1" '), stripeV + seatV + wordV + rimV);
+    }
+    case "verdict": {
+      /* Card battler · verdict stamp (round 80) — the word slammed on a
+         tile or a Location: a rounded rect with a double rule, turned
+         eight degrees, the live word in the kit's display face; ink and
+         rules in the Shadow role mixed toward red (#B40C0C). Overlay won:
+         the Bevel role (gold) instead of red. The tilt is a data-tilt
+         group: the app draws it turned, the exporter bakes it upright and
+         hands the angle to the prefab as rotation (KIT_TILT), so the word
+         stays a live seat (a rotated text can never be a TMP seat) and the
+         stamp still lands turned in Unity. Never a sparkle. */
+      const wD = 426 * k, hD = 131 * k, cxD = wD / 2, cyD = hD / 2;
+      const dimD = state === "disabled";
+      const wonD = opts.overlay === "won";
+      const inkD0 = wonD ? bevel : hexMix(effect(cfg.effects, "Shadow"), "#B40C0C", 0.9);
+      const inkD = dimD ? desaturate(inkD0, 0.6) : state === "hover" ? lighten(inkD0, 0.12) : state === "pressed" ? darken(inkD0, 0.08) : inkD0;
+      const softD = Math.max(0, cfg.bevel.softness - 8);
+      const outerD = shapePath(sov ?? "round", 3 * k, 3 * k, wD - 6 * k, hD - 6 * k, softD);
+      const innerRuleD = shapePath(sov ?? "round", 12 * k, 12 * k, wD - 24 * k, hD - 24 * k, Math.max(0, softD - 4));
+      const wordD = (opts.label ?? "BANISHED").slice(0, 14);
+      const fsD = fitFs(wordD, 58 * k * typeK, wD - 48 * k);
+      const tiltD = KIT_TILT.verdict ?? 0;
+      const innerD = `<g data-tilt="${tiltD}" transform="rotate(${tiltD} ${cxD.toFixed(1)} ${cyD.toFixed(1)})" opacity="${dimD ? 0.45 : 1}">
+  <path d="${outerD}" fill="${hexRgba(inkD, 0.06)}" stroke="${inkD}" stroke-width="${(4.5 * k).toFixed(1)}" stroke-linejoin="round"/>
+  <path d="${innerRuleD}" fill="none" stroke="${inkD}" stroke-width="${(2 * k).toFixed(1)}" stroke-linejoin="round" opacity="0.9"/>
+  <g data-part="label">${contentText(wordD, cxD, cyD + 1, fsD, { anchor: "middle", ink: inkD, track: 10 })}</g>
+</g>`;
+      return bareRoot(cfg, wD, hD, innerD, { label: wordD, state, attrs: 'data-verdict="1"' });
     }
     case "vitalbar": {
       /* RPG · vital bar — the labeled resource bar in the xpbar's

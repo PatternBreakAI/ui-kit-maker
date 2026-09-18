@@ -65,7 +65,17 @@ export type NamedKitDef = {
   storeUrl: string | null;
   screens: NamedKitScreen[];
   payload: Record<string, unknown>;
+  /** A kit still in the staging bay (round 80): admin-only on every
+   *  surface a shipped kit shows on (the Looks rack, the showcase's
+   *  other-kits strip and its #/kit/<slug> route), exactly like a staged
+   *  component. Absent or false = shipped to everyone. */
+  staged?: boolean;
 };
+
+/** True when a shipped kit may be SHOWN to this visitor: released kits
+ *  for everyone, staged kits only for the admin (the kitVisible rule,
+ *  spoken for whole kits). */
+export const namedKitVisible = (kit: NamedKitDef, admin: boolean): boolean => !kit.staged || admin;
 
 /* ══ OWNER: PASTE THE UNITY ASSET STORE LISTING URL HERE ══════════════
    One line, one place, nothing else to change. Fill it and the kit's
