@@ -1120,6 +1120,15 @@ export interface BoardItem {
      *  layered treatment parked. The instance dials (shadow, glow, hue…)
      *  still ride on top, and the piece exports exactly like a stamp. */
     plain?: { color: string; outline?: boolean };
+    /** READING VOICE (round 81, the Stand on Business boards: body copy
+     *  on a board read in Cinzel capitals) — the stamp renders in the
+     *  kit's reading face (type.listFont, the kit face when unset),
+     *  sentence case as typed, weight 500, every display treatment
+     *  parked (outline, shadow, emboss, glow, glints, shine): it reads
+     *  as body copy. Plain keeps its flat colour; splash wears the
+     *  reading ink (type.listInk) or the kit's fill. Exports carry it as
+     *  the row's `voice` and Unity seats it on the KitVoice face. */
+    voice?: "list";
   };
   /** A BIG GLYPH — the owner's high-res board art (see bigGlyphs.ts).
    *  Boards-only by mandate ("should NOT appear in the kit, only Boards
@@ -1458,6 +1467,26 @@ export function warpStampRaster(src: CanvasImageSource, w: number, h: number, wa
 export function stampSvg(cfg: GenConfig, st: NonNullable<BoardItem["stamp"]>): string {
   const out = renderTypeSpecimen(cfg, st.text || "GAME TITLE", { textClip: !st.plain, mutate: (c) => {
     c.type.size = Math.max(8, c.type.size * st.size / 100);
+    if (st.voice === "list") {
+      /* the READING VOICE: the reading face at sentence case and a
+         book weight, flat — the same voice the app's list rows, toasts
+         and dialogue bodies speak. Plain (below) then keeps its own
+         flat colour and optional ink outline over this. */
+      const t = c.type;
+      t.font = t.listFont || t.font;
+      t.case = "none";
+      t.weight = 500;
+      if (t.listInk) { t.fillMode = "solid"; t.fill = t.listInk; t.fillOpacity = 100; }
+      t.outline = { ...t.outline, on: false };
+      t.shadow = { ...t.shadow, on: false };
+      t.emboss = { ...t.emboss, on: false };
+      t.glow = { ...t.glow, on: false };
+      if (t.shine) t.shine = { ...t.shine, on: false };
+      if (t.glints) t.glints = { ...t.glints, on: false };
+      if (t.stripes) t.stripes = { ...t.stripes, on: false };
+      if (t.inflate) t.inflate = { ...t.inflate, on: false };
+      t.highlight = undefined;
+    }
     if (st.plain) {
       /* flatten the whole splash recipe to "good font usage": same face,
          metrics and case, one flat color, an optional simple ink outline */
@@ -1479,7 +1508,8 @@ export function stampSvg(cfg: GenConfig, st: NonNullable<BoardItem["stamp"]>): s
      edges (owner: "it is showing its edges"). Plain stamps stay flat by
      contract; rasters never see the band (it parks off-canvas until the
      page's CSS animates it). */
-  return !st.plain && cfg.idle?.wipe ? addShine(out, { dur: cfg.idle.freq, sweep: cfg.idle.wipeDur, width: cfg.idle.wipeWidth, armed: cfg.idle.trigger === "hover", blend: cfg.idle.blend, clip: "text" }) : out;
+  // the reading voice is body copy: it never wears the wipe either
+  return !st.plain && st.voice !== "list" && cfg.idle?.wipe ? addShine(out, { dur: cfg.idle.freq, sweep: cfg.idle.wipeDur, width: cfg.idle.wipeWidth, armed: cfg.idle.trigger === "hover", blend: cfg.idle.blend, clip: "text" }) : out;
 }
 
 /** One filter string for a stamp's adjust dials — the stage, the board PNG

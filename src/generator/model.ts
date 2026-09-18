@@ -2222,6 +2222,9 @@ export const LABEL_MAX: Partial<Record<KitComponentId, number>> = {
      tray slot a tray index, the stamp one shouted word, the placeholder a
      window's name, the validity line a whole status sentence */
   coin: 4, trayslot: 3, verdict: 14, placeholder: 24, validity: 48,
+  /* the segmented control's option words (round 81): up to five captions
+     joined by " | " ("Off | Deutan | Protan | Tritan") */
+  segment: 60,
 };
 export const labelMaxOf = (id: KitComponentId | null | undefined): number => (id && LABEL_MAX[id]) || 32;
 
@@ -2246,6 +2249,9 @@ export const KIT_LABEL_EDITABLE = new Set<KitComponentId>([
      what changes card to card while the design stays put */
   "achievetoast", "endturn", "pack", "cardback", "cardface", "orderticket",
   "rewardcard", "qtybadge", "claimbtn", "chestpanel", "boostercard",
+  /* the segmented control (round 81): its Text is the OPTION WORDS, two
+     to five captions joined by " | " (segmentCaptions in bevel) */
+  "segment",
   /* THE COUNTER FAMILY (owner, round 71: "I should be able to edit the
      numbers of the badge in the right drawer just like text"). Each of
      these draws exactly ONE self-drawn number — a notification count, a

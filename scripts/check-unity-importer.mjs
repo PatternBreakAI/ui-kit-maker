@@ -4516,6 +4516,83 @@ const OBSOLETE = [
     errors.push("the Playground's CARD BATTLER chapter or the Timerbar shelf claim left the importer (round 80)");
 }
 
+/* ── ROUND 81 (the Stand on Business boards, engine follow-ups): the
+   READING VOICE for type stamps and text seats (the kit's list font, sentence
+   case, weight 500, flat) travels app → manifest → Unity, where a KitVoice
+   face minted from the shipped list TTF seats it on both rungs; and the
+   segmented control takes its OPTION WORDS from a piped board label. ── */
+{
+  const storeSrc81 = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../src/generator/store.ts"), "utf8");
+  const modelSrc81 = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../src/generator/model.ts"), "utf8");
+  const boardSrc81 = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../src/ui/Board.tsx"), "utf8");
+  const liveArtSrc81 = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../src/ui/LiveArt.tsx"), "utf8");
+  // the app: the stamp's voice field and the reading-voice render
+  if (!/voice\?: "list";/.test(storeSrc81)
+      || !/if \(st\.voice === "list"\) \{/.test(storeSrc81)
+      || !/t\.font = t\.listFont \|\| t\.font;/.test(storeSrc81)
+      || !/t\.case = "none";/.test(storeSrc81)
+      || !/t\.weight = 500;/.test(storeSrc81))
+    errors.push("the type stamp's reading voice left the store (BoardItem.stamp.voice / stampSvg's list-font, sentence-case, weight-500 branch) (round 81)");
+  if (!/voice: e\.target\.checked \? "list" : undefined/.test(boardSrc81))
+    errors.push("the Board inspector lost its Reading voice toggle (round 81)");
+  // the exporter: the voice on stamp rows and text seats, the list file in the manifest
+  if ((src.match(/voice\?: "list";/g) ?? []).length < 2)
+    errors.push("ExportBoardItemData.voice or textSeats[].voice left the manifest types (round 81)");
+  if (!/const voiceList = !kit && !!listFont && listFont !== kitFont && fam0 === listFont;/.test(src)
+      || !/const seats = parseTextSeats\(full, c\.type\.font, c\.type\.listFont\);/.test(src)
+      || (src.match(/\.\.\.\(voiceList \? \{ voice: "list" as const \} : \{\}\),/g) ?? []).length < 2)
+    errors.push("the seat parser no longer marks list-font words as the reading voice, or the stamp row lost its voice field (round 81)");
+  if (!/const stampFace = voiceList && st\.cfg\.type\.listFont \? st\.cfg\.type\.listFont : st\.cfg\.type\.font;/.test(src)
+      || !/stampCase: voiceList \? "none" : st\.cfg\.type\.case \?\? "none",/.test(src))
+    errors.push("the stamp bake no longer inlines the list face for a reading-voice stamp, or its case field stopped saying sentence case (round 81)");
+  if (!/listFile: listFontFile,/.test(src) || !/listWeight,/.test(src)
+      || !/if \(fam !== st\.cfg\.type\.font && fam === st\.cfg\.type\.listFont\) \{/.test(src))
+    errors.push("typography.listFile / listWeight left the manifest, so the importer can never build the KitVoice face (round 81)");
+  // the importer: the manifest fields, the face on both rungs, the seat road, the live stamp
+  if (!/public string listFile; public int listWeight;/.test(cs)
+      || !/public bool dressed; public string voice; public int weight;/.test(cs)
+      || !/public float opacity; public string voice; public float\[\] cells;/.test(cs))
+    errors.push("PBTypography.listFile/listWeight, PBSeat.voice or PBBoardItem.voice left the importer (round 81)");
+  if (!/static TMP_FontAsset EnsureKitVoiceFace\(string root, PBManifest m\)/.test(cs)
+      || !/static int KitVoiceWeight\(string root, PBManifest m\)/.test(cs)
+      || !/static TMPro\.TMP_FontAsset LtsKitVoiceFace\(string root, PBManifest m\)/.test(cs)
+      || (cs.match(/fa\.name = "KitVoice SDF";/g) ?? []).length !== 2
+      || !/root \+ "\/fonts\/KitVoice SDF\.asset"/.test(cs))
+    errors.push("the KitVoice face (styled rung EnsureKitVoiceFace + LTS LtsKitVoiceFace, fonts/KitVoice SDF.asset) left the importer (round 81)");
+  if (!/TMP_FontAsset kitVoice, int kitVoiceWeight, out TMP_FontAsset face, out Material mat, out int aboardWeight\)/.test(cs)
+      || !/else if \(kitVoice != null && seat\.voice == "list"\) \{ face = kitVoice; mat = null; aboardWeight = kitVoiceWeight > 0 \? kitVoiceWeight : 400; \}/.test(cs)
+      || (cs.match(/var kitVoice = EnsureKitVoiceFace\(root, m\);/g) ?? []).length !== 2
+      || (cs.match(/kitVoice, kitVoiceW, out face, out mat, out aboardWeight\);/g) ?? []).length !== 2
+      || (cs.match(/&& !\(kitVoice != null && s0\.voice == "list"\)\) needPlainKit = true;/g) ?? []).length !== 2)
+    errors.push("SeatVoice lost its reading-voice branch (or the builder/heal callers stopped handing it the KitVoice face), so list-font words land on the grotesk again (round 81)");
+  if (!/bool voiceL = voiceFaceL != null && seat\.voice == "list";/.test(cs)
+      || !/var voiceFaceL = LtsKitVoiceFace\(root, m\);/.test(cs))
+    errors.push("the LTS seat road lost the reading voice (round 81)");
+  if (!/bool voiceList = it\.voice == "list";/.test(cs)
+      || !/bool plainTier = plainInk \|\| voiceList;/.test(cs)
+      || !/TMP_FontAsset face = voiceList \? EnsureKitVoiceFace\(root, m\) : null;/.test(cs)
+      || !/if \(voiceList && !plainInk\) flatInk = it\.stampSplashInk;/.test(cs)
+      || !/int aboardV = onVoice \? KitVoiceWeight\(root, m\)/.test(cs))
+    errors.push("BuildLiveStamp lost the reading voice (KitVoice face, plain material, splash ink, weight-500 gap rule) (round 81)");
+  // the segmented control's option words
+  if (!/export function segmentCaptions\(label: string \| undefined \| null\): string\[\] \| undefined \{/.test(bevelSrc)
+      || !/: segmentCaptions\(opts\.label\);/.test(bevelSrc)
+      || !/const sel = capsIn \? clamp\(Math\.round\(\(value \?\? 0\) \* \(nSeg - 1\)\), 0, nSeg - 1\) : clamp\(Math\.round\(value \?\? 1\), 0, 2\);/.test(bevelSrc))
+    errors.push("the segmented control no longer reads its option words from a piped label (segmentCaptions / the n-caption pick) (round 81)");
+  if (!/const copySegs = idBase === "segment" \? segmentCaptions\(copyLabel\) : undefined;/.test(src)
+      || (src.match(/label: copyLabel, segments: copySegs,/g) ?? []).length !== 3)
+    errors.push("the board copy's bakes (display, wipe companion, posed skin) stopped carrying the segment's option words (round 81)");
+  if (!/segments: bBase === "segment" \? segmentCaptions\(bLabel\) : undefined/.test(boardSrc81)
+      || !/segments: baseOf\(b\.kitId\) === "segment" \? segmentCaptions\(/.test(boardSrc81))
+    errors.push("the Board stage or its PNG compositor stopped passing the segment's option words (round 81)");
+  if (!/const segN = kit\?\.id === "segment" && kit\.segments && kit\.segments\.length >= 2 && kit\.segments\.length <= 5 \? kit\.segments\.length : 0;/.test(liveArtSrc81))
+    errors.push("LiveArt's play-mode segment pick no longer speaks the caption grammar (round 81)");
+  const rosterAt81 = modelSrc81.indexOf("export const KIT_LABEL_EDITABLE");
+  const roster81 = rosterAt81 >= 0 ? modelSrc81.slice(rosterAt81, modelSrc81.indexOf("]);", rosterAt81)) : "";
+  if (!/segment: 60,/.test(modelSrc81) || !/"segment",/.test(roster81))
+    errors.push("the segmented control left the label-editable roster or lost its 60-character cap (round 81)");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);

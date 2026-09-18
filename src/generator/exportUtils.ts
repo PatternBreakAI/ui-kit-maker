@@ -846,7 +846,15 @@ export async function fontDataUri(family: string, cssQuery: string | null): Prom
          silently falls back to a system face (owner: warped stamps "still
          not rendering the correct font" while Bruno Ace kits passed). */
       const blocks = css.split("@font-face").slice(1);
-      const latin = blocks.find((b) => /unicode-range:[^;}]*U\+0000/i.test(b)) ?? blocks[0] ?? "";
+      /* UPRIGHT first (round 81): a family queried with an italic axis
+         (Crimson Pro, the reading voice) answers with its italic blocks
+         BEFORE the normal ones, and the first latin block inlined every
+         reading-voice bake in italics while the stage drew it upright.
+         The inlined @font-face carries no font-style, so the file itself
+         must be the upright cut; italic-only families keep the old pick. */
+      const upright = (b: string) => !/font-style:\s*italic/i.test(b);
+      const latinAll = blocks.filter((b) => /unicode-range:[^;}]*U\+0000/i.test(b));
+      const latin = latinAll.find(upright) ?? latinAll[0] ?? blocks.find(upright) ?? blocks[0] ?? "";
       const m = /url\((https:[^)]+\.woff2)\)/.exec(latin) ?? /url\((https:[^)]+\.woff2)\)/.exec(css);
       if (m) {
         const buf = await (await fetchDeadline(m[1])).arrayBuffer();

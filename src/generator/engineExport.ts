@@ -18,7 +18,7 @@ import { applyKitDesign, applyKitTextFill, baseOf, darken, hexMix, lighten, font
 /* the glyph-button fleet's registry (round 52) — aliased: this module's own
    GLYPH_BUTTONS is the round-40 ACTION-glyph set (pause/play/replay/home) */
 import { GLYPH_BUTTONS as GLYPH_BUTTON_FLEET, isGlyphButton } from "./model";
-import { renderKit as renderKitRaw, KIT_TILT, renderBevel, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps, padSvg, resolveMenuStyle, effSlotColor, kernCollides } from "./bevel";
+import { renderKit as renderKitRaw, KIT_TILT, segmentCaptions, renderBevel, rarityTiers, textPatternCell, renderTypeSpecimen, userShapeCaps, padSvg, resolveMenuStyle, effSlotColor, kernCollides } from "./bevel";
 import type { KitOpts } from "./bevel";
 import { flattenPath } from "./importedShapes";
 import { silhouetteMeta } from "./silhouettes";
@@ -292,6 +292,13 @@ interface AssetMeta {
     midEm: number;
     anchor: "start" | "middle" | "end"; row: number;
     kit: boolean; dressed: boolean;
+    /** the READING VOICE (round 81): this seat renders in the kit's list
+     *  font (type.listFont, a family other than the kit face) — datarow
+     *  subs, list-menu rows, toast and tooltip lines, the dialogue body.
+     *  The importer seats it on the KitVoice face built from the shipped
+     *  list TTF (typography.listFile); absent, or no list file aboard,
+     *  the seat rides the grotesk/instrument road exactly as before. */
+    voice?: "list";
     weight: number; italic: boolean; spacingEmPct: number;
     fillMode: "solid" | "gradient"; fill: string; fill2: string | null; fillOpacity: number;
     /** The app's per-glyph understroke (paint-order: stroke) — the dark rim
@@ -520,6 +527,13 @@ export interface ExportBoardItemData {
   stampSplashInk?: string | null;
   stampCase?: string;
   stampDx?: number; stampDy?: number; stampW?: number; stampH?: number;
+  /** the stamp's READING VOICE (round 81): "list" = the words render in
+      the kit's list font at sentence case, weight 500, flat (BoardItem
+      .stamp.voice). The live stamp seats on the KitVoice face (the
+      shipped list TTF) with the plain material; no list file aboard =
+      the kit face, still plain and still sentence case. Absent = the
+      display voice, every road as before. */
+  voice?: "list";
   /** a POSED bake for a prefab piece whose board pose diverges from the
       family sprite's natural aspect — the engine's own render at the
       exact board proportions, label stripped (words stay live). The
@@ -1345,8 +1359,13 @@ export async function collectExportBoards(st: {
            The face rides INSIDE the svg: boards collect BEFORE the engine
            pipeline arms setEmbedFont, and a sealed raster with no embed
            bakes system glyphs (owner: warp "loses the font" — same trap). */
-        const fd0 = fontByName(st.cfg.type.font);
-        const stampSvgF = await inlineKitFace(stampSvg(st.cfg, b.stamp), st.cfg.type.font, fd0.name === st.cfg.type.font ? fd0.css ?? null : null);
+        /* the READING VOICE (round 81) renders in the kit's list font —
+           that is the face the sealed raster must carry, or the bake
+           falls to a system serif while the stage showed the real one */
+        const voiceList = b.stamp.voice === "list";
+        const stampFace = voiceList && st.cfg.type.listFont ? st.cfg.type.listFont : st.cfg.type.font;
+        const fd0 = fontByName(stampFace);
+        const stampSvgF = await inlineKitFace(stampSvg(st.cfg, b.stamp), stampFace, fd0.name === stampFace ? fd0.css ?? null : null);
         const { bytes: raw, w: rw0, h: rh0 } = await svgToPngBytes(stampSvgF, 2);
         const bmp = await createImageBitmap(new Blob([raw.slice().buffer as ArrayBuffer]));
         // warp FIRST (shadow/glow then follow the bent shape), filter second
@@ -1396,7 +1415,7 @@ export async function collectExportBoards(st: {
           if (tC.shine) tC.shine = { ...tC.shine, on: false };
           if (tC.glints) tC.glints = { ...tC.glints, on: false };
           if (coreCfg.idle) coreCfg.idle = { ...coreCfg.idle, wipe: false };
-          const coreSvgF = await inlineKitFace(stampSvg(coreCfg, b.stamp), st.cfg.type.font, fd0.name === st.cfg.type.font ? fd0.css ?? null : null);
+          const coreSvgF = await inlineKitFace(stampSvg(coreCfg, b.stamp), stampFace, fd0.name === stampFace ? fd0.css ?? null : null);
           const { bytes: rawC, w: rwC, h: rhC } = await svgToPngBytes(coreSvgF, 2);
           if (rwC === rw0 && rhC === rh0) {
             const bmpC = await createImageBitmap(new Blob([rawC.slice().buffer as ArrayBuffer]));
@@ -1440,6 +1459,8 @@ export async function collectExportBoards(st: {
           anchor: `${ay === 1 ? "top" : ay === 0 ? "bottom" : "middle"}-${ax === 0 ? "left" : ax === 1 ? "right" : "center"}`,
           stamp: file,
           ...(maskFile ? { stampMask: maskFile } : {}),
+          // the reading voice rides every stamp row, warped ones included
+          ...(voiceList ? { voice: "list" as const } : {}),
           /* LIVE fields (owner: "someone is for sure gonna delete it") —
              unwarped stamps only, and only when the measurement landed:
              the rendered font px comes off the specimen svg itself (the
@@ -1464,10 +1485,14 @@ export async function collectExportBoards(st: {
                      layered HeroLabel road never reads it. */
                   stampSplashInk: b.stamp.plain
                     ? null
+                    // the reading voice paints the list ink when the kit pins one
+                    : voiceList && st.cfg.type.listInk
+                      ? st.cfg.type.listInk
                     : st.cfg.type.fillMode === "gradient" && st.cfg.type.fill2
                       ? hexMix(st.cfg.type.fill, st.cfg.type.fill2, 0.5)
                       : st.cfg.type.fill,
-                  stampCase: st.cfg.type.case ?? "none",
+                  // the reading voice is sentence case as typed, whatever the kit's case dial
+                  stampCase: voiceList ? "none" : st.cfg.type.case ?? "none",
                   stampDx: r1(((inkBox.x + inkBox.w / 2 - cv.width / 2) / 2) * k),
                   stampDy: r1(((inkBox.y + inkBox.h / 2 - cv.height / 2) / 2) * k),
                   stampW: r1((inkBox.w / 2) * k),
@@ -1683,10 +1708,17 @@ export async function collectExportBoards(st: {
          kitSlotVals[b.kitId] (svgOf) — keyed by the item's OWN id, so a
          clone's fork is the truth — and dims and baked pixels must match
          what the maker saw. All six renders below speak the same grammar. */
+      /* the segmented control's OPTION WORDS (round 81): a piped copy
+         label splits into its captions for every bake of this copy (the
+         display render, the wipe companion, the posed skins), so the
+         sprite carries the right words in the right cells while the
+         manifest row keeps the whole "A | B | C" string for the game */
+      const copyLabel = st.kitNoText?.[id] ? "" : (b.label ?? st.kitLabels[id]);
+      const copySegs = idBase === "segment" ? segmentCaptions(copyLabel) : undefined;
       const svg = renderKit(cfgP, idBase, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], {
         icon: resolveKitIcon(st.kitIcons?.[id], undefined),
         // kitNoText → deliberate "" (wordless render), never heal-to-stock
-        label: st.kitNoText?.[id] ? "" : (b.label ?? st.kitLabels[id]), stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov, slots: st.kitSlotVals?.[id],
+        label: copyLabel, segments: copySegs, stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov, slots: st.kitSlotVals?.[id],
         // the Board stage renders with the maker's text nudges — every bake must too
         textOy: st.kitTextOy?.[`${id}:${st.kitSizes[id] ?? "l"}`], textOx: st.kitTextOx?.[`${id}:${st.kitSizes[id] ?? "l"}`],
         themedText: !!st.kitDesigns?.[id]?.type || !!st.kitTextFill[id],
@@ -1838,7 +1870,7 @@ export async function collectExportBoards(st: {
             }
             const svgC0 = renderKit(calmK, idBase, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], {
               icon: resolveKitIcon(st.kitIcons?.[id], undefined),
-              label: st.kitNoText?.[id] ? "" : (b.label ?? st.kitLabels[id]), stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov, slots: st.kitSlotVals?.[id],
+              label: copyLabel, segments: copySegs, stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov, slots: st.kitSlotVals?.[id],
               // the Board stage renders with the maker's text nudges — every bake must too
               textOy: st.kitTextOy?.[`${id}:${st.kitSizes[id] ?? "l"}`], textOx: st.kitTextOx?.[`${id}:${st.kitSizes[id] ?? "l"}`],
               themedText: !!st.kitDesigns?.[id]?.type || !!st.kitTextFill[id],
@@ -2017,7 +2049,7 @@ export async function collectExportBoards(st: {
         if (!pureType && (isCloneId(id) || universalPose || (Math.abs(poseAspect / natAspect - 1) > 0.08 && !BAR_RIGS.has(idBase)))) {
           let ps2 = renderKit(shellCfg(cfgP), idBase, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], {
             icon: resolveKitIcon(st.kitIcons?.[id], undefined),
-            label: st.kitNoText?.[id] ? "" : (b.label ?? st.kitLabels[id]), stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov, slots: st.kitSlotVals?.[id],
+            label: copyLabel, segments: copySegs, stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov, slots: st.kitSlotVals?.[id],
             // the Board stage renders with the maker's text nudges — every bake must too
             textOy: st.kitTextOy?.[`${id}:${st.kitSizes[id] ?? "l"}`], textOx: st.kitTextOx?.[`${id}:${st.kitSizes[id] ?? "l"}`],
             themedText: !!st.kitDesigns?.[id]?.type || !!st.kitTextFill[id],
@@ -3325,7 +3357,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     capMidCache.set(family, v);
     return v;
   };
-  const parseTextSeats = (svg: string, kitFont: string): NonNullable<AssetMeta["textSeats"]> | null => {
+  const parseTextSeats = (svg: string, kitFont: string, listFont?: string | null): NonNullable<AssetMeta["textSeats"]> | null => {
     let doc: Document;
     try { doc = new DOMParser().parseFromString(svg, "image/svg+xml"); } catch { return null; }
     if (doc.querySelector("parsererror")) return null;
@@ -3396,7 +3428,12 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         }).join("").replace(/\s+(?![^<]*>)/g, " "); // normalize gaps, never inside tags
         fillAttr = "#FFFFFF"; // markup carries the inks; the base stays white
       }
-      const kit = (t.getAttribute("font-family") ?? "").split(",")[0].trim().replace(/^['"]|['"]$/g, "") === kitFont;
+      const fam0 = (t.getAttribute("font-family") ?? "").split(",")[0].trim().replace(/^['"]|['"]$/g, "");
+      const kit = fam0 === kitFont;
+      /* the READING VOICE (round 81): a word the app set in the list font
+         (a family other than the kit face) — the importer seats it on the
+         KitVoice face instead of the grotesk */
+      const voiceList = !kit && !!listFont && listFont !== kitFont && fam0 === listFont;
       let fillMode: "solid" | "gradient" = "solid";
       let fill = "#FFFFFF", fill2: string | null = null;
       let fillOpacity = 100;
@@ -3449,6 +3486,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         anchor: (t.getAttribute("text-anchor") as "start" | "middle" | "end" | null) ?? "start",
         row: 0,
         kit, dressed,
+        ...(voiceList ? { voice: "list" as const } : {}),
         weight: parseInt(t.getAttribute("font-weight") ?? "400", 10) || 400,
         italic: t.getAttribute("font-style") === "italic",
         spacingEmPct: emPct(t.getAttribute("letter-spacing")),
@@ -3500,7 +3538,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       const vbF = /viewBox="([^"]+)"/.exec(full)?.[1];
       const vbB = /viewBox="([^"]+)"/.exec(bakeSvg)?.[1];
       if (!vbF || vbF !== vbB) return {};
-      const seats = parseTextSeats(full, c.type.font);
+      const seats = parseTextSeats(full, c.type.font, c.type.listFont);
       if (!seats) return {};
       return { textSeats: seats, ...(seats.some((s2) => s2.kit && s2.dressed) ? { seatInk: contentInkOf(id) } : {}) };
     } catch { return {}; }
@@ -5025,7 +5063,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         c.candy.contact.opacity = 0;
         for (const s of Object.values(c.states)) s.glow = 0;
         const svg2 = renderKit(c, id, effKitSize(st.kitSizes[id]), "default", 0, st.kitShapes[id], { icon: null, label: word, ...nudgeOf(id) });
-        const seats2 = parseTextSeats(svg2, c.type.font) ?? [];
+        const seats2 = parseTextSeats(svg2, c.type.font, c.type.listFont) ?? [];
         const kitSeats = seats2.filter((s2) => s2.kit && s2.ffs > 1);
         if (!kitSeats.length) return {};
         const fs2 = Math.max(...kitSeats.map((s2) => s2.ffs));
@@ -7524,6 +7562,13 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   const W_TAGS: Record<number, string> = { 100: "Thin", 200: "ExtraLight", 300: "Light", 400: "Regular", 500: "Medium", 600: "SemiBold", 700: "Bold", 800: "ExtraBold", 900: "Black" };
   let shippedWeight = 400;
   let kitFaceSaidNoCut = false; // the kit-face notice already told the one-cut story (the content notice below must not repeat it)
+  /* the READING VOICE's file (round 81): the list family's shipped cut
+     and the weight its bytes really render at — the importer builds the
+     KitVoice face from it and seats list-voice words and reading-voice
+     stamps there. Null = no list family, the same family as the kit
+     face, or a fetch miss: the importer keeps the old road. */
+  let listFontFile: string | null = null;
+  let listWeight = 400;
   for (const fam of famList) {
     const wantAxis = fam === st.cfg.type.font && designedW !== 400;
     let got = wantAxis ? await fetchKitFont(fam, `wght@${designedW}`, W_TAGS[designedW] ?? `W${designedW}`).catch(() => null) : null;
@@ -7534,6 +7579,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     files.push({ path: `fonts/${got.file}`, data: got.bytes });
     files.push({ path: `fonts/${famSlug}-${got.licenceName}`, data: got.licenceText });
     tpnFonts.push({ family: fam, role: fam === st.cfg.type.font ? "the kit's own face" : "a kit voice", file: got.file, licenceName: got.licenceName, licenceText: got.licenceText });
+    if (fam !== st.cfg.type.font && fam === st.cfg.type.listFont) {
+      listFontFile = `fonts/${got.file}`;
+      listWeight = got.realWeight ?? 400;
+    }
     if (fam === st.cfg.type.font) {
       primaryFontFile = `fonts/${got.file}`;
       primaryFontBytes = got.bytes;
@@ -8001,6 +8050,13 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
            contentText floor) — ships only when the label cut is lighter;
            null = older zip / fetch miss, gap-rule flag in Unity */
         contentFile,
+        /* the READING VOICE's file (round 81): the kit's list family
+           (type.listFont) when it differs from the kit face — the importer
+           builds KitVoice SDF from it for list-voice seats and reading-
+           voice stamps; listWeight is the cut's real rendered weight.
+           null = no list family / same family / fetch miss: old road */
+        listFile: listFontFile,
+        listWeight,
         /* the styled-text recipe — enough numbers to rebuild the kit's
            display treatment as a TextMeshPro material preset: face fill
            (or vertex gradient), outline, and glow/underlay */
@@ -13866,6 +13922,13 @@ prefab labels arrive already wearing it. On older editors labels use the
 shipped TTF, and the recipe in kit-manifest.json > typography > style is
 ready to become a TMP material preset by hand.
 
+When the kit speaks a second, READING face (the app's list font: list
+rows, toasts, tooltips, dialogue bodies and reading-voice type stamps),
+that family's cut ships in **fonts/** too and the importer builds
+**KitVoice SDF** from it on both rungs, so those words wear the kit's own
+reading face instead of the neutral grotesk. No list file aboard means
+those seats take the road they always took.
+
 > **The full 2022.3 picture, feature by feature** (no silent
 > divergence): label-road prefab words are live uGUI Text in the
 > kit's font and each family's own resolved ink, and the **Words**
@@ -14530,7 +14593,7 @@ namespace PatternBreak {
      gauge contract; the importer multiplies by the prefab's live rect.
      Readers gate on text non-empty AND ffs > 0 (px-era rows and
      JsonUtility's default-constructed nested objects both read 0). */
-  [Serializable] class PBSeat { public string text; public float fx; public float fy; public float ffs; public float midEm; public string anchor; public int row; public bool kit; public bool dressed; public int weight; public bool italic; public float spacingEmPct; public string fillMode; public string fill; public string fill2; public float fillOpacity; public string stroke; public float strokeA; public float strokeEmPct; public string rider; public bool unkern; }
+  [Serializable] class PBSeat { public string text; public float fx; public float fy; public float ffs; public float midEm; public string anchor; public int row; public bool kit; public bool dressed; public string voice; public int weight; public bool italic; public float spacingEmPct; public string fillMode; public string fill; public string fill2; public float fillOpacity; public string stroke; public float strokeA; public float strokeEmPct; public string rider; public bool unkern; }
   /* the piece's kit icon beside its words (round 26 — the chip's star):
      center offset from the shell center in design px, rendered size, the
      shipped white glyph, and the app's ink. s 0 / file "" on older
@@ -14581,7 +14644,7 @@ namespace PatternBreak {
   [Serializable] class PBKernOvFile { public PBKernOv[] pairs; }
   [Serializable] class PBBakedFace { public float pointSize; public float ascent; public float descent; public float lineHeight; public int atlasW; public int atlasH; public PBBakedKern[] kerning; public PBBakedGlyph[] glyphs; public int layersAtlasW; public int layersAtlasH; public PBBakedGlyph[] layerGlyphs; }
   [Serializable] class PBStateStyle { public string state; public string fillMode; public string fill; public string fill2; public float dy; }
-  [Serializable] class PBTypography { public string font; public string fontFile; public bool fontMissing; public string instrumentFile; public string contentFile; public PBStyle style; public PBStateStyle[] stateStyles; public PBBakedRef bakedFace; }
+  [Serializable] class PBTypography { public string font; public string fontFile; public bool fontMissing; public string instrumentFile; public string contentFile; public string listFile; public int listWeight; public PBStyle style; public PBStateStyle[] stateStyles; public PBBakedRef bakedFace; }
   /* mirror the FULL palette object the manifest emits — JsonUtility drops
      undeclared fields silently, and a later template access on one is a
      CS1061 Unity-side (how 'well'/'shadow' shipped broken) */
@@ -14624,7 +14687,7 @@ namespace PatternBreak {
      name; false: the asset's clean original, shared). JsonUtility gives
      every row a default instance — an empty id means "not a big glyph". */
   [Serializable] class PBBig { public string id; public string name; public string sprite; public bool fx; }
-  [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float artW; public float artH; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string stampMask; public bool bakedFallback; public int stampLive; public float stampFs; public string stampInk; public string stampSplashInk; public string stampCase; public float stampDx; public float stampDy; public float stampW; public float stampH; public string posed; public float posedW; public float posedH; public float posedDx; public float posedDy; public string posedHover; public string posedPressed; public string posedDisabled; public float posedLabelDx; public float posedLabelDy; public string shadow; public float shadowW; public float shadowH; public float shadowDx; public float shadowDy; public string ov; public float value; public bool flip; public float opacity; public float[] cells; public int cellSel = -1; public PBBig big; public PBIconChild[] posedIcons; }
+  [Serializable] class PBBoardItem { public string component; public float cx; public float cy; public float w; public float h; public float artW; public float artH; public float rot; public string label; public float ax; public float ay; public string anchor; public string stamp; public string stampMask; public bool bakedFallback; public int stampLive; public float stampFs; public string stampInk; public string stampSplashInk; public string stampCase; public float stampDx; public float stampDy; public float stampW; public float stampH; public string posed; public float posedW; public float posedH; public float posedDx; public float posedDy; public string posedHover; public string posedPressed; public string posedDisabled; public float posedLabelDx; public float posedLabelDy; public string shadow; public float shadowW; public float shadowH; public float shadowDx; public float shadowDy; public string ov; public float value; public bool flip; public float opacity; public string voice; public float[] cells; public int cellSel = -1; public PBBig big; public PBIconChild[] posedIcons; }
   [Serializable] class PBBoardBg { public string file; public float opacity; public float blur; public float saturation; public float hue; public float brightness; public float contrast; public float noise; public string overlay; public float overlayStrength; public string overlayBlend; public bool original; }
   /* artMissing (round 72): logos the maker placed whose image the
      exporting browser could not reach, so no sprite shipped for them.
@@ -17043,7 +17106,17 @@ namespace PatternBreak {
        import that is already in flight. */
     static GameObject BuildLiveStamp(string root, PBManifest m, PBBoardItem it, UnityEngine.SceneManagement.Scene scene) {
       var word = it.label ?? "";
-      bool plainTier = !string.IsNullOrEmpty(it.stampInk);
+      /* the READING VOICE (round 81): the stamp is body copy — the kit's
+         list font at sentence case and a book weight, flat. It is PLAIN
+         by contract: it seats on the KitVoice face (the shipped list cut)
+         with an undressed material, never the layered HeroLabel; no list
+         file aboard = the kit face, still plain and still sentence case
+         (the closest honest look). plainInk = the maker picked a flat
+         colour (the row's stampInk); a splash-tier reading stamp paints
+         the row's resolved splash ink instead. */
+      bool voiceList = it.voice == "list";
+      bool plainInk = !string.IsNullOrEmpty(it.stampInk);
+      bool plainTier = plainInk || voiceList;
       /* the LAYERED-face gate reads the MANIFEST, not the assets: "no
          layer bake shipped" is a permanent fact of this kit, while
          "HeroLabel.prefab missing" can be a first-drop race — and a race
@@ -17053,7 +17126,9 @@ namespace PatternBreak {
         && !string.IsNullOrEmpty(m.typography.bakedFace.layerStroke);
       GameObject go = null;
       if (plainTier || !layeredKit) {
-        var face = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
+        TMP_FontAsset face = voiceList ? EnsureKitVoiceFace(root, m) : null;
+        bool onVoice = face != null;
+        if (face == null) face = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(root + "/fonts/KitFace SDF.asset");
         if (face == null) return null;
         go = new GameObject("Stamp (live) — " + word, typeof(RectTransform), typeof(CanvasRenderer));
         UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(go, scene);
@@ -17061,7 +17136,8 @@ namespace PatternBreak {
         t.text = word;
         t.font = face; // assigning the font resets the material —
         if (plainTier) {
-          var plainMat = EnsureGaugeUnitMaterial(root, face);
+          // the undressed preset: the kit face's gauge-unit material, or the voice face's own plain one
+          var plainMat = onVoice ? EnsureInkPresetMaterial(face, new PBStyle(), root + "/fonts/KitVoice Plain.mat") : EnsureGaugeUnitMaterial(root, face);
           if (plainMat != null) t.fontSharedMaterial = plainMat; // — the undressed preset lands after
         }
         /* else: the LAYERLESS SPLASH FALLBACK — the layered look does not
@@ -17080,10 +17156,19 @@ namespace PatternBreak {
           t.characterSpacing = m.typography.style.spacingEmPct;
           // the bake was set at the kit's weight/italic — the live word matches
           t.fontStyle = TargetFontStyle(m.typography.style);
+          if (voiceList) {
+            /* the reading voice renders at weight 500 in the app; the gap
+               rule reads against the cut actually behind the face (the
+               list cut, or the kit face when no list file shipped) */
+            int aboardV = onVoice ? KitVoiceWeight(root, m) : (m.typography.style.shippedWeight > 0 ? m.typography.style.shippedWeight : 400);
+            t.fontStyle = (m.typography.style.italic ? FontStyles.Italic : FontStyles.Normal) | (500 - aboardV >= 150 ? FontStyles.Bold : FontStyles.Normal);
+          }
         }
         t.alignment = TextAlignmentOptions.Center;
         Color inkC;
         var flatInk = plainTier ? it.stampInk : it.stampSplashInk;
+        // a splash-tier READING stamp carries no picked colour: it paints the row's resolved ink
+        if (voiceList && !plainInk) flatInk = it.stampSplashInk;
         if (!string.IsNullOrEmpty(flatInk) && ColorUtility.TryParseHtmlString(flatInk, out inkC)) t.color = inkC;
         else if (!plainTier) {
           /* an OLD manifest (pre-stampSplashInk) on a layerless kit: the
@@ -23048,6 +23133,48 @@ namespace PatternBreak {
       Debug.Log("UI Kit Maker: generated the content face at " + path + " — Words seats at 700+ wear the kit family's real content cut instead of a synthetic flag.");
       return fa;
     }
+    /* the KIT VOICE face (round 81, the Stand on Business boards): the
+       app draws its READING text (list-menu rows, data-row subs, toast
+       and tooltip lines, the dialogue body, and reading-voice type
+       stamps) in the kit's list font, a second family beside the display
+       face. The zip ships that family's cut (typography.listFile) and the
+       importer mints a plain SDF from it, so those words stop landing on
+       the neutral grotesk or the heavy instrument. Null = no list file
+       aboard (older zip, the same family as the kit face, a fetch miss):
+       every caller keeps the road it always took. No styled material: a
+       reading voice wears no lettering treatment. */
+    static TMP_FontAsset EnsureKitVoiceFace(string root, PBManifest m) {
+      var path = root + "/fonts/KitVoice SDF.asset";
+      var listTtf = m != null && m.typography != null && !string.IsNullOrEmpty(m.typography.listFile)
+        ? AssetDatabase.LoadAssetAtPath<Font>(root + "/" + m.typography.listFile) : null;
+      var existing = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(path);
+      if (existing != null) { StampDynamicSource(existing, listTtf); TuneSyntheticBold(existing); return existing; }
+      var ttf = listTtf;
+      if (ttf == null) return null;
+      TMP_FontAsset fa = null;
+      try { fa = TMP_FontAsset.CreateFontAsset(ttf, 96, 16, UnityEngine.TextCore.LowLevel.GlyphRenderMode.SDFAA, 2048, 2048, AtlasPopulationMode.Dynamic); } catch (Exception) { }
+      if (fa == null) return null;
+      fa.name = "KitVoice SDF";
+      AssetDatabase.CreateAsset(fa, path);
+      StampDynamicSource(fa, ttf); // the dynamic atlas keeps its source across reloads
+      TuneSyntheticBold(fa);
+      if (fa.material != null) { fa.material.name = "KitVoice SDF Material"; AssetDatabase.AddObjectToAsset(fa.material, fa); }
+      if (fa.atlasTextures != null && fa.atlasTextures.Length > 0 && fa.atlasTextures[0] != null) { fa.atlasTextures[0].name = "KitVoice SDF Atlas"; AssetDatabase.AddObjectToAsset(fa.atlasTextures[0], fa); }
+      EditorUtility.SetDirty(fa);
+      AssetDatabase.SaveAssetIfDirty(fa); // ours alone — never flush the world (immutable-package policy)
+      Debug.Log("UI Kit Maker: generated the kit voice face at " + path + ". Reading text (list rows, toasts, dialogue bodies, reading-voice stamps) wears the kit's own list font instead of the neutral grotesk.");
+      return fa;
+    }
+    /* the weight the list cut really renders at — from the bytes first
+       (the label face's honesty rule), the manifest's listWeight next,
+       400 when neither speaks. The gap rule keys synthetic bold on it. */
+    static int KitVoiceWeight(string root, PBManifest m) {
+      if (m == null || m.typography == null) return 400;
+      bool lv;
+      int w = RealFontWeight(root, m.typography.listFile, out lv);
+      if (w > 0) return w;
+      return m.typography.listWeight > 0 ? m.typography.listWeight : 400;
+    }
     /* the app's paint-order UNDERSTROKE — the dark rim that keeps
        instrument text legible over loud faces. One preset material per
        (face, rim) pair; the path carries the rim key so different rims
@@ -23411,7 +23538,7 @@ namespace PatternBreak {
     // is this seat the CONTENT voice on its kit family (the app's 700
     // floor)? — one predicate for the voice pick and the material minting
     static bool ContentSeat(PBSeat seat, TMP_FontAsset contentFace) { return seat.kit && contentFace != null && seat.weight >= 700; }
-    static void SeatVoice(PBSeat seat, PBManifest m, TMP_FontAsset kitFace, Material dressMat, TMP_FontAsset grotesk, Material plainKitMat, TMP_FontAsset instrument, TMP_FontAsset contentFace, Material dressMatC, Material plainMatC, out TMP_FontAsset face, out Material mat, out int aboardWeight) {
+    static void SeatVoice(PBSeat seat, PBManifest m, TMP_FontAsset kitFace, Material dressMat, TMP_FontAsset grotesk, Material plainKitMat, TMP_FontAsset instrument, TMP_FontAsset contentFace, Material dressMatC, Material plainMatC, TMP_FontAsset kitVoice, int kitVoiceWeight, out TMP_FontAsset face, out Material mat, out int aboardWeight) {
       int shipped = m != null && m.typography != null && m.typography.style != null && m.typography.style.shippedWeight > 0
         ? m.typography.style.shippedWeight : 400;
       if (seat.kit) {
@@ -23424,6 +23551,11 @@ namespace PatternBreak {
         mat = seat.dressed ? (contentV ? dressMatC : dressMat) : (contentV ? plainMatC : plainKitMat);
         aboardWeight = contentV ? 700 : shipped;
       }
+      /* the READING VOICE (round 81): a seat the app set in the kit's
+         list font wears the KitVoice face when the zip shipped that
+         family — plain material, the cut's real weight for the gap rule.
+         No face aboard = the instrument/grotesk road exactly as before. */
+      else if (kitVoice != null && seat.voice == "list") { face = kitVoice; mat = null; aboardWeight = kitVoiceWeight > 0 ? kitVoiceWeight : 400; }
       /* the heavy instrument voices wear the REAL cut when it shipped —
          synthetic bold was the visible "thinner than the app" delta */
       else if (instrument != null && seat.weight >= 700) { face = instrument; mat = null; aboardWeight = 800; /* the export's Inter-ExtraBold instance */ }
@@ -23553,11 +23685,13 @@ namespace PatternBreak {
       var grotesk = GaugeUnitFace();
       var instrument = EnsureInstrumentFace(root, m);
       var contentFace = EnsureContentFace(root, m);
+      var kitVoice = EnsureKitVoiceFace(root, m); // null = no list file aboard, the old road
+      int kitVoiceW = kitVoice != null ? KitVoiceWeight(root, m) : 400;
       foreach (var s0 in row.textSeats) {
         bool cSeat = ContentSeat(s0, contentFace);
         if (s0.kit && s0.dressed) { if (cSeat) needDressC = true; else needDress = true; }
         if (s0.kit && !s0.dressed) { if (cSeat) needPlainC = true; else needPlainKit = true; }
-        if (!s0.kit && grotesk == null && !(instrument != null && s0.weight >= 700)) needPlainKit = true;
+        if (!s0.kit && grotesk == null && !(instrument != null && s0.weight >= 700) && !(kitVoice != null && s0.voice == "list")) needPlainKit = true;
       }
       needDress = needDress && SeatInkShips(row);
       needDressC = needDressC && SeatInkShips(row);
@@ -23614,7 +23748,7 @@ namespace PatternBreak {
           if (rrt != null && rrt != wordsT && !RowRect(rrt, rowFy[seat.row], rowFfs[seat.row], rootH, apply)) drift = true;
         }
         TMP_FontAsset face; Material mat; int aboardWeight;
-        SeatVoice(seat, m, kitFace, dressMat, grotesk, plainKitMat, instrument, contentFace, dressMatC, plainMatC, out face, out mat, out aboardWeight);
+        SeatVoice(seat, m, kitFace, dressMat, grotesk, plainKitMat, instrument, contentFace, dressMatC, plainMatC, kitVoice, kitVoiceW, out face, out mat, out aboardWeight);
         /* the understroke rim rides a preset material on the plain voices —
            probe passes only look; a wanted-but-missing preset IS drift */
         if (!seat.kit && mat == null && face != null && seat.strokeEmPct > 0.5f) {
@@ -23683,12 +23817,14 @@ namespace PatternBreak {
       var grotesk = GaugeUnitFace();
       var instrument = EnsureInstrumentFace(root, m);
       var contentFace = EnsureContentFace(root, m);
+      var kitVoice = EnsureKitVoiceFace(root, m); // null = no list file aboard, the old road
+      int kitVoiceW = kitVoice != null ? KitVoiceWeight(root, m) : 400;
       bool needDressB = false, needPlainKit = false, needDressCB = false, needPlainCB = false;
       foreach (var s0 in row.textSeats) {
         bool cSeat = ContentSeat(s0, contentFace);
         if (s0.kit && s0.dressed) { if (cSeat) needDressCB = true; else needDressB = true; }
         if (s0.kit && !s0.dressed) { if (cSeat) needPlainCB = true; else needPlainKit = true; }
-        if (!s0.kit && grotesk == null && !(instrument != null && s0.weight >= 700)) needPlainKit = true;
+        if (!s0.kit && grotesk == null && !(instrument != null && s0.weight >= 700) && !(kitVoice != null && s0.voice == "list")) needPlainKit = true;
       }
       Material dressMat = needDressB && SeatInkShips(row) && kitFace != null
         ? EnsureInkPresetMaterial(kitFace, row.seatInk, root + "/fonts/KitFace Seat " + NiceName(SeatMatKey(row)) + ".mat")
@@ -23735,7 +23871,7 @@ namespace PatternBreak {
         SeatHarden(t);
         t.alignment = seat.anchor == "middle" ? TextAlignmentOptions.Center : seat.anchor == "end" ? TextAlignmentOptions.Right : TextAlignmentOptions.Left;
         TMP_FontAsset face; Material mat; int aboardWeight;
-        SeatVoice(seat, m, kitFace, dressMat, grotesk, plainKitMat, instrument, contentFace, dressMatC, plainMatC, out face, out mat, out aboardWeight);
+        SeatVoice(seat, m, kitFace, dressMat, grotesk, plainKitMat, instrument, contentFace, dressMatC, plainMatC, kitVoice, kitVoiceW, out face, out mat, out aboardWeight);
         if (!seat.kit && mat == null && face != null && seat.strokeEmPct > 0.5f)
           mat = EnsureSeatStrokeMaterial(root, face, seat, true);
         SeatRect(go.GetComponent<RectTransform>(), seat, face, rootH, inRow, inRow ? rowFy[seat.row] : 0f, true);
@@ -23873,6 +24009,30 @@ namespace PatternBreak {
       AssetDatabase.SaveAssetIfDirty(fa); // ours alone — never flush the world (immutable-package policy)
       return fa;
     }
+    /* the LTS rung's KIT VOICE face (round 81): the reading face minted
+       straight from the shipped list TTF (typography.listFile) — the same
+       asset path the styled rung mints, since neither rung dresses it
+       (a reading voice wears no material recipe). Null = no list file
+       aboard: list-voice seats fall to the instrument/kit face as before. */
+    static TMPro.TMP_FontAsset LtsKitVoiceFace(string root, PBManifest m) {
+      var pathKV = root + "/fonts/KitVoice SDF.asset";
+      var existing = AssetDatabase.LoadAssetAtPath<TMPro.TMP_FontAsset>(pathKV);
+      if (existing != null) { TuneSyntheticBold(existing); return existing; }
+      var ttf = m != null && m.typography != null && !string.IsNullOrEmpty(m.typography.listFile)
+        ? AssetDatabase.LoadAssetAtPath<Font>(root + "/" + m.typography.listFile) : null;
+      if (ttf == null) return null;
+      TMPro.TMP_FontAsset fa = null;
+      try { fa = TMPro.TMP_FontAsset.CreateFontAsset(ttf, 96, 16, UnityEngine.TextCore.LowLevel.GlyphRenderMode.SDFAA, 2048, 2048, TMPro.AtlasPopulationMode.Dynamic); } catch (Exception) { }
+      if (fa == null) return null;
+      fa.name = "KitVoice SDF";
+      AssetDatabase.CreateAsset(fa, pathKV);
+      TuneSyntheticBold(fa);
+      if (fa.material != null) { fa.material.name = "KitVoice SDF Material"; AssetDatabase.AddObjectToAsset(fa.material, fa); }
+      if (fa.atlasTextures != null && fa.atlasTextures.Length > 0 && fa.atlasTextures[0] != null) { fa.atlasTextures[0].name = "KitVoice SDF Atlas"; AssetDatabase.AddObjectToAsset(fa.atlasTextures[0], fa); }
+      EditorUtility.SetDirty(fa);
+      AssetDatabase.SaveAssetIfDirty(fa); // ours alone — never flush the world (immutable-package policy)
+      return fa;
+    }
     /* the LTS SEAT BUILDER (round 43): the styled builder's geometry —
        same rows, same rects, same seats — with the dress reduced to what
        this rung carries honestly: minted faces (kit TTF for kit-voiced
@@ -23888,6 +24048,8 @@ namespace PatternBreak {
       SeatRows(row, out rowCountL, out rowFyL, out rowFfsL);
       var kitFaceL = LtsKitFace(root, m);
       var instFaceL = RiderFace(root, m);
+      var voiceFaceL = LtsKitVoiceFace(root, m); // null = no list file aboard
+      int voiceWL = m != null && m.typography != null && m.typography.listWeight > 0 ? m.typography.listWeight : 400;
       int shippedL = m != null && m.typography != null && m.typography.style != null && m.typography.style.shippedWeight > 0
         ? m.typography.style.shippedWeight : 400;
       var madeL = new Dictionary<int, Transform>();
@@ -23917,13 +24079,15 @@ namespace PatternBreak {
         tL.fontSize = SeatFs(seat, rootH);
         SeatHarden(tL);
         tL.alignment = seat.anchor == "middle" ? TMPro.TextAlignmentOptions.Center : seat.anchor == "end" ? TMPro.TextAlignmentOptions.Right : TMPro.TextAlignmentOptions.Left;
-        var faceL = seat.kit ? (kitFaceL != null ? kitFaceL : instFaceL) : (instFaceL != null ? instFaceL : kitFaceL);
+        // the reading voice (round 81) wears the kit voice face when it shipped
+        bool voiceL = voiceFaceL != null && seat.voice == "list";
+        var faceL = voiceL ? voiceFaceL : seat.kit ? (kitFaceL != null ? kitFaceL : instFaceL) : (instFaceL != null ? instFaceL : kitFaceL);
         if (faceL != null) tL.font = faceL;
         tL.characterSpacing = seat.spacingEmPct;
         /* the F3 gap rule, LTS edition: aboard = the shipped kit cut for
-           kit voices, the Inter-ExtraBold instance (800) for readouts;
-           no face at all reads as a 400 default */
-        int aboardL = faceL == null ? 400 : (seat.kit ? shippedL : 800);
+           kit voices, the list cut for reading voices, the Inter-ExtraBold
+           instance (800) for readouts; no face at all reads as a 400 default */
+        int aboardL = faceL == null ? 400 : (voiceL ? voiceWL : seat.kit ? shippedL : 800);
         var styleL = seat.italic ? TMPro.FontStyles.Italic : TMPro.FontStyles.Normal;
         if (seat.weight - aboardL >= 150) styleL |= TMPro.FontStyles.Bold;
         tL.fontStyle = styleL;

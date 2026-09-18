@@ -247,7 +247,12 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
   // dialog rests on CLAIM (left capsule) unless the host says otherwise
   const [val, setVal] = useState(clamp01(kit?.value ?? (kit?.id === "dialog" ? 0 : 0.62))); // slider / tracked pieces
   const [pval, setPval] = useState(clamp01(kit?.value ?? 0.62));    // progress
-  const [sel, setSel] = useState(Math.round(kit?.value ?? 1));      // segment
+  /* the segmented control's pick. With OPTION WORDS aboard (round 81:
+     kit.segments, two to five captions) the value is a 0..1 fraction of
+     the caption index, the renderer's own grammar; without them the
+     legacy index-valued pick stands (0..2, middle at rest). */
+  const segN = kit?.id === "segment" && kit.segments && kit.segments.length >= 2 && kit.segments.length <= 5 ? kit.segments.length : 0;
+  const [sel, setSel] = useState(segN ? Math.max(0, Math.min(segN - 1, Math.round((kit?.value ?? 0) * (segN - 1)))) : Math.round(kit?.value ?? 1));      // segment
   const [typed, setTyped] = useState<string | null>(null);          // input
   const [editing, setEditing] = useState(false);                    // input focus
   const [open, setOpen] = useState(kit?.baseState === "pressed");   // dropdown / badge award
@@ -283,7 +288,7 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
     // documented, and their Value dial still steers them live
     : id === "cooldown" || id === "buffframe" || id === "orderticket" || id === "chest" || id === "scorebug"
       ? (playing && !disabled && ticking ? pval : kit?.value)
-    : id === "segment" ? (playing && !disabled ? sel : kit?.value)
+    : id === "segment" ? (playing && !disabled ? (segN ? sel / (segN - 1) : sel) : kit?.value)
     : kit?.value;
 
   // dropdown-open and badge-awarded override the pointer state; a piece's
@@ -708,7 +713,8 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
     else if (isTimer) playTimer();
     else if (id === "segment") {
       const c = trackCoord(e);
-      if (c) setSel(c.thirds);
+      // option words split the track into their own cells
+      if (c) setSel(segN ? Math.max(0, Math.min(segN - 1, Math.floor(c.u * segN))) : c.thirds);
     }
     else if (id === "emotewheel") {
       // emotes are FAST: click selects the sector under the pointer, no spin
