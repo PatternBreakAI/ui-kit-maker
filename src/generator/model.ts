@@ -593,6 +593,11 @@ export const GAME_FONTS: { name: string; css: string | null; factor: number; cap
   { name: "Fascinate", css: "Fascinate", factor: 0.62, caps: { weights: [400] } },
   { name: "Orbitron", css: "Orbitron:wght@400..900", factor: 0.74, caps: { wght: [400, 900, 700] } },
   { name: "Cinzel", css: "Cinzel:wght@400..900", factor: 0.62, caps: { wght: [400, 900, 700] } },
+  /* the reading face beside Cinzel (Stand on Business, request 01: the
+     cards keep Cinzel for names and Crimson Pro for rules and history;
+     the chrome's body copy sits with them). SIL OFL, variable 200..900
+     with true italics. */
+  { name: "Crimson Pro", css: "Crimson+Pro:ital,wght@0,200..900;1,200..900", factor: 0.47, caps: { wght: [200, 900, 400], italic: true } },
   { name: "Creepster", css: "Creepster", factor: 0.48, caps: { weights: [400] } },
   { name: "Titan One", css: "Titan+One", factor: 0.6, caps: { weights: [400] } },
   { name: "Lilita One", css: "Lilita+One", factor: 0.55, caps: { weights: [400] } },

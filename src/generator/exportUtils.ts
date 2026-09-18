@@ -70,7 +70,7 @@ export function probeSfntWeight(bytes: Uint8Array): { variable: boolean; weight:
    ship as data. The export still probes the bytes it receives — a stale
    entry falls through to the live roads instead of shipping a lie. */
 export const GSTATIC_ORIGIN = "https://fonts.gstatic.com/";
-/* BAKED-FONT-STATICS-BEGIN (generated 2026-08-27 by scripts/bake-font-statics.mjs — do not hand-edit) */
+/* BAKED-FONT-STATICS-BEGIN (generated 2026-09-18 by scripts/bake-font-statics.mjs — do not hand-edit) */
 export const FONT_STATIC_TTF: Record<string, Record<number, string>> = {
  "Inter": {
   100: "s/inter/v20/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuLyeMZg.ttf",
@@ -144,6 +144,16 @@ export const FONT_STATIC_TTF: Record<string, Record<number, string>> = {
   700: "s/cinzel/v26/8vIU7ww63mVu7gtR-kwKxNvkNOjw-jHgTYo.ttf",
   800: "s/cinzel/v26/8vIU7ww63mVu7gtR-kwKxNvkNOjw-lbgTYo.ttf",
   900: "s/cinzel/v26/8vIU7ww63mVu7gtR-kwKxNvkNOjw-n_gTYo.ttf"
+ },
+ "Crimson Pro": {
+  200: "s/crimsonpro/v28/q5uUsoa5M_tv7IihmnkabC5XiXCAlXGks1WZTm18OA.ttf",
+  300: "s/crimsonpro/v28/q5uUsoa5M_tv7IihmnkabC5XiXCAlXGks1WZkG18OA.ttf",
+  400: "s/crimsonpro/v28/q5uUsoa5M_tv7IihmnkabC5XiXCAlXGks1WZzm18OA.ttf",
+  500: "s/crimsonpro/v28/q5uUsoa5M_tv7IihmnkabC5XiXCAlXGks1WZ_G18OA.ttf",
+  600: "s/crimsonpro/v28/q5uUsoa5M_tv7IihmnkabC5XiXCAlXGks1WZEGp8OA.ttf",
+  700: "s/crimsonpro/v28/q5uUsoa5M_tv7IihmnkabC5XiXCAlXGks1WZKWp8OA.ttf",
+  800: "s/crimsonpro/v28/q5uUsoa5M_tv7IihmnkabC5XiXCAlXGks1WZTmp8OA.ttf",
+  900: "s/crimsonpro/v28/q5uUsoa5M_tv7IihmnkabC5XiXCAlXGks1WZZ2p8OA.ttf"
  },
  "Creepster": {
   400: "s/creepster/v13/AlZy_zVUqJz4yMrniH4hdQ.ttf"
