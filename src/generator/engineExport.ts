@@ -395,6 +395,13 @@ export interface EngineExportState {
   /** Release states for staged pieces — a staged prop family ships only
       when released or actually placed on one of this export's boards. */
   releases?: Parameters<typeof kitVisible>[1];
+  /** The WHOLE kit document (kitPayloadWithBoards: master config, every
+      per-piece map, the clones, the boards) for the zip's settings.json,
+      so the file restores the kit in the app exactly (round 80: the game's
+      pipeline commits it as the look's source of truth; the bare master
+      config it used to carry lost the boards and every saved variant).
+      Absent = the master config alone, as before. */
+  settingsDoc?: Record<string, unknown>;
   kitDesigns: Partial<Record<KitComponentId, KitDesign>>;
   kitTextFill: Partial<Record<KitComponentId, string>>;
   kitShapes: Partial<Record<KitComponentId, Shape>>;
@@ -8439,7 +8446,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      SVG pack, whose fonts genuinely aren't aboard (reviewer F7). A zip
      that failed to bundle falls back to the honest linked text. */
   files.push({ path: "README.md", data: kitSpecMarkdown(st.cfg, st.kitName) + "\n" + fontNotesMarkdown(kitFontFamilies(st.cfg), primaryFontFile ? "bundled" : "linked") });
-  files.push({ path: "settings.json", data: JSON.stringify(st.cfg, null, 2) });
+  files.push({ path: "settings.json", data: JSON.stringify(st.settingsDoc ?? st.cfg, null, 2) });
   if (licence) files.push({ path: "LICENCE.txt", data: licence });
   /* Third-Party Notices, Unity's convention — one file at the kit root.
      Font sections carry the SAME licence text that shipped beside the

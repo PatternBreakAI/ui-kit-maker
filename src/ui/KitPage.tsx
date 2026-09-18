@@ -2338,8 +2338,10 @@ export function KitPage() {
            scenes and no label variants, and that absence looks like an
            importer bug (round-8 investigation) */
         const exBoards = scope === "full" ? await collectExportBoards(st).catch((e) => { console.warn("UI Kit Maker: board collection failed — this export ships WITHOUT board scenes and label variants", e); return undefined; }) : undefined;
+        // the zip's settings.json is the whole kit document (boards, clones, every map), so it restores the kit exactly
+        const settingsDoc = await st.kitPayloadWithBoards().catch(() => undefined);
         await downloadEngineExport(
-          { cfg: st.cfg, kitDesigns: st.kitDesigns, kitTextFill: st.kitTextFill, kitShapes: st.kitShapes, kitSizes: st.kitSizes, kitSlices: st.kitSlices, kitName: name, slug: uslug, kitVersion, scope, boards: exBoards, releases: st.componentReleases,
+          { cfg: st.cfg, kitDesigns: st.kitDesigns, kitTextFill: st.kitTextFill, kitShapes: st.kitShapes, kitSizes: st.kitSizes, kitSlices: st.kitSlices, kitName: name, slug: uslug, kitVersion, scope, boards: exBoards, settingsDoc, releases: st.componentReleases,
             // the maker's own words ride into the bones prefabs' live text
             kitLabels: st.kitLabels, kitNoText: st.kitNoText, kitSubs: st.kitSubs, kitVals: st.kitVals, kitSlotVals: st.kitSlotVals,
             // per-piece icon overrides — the chip bake and the notices' icon-credit walk read these

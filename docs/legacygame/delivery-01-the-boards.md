@@ -14,19 +14,21 @@ Gilded navy: a gold frame (Bevel #E49C0C, rim #FCCC3C) around a navy face (#1230
 
 Seven new components, admin only until the owner releases them, and exported whenever a board places them: `placeholder` (the named transparent windows: card-hole, portrait-window, banner-window, tile-hole, hand-hole, wordmark-slot, teaser-hole, picture-window; in the app it shows a dashed guide and its name, in the export it is a fully transparent sprite and the board row carries the name), `coin` (the Legacy readout with three live fields and a raised pose), `timerbar` (the thin plan timer with a warning pose), `spotlight` (the tutorial ring with a pulse pose), `trayslot` (the numbered deck-builder slot, empty, filled and invalid) with `validity` (the status line, ok and error), and `verdict` (the stamped word, red, and gold for WON). The request's `stamp` is the `verdict` component; its pop-in is the game's.
 
-## Limits to know about
+## Limits to know about, and what changed since the boards were first built
 
-- A type stamp (free text on a board) speaks the display face in capitals. Body copy on the boards therefore reads in Cinzel caps in the app. A reading-voice option for stamps is being added; the note per board says where it matters.
-- A segmented control cannot take its option words from a board copy today, so the deck picker and the filter rows are tab groups, and the settings' two segmented rows are radio groups. Option words per copy are being added.
+- Type stamps (free text on a board) can now speak the reading voice: Crimson Pro, sentence case, no display treatment (a "Reading voice" toggle beside Plain in the Board inspector). Every body-copy line on the boards uses it: the rules plates, the Location rule lines, the coach, the hints, the cost lines, the captions. Control words and headings stay in the display face. In Unity a reading-voice stamp seats on a new KitVoice face built from the shipped Crimson Pro file; the manifest names that file as `typography.listFile`, and every reading-voice seat and stamp carries `voice: "list"`.
+- A segmented control can now take its option words from a board copy: a label of the form `Small | Normal | Large` (two to five options), the lit one picked by the copy's value. The deck picker, the eras and archetypes filters and the day and night control are real segments now. The compendium's five-way filter and the two settings rows stay as tabs and radio groups, since the segment's fixed proportion would leave under 100 px per option in the room those rows have; the owner can swap them on the stage.
 - A primary button ignores a per-copy icon, so a CTA with an icon slot is a button plus an icon button beside it.
 - Per-copy slot words do not exist; where a piece needed different slot words on one board it got a clone (the Buy dialog).
+- The engine zip's `settings.json` is now the whole kit document (look, saved variants, boards), so it restores the kit in the app exactly. The first draft export carried the bare master config; the relay copy of the match draft was corrected by hand.
+- The tray slot's corner numeral is a third larger so it reads at 24 across.
 - The plan timer, the coin's fields, the tray slots' numerals, the validity line, the verdict word and every label are live text or exposed fills, never baked.
 
 ## The boards
 
 ### `landing`
 
-Pieces used: `currency`, `ghost`, `iconbtn`, `panel`, `placeholder`, `primary`, `tab`, `toggle`.
+Pieces used: `currency`, `ghost`, `iconbtn`, `panel`, `placeholder`, `primary`, `segment`, `toggle`.
 
 Built-from-scratch pieces on this board: `placeholder`.
 
@@ -258,7 +260,7 @@ None. Every piece on this board is a released component: `ribbonbanner`, `header
 
 ### `compendium`
 
-Pieces used: `chip`, `copy-lgsp-badge`, `datarow`, `ghost`, `header`, `iconbtn`, `panel`, `placeholder`, `secondary`, `tab`.
+Pieces used: `chip`, `copy-lgsp-badge`, `datarow`, `ghost`, `header`, `iconbtn`, `panel`, `placeholder`, `secondary`, `segment`, `tab`.
 
 Built-from-scratch pieces on this board: `placeholder`.
 
@@ -560,7 +562,7 @@ Not used, for the record: the first `do` lesson's guidance at line 71 ("Drag one
 
 ### `deck-builder`
 
-Pieces used: `placeholder`, `primary`, `secondary`, `stepper`, `tab`, `trayslot`, `validity`.
+Pieces used: `placeholder`, `primary`, `secondary`, `segment`, `stepper`, `trayslot`, `validity`.
 
 Built-from-scratch pieces on this board: `placeholder`, `trayslot`, `validity`.
 

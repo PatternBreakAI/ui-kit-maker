@@ -7230,7 +7230,9 @@ ${mW > 0.5 ? `<g data-barfill="${gT.toFixed(1)} ${gT.toFixed(1)} ${mW.toFixed(1)
       const outerS = shapePath(sov ?? cfg.shape, rimW / 2 + 1, rimW / 2 + 1, sS - rimW - 2, sS - rimW - 2, softS);
       const dashS = shapePath(sov ?? cfg.shape, rimW + 8 * k, rimW + 8 * k, sS - rimW * 2 - 16 * k, sS - rimW * 2 - 16 * k, Math.max(0, softS - 4));
       const numS = (opts.label ?? "1").slice(0, 3);
-      const tagW = Math.max(30 * k, 14 * k + numS.length * 12 * k), tagH = 24 * k;
+      /* the tag reads at 24-across (round 80 field: a 66 px slot put the
+         numeral at 8 px): a third larger, sized to its two digits */
+      const tagW = Math.max(42 * k, 18 * k + numS.length * 16 * k), tagH = 32 * k;
       const tagX = rimW + 5 * k, tagY = rimW + 5 * k;
       const shadowC = darken(effect(cfg.effects, "Shadow"), 0.1);
       const tagInk = invalidS ? (dimSl ? desaturate(redS, 0.5) : darken(redS, 0.12))
@@ -7247,7 +7249,7 @@ ${mW > 0.5 ? `<g data-barfill="${gT.toFixed(1)} ${gT.toFixed(1)} ${mW.toFixed(1)
 ${filledS ? "" : `<path d="${dashS}" fill="none" stroke="${effect(cfg.effects, "Highlight")}" stroke-width="${(1.4 * k).toFixed(1)}" stroke-dasharray="${(7 * k).toFixed(1)} ${(6 * k).toFixed(1)}" opacity="${dimSl ? 0.2 : 0.4}"/>`}
 ${cardS}
 <g data-part="icon" data-icon="tag" data-icon-nick="Corner tag"><path d="${roundRect(tagX, tagY, tagW, tagH, 5 * k)}" fill="${tagC}" stroke="${darken(tagC, 0.45)}" stroke-width="1.2" opacity="${dimSl ? 0.6 : 0.96}"/></g>
-<g data-part="label">${contentText(numS, tagX + tagW / 2, tagY + tagH / 2 + 0.5, 15 * k * typeK, { anchor: "middle", plain: true, ink: tagInk })}</g>`;
+<g data-part="label">${contentText(numS, tagX + tagW / 2, tagY + tagH / 2 + 0.5, 21 * k * typeK, { anchor: "middle", plain: true, ink: tagInk })}</g>`;
       return bareRoot(cfg, sS, sS, innerSl, { label: `slot ${numS}`, state, attrs: 'data-trayslot="1"' });
     }
     case "validity": {

@@ -1501,10 +1501,11 @@
      "scale": 1,
      "stamp": {
       "text": "Echoes of the Past",
-      "size": 28,
+      "size": 31.4,
       "plain": {
        "color": "#E8CFA8"
-      }
+      },
+      "voice": "list"
      }
     },
     {
@@ -1538,10 +1539,11 @@
      "scale": 1,
      "stamp": {
       "text": "Cards, clashes, the crowd",
-      "size": 28,
+      "size": 31.4,
       "plain": {
        "color": "#E8CFA8"
-      }
+      },
+      "voice": "list"
      }
     },
     {
@@ -1626,33 +1628,22 @@
      "label": "Rules"
     },
     {
-     "id": "landing-deck-tab-1",
+     "id": "landing-segment-18",
      "libId": "",
-     "kitId": "tab",
-     "x": 570,
-     "y": 484,
-     "scale": 0.6,
-     "label": "Railroad"
-    },
-    {
-     "id": "landing-deck-tab-2",
-     "libId": "",
-     "kitId": "tab",
-     "x": 806,
-     "y": 484,
-     "scale": 0.6,
-     "label": "Black Star",
-     "opacity": 60
-    },
-    {
-     "id": "landing-deck-tab-3",
-     "libId": "",
-     "kitId": "tab",
-     "x": 1067,
-     "y": 484,
-     "scale": 0.6,
-     "label": "Pantheon",
-     "opacity": 60
+     "kitId": "segment",
+     "x": 688,
+     "y": 469,
+     "scale": 0.7181,
+     "label": "Railroad | Black Star | Pantheon",
+     "v": 0.0,
+     "_fit": {
+      "targetBox": [
+       716,
+       490,
+       490,
+       93
+      ]
+     }
     },
     {
      "id": "landing-hole-card-hole-1",
@@ -1792,10 +1783,11 @@
      "scale": 1,
      "stamp": {
       "text": "5/7 in hand · 12 in deck",
-      "size": 30,
+      "size": 33.6,
       "plain": {
        "color": "#F6E4CC"
-      }
+      },
+      "voice": "list"
      }
     },
     {
@@ -1899,10 +1891,11 @@
      "scale": 1,
      "stamp": {
       "text": "5/7 in hand · 12 in deck",
-      "size": 30,
+      "size": 33.6,
       "plain": {
        "color": "#F6E4CC"
-      }
+      },
+      "voice": "list"
      }
     },
     {
@@ -2053,10 +2046,11 @@
      "scale": 1,
      "stamp": {
       "text": "Established Characters here gain +1 Influence.",
-      "size": 25,
+      "size": 28.0,
       "plain": {
        "color": "#F6E4CC"
-      }
+      },
+      "voice": "list"
      }
     },
     {
@@ -2234,10 +2228,11 @@
      "scale": 1,
      "stamp": {
       "text": "Characters you relocate out of here arrive Ready.",
-      "size": 25,
+      "size": 28.0,
       "plain": {
        "color": "#F6E4CC"
-      }
+      },
+      "voice": "list"
      }
     },
     {
@@ -2315,10 +2310,11 @@
      "scale": 1,
      "stamp": {
       "text": "Harriet Tubman banishes the Paddy Roller to Harpers Ferry",
-      "size": 26,
+      "size": 29.1,
       "plain": {
        "color": "#F6E4CC"
-      }
+      },
+      "voice": "list"
      }
     },
     {
@@ -2430,10 +2426,11 @@
      "y": 174,
      "stamp": {
       "text": "You give up the match, now.",
-      "size": 32,
+      "size": 35.8,
       "plain": {
        "color": "#F6E4CC"
-      }
+      },
+      "voice": "list"
      }
     },
     {
@@ -2444,10 +2441,11 @@
      "y": 214,
      "stamp": {
       "text": "Harborlight takes 12 Legacy.",
-      "size": 32,
+      "size": 35.8,
       "plain": {
        "color": "#F6E4CC"
-      }
+      },
+      "voice": "list"
      }
     },
     {
@@ -2466,10 +2464,11 @@
      "y": 196,
      "stamp": {
       "text": "Costs 12 Legacy",
-      "size": 36,
+      "size": 40.3,
       "plain": {
        "color": "#F6E4CC"
-      }
+      },
+      "voice": "list"
      }
     },
     {
@@ -2533,10 +2532,11 @@
      "y": 194,
      "stamp": {
       "text": "One per player. While your Patrol",
-      "size": 30,
+      "size": 33.6,
       "plain": {
        "color": "#F6E4CC"
-      }
+      },
+      "voice": "list"
      }
     },
     {
@@ -2547,10 +2547,11 @@
      "y": 226,
      "stamp": {
       "text": "is active, your Gate Characters",
-      "size": 30,
+      "size": 33.6,
       "plain": {
        "color": "#F6E4CC"
-      }
+      },
+      "voice": "list"
      }
     },
     {
@@ -2561,10 +2562,11 @@
      "y": 258,
      "stamp": {
       "text": "here cannot enter. Neutralize",
-      "size": 30,
+      "size": 33.6,
       "plain": {
        "color": "#F6E4CC"
-      }
+      },
+      "voice": "list"
      }
     },
     {
@@ -2575,10 +2577,11 @@
      "y": 290,
      "stamp": {
       "text": "with 3 Force in one turn.",
-      "size": 30,
+      "size": 33.6,
       "plain": {
        "color": "#F6E4CC"
-      }
+      },
+      "voice": "list"
      }
     },
     {
@@ -2642,10 +2645,11 @@
      "y": 660.7,
      "stamp": {
       "text": "Established Characters here",
-      "size": 30,
+      "size": 33.6,
       "plain": {
        "color": "#F6E4CC"
-      }
+      },
+      "voice": "list"
      }
     },
     {
@@ -2656,10 +2660,11 @@
      "y": 692.7,
      "stamp": {
       "text": "gain +1 Influence.",
-      "size": 30,
+      "size": 33.6,
       "plain": {
        "color": "#F6E4CC"
-      }
+      },
+      "voice": "list"
      }
     },
     {
@@ -2670,10 +2675,11 @@
      "y": 724.7,
      "stamp": {
       "text": "On Turn 4 a Mob arrives.",
-      "size": 30,
+      "size": 33.6,
       "plain": {
        "color": "#F6E4CC"
-      }
+      },
+      "voice": "list"
      }
     },
     {
@@ -3460,23 +3466,22 @@
      "label": "Locations"
     },
     {
-     "id": "compendium-daynight-night",
+     "id": "compendium-segment-15",
      "libId": "",
-     "kitId": "tab",
-     "x": 1034.6,
-     "y": 298.4,
-     "scale": 0.52,
-     "label": "Night",
-     "opacity": 60
-    },
-    {
-     "id": "compendium-daynight-day",
-     "libId": "",
-     "kitId": "tab",
-     "x": 911.9,
-     "y": 298.4,
-     "scale": 0.52,
-     "label": "Day"
+     "kitId": "segment",
+     "x": 917,
+     "y": 308,
+     "scale": 0.3916,
+     "label": "Day | Night",
+     "v": 0.0,
+     "_fit": {
+      "targetBox": [
+       933,
+       319,
+       268,
+       51
+      ]
+     }
     },
     {
      "id": "compendium-loc-greenwood",
@@ -3560,10 +3565,11 @@
      "scale": 1,
      "stamp": {
       "text": "Virginia, 1859",
-      "size": 28,
+      "size": 31.4,
       "plain": {
        "color": "#F6E4CC"
-      }
+      },
+      "voice": "list"
      }
     },
     {
@@ -3595,10 +3601,11 @@
      "scale": 1,
      "stamp": {
       "text": "Legacy is the stake, and the Stand on Business button",
-      "size": 30,
+      "size": 33.6,
       "plain": {
        "color": "#F6E4CC"
-      }
+      },
+      "voice": "list"
      }
     },
     {
@@ -3609,10 +3616,11 @@
      "scale": 1,
      "stamp": {
       "text": "multiplies it (an early Stand pays and costs more).",
-      "size": 30,
+      "size": 33.6,
       "plain": {
        "color": "#F6E4CC"
-      }
+      },
+      "voice": "list"
      }
     },
     {
@@ -3833,10 +3841,11 @@
      "y": 227,
      "stamp": {
       "text": "Two players, three Locations across the middle of the board, eight turns.",
-      "size": 42,
+      "size": 47.0,
       "plain": {
        "color": "#F6E4CC"
-      }
+      },
+      "voice": "list"
      }
     },
     {
@@ -3847,10 +3856,11 @@
      "y": 273,
      "stamp": {
       "text": "Influence per Location decides who wins it.",
-      "size": 42,
+      "size": 47.0,
       "plain": {
        "color": "#F6E4CC"
-      }
+      },
+      "voice": "list"
      }
     },
     {
@@ -3880,10 +3890,11 @@
      "y": 484,
      "stamp": {
       "text": "Each turn both players plan in secret (cards from the hand go to a",
-      "size": 42,
+      "size": 47.0,
       "plain": {
        "color": "#F6E4CC"
-      }
+      },
+      "voice": "list"
      }
     },
     {
@@ -3894,10 +3905,11 @@
      "y": 530,
      "stamp": {
       "text": "Location's Gates, Characters at the Gates walk Inside, some confront",
-      "size": 42,
+      "size": 47.0,
       "plain": {
        "color": "#F6E4CC"
-      }
+      },
+      "voice": "list"
      }
     },
     {
@@ -3908,10 +3920,11 @@
      "y": 576,
      "stamp": {
       "text": "Threats), then both Lock In and the turn plays out as a replay.",
-      "size": 42,
+      "size": 47.0,
       "plain": {
        "color": "#F6E4CC"
-      }
+      },
+      "voice": "list"
      }
     },
     {
@@ -3941,10 +3954,11 @@
      "y": 787,
      "stamp": {
       "text": "Legacy is the stake, and the Stand on Business button multiplies it",
-      "size": 42,
+      "size": 47.0,
       "plain": {
        "color": "#F6E4CC"
-      }
+      },
+      "voice": "list"
      }
     },
     {
@@ -3955,10 +3969,11 @@
      "y": 833,
      "stamp": {
       "text": "(an early Stand pays and costs more). Sit Down retreats.",
-      "size": 42,
+      "size": 47.0,
       "plain": {
        "color": "#F6E4CC"
-      }
+      },
+      "voice": "list"
      }
     },
     {
@@ -4392,10 +4407,11 @@
      "scale": 1,
      "stamp": {
       "text": "You and your opponent (Harborlight)",
-      "size": 34,
+      "size": 38.1,
       "plain": {
        "color": "#F6E4CC"
-      }
+      },
+      "voice": "list"
      }
     },
     {
@@ -4406,10 +4422,11 @@
      "scale": 1,
      "stamp": {
       "text": "are vying for control of three Locations:",
-      "size": 34,
+      "size": 38.1,
       "plain": {
        "color": "#F6E4CC"
-      }
+      },
+      "voice": "list"
      }
     },
     {
@@ -4420,10 +4437,11 @@
      "scale": 1,
      "stamp": {
       "text": "the three panels across the middle of the board.",
-      "size": 34,
+      "size": 38.1,
       "plain": {
        "color": "#F6E4CC"
-      }
+      },
+      "voice": "list"
      }
     },
     {
@@ -4467,43 +4485,22 @@
      }
     },
     {
+     "id": "deck-builder-segment-1",
      "libId": "",
-     "kitId": "tab",
-     "x": 298.6,
-     "y": 81.5,
-     "scale": 0.55,
-     "id": "deck-era-1700s",
-     "label": "1700s",
-     "opacity": 60
-    },
-    {
-     "libId": "",
-     "kitId": "tab",
-     "x": 447.6,
-     "y": 81.5,
-     "scale": 0.55,
-     "id": "deck-era-1800s",
-     "label": "1800s"
-    },
-    {
-     "libId": "",
-     "kitId": "tab",
-     "x": 597.5,
-     "y": 81.5,
-     "scale": 0.55,
-     "id": "deck-era-1900s",
-     "label": "1900s",
-     "opacity": 60
-    },
-    {
-     "libId": "",
-     "kitId": "tab",
-     "x": 748.5,
-     "y": 81.5,
-     "scale": 0.55,
-     "id": "deck-era-timeless",
-     "label": "Timeless",
-     "opacity": 60
+     "kitId": "segment",
+     "x": 391,
+     "y": 67,
+     "scale": 0.6562,
+     "label": "1700s | 1800s | 1900s | Timeless",
+     "v": 0.3333,
+     "_fit": {
+      "targetBox": [
+       416,
+       87,
+       448,
+       85
+      ]
+     }
     },
     {
      "libId": "",
@@ -4520,43 +4517,22 @@
      }
     },
     {
+     "id": "deck-builder-segment-6",
      "libId": "",
-     "kitId": "tab",
-     "x": 298.6,
-     "y": 168.5,
-     "scale": 0.55,
-     "id": "deck-arch-faith",
-     "label": "Faith"
-    },
-    {
-     "libId": "",
-     "kitId": "tab",
-     "x": 457.6,
-     "y": 168.5,
-     "scale": 0.55,
-     "id": "deck-arch-abolition",
-     "label": "Abolition",
-     "opacity": 60
-    },
-    {
-     "libId": "",
-     "kitId": "tab",
-     "x": 691.5,
-     "y": 168.5,
-     "scale": 0.55,
-     "id": "deck-arch-rebellion",
-     "label": "Rebellion",
-     "opacity": 60
-    },
-    {
-     "libId": "",
-     "kitId": "tab",
-     "x": 925.5,
-     "y": 168.5,
-     "scale": 0.55,
-     "id": "deck-arch-military",
-     "label": "Military",
-     "opacity": 60
+     "kitId": "segment",
+     "x": 481,
+     "y": 154,
+     "scale": 0.6562,
+     "label": "Faith | Abolition | Rebellion | Military",
+     "v": 0.0,
+     "_fit": {
+      "targetBox": [
+       506,
+       174,
+       448,
+       85
+      ]
+     }
     },
     {
      "libId": "",
@@ -5293,10 +5269,11 @@
      "scale": 1,
      "stamp": {
       "text": "Win a match to earn Legacy.",
-      "size": 34,
+      "size": 38.1,
       "plain": {
        "color": "#F6E4CC"
-      }
+      },
+      "voice": "list"
      }
     },
     {
@@ -5316,10 +5293,11 @@
      "scale": 1,
      "stamp": {
       "text": "Costs 12 Legacy. You have 20.",
-      "size": 34,
+      "size": 38.1,
       "plain": {
        "color": "#F6E4CC"
-      }
+      },
+      "voice": "list"
      }
     }
    ]
@@ -5395,10 +5373,11 @@
      "scale": 1,
      "stamp": {
       "text": "12 wins · 5 losses",
-      "size": 44,
+      "size": 49.3,
       "plain": {
        "color": "#F6E4CC"
-      }
+      },
+      "voice": "list"
      }
     },
     {
