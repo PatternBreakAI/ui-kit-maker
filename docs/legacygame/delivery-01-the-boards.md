@@ -23,6 +23,7 @@ Seven new components, admin only until the owner releases them, and exported whe
 - The engine zip's `settings.json` is now the whole kit document (look, saved variants, boards), so it restores the kit in the app exactly. The first draft export carried the bare master config; the relay copy of the match draft was corrected by hand.
 - The tray slot's corner numeral is a third larger so it reads at 24 across.
 - The plan timer, the coin's fields, the tray slots' numerals, the validity line, the verdict word and every label are live text or exposed fills, never baked.
+- The Stand button celebrates like CLAIM (owner, 2026-09-19): press it and it flashes white-hot, throws the kit's particles, then rests dead, a one-time press. In Unity the copy carries ClaimBurst with oneShot on; the game arms it again with `ClaimBurst.Rearm()` when the next stand is due. The words that celebrate are the kit's own (Global, under Idle motion: Celebration): CLAIM and Stand on Business.
 
 ## The boards
 

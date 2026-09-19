@@ -14,7 +14,7 @@ import { stampFilter, stampFilterPad, boardBgFilter, drawBoardNoise, drawBoardOv
    filter/base recipes are for the MAKER'S OWN logos, which do (round 72):
    one shadow/glow recipe across stage, board PNG and the Unity bake. */
 import { bigGlyphById, bigGlyphFilter, bigGlyphFilterPad, BIG_GLYPH_BASE } from "./bigGlyphs";
-import { applyKitDesign, applyKitTextFill, baseOf, darken, hexMix, lighten, fontByName, isCloneId, isFlipShape, isGlyphPiece, KIT_COMPONENTS, KIT_SHAPE, KIT_SLICEABLE, STOCK_ICONS, effKitSize, glyphSeatIcon, kitVisible, resolveKitIcon, sanitizeUnitySlug, stateSlotKey } from "./model";
+import { applyKitDesign, applyKitTextFill, baseOf, celebrateWords, darken, hexMix, lighten, fontByName, isCloneId, isFlipShape, isGlyphPiece, KIT_COMPONENTS, KIT_SHAPE, KIT_SLICEABLE, STOCK_ICONS, effKitSize, glyphSeatIcon, kitVisible, resolveKitIcon, sanitizeUnitySlug, stateSlotKey } from "./model";
 /* the glyph-button fleet's registry (round 52) — aliased: this module's own
    GLYPH_BUTTONS is the round-40 ACTION-glyph set (pause/play/replay/home) */
 import { GLYPH_BUTTONS as GLYPH_BUTTON_FLEET, isGlyphButton } from "./model";
@@ -7816,6 +7816,12 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         const fam = KIT_SLICEABLE[cid as KitComponentId] ?? NINE.find((n) => n.id === (cid as KitComponentId))?.family ?? cid;
         return [{ family: fam, wipe: i.wipe === undefined ? -1 : i.wipe ? 1 : 0, edge: i.edge === undefined ? -1 : i.edge ? 1 : 0 }];
       }),
+      /* celebrate on press (owner, 2026-09-19): the words whose copies fire
+         the claim burst. The importer's Celebrates() reads these instead of
+         the built-in CLAIM; an empty list means no words (the Claim button
+         and the gift box still celebrate). A button that celebrates rests
+         dead afterwards (ClaimBurst.oneShot). */
+      celebrate: celebrateWords(st.cfg),
       /* I1 — the slug is this kit's permanent identity in the user's
          project; the importer files everything under it and re-exports
          land on the same paths, so placed UI restyles instead of breaking */
@@ -12751,17 +12757,20 @@ namespace PatternBreak {
     public float throwFrac = 0.75f;
     public float flashSeconds = 0.42f;
     public float life = 0.95f;
+    [Tooltip("One-time press: after the celebration a Button host goes dead (interactable off, its disabled skin) until Rearm() is called. A piece with no Button just celebrates.")]
+    public bool oneShot = true;
     RectTransform rt;
     Image flash;
     RectTransform[] parts;
     Vector2[] dirs;
     float t = -1f;
+    bool spent;
     Vector3 baseScale;
     void Awake() { rt = GetComponent<RectTransform>(); baseScale = rt.localScale; }
     void OnDisable() { if (t >= 0f) Settle(); }
     public void OnPointerClick(PointerEventData e) { Fire(); }
     public void Fire() {
-      if (t >= 0f) return;
+      if (t >= 0f || spent) return;
       if (flash == null) Build();
       if (flash == null) return;
       t = 0f;
@@ -12815,6 +12824,21 @@ namespace PatternBreak {
       rt.localScale = baseScale;
       if (flash != null) flash.gameObject.SetActive(false);
       if (parts != null) foreach (var p in parts) if (p != null) p.gameObject.SetActive(false);
+      if (oneShot) Spend();
+    }
+    /* the dead pose (owner: "a one time button ... then it goes dead"):
+       the Button's own disabled skin, through interactable — the game
+       arms it again with Rearm() when the next claim is due */
+    void Spend() {
+      var b = GetComponent<Button>();
+      if (b == null) return;
+      spent = true;
+      b.interactable = false;
+    }
+    public void Rearm() {
+      spent = false;
+      var b = GetComponent<Button>();
+      if (b != null) b.interactable = true;
     }
     void Update() {
       if (t < 0f) return;
@@ -14702,7 +14726,7 @@ namespace PatternBreak {
      said — a piece missing from a scene must never be a mystery. */
   [Serializable] class PBBoard { public string name; public int w; public int h; public PBBoardBg bg; public PBBoardItem[] items; public string[] artMissing; }
   [Serializable] class PBSkillSkin { public string state; public string faceColor; public string glyphInk; public string rimColor; public string glowColor; public bool glowEnabled; public string pathColor; public float dimAlpha; }
-  [Serializable] class PBManifest { public string kit; public PBSkillSkin[] skillSkins; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public string seatSpace; public string[] stagedFamilies; public PBFleetEntry[] slotFleet; public PBGlyphFleetEntry[] glyphFleet; public PBWell globeWell; public PBSeasonGeo seasonTrack; public PBDotsGeo pageDots; public PBDotsGeo startLights; public PBDotsGeo steps; public PBPathGeo pathConnector; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBTimerBlock timer; public PBMenu menu; public PBRarity rarity; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; }
+  [Serializable] class PBManifest { public string kit; public PBSkillSkin[] skillSkins; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public string seatSpace; public string[] stagedFamilies; public PBFleetEntry[] slotFleet; public PBGlyphFleetEntry[] glyphFleet; public PBWell globeWell; public PBSeasonGeo seasonTrack; public PBDotsGeo pageDots; public PBDotsGeo startLights; public PBDotsGeo steps; public PBPathGeo pathConnector; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBTimerBlock timer; public PBMenu menu; public PBRarity rarity; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; public string[] celebrate; }
   [Serializable] class PBLockEntry { public string file; public string sha256; }
   /* the word each labeled family's prefab was last SEEDED with — the
      ownership ledger: a re-import re-seeds only a label still equal to
@@ -18212,11 +18236,12 @@ namespace PatternBreak {
             var tmp = inst.GetComponentInChildren<TMPro.TMP_Text>(true);
             if (tmp != null) tmp.text = it.label;
 #endif
-            /* a copy whose typed words say CLAIM celebrates its click —
-               the same ignition + themed throw the app plays (owner: the
-               claim animation must survive the trip into Unity). The
+            /* a copy whose typed words celebrate (the kit's own words, CLAIM
+               by default) celebrates its click — the same ignition + themed
+               throw the app plays (owner: the claim animation must survive
+               the trip into Unity), and a Button then rests dead. The
                prefab may already carry one (gift box, claim button). */
-            if (it.label.ToUpperInvariant().Contains("CLAIM") && inst.GetComponent<ClaimBurst>() == null)
+            if (Celebrates(it.label, m) && inst.GetComponent<ClaimBurst>() == null)
               AddClaimBurst(inst, root, it.component, m);
           }
           if (string.IsNullOrEmpty(it.stamp)) {
@@ -20130,6 +20155,16 @@ namespace PatternBreak {
        sprite + the kit's effect inks — the exact recipe the importer has
        always wired to the gift box, shared so prefabs and board copies
        whose visible words say CLAIM celebrate identically. */
+    /* the words that celebrate on press: the kit's own list (manifest
+       celebrate, owner round 2026-09-19). An older manifest without the
+       field keeps the built-in CLAIM; an empty list means no words. */
+    static bool Celebrates(string label, PBManifest m) {
+      if (string.IsNullOrEmpty(label)) return false;
+      var up = label.ToUpperInvariant();
+      if (m == null || m.celebrate == null) return up.Contains("CLAIM");
+      foreach (var w in m.celebrate) if (!string.IsNullOrEmpty(w) && w.Trim().Length > 0 && up.Contains(w.Trim().ToUpperInvariant())) return true;
+      return false;
+    }
     static void AddClaimBurst(GameObject host, string root, string family, PBManifest m) {
       var cb = host.AddComponent<ClaimBurst>();
       var cbGlow = S(root + "/assets/" + family + "/" + family + "-glow.png");
@@ -20626,10 +20661,11 @@ namespace PatternBreak {
       /* the gift box CELEBRATES its claim — the app's white-hot ignition
          + themed particle throw, wired to a click (owner: "supposed to
          have the claim explosion to white"). Any family whose live words
-         say CLAIM earns the same celebration, and the Claim button piece
-         always does — matching the app's rule exactly. */
+         celebrate (the kit's own words, CLAIM by default) earns the same
+         celebration, and the Claim button piece always does — matching
+         the app's rule exactly. A Button then rests dead (oneShot). */
       if (baseAsset.component == "gifticon" || baseAsset.component == "claimbtn"
-          || (label != null && label.ToUpperInvariant().Contains("CLAIM")))
+          || Celebrates(label, m))
         AddClaimBurst(go, root, baseAsset.component, m);
       /* the input's affordance, as a LAYER. It used to be painted into the
          surface, which looked right and could never be taken off (owner:

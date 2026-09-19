@@ -785,6 +785,10 @@ export interface GenConfig extends StateDesign {
      face; trigger "hover" arms the motion to play only under the
      pointer (absent = always). */
   idle?: { wipe: boolean; edge: boolean; freq?: number; blend?: BlendMode; wipeDur?: number; edgeDur?: number; wipeWidth?: number; trigger?: "hover" };
+  /** Celebrate on press (owner, 2026-09-19): the words that fire the claim
+   *  burst, comma separated. Unset = the built-in CLAIM; empty = no words.
+   *  A button that fires it rests dead afterwards, a one-time press. */
+  celebrate?: string;
   /** Bar-fill styling layers (see BarFx) — optional, defaults off. */
   barFx?: BarFx;
   /** Dragger ball on sliders, toggles and joysticks — null = derived from
@@ -2139,6 +2143,28 @@ export const KIT_GROUPS: { id: string; name: string; members: KitComponentId[] }
      47 buttons together without ever touching the stock button ladder */
   { id: "glyphbuttons", name: "Glyph buttons", members: GLYPH_BUTTONS.map((b) => b.id) },
 ];
+/* Celebrate on press (owner, 2026-09-19: the Stand on Business button
+   "needs to have the same effect as the CLAIM button ... a one time button
+   that has a cool brightening / particle effect then it goes dead"). The
+   claim burst has always fired on any piece whose visible words say CLAIM;
+   the words are now the kit's own, comma separated in cfg.celebrate. Unset
+   = CLAIM; an empty field = no words at all. The Claim button, the gift box
+   and the card pack celebrate whatever the words say. A BUTTON that
+   celebrates rests dead afterwards: a one-time press, in the app's Play
+   mode and in Unity (ClaimBurst.oneShot). */
+export const CELEBRATE_DEFAULT = "CLAIM";
+export function celebrateWords(cfg: Pick<GenConfig, "celebrate">): string[] {
+  return (cfg.celebrate ?? CELEBRATE_DEFAULT).split(",").map((w) => w.trim()).filter(Boolean);
+}
+/** Do these visible words celebrate under this kit's rule? Case-insensitive, substring. */
+export function celebrates(words: string | undefined | null, cfg: Pick<GenConfig, "celebrate">): boolean {
+  const up = (words ?? "").toUpperCase();
+  return !!up && celebrateWords(cfg).some((w) => up.includes(w.toUpperCase()));
+}
+/** The families whose celebration is a one-time press: every button, stock
+ *  ladder and glyph fleet alike, rests dead after it celebrates. */
+export const ONE_TIME_FAMILIES: ReadonlySet<string> = new Set(
+  KIT_GROUPS.filter((g) => g.id === "buttons" || g.id === "glyphbuttons").flatMap((g) => g.members as string[]));
 const GROUP_OF = new Map<KitComponentId, { id: string; name: string; members: KitComponentId[] }>();
 for (const g of KIT_GROUPS) for (const m of g.members) if (!GROUP_OF.has(m)) GROUP_OF.set(m, g);
 /** The group a piece belongs to, or null when it stands alone. A CLONE
