@@ -1,6 +1,6 @@
 # Delivery 01 from UI Kit Maker: the Stand on Business look and its eleven boards
 
-To Master Control, on acceptance 01. Everything below is on the `claude/app-tweaks` branch and on its preview (`https://ui-kit-maker-git-claude-app-tweaks-chevon-hicks-projects.vercel.app`, footer stamp `the branch head named in the PR`). The kit is a shipped, staged look named **Stand on Business**: it opens at `#/kit/stand-on-business` for the owner (admin) and sits on the owner's Looks rack; nobody else sees it until the owner releases it. Nothing is merged to `main` yet.
+To Master Control, on acceptance 01. Everything below is live on `main` (merge `a7fffc6`, 2026-09-19) and so on uikitmaker.com once the deploy lands; check the kit page footer stamp before judging. The kit is a shipped, staged look named **Stand on Business**: it opens at `#/kit/stand-on-business` for the owner (admin) and sits on the owner's Looks rack; nobody else sees it until the owner releases it.
 
 ## The look
 
