@@ -523,8 +523,8 @@ if (!/static string BigGlyphPrefabName\(PBBig bg\)/.test(cs))
   errors.push("BigGlyphPrefabName is missing — builder and placement must derive the prefab file name from ONE helper or they diverge (round 23)");
 if (!/static bool BigGlyphPrefabs\(/.test(cs) || !/if \(BigGlyphPrefabs\(dir, root, m\)\) any = true;/.test(cs))
   errors.push("BigGlyphPrefabs is missing or never runs — used big glyphs would ship no prefab (round 23, the owner mandate)");
-if (!/"\/Prefabs\/BigGlyphs\/" \+ BigGlyphPrefabName\(it\.big\) \+ "\.prefab"/.test(cs))
-  errors.push("board placement must converge big-glyph instances on Prefabs/BigGlyphs/<Name>.prefab (round 23)");
+if (!/var bigPf = KitPrefab\(root, BigGlyphPrefabName\(it\.big\)\);/.test(cs))
+  errors.push("board placement must converge big-glyph instances on the by-name prefab finder (round 23; round 78 chapters)");
 if (!/if \(bigSp != null && bigImg != null\) bigImg\.sprite = bigSp;/.test(cs))
   errors.push("an fx copy's baked sprite must land on the INSTANCE Image (override), never the prefab (round 23)");
 if (!/the clean art stands in and the scene rebuilds itself/.test(cs)
@@ -1391,8 +1391,8 @@ if (!/files\.push\(\{ path: "Documentation\/QuickStart\.md", data: quickStartDoc
    when both sides are multiples of 4 (otherwise Unity logs one Console
    warning per import) — checked via the editor's own source-size read,
    falling back to lossless if that read ever disappears. */
-if (!/path\.Contains\("\/docs\/"\) \|\| path\.Contains\("\/atlas\/"\) \|\| path\.EndsWith\("\/fonts\/face-pattern\.png"\)/.test(cs))
-  errors.push("the round-31 human-facing texture road (docs/, atlas/, face-pattern) is missing — those NPOT images would import as compressed sprites and warn on clean 2D projects");
+if (!/path\.Contains\("\/docs\/"\) \|\| path\.Contains\("\/Documentation\/"\) \|\| path\.Contains\("\/atlas\/"\) \|\| path\.EndsWith\("\/fonts\/face-pattern\.png"\)/.test(cs))
+  errors.push("the round-31 human-facing texture road (docs/, Documentation/, atlas/, face-pattern) is missing — those NPOT images would import as compressed sprites and warn on clean 2D projects");
 if (!/dti\.npotScale = TextureImporterNPOTScale\.None;/.test(cs) || !/dti\.textureCompression = TextureImporterCompression\.Uncompressed;/.test(cs))
   errors.push("the human-facing road must import lossless Default with NPOT scaling off (round 31)");
 if (!/if \(path\.EndsWith\("\/fonts\/face-pattern\.png"\)\) dti\.wrapMode = TextureWrapMode\.Repeat;/.test(cs))
@@ -1971,7 +1971,8 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
    into the zip stay off the shelf (manifest.stagedFamilies — emitted
    TS-side as staged AND not board-blessed). */
 {
-  if (!/\("CHOICE CONTROLS & FIELDS", new\[\]/.test(cs) || !/\("GAME SYSTEMS", new\[\]/.test(cs)
+  if (!/\("CHOICE CONTROLS & FIELDS", "Choice Controls", new\[\]/.test(cs) || !/\("GAME SYSTEMS", "Game Systems", new\[\]/.test(cs)
+      || !/foreach \(var chS in CHAPTERS\) SECTIONS\.Add\(\(chS\.title, chS\.names\)\);/.test(cs)
       || !/allSecs\.Add\(\("GLYPHS \(Prefabs\/Glyphs\)", glyphNames\.ToArray\(\)\)\);/.test(cs))
     errors.push("the Playground's chapter sections (kit-page order + the Glyphs shelf) are missing (slice 5)");
   if (!/new GameObject\("Catalog Scroll", typeof\(RectTransform\), typeof\(ScrollRect\)\);/.test(cs)
@@ -1996,9 +1997,9 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("glyph family prefabs must build into Prefabs/Glyphs (the BigGlyphs pattern) — the folder call (slice 4)");
   if (!/if \(!anyGlyph && !hadGlyphDir && AssetDatabase\.IsValidFolder\(glyphDir\)\) AssetDatabase\.DeleteAsset\(glyphDir\);/.test(cs))
     errors.push("a glyph-less kit must leave no empty Glyphs folder (slice 4)");
-  if (!/pf = AssetDatabase\.LoadAssetAtPath<GameObject>\(root \+ "\/Prefabs\/Glyphs\/" \+ pfName \+ "\.prefab"\);/.test(cs)
-      || !/if \(pf == null\) pf = AssetDatabase\.LoadAssetAtPath<GameObject>\(root \+ "\/Prefabs\/" \+ pfName \+ "\.prefab"\);/.test(cs))
-    errors.push("board scenes must answer BOTH glyph addresses (Prefabs/Glyphs first, the root for kept projects) (slice 4)");
+  if (!/GameObject pf = KitPrefab\(root, pfName\);/.test(cs)
+      || !/static string KitPrefabPath\(string root, string name\) \{[\s\S]{0,900}AssetDatabase\.FindAssets\("t:Prefab", new string\[\] \{ dir \}\)/.test(cs))
+    errors.push("board scenes must find a prefab on ANY shelf by name (Prefabs/Glyphs, the chapter folders, a kept project's root) (slice 4; round 78)");
   if (!/static void ShelveGlyphPrefabs\(string root\)/.test(cs)
       || !/spPathG\.StartsWith\(root \+ "\/assets\/glyph"\)/.test(cs)
       || !/AssetDatabase\.MoveAsset\(pG, targetG\)/.test(cs))
@@ -2102,8 +2103,20 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/static void StampDynamicSource\(TMP_FontAsset fa, Font ttf\)/.test(cs)
       || !/m_SourceFontFileGUID/.test(cs) || !/m_SourceFontFile_EditorRef/.test(cs))
     errors.push("StampDynamicSource is missing (or lost its serialized-property stamps) — dynamic faces forget their source font across reloads and text drops to the LiberationSans fallback (the owner's 'kinda' font)");
-  if (!/if \(existing != null\) \{ StampDynamicSource\(existing, ttf\); return existing; \}/.test(cs))
-    errors.push("EnsureTmpFace must stamp EXISTING faces too — projects minted before the fix must heal on re-import (the 'kinda' font)");
+  if (!/if \(existing != null\) \{ StampDynamicSource\(existing, ttf\); TuneSyntheticBold\(existing\); return existing; \}/.test(cs))
+    errors.push("EnsureTmpFace must stamp AND tune EXISTING faces too — projects minted before the fix must heal on re-import (the 'kinda' font, the wide synthetic bold)");
+  /* round 79 (Hot Rod 2 on Audiowide, a one-cut family): TextMeshPro's
+     synthetic bold adds its bold spacing (7% of the font size) to every
+     glyph advance; the browser's synthetic bold adds none, and the app
+     measures with the browser. Every face the importer mints or loads
+     must zero that spacing, on both rungs, through reflection (the
+     surface is a field on TMP 3.0 and a property on TMP 3.2+ / uGUI 2.0). */
+  if (!/static void TuneSyntheticBold\(TMPro\.TMP_FontAsset fa\)/.test(cs)
+      || !/GetProperty\("boldStyleSpacing"\)/.test(cs) || !/GetField\("boldSpacing"\)/.test(cs))
+    errors.push("TuneSyntheticBold is missing (or lost a TMP surface) — synthetic-bold words run 7% of the font size wider per letter than the app and walk out of their plates");
+  const tuneCalls = (cs.match(/TuneSyntheticBold\((fa|existing)\)/g) || []).length;
+  if (tuneCalls < 10)
+    errors.push(`TuneSyntheticBold must run at every face mint and every existing-face load (KitFace, Content, Instrument, Rider, LTS: 10 sites), found ${tuneCalls}`);
   if (!/var itFace = EnsureTmpFace\(root, m, kitFont\);\s*\n\s*if \(itFace != null\) itLb\.font = itFace;/.test(cs))
     errors.push("the dropdown's Item Label must bind the kit face at rig build (itLb.font = itFace) — rows otherwise ride TMP's fallback face");
   if (!/itLbF\.font == null \|\| itLbF\.font\.name\.StartsWith\("LiberationSans"\)/.test(cs))
@@ -2412,7 +2425,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/static void RenameDataRowPrefab\(string root\)/.test(cs)
       || !/RenameDataRowPrefab\(root\); \/\/ the owner's language, healed on every import/.test(cs)
       || !/RenameDataRowPrefab\(root\); \/\/ and the rename valet, so a rebuild can't mint ListRow beside DataRow/.test(cs)
-      || !/if \(pf == null && it\.component == "list-row"\) pf = AssetDatabase\.LoadAssetAtPath<GameObject>\(root \+ "\/Prefabs\/ListRow\.prefab"\);/.test(cs))
+      || !/if \(pf == null && it\.component == "list-row"\) pf = KitPrefab\(root, "ListRow"\);/.test(cs))
     errors.push("the ListRow→DataRow rename valet (GUID-keeping MoveAsset + old-address fallback) is missing");
   if (!/\? \{ row: \{ title: "", sub: "" \} as never, icon: resolveKitIcon\(st\.kitIcons\?\.datarow, undefined\) \}/.test(src)
       || !/const nineIconSeats = n\.id === "datarow" \? await iconSeatsOf\(n\.id, fullSvg, n\.family\) : null;/.test(src))
@@ -2422,13 +2435,15 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/PicturePrefab\(dir, root, pngScale, m, "orb\/orb-lit\.png", "Orb", false\)/.test(cs)
       || !/"Qtybadge", "Orb", "Achievement"/.test(cs))
     errors.push("the glow orb fell off the Playground shelf (no prefab or no HUD & DATA spot)");
-  if (!/claimed\.Add\("MoveCounter"\);/.test(cs))
-    errors.push("the MoveCounter twin is back on the shelf — the universal Movecounter must be the family's one spot (zero overlaps)");
+  if (/PicturePrefab\(dir, root, pngScale, m, "extras\/extras-movecounter\.png", "MoveCounter", false\)/.test(cs)
+      || !/static void RetireMoveCounterTwin\(string root, PBLock prevLock\)/.test(cs)
+      || !/RetireMoveCounterTwin\(root, prevLock\);/.test(cs))
+    errors.push("the MoveCounter picture twin is back (a case-only twin of the universal Movecounter: one file on Windows) — the universal prefab must be the family's one spot and kept projects must retire the twin (round 78)");
   /* the TILED TWIN (editability paper cut 4): the stretch-safe builder
      names through the same PrefabNameOf seam the scene road resolves
      with, and the kept-project valet renames the old twin GUID-keeping —
      BEFORE the staged rebuild, so no DataRow-named twin can mint. */
-  if (!/var goName = PrefabNameOf\(fam\) \+ " \(tiled face\)";/.test(cs))
+  if (!/var goName = PrefabNameOf\(fam\) \+ "_TiledFace";/.test(cs))
     errors.push("the tiled-face builder no longer names through PrefabNameOf — patterned kits' stretched data-row copies silently fall back to the base face again");
   if (!/static void RenameDataRowTiledFace\(string root\)/.test(cs)
       || !/RenameDataRowTiledFace\(root\); \/\/ and its stretch-safe twin — the scene road's one name/.test(cs)
@@ -2451,8 +2466,8 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the Art-shelf rename valet (GUID-keeping folder MoveAsset + its three call sites) is missing");
   if (!/var sub = dir \+ "\/Art";/.test(cs) || !/AssetDatabase\.CreateFolder\(dir, "Art"\);/.test(cs))
     errors.push("board-art prefabs no longer build into Prefabs/Art");
-  if (!/root \+ "\/Prefabs\/Art\/" \+ BigGlyphPrefabName\(it\.big\) \+ "\.prefab"/.test(cs))
-    errors.push("scene placement no longer looks at Prefabs/Art first (the BigGlyphs load must be the FALLBACK only)");
+  if (!/var bigPf = KitPrefab\(root, BigGlyphPrefabName\(it\.big\)\);/.test(cs))
+    errors.push("scene placement no longer resolves board art through the by-name finder (Art, the legacy BigGlyphs shelf and a hand re-shelve all answer) (round 78)");
   if (!/pp\.Contains\("\/Prefabs\/Art\/"\) \|\| pp\.Contains\("\/Prefabs\/BigGlyphs\/"\)/.test(cs)
       || !/allSecs\.Add\(\("ART", bigNames\.ToArray\(\)\)\);/.test(cs))
     errors.push("the Playground's ART chapter is gone (gather or label) — the owner's rename");
@@ -2504,7 +2519,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   for (const id of [...S2D, "skillnode"])
     if (!new RegExp(`${id}: "${id}"`).test(src))
       errors.push(`${id} lost its PREFAB_FAMILY entry — board copies of it bake dead again`);
-  if (!/\("RPG & MMO", new\[\] \{ "Questpanel", "Dialoguebox", "Choicelist", "Manarails", "Xpbar", "Invgrid", "Partyframe", "Skillnode", "Dmgnumber", "Equipslot" \}\)/.test(cs))
+  if (!/\("RPG & MMO", "RPG and MMO", new\[\] \{ "Questpanel", "Dialoguebox", "Choicelist", "Manarails", "Xpbar", "Invgrid", "Partyframe", "Skillnode", "Dmgnumber", "Equipslot" \}\)/.test(cs))
     errors.push("the Playground's RPG & MMO chapter is gone or reshuffled");
   if (!/"Minimap", "Compass"/.test(cs))
     errors.push("the compass fell off the HUD & DATA shelf");
@@ -2535,7 +2550,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     if (!new RegExp(`${id}: "${id}"`).test(src))
       errors.push(`${id} lost its PREFAB_FAMILY entry`);
   }
-  if (!/\("SHOOTER & ACTION", new\[\] \{ "Crosshair", "Hitmarker", "Dmgarc", "Weaponwheel", "Equipselector", "Magazine", "Ammo", "Streakmeter", "Killfeed", "Waypoint", "Capturemeter", "Respawn", "Buffframe", "Hotbar", "Lives" \}\)/.test(cs))
+  if (!/\("SHOOTER & ACTION", "Shooter and Action", new\[\] \{ "Crosshair", "Hitmarker", "Dmgarc", "Weaponwheel", "Equipselector", "Magazine", "Ammo", "Streakmeter", "Killfeed", "Waypoint", "Capturemeter", "Respawn", "Buffframe", "Hotbar", "Lives" \}\)/.test(cs))
     errors.push("the Playground's SHOOTER & ACTION chapter is gone or reshuffled");
   // the un-burn marks
   if (!/data-icon="weapon"/.test(bevelSrc)) errors.push("the kill feed's weapon glyph lost its marker");
@@ -2568,7 +2583,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   for (const id of [...S4D, "booster"])
     if (!new RegExp(`${id}: "${id}"`).test(src))
       errors.push(`${id} lost its PREFAB_FAMILY entry`);
-  if (!/\("CASUAL & SAGA", new\[\] \{ "Heartmeter", "Energymeter", "Starrating", "Pathconnector", "Combo", "Booster", "Flipclock", "Stopwatch" \}\)/.test(cs))
+  if (!/\("CASUAL & SAGA", "Casual and Saga", new\[\] \{ "Heartmeter", "Energymeter", "Starrating", "Pathconnector", "Combo", "Booster", "Flipclock", "Stopwatch" \}\)/.test(cs))
     errors.push("the Playground's CASUAL & SAGA chapter is gone or reshuffled");
   // the meters' live icon slots (the c98eade Unity half)
   if (!/data-icon="pip\$\{i \+ 1\}"/.test(bevelSrc))
@@ -2598,7 +2613,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     if (!new RegExp(`${id}: "${id}"`).test(src))
       errors.push(`${id} lost its PREFAB_FAMILY entry`);
   }
-  if (!/\("STRATEGY & SOCIAL", new\[\] \{ "Scorebug", "Friendrow", "Chatbubble", "Emotewheel", "Clancrest", "Unitplate", "Buildqueue", "Techcard", "Popmeter" \}\)/.test(cs))
+  if (!/\("STRATEGY & SOCIAL", "Strategy and Social", new\[\] \{ "Scorebug", "Friendrow", "Chatbubble", "Emotewheel", "Clancrest", "Unitplate", "Buildqueue", "Techcard", "Popmeter" \}\)/.test(cs))
     errors.push("the Playground's STRATEGY & SOCIAL chapter is gone or reshuffled");
   // the Match Score's Unity half (ba34520): tintable team bars, live names
   if (!/data-icon="homebar" data-icon-nick="Home color bar" data-icon-tint="\$\{TA\}"/.test(bevelSrc)
@@ -2640,7 +2655,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
       || !/suffix: "legendary"/.test(src) || !/suffix: "mystery"/.test(src)
       || !/suffix: "claimed"/.test(src) || !/suffix: "locked"/.test(src))
     errors.push("the rewards state-variant emission is gone — ALL rewards states stop shelving");
-  if (!/\("REWARDS", new\[\] \{ "Pack", "Cardback", "ClaimbtnDouble", "RewardcardLegendary", "RewardcardMystery", "DailycellClaimed", "DailycellLocked", "Chest", "Giftbox", "Rewardtray", "Chestpanel", "Orderticket" \}\)/.test(cs))
+  if (!/\("REWARDS", "Rewards", new\[\] \{ "Pack", "Cardback", "ClaimbtnDouble", "RewardcardLegendary", "RewardcardMystery", "DailycellClaimed", "DailycellLocked", "Chest", "Giftbox", "Rewardtray", "Chestpanel", "Orderticket" \}\)/.test(cs))
     errors.push("the Playground's REWARDS chapter is gone or reshuffled");
 }
 
@@ -2939,15 +2954,16 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("respawn's conditional zone stamp left bevel — Barheight Hidden must ship no zone (round 44, item 30)");
   if (!/function barFillOnlySvg\(/.test(src) || !/function stripBarFill\(/.test(src))
     errors.push("the RIG-1 bar un-burn hands (barFillOnlySvg/stripBarFill) left the exporter");
-  if (!/const barRigU = uid === "loadbar" \|\| uid === "popmeter" \|\| uid === "respawn" \|\| uid === "buildqueue" \|\| uid === "xpbar" \|\| uid === "unitplate" \|\| uid === "questpanel" \|\| uid === "setrow" \|\| uid === "orderticket" \|\| uid === "vitalbar";/.test(src))
-    errors.push("the display-bar rig gate left the universal loop (eight families incl. xpbar/unitplate/questpanel/setrow)");
+  // round 80: the plan timer joins the gate (appended; every earlier family stays pinned in place)
+  if (!/const barRigU = uid === "loadbar" \|\| uid === "popmeter" \|\| uid === "respawn" \|\| uid === "buildqueue" \|\| uid === "xpbar" \|\| uid === "unitplate" \|\| uid === "questpanel" \|\| uid === "setrow" \|\| uid === "orderticket" \|\| uid === "vitalbar" \|\| uid === "timerbar";/.test(src))
+    errors.push("the display-bar rig gate left the universal loop (eight families incl. xpbar/unitplate/questpanel/setrow, plus the round-80 timerbar)");
   if (!/tzy \+ riseDyT/.test(src))
     errors.push("the track band lost its riseDy correction — the zone would seat a full extrusion headroom too high (round 44 field lesson)");
   if (!/track\?: \{ x: number; w: number; y\?: number; h\?: number \} \| null;/.test(src))
     errors.push("AssetMeta.track lost the optional vertical band");
   if (!/float bandCy = -1f;/.test(cs) || !/float topGap = bandCy - fillH \* 0\.5f, botGap = trackH - bandCy - fillH \* 0\.5f;/.test(cs))
     errors.push("BuildBarFill lost the vertical-band seat (round 44) — off-centerline bars would center mid-shell");
-  if (!/if \(baseAsset\.component == "loadbar" \|\| baseAsset\.component == "popmeter" \|\| baseAsset\.component == "respawn" \|\| baseAsset\.component == "buildqueue" \|\| baseAsset\.component == "xpbar" \|\| baseAsset\.component == "unitplate" \|\| baseAsset\.component == "questpanel" \|\| baseAsset\.component == "setrow" \|\| baseAsset\.component == "orderticket" \|\| baseAsset\.component == "vitalbar"\)/.test(cs)
+  if (!/if \(baseAsset\.component == "loadbar" \|\| baseAsset\.component == "popmeter" \|\| baseAsset\.component == "respawn" \|\| baseAsset\.component == "buildqueue" \|\| baseAsset\.component == "xpbar" \|\| baseAsset\.component == "unitplate" \|\| baseAsset\.component == "questpanel" \|\| baseAsset\.component == "setrow" \|\| baseAsset\.component == "orderticket" \|\| baseAsset\.component == "vitalbar" \|\| baseAsset\.component == "timerbar"\)/.test(cs)
       || !/string famDB = spritePath\.EndsWith\("\/loadbar-base\.png"\) \? "loadbar"/.test(cs))
     errors.push("the display bars' FamilyPrefab wiring or kept-project Fill graft left the importer (round 44)");
   const liveArtSrc = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../src/ui/LiveArt.tsx"), "utf8");
@@ -3351,7 +3367,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the rewardtray slot glyphs lost their marks (round 44, item 31 — gated road)");
   if (!/data-barfill="\$\{\(barX \+ gV\)\.toFixed\(1\)\}/.test(bevelSrc))
     errors.push("the vitalbar mercury lost its mark (round 44 — gated road)");
-  if (!/uid === "orderticket" \|\| uid === "vitalbar";/.test(src)
+  if (!/uid === "orderticket" \|\| uid === "vitalbar" \|\| uid === "timerbar";/.test(src)
       || !/orderticket: 0\.62, vitalbar: 0\.72/.test(src))
     errors.push("the staged families left the bar-rig emission roster (round 44, items 23 + vitalbar)");
   if (!/barRigU \? stripBarFill\(sOut\)\.svg : sOut/.test(src))
@@ -3614,11 +3630,11 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/static bool SlotFleetPrefabs\(string dir, string root, PBManifest m, bool quiet\) \{/.test(cs)
       || !/SlotFleetPrefabs\(dir, root, m, staging\)/.test(cs)
       || !/var gT = inst\.transform\.Find\("Icon glyph"\);/.test(cs)
-      || !/"\/Slot Button – " \+ FileSafeWord\(fe\.name\) \+ "\.prefab"/.test(cs)
+      || !/"\/SlotButton_" \+ PlainName\(fe\.name\) \+ "\.prefab"/.test(cs)
       || !/PrefabUtility\.GetPrefabAssetType\(saved\) == PrefabAssetType\.Variant\s*&& \(GameObject\)PrefabUtility\.GetCorrespondingObjectFromSource\(saved\) == basePf;[\s\S]{0,900}Slot Button fleet/.test(cs))
     errors.push("the slot fleet builder (thin Prefab Variants off the live glyph child) left the importer (round 49, S40)");
-  if (!/"Slotbtn", "Slot Button – Gem", "Slot Button – Sword", "Slot Button – Key", "Slot Button – Hammer", "Slot Button – Gear", "Slot Button – Check"/.test(cs)
-      || !/else if \(sf == "slotbtn"\) foreach \(var fv in new\[\] \{ "Slot Button – Gem"/.test(cs))
+  if (!/"Slotbtn", "SlotButton_Gem", "SlotButton_Sword", "SlotButton_Key", "SlotButton_Hammer", "SlotButton_Gear", "SlotButton_Check"/.test(cs)
+      || !/else if \(sf == "slotbtn"\) foreach \(var fv in new\[\] \{ "SlotButton_Gem"/.test(cs))
     errors.push("the Playground lost the slot button's representative row or its staged hiding (round 49, S40)");
 }
 
@@ -3688,18 +3704,18 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the manifest lost the glyphFleet roster — entries and sprites can disagree (round 51, S42)");
   if (!/for \(const gidF of glyphFleetIds\) tpnGlyphIds\.add\(`glyph\$\{gidF\}`\);/.test(src))
     errors.push("the shipped semantic cuts lost their CC-BY credit road (glyphAttribution via tpnGlyphIds) — game-icons art would ship uncredited (round 51, S42)");
-  if (!/class PBGlyphFleetEntry \{ public string name; public string file; public float dx; public float dy; public float w; public float h; public string fam; \}/.test(cs)
+  if (!/class PBGlyphFleetEntry \{ public string name; public string file; public float dx; public float dy; public float w; public float h; public float iw; public float ih; public string fam; \}/.test(cs)
       || !/public PBGlyphFleetEntry\[\] glyphFleet;/.test(cs))
     errors.push("PBManifest lost the glyph-fleet entries (name + file + measured seat + fam) (round 51+52, S42)");
   if (!/static bool GlyphFleetPrefabs\(string dir, string root, PBManifest m, bool quiet, int pngScale, Font kitFont\) \{/.test(cs)
       || !/GlyphFleetPrefabs\(dir, root, m, staging, pngScale, kitFont\)/.test(cs)
-      || !/"\/Glyph Button – " \+ FileSafeWord\(fe\.name\) \+ "\.prefab"/.test(cs))
-    errors.push("the glyph fleet builder (one 'Glyph Button – <Name>' prefab per entry) left the importer (round 51+52, S42)");
+      || !/"\/GlyphButton_" \+ PlainName\(fe\.name\) \+ "\.prefab"/.test(cs))
+    errors.push("the glyph fleet builder (one 'GlyphButton_<Name>' prefab per entry) left the importer (round 51+52, S42; plain names round 78)");
   const gfp42 = /static bool GlyphFleetPrefabs\(string dir, string root, PBManifest m, bool quiet, int pngScale, Font kitFont\) \{[\s\S]*?\n    \}/.exec(cs)?.[0] ?? "";
   if (!/if \(glyphSp == null\) \{ missing\+\+; continue; \}/.test(gfp42)
       || !/\{ kept\+\+; continue; \}/.test(gfp42))
     errors.push("the glyph fleet lost its missing-sprite tolerance or its keep-theirs-after-creation rule (round 51, S42)");
-  if (!/grt\.sizeDelta = new Vector2\(fe\.w, fe\.h\);/.test(gfp42)
+  if (!/grt\.sizeDelta = fe\.iw > 1f && fe\.ih > 1f \? new Vector2\(fe\.iw, fe\.ih\) : new Vector2\(fe\.w, fe\.h\);/.test(gfp42)
       || !/float fxGB = \(rowGB\.shell\.x \+ rowGB\.shell\.w \/ 2f \+ fe\.dx \* psGB\) \/ bsGB\.rect\.width;/.test(gfp42)
       || !/var gT = inst\.transform\.Find\("Icon glyph"\);/.test(gfp42))
     errors.push("the glyph fleet variant no longer reseats the LIVE glyph child to the entry's app-measured box (round 51, S42)");
@@ -3728,7 +3744,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/if \(isGlyphButton\(uid\) && !gbtnFull\.has\(uid\)\) continue;/.test(src))
     errors.push("the universal loop lost the thin-road skip — every released glyph button would ship 47 full family bakes (round 52, S43)");
   if (!/if \(gbtnFull\.has\(bGF\.id\)\) \{/.test(src)
-      || !/glyphFleetOut\.push\(\{ name: bGF\.glyphName, fam: bGF\.id, file: `assets\/\$\{bGF\.id\}\/\$\{bGF\.id\}-base\.png`, dx: 0, dy: 0, w: 0, h: 0 \}\);/.test(src))
+      || !/glyphFleetOut\.push\(\{ name: bGF\.glyphName, fam: bGF\.id, file: `assets\/\$\{bGF\.id\}\/\$\{bGF\.id\}-base\.png`, dx: 0, dy: 0, w: 0, h: 0, iw: 0, ih: 0 \}\);/.test(src))
     errors.push("the roster no longer names FULL-road buttons (fam + their own base file) — the importer can't build their true prefabs (round 52, S43)");
   if (!/\.\.\.\[\.\.\.gbtnFull\]\.flatMap\(\(gid9\) => \{/.test(src))
     errors.push("FULL-road glyph buttons lost their own stateFx dial rows — a forked button would press without its glow/lift (round 52, S43)");
@@ -3736,13 +3752,13 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the generic family loop no longer skips gbtn — a second 'Gbtncoin' copy would split the class (round 52, S43)");
   const gfp43 = /static bool GlyphFleetPrefabs\(string dir, string root, PBManifest m, bool quiet, int pngScale, Font kitFont\) \{[\s\S]*?\n    \}/.exec(cs)?.[0] ?? "";
   if (!/if \(famRowGF != null\) \{/.test(gfp43)
-      || !/if \(FamilyPrefab\(vdir, root, famRowGF, "Glyph Button – " \+ FileSafeWord\(fe\.name\), null, pngScale, kitFont, m\)\) made\+\+;/.test(gfp43))
+      || !/if \(FamilyPrefab\(vdir, root, famRowGF, "GlyphButton_" \+ PlainName\(fe\.name\), null, pngScale, kitFont, m\)\) made\+\+;/.test(gfp43))
     errors.push("the importer's FULL road (family rows -> class-named prefab in Variants) left GlyphFleetPrefabs (round 52, S43)");
   if (!/if \(basePf == null\) \{ missing\+\+; continue; \}/.test(gfp43))
     errors.push("the thin road no longer waits on the slotbtn frame — a set released without slotbtn would throw instead of shipping full (round 52, S43)");
-  if (!/foreach \(var feSc in m\.glyphFleet\) if \(feSc != null && feSc\.fam == it\.component && !string\.IsNullOrEmpty\(feSc\.name\)\) \{ pfName = "Glyph Button – " \+ FileSafeWord\(feSc\.name\); break; \}/.test(cs)
-      || !/if \(pf == null && it\.component != null && it\.component\.StartsWith\("gbtn"\)\)\s*\n\s*pf = AssetDatabase\.LoadAssetAtPath<GameObject>\(root \+ "\/Prefabs\/Variants\/" \+ pfName \+ "\.prefab"\);/.test(cs))
-    errors.push("the scene road can no longer place a glyph button (class-name resolve via the roster + the Variants address) (round 52, S43)");
+  if (!/foreach \(var feSc in m\.glyphFleet\) if \(feSc != null && feSc\.fam == it\.component && !string\.IsNullOrEmpty\(feSc\.name\)\) \{ pfName = "GlyphButton_" \+ PlainName\(feSc\.name\); break; \}/.test(cs)
+      || !/GameObject pf = KitPrefab\(root, pfName\);/.test(cs))
+    errors.push("the scene road can no longer place a glyph button (class-name resolve via the roster + the by-name finder) (round 52, S43; round 78)");
 }
 
 /* ── ROUND 53 · S44 (the per-state glyph dress — reviewer blocker: a
@@ -4442,6 +4458,139 @@ const OBSOLETE = [
       errors.push(`${b.name.trim()} line ~${ln} calls a banned API — ${o.why}`);
     }
   }
+}
+
+/* ── ROUND 80 (the Stand on Business set): seven staged card-battler pieces
+   ride the universal road, the placeholder window bakes fully transparent
+   with its guide stripped, the verdict stamp bakes upright and turns at the
+   prefab, and the plan timer joins the display-bar rig. ── */
+{
+  const R80 = ["placeholder", "coin", "timerbar", "spotlight", "trayslot", "validity", "verdict"];
+  const usageM80 = /const UNIVERSAL_USAGE: Partial<Record<KitComponentId, string>> = \{([\s\S]*?)\n {6}\};/.exec(src);
+  for (const id of R80) {
+    if (!new RegExp(`${id}: "${id}"`).test(src))
+      errors.push(`${id} lost its PREFAB_FAMILY entry — board copies of it bake dead again (round 80)`);
+    if (!usageM80 || !new RegExp(`\\n\\s+${id}: "`).test(usageM80[1]))
+      errors.push(`${id} lost its usage row — the manifest would ship the piece unexplained (round 80)`);
+    if (!new RegExp(`case "${id}": \\{`).test(bevelSrc))
+      errors.push(`${id} lost its render case (round 80)`);
+  }
+  const dispM80 = /const UNIVERSAL_DISPLAY = new Set<KitComponentId>\(\[([\s\S]*?)\]\);/.exec(src);
+  for (const id of ["placeholder", "coin", "timerbar", "spotlight", "validity", "verdict"])
+    if (!dispM80 || !new RegExp(`"${id}"`).test(dispM80[1]))
+      errors.push(`${id} left the universal display road (round 80)`);
+  if (!/UNIVERSAL_INTERACTIVE\.add\("trayslot"\);/.test(src))
+    errors.push("trayslot left the universal interactive road — the tray cell stops pressing (round 80)");
+  // the guide strip and the un-tilt, and every render passing through them
+  if (!/function exportNormalizeSvg\(svg: string\): string/.test(src)
+      || !/querySelectorAll\("\[data-guide\]"\)\)\) g\.remove\(\);/.test(src)
+      || !/querySelectorAll\("\[data-tilt\]"\)\)\) g\.removeAttribute\("transform"\);/.test(src))
+    errors.push("the export-side normalisation (guide strip + un-tilt) left the exporter (round 80)");
+  if (!/const renderKit: typeof renderKitRaw = \(\.\.\.args\) => exportNormalizeSvg\(renderKitRaw\(\.\.\.args\)\);/.test(src))
+    errors.push("the exporter's renders no longer pass through exportNormalizeSvg — a placeholder would bake its guide and the stamp its turned word (round 80)");
+  if (!/<g data-guide="1">/.test(bevelSrc) || !/<g data-tilt="\$\{tiltD\}" transform="rotate\(\$\{tiltD\}/.test(bevelSrc))
+    errors.push("the placeholder guide mark or the verdict tilt mark left bevel (round 80)");
+  if (!/export const KIT_TILT: Partial<Record<KitComponentId, number>> = \{ verdict: -8 \};/.test(bevelSrc))
+    errors.push("KIT_TILT left bevel or changed shape (round 80)");
+  // the transparent window
+  if (!/if \(uid === "placeholder"\) \{[\s\S]{0,1400}await addPng\(`\$\{uid\}\/base\.png`, blankP, \{[\s\S]{0,400}\}, false\);[\s\S]{0,80}continue;/.test(src))
+    errors.push("the placeholder window's transparent full-size bake left the universal loop (round 80)");
+  // the tilt rides the manifest, the rows and the prefab
+  if ((src.match(/rot: \(b\.rot \?\? 0\) \+ \(KIT_TILT\[idBase\] \?\? 0\)/g) ?? []).length !== 2)
+    errors.push("board rows stopped adding the family tilt to rot on both roads (round 80)");
+  if (!/\.\.\.\(KIT_TILT\[uid\] \? \{ tilt: KIT_TILT\[uid\] \} : \{\}\),/.test(src))
+    errors.push("the base row lost its tilt field (round 80)");
+  if (!/public float tilt;/.test(cs) || !/rtTilt\.localRotation = Quaternion\.Euler\(0f, 0f, -baseAsset\.tilt\);/.test(cs))
+    errors.push("the importer lost the prefab tilt (round 80)");
+  // the plan timer on the bar rig
+  if (!/vitalbar: 0\.72, timerbar: 0\.62/.test(src))
+    errors.push("the plan timer left the bar-rig staged-value roster (round 80)");
+  if (!/baseAsset\.component == "vitalbar" \|\| baseAsset\.component == "timerbar"/.test(cs)
+      || !/it\.component == "vitalbar" \|\| it\.component == "timerbar"/.test(cs))
+    errors.push("the plan timer left the importer's bar wiring or board strike (round 80)");
+  if (!/data-barfill="\$\{gT\.toFixed\(1\)\} \$\{gT\.toFixed\(1\)\}/.test(bevelSrc))
+    errors.push("the plan timer's mercury lost its mark (round 80)");
+  // the shelf claims
+  if (!/\("CARD BATTLER", "Card Battler", new\[\] \{ "Coin", "Trayslot", "Validity", "Verdict", "Spotlight", "Placeholder" \}\)/.test(cs)
+      || !/"Cooldown", "Vitalbar", "Timerbar" \}\)/.test(cs))
+    errors.push("the Playground's CARD BATTLER chapter or the Timerbar shelf claim left the importer (round 80)");
+}
+
+/* ── ROUND 81 (the Stand on Business boards, engine follow-ups): the
+   READING VOICE for type stamps and text seats (the kit's list font, sentence
+   case, weight 500, flat) travels app → manifest → Unity, where a KitVoice
+   face minted from the shipped list TTF seats it on both rungs; and the
+   segmented control takes its OPTION WORDS from a piped board label. ── */
+{
+  const storeSrc81 = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../src/generator/store.ts"), "utf8");
+  const modelSrc81 = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../src/generator/model.ts"), "utf8");
+  const boardSrc81 = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../src/ui/Board.tsx"), "utf8");
+  const liveArtSrc81 = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../src/ui/LiveArt.tsx"), "utf8");
+  // the app: the stamp's voice field and the reading-voice render
+  if (!/voice\?: "list";/.test(storeSrc81)
+      || !/if \(st\.voice === "list"\) \{/.test(storeSrc81)
+      || !/t\.font = t\.listFont \|\| t\.font;/.test(storeSrc81)
+      || !/t\.case = "none";/.test(storeSrc81)
+      || !/t\.weight = 500;/.test(storeSrc81))
+    errors.push("the type stamp's reading voice left the store (BoardItem.stamp.voice / stampSvg's list-font, sentence-case, weight-500 branch) (round 81)");
+  if (!/voice: e\.target\.checked \? "list" : undefined/.test(boardSrc81))
+    errors.push("the Board inspector lost its Reading voice toggle (round 81)");
+  // the exporter: the voice on stamp rows and text seats, the list file in the manifest
+  if ((src.match(/voice\?: "list";/g) ?? []).length < 2)
+    errors.push("ExportBoardItemData.voice or textSeats[].voice left the manifest types (round 81)");
+  if (!/const voiceList = !kit && !!listFont && listFont !== kitFont && fam0 === listFont;/.test(src)
+      || !/const seats = parseTextSeats\(full, c\.type\.font, c\.type\.listFont\);/.test(src)
+      || (src.match(/\.\.\.\(voiceList \? \{ voice: "list" as const \} : \{\}\),/g) ?? []).length < 2)
+    errors.push("the seat parser no longer marks list-font words as the reading voice, or the stamp row lost its voice field (round 81)");
+  if (!/const stampFace = voiceList && st\.cfg\.type\.listFont \? st\.cfg\.type\.listFont : st\.cfg\.type\.font;/.test(src)
+      || !/stampCase: voiceList \? "none" : st\.cfg\.type\.case \?\? "none",/.test(src))
+    errors.push("the stamp bake no longer inlines the list face for a reading-voice stamp, or its case field stopped saying sentence case (round 81)");
+  if (!/listFile: listFontFile,/.test(src) || !/listWeight,/.test(src)
+      || !/if \(fam !== st\.cfg\.type\.font && fam === st\.cfg\.type\.listFont\) \{/.test(src))
+    errors.push("typography.listFile / listWeight left the manifest, so the importer can never build the KitVoice face (round 81)");
+  // the importer: the manifest fields, the face on both rungs, the seat road, the live stamp
+  if (!/public string listFile; public int listWeight;/.test(cs)
+      || !/public bool dressed; public string voice; public int weight;/.test(cs)
+      || !/public float opacity; public string voice; public float\[\] cells;/.test(cs))
+    errors.push("PBTypography.listFile/listWeight, PBSeat.voice or PBBoardItem.voice left the importer (round 81)");
+  if (!/static TMP_FontAsset EnsureKitVoiceFace\(string root, PBManifest m\)/.test(cs)
+      || !/static int KitVoiceWeight\(string root, PBManifest m\)/.test(cs)
+      || !/static TMPro\.TMP_FontAsset LtsKitVoiceFace\(string root, PBManifest m\)/.test(cs)
+      || (cs.match(/fa\.name = "KitVoice SDF";/g) ?? []).length !== 2
+      || !/root \+ "\/fonts\/KitVoice SDF\.asset"/.test(cs))
+    errors.push("the KitVoice face (styled rung EnsureKitVoiceFace + LTS LtsKitVoiceFace, fonts/KitVoice SDF.asset) left the importer (round 81)");
+  if (!/TMP_FontAsset kitVoice, int kitVoiceWeight, out TMP_FontAsset face, out Material mat, out int aboardWeight\)/.test(cs)
+      || !/else if \(kitVoice != null && seat\.voice == "list"\) \{ face = kitVoice; mat = null; aboardWeight = kitVoiceWeight > 0 \? kitVoiceWeight : 400; \}/.test(cs)
+      || (cs.match(/var kitVoice = EnsureKitVoiceFace\(root, m\);/g) ?? []).length !== 2
+      || (cs.match(/kitVoice, kitVoiceW, out face, out mat, out aboardWeight\);/g) ?? []).length !== 2
+      || (cs.match(/&& !\(kitVoice != null && s0\.voice == "list"\)\) needPlainKit = true;/g) ?? []).length !== 2)
+    errors.push("SeatVoice lost its reading-voice branch (or the builder/heal callers stopped handing it the KitVoice face), so list-font words land on the grotesk again (round 81)");
+  if (!/bool voiceL = voiceFaceL != null && seat\.voice == "list";/.test(cs)
+      || !/var voiceFaceL = LtsKitVoiceFace\(root, m\);/.test(cs))
+    errors.push("the LTS seat road lost the reading voice (round 81)");
+  if (!/bool voiceList = it\.voice == "list";/.test(cs)
+      || !/bool plainTier = plainInk \|\| voiceList;/.test(cs)
+      || !/TMP_FontAsset face = voiceList \? EnsureKitVoiceFace\(root, m\) : null;/.test(cs)
+      || !/if \(voiceList && !plainInk\) flatInk = it\.stampSplashInk;/.test(cs)
+      || !/int aboardV = onVoice \? KitVoiceWeight\(root, m\)/.test(cs))
+    errors.push("BuildLiveStamp lost the reading voice (KitVoice face, plain material, splash ink, weight-500 gap rule) (round 81)");
+  // the segmented control's option words
+  if (!/export function segmentCaptions\(label: string \| undefined \| null\): string\[\] \| undefined \{/.test(bevelSrc)
+      || !/: segmentCaptions\(opts\.label\);/.test(bevelSrc)
+      || !/const sel = capsIn \? clamp\(Math\.round\(\(value \?\? 0\) \* \(nSeg - 1\)\), 0, nSeg - 1\) : clamp\(Math\.round\(value \?\? 1\), 0, 2\);/.test(bevelSrc))
+    errors.push("the segmented control no longer reads its option words from a piped label (segmentCaptions / the n-caption pick) (round 81)");
+  if (!/const copySegs = idBase === "segment" \? segmentCaptions\(copyLabel\) : undefined;/.test(src)
+      || (src.match(/label: copyLabel, segments: copySegs,/g) ?? []).length !== 3)
+    errors.push("the board copy's bakes (display, wipe companion, posed skin) stopped carrying the segment's option words (round 81)");
+  if (!/segments: bBase === "segment" \? segmentCaptions\(bLabel\) : undefined/.test(boardSrc81)
+      || !/segments: baseOf\(b\.kitId\) === "segment" \? segmentCaptions\(/.test(boardSrc81))
+    errors.push("the Board stage or its PNG compositor stopped passing the segment's option words (round 81)");
+  if (!/const segN = kit\?\.id === "segment" && kit\.segments && kit\.segments\.length >= 2 && kit\.segments\.length <= 5 \? kit\.segments\.length : 0;/.test(liveArtSrc81))
+    errors.push("LiveArt's play-mode segment pick no longer speaks the caption grammar (round 81)");
+  const rosterAt81 = modelSrc81.indexOf("export const KIT_LABEL_EDITABLE");
+  const roster81 = rosterAt81 >= 0 ? modelSrc81.slice(rosterAt81, modelSrc81.indexOf("]);", rosterAt81)) : "";
+  if (!/segment: 60,/.test(modelSrc81) || !/"segment",/.test(roster81))
+    errors.push("the segmented control left the label-editable roster or lost its 60-character cap (round 81)");
 }
 
 if (errors.length) {

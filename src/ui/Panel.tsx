@@ -22,7 +22,8 @@ import { capsOf, UPGRADE_LINES } from "@/generator/entitlements";
 import { openAuth } from "@/shell/authOverlay";
 import { currentSession, promoIsLive, promoIsNew } from "@/generator/cloud";
 import { promoArt, promoGo } from "./PromoShelf";
-import { NAMED_KITS } from "@/generator/namedKits";
+import { NAMED_KITS, namedKitVisible } from "@/generator/namedKits";
+import { missingUserShapes } from "@/generator/store";
 import { tightenSvg } from "@/marketing/engine";
 
 /* Every Looks card shows its art at the NEW tile's presence — cropped
@@ -64,6 +65,63 @@ export function lookArtOf(cfg: GenConfig): string {
 }
 /** …and one STARTER as look-art, by id (the setPreset road). */
 export const starterArt = (id: string): string => lookArtOf(presetLookConfig(id));
+
+/* One parse for every silhouette import road (the fresh import and the
+   restore of a lost id, round 77c): a single filled <path>, measured in
+   a throwaway svg so its viewBox is its own bounds. */
+function parseSilhouetteSvg(txt: string): { d: string; vb: [number, number, number, number] } | { error: string } {
+  const doc = new DOMParser().parseFromString(txt, "image/svg+xml");
+  const d = doc.querySelector("path")?.getAttribute("d");
+  if (!d) return { error: "No <path> found. Flatten the artwork to a single filled path first." };
+  const NS = "http://www.w3.org/2000/svg";
+  const tmp = document.createElementNS(NS, "svg");
+  tmp.setAttribute("style", "position:absolute;opacity:0;pointer-events:none");
+  const pp = document.createElementNS(NS, "path");
+  pp.setAttribute("d", d);
+  tmp.appendChild(pp); document.body.appendChild(tmp);
+  const bb = pp.getBBox(); document.body.removeChild(tmp);
+  if (!bb.width || !bb.height) return { error: "That path has no area. Export the filled outline, not a stroke." };
+  return { d, vb: [bb.x, bb.y, bb.width, bb.height] };
+}
+
+/* A saved look's card, drawn LIVE from its stored config (round 77b —
+   owner: "thumb should just read from the kit"). Same recipe as the
+   stored thumbnail at save time — label PLAY, no icon, no state glow —
+   so a card and its fallback look alike.
+   CIRCUIT BREAKER (field: "site freezes before I can do anything"): a
+   poisoned cfg can wedge the renderer forever, and this runs on every
+   signed-in boot — one bad row froze every session. Each render marks
+   itself in localStorage before starting and clears the mark on
+   completion; a mark that survives means that render killed the tab, so
+   every later boot SKIPS that look (its stored thumbnail stands in,
+   named in the console). The key sits OUTSIDE the sync prefix on
+   purpose — a local scar, never synced to other devices. */
+function liveLookArt(rows: { id: string; name: string; cfg: unknown }[]): Record<string, string> {
+  const GUARD = "forge-thumbguard";
+  const readGuard = (): string[] => { try { const v = JSON.parse(localStorage.getItem(GUARD) ?? "[]"); return Array.isArray(v) ? v : []; } catch { return []; } };
+  const writeGuard = (ids: string[]) => { try { localStorage.setItem(GUARD, JSON.stringify(ids)); } catch { /* ignore */ } };
+  const out: Record<string, string> = {};
+  for (const p of rows) {
+    if (!p.cfg || typeof p.cfg !== "object") continue;
+    const guard = readGuard();
+    if (guard.includes(p.id)) {
+      console.warn(`Looks: skipping the live card of "${p.name}" (${p.id}) — rendering it froze a previous session; its stored thumbnail stands in. Fix or delete that look in the Release Desk.`);
+      continue;
+    }
+    try {
+      writeGuard([...guard, p.id]);
+      const t0 = performance.now();
+      const tc = hydrate(JSON.parse(JSON.stringify(p.cfg)) as Record<string, unknown>);
+      for (const st of Object.values(tc.states)) st.glow = 0;
+      tc.content.label = "PLAY"; tc.icon.show = false;
+      out[p.id] = renderBevel(tc, "default");
+      const ms = performance.now() - t0;
+      if (ms > 2000) console.warn(`Looks: "${p.name}" (${p.id}) card took ${Math.round(ms)}ms to render — this look is close to freezing sessions.`);
+    } catch { /* a cfg we can't read keeps its stored thumbnail rather than crashing the tray */ }
+    finally { writeGuard(readGuard().filter((id) => id !== p.id)); }
+  }
+  return out;
+}
 
 let presetArtCache: { id: string; name: string; svg: string }[] | null = null;
 let presetArtGen = -1;
@@ -813,7 +871,9 @@ export function Panel() {
   /* the SHIPPED kits' cards (round 76): art from each kit's own bundled
      document, rendered once — and their faces warmed like every other
      desk, so the card never wears a stand-in */
-  const shippedKits = useMemo(() => Object.values(NAMED_KITS), []);
+  /* a STAGED kit (round 80) stays out of the rack for everyone but the
+     admin, the kitVisible rule for whole kits */
+  const shippedKits = useMemo(() => Object.values(NAMED_KITS).filter((k) => namedKitVisible(k, isAdmin)), [isAdmin]);
   const shippedArt = useMemo(() => Object.fromEntries(shippedKits.map((k) => [k.slug, promoArt(k.payload.cfg as Record<string, unknown>)])) as Record<string, string | null>, [shippedKits]);
   useEffect(() => {
     for (const k of shippedKits) { try { ensureDocFonts(k.payload.cfg as Parameters<typeof ensureDocFonts>[0]); } catch { /* falls back */ } }
@@ -836,32 +896,16 @@ export function Panel() {
      every later boot SKIPS that preset (blank card, named in the console)
      instead of freezing again. The key sits OUTSIDE the sync prefix on
      purpose — a local scar, never synced to other devices. */
-  const cloudArt = useMemo(() => {
-    const GUARD = "forge-thumbguard";
-    const readGuard = (): string[] => { try { const v = JSON.parse(localStorage.getItem(GUARD) ?? "[]"); return Array.isArray(v) ? v : []; } catch { return []; } };
-    const writeGuard = (ids: string[]) => { try { localStorage.setItem(GUARD, JSON.stringify(ids)); } catch { /* ignore */ } };
-    const out: Record<string, string> = {};
-    for (const p of cloudPresets) {
-      if (p.thumb) continue;
-      const guard = readGuard();
-      if (guard.includes(p.id)) {
-        console.warn(`Looks: skipping the thumbnail of "${p.name}" (${p.id}) — rendering it froze a previous session. Fix or delete that preset in the Release Desk.`);
-        continue;
-      }
-      try {
-        writeGuard([...guard, p.id]);
-        const t0 = performance.now();
-        const tc = hydrate(JSON.parse(JSON.stringify(p.cfg)) as Record<string, unknown>);
-        for (const st of Object.values(tc.states)) st.glow = 0;
-        tc.content.label = "PLAY"; tc.icon.show = false;
-        out[p.id] = renderBevel(tc, "default");
-        const ms = performance.now() - t0;
-        if (ms > 2000) console.warn(`Looks: "${p.name}" (${p.id}) thumbnail took ${Math.round(ms)}ms to render — this preset is close to freezing sessions.`);
-      } catch { /* a cfg we can't read just stays blank rather than crashing the tray */ }
-      finally { writeGuard(readGuard().filter((id) => id !== p.id)); }
-    }
-    return out;
-  }, [cloudPresets]);
+  /* THE THUMB READS FROM THE KIT (round 77b — owner: "thumb should just
+     read from the kit TBH"). Every look's card is drawn LIVE from its own
+     stored config: the current engine, the registry as healed, the
+     outlines the look carries. The stored thumbnail is the fallback for a
+     look the renderer can't draw (the circuit breaker) — and the durable
+     copy the silhouette heal reads, so it keeps being written at save.
+     Both racks re-draw when the registry changes: a silhouette that just
+     came back paints on its cards now, not on the next reload. */
+  const cloudArt = useMemo(() => liveLookArt(cloudPresets), [cloudPresets, userShapes]);
+  const userArt = useMemo(() => liveLookArt(userPresets), [userPresets, userShapes]);
   /* Looks thumbs render in each look's own typeface, but a face used to
      load only when a look was APPLIED — the rack sat in fallback lettering
      until clicked (owner: "I have to click on the Looks thumbnails for the
@@ -881,8 +925,8 @@ export function Panel() {
       const cf = (u.cfg as { type?: { customFonts?: unknown } } | undefined)?.type?.customFonts;
       if (Array.isArray(cf)) for (const c of cf) if (typeof c === "string") registerCustomFont(c);
     }
-    userPresets.forEach((u) => harvest(u.thumb));
-    cloudPresets.forEach((p) => harvest(p.thumb ?? cloudArt[p.id]));
+    userPresets.forEach((u) => harvest(userArt[u.id] ?? u.thumb));
+    cloudPresets.forEach((p) => harvest(cloudArt[p.id] ?? p.thumb));
     presetArt().forEach((s) => harvest(s.svg));
     const queue = [...fams];
     let stop = false;
@@ -894,7 +938,7 @@ export function Panel() {
     };
     pump();
     return () => { stop = true; };
-  }, [userPresets, cloudPresets, cloudArt]);
+  }, [userPresets, cloudPresets, cloudArt, userArt]);
   /* honest stand-in flag: a saved look whose face genuinely can't load
      (a deleted custom family, a dead CDN) must SAY it wears a stand-in
      rather than silently showing the wrong letterforms. Judged only once
@@ -926,13 +970,14 @@ export function Panel() {
     try { inFlight = document.fonts?.status === "loading"; } catch { /* judge anyway */ }
     if (inFlight) return out;
     for (const u of userPresets) {
-      if (!u.thumb) continue;
-      for (const m of u.thumb.matchAll(/font-family="'([^']+)'/g)) {
+      const art = userArt[u.id] ?? u.thumb;
+      if (!art) continue;
+      for (const m of art.matchAll(/font-family="'([^']+)'/g)) {
         if (!fontReady(m[1])) { out[u.id] = m[1]; break; }
       }
     }
     return out;
-  }, [userPresets, fontsTick]);
+  }, [userPresets, userArt, fontsTick]);
   /* parent eligibility: the component must expose the complete recipe —
      a full silhouette shell, an inset face, a typography label and all four
      states — otherwise other components have nothing to inherit from. */
@@ -1704,7 +1749,7 @@ export function Panel() {
           {userShow.map((u) => (
             <button key={u.id} className={`presetcard user${kitName === u.name ? " on" : ""}`} title={`${u.name} (your saved kit)`}
               onClick={() => applyUserPreset(u.id)}>
-              {u.thumb ? <span className="presetart" dangerouslySetInnerHTML={{ __html: lookArt(u.thumb) }} /> : <span className="presetart" />}
+              {(userArt[u.id] ?? u.thumb) ? <span className="presetart" dangerouslySetInnerHTML={{ __html: lookArt(userArt[u.id] ?? u.thumb) }} /> : <span className="presetart" />}
               {standInFonts[u.id] && <span className="presetstandin" title={`Saved with “${standInFonts[u.id]}”, which isn't available right now, so the preview wears a stand-in face. Applying the look keeps its real settings.`}>stand-in face</span>}
               <span className="presetname">{u.name}</span>
               <span className="shapedel" role="button" aria-label={`Delete preset ${u.name}`} title="Delete"
@@ -1722,7 +1767,7 @@ export function Panel() {
               title={heldUntil(p.publish_at) ? `${p.name} is held until ${heldUntil(p.publish_at)}. Only you can see it.` : `${p.name} (preset pack)`}
               onClick={() => applyCloudPreset(p.id)}>
               {chipName === normName(p.name) && <span className="presetnew">NEW</span>}
-              <span className="presetart" dangerouslySetInnerHTML={{ __html: lookArt(p.thumb ?? cloudArt[p.id]) }} />
+              <span className="presetart" dangerouslySetInnerHTML={{ __html: lookArt(cloudArt[p.id] ?? p.thumb) }} />
               <span className="presetname">{p.name}</span>
               {/* Only an admin ever reaches this branch with a held pack —
                   the read policy hides unreleased rows from everyone else. */}
@@ -1995,29 +2040,38 @@ export function Panel() {
           title="Breathing room between labels and the silhouette's ends. While a piece is focused it pins to that piece alone."
           onChange={(v) => update((c) => { c.contentMargin = v; })} />
         <div className="actionrow">
+        {/* LOST IMPORTS (round 77c — the owner's Hot Rod primary wore a
+            silhouette whose outline no surface still knew): the kit wears
+            an id nothing can draw. Restore it from the SVG under the SAME
+            id, and every piece wearing it heals at once — no re-pointing. */}
+        {missingUserShapes().map((m) => (
+          <label key={m.id} className="fileadd" title={`${m.id} is worn by ${m.wornBy.map((w) => (w === "master" ? "the master" : w)).join(", ")}, but its outline is gone from this account. Pick the original SVG to restore it under the same id — every piece wearing it heals at once.`}>
+            <Upload size={13} strokeWidth={2} /> Restore lost silhouette ({m.wornBy.map((w) => (w === "master" ? "master" : w)).slice(0, 3).join(", ")}{m.wornBy.length > 3 ? "…" : ""})
+            <input type="file" accept=".svg,image/svg+xml" hidden onChange={(e) => {
+              const f = e.target.files?.[0]; e.target.value = "";
+              if (!f) return;
+              void f.text().then((txt) => {
+                const r = parseSilhouetteSvg(txt);
+                if ("error" in r) { setShapeErr(r.error); return; }
+                setShapeErr(null);
+                addUserShape({ id: m.id as `user:${string}`, name: f.name.replace(/\.svg$/i, "").replace(/[-_]+/g, " ").slice(0, 22) || "Custom", d: r.d, vb: r.vb });
+              });
+            }} />
+          </label>
+        ))}
         <label className="fileadd">
           <Upload size={13} strokeWidth={2} /> Import silhouette (SVG)
           <input type="file" accept=".svg,image/svg+xml" hidden onChange={(e) => {
             const f = e.target.files?.[0]; e.target.value = "";
             if (!f) return;
-            f.text().then((txt) => {
-              const doc = new DOMParser().parseFromString(txt, "image/svg+xml");
-              const path = doc.querySelector("path");
-              const d = path?.getAttribute("d");
-              if (!d) { setShapeErr("No <path> found. Flatten the artwork to a single filled path first."); return; }
-              const NS = "http://www.w3.org/2000/svg";
-              const tmp = document.createElementNS(NS, "svg");
-              tmp.setAttribute("style", "position:absolute;opacity:0;pointer-events:none");
-              const pp = document.createElementNS(NS, "path");
-              pp.setAttribute("d", d);
-              tmp.appendChild(pp); document.body.appendChild(tmp);
-              const bb = pp.getBBox(); document.body.removeChild(tmp);
-              if (!bb.width || !bb.height) { setShapeErr("That path has no area. Export the filled outline, not a stroke."); return; }
+            void f.text().then((txt) => {
+              const r = parseSilhouetteSvg(txt);
+              if ("error" in r) { setShapeErr(r.error); return; }
               setShapeErr(null);
               addUserShape({
                 id: `user:${Date.now().toString(36)}`,
                 name: f.name.replace(/\.svg$/i, "").replace(/[-_]+/g, " ").slice(0, 22) || "Custom",
-                d, vb: [bb.x, bb.y, bb.width, bb.height],
+                d: r.d, vb: r.vb,
               });
             });
           }} />

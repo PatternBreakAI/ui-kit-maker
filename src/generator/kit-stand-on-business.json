@@ -1,0 +1,5497 @@
+{
+ "v": 1,
+ "cfg": {
+  "presetId": "royal-vault",
+  "stateDesigns": {},
+  "shape": "sharp",
+  "effects": {
+   "Bevel": "#E49C0C",
+   "Glow": "#FCB424",
+   "Highlight": "#FCCC3C",
+   "Shadow": "#0B1228",
+   "Inner Fill": "#12305A"
+  },
+  "face": {
+   "mode": "light",
+   "contrast": 45,
+   "midpoint": 50
+  },
+  "bevel": {
+   "width": 12,
+   "softness": 30
+  },
+  "candy": {
+   "extrusion": {
+    "depth": 10,
+    "darkness": 85,
+    "glow": 24
+   },
+   "rim": {
+    "width": 3,
+    "brightness": 92
+   },
+   "innerEdge": {
+    "strength": 72,
+    "width": 3
+   },
+   "innerGlow": {
+    "opacity": 14,
+    "size": 36,
+    "color": "#FCB424"
+   },
+   "aura": {
+    "color": "#FCB424"
+   },
+   "gloss": {
+    "on": false,
+    "height": 26,
+    "curve": 10,
+    "opacity": 8,
+    "softness": 90,
+    "layer": "below",
+    "fill": "custom",
+    "tint": "#F6E4CC",
+    "tint2": "#F6E4CC"
+   },
+   "specular": {
+    "on": true,
+    "mode": "soft",
+    "size": 24,
+    "stretch": 10,
+    "intensity": 10,
+    "softness": 95,
+    "angle": 0,
+    "gap": 300,
+    "ox": 33,
+    "oy": -30
+   },
+   "bloom": {
+    "opacity": 16,
+    "size": 46
+   },
+   "contact": {
+    "opacity": 42
+   },
+   "texture": {
+    "amount": 16,
+    "scale": 48
+   },
+   "pattern": {
+    "type": "diamonds",
+    "scale": 22,
+    "angle": 0,
+    "opacity": 12,
+    "color": null,
+    "wall": {
+     "type": "diamonds",
+     "scale": 9,
+     "angle": 0,
+     "opacity": 20,
+     "color": null
+    }
+   }
+  },
+  "lighting": {
+   "angle": 90,
+   "highlight": 62,
+   "lowlight": 52
+  },
+  "shadow": {
+   "distance": 16,
+   "blur": 16,
+   "opacity": 55
+  },
+  "transparency": {
+   "frame": 100,
+   "interior": 100,
+   "content": 100
+  },
+  "content": {
+   "label": "PLAY"
+  },
+  "type": {
+   "font": "Cinzel",
+   "customFonts": [],
+   "size": 64,
+   "weight": 700,
+   "italic": false,
+   "spacing": 3,
+   "case": "upper",
+   "fillMode": "solid",
+   "fill": "#F6E4CC",
+   "fill2": "#E8CFA8",
+   "fillOpacity": 100,
+   "outline": {
+    "on": false,
+    "color": "#0B1228",
+    "color2": null,
+    "width": 0.4
+   },
+   "shadow": {
+    "on": true,
+    "color": "#0B1228",
+    "x": 0,
+    "y": 3,
+    "blur": 2,
+    "opacity": 75
+   },
+   "emboss": {
+    "on": true,
+    "strength": -16,
+    "softness": 30,
+    "hiOpacity": 26,
+    "distance": 1,
+    "shOpacity": 40,
+    "hiColor": "#FFF6E0",
+    "shColor": "#05091A"
+   },
+   "glow": {
+    "on": false,
+    "color": "#FCB424",
+    "size": 6,
+    "opacity": 40
+   },
+   "preset": "candy",
+   "listFont": "Crimson Pro",
+   "listInk": "#F6E4CC",
+   "infoInk": "#F6E4CC"
+  },
+  "icon": {
+   "show": true,
+   "def": {
+    "lib": "lucide",
+    "name": "Play",
+    "viewBox": "0 0 24 24",
+    "inner": "<polygon points=\"6 3 20 12 6 21 6 3\"/>",
+    "mode": "stroke"
+   },
+   "placement": "right",
+   "only": false,
+   "size": 100,
+   "strokeWidth": 24,
+   "color": null,
+   "outlineWidth": null,
+   "opacity": 100,
+   "rotation": 0,
+   "gap": 18,
+   "ox": 0,
+   "oy": 0,
+   "fx": {
+    "shadow": false,
+    "glow": false,
+    "emboss": false
+   }
+  },
+  "states": {
+   "default": {
+    "brightness": 0,
+    "glow": 0,
+    "lift": 0,
+    "opacity": 100,
+    "saturation": 0
+   },
+   "hover": {
+    "brightness": 8,
+    "glow": 45,
+    "lift": 0,
+    "opacity": 100,
+    "saturation": 10
+   },
+   "pressed": {
+    "brightness": -6,
+    "glow": 60,
+    "lift": 2,
+    "opacity": 100,
+    "saturation": 10
+   },
+   "disabled": {
+    "brightness": -10,
+    "glow": 0,
+    "lift": 0,
+    "opacity": 70,
+    "saturation": -60
+   }
+  },
+  "visible": {
+   "hover": true,
+   "pressed": true,
+   "disabled": true
+  },
+  "canvas": "#0C1C36",
+  "idle": {
+   "wipe": false,
+   "edge": false
+  },
+  "knob": {
+   "color": "#FCB424"
+  },
+  "skew": 0
+ },
+ "kitName": "Stand on Business",
+ "kitClones": {
+  "copy-sbon-primary": {
+   "base": "primary",
+   "name": "stand-btn-on",
+   "kind": "Other",
+   "createdAt": "2026-09-18T00:00:00.000Z"
+  },
+  "copy-plta-nameplate": {
+   "base": "nameplate",
+   "name": "plate-A",
+   "kind": "Other",
+   "createdAt": "2026-09-18T00:00:00.000Z"
+  },
+  "copy-pltb-nameplate": {
+   "base": "nameplate",
+   "name": "plate-B",
+   "kind": "Other",
+   "createdAt": "2026-09-18T00:00:00.000Z"
+  },
+  "copy-avta-avatarframe": {
+   "base": "avatarframe",
+   "name": "avatar-A",
+   "kind": "Other",
+   "createdAt": "2026-09-18T00:00:00.000Z"
+  },
+  "copy-avtb-avatarframe": {
+   "base": "avatarframe",
+   "name": "avatar-B",
+   "kind": "Other",
+   "createdAt": "2026-09-18T00:00:00.000Z"
+  },
+  "copy-lchd-header": {
+   "base": "header",
+   "name": "location-hidden",
+   "kind": "Other",
+   "createdAt": "2026-09-18T00:00:00.000Z"
+  },
+  "copy-chwn-chip": {
+   "base": "chip",
+   "name": "chip-warn",
+   "kind": "Other",
+   "createdAt": "2026-09-18T00:00:00.000Z"
+  },
+  "copy-chgd-chip": {
+   "base": "chip",
+   "name": "chip-good",
+   "kind": "Other",
+   "createdAt": "2026-09-18T00:00:00.000Z"
+  },
+  "copy-sitd-small": {
+   "base": "small",
+   "name": "sit-down",
+   "kind": "Other",
+   "createdAt": "2026-09-18T00:00:00.000Z"
+  },
+  "copy-lgsp-badge": {
+   "base": "badge",
+   "name": "legend-spread",
+   "kind": "Other",
+   "createdAt": "2026-09-18T00:00:00.000Z"
+  },
+  "copy-lkon-secondary": {
+   "base": "secondary",
+   "name": "lock-locked",
+   "kind": "Other",
+   "createdAt": "2026-09-18T00:00:00.000Z"
+  },
+  "copy-cbuy-dialog": {
+   "base": "dialog",
+   "name": "confirm-buy",
+   "kind": "Other",
+   "createdAt": "2026-09-18T00:00:00.000Z"
+  }
+ },
+ "kitShapes": {
+  "dialoguebox": "speech"
+ },
+ "kitDesigns": {
+  "glyphcoinsingle": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphcoin": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphcoinstack": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphcoinpile": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphcrowncoin": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphgem": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphheart": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphenergy": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphticket": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphkey": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphstar": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphcrown": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphtrophy": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphmedal": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphflag": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphcheckpoint": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphlock": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphcheckmark": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphstarformation": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphbomb": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphrocket": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphhammer": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphmagnet": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphshield": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphaddtime": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphshuffle": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphchest": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphgift": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphprizewheel": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphcalendar": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphstreak": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphtimer": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphtarget": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphskull": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphcart": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphsale": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphplus": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphpiggybank": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphhome": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphpause": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphplay": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphreplay": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphclapboard": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphsettings": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphsound": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphmusic": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphmail": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphfriends": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphleaderboard": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphnotification": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphquests": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "glyphprofile": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "gearicon": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "trophyicon": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "gifticon": {
+   "candy": {
+    "extrusion": {
+     "depth": 0
+    }
+   },
+   "bevel": {
+    "off": true
+   }
+  },
+  "ribbonbanner": {
+   "candy": {
+    "gloss": {
+     "curve": -26
+    }
+   }
+  },
+  "small": {
+   "effects": {
+    "Bevel": "#E49C0C",
+    "Glow": "#FF7A5A",
+    "Highlight": "#FCCC3C",
+    "Shadow": "#4A0606",
+    "Inner Fill": "#B40C0C"
+   }
+  },
+  "secondary": {
+   "effects": {
+    "Bevel": "#E49C0C",
+    "Glow": "#FCB424",
+    "Highlight": "#FCCC3C",
+    "Shadow": "#0B1228",
+    "Inner Fill": "#D68417"
+   },
+   "candy": {
+    "pattern": {
+     "type": "none",
+     "opacity": 0,
+     "zone": "wall"
+    },
+    "texture": {
+     "amount": 30,
+     "scale": 40
+    }
+   },
+   "type": {
+    "fill": "#0C1C36",
+    "fill2": "#12305A",
+    "shadow": {
+     "on": false
+    },
+    "emboss": {
+     "on": true,
+     "strength": -22,
+     "softness": 30,
+     "distance": 1,
+     "hiOpacity": 45,
+     "shOpacity": 30,
+     "hiColor": "#FFFFFF",
+     "shColor": "#4A2A05"
+    }
+   }
+  },
+  "ghost": {
+   "effects": {
+    "Bevel": "#E49C0C",
+    "Glow": "#FCB424",
+    "Highlight": "#FCCC3C",
+    "Shadow": "#0B1228",
+    "Inner Fill": "#12305A"
+   },
+   "face": {
+    "mode": "dark",
+    "contrast": 20,
+    "midpoint": 50
+   },
+   "bevel": {
+    "width": 8,
+    "softness": 30
+   },
+   "candy": {
+    "extrusion": {
+     "depth": 4,
+     "darkness": 85,
+     "glow": 10
+    },
+    "pattern": {
+     "type": "none",
+     "opacity": 0,
+     "zone": "wall"
+    },
+    "innerGlow": {
+     "opacity": 0
+    },
+    "specular": {
+     "on": false
+    },
+    "texture": {
+     "amount": 8,
+     "scale": 48
+    }
+   },
+   "shadow": {
+    "distance": 8,
+    "blur": 12,
+    "opacity": 40
+   },
+   "type": {
+    "fill": "#F6E4CC",
+    "fill2": "#E8CFA8",
+    "shadow": {
+     "on": true,
+     "color": "#0B1228",
+     "x": 0,
+     "y": 2,
+     "blur": 2,
+     "opacity": 70
+    }
+   }
+  },
+  "toast": {
+   "type": {
+    "font": "Crimson Pro",
+    "size": 52,
+    "weight": 600,
+    "spacing": 0,
+    "case": "none",
+    "emboss": {
+     "on": false
+    }
+   }
+  },
+  "movecounter": {
+   "type": {
+    "fill": "#F6E4CC",
+    "fill2": "#E8CFA8"
+   }
+  },
+  "badge": {
+   "effects": {
+    "Bevel": "#E49C0C",
+    "Glow": "#FF7A5A",
+    "Highlight": "#FCCC3C",
+    "Shadow": "#4A0606",
+    "Inner Fill": "#B40C0C"
+   },
+   "candy": {
+    "pattern": {
+     "type": "none",
+     "opacity": 0,
+     "zone": "wall"
+    }
+   },
+   "type": {
+    "fill": "#F6E4CC",
+    "fill2": "#F6E4CC",
+    "shadow": {
+     "on": true,
+     "color": "#4A0606",
+     "x": 0,
+     "y": 1,
+     "blur": 1,
+     "opacity": 60
+    }
+   }
+  },
+  "dialog": {
+   "effects": {
+    "Bevel": "#E49C0C",
+    "Glow": "#FCB424",
+    "Highlight": "#FCCC3C",
+    "Shadow": "#0B1228",
+    "Inner Fill": "#23508E"
+   }
+  },
+  "currency": {
+   "type": {
+    "size": 56
+   }
+  },
+  "copy-sbon-primary": {
+   "effects": {
+    "Bevel": "#F0B020",
+    "Glow": "#FFD24A",
+    "Highlight": "#FFE68A",
+    "Shadow": "#0B1228",
+    "Inner Fill": "#2A5A9E"
+   },
+   "candy": {
+    "innerGlow": {
+     "opacity": 58,
+     "size": 46,
+     "color": "#FCB424"
+    },
+    "rim": {
+     "width": 4,
+     "brightness": 100
+    },
+    "extrusion": {
+     "depth": 10,
+     "darkness": 85,
+     "glow": 60
+    },
+    "bloom": {
+     "opacity": 40,
+     "size": 60
+    }
+   },
+   "states": {
+    "default": {
+     "brightness": 4,
+     "glow": 55,
+     "lift": 0,
+     "opacity": 100,
+     "saturation": 10
+    },
+    "hover": {
+     "brightness": 10,
+     "glow": 75,
+     "lift": 0,
+     "opacity": 100,
+     "saturation": 14
+    },
+    "pressed": {
+     "brightness": -4,
+     "glow": 85,
+     "lift": 2,
+     "opacity": 100,
+     "saturation": 14
+    },
+    "disabled": {
+     "brightness": -10,
+     "glow": 0,
+     "lift": 0,
+     "opacity": 70,
+     "saturation": -60
+    }
+   },
+   "type": {
+    "fill": "#FFF4D6",
+    "fill2": "#F6E4CC",
+    "glow": {
+     "on": true,
+     "color": "#FCB424",
+     "size": 6,
+     "opacity": 45
+    }
+   }
+  },
+  "copy-plta-nameplate": {
+   "effects": {
+    "Bevel": "#E49C0C",
+    "Glow": "#FCB424",
+    "Highlight": "#FCCC3C",
+    "Shadow": "#0B1228",
+    "Inner Fill": "#12305A"
+   }
+  },
+  "copy-pltb-nameplate": {
+   "effects": {
+    "Bevel": "#2F6FD6",
+    "Glow": "#5AA8FF",
+    "Highlight": "#9CCBFF",
+    "Shadow": "#0B1228",
+    "Inner Fill": "#1B3F86"
+   },
+   "candy": {
+    "innerGlow": {
+     "opacity": 14,
+     "size": 36,
+     "color": "#5AA8FF"
+    },
+    "aura": {
+     "color": "#5AA8FF"
+    }
+   }
+  },
+  "copy-avta-avatarframe": {
+   "effects": {
+    "Bevel": "#E49C0C",
+    "Glow": "#FCB424",
+    "Highlight": "#FCCC3C",
+    "Shadow": "#0B1228",
+    "Inner Fill": "#12305A"
+   }
+  },
+  "copy-avtb-avatarframe": {
+   "effects": {
+    "Bevel": "#2F6FD6",
+    "Glow": "#5AA8FF",
+    "Highlight": "#9CCBFF",
+    "Shadow": "#0B1228",
+    "Inner Fill": "#1B3F86"
+   },
+   "candy": {
+    "innerGlow": {
+     "opacity": 14,
+     "size": 36,
+     "color": "#5AA8FF"
+    },
+    "aura": {
+     "color": "#5AA8FF"
+    }
+   }
+  },
+  "copy-lchd-header": {
+   "effects": {
+    "Bevel": "#7A6A44",
+    "Glow": "#8C7A50",
+    "Highlight": "#A89468",
+    "Shadow": "#070E1C",
+    "Inner Fill": "#101E38"
+   },
+   "candy": {
+    "pattern": {
+     "type": "diamonds",
+     "scale": 22,
+     "angle": 0,
+     "opacity": 6,
+     "color": null,
+     "zone": "face"
+    },
+    "innerGlow": {
+     "opacity": 0
+    },
+    "specular": {
+     "on": false
+    }
+   },
+   "type": {
+    "fill": "#A9B0C0",
+    "fill2": "#8E96A8",
+    "shadow": {
+     "on": true,
+     "color": "#05091A",
+     "x": 0,
+     "y": 2,
+     "blur": 2,
+     "opacity": 60
+    },
+    "emboss": {
+     "on": false
+    }
+   }
+  },
+  "copy-chwn-chip": {
+   "effects": {
+    "Bevel": "#E49C0C",
+    "Glow": "#FF7A5A",
+    "Highlight": "#FCCC3C",
+    "Shadow": "#3A0606",
+    "Inner Fill": "#8C1414"
+   }
+  },
+  "copy-chgd-chip": {
+   "effects": {
+    "Bevel": "#E49C0C",
+    "Glow": "#3FD97A",
+    "Highlight": "#FCCC3C",
+    "Shadow": "#05341A",
+    "Inner Fill": "#0C6E34"
+   }
+  },
+  "copy-sitd-small": {
+   "effects": {
+    "Bevel": "#E49C0C",
+    "Glow": "#FF7A5A",
+    "Highlight": "#FCCC3C",
+    "Shadow": "#4A0606",
+    "Inner Fill": "#B40C0C"
+   }
+  },
+  "copy-lgsp-badge": {
+   "effects": {
+    "Bevel": "#E49C0C",
+    "Glow": "#FFE07A",
+    "Highlight": "#FFF0B0",
+    "Shadow": "#6A4A08",
+    "Inner Fill": "#F2B733"
+   },
+   "candy": {
+    "innerGlow": {
+     "opacity": 55,
+     "size": 50,
+     "color": "#FFE07A"
+    },
+    "pattern": {
+     "type": "none",
+     "opacity": 0,
+     "zone": "wall"
+    }
+   },
+   "states": {
+    "default": {
+     "brightness": 4,
+     "glow": 55,
+     "lift": 0,
+     "opacity": 100,
+     "saturation": 6
+    },
+    "hover": {
+     "brightness": 8,
+     "glow": 70,
+     "lift": 0,
+     "opacity": 100,
+     "saturation": 10
+    },
+    "pressed": {
+     "brightness": -4,
+     "glow": 80,
+     "lift": 2,
+     "opacity": 100,
+     "saturation": 10
+    },
+    "disabled": {
+     "brightness": -10,
+     "glow": 0,
+     "lift": 0,
+     "opacity": 70,
+     "saturation": -60
+    }
+   },
+   "type": {
+    "fill": "#0C1C36",
+    "fill2": "#12305A",
+    "shadow": {
+     "on": false
+    },
+    "emboss": {
+     "on": false
+    }
+   }
+  },
+  "copy-lkon-secondary": {
+   "effects": {
+    "Bevel": "#A8843A",
+    "Glow": "#B89A50",
+    "Highlight": "#C8B070",
+    "Shadow": "#0B1228",
+    "Inner Fill": "#8A7048"
+   },
+   "candy": {
+    "pattern": {
+     "type": "none",
+     "opacity": 0,
+     "zone": "wall"
+    },
+    "texture": {
+     "amount": 30,
+     "scale": 40
+    },
+    "innerGlow": {
+     "opacity": 0
+    },
+    "specular": {
+     "on": false
+    }
+   },
+   "states": {
+    "default": {
+     "brightness": -8,
+     "glow": 0,
+     "lift": 0,
+     "opacity": 100,
+     "saturation": -30
+    },
+    "hover": {
+     "brightness": -4,
+     "glow": 20,
+     "lift": 0,
+     "opacity": 100,
+     "saturation": -20
+    },
+    "pressed": {
+     "brightness": -12,
+     "glow": 30,
+     "lift": 2,
+     "opacity": 100,
+     "saturation": -20
+    },
+    "disabled": {
+     "brightness": -14,
+     "glow": 0,
+     "lift": 0,
+     "opacity": 70,
+     "saturation": -60
+    }
+   },
+   "type": {
+    "fill": "#3A4256",
+    "fill2": "#4A5268",
+    "shadow": {
+     "on": false
+    },
+    "emboss": {
+     "on": true,
+     "strength": -22,
+     "softness": 30,
+     "distance": 1,
+     "hiOpacity": 40,
+     "shOpacity": 30,
+     "hiColor": "#FFFFFF",
+     "shColor": "#4A2A05"
+    }
+   }
+  }
+ },
+ "kitTextFill": {},
+ "kitLabels": {
+  "primary": "Stand on Business",
+  "secondary": "Lock In",
+  "small": "Sit Down",
+  "header": "Greenwood District",
+  "chip": "Curfew at night",
+  "toast": "Not enough Energy for that card.",
+  "currency": "12 Legacy",
+  "nameplate": "Harborlight",
+  "movecounter": "3",
+  "dialog": "Sit Down?",
+  "ghost": "Developer tools",
+  "badge": "★ 2",
+  "setrow": "Music volume",
+  "copy-sbon-primary": "Standing ✓",
+  "copy-plta-nameplate": "You",
+  "copy-pltb-nameplate": "Harborlight",
+  "copy-lchd-header": "Hidden",
+  "copy-chwn-chip": "Curfew at night",
+  "copy-chgd-chip": "Threats never appear here",
+  "copy-sitd-small": "Sit Down",
+  "copy-lgsp-badge": "★ 2",
+  "copy-lkon-secondary": "Locked",
+  "copy-cbuy-dialog": "Buy Tiger's Eye?"
+ },
+ "kitNoText": {},
+ "kitSubs": {
+  "datarow": ""
+ },
+ "kitIcons": {
+  "iconbtn": {
+   "lib": "lucide",
+   "name": "Volume2",
+   "viewBox": "0 0 24 24",
+   "inner": "<polygon points=\"11 5 6 9 2 9 2 15 6 15 11 19 11 5\"/><path d=\"M15.54 8.46a5 5 0 0 1 0 7.07\"/><path d=\"M19.07 4.93a10 10 0 0 1 0 14.14\"/>",
+   "mode": "stroke"
+  }
+ },
+ "kitSlotVals": {
+  "movecounter": {
+   "caption": "TURN"
+  },
+  "segment": {
+   "offvis": "Readable · 70%"
+  },
+  "dialog": {
+   "cta1": "Sit Down",
+   "cta2": "Cancel"
+  },
+  "nameplate": {
+   "ribbon": "Conductor"
+  },
+  "copy-plta-nameplate": {
+   "ribbon": "Conductor"
+  },
+  "copy-pltb-nameplate": {
+   "ribbon": "Conductor"
+  },
+  "copy-cbuy-dialog": {
+   "cta1": "Buy",
+   "cta2": "Cancel"
+  },
+  "dialoguebox": {
+   "speaker": "Coach",
+   "line2": "The clock is stopped in here, so take your time."
+  },
+  "chatbubble": {
+   "sender": "You",
+   "time": ""
+  }
+ },
+ "kitVals": {
+  "movecounter": 0.2
+ },
+ "kitBar": {},
+ "kitTextOy": {},
+ "kitTextOx": {},
+ "kitLocks": {},
+ "userAssets": [],
+ "boards": [
+  {
+   "id": "sob-landing",
+   "name": "landing",
+   "aspect": "169",
+   "bgShow": false,
+   "items": [
+    {
+     "id": "landing-hole-wordmark-slot-1",
+     "libId": "",
+     "kitId": "placeholder",
+     "x": 558,
+     "y": 27,
+     "scale": 1,
+     "stretch": 2.0,
+     "stretchY": 0.4125,
+     "label": "wordmark-slot"
+    },
+    {
+     "id": "landing-wallet",
+     "libId": "",
+     "kitId": "currency",
+     "x": 1547,
+     "y": 22,
+     "scale": 0.65,
+     "label": "12 Legacy"
+    },
+    {
+     "id": "landing-settings-btn",
+     "libId": "",
+     "kitId": "iconbtn",
+     "x": 1780,
+     "y": 4,
+     "scale": 0.6,
+     "ov": "icon:volume"
+    },
+    {
+     "id": "landing-settings-menu",
+     "libId": "",
+     "kitId": "panel",
+     "x": 1340,
+     "y": 116,
+     "scale": 0.6,
+     "stretch": 1.12,
+     "stretchY": 0.7
+    },
+    {
+     "id": "landing-settings-row1-word",
+     "libId": "",
+     "x": 1315,
+     "y": 70,
+     "scale": 1,
+     "stamp": {
+      "text": "Music",
+      "size": 44,
+      "plain": {
+       "color": "#F6E4CC"
+      }
+     }
+    },
+    {
+     "id": "landing-settings-row1-hint",
+     "libId": "",
+     "x": 1315,
+     "y": 102,
+     "scale": 1,
+     "stamp": {
+      "text": "Echoes of the Past",
+      "size": 31.4,
+      "plain": {
+       "color": "#E8CFA8"
+      },
+      "voice": "list"
+     }
+    },
+    {
+     "id": "landing-settings-row1-switch",
+     "libId": "",
+     "kitId": "toggle",
+     "x": 1761,
+     "y": 149,
+     "scale": 0.5,
+     "v": 1
+    },
+    {
+     "id": "landing-settings-row2-word",
+     "libId": "",
+     "x": 1315,
+     "y": 162,
+     "scale": 1,
+     "stamp": {
+      "text": "Sound effects",
+      "size": 44,
+      "plain": {
+       "color": "#F6E4CC"
+      }
+     }
+    },
+    {
+     "id": "landing-settings-row2-hint",
+     "libId": "",
+     "x": 1315,
+     "y": 194,
+     "scale": 1,
+     "stamp": {
+      "text": "Cards, clashes, the crowd",
+      "size": 31.4,
+      "plain": {
+       "color": "#E8CFA8"
+      },
+      "voice": "list"
+     }
+    },
+    {
+     "id": "landing-settings-row2-switch",
+     "libId": "",
+     "kitId": "toggle",
+     "x": 1761,
+     "y": 241,
+     "scale": 0.5,
+     "v": 0
+    },
+    {
+     "id": "landing-cta-play-icon",
+     "libId": "",
+     "kitId": "iconbtn",
+     "x": 137,
+     "y": 349,
+     "scale": 0.626,
+     "ov": "icon:play"
+    },
+    {
+     "id": "landing-cta-play",
+     "libId": "",
+     "kitId": "primary",
+     "x": 241.5,
+     "y": 354,
+     "scale": 0.58,
+     "label": "Play"
+    },
+    {
+     "id": "landing-cta-learn-icon",
+     "libId": "",
+     "kitId": "iconbtn",
+     "x": 480,
+     "y": 349,
+     "scale": 0.626,
+     "ov": "icon:map"
+    },
+    {
+     "id": "landing-cta-learn",
+     "libId": "",
+     "kitId": "primary",
+     "x": 584.5,
+     "y": 354,
+     "scale": 0.58,
+     "label": "Learn to play"
+    },
+    {
+     "id": "landing-cta-cards-icon",
+     "libId": "",
+     "kitId": "iconbtn",
+     "x": 1043,
+     "y": 349,
+     "scale": 0.626,
+     "ov": "icon:glyph:shuffle"
+    },
+    {
+     "id": "landing-cta-cards",
+     "libId": "",
+     "kitId": "primary",
+     "x": 1147.5,
+     "y": 354,
+     "scale": 0.58,
+     "label": "Cards"
+    },
+    {
+     "id": "landing-cta-rules-icon",
+     "libId": "",
+     "kitId": "iconbtn",
+     "x": 1423,
+     "y": 349,
+     "scale": 0.626,
+     "ov": "icon:scroll"
+    },
+    {
+     "id": "landing-cta-rules",
+     "libId": "",
+     "kitId": "primary",
+     "x": 1527.5,
+     "y": 354,
+     "scale": 0.58,
+     "label": "Rules"
+    },
+    {
+     "id": "landing-segment-18",
+     "libId": "",
+     "kitId": "segment",
+     "x": 688,
+     "y": 469,
+     "scale": 0.7181,
+     "label": "Railroad | Black Star | Pantheon",
+     "v": 0.0,
+     "_fit": {
+      "targetBox": [
+       716,
+       490,
+       490,
+       93
+      ]
+     }
+    },
+    {
+     "id": "landing-hole-card-hole-1",
+     "libId": "",
+     "kitId": "placeholder",
+     "x": 524,
+     "y": 608,
+     "scale": 1,
+     "stretch": 0.34,
+     "stretchY": 0.44,
+     "label": "card-hole"
+    },
+    {
+     "id": "landing-hole-card-hole-2",
+     "libId": "",
+     "kitId": "placeholder",
+     "x": 708,
+     "y": 608,
+     "scale": 1,
+     "stretch": 0.34,
+     "stretchY": 0.44,
+     "label": "card-hole"
+    },
+    {
+     "id": "landing-hole-card-hole-3",
+     "libId": "",
+     "kitId": "placeholder",
+     "x": 892,
+     "y": 608,
+     "scale": 1,
+     "stretch": 0.34,
+     "stretchY": 0.44,
+     "label": "card-hole"
+    },
+    {
+     "id": "landing-hole-card-hole-4",
+     "libId": "",
+     "kitId": "placeholder",
+     "x": 1076,
+     "y": 608,
+     "scale": 1,
+     "stretch": 0.34,
+     "stretchY": 0.44,
+     "label": "card-hole"
+    },
+    {
+     "id": "landing-hole-card-hole-5",
+     "libId": "",
+     "kitId": "placeholder",
+     "x": 1260,
+     "y": 608,
+     "scale": 1,
+     "stretch": 0.34,
+     "stretchY": 0.44,
+     "label": "card-hole"
+    },
+    {
+     "id": "landing-hole-teaser-hole-1",
+     "libId": "",
+     "kitId": "placeholder",
+     "x": 40,
+     "y": 796,
+     "scale": 1,
+     "stretch": 3.8025,
+     "stretchY": 0.58,
+     "label": "teaser-hole"
+    },
+    {
+     "id": "landing-link-devtools",
+     "libId": "",
+     "kitId": "ghost",
+     "x": 1564,
+     "y": 968,
+     "scale": 0.45,
+     "label": "Developer tools"
+    }
+   ]
+  },
+  {
+   "id": "sob-match",
+   "name": "match",
+   "aspect": "169",
+   "bgShow": false,
+   "items": [
+    {
+     "id": "match-avatar-a",
+     "libId": "",
+     "kitId": "copy-avta-avatarframe",
+     "x": 19.1,
+     "y": 3.5,
+     "scale": 0.55,
+     "label": "A"
+    },
+    {
+     "id": "match-portrait-a",
+     "libId": "",
+     "kitId": "placeholder",
+     "x": 54.8,
+     "y": 34.8,
+     "scale": 0.22,
+     "stretch": 1,
+     "stretchY": 1,
+     "label": "portrait-window"
+    },
+    {
+     "id": "match-plate-a",
+     "libId": "",
+     "kitId": "copy-plta-nameplate",
+     "x": 147,
+     "y": 13,
+     "scale": 0.5,
+     "label": "You"
+    },
+    {
+     "id": "match-legend-a",
+     "libId": "",
+     "kitId": "badge",
+     "x": 503.6,
+     "y": 16.3,
+     "scale": 0.45,
+     "label": "★ 2"
+    },
+    {
+     "id": "match-chat-btn",
+     "libId": "",
+     "kitId": "iconbtn",
+     "x": 580.2,
+     "y": 15.6,
+     "scale": 0.4,
+     "ov": "icon:glyph:mail"
+    },
+    {
+     "id": "match-hand-a",
+     "libId": "",
+     "x": 89,
+     "y": -10.4,
+     "scale": 1,
+     "stamp": {
+      "text": "5/7 in hand · 12 in deck",
+      "size": 33.6,
+      "plain": {
+       "color": "#F6E4CC"
+      },
+      "voice": "list"
+     }
+    },
+    {
+     "id": "match-bubble",
+     "libId": "",
+     "kitId": "chatbubble",
+     "x": 312.5,
+     "y": 114.2,
+     "scale": 0.46,
+     "label": "I have people in Detroit"
+    },
+    {
+     "id": "match-stand-btn",
+     "libId": "",
+     "kitId": "primary",
+     "x": 701.9,
+     "y": 1.8,
+     "scale": 0.54,
+     "label": "Stand on Business"
+    },
+    {
+     "id": "match-coin",
+     "libId": "",
+     "kitId": "coin",
+     "x": 896,
+     "y": 112,
+     "scale": 0.4,
+     "label": "4"
+    },
+    {
+     "id": "match-turn-panel",
+     "libId": "",
+     "kitId": "resource",
+     "x": 636,
+     "y": 137,
+     "scale": 0.5,
+     "label": "Turn 3 / 8"
+    },
+    {
+     "id": "match-coin-raised",
+     "libId": "",
+     "kitId": "coin",
+     "x": 1038,
+     "y": 122,
+     "scale": 0.34,
+     "label": "4",
+     "ov": "raised"
+    },
+    {
+     "id": "match-standing",
+     "libId": "",
+     "kitId": "copy-sbon-primary",
+     "x": 1145.1,
+     "y": 137.8,
+     "scale": 0.34,
+     "label": "Standing ✓"
+    },
+    {
+     "id": "match-legend-b",
+     "libId": "",
+     "kitId": "copy-lgsp-badge",
+     "x": 1322.6,
+     "y": 16.3,
+     "scale": 0.45,
+     "label": "★ 2"
+    },
+    {
+     "id": "match-plate-b",
+     "libId": "",
+     "kitId": "copy-pltb-nameplate",
+     "x": 1393,
+     "y": 13,
+     "scale": 0.5,
+     "label": "Harborlight"
+    },
+    {
+     "id": "match-avatar-b",
+     "libId": "",
+     "kitId": "copy-avtb-avatarframe",
+     "x": 1741.1,
+     "y": 3.5,
+     "scale": 0.55,
+     "label": "B"
+    },
+    {
+     "id": "match-portrait-b",
+     "libId": "",
+     "kitId": "placeholder",
+     "x": 1776.8,
+     "y": 34.8,
+     "scale": 0.22,
+     "stretch": 1,
+     "stretchY": 1,
+     "label": "portrait-window"
+    },
+    {
+     "id": "match-hand-b",
+     "libId": "",
+     "x": 1406,
+     "y": -10.4,
+     "scale": 1,
+     "stamp": {
+      "text": "5/7 in hand · 12 in deck",
+      "size": 33.6,
+      "plain": {
+       "color": "#F6E4CC"
+      },
+      "voice": "list"
+     }
+    },
+    {
+     "id": "match-first-mark",
+     "libId": "",
+     "kitId": "countbadge",
+     "x": 1823.1,
+     "y": 3.1,
+     "scale": 0.45,
+     "label": "1st"
+    },
+    {
+     "id": "match-timer",
+     "libId": "",
+     "kitId": "timerbar",
+     "x": 40,
+     "y": 246,
+     "scale": 0.6,
+     "stretch": 3.4056,
+     "v": 0.62
+    },
+    {
+     "id": "match-loc-a-panel",
+     "libId": "",
+     "kitId": "panel",
+     "x": 14.8,
+     "y": 287.6,
+     "scale": 0.6,
+     "stretch": 1.2393,
+     "stretchY": 1.5957
+    },
+    {
+     "id": "match-loc-a-header",
+     "libId": "",
+     "kitId": "header",
+     "x": 36,
+     "y": 265.1,
+     "scale": 0.33,
+     "label": "Greenwood District · Tulsa, 1921"
+    },
+    {
+     "id": "match-loc-a-influence",
+     "libId": "",
+     "x": 197.5,
+     "y": 240.8,
+     "scale": 1,
+     "stamp": {
+      "text": "A 5 · B 3",
+      "size": 40,
+      "plain": {
+       "color": "#F6E4CC"
+      }
+     }
+    },
+    {
+     "id": "match-loc-a-banner",
+     "libId": "",
+     "kitId": "placeholder",
+     "x": 75,
+     "y": 388,
+     "scale": 0.425,
+     "stretch": 3,
+     "stretchY": 1,
+     "label": "banner-window"
+    },
+    {
+     "id": "match-loc-a-gate-1",
+     "libId": "",
+     "kitId": "placeholder",
+     "x": 75,
+     "y": 566,
+     "scale": 0.165,
+     "stretch": 1.6667,
+     "stretchY": 1,
+     "label": "tile-hole"
+    },
+    {
+     "id": "match-loc-a-gate-2",
+     "libId": "",
+     "kitId": "placeholder",
+     "x": 197,
+     "y": 566,
+     "scale": 0.165,
+     "stretch": 1.6667,
+     "stretchY": 1,
+     "label": "tile-hole"
+    },
+    {
+     "id": "match-loc-a-gate-3",
+     "libId": "",
+     "kitId": "placeholder",
+     "x": 319,
+     "y": 566,
+     "scale": 0.165,
+     "stretch": 1.6667,
+     "stretchY": 1,
+     "label": "tile-hole"
+    },
+    {
+     "id": "match-loc-a-inside-1",
+     "libId": "",
+     "kitId": "placeholder",
+     "x": 75,
+     "y": 640,
+     "scale": 0.165,
+     "stretch": 1.6667,
+     "stretchY": 1,
+     "label": "tile-hole"
+    },
+    {
+     "id": "match-loc-a-inside-2",
+     "libId": "",
+     "kitId": "placeholder",
+     "x": 197,
+     "y": 640,
+     "scale": 0.165,
+     "stretch": 1.6667,
+     "stretchY": 1,
+     "label": "tile-hole"
+    },
+    {
+     "id": "match-loc-a-inside-3",
+     "libId": "",
+     "kitId": "placeholder",
+     "x": 319,
+     "y": 640,
+     "scale": 0.165,
+     "stretch": 1.6667,
+     "stretchY": 1,
+     "label": "tile-hole"
+    },
+    {
+     "id": "match-loc-a-threat",
+     "libId": "",
+     "kitId": "placeholder",
+     "x": 475,
+     "y": 603,
+     "scale": 0.165,
+     "stretch": 1.6667,
+     "stretchY": 1,
+     "label": "tile-hole"
+    },
+    {
+     "id": "match-loc-a-rule",
+     "libId": "",
+     "x": 11,
+     "y": 601,
+     "scale": 1,
+     "stamp": {
+      "text": "Established Characters here gain +1 Influence.",
+      "size": 28.0,
+      "plain": {
+       "color": "#F6E4CC"
+      },
+      "voice": "list"
+     }
+    },
+    {
+     "id": "match-loc-a-chip-warn",
+     "libId": "",
+     "kitId": "copy-chwn-chip",
+     "x": 27.6,
+     "y": 754.6,
+     "scale": 0.38,
+     "label": "Curfew at night"
+    },
+    {
+     "id": "match-loc-a-chip-good",
+     "libId": "",
+     "kitId": "copy-chgd-chip",
+     "x": 266.6,
+     "y": 754.6,
+     "scale": 0.38,
+     "label": "Threats never appear here"
+    },
+    {
+     "id": "match-loc-b-panel",
+     "libId": "",
+     "kitId": "panel",
+     "x": 644.8,
+     "y": 287.6,
+     "scale": 0.6,
+     "stretch": 1.2393,
+     "stretchY": 1.5957,
+     "opacity": 70
+    },
+    {
+     "id": "match-loc-b-header",
+     "libId": "",
+     "kitId": "copy-lchd-header",
+     "x": 846.3,
+     "y": 265.1,
+     "scale": 0.33,
+     "label": "Hidden"
+    },
+    {
+     "id": "match-loc-b-cardback",
+     "libId": "",
+     "kitId": "cardback",
+     "x": 881.6,
+     "y": 432.5,
+     "scale": 0.3509
+    },
+    {
+     "id": "match-loc-c-panel",
+     "libId": "",
+     "kitId": "panel",
+     "x": 1274.8,
+     "y": 287.6,
+     "scale": 0.6,
+     "stretch": 1.2393,
+     "stretchY": 1.5957
+    },
+    {
+     "id": "match-loc-c-header",
+     "libId": "",
+     "kitId": "header",
+     "x": 1313,
+     "y": 265.1,
+     "scale": 0.33,
+     "label": "The Black Star · Atlantic, 1919"
+    },
+    {
+     "id": "match-loc-c-influence",
+     "libId": "",
+     "x": 1457,
+     "y": 240.8,
+     "scale": 1,
+     "stamp": {
+      "text": "A 7 · B 2",
+      "size": 40,
+      "plain": {
+       "color": "#F6E4CC"
+      }
+     }
+    },
+    {
+     "id": "match-loc-c-banner",
+     "libId": "",
+     "kitId": "placeholder",
+     "x": 1335,
+     "y": 388,
+     "scale": 0.425,
+     "stretch": 3,
+     "stretchY": 1,
+     "label": "banner-window"
+    },
+    {
+     "id": "match-loc-c-gate-1",
+     "libId": "",
+     "kitId": "placeholder",
+     "x": 1335,
+     "y": 566,
+     "scale": 0.165,
+     "stretch": 1.6667,
+     "stretchY": 1,
+     "label": "tile-hole"
+    },
+    {
+     "id": "match-loc-c-gate-2",
+     "libId": "",
+     "kitId": "placeholder",
+     "x": 1457,
+     "y": 566,
+     "scale": 0.165,
+     "stretch": 1.6667,
+     "stretchY": 1,
+     "label": "tile-hole"
+    },
+    {
+     "id": "match-loc-c-gate-3",
+     "libId": "",
+     "kitId": "placeholder",
+     "x": 1579,
+     "y": 566,
+     "scale": 0.165,
+     "stretch": 1.6667,
+     "stretchY": 1,
+     "label": "tile-hole"
+    },
+    {
+     "id": "match-loc-c-inside-1",
+     "libId": "",
+     "kitId": "placeholder",
+     "x": 1335,
+     "y": 640,
+     "scale": 0.165,
+     "stretch": 1.6667,
+     "stretchY": 1,
+     "label": "tile-hole"
+    },
+    {
+     "id": "match-loc-c-inside-2",
+     "libId": "",
+     "kitId": "placeholder",
+     "x": 1457,
+     "y": 640,
+     "scale": 0.165,
+     "stretch": 1.6667,
+     "stretchY": 1,
+     "label": "tile-hole"
+    },
+    {
+     "id": "match-loc-c-inside-3",
+     "libId": "",
+     "kitId": "placeholder",
+     "x": 1579,
+     "y": 640,
+     "scale": 0.165,
+     "stretch": 1.6667,
+     "stretchY": 1,
+     "label": "tile-hole"
+    },
+    {
+     "id": "match-loc-c-threat",
+     "libId": "",
+     "kitId": "placeholder",
+     "x": 1735,
+     "y": 603,
+     "scale": 0.165,
+     "stretch": 1.6667,
+     "stretchY": 1,
+     "label": "tile-hole"
+    },
+    {
+     "id": "match-loc-c-rule",
+     "libId": "",
+     "x": 1248.5,
+     "y": 601,
+     "scale": 1,
+     "stamp": {
+      "text": "Characters you relocate out of here arrive Ready.",
+      "size": 28.0,
+      "plain": {
+       "color": "#F6E4CC"
+      },
+      "voice": "list"
+     }
+    },
+    {
+     "id": "match-loc-c-chip-won",
+     "libId": "",
+     "kitId": "chip",
+     "x": 1287.6,
+     "y": 754.6,
+     "scale": 0.38,
+     "label": "Won by A"
+    },
+    {
+     "id": "match-stamp-banished",
+     "libId": "",
+     "kitId": "verdict",
+     "x": 52,
+     "y": 575,
+     "scale": 0.3,
+     "label": "BANISHED"
+    },
+    {
+     "id": "match-stamp-won",
+     "libId": "",
+     "kitId": "verdict",
+     "x": 1460,
+     "y": 480,
+     "scale": 0.5,
+     "label": "WON",
+     "ov": "won"
+    },
+    {
+     "id": "match-hand-hole",
+     "libId": "",
+     "kitId": "placeholder",
+     "x": 40,
+     "y": 826,
+     "scale": 0.595,
+     "stretch": 7.7311,
+     "stretchY": 1,
+     "label": "hand-hole"
+    },
+    {
+     "id": "match-toast",
+     "libId": "",
+     "kitId": "toast",
+     "x": 19.1,
+     "y": 811.5,
+     "scale": 0.55,
+     "label": "Not enough Energy for that card."
+    },
+    {
+     "id": "match-replay-plate",
+     "libId": "",
+     "kitId": "panel",
+     "x": 25.7,
+     "y": 883.4,
+     "scale": 0.34,
+     "stretch": 3,
+     "stretchY": 0.7
+    },
+    {
+     "id": "match-replay-kicker",
+     "libId": "",
+     "kitId": "copy-chwn-chip",
+     "x": 39.1,
+     "y": 896.8,
+     "scale": 0.34,
+     "label": "CLASH"
+    },
+    {
+     "id": "match-replay-line",
+     "libId": "",
+     "x": 91.1,
+     "y": 799.5,
+     "scale": 1,
+     "stamp": {
+      "text": "Harriet Tubman banishes the Paddy Roller to Harpers Ferry",
+      "size": 29.1,
+      "plain": {
+       "color": "#F6E4CC"
+      },
+      "voice": "list"
+     }
+    },
+    {
+     "id": "match-replay-stay",
+     "libId": "",
+     "kitId": "ghost",
+     "x": 564.9,
+     "y": 943.8,
+     "scale": 0.34,
+     "label": "Stay on the board"
+    },
+    {
+     "id": "match-replay-see",
+     "libId": "",
+     "kitId": "secondary",
+     "x": 356.2,
+     "y": 944.6,
+     "scale": 0.28,
+     "label": "See the result"
+    },
+    {
+     "id": "match-sit-down",
+     "libId": "",
+     "kitId": "copy-sitd-small",
+     "x": 23.2,
+     "y": 1000.4,
+     "scale": 0.42,
+     "label": "Sit Down"
+    },
+    {
+     "id": "match-lock-in",
+     "libId": "",
+     "kitId": "secondary",
+     "x": 1637.5,
+     "y": 960,
+     "scale": 0.5,
+     "label": "Lock In"
+    },
+    {
+     "id": "match-locked",
+     "libId": "",
+     "kitId": "copy-lkon-secondary",
+     "x": 1422.4,
+     "y": 971.8,
+     "scale": 0.44,
+     "label": "Locked"
+    }
+   ]
+  },
+  {
+   "id": "sob-sheets",
+   "name": "sheets",
+   "aspect": "169",
+   "bgShow": false,
+   "items": [
+    {
+     "libId": "",
+     "scale": 1,
+     "id": "sheets-sheet-scrim",
+     "kitId": "placeholder",
+     "x": 28,
+     "y": 28,
+     "label": "scrim",
+     "stretch": 0.763,
+     "stretchY": 1.08
+    },
+    {
+     "libId": "",
+     "scale": 0.5,
+     "id": "sheets-sheet-panel",
+     "kitId": "panel",
+     "x": 23,
+     "y": 47.5,
+     "stretch": 0.7,
+     "stretchY": 1.498
+    },
+    {
+     "libId": "",
+     "scale": 0.32,
+     "id": "sheets-sheet-title",
+     "kitId": "header",
+     "x": 41.7,
+     "y": 35.1,
+     "label": "Sheet"
+    },
+    {
+     "libId": "",
+     "scale": 0.3,
+     "id": "sheets-sheet-close",
+     "kitId": "iconbtn",
+     "x": 251.1,
+     "y": 44.5,
+     "ov": "icon:close"
+    },
+    {
+     "libId": "",
+     "scale": 0.65,
+     "id": "sheets-confirm-dialog",
+     "kitId": "dialog",
+     "x": 328.7,
+     "y": 75.2,
+     "label": "Sit Down?"
+    },
+    {
+     "libId": "",
+     "scale": 1,
+     "id": "sheets-confirm-body-1",
+     "x": 349.2,
+     "y": 174,
+     "stamp": {
+      "text": "You give up the match, now.",
+      "size": 35.8,
+      "plain": {
+       "color": "#F6E4CC"
+      },
+      "voice": "list"
+     }
+    },
+    {
+     "libId": "",
+     "scale": 1,
+     "id": "sheets-confirm-body-2",
+     "x": 342.6,
+     "y": 214,
+     "stamp": {
+      "text": "Harborlight takes 12 Legacy.",
+      "size": 35.8,
+      "plain": {
+       "color": "#F6E4CC"
+      },
+      "voice": "list"
+     }
+    },
+    {
+     "libId": "",
+     "scale": 0.65,
+     "id": "sheets-confirm-cost-dialog",
+     "kitId": "copy-cbuy-dialog",
+     "x": 851.7,
+     "y": 75.2
+    },
+    {
+     "libId": "",
+     "scale": 1,
+     "id": "sheets-confirm-cost-line",
+     "x": 939.5,
+     "y": 196,
+     "stamp": {
+      "text": "Costs 12 Legacy",
+      "size": 40.3,
+      "plain": {
+       "color": "#F6E4CC"
+      },
+      "voice": "list"
+     }
+    },
+    {
+     "libId": "",
+     "scale": 0.5,
+     "id": "sheets-threat-panel",
+     "kitId": "panel",
+     "x": 1389,
+     "y": 47.5,
+     "stretch": 1.205,
+     "stretchY": 1.694
+    },
+    {
+     "libId": "",
+     "scale": 0.32,
+     "id": "sheets-threat-title",
+     "kitId": "header",
+     "x": 1407.7,
+     "y": 35.1,
+     "label": "Segregationist Patrol"
+    },
+    {
+     "libId": "",
+     "scale": 0.3,
+     "id": "sheets-threat-close",
+     "kitId": "iconbtn",
+     "x": 1814.1,
+     "y": 44.5,
+     "ov": "icon:close"
+    },
+    {
+     "libId": "",
+     "scale": 1,
+     "id": "sheets-threat-picture",
+     "kitId": "placeholder",
+     "x": 1434,
+     "y": 126,
+     "label": "picture-window",
+     "stretch": 0.6,
+     "stretchY": 0.4
+    },
+    {
+     "libId": "",
+     "scale": 1,
+     "id": "sheets-threat-force",
+     "x": 1623,
+     "y": 84,
+     "stamp": {
+      "text": "Force 3",
+      "size": 50,
+      "plain": {
+       "color": "#F6E4CC"
+      }
+     }
+    },
+    {
+     "libId": "",
+     "scale": 1,
+     "id": "sheets-threat-rule-1",
+     "x": 1355,
+     "y": 194,
+     "stamp": {
+      "text": "One per player. While your Patrol",
+      "size": 33.6,
+      "plain": {
+       "color": "#F6E4CC"
+      },
+      "voice": "list"
+     }
+    },
+    {
+     "libId": "",
+     "scale": 1,
+     "id": "sheets-threat-rule-2",
+     "x": 1355,
+     "y": 226,
+     "stamp": {
+      "text": "is active, your Gate Characters",
+      "size": 33.6,
+      "plain": {
+       "color": "#F6E4CC"
+      },
+      "voice": "list"
+     }
+    },
+    {
+     "libId": "",
+     "scale": 1,
+     "id": "sheets-threat-rule-3",
+     "x": 1355,
+     "y": 258,
+     "stamp": {
+      "text": "here cannot enter. Neutralize",
+      "size": 33.6,
+      "plain": {
+       "color": "#F6E4CC"
+      },
+      "voice": "list"
+     }
+    },
+    {
+     "libId": "",
+     "scale": 1,
+     "id": "sheets-threat-rule-4",
+     "x": 1355,
+     "y": 290,
+     "stamp": {
+      "text": "with 3 Force in one turn.",
+      "size": 33.6,
+      "plain": {
+       "color": "#F6E4CC"
+      },
+      "voice": "list"
+     }
+    },
+    {
+     "libId": "",
+     "scale": 0.5,
+     "id": "sheets-location-panel",
+     "kitId": "panel",
+     "x": -1,
+     "y": 503.5,
+     "stretch": 1.159,
+     "stretchY": 2.128
+    },
+    {
+     "libId": "",
+     "scale": 0.32,
+     "id": "sheets-location-title",
+     "kitId": "header",
+     "x": 17.7,
+     "y": 491.1,
+     "label": "Greenwood District"
+    },
+    {
+     "libId": "",
+     "scale": 0.3,
+     "id": "sheets-location-close",
+     "kitId": "iconbtn",
+     "x": 406.1,
+     "y": 500.5,
+     "ov": "icon:close"
+    },
+    {
+     "libId": "",
+     "scale": 1,
+     "id": "sheets-location-era",
+     "x": -35,
+     "y": 474,
+     "stamp": {
+      "text": "Tulsa, 1921",
+      "size": 34,
+      "plain": {
+       "color": "#F6E4CC"
+      }
+     }
+    },
+    {
+     "libId": "",
+     "scale": 1,
+     "id": "sheets-location-banner",
+     "kitId": "placeholder",
+     "x": 44,
+     "y": 618,
+     "label": "banner-window",
+     "stretch": 1.01,
+     "stretchY": 0.337
+    },
+    {
+     "libId": "",
+     "scale": 1,
+     "id": "sheets-location-rule-1",
+     "x": -35,
+     "y": 660.7,
+     "stamp": {
+      "text": "Established Characters here",
+      "size": 33.6,
+      "plain": {
+       "color": "#F6E4CC"
+      },
+      "voice": "list"
+     }
+    },
+    {
+     "libId": "",
+     "scale": 1,
+     "id": "sheets-location-rule-2",
+     "x": -35,
+     "y": 692.7,
+     "stamp": {
+      "text": "gain +1 Influence.",
+      "size": 33.6,
+      "plain": {
+       "color": "#F6E4CC"
+      },
+      "voice": "list"
+     }
+    },
+    {
+     "libId": "",
+     "scale": 1,
+     "id": "sheets-location-rule-3",
+     "x": -35,
+     "y": 724.7,
+     "stamp": {
+      "text": "On Turn 4 a Mob arrives.",
+      "size": 33.6,
+      "plain": {
+       "color": "#F6E4CC"
+      },
+      "voice": "list"
+     }
+    },
+    {
+     "libId": "",
+     "scale": 0.45,
+     "id": "sheets-location-chip-warn",
+     "kitId": "copy-chwn-chip",
+     "x": 26,
+     "y": 871.6,
+     "label": "Curfew at night"
+    },
+    {
+     "libId": "",
+     "scale": 0.45,
+     "id": "sheets-location-chip-good",
+     "kitId": "copy-chgd-chip",
+     "x": 26,
+     "y": 928.6,
+     "label": "Threats never appear here"
+    },
+    {
+     "libId": "",
+     "scale": 0.5,
+     "id": "sheets-profile-panel",
+     "kitId": "panel",
+     "x": 471,
+     "y": 503.5,
+     "stretch": 0.944,
+     "stretchY": 1.745
+    },
+    {
+     "libId": "",
+     "scale": 0.32,
+     "id": "sheets-profile-title",
+     "kitId": "header",
+     "x": 489.7,
+     "y": 491.1,
+     "label": "Harborlight"
+    },
+    {
+     "libId": "",
+     "scale": 0.3,
+     "id": "sheets-profile-close",
+     "kitId": "iconbtn",
+     "x": 794.1,
+     "y": 500.5,
+     "ov": "icon:close"
+    },
+    {
+     "libId": "",
+     "scale": 0.7,
+     "id": "sheets-profile-avatar",
+     "kitId": "copy-avtb-avatarframe",
+     "x": 574.5,
+     "y": 561,
+     "v": 0.02
+    },
+    {
+     "libId": "",
+     "scale": 1,
+     "id": "sheets-profile-portrait",
+     "kitId": "placeholder",
+     "x": 628,
+     "y": 608.9,
+     "label": "portrait-window",
+     "stretch": 0.24,
+     "stretchY": 0.24
+    },
+    {
+     "libId": "",
+     "scale": 1,
+     "id": "sheets-profile-legend",
+     "x": 444.1,
+     "y": 677.8,
+     "stamp": {
+      "text": "Legend 2",
+      "size": 40,
+      "plain": {
+       "color": "#F6E4CC"
+      }
+     }
+    },
+    {
+     "libId": "",
+     "scale": 1,
+     "id": "sheets-profile-deck",
+     "x": 604.8,
+     "y": 678.8,
+     "stamp": {
+      "text": "12 in deck",
+      "size": 34,
+      "plain": {
+       "color": "#F6E4CC"
+      }
+     }
+    },
+    {
+     "libId": "",
+     "scale": 1,
+     "id": "sheets-profile-card-1",
+     "kitId": "placeholder",
+     "x": 520,
+     "y": 829.8,
+     "label": "card-hole",
+     "stretch": 0.14,
+     "stretchY": 0.18
+    },
+    {
+     "libId": "",
+     "scale": 1,
+     "id": "sheets-profile-card-2",
+     "kitId": "placeholder",
+     "x": 584,
+     "y": 829.8,
+     "label": "card-hole",
+     "stretch": 0.14,
+     "stretchY": 0.18
+    },
+    {
+     "libId": "",
+     "scale": 1,
+     "id": "sheets-profile-card-3",
+     "kitId": "placeholder",
+     "x": 648,
+     "y": 829.8,
+     "label": "card-hole",
+     "stretch": 0.14,
+     "stretchY": 0.18
+    },
+    {
+     "libId": "",
+     "scale": 1,
+     "id": "sheets-profile-card-4",
+     "kitId": "placeholder",
+     "x": 712,
+     "y": 829.8,
+     "label": "card-hole",
+     "stretch": 0.14,
+     "stretchY": 0.18
+    },
+    {
+     "libId": "",
+     "scale": 1,
+     "id": "sheets-profile-card-5",
+     "kitId": "placeholder",
+     "x": 776,
+     "y": 829.8,
+     "label": "card-hole",
+     "stretch": 0.14,
+     "stretchY": 0.18
+    },
+    {
+     "libId": "",
+     "scale": 0.5,
+     "id": "sheets-log-panel",
+     "kitId": "panel",
+     "x": 859,
+     "y": 503.5,
+     "stretch": 1.282,
+     "stretchY": 2.221
+    },
+    {
+     "libId": "",
+     "scale": 0.32,
+     "id": "sheets-log-title",
+     "kitId": "header",
+     "x": 877.7,
+     "y": 491.1,
+     "label": "Turn 3"
+    },
+    {
+     "libId": "",
+     "scale": 0.3,
+     "id": "sheets-log-close",
+     "kitId": "iconbtn",
+     "x": 1314.1,
+     "y": 500.5,
+     "ov": "icon:close"
+    },
+    {
+     "libId": "",
+     "scale": 0.53,
+     "id": "sheets-log-row-1",
+     "kitId": "datarow",
+     "x": 883.3,
+     "y": 566.1,
+     "label": "Harpers Ferry is revealed",
+     "v": 1
+    },
+    {
+     "libId": "",
+     "scale": 0.53,
+     "id": "sheets-log-row-2",
+     "kitId": "datarow",
+     "x": 883.3,
+     "y": 655.1,
+     "label": "Harborlight plays Anansi",
+     "v": 1
+    },
+    {
+     "libId": "",
+     "scale": 0.53,
+     "id": "sheets-log-row-3",
+     "kitId": "datarow",
+     "x": 883.3,
+     "y": 744.1,
+     "label": "Harriet Tubman is Ready",
+     "v": 1
+    },
+    {
+     "libId": "",
+     "scale": 0.53,
+     "id": "sheets-log-row-4",
+     "kitId": "datarow",
+     "x": 883.3,
+     "y": 833.1,
+     "label": "Paddy Roller is neutralized",
+     "v": 1
+    },
+    {
+     "libId": "",
+     "scale": 0.53,
+     "id": "sheets-log-row-5",
+     "kitId": "datarow",
+     "x": 883.3,
+     "y": 922.1,
+     "label": "Setback for Harborlight",
+     "v": 1
+    },
+    {
+     "libId": "",
+     "scale": 0.53,
+     "id": "sheets-log-scrollbar",
+     "kitId": "scrollbar",
+     "x": 1296.5,
+     "y": 566.1,
+     "stretchY": 1.788,
+     "v": 0.1
+    },
+    {
+     "libId": "",
+     "scale": 0.5,
+     "id": "sheets-chat-panel",
+     "kitId": "panel",
+     "x": 1379,
+     "y": 503.5,
+     "stretch": 1.282,
+     "stretchY": 1.83
+    },
+    {
+     "libId": "",
+     "scale": 0.32,
+     "id": "sheets-chat-title",
+     "kitId": "header",
+     "x": 1397.7,
+     "y": 491.1,
+     "label": "Chat"
+    },
+    {
+     "libId": "",
+     "scale": 0.3,
+     "id": "sheets-chat-close",
+     "kitId": "iconbtn",
+     "x": 1834.1,
+     "y": 500.5,
+     "ov": "icon:close"
+    },
+    {
+     "libId": "",
+     "scale": 0.3,
+     "id": "sheets-chat-emote-1",
+     "kitId": "iconbtn",
+     "x": 1414.1,
+     "y": 573.9,
+     "ov": "icon:heart"
+    },
+    {
+     "libId": "",
+     "scale": 0.3,
+     "id": "sheets-chat-emote-2",
+     "kitId": "iconbtn",
+     "x": 1474.1,
+     "y": 573.9,
+     "ov": "icon:hand"
+    },
+    {
+     "libId": "",
+     "scale": 0.3,
+     "id": "sheets-chat-emote-3",
+     "kitId": "iconbtn",
+     "x": 1534.1,
+     "y": 573.9,
+     "ov": "icon:zap"
+    },
+    {
+     "libId": "",
+     "scale": 0.3,
+     "id": "sheets-chat-emote-4",
+     "kitId": "iconbtn",
+     "x": 1414.1,
+     "y": 633.9,
+     "ov": "icon:skull"
+    },
+    {
+     "libId": "",
+     "scale": 0.3,
+     "id": "sheets-chat-emote-5",
+     "kitId": "iconbtn",
+     "x": 1474.1,
+     "y": 633.9,
+     "ov": "icon:star"
+    },
+    {
+     "libId": "",
+     "scale": 0.3,
+     "id": "sheets-chat-emote-6",
+     "kitId": "iconbtn",
+     "x": 1534.1,
+     "y": 633.9,
+     "ov": "icon:trophy"
+    },
+    {
+     "libId": "",
+     "scale": 1,
+     "id": "sheets-chat-summon",
+     "x": 1533,
+     "y": 474,
+     "stamp": {
+      "text": "Summon",
+      "size": 40,
+      "plain": {
+       "color": "#F6E4CC"
+      }
+     }
+    },
+    {
+     "libId": "",
+     "scale": 0.27,
+     "id": "sheets-chat-summon-1",
+     "kitId": "secondary",
+     "x": 1601.2,
+     "y": 607.9,
+     "label": "Greenwood District"
+    },
+    {
+     "libId": "",
+     "scale": 0.27,
+     "id": "sheets-chat-summon-2",
+     "kitId": "secondary",
+     "x": 1601.2,
+     "y": 659,
+     "label": "Harpers Ferry"
+    },
+    {
+     "libId": "",
+     "scale": 0.27,
+     "id": "sheets-chat-summon-3",
+     "kitId": "secondary",
+     "x": 1601.2,
+     "y": 710.1,
+     "label": "The Black Star"
+    },
+    {
+     "libId": "",
+     "scale": 0.42,
+     "id": "sheets-chat-bubble-1",
+     "kitId": "chatbubble",
+     "x": 1407.2,
+     "y": 767.1,
+     "label": "I have people in Detroit"
+    },
+    {
+     "libId": "",
+     "scale": 0.42,
+     "id": "sheets-chat-bubble-2",
+     "kitId": "chatbubble",
+     "x": 1639.3,
+     "y": 767.1,
+     "label": "Well played"
+    },
+    {
+     "libId": "",
+     "scale": 0.42,
+     "id": "sheets-chat-bubble-3",
+     "kitId": "chatbubble",
+     "x": 1639.3,
+     "y": 844,
+     "label": "Good game"
+    }
+   ]
+  },
+  {
+   "id": "sob-result",
+   "name": "result",
+   "aspect": "169",
+   "items": [
+    {
+     "id": "result-verdict",
+     "libId": "",
+     "kitId": "ribbonbanner",
+     "x": 522,
+     "y": 25,
+     "scale": 1,
+     "label": "You won"
+    },
+    {
+     "id": "result-legacy",
+     "libId": "",
+     "x": 677,
+     "y": 240,
+     "scale": 1,
+     "stamp": {
+      "text": "Legacy 8",
+      "size": 100
+     }
+    },
+    {
+     "id": "result-verdict-lose",
+     "libId": "",
+     "kitId": "ribbonbanner",
+     "x": 1377,
+     "y": 45,
+     "scale": 0.6,
+     "label": "Harborlight won"
+    },
+    {
+     "id": "result-verdict-draw",
+     "libId": "",
+     "kitId": "ribbonbanner",
+     "x": 1377,
+     "y": 197,
+     "scale": 0.6,
+     "label": "A draw"
+    },
+    {
+     "id": "result-loc-a-panel",
+     "libId": "",
+     "kitId": "panel",
+     "x": 37,
+     "y": 455,
+     "scale": 0.528,
+     "stretchY": 1.224
+    },
+    {
+     "id": "result-loc-a-header",
+     "libId": "",
+     "kitId": "header",
+     "x": 41,
+     "y": 432,
+     "scale": 0.358,
+     "label": "Greenwood District"
+    },
+    {
+     "id": "result-loc-a-score",
+     "libId": "",
+     "x": 16,
+     "y": 495,
+     "scale": 1,
+     "stamp": {
+      "text": "A 5 · B 3",
+      "size": 100,
+      "plain": {
+       "color": "#F6E4CC"
+      }
+     }
+    },
+    {
+     "id": "result-loc-a-mark",
+     "libId": "",
+     "kitId": "chip",
+     "x": 123,
+     "y": 664,
+     "scale": 0.6,
+     "label": "Won by A"
+    },
+    {
+     "id": "result-loc-b-panel",
+     "libId": "",
+     "kitId": "panel",
+     "x": 492,
+     "y": 455,
+     "scale": 0.528,
+     "stretchY": 1.224
+    },
+    {
+     "id": "result-loc-b-header",
+     "libId": "",
+     "kitId": "header",
+     "x": 496,
+     "y": 432,
+     "scale": 0.358,
+     "label": "Harpers Ferry"
+    },
+    {
+     "id": "result-loc-b-score",
+     "libId": "",
+     "x": 471,
+     "y": 495,
+     "scale": 1,
+     "stamp": {
+      "text": "A 2 · B 6",
+      "size": 100,
+      "plain": {
+       "color": "#F6E4CC"
+      }
+     }
+    },
+    {
+     "id": "result-loc-b-mark",
+     "libId": "",
+     "kitId": "chip",
+     "x": 578,
+     "y": 664,
+     "scale": 0.6,
+     "label": "Won by B"
+    },
+    {
+     "id": "result-loc-c-panel",
+     "libId": "",
+     "kitId": "panel",
+     "x": 947,
+     "y": 455,
+     "scale": 0.528,
+     "stretchY": 1.224
+    },
+    {
+     "id": "result-loc-c-header",
+     "libId": "",
+     "kitId": "header",
+     "x": 951,
+     "y": 432,
+     "scale": 0.358,
+     "label": "The Black Star"
+    },
+    {
+     "id": "result-loc-c-score",
+     "libId": "",
+     "x": 926,
+     "y": 495,
+     "scale": 1,
+     "stamp": {
+      "text": "A 4 · B 4",
+      "size": 100,
+      "plain": {
+       "color": "#F6E4CC"
+      }
+     }
+    },
+    {
+     "id": "result-loc-c-mark",
+     "libId": "",
+     "kitId": "chip",
+     "x": 1033,
+     "y": 664,
+     "scale": 0.6,
+     "label": "Tied"
+    },
+    {
+     "id": "result-ledger-won",
+     "libId": "",
+     "kitId": "datarow",
+     "x": 1398,
+     "y": 422,
+     "scale": 0.6,
+     "label": "+8 Legacy · match won",
+     "v": 1,
+     "ov": "check"
+    },
+    {
+     "id": "result-ledger-threat",
+     "libId": "",
+     "kitId": "datarow",
+     "x": 1398,
+     "y": 539,
+     "scale": 0.6,
+     "label": "+1 · Threat cleared",
+     "v": 1,
+     "ov": "check"
+    },
+    {
+     "id": "result-ledger-balance",
+     "libId": "",
+     "kitId": "datarow",
+     "x": 1398,
+     "y": 656,
+     "scale": 0.6,
+     "label": "Balance 20",
+     "v": 1
+    },
+    {
+     "id": "result-cta-again",
+     "libId": "",
+     "kitId": "primary",
+     "x": 530,
+     "y": 823,
+     "scale": 0.55,
+     "label": "Play again"
+    },
+    {
+     "id": "result-cta-rematch",
+     "libId": "",
+     "kitId": "secondary",
+     "x": 892,
+     "y": 839,
+     "scale": 0.5,
+     "label": "Rematch"
+    },
+    {
+     "id": "result-cta-menu",
+     "libId": "",
+     "kitId": "ghost",
+     "x": 1187,
+     "y": 843,
+     "scale": 0.55,
+     "label": "Menu"
+    }
+   ],
+   "bgShow": false
+  },
+  {
+   "id": "sob-compendium",
+   "name": "compendium",
+   "aspect": "169",
+   "bgShow": false,
+   "items": [
+    {
+     "id": "compendium-filter-all",
+     "libId": "",
+     "kitId": "tab",
+     "x": 19.7,
+     "y": 0.4,
+     "scale": 0.52,
+     "label": "All"
+    },
+    {
+     "id": "compendium-filter-historical",
+     "libId": "",
+     "kitId": "tab",
+     "x": 134.7,
+     "y": 0.4,
+     "scale": 0.52,
+     "label": "Historical",
+     "opacity": 60
+    },
+    {
+     "id": "compendium-filter-mythic",
+     "libId": "",
+     "kitId": "tab",
+     "x": 366.6,
+     "y": 0.4,
+     "scale": 0.52,
+     "label": "Mythic",
+     "opacity": 60
+    },
+    {
+     "id": "compendium-filter-artists",
+     "libId": "",
+     "kitId": "tab",
+     "x": 541.4,
+     "y": 0.4,
+     "scale": 0.52,
+     "label": "Artists",
+     "opacity": 60
+    },
+    {
+     "id": "compendium-filter-events",
+     "libId": "",
+     "kitId": "tab",
+     "x": 716.2,
+     "y": 0.4,
+     "scale": 0.52,
+     "label": "Events",
+     "opacity": 60
+    },
+    {
+     "id": "compendium-card-hole-1",
+     "libId": "",
+     "kitId": "placeholder",
+     "x": 86,
+     "y": 96,
+     "scale": 1,
+     "label": "card-hole",
+     "stretch": 0.29,
+     "stretchY": 0.375
+    },
+    {
+     "id": "compendium-card-hole-2",
+     "libId": "",
+     "kitId": "placeholder",
+     "x": 222,
+     "y": 96,
+     "scale": 1,
+     "label": "card-hole",
+     "stretch": 0.29,
+     "stretchY": 0.375
+    },
+    {
+     "id": "compendium-card-hole-3",
+     "libId": "",
+     "kitId": "placeholder",
+     "x": 358,
+     "y": 96,
+     "scale": 1,
+     "label": "card-hole",
+     "stretch": 0.29,
+     "stretchY": 0.375
+    },
+    {
+     "id": "compendium-card-hole-4",
+     "libId": "",
+     "kitId": "placeholder",
+     "x": 494,
+     "y": 96,
+     "scale": 1,
+     "label": "card-hole",
+     "stretch": 0.29,
+     "stretchY": 0.375
+    },
+    {
+     "id": "compendium-card-hole-5",
+     "libId": "",
+     "kitId": "placeholder",
+     "x": 630,
+     "y": 96,
+     "scale": 1,
+     "label": "card-hole",
+     "stretch": 0.29,
+     "stretchY": 0.375
+    },
+    {
+     "id": "compendium-card-hole-6",
+     "libId": "",
+     "kitId": "placeholder",
+     "x": 766,
+     "y": 96,
+     "scale": 1,
+     "label": "card-hole",
+     "stretch": 0.29,
+     "stretchY": 0.375
+    },
+    {
+     "id": "compendium-card-hole-7",
+     "libId": "",
+     "kitId": "placeholder",
+     "x": 902,
+     "y": 96,
+     "scale": 1,
+     "label": "card-hole",
+     "stretch": 0.29,
+     "stretchY": 0.375
+    },
+    {
+     "id": "compendium-card-hole-8",
+     "libId": "",
+     "kitId": "placeholder",
+     "x": 1038,
+     "y": 96,
+     "scale": 1,
+     "label": "card-hole",
+     "stretch": 0.29,
+     "stretchY": 0.375
+    },
+    {
+     "id": "compendium-kicker",
+     "libId": "",
+     "x": 30,
+     "y": 155,
+     "scale": 1,
+     "stamp": {
+      "text": "Plate III",
+      "size": 28,
+      "plain": {
+       "color": "#F6E4CC"
+      }
+     }
+    },
+    {
+     "id": "compendium-chapter-head",
+     "libId": "",
+     "kitId": "header",
+     "x": 15,
+     "y": 281.7,
+     "scale": 0.48,
+     "label": "Locations"
+    },
+    {
+     "id": "compendium-segment-15",
+     "libId": "",
+     "kitId": "segment",
+     "x": 917,
+     "y": 308,
+     "scale": 0.3916,
+     "label": "Day | Night",
+     "v": 0.0,
+     "_fit": {
+      "targetBox": [
+       933,
+       319,
+       268,
+       51
+      ]
+     }
+    },
+    {
+     "id": "compendium-loc-greenwood",
+     "libId": "",
+     "kitId": "panel",
+     "x": 19,
+     "y": 433.5,
+     "scale": 0.5,
+     "stretch": 1.4359,
+     "stretchY": 1.1915
+    },
+    {
+     "id": "compendium-loc-greenwood-head",
+     "libId": "",
+     "kitId": "header",
+     "x": 94.6,
+     "y": 403.8,
+     "scale": 0.36,
+     "label": "Greenwood District"
+    },
+    {
+     "id": "compendium-loc-greenwood-banner",
+     "libId": "",
+     "kitId": "placeholder",
+     "x": 80,
+     "y": 500,
+     "scale": 1,
+     "label": "banner-window",
+     "stretch": 1.2,
+     "stretchY": 0.4
+    },
+    {
+     "id": "compendium-loc-greenwood-era",
+     "libId": "",
+     "x": 175.4,
+     "y": 571,
+     "scale": 1,
+     "stamp": {
+      "text": "Tulsa, 1921",
+      "size": 28,
+      "plain": {
+       "color": "#F6E4CC"
+      }
+     }
+    },
+    {
+     "id": "compendium-loc-harpers-ferry",
+     "libId": "",
+     "kitId": "panel",
+     "x": 619,
+     "y": 433.5,
+     "scale": 0.5,
+     "stretch": 1.4359,
+     "stretchY": 1.1915
+    },
+    {
+     "id": "compendium-loc-harpers-ferry-head",
+     "libId": "",
+     "kitId": "header",
+     "x": 743.8,
+     "y": 403.8,
+     "scale": 0.36,
+     "label": "Harpers Ferry"
+    },
+    {
+     "id": "compendium-loc-harpers-ferry-banner",
+     "libId": "",
+     "kitId": "placeholder",
+     "x": 680,
+     "y": 500,
+     "scale": 1,
+     "label": "banner-window",
+     "stretch": 1.2,
+     "stretchY": 0.4
+    },
+    {
+     "id": "compendium-loc-harpers-ferry-era",
+     "libId": "",
+     "x": 758.1,
+     "y": 571,
+     "scale": 1,
+     "stamp": {
+      "text": "Virginia, 1859",
+      "size": 31.4,
+      "plain": {
+       "color": "#F6E4CC"
+      },
+      "voice": "list"
+     }
+    },
+    {
+     "id": "compendium-plate",
+     "libId": "",
+     "kitId": "panel",
+     "x": 19,
+     "y": 768.5,
+     "scale": 0.5,
+     "stretch": 3,
+     "stretchY": 0.7021
+    },
+    {
+     "id": "compendium-plate-title",
+     "libId": "",
+     "x": 7,
+     "y": 704,
+     "scale": 1,
+     "stamp": {
+      "text": "Legacy",
+      "size": 44
+     }
+    },
+    {
+     "id": "compendium-plate-line-1",
+     "libId": "",
+     "x": 7,
+     "y": 751,
+     "scale": 1,
+     "stamp": {
+      "text": "Legacy is the stake, and the Stand on Business button",
+      "size": 33.6,
+      "plain": {
+       "color": "#F6E4CC"
+      },
+      "voice": "list"
+     }
+    },
+    {
+     "id": "compendium-plate-line-2",
+     "libId": "",
+     "x": 7,
+     "y": 789,
+     "scale": 1,
+     "stamp": {
+      "text": "multiplies it (an early Stand pays and costs more).",
+      "size": 33.6,
+      "plain": {
+       "color": "#F6E4CC"
+      },
+      "voice": "list"
+     }
+    },
+    {
+     "id": "compendium-link-refs",
+     "libId": "",
+     "kitId": "ghost",
+     "x": 908.5,
+     "y": 819,
+     "scale": 0.5,
+     "label": "References"
+    },
+    {
+     "id": "compendium-refs-modal",
+     "libId": "",
+     "kitId": "panel",
+     "x": 1199,
+     "y": 33.5,
+     "scale": 0.5,
+     "stretch": 1.6923,
+     "stretchY": 1.7532
+    },
+    {
+     "id": "compendium-refs-head",
+     "libId": "",
+     "kitId": "header",
+     "x": 1396.8,
+     "y": 3.8,
+     "scale": 0.36,
+     "label": "References"
+    },
+    {
+     "id": "compendium-refs-close",
+     "libId": "",
+     "kitId": "iconbtn",
+     "x": 1777.1,
+     "y": 54.1,
+     "scale": 0.44,
+     "ov": "icon:close"
+    },
+    {
+     "id": "compendium-ref-1",
+     "libId": "",
+     "kitId": "datarow",
+     "x": 1291.1,
+     "y": 121.4,
+     "scale": 0.62,
+     "label": "Jim Crow laws, Wikipedia",
+     "v": 1
+    },
+    {
+     "id": "compendium-ref-2",
+     "libId": "",
+     "kitId": "datarow",
+     "x": 1291.1,
+     "y": 225.7,
+     "scale": 0.62,
+     "label": "Plessy v. Ferguson, Wikipedia",
+     "v": 1
+    },
+    {
+     "id": "compendium-ref-3",
+     "libId": "",
+     "kitId": "datarow",
+     "x": 1291.1,
+     "y": 330.1,
+     "scale": 0.62,
+     "label": "Voting Rights Act of 1965, Wikipedia",
+     "v": 1
+    },
+    {
+     "id": "compendium-ladder",
+     "libId": "",
+     "kitId": "panel",
+     "x": 1199,
+     "y": 483.5,
+     "scale": 0.5,
+     "stretch": 1.6923,
+     "stretchY": 1.5745
+    },
+    {
+     "id": "compendium-rung-diamond",
+     "libId": "",
+     "kitId": "chip",
+     "x": 1439,
+     "y": 503.6,
+     "scale": 0.48,
+     "label": "Diamond 30",
+     "opacity": 60
+    },
+    {
+     "id": "compendium-rung-ruby",
+     "libId": "",
+     "kitId": "chip",
+     "x": 1465.1,
+     "y": 561,
+     "scale": 0.48,
+     "label": "Ruby 20",
+     "opacity": 60
+    },
+    {
+     "id": "compendium-rung-emerald",
+     "libId": "",
+     "kitId": "chip",
+     "x": 1444.5,
+     "y": 618.4,
+     "scale": 0.48,
+     "label": "Emerald 14",
+     "opacity": 60
+    },
+    {
+     "id": "compendium-rung-silver",
+     "libId": "",
+     "kitId": "chip",
+     "x": 1463.9,
+     "y": 675.8,
+     "scale": 0.48,
+     "label": "Silver 8",
+     "opacity": 60
+    },
+    {
+     "id": "compendium-rung-bronze",
+     "libId": "",
+     "kitId": "chip",
+     "x": 1456.5,
+     "y": 733.2,
+     "scale": 0.48,
+     "label": "Bronze 3"
+    },
+    {
+     "id": "compendium-rung-current",
+     "libId": "",
+     "kitId": "copy-lgsp-badge",
+     "x": 1386.4,
+     "y": 732.7,
+     "scale": 0.42,
+     "label": ""
+    },
+    {
+     "id": "compendium-rung-wood",
+     "libId": "",
+     "kitId": "chip",
+     "x": 1475.4,
+     "y": 790.6,
+     "scale": 0.48,
+     "label": "Wood",
+     "opacity": 60
+    },
+    {
+     "id": "compendium-promote",
+     "libId": "",
+     "kitId": "secondary",
+     "x": 1208.8,
+     "y": 872.8,
+     "scale": 0.44,
+     "label": "Promote to Silver · 8 Legacy"
+    },
+    {
+     "id": "compendium-promote-reason",
+     "libId": "",
+     "kitId": "chip",
+     "x": 1654,
+     "y": 886.2,
+     "scale": 0.44,
+     "label": "You have 3"
+    }
+   ]
+  },
+  {
+   "id": "sob-rules",
+   "name": "rules",
+   "aspect": "169",
+   "bgShow": false,
+   "items": [
+    {
+     "libId": "",
+     "scale": 0.7,
+     "id": "rules-back",
+     "kitId": "tabback",
+     "x": 200,
+     "y": 47,
+     "label": "Back"
+    },
+    {
+     "libId": "",
+     "scale": 1,
+     "id": "rules-title",
+     "x": 697,
+     "y": 8,
+     "stamp": {
+      "text": "Rules",
+      "size": 150
+     }
+    },
+    {
+     "libId": "",
+     "scale": 0.656,
+     "id": "rules-plate-1",
+     "kitId": "panel",
+     "x": 204,
+     "y": 161,
+     "stretch": 2.85,
+     "stretchY": 0.733
+    },
+    {
+     "libId": "",
+     "scale": 0.48,
+     "id": "rules-head-1",
+     "kitId": "header",
+     "x": 220,
+     "y": 181,
+     "label": "Locations"
+    },
+    {
+     "libId": "",
+     "scale": 1,
+     "id": "rules-line-1-1",
+     "x": 238,
+     "y": 227,
+     "stamp": {
+      "text": "Two players, three Locations across the middle of the board, eight turns.",
+      "size": 47.0,
+      "plain": {
+       "color": "#F6E4CC"
+      },
+      "voice": "list"
+     }
+    },
+    {
+     "libId": "",
+     "scale": 1,
+     "id": "rules-line-1-2",
+     "x": 238,
+     "y": 273,
+     "stamp": {
+      "text": "Influence per Location decides who wins it.",
+      "size": 47.0,
+      "plain": {
+       "color": "#F6E4CC"
+      },
+      "voice": "list"
+     }
+    },
+    {
+     "libId": "",
+     "scale": 0.656,
+     "id": "rules-plate-2",
+     "kitId": "panel",
+     "x": 204,
+     "y": 418,
+     "stretch": 2.85,
+     "stretchY": 0.882
+    },
+    {
+     "libId": "",
+     "scale": 0.48,
+     "id": "rules-head-2",
+     "kitId": "header",
+     "x": 220,
+     "y": 438,
+     "label": "How a turn works"
+    },
+    {
+     "libId": "",
+     "scale": 1,
+     "id": "rules-line-2-1",
+     "x": 238,
+     "y": 484,
+     "stamp": {
+      "text": "Each turn both players plan in secret (cards from the hand go to a",
+      "size": 47.0,
+      "plain": {
+       "color": "#F6E4CC"
+      },
+      "voice": "list"
+     }
+    },
+    {
+     "libId": "",
+     "scale": 1,
+     "id": "rules-line-2-2",
+     "x": 238,
+     "y": 530,
+     "stamp": {
+      "text": "Location's Gates, Characters at the Gates walk Inside, some confront",
+      "size": 47.0,
+      "plain": {
+       "color": "#F6E4CC"
+      },
+      "voice": "list"
+     }
+    },
+    {
+     "libId": "",
+     "scale": 1,
+     "id": "rules-line-2-3",
+     "x": 238,
+     "y": 576,
+     "stamp": {
+      "text": "Threats), then both Lock In and the turn plays out as a replay.",
+      "size": 47.0,
+      "plain": {
+       "color": "#F6E4CC"
+      },
+      "voice": "list"
+     }
+    },
+    {
+     "libId": "",
+     "scale": 0.656,
+     "id": "rules-plate-3",
+     "kitId": "panel",
+     "x": 204,
+     "y": 721,
+     "stretch": 2.85,
+     "stretchY": 0.733
+    },
+    {
+     "libId": "",
+     "scale": 0.48,
+     "id": "rules-head-3",
+     "kitId": "header",
+     "x": 220,
+     "y": 741,
+     "label": "Stand on Business"
+    },
+    {
+     "libId": "",
+     "scale": 1,
+     "id": "rules-line-3-1",
+     "x": 238,
+     "y": 787,
+     "stamp": {
+      "text": "Legacy is the stake, and the Stand on Business button multiplies it",
+      "size": 47.0,
+      "plain": {
+       "color": "#F6E4CC"
+      },
+      "voice": "list"
+     }
+    },
+    {
+     "libId": "",
+     "scale": 1,
+     "id": "rules-line-3-2",
+     "x": 238,
+     "y": 833,
+     "stamp": {
+      "text": "(an early Stand pays and costs more). Sit Down retreats.",
+      "size": 47.0,
+      "plain": {
+       "color": "#F6E4CC"
+      },
+      "voice": "list"
+     }
+    },
+    {
+     "libId": "",
+     "scale": 0.65,
+     "id": "rules-scroll",
+     "kitId": "scrollbar",
+     "x": 1684,
+     "y": 171,
+     "stretchY": 2.639,
+     "v": 0.03
+    }
+   ]
+  },
+  {
+   "id": "sob-settings",
+   "name": "settings",
+   "aspect": "169",
+   "bgShow": false,
+   "items": [
+    {
+     "libId": "",
+     "kitId": "panel",
+     "x": 480.6,
+     "y": 1.2,
+     "scale": 0.7,
+     "id": "settings-sheet",
+     "stretch": 1.648,
+     "stretchY": 2.985
+    },
+    {
+     "libId": "",
+     "kitId": "header",
+     "x": 775.1,
+     "y": 19,
+     "scale": 0.5,
+     "id": "settings-title",
+     "label": "Settings"
+    },
+    {
+     "libId": "",
+     "kitId": "iconbtn",
+     "x": 1298.7,
+     "y": 41.2,
+     "scale": 0.45,
+     "id": "settings-close",
+     "ov": "icon:close"
+    },
+    {
+     "libId": "",
+     "id": "settings-music-word",
+     "x": 547.3,
+     "y": 73.5,
+     "scale": 1,
+     "stamp": {
+      "text": "Music",
+      "size": 50,
+      "plain": {
+       "color": "#F6E4CC"
+      }
+     }
+    },
+    {
+     "libId": "",
+     "kitId": "toggle",
+     "x": 1186.3,
+     "y": 138.3,
+     "scale": 0.48,
+     "id": "settings-music-toggle",
+     "v": 1
+    },
+    {
+     "libId": "",
+     "id": "settings-sfx-word",
+     "x": 547.3,
+     "y": 147.5,
+     "scale": 1,
+     "stamp": {
+      "text": "Sound effects",
+      "size": 50,
+      "plain": {
+       "color": "#F6E4CC"
+      }
+     }
+    },
+    {
+     "libId": "",
+     "kitId": "toggle",
+     "x": 1186.3,
+     "y": 212.3,
+     "scale": 0.48,
+     "id": "settings-sfx-toggle",
+     "v": 1
+    },
+    {
+     "libId": "",
+     "id": "settings-motion-word",
+     "x": 547.3,
+     "y": 221.5,
+     "scale": 1,
+     "stamp": {
+      "text": "Reduce motion",
+      "size": 50,
+      "plain": {
+       "color": "#F6E4CC"
+      }
+     }
+    },
+    {
+     "libId": "",
+     "kitId": "toggle",
+     "x": 1186.3,
+     "y": 286.3,
+     "scale": 0.48,
+     "id": "settings-motion-toggle",
+     "v": 0
+    },
+    {
+     "libId": "",
+     "kitId": "setrow",
+     "x": 552.1,
+     "y": 341.8,
+     "scale": 0.95,
+     "id": "settings-music-volume",
+     "label": "Music volume",
+     "v": 0.7
+    },
+    {
+     "libId": "",
+     "kitId": "setrow",
+     "x": 552.1,
+     "y": 473.8,
+     "scale": 0.95,
+     "id": "settings-effects-volume",
+     "label": "Effects volume",
+     "v": 0.85
+    },
+    {
+     "libId": "",
+     "id": "settings-textsize-word",
+     "x": 547.3,
+     "y": 563.5,
+     "scale": 1,
+     "stamp": {
+      "text": "Text size",
+      "size": 50,
+      "plain": {
+       "color": "#F6E4CC"
+      }
+     }
+    },
+    {
+     "libId": "",
+     "kitId": "radio",
+     "x": 615.8,
+     "y": 684,
+     "scale": 0.38,
+     "id": "settings-textsize-small-radio",
+     "v": 0
+    },
+    {
+     "libId": "",
+     "id": "settings-textsize-small-word",
+     "x": 614.1,
+     "y": 611.5,
+     "scale": 1,
+     "stamp": {
+      "text": "Small",
+      "size": 38,
+      "plain": {
+       "color": "#F6E4CC"
+      }
+     }
+    },
+    {
+     "libId": "",
+     "kitId": "radio",
+     "x": 798.5,
+     "y": 684,
+     "scale": 0.38,
+     "id": "settings-textsize-normal-radio",
+     "v": 1
+    },
+    {
+     "libId": "",
+     "id": "settings-textsize-normal-word",
+     "x": 796.8,
+     "y": 611.5,
+     "scale": 1,
+     "stamp": {
+      "text": "Normal",
+      "size": 38,
+      "plain": {
+       "color": "#F6E4CC"
+      }
+     }
+    },
+    {
+     "libId": "",
+     "kitId": "radio",
+     "x": 1003.2,
+     "y": 684,
+     "scale": 0.38,
+     "id": "settings-textsize-large-radio",
+     "v": 0
+    },
+    {
+     "libId": "",
+     "id": "settings-textsize-large-word",
+     "x": 1001.5,
+     "y": 611.5,
+     "scale": 1,
+     "stamp": {
+      "text": "Large",
+      "size": 38,
+      "plain": {
+       "color": "#F6E4CC"
+      }
+     }
+    },
+    {
+     "libId": "",
+     "id": "settings-tints-word",
+     "x": 547.3,
+     "y": 677.5,
+     "scale": 1,
+     "stamp": {
+      "text": "Colour-blind tints",
+      "size": 50,
+      "plain": {
+       "color": "#F6E4CC"
+      }
+     }
+    },
+    {
+     "libId": "",
+     "kitId": "radio",
+     "x": 615.8,
+     "y": 798,
+     "scale": 0.38,
+     "id": "settings-tints-off-radio",
+     "v": 1
+    },
+    {
+     "libId": "",
+     "id": "settings-tints-off-word",
+     "x": 614.1,
+     "y": 725.5,
+     "scale": 1,
+     "stamp": {
+      "text": "Off",
+      "size": 38,
+      "plain": {
+       "color": "#F6E4CC"
+      }
+     }
+    },
+    {
+     "libId": "",
+     "kitId": "radio",
+     "x": 761.5,
+     "y": 798,
+     "scale": 0.38,
+     "id": "settings-tints-deutan-radio",
+     "v": 0
+    },
+    {
+     "libId": "",
+     "id": "settings-tints-deutan-word",
+     "x": 759.8,
+     "y": 725.5,
+     "scale": 1,
+     "stamp": {
+      "text": "Deutan",
+      "size": 38,
+      "plain": {
+       "color": "#F6E4CC"
+      }
+     }
+    },
+    {
+     "libId": "",
+     "kitId": "radio",
+     "x": 958.2,
+     "y": 798,
+     "scale": 0.38,
+     "id": "settings-tints-protan-radio",
+     "v": 0
+    },
+    {
+     "libId": "",
+     "id": "settings-tints-protan-word",
+     "x": 956.5,
+     "y": 725.5,
+     "scale": 1,
+     "stamp": {
+      "text": "Protan",
+      "size": 38,
+      "plain": {
+       "color": "#F6E4CC"
+      }
+     }
+    },
+    {
+     "libId": "",
+     "kitId": "radio",
+     "x": 1157,
+     "y": 798,
+     "scale": 0.38,
+     "id": "settings-tints-tritan-radio",
+     "v": 0
+    },
+    {
+     "libId": "",
+     "id": "settings-tints-tritan-word",
+     "x": 1155.2,
+     "y": 725.5,
+     "scale": 1,
+     "stamp": {
+      "text": "Tritan",
+      "size": 38,
+      "plain": {
+       "color": "#F6E4CC"
+      }
+     }
+    },
+    {
+     "libId": "",
+     "kitId": "primary",
+     "x": 841.4,
+     "y": 866.9,
+     "scale": 0.55,
+     "id": "settings-done",
+     "label": "Done"
+    }
+   ]
+  },
+  {
+   "id": "sob-tutorial",
+   "name": "tutorial",
+   "aspect": "169",
+   "bgShow": false,
+   "items": [
+    {
+     "id": "tutorial-board-stand",
+     "libId": "",
+     "kitId": "primary",
+     "x": 757,
+     "y": 27,
+     "scale": 0.42,
+     "label": "Stand on Business",
+     "opacity": 55
+    },
+    {
+     "id": "tutorial-board-location",
+     "libId": "",
+     "kitId": "panel",
+     "x": 984,
+     "y": 531,
+     "scale": 0.62,
+     "stretch": 0.951,
+     "stretchY": 1.35,
+     "opacity": 55
+    },
+    {
+     "id": "tutorial-board-location-head",
+     "libId": "",
+     "kitId": "header",
+     "x": 1030,
+     "y": 506,
+     "scale": 0.34,
+     "label": "Greenwood District",
+     "opacity": 55
+    },
+    {
+     "id": "tutorial-spotlight-stand",
+     "libId": "",
+     "kitId": "spotlight",
+     "x": 749,
+     "y": 16,
+     "scale": 1,
+     "stretch": 0.995,
+     "stretchY": 0.454
+    },
+    {
+     "id": "tutorial-spotlight-location",
+     "libId": "",
+     "kitId": "spotlight",
+     "x": 1024,
+     "y": 494,
+     "scale": 1,
+     "stretch": 1.043,
+     "stretchY": 0.438,
+     "ov": "pulse"
+    },
+    {
+     "id": "tutorial-lesson-plate",
+     "libId": "",
+     "kitId": "panel",
+     "x": 64,
+     "y": 220,
+     "scale": 0.62,
+     "stretch": 1.737,
+     "stretchY": 2.1
+    },
+    {
+     "id": "tutorial-lesson-title",
+     "libId": "",
+     "kitId": "header",
+     "x": 101,
+     "y": 193,
+     "scale": 0.36,
+     "label": "Welcome"
+    },
+    {
+     "id": "tutorial-lesson-picture-window",
+     "libId": "",
+     "kitId": "placeholder",
+     "x": 210,
+     "y": 290,
+     "scale": 1,
+     "stretch": 1.5,
+     "stretchY": 1,
+     "label": "picture-window"
+    },
+    {
+     "id": "tutorial-lesson-caption-1",
+     "libId": "",
+     "x": 130,
+     "y": 611,
+     "scale": 1,
+     "stamp": {
+      "text": "You and your opponent (Harborlight)",
+      "size": 38.1,
+      "plain": {
+       "color": "#F6E4CC"
+      },
+      "voice": "list"
+     }
+    },
+    {
+     "id": "tutorial-lesson-caption-2",
+     "libId": "",
+     "x": 130,
+     "y": 645,
+     "scale": 1,
+     "stamp": {
+      "text": "are vying for control of three Locations:",
+      "size": 38.1,
+      "plain": {
+       "color": "#F6E4CC"
+      },
+      "voice": "list"
+     }
+    },
+    {
+     "id": "tutorial-lesson-caption-3",
+     "libId": "",
+     "x": 130,
+     "y": 679,
+     "scale": 1,
+     "stamp": {
+      "text": "the three panels across the middle of the board.",
+      "size": 38.1,
+      "plain": {
+       "color": "#F6E4CC"
+      },
+      "voice": "list"
+     }
+    },
+    {
+     "id": "tutorial-coach",
+     "libId": "",
+     "kitId": "dialoguebox",
+     "x": 1117,
+     "y": 149,
+     "scale": 0.78,
+     "label": "Whoever leads Influence at two of them when Turn 8 ends wins."
+    },
+    {
+     "id": "tutorial-coach-next",
+     "libId": "",
+     "kitId": "secondary",
+     "x": 1724,
+     "y": 396,
+     "scale": 0.4,
+     "label": "Next"
+    }
+   ]
+  },
+  {
+   "id": "sob-deck-builder",
+   "name": "deck-builder",
+   "aspect": "169",
+   "bgShow": false,
+   "items": [
+    {
+     "libId": "",
+     "id": "deck-eras-word",
+     "x": 137,
+     "y": 6.5,
+     "scale": 1,
+     "stamp": {
+      "text": "Eras",
+      "size": 44,
+      "plain": {
+       "color": "#F6E4CC"
+      }
+     }
+    },
+    {
+     "id": "deck-builder-segment-1",
+     "libId": "",
+     "kitId": "segment",
+     "x": 391,
+     "y": 67,
+     "scale": 0.6562,
+     "label": "1700s | 1800s | 1900s | Timeless",
+     "v": 0.3333,
+     "_fit": {
+      "targetBox": [
+       416,
+       87,
+       448,
+       85
+      ]
+     }
+    },
+    {
+     "libId": "",
+     "id": "deck-archetypes-word",
+     "x": 10,
+     "y": 93.5,
+     "scale": 1,
+     "stamp": {
+      "text": "Archetypes",
+      "size": 44,
+      "plain": {
+       "color": "#F6E4CC"
+      }
+     }
+    },
+    {
+     "id": "deck-builder-segment-6",
+     "libId": "",
+     "kitId": "segment",
+     "x": 481,
+     "y": 154,
+     "scale": 0.6562,
+     "label": "Faith | Abolition | Rebellion | Military",
+     "v": 0.0,
+     "_fit": {
+      "targetBox": [
+       506,
+       174,
+       448,
+       85
+      ]
+     }
+    },
+    {
+     "libId": "",
+     "kitId": "secondary",
+     "x": 1605.8,
+     "y": 105.2,
+     "scale": 0.6,
+     "id": "deck-reset",
+     "label": "Reset"
+    },
+    {
+     "libId": "",
+     "kitId": "primary",
+     "x": 1264.2,
+     "y": 105.2,
+     "scale": 0.6,
+     "id": "deck-save",
+     "label": "Save deck"
+    },
+    {
+     "libId": "",
+     "id": "deck-hole-1",
+     "kitId": "placeholder",
+     "label": "card-hole",
+     "x": 320,
+     "y": 316,
+     "scale": 0.5,
+     "stretch": 0.7735,
+     "stretchY": 1
+    },
+    {
+     "libId": "",
+     "id": "deck-hole-2",
+     "kitId": "placeholder",
+     "label": "card-hole",
+     "x": 502.7,
+     "y": 316,
+     "scale": 0.5,
+     "stretch": 0.7735,
+     "stretchY": 1
+    },
+    {
+     "libId": "",
+     "id": "deck-hole-3",
+     "kitId": "placeholder",
+     "label": "card-hole",
+     "x": 685.4,
+     "y": 316,
+     "scale": 0.5,
+     "stretch": 0.7735,
+     "stretchY": 1
+    },
+    {
+     "libId": "",
+     "id": "deck-hole-4",
+     "kitId": "placeholder",
+     "label": "card-hole",
+     "x": 868.1,
+     "y": 316,
+     "scale": 0.5,
+     "stretch": 0.7735,
+     "stretchY": 1
+    },
+    {
+     "libId": "",
+     "id": "deck-hole-5",
+     "kitId": "placeholder",
+     "label": "card-hole",
+     "x": 1050.8,
+     "y": 316,
+     "scale": 0.5,
+     "stretch": 0.7735,
+     "stretchY": 1
+    },
+    {
+     "libId": "",
+     "id": "deck-hole-6",
+     "kitId": "placeholder",
+     "label": "card-hole",
+     "x": 320,
+     "y": 544,
+     "scale": 0.5,
+     "stretch": 0.7735,
+     "stretchY": 1
+    },
+    {
+     "libId": "",
+     "id": "deck-hole-7",
+     "kitId": "placeholder",
+     "label": "card-hole",
+     "x": 502.7,
+     "y": 544,
+     "scale": 0.5,
+     "stretch": 0.7735,
+     "stretchY": 1
+    },
+    {
+     "libId": "",
+     "id": "deck-hole-8",
+     "kitId": "placeholder",
+     "label": "card-hole",
+     "x": 685.4,
+     "y": 544,
+     "scale": 0.5,
+     "stretch": 0.7735,
+     "stretchY": 1
+    },
+    {
+     "libId": "",
+     "id": "deck-hole-9",
+     "kitId": "placeholder",
+     "label": "card-hole",
+     "x": 868.1,
+     "y": 544,
+     "scale": 0.5,
+     "stretch": 0.7735,
+     "stretchY": 1
+    },
+    {
+     "libId": "",
+     "id": "deck-hole-10",
+     "kitId": "placeholder",
+     "label": "card-hole",
+     "x": 1050.8,
+     "y": 544,
+     "scale": 0.5,
+     "stretch": 0.7735,
+     "stretchY": 1
+    },
+    {
+     "libId": "",
+     "kitId": "stepper",
+     "x": 1415.4,
+     "y": 293.2,
+     "scale": 0.76,
+     "id": "deck-stepper-default",
+     "v": 0.5
+    },
+    {
+     "libId": "",
+     "kitId": "stepper",
+     "x": 1415.4,
+     "y": 402.1,
+     "scale": 0.76,
+     "id": "deck-stepper-min",
+     "v": 0
+    },
+    {
+     "libId": "",
+     "kitId": "stepper",
+     "x": 1415.4,
+     "y": 511,
+     "scale": 0.76,
+     "id": "deck-stepper-max",
+     "v": 1
+    },
+    {
+     "libId": "",
+     "kitId": "validity",
+     "x": 37,
+     "y": 820,
+     "scale": 1,
+     "id": "deck-validity",
+     "label": "24 of 24 · at most two Events · ready"
+    },
+    {
+     "libId": "",
+     "kitId": "validity",
+     "x": 821,
+     "y": 820,
+     "scale": 1,
+     "id": "deck-validity-error",
+     "label": "Too many Events",
+     "ov": "error"
+    },
+    {
+     "libId": "",
+     "id": "deck-tray-1",
+     "kitId": "trayslot",
+     "x": 76,
+     "y": 973,
+     "scale": 0.3667,
+     "label": "1",
+     "ov": "filled"
+    },
+    {
+     "libId": "",
+     "id": "deck-tray-2",
+     "kitId": "trayslot",
+     "x": 150,
+     "y": 973,
+     "scale": 0.3667,
+     "label": "2",
+     "ov": "filled"
+    },
+    {
+     "libId": "",
+     "id": "deck-tray-3",
+     "kitId": "trayslot",
+     "x": 224,
+     "y": 973,
+     "scale": 0.3667,
+     "label": "3",
+     "ov": "filled"
+    },
+    {
+     "libId": "",
+     "id": "deck-tray-4",
+     "kitId": "trayslot",
+     "x": 298,
+     "y": 973,
+     "scale": 0.3667,
+     "label": "4",
+     "ov": "filled"
+    },
+    {
+     "libId": "",
+     "id": "deck-tray-5",
+     "kitId": "trayslot",
+     "x": 372,
+     "y": 973,
+     "scale": 0.3667,
+     "label": "5",
+     "ov": "filled"
+    },
+    {
+     "libId": "",
+     "id": "deck-tray-6",
+     "kitId": "trayslot",
+     "x": 446,
+     "y": 973,
+     "scale": 0.3667,
+     "label": "6",
+     "ov": "filled"
+    },
+    {
+     "libId": "",
+     "id": "deck-tray-7",
+     "kitId": "trayslot",
+     "x": 520,
+     "y": 973,
+     "scale": 0.3667,
+     "label": "7"
+    },
+    {
+     "libId": "",
+     "id": "deck-tray-8",
+     "kitId": "trayslot",
+     "x": 594,
+     "y": 973,
+     "scale": 0.3667,
+     "label": "8"
+    },
+    {
+     "libId": "",
+     "id": "deck-tray-9",
+     "kitId": "trayslot",
+     "x": 668,
+     "y": 973,
+     "scale": 0.3667,
+     "label": "9"
+    },
+    {
+     "libId": "",
+     "id": "deck-tray-10",
+     "kitId": "trayslot",
+     "x": 742,
+     "y": 973,
+     "scale": 0.3667,
+     "label": "10"
+    },
+    {
+     "libId": "",
+     "id": "deck-tray-11",
+     "kitId": "trayslot",
+     "x": 816,
+     "y": 973,
+     "scale": 0.3667,
+     "label": "11"
+    },
+    {
+     "libId": "",
+     "id": "deck-tray-12",
+     "kitId": "trayslot",
+     "x": 890,
+     "y": 973,
+     "scale": 0.3667,
+     "label": "12"
+    },
+    {
+     "libId": "",
+     "id": "deck-tray-13",
+     "kitId": "trayslot",
+     "x": 964,
+     "y": 973,
+     "scale": 0.3667,
+     "label": "13"
+    },
+    {
+     "libId": "",
+     "id": "deck-tray-14",
+     "kitId": "trayslot",
+     "x": 1038,
+     "y": 973,
+     "scale": 0.3667,
+     "label": "14"
+    },
+    {
+     "libId": "",
+     "id": "deck-tray-15",
+     "kitId": "trayslot",
+     "x": 1112,
+     "y": 973,
+     "scale": 0.3667,
+     "label": "15"
+    },
+    {
+     "libId": "",
+     "id": "deck-tray-16",
+     "kitId": "trayslot",
+     "x": 1186,
+     "y": 973,
+     "scale": 0.3667,
+     "label": "16"
+    },
+    {
+     "libId": "",
+     "id": "deck-tray-17",
+     "kitId": "trayslot",
+     "x": 1260,
+     "y": 973,
+     "scale": 0.3667,
+     "label": "17"
+    },
+    {
+     "libId": "",
+     "id": "deck-tray-18",
+     "kitId": "trayslot",
+     "x": 1334,
+     "y": 973,
+     "scale": 0.3667,
+     "label": "18"
+    },
+    {
+     "libId": "",
+     "id": "deck-tray-19",
+     "kitId": "trayslot",
+     "x": 1408,
+     "y": 973,
+     "scale": 0.3667,
+     "label": "19"
+    },
+    {
+     "libId": "",
+     "id": "deck-tray-20",
+     "kitId": "trayslot",
+     "x": 1482,
+     "y": 973,
+     "scale": 0.3667,
+     "label": "20"
+    },
+    {
+     "libId": "",
+     "id": "deck-tray-21",
+     "kitId": "trayslot",
+     "x": 1556,
+     "y": 973,
+     "scale": 0.3667,
+     "label": "21"
+    },
+    {
+     "libId": "",
+     "id": "deck-tray-22",
+     "kitId": "trayslot",
+     "x": 1630,
+     "y": 973,
+     "scale": 0.3667,
+     "label": "22"
+    },
+    {
+     "libId": "",
+     "id": "deck-tray-23",
+     "kitId": "trayslot",
+     "x": 1704,
+     "y": 973,
+     "scale": 0.3667,
+     "label": "23"
+    },
+    {
+     "libId": "",
+     "id": "deck-tray-24",
+     "kitId": "trayslot",
+     "x": 1778,
+     "y": 973,
+     "scale": 0.3667,
+     "label": "24",
+     "ov": "invalid"
+    }
+   ]
+  },
+  {
+   "id": "sob-store",
+   "name": "store",
+   "aspect": "169",
+   "bgShow": false,
+   "items": [
+    {
+     "id": "store-title",
+     "libId": "",
+     "kitId": "header",
+     "x": 31.6,
+     "y": 0,
+     "scale": 0.6,
+     "label": "Store"
+    },
+    {
+     "id": "store-wallet",
+     "libId": "",
+     "kitId": "currency",
+     "x": 1569.6,
+     "y": 24.2,
+     "scale": 0.8,
+     "label": "20 Legacy"
+    },
+    {
+     "id": "store-tile-tiger-s-eye",
+     "libId": "",
+     "kitId": "panel",
+     "x": 40.9,
+     "y": 193.7,
+     "scale": 0.55,
+     "stretch": 1.0255999999999998,
+     "stretchY": 1.2766
+    },
+    {
+     "id": "store-hole-card-hole-1",
+     "libId": "",
+     "kitId": "placeholder",
+     "x": 90,
+     "y": 246,
+     "scale": 1,
+     "stretch": 0.4,
+     "stretchY": 0.5175,
+     "label": "card-hole"
+    },
+    {
+     "id": "store-name-tiger-s-eye",
+     "libId": "",
+     "x": 190,
+     "y": 148,
+     "scale": 1,
+     "stamp": {
+      "text": "Tiger's Eye",
+      "size": 40
+     }
+    },
+    {
+     "id": "store-price-tiger-s-eye",
+     "libId": "",
+     "kitId": "secondary",
+     "x": 255.2,
+     "y": 280.5,
+     "scale": 0.39,
+     "label": "12 Legacy"
+    },
+    {
+     "id": "store-equip-tiger-s-eye",
+     "libId": "",
+     "kitId": "toggle",
+     "x": 251,
+     "y": 357,
+     "scale": 0.5,
+     "v": 0
+    },
+    {
+     "id": "store-equiplabel-tiger-s-eye",
+     "libId": "",
+     "x": 295,
+     "y": 296,
+     "scale": 1,
+     "stamp": {
+      "text": "Equip",
+      "size": 34,
+      "plain": {
+       "color": "#F6E4CC"
+      }
+     }
+    },
+    {
+     "id": "store-tile-turquoise",
+     "libId": "",
+     "kitId": "panel",
+     "x": 516.9,
+     "y": 193.7,
+     "scale": 0.55,
+     "stretch": 1.0255999999999998,
+     "stretchY": 1.2766
+    },
+    {
+     "id": "store-hole-card-hole-2",
+     "libId": "",
+     "kitId": "placeholder",
+     "x": 566,
+     "y": 246,
+     "scale": 1,
+     "stretch": 0.4,
+     "stretchY": 0.5175,
+     "label": "card-hole"
+    },
+    {
+     "id": "store-name-turquoise",
+     "libId": "",
+     "x": 666,
+     "y": 148,
+     "scale": 1,
+     "stamp": {
+      "text": "Turquoise",
+      "size": 40
+     }
+    },
+    {
+     "id": "store-price-turquoise",
+     "libId": "",
+     "kitId": "secondary",
+     "x": 731.2,
+     "y": 280.5,
+     "scale": 0.39,
+     "label": "12 Legacy"
+    },
+    {
+     "id": "store-equip-turquoise",
+     "libId": "",
+     "kitId": "toggle",
+     "x": 727,
+     "y": 357,
+     "scale": 0.5,
+     "v": 0
+    },
+    {
+     "id": "store-equiplabel-turquoise",
+     "libId": "",
+     "x": 771,
+     "y": 296,
+     "scale": 1,
+     "stamp": {
+      "text": "Equip",
+      "size": 34,
+      "plain": {
+       "color": "#F6E4CC"
+      }
+     }
+    },
+    {
+     "id": "store-state-turquoise",
+     "libId": "",
+     "kitId": "chip",
+     "x": 546.2,
+     "y": 451,
+     "scale": 0.52,
+     "label": "Owned"
+    },
+    {
+     "id": "store-tile-amethyst",
+     "libId": "",
+     "kitId": "panel",
+     "x": 40.9,
+     "y": 559.7,
+     "scale": 0.55,
+     "stretch": 1.0255999999999998,
+     "stretchY": 1.2766
+    },
+    {
+     "id": "store-hole-card-hole-3",
+     "libId": "",
+     "kitId": "placeholder",
+     "x": 90,
+     "y": 612,
+     "scale": 1,
+     "stretch": 0.4,
+     "stretchY": 0.5175,
+     "label": "card-hole"
+    },
+    {
+     "id": "store-name-amethyst",
+     "libId": "",
+     "x": 190,
+     "y": 514,
+     "scale": 1,
+     "stamp": {
+      "text": "Amethyst",
+      "size": 40
+     }
+    },
+    {
+     "id": "store-price-amethyst",
+     "libId": "",
+     "kitId": "secondary",
+     "x": 255.2,
+     "y": 646.5,
+     "scale": 0.39,
+     "label": "12 Legacy"
+    },
+    {
+     "id": "store-equip-amethyst",
+     "libId": "",
+     "kitId": "toggle",
+     "x": 251,
+     "y": 723,
+     "scale": 0.5,
+     "v": 1
+    },
+    {
+     "id": "store-equiplabel-amethyst",
+     "libId": "",
+     "x": 295,
+     "y": 662,
+     "scale": 1,
+     "stamp": {
+      "text": "Equip",
+      "size": 34,
+      "plain": {
+       "color": "#F6E4CC"
+      }
+     }
+    },
+    {
+     "id": "store-state-amethyst",
+     "libId": "",
+     "kitId": "copy-chgd-chip",
+     "x": 70.2,
+     "y": 817,
+     "scale": 0.52,
+     "label": "Equipped"
+    },
+    {
+     "id": "store-tile-onyx",
+     "libId": "",
+     "kitId": "panel",
+     "x": 516.9,
+     "y": 559.7,
+     "scale": 0.55,
+     "stretch": 1.0255999999999998,
+     "stretchY": 1.2766
+    },
+    {
+     "id": "store-hole-card-hole-4",
+     "libId": "",
+     "kitId": "placeholder",
+     "x": 566,
+     "y": 612,
+     "scale": 1,
+     "stretch": 0.4,
+     "stretchY": 0.5175,
+     "label": "card-hole"
+    },
+    {
+     "id": "store-name-onyx",
+     "libId": "",
+     "x": 666,
+     "y": 514,
+     "scale": 1,
+     "stamp": {
+      "text": "Onyx",
+      "size": 40
+     }
+    },
+    {
+     "id": "store-price-onyx",
+     "libId": "",
+     "kitId": "secondary",
+     "x": 731.2,
+     "y": 646.5,
+     "scale": 0.39,
+     "label": "12 Legacy"
+    },
+    {
+     "id": "store-equip-onyx",
+     "libId": "",
+     "kitId": "toggle",
+     "x": 727,
+     "y": 723,
+     "scale": 0.5,
+     "v": 0
+    },
+    {
+     "id": "store-equiplabel-onyx",
+     "libId": "",
+     "x": 771,
+     "y": 662,
+     "scale": 1,
+     "stamp": {
+      "text": "Equip",
+      "size": 34,
+      "plain": {
+       "color": "#F6E4CC"
+      }
+     }
+    },
+    {
+     "id": "store-state-onyx",
+     "libId": "",
+     "kitId": "copy-chwn-chip",
+     "x": 546.2,
+     "y": 817,
+     "scale": 0.52,
+     "label": "Not enough Legacy"
+    },
+    {
+     "id": "store-empty",
+     "libId": "",
+     "kitId": "panel",
+     "x": 1000.9,
+     "y": 193.7,
+     "scale": 0.55,
+     "stretch": 1.9394,
+     "stretchY": 0.7737
+    },
+    {
+     "id": "store-empty-line1",
+     "libId": "",
+     "x": 1217.9,
+     "y": 185,
+     "scale": 1,
+     "stamp": {
+      "text": "Nothing here yet.",
+      "size": 44
+     }
+    },
+    {
+     "id": "store-empty-line2",
+     "libId": "",
+     "x": 1185.6,
+     "y": 241,
+     "scale": 1,
+     "stamp": {
+      "text": "Win a match to earn Legacy.",
+      "size": 38.1,
+      "plain": {
+       "color": "#F6E4CC"
+      },
+      "voice": "list"
+     }
+    },
+    {
+     "id": "store-confirm",
+     "libId": "",
+     "kitId": "copy-cbuy-dialog",
+     "x": 1128.2,
+     "y": 502.6,
+     "scale": 0.72,
+     "label": "Buy Tiger's Eye?"
+    },
+    {
+     "id": "store-confirm-cost",
+     "libId": "",
+     "x": 1172.7,
+     "y": 642.4,
+     "scale": 1,
+     "stamp": {
+      "text": "Costs 12 Legacy. You have 20.",
+      "size": 38.1,
+      "plain": {
+       "color": "#F6E4CC"
+      },
+      "voice": "list"
+     }
+    }
+   ]
+  },
+  {
+   "id": "sob-history",
+   "name": "history",
+   "aspect": "169",
+   "bgShow": false,
+   "items": [
+    {
+     "id": "history-back",
+     "libId": "",
+     "kitId": "tabback",
+     "x": 40,
+     "y": 20,
+     "scale": 0.5,
+     "label": "Back"
+    },
+    {
+     "id": "history-title",
+     "libId": "",
+     "kitId": "header",
+     "x": 192,
+     "y": 2,
+     "scale": 0.56,
+     "label": "History"
+    },
+    {
+     "id": "history-avatar",
+     "libId": "",
+     "kitId": "copy-avta-avatarframe",
+     "x": 26,
+     "y": 156,
+     "scale": 1.3
+    },
+    {
+     "id": "history-hole-portrait-window-1",
+     "libId": "",
+     "kitId": "placeholder",
+     "x": 130,
+     "y": 314,
+     "scale": 1,
+     "stretch": 0.43,
+     "stretchY": 0.43,
+     "label": "portrait-window"
+    },
+    {
+     "id": "history-plate",
+     "libId": "",
+     "kitId": "copy-plta-nameplate",
+     "x": 362,
+     "y": 221,
+     "scale": 0.7,
+     "label": "You"
+    },
+    {
+     "id": "history-legacy",
+     "libId": "",
+     "x": 311,
+     "y": 251,
+     "scale": 1,
+     "stamp": {
+      "text": "Legacy 140",
+      "size": 60
+     }
+    },
+    {
+     "id": "history-record",
+     "libId": "",
+     "x": 311,
+     "y": 295,
+     "scale": 1,
+     "stamp": {
+      "text": "12 wins · 5 losses",
+      "size": 49.3,
+      "plain": {
+       "color": "#F6E4CC"
+      },
+      "voice": "list"
+     }
+    },
+    {
+     "id": "history-row-1",
+     "libId": "",
+     "kitId": "datarow",
+     "x": 948,
+     "y": 112,
+     "scale": 0.82,
+     "label": "vs Harborlight · Won · +8 · 14 Sep"
+    },
+    {
+     "id": "history-chip-1",
+     "libId": "",
+     "kitId": "copy-chgd-chip",
+     "x": 1618,
+     "y": 153,
+     "scale": 0.58,
+     "label": "Won"
+    },
+    {
+     "id": "history-row-2",
+     "libId": "",
+     "kitId": "datarow",
+     "x": 948,
+     "y": 266,
+     "scale": 0.82,
+     "label": "vs Harborlight · Lost · +1 · 13 Sep"
+    },
+    {
+     "id": "history-chip-2",
+     "libId": "",
+     "kitId": "copy-chwn-chip",
+     "x": 1618,
+     "y": 307,
+     "scale": 0.58,
+     "label": "Lost"
+    },
+    {
+     "id": "history-row-3",
+     "libId": "",
+     "kitId": "datarow",
+     "x": 948,
+     "y": 420,
+     "scale": 0.82,
+     "label": "vs Harborlight · Draw · +2 · 12 Sep"
+    },
+    {
+     "id": "history-chip-3",
+     "libId": "",
+     "kitId": "chip",
+     "x": 1618,
+     "y": 461,
+     "scale": 0.58,
+     "label": "Draw"
+    },
+    {
+     "id": "history-row-4",
+     "libId": "",
+     "kitId": "datarow",
+     "x": 948,
+     "y": 574,
+     "scale": 0.82,
+     "label": "vs Harborlight · Won · +8 · 11 Sep"
+    },
+    {
+     "id": "history-chip-4",
+     "libId": "",
+     "kitId": "copy-chgd-chip",
+     "x": 1618,
+     "y": 615,
+     "scale": 0.58,
+     "label": "Won"
+    },
+    {
+     "id": "history-row-5",
+     "libId": "",
+     "kitId": "datarow",
+     "x": 948,
+     "y": 728,
+     "scale": 0.82,
+     "label": "vs Harborlight · Won · +8 · 10 Sep"
+    },
+    {
+     "id": "history-chip-5",
+     "libId": "",
+     "kitId": "copy-chgd-chip",
+     "x": 1618,
+     "y": 769,
+     "scale": 0.58,
+     "label": "Won"
+    },
+    {
+     "id": "history-empty-panel",
+     "libId": "",
+     "kitId": "panel",
+     "x": 55,
+     "y": 657,
+     "scale": 0.5,
+     "stretch": 2.03,
+     "stretchY": 1.17
+    },
+    {
+     "id": "history-empty-text",
+     "libId": "",
+     "x": 214,
+     "y": 692,
+     "scale": 1,
+     "stamp": {
+      "text": "No matches yet.",
+      "size": 56
+     }
+    }
+   ]
+  }
+ ]
+}

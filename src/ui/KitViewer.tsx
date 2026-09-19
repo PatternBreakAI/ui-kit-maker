@@ -12,7 +12,7 @@
    for an OWNED open). The demo screens on the page come from the
    shipped definition itself, not from the workspace. */
 import { lazy, Suspense, useLayoutEffect, useMemo, useState } from "react";
-import { namedKitFromHash } from "@/generator/namedKits";
+import { namedKitFromHash, namedKitVisible } from "@/generator/namedKits";
 import { useGen } from "@/generator/store";
 import { navigate } from "@/shell/router";
 
@@ -29,7 +29,14 @@ export function KitViewer({ slug }: { slug: string }) {
      hop from one shipped kit's page to another re-resolves instead of
      leaving the previous kit standing: this component keeps its instance
      across such a hop, since the route name doesn't change. */
-  const kit = useMemo(() => namedKitFromHash(window.location.hash), [slug]);
+  /* a STAGED kit (round 80) resolves only for the admin: everyone else
+     gets exactly what an unknown slug gets, the landing page. The admin
+     flag is read at resolve time (the store seeds it from the stored gate
+     snapshot at boot, so an admin's own reload resolves at first paint). */
+  const kit = useMemo(() => {
+    const k = namedKitFromHash(window.location.hash);
+    return k && namedKitVisible(k, useGen.getState().isAdmin) ? k : null;
+  }, [slug]);
   const [ready, setReady] = useState(false);
   useLayoutEffect(() => {
     if (!kit) {

@@ -6,7 +6,7 @@ import { normalizeShipCopy, captureVideoPoster } from "@/generator/bgvault";
 import { importBgAsset, bgAssetStatusLine, onAssetActivity, bgAssetDisplayUrl } from "@/generator/assets";
 import { BACKDROP_LIBRARY, BACKDROP_CATEGORIES, backdropThumb, backdropUrl } from "@/generator/backdropLibrary";
 import type { BoardDef, BoardItem } from "@/generator/store";
-import { renderBevel, renderKit, VALUE_DRIVEN } from "@/generator/bevel";
+import { renderBevel, renderKit, VALUE_DRIVEN, segmentCaptions } from "@/generator/bevel";
 import { CLONE_INELIGIBLE, GLYPH_BUTTONS, KIT_COMPONENTS, applyKitDesign, applyKitTextFill, baseOf, fontByName, kitVisible, resolveKitIcon, KIT_LABEL_EDITABLE, labelMaxOf } from "@/generator/model";
 import { LIVE_GLYPHS } from "@/generator/glyphLibrary";
 import { BIG_GLYPHS, BIG_GLYPH_BASE, bigGlyphById, bigGlyphThumb, bigGlyphMid, bigGlyphUrl, bigGlyphFilter, type BigGlyphDef, type BigGlyphFx } from "@/generator/bigGlyphs";
@@ -76,7 +76,7 @@ const ASSET_GROUPS: { name: string; ids: string[] }[] = [
      appear, exactly like the ribbon in round 60. */
   { name: "Containers & overlays", ids: ["panel", "header", "ribbonbanner", "tab", "tabback", "bottomnav", "dropdown", "dialog", "toast", "tooltip", "listmenu", "choicelist", "scrollbar", "input", "searchfield", "setrow"] },
   { name: "HUD & readouts", ids: ["resource", "chip", "badge", "datarow", "slot", "orb", "ring", "bignum", "xpbar", "vitalbar", "currency", "healthglobe", "manarails", "buffframe", "cooldown", "notifydot", "countbadge", "avatarframe", "nameplate", "loadbar", "spinner", "pagedots", "steps", "stepper"] },
-  { name: "Timers", ids: ["flipclock", "stopwatch", "timerdigits"] },
+  { name: "Timers", ids: ["flipclock", "stopwatch", "timerdigits", "timerbar"] },
   { name: "Controls", ids: ["toggle", "slider", "progress", "segbar", "emblembar", "vsbar", "hotbar", "segment", "checkbox", "radio", "joystick", "gearicon", "trophyicon", "trophyicon~gold", "trophyicon~silver", "trophyicon~bronze", "gifticon"] },
   { name: "Shooter", ids: ["reticle", "crosshair", "hitmarker", "ammo", "magazine", "lives", "minimap", "compass", "killfeed", "weaponwheel", "equipselector", "firebutton", "joystick~ghost", "streakmeter", "waypoint", "capturemeter", "respawn", "dmgarc", "dmgnumber"] },
   { name: "RPG & progression", ids: ["questpanel", "dialoguebox", "partyframe", "unitplate", "invgrid", "rarityframe", "equipslot", "quickslots", "skillnode", "levelnode", "pathconnector", "loottag", "seasontrack", "achievetoast"] },
@@ -86,7 +86,11 @@ const ASSET_GROUPS: { name: string; ids: string[] }[] = [
   { name: "Racing", ids: ["speedo", "speedo2", "tacho", "circuit", "leaderboard", "laptimes", "telemetry", "startlights"] },
   { name: "Strategy & score", ids: ["buildqueue", "techcard", "scorebug", "trophy"] },
   { name: "Social", ids: ["friendrow", "chatbubble", "clancrest", "emotewheel"] },
-  { name: "Card battler", ids: ["cardback", "cardface", "pack"] },
+  /* the round-80 set follows the cards: the coin readout, the deck tray's
+     slot, the validity line, the verdict stamp, the tutorial spotlight and
+     the named placeholder window (staged, so kitVisible keeps them admin-
+     only until released) */
+  { name: "Card battler", ids: ["cardback", "cardface", "pack", "coin", "trayslot", "validity", "verdict", "spotlight", "placeholder"] },
   /* the semantic glyph rack — registry-derived so the tray and the kit page
      can't drift; the kitVisible filter below keeps it admin-only while
      staged, then per-glyph as releases land. LIVE only — a retired glyph
@@ -145,6 +149,14 @@ const SEARCH_TERMS: Partial<Record<KitComponentId, string>> = {
   popmeter: "population supply cap strategy",
   quickslots: "equipment quadrant dpad loadout souls",
   vitalbar: "health mana bar readout hud",
+  // the card-battler set (round 80)
+  placeholder: "placeholder window hole slot blank transparent card portrait banner wordmark art layout",
+  coin: "legacy coin medallion stake readout number target arrow unit hud",
+  timerbar: "timer bar plan turn countdown thin fill warn red mercury",
+  spotlight: "spotlight ring halo tutorial highlight frame pulse glow guide",
+  trayslot: "tray slot deck builder cell card well empty filled invalid numeral tag",
+  validity: "validity status line ready error check deck builder plate sentence",
+  verdict: "verdict stamp banished holds sent back won word tilted rubber stamp",
 };
 // glyph pieces answer to "icon", their semantic name and their category
 // ("currencies", "boosters"…) — registry-derived like the tray group
@@ -776,11 +788,14 @@ const checkVideoUrl = async (raw: string): Promise<{ url?: string; err?: string 
 /* The bar family stretches HORIZONTALLY, 9-slice style (owner): the side
    handles re-render the track wider — caps, knob and inset stay true —
    while corners keep proportional scale. Only these components. */
-const STRETCHABLE = new Set<string>(["slider", "progress", "emblembar", "segbar", "vsbar", "panel"]);
+const STRETCHABLE = new Set<string>(["slider", "progress", "emblembar", "segbar", "vsbar", "panel",
+  // round 80: the plan timer stretches like a bar; the window and the
+  // spotlight ring size both ways like the blank panel
+  "timerbar", "placeholder", "spotlight"]);
 /* Blank panels stretch BOTH ways (owner: "two modes — 9-slice stretchable
    and scale... just the blank panels for now"): top/bottom handles pull the
    height, left/right the width, corners keep proportional scale. */
-const STRETCHABLE_V = new Set<string>(["panel", "scrollbar"]);
+const STRETCHABLE_V = new Set<string>(["panel", "scrollbar", "placeholder", "spotlight"]);
 
 const OV_TINT: Record<string, string> = { dark: "#060A14", light: "#F4F6FF" };
 const ovBackground = (mode: string): string =>
@@ -1674,7 +1689,9 @@ export function BoardView({ playing }: { playing: boolean }) {
       // (owner: "changing the speedo component in edit did not update it
       // on the the board")
       const bSize = kitSizes[b.kitId] ?? "l";
-      return { svg: renderKit(pc, bBase, bSize, "default", b.v ?? kitVals[b.kitId], kitShapes[b.kitId], { icon: resolveKitIcon(kitIcons[b.kitId], undefined), pic: kitPicOf({ kitPics, kitPicFx, userAssets, kitAssets }, b.kitId), logo: kitPicOf({ kitPics, kitPicFx, userAssets, kitAssets }, b.kitId, "logo"), label: kitNoText[b.kitId] ? "" : (b.label ?? kitLabels[b.kitId]), sub: kitSubs[b.kitId], slots: kitSlotVals[b.kitId], textOy: kitTextOy[`${b.kitId}:${bSize}`], textOx: kitTextOx[`${b.kitId}:${bSize}`], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov, dock: kb?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kb.dockSide ?? "left" } : undefined, bar: kb, row: bBase === "datarow" ? kitRow : undefined, themedText: !!kitDesigns[b.kitId]?.type || !!kitTextFill[b.kitId] }), cfg: pc };
+      const bLabel = kitNoText[b.kitId] ? "" : (b.label ?? kitLabels[b.kitId]);
+      // the segmented control's option words ride the copy's label (round 81)
+      return { svg: renderKit(pc, bBase, bSize, "default", b.v ?? kitVals[b.kitId], kitShapes[b.kitId], { icon: resolveKitIcon(kitIcons[b.kitId], undefined), pic: kitPicOf({ kitPics, kitPicFx, userAssets, kitAssets }, b.kitId), logo: kitPicOf({ kitPics, kitPicFx, userAssets, kitAssets }, b.kitId, "logo"), label: bLabel, segments: bBase === "segment" ? segmentCaptions(bLabel) : undefined, sub: kitSubs[b.kitId], slots: kitSlotVals[b.kitId], textOy: kitTextOy[`${b.kitId}:${bSize}`], textOx: kitTextOx[`${b.kitId}:${bSize}`], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov, dock: kb?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kb.dockSide ?? "left" } : undefined, bar: kb, row: bBase === "datarow" ? kitRow : undefined, themedText: !!kitDesigns[b.kitId]?.type || !!kitTextFill[b.kitId] }), cfg: pc };
     }
     if (b.stamp) return { svg: stampSvg(cfg, b.stamp), cfg };
     // big glyphs and user logos are raster art — the PNG compositor
@@ -2874,6 +2891,13 @@ export function BoardView({ playing }: { playing: boolean }) {
                     title="The kit's font at one flat color you pick, for labels that stay readable on any backdrop"
                     onClick={() => { if (!st.plain) patch({ plain: { color: "#FFFFFF" } }); }}>Plain</button>
                 </div>
+                {/* the READING VOICE (round 81): body copy on a board. The
+                    kit's reading face, sentence case as typed, book weight,
+                    no display treatment. Works with either tier. */}
+                <label className="bd-inkchk" title="Set these words in the kit's reading face (the list font), sentence case, no lettering treatment. For body copy, captions and rules text.">
+                  <input type="checkbox" checked={st.voice === "list"}
+                    onChange={(e) => patch({ voice: e.target.checked ? "list" : undefined })} /> Reading voice
+                </label>
                 {st.plain && (
                   <label className="bd-slider bd-inkrow">Text color
                     <input type="color" value={st.plain.color} aria-label="Plain text color"
@@ -3508,7 +3532,7 @@ function StampArt({ cfg, stamp }: { cfg: GenConfig; stamp: NonNullable<BoardItem
   }, []);
   /* a 400% specimen is a real engine render — memo it, or every board
      interaction re-renders every stamp (the tray-click sluggishness) */
-  const svg = useMemo(() => stampSvg(cfg, stamp), [cfg, stamp.text, stamp.size, stamp.plain?.color, stamp.plain?.outline, fontTick]); // eslint-disable-line react-hooks/exhaustive-deps
+  const svg = useMemo(() => stampSvg(cfg, stamp), [cfg, stamp.text, stamp.size, stamp.plain?.color, stamp.plain?.outline, stamp.voice, fontTick]); // eslint-disable-line react-hooks/exhaustive-deps
   const warped = !!stamp.warp && stamp.warp.style !== "none" && !!stamp.warp.amount;
   /* Round 45 · B3 — the UNWARPED stamp's selection box hugs the LETTERING.
      The specimen's own data-shell is the invisible button shell it was
@@ -3857,7 +3881,10 @@ function StagePiece({ b, playing, selected, solo, fit, onSelect, onDragStart, on
              A CLONE item hands LiveArt its BASE id (LiveArt refuses clone
              ids) while every per-piece read stays keyed by b.kitId. */
           <LiveArt cfg={forkCfg} playing={playing} anchorContent onArt={onArtDim}
-            kit={{ id: baseOf(b.kitId), size: kitSizes[b.kitId] ?? "l", shape: kitShapes[b.kitId], icon: resolveKitIcon(kitIcons[b.kitId], undefined), pic: kitPicOf({ kitPics, kitPicFx, userAssets, kitAssets }, b.kitId), logo: kitPicOf({ kitPics, kitPicFx, userAssets, kitAssets }, b.kitId, "logo"), label: kitNoText[b.kitId] ? "" : (b.label ?? kitLabels[b.kitId]), value: b.v ?? kitVals[b.kitId], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
+            kit={{ id: baseOf(b.kitId), size: kitSizes[b.kitId] ?? "l", shape: kitShapes[b.kitId], icon: resolveKitIcon(kitIcons[b.kitId], undefined), pic: kitPicOf({ kitPics, kitPicFx, userAssets, kitAssets }, b.kitId), logo: kitPicOf({ kitPics, kitPicFx, userAssets, kitAssets }, b.kitId, "logo"), label: kitNoText[b.kitId] ? "" : (b.label ?? kitLabels[b.kitId]),
+              // the segmented control's option words ride the copy's label (round 81)
+              segments: baseOf(b.kitId) === "segment" ? segmentCaptions(kitNoText[b.kitId] ? "" : (b.label ?? kitLabels[b.kitId])) : undefined,
+              value: b.v ?? kitVals[b.kitId], stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov,
               sub: kitSubs[b.kitId], slots: kitSlotVals[b.kitId],
               textOy: kitTextOy[`${b.kitId}:${kitSizes[b.kitId] ?? "l"}`], textOx: kitTextOx[`${b.kitId}:${kitSizes[b.kitId] ?? "l"}`],
               dock: (baseOf(b.kitId) === "progress" || baseOf(b.kitId) === "segbar") && kitBar[b.kitId]?.dock ? { icon: resolveKitIcon(kitIcons[b.kitId], undefined), side: kitBar[b.kitId]?.dockSide ?? "left" } : undefined,

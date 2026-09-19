@@ -70,7 +70,7 @@ export function probeSfntWeight(bytes: Uint8Array): { variable: boolean; weight:
    ship as data. The export still probes the bytes it receives — a stale
    entry falls through to the live roads instead of shipping a lie. */
 export const GSTATIC_ORIGIN = "https://fonts.gstatic.com/";
-/* BAKED-FONT-STATICS-BEGIN (generated 2026-08-27 by scripts/bake-font-statics.mjs — do not hand-edit) */
+/* BAKED-FONT-STATICS-BEGIN (generated 2026-09-18 by scripts/bake-font-statics.mjs — do not hand-edit) */
 export const FONT_STATIC_TTF: Record<string, Record<number, string>> = {
  "Inter": {
   100: "s/inter/v20/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuLyeMZg.ttf",
@@ -144,6 +144,16 @@ export const FONT_STATIC_TTF: Record<string, Record<number, string>> = {
   700: "s/cinzel/v26/8vIU7ww63mVu7gtR-kwKxNvkNOjw-jHgTYo.ttf",
   800: "s/cinzel/v26/8vIU7ww63mVu7gtR-kwKxNvkNOjw-lbgTYo.ttf",
   900: "s/cinzel/v26/8vIU7ww63mVu7gtR-kwKxNvkNOjw-n_gTYo.ttf"
+ },
+ "Crimson Pro": {
+  200: "s/crimsonpro/v28/q5uUsoa5M_tv7IihmnkabC5XiXCAlXGks1WZTm18OA.ttf",
+  300: "s/crimsonpro/v28/q5uUsoa5M_tv7IihmnkabC5XiXCAlXGks1WZkG18OA.ttf",
+  400: "s/crimsonpro/v28/q5uUsoa5M_tv7IihmnkabC5XiXCAlXGks1WZzm18OA.ttf",
+  500: "s/crimsonpro/v28/q5uUsoa5M_tv7IihmnkabC5XiXCAlXGks1WZ_G18OA.ttf",
+  600: "s/crimsonpro/v28/q5uUsoa5M_tv7IihmnkabC5XiXCAlXGks1WZEGp8OA.ttf",
+  700: "s/crimsonpro/v28/q5uUsoa5M_tv7IihmnkabC5XiXCAlXGks1WZKWp8OA.ttf",
+  800: "s/crimsonpro/v28/q5uUsoa5M_tv7IihmnkabC5XiXCAlXGks1WZTmp8OA.ttf",
+  900: "s/crimsonpro/v28/q5uUsoa5M_tv7IihmnkabC5XiXCAlXGks1WZZ2p8OA.ttf"
  },
  "Creepster": {
   400: "s/creepster/v13/AlZy_zVUqJz4yMrniH4hdQ.ttf"
@@ -836,7 +846,15 @@ export async function fontDataUri(family: string, cssQuery: string | null): Prom
          silently falls back to a system face (owner: warped stamps "still
          not rendering the correct font" while Bruno Ace kits passed). */
       const blocks = css.split("@font-face").slice(1);
-      const latin = blocks.find((b) => /unicode-range:[^;}]*U\+0000/i.test(b)) ?? blocks[0] ?? "";
+      /* UPRIGHT first (round 81): a family queried with an italic axis
+         (Crimson Pro, the reading voice) answers with its italic blocks
+         BEFORE the normal ones, and the first latin block inlined every
+         reading-voice bake in italics while the stage drew it upright.
+         The inlined @font-face carries no font-style, so the file itself
+         must be the upright cut; italic-only families keep the old pick. */
+      const upright = (b: string) => !/font-style:\s*italic/i.test(b);
+      const latinAll = blocks.filter((b) => /unicode-range:[^;}]*U\+0000/i.test(b));
+      const latin = latinAll.find(upright) ?? latinAll[0] ?? blocks.find(upright) ?? blocks[0] ?? "";
       const m = /url\((https:[^)]+\.woff2)\)/.exec(latin) ?? /url\((https:[^)]+\.woff2)\)/.exec(css);
       if (m) {
         const buf = await (await fetchDeadline(m[1])).arrayBuffer();
@@ -915,15 +933,53 @@ export async function buildSpriteSheetBytes(
   return await canvasToPngBytesDilated(cv).catch(() => null);
 }
 
-/** The packed sheet stays available as a VISUAL CATALOG download. */
+/** The packed sheet stays available as a VISUAL CATALOG download — in
+ *  PAGES no taller than 8192 px (round 78: the one-sheet version had
+ *  grown past 29000 px, which Unity refuses to open), each page its own
+ *  file. One page = the plain file name. */
+export async function buildSpriteSheetPages(
+  entries: { name: string; svg: string }[],
+  title: string,
+  fontFamily: string,
+  fontCss: string | null,
+  maxPageH = 8192,
+): Promise<Uint8Array[]> {
+  const PAGE = Math.max(1200, maxPageH);
+  const out: Uint8Array[] = [];
+  let page: { name: string; svg: string }[] = [];
+  let y = 96, x = 28, rowH = 0;
+  // the same packing arithmetic as the sheet builder, run ahead to cut pages at row edges
+  const meas = await Promise.all(entries.map((e) => new Promise<{ w: number; h: number }>((resolve) => {
+    const cropped = cropSheetPad(e.svg);
+    resolve({ w: +(/width="([\d.]+)"/.exec(cropped)?.[1] ?? 200), h: +(/height="([\d.]+)"/.exec(cropped)?.[1] ?? 100) });
+  })));
+  for (let i = 0; i < entries.length; i++) {
+    const S = Math.min(2, 430 / meas[i].h, 1400 / meas[i].w);
+    const w = Math.round(meas[i].w * S), h = Math.round(meas[i].h * S);
+    if (x + w + 28 > 2560 && x > 28) { x = 28; y += rowH + 44 + 28; rowH = 0; }
+    if (page.length && x === 28 && y + h + 44 + 28 > PAGE) {
+      out.push(...(await pageBytes(page, out.length, title, fontFamily, fontCss)));
+      page = []; y = 96; rowH = 0;
+    }
+    page.push(entries[i]);
+    rowH = Math.max(rowH, h);
+    x += w + 28;
+  }
+  if (page.length) out.push(...(await pageBytes(page, out.length, title, fontFamily, fontCss)));
+  return out;
+}
+async function pageBytes(page: { name: string; svg: string }[], index: number, title: string, fontFamily: string, fontCss: string | null): Promise<Uint8Array[]> {
+  const b = await buildSpriteSheetBytes(page, index === 0 ? title : `${title} · page ${index + 1}`, fontFamily, fontCss);
+  return b ? [b] : [];
+}
 export async function downloadSpriteSheet(
   entries: { name: string; svg: string }[],
   title: string,
   fontFamily: string,
   fontCss: string | null,
 ): Promise<void> {
-  const bytes = await buildSpriteSheetBytes(entries, title, fontFamily, fontCss);
-  if (bytes) download("kit-sprite-sheet.png", new Blob([bytes.buffer as ArrayBuffer], { type: "image/png" }));
+  const pages = await buildSpriteSheetPages(entries, title, fontFamily, fontCss);
+  pages.forEach((bytes, i) => download(pages.length === 1 ? "kit-sprite-sheet.png" : `kit-sprite-sheet-${i + 1}.png`, new Blob([bytes.buffer as ArrayBuffer], { type: "image/png" })));
 }
 
 export function buildHtml(cfg: GenConfig): string {

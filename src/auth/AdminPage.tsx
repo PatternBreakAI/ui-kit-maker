@@ -120,6 +120,10 @@ type Desig = {
    memo and land via dangerouslySetInnerHTML (React owns the node; no
    manual innerHTML into React's territory — the gallery taught us). */
 function KitPreview({ doc }: { doc: Record<string, unknown> }) {
+  /* the bench redraws when the imported-silhouette registry changes
+     (round 77b): a doc that names a silhouette the desk just healed
+     paints it now, not after a reload */
+  const shapeReg = useGen((s) => s.userShapes);
   /* the desk renders OTHER makers' kits — their faces are never in this
      document's font set, so EQUIP wore a fallback (owner report). Load
      every family the doc speaks; the browser re-rasterizes the inline
@@ -198,7 +202,7 @@ function KitPreview({ doc }: { doc: Record<string, unknown> }) {
     } catch {
       return null;
     }
-  }, [doc]);
+  }, [doc, shapeReg]);
   if (!out) return <p className="fd-fine">This kit wouldn't render — its payload may be from an old version. Ask the maker to open and re-save it.</p>;
   return (
     <div
@@ -547,11 +551,12 @@ export function AdminPage() {
      takes over that card and its snapshot wins the art. The slate stays
      a passive report wearing the same words. */
   const heroRows = (slate ?? []).filter((d) => d.placement === "hero");
+  const shapeRegRack = useGen((s) => s.userShapes); // hero tiles redraw as the registry heals (round 77b)
   const heroArt = useMemo(() => {
     const m = new Map<string, string | null>();
     for (const d of (slate ?? [])) if (d.placement === "hero") m.set(d.id, d.cfg ? heroSnapshotArt(d.cfg) : null);
     return m;
-  }, [slate]);
+  }, [slate, shapeRegRack]);
   // hero snapshots speak their own typefaces — warm them like KitPreview
   useEffect(() => {
     for (const d of (slate ?? [])) if (d.placement === "hero" && d.cfg) {
@@ -831,7 +836,15 @@ export function AdminPage() {
   }, [cloud.state]);
 
   // the census and the pulse load themselves once the desk opens
-  useEffect(() => { if (allowed) { void loadCensus(0); void loadStats(); void loadTkStatus(); } }, [allowed]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!allowed) return;
+    void loadCensus(0); void loadStats(); void loadTkStatus();
+    /* the desk draws other makers' kits and the owner's own — with the
+       looks in hand the silhouette heal runs here too (round 77b), so a
+       bench preview of a kit whose imported silhouette the registry lost
+       shows the real outline instead of the miss rectangle */
+    void useGen.getState().loadCloudPresets();
+  }, [allowed]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!allowed) return;
     void listHiddenLandingKits().then((keys) => setHomeHidden(new Set(keys.map((s) => s.toLowerCase()))));

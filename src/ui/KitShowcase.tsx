@@ -17,7 +17,7 @@ import { lookArtOf, starterArt } from "./Panel";
 import { tightenSvg } from "@/marketing/engine";
 import { ensureFont } from "@/generator/fonts";
 import { presetById } from "@/generator/model";
-import { NAMED_KITS, namedKitPieceCount, namedKitScreens, type NamedKitDef, type NamedKitScreen } from "@/generator/namedKits";
+import { NAMED_KITS, namedKitPieceCount, namedKitScreens, namedKitVisible, type NamedKitDef, type NamedKitScreen } from "@/generator/namedKits";
 import type { BoardDef } from "@/generator/store";
 import { useGen } from "@/generator/store";
 
@@ -221,7 +221,9 @@ function LooksWall({ kit }: { kit: NamedKitDef }) {
    marketplace (itch.io, Gumroad, Fab, ArtStation, …) may EVER be added
    here. No badges, no ratings, no invented endorsements. */
 export function KitPromo({ kit }: { kit: NamedKitDef }) {
-  const others = Object.values(NAMED_KITS).filter((k) => k.slug !== kit.slug);
+  // a STAGED kit (round 80) shows in the other-kits strip only to the admin
+  const isAdmin = useGen((s) => s.isAdmin);
+  const others = Object.values(NAMED_KITS).filter((k) => k.slug !== kit.slug && namedKitVisible(k, isAdmin));
   const setPhase = useGen((s) => s.setPhase);
   const setParent = useGen((s) => s.setParent);
   const setFocus = useGen((s) => s.setFocus);

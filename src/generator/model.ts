@@ -59,7 +59,21 @@ export const flipShape = (s: Shape): Shape => (isFlipShape(s) ? baseShape(s) : `
    bounding box; the renderer stretches it into each component's frame.
    The registry is module state so the pure renderer can read it without
    store imports; the store hydrates and persists it. */
-export interface UserShape { id: `user:${string}`; name: string; d: string; vb: [number, number, number, number] }
+export interface UserShape {
+  id: `user:${string}`; name: string; d: string; vb: [number, number, number, number];
+  /** when the maker last claimed this record — an import, a restore under
+   *  a lost id, a look that carried it in (round 77c). Absent on records
+   *  from before, whose id (base36 import time) says the same thing. The
+   *  sync engine's union lets the newer of a claim and a removal win. */
+  at?: number;
+}
+/** The moment a silhouette record was claimed: its `at`, else the import
+ *  time its id encodes. */
+export function shapeClaimAt(r: { id: string; at?: unknown }): number {
+  if (typeof r.at === "number" && Number.isFinite(r.at)) return r.at;
+  const m = /^user:([0-9a-z]+)$/.exec(r.id);
+  return m ? parseInt(m[1], 36) || 0 : 0;
+}
 let USER_SHAPES: UserShape[] = [];
 /* THE DESIGN'S OWN OUTLINES (round 77 — owner, on the landing hero and a
    saved look both drawing a rounded rectangle where the flames belong):
@@ -579,6 +593,11 @@ export const GAME_FONTS: { name: string; css: string | null; factor: number; cap
   { name: "Fascinate", css: "Fascinate", factor: 0.62, caps: { weights: [400] } },
   { name: "Orbitron", css: "Orbitron:wght@400..900", factor: 0.74, caps: { wght: [400, 900, 700] } },
   { name: "Cinzel", css: "Cinzel:wght@400..900", factor: 0.62, caps: { wght: [400, 900, 700] } },
+  /* the reading face beside Cinzel (Stand on Business, request 01: the
+     cards keep Cinzel for names and Crimson Pro for rules and history;
+     the chrome's body copy sits with them). SIL OFL, variable 200..900
+     with true italics. */
+  { name: "Crimson Pro", css: "Crimson+Pro:ital,wght@0,200..900;1,200..900", factor: 0.47, caps: { wght: [200, 900, 400], italic: true } },
   { name: "Creepster", css: "Creepster", factor: 0.48, caps: { weights: [400] } },
   { name: "Titan One", css: "Titan+One", factor: 0.6, caps: { weights: [400] } },
   { name: "Lilita One", css: "Lilita+One", factor: 0.55, caps: { weights: [400] } },
@@ -1141,6 +1160,10 @@ export type KitComponentId =
   // classic ribbon banner (staged) — the owner's ribbon commission, the
   // sketch pass: composite pack geometry dressed in kit roles
   | "ribbonbanner"
+  // the card-battler set (round 80, Stand on Business): a named transparent
+  // window, the Legacy coin readout, the plan timer, the tutorial spotlight,
+  // the deck tray slot, the validity line and the verdict stamp. All staged.
+  | "placeholder" | "coin" | "timerbar" | "spotlight" | "trayslot" | "validity" | "verdict"
   // the semantic glyph rack (glyphLibrary.ts) — every glyph is a full kit
   // citizen: its own per-piece forks, sizes, board placement. All staged.
   | "glyphcoin" | "glyphgem" | "glyphheart" | "glyphenergy" | "glyphticket" | "glyphkey" | "glyphstar"
@@ -1347,6 +1370,15 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
       note: "The quieter second line: what the booster does. Speaks the list voice, like the dialogue body. Empty keeps the specimen." },
     { id: "qty", name: "Quantity", kind: "value",
       note: "Driven by the value slider: 0 to 100% maps ×1 to ×99 (the count-badge map). Untouched shows the ×3 specimen." },
+  ],
+  coin: [
+    /* the Legacy coin's two smaller words (round 80): the big number is the
+       piece's label (per copy on a board), the arrow target and the unit
+       word are kit-wide slots. All three ship as live text. */
+    { id: "target", name: "Target", kind: "free", def: "→8", maxLen: 6,
+      note: "The arrow target under the big number: where the stake is heading. Empty keeps the specimen. It lights in the Glow role on the raised overlay." },
+    { id: "unit", name: "Unit word", kind: "free", def: "legacy", maxLen: 12,
+      note: "The small unit word at the foot of the coin, in the reading voice (the list font). Empty keeps the specimen." },
   ],
   vitalbar: [
     { id: "readout", name: "Readout", kind: "free", def: "1,250 / 1,500", maxLen: 18,
@@ -1989,6 +2021,16 @@ export const KIT_COMPONENTS: { id: KitComponentId; name: string; staged?: true; 
      ribbon banner, composite pack geometry in kit roles. Staged per the
      standing rule: bay card, admin-only, until the owner's art verdict. */
   { id: "ribbonbanner", name: "Ribbon banner", staged: true },
+  /* the card-battler set (round 80, Stand on Business). Staged per the
+     standing rule: bay cards, admin-only, until the owner releases them. A
+     board that places one still exports it (the exporter's stagedShips). */
+  { id: "placeholder", name: "Placeholder window", staged: true },
+  { id: "coin", name: "Legacy coin", staged: true },
+  { id: "timerbar", name: "Plan timer", staged: true },
+  { id: "spotlight", name: "Spotlight ring", staged: true },
+  { id: "trayslot", name: "Tray slot", staged: true },
+  { id: "validity", name: "Validity line", staged: true },
+  { id: "verdict", name: "Verdict stamp", staged: true },
   { id: "pricebtn", name: "Price button" },
   { id: "energymeter", name: "Energy meter" },
   { id: "buildqueue", name: "Build queue" },
@@ -2081,7 +2123,7 @@ export const KIT_GROUPS: { id: string; name: string; members: KitComponentId[] }
   { id: "buttons", name: "Buttons", members: ["primary", "secondary", "small", "ghost", "iconbtn", "slotbtn", "pricebtn", "claimbtn", "endturn", "padbtn", "keycap"] },
   { id: "choice", name: "Choice controls", members: ["checkbox", "radio", "toggle", "segment", "stepper"] },
   { id: "fields", name: "Fields", members: ["input", "searchfield", "dropdown", "setrow", "listmenu"] },
-  { id: "bars", name: "Bars & meters", members: ["progress", "segbar", "slider", "loadbar", "xpbar", "vitalbar", "heartmeter", "energymeter", "capturemeter", "streakmeter", "vsbar", "cooldown"] },
+  { id: "bars", name: "Bars & meters", members: ["progress", "segbar", "slider", "loadbar", "xpbar", "vitalbar", "timerbar", "heartmeter", "energymeter", "capturemeter", "streakmeter", "vsbar", "cooldown"] },
   { id: "chrome", name: "System chrome", members: ["dialog", "toast", "tooltip", "scrollbar", "pagedots", "steps", "spinner", "notifydot"] },
   { id: "racing", name: "Racing HUD", members: ["speedo", "speedo2", "tacho", "laptimes", "telemetry", "compass"] },
   { id: "rpg", name: "RPG & MMO", members: ["questpanel", "dialoguebox", "choicelist", "partyframe", "invgrid", "slot", "quickslots", "datarow", "nameplate", "loottag", "skillnode", "equipslot", "levelnode"] },
@@ -2089,6 +2131,10 @@ export const KIT_GROUPS: { id: string; name: string; members: KitComponentId[] }
   { id: "casual", name: "Casual & mobile", members: ["combo", "movecounter", "booster", "dailycell", "spinwheel", "flipclock", "resource", "currency"] },
   { id: "rewards", name: "Rewards & chests", members: ["chest", "giftbox", "rewardcard", "rewardtray", "pack", "cardback", "cardface", "qtybadge", "seasontrack"] },
   { id: "social", name: "Strategy & social", members: ["friendrow", "chatbubble", "clancrest", "emotewheel", "unitplate", "buildqueue", "techcard", "scorebug", "leaderboard", "achievetoast"] },
+  /* the card-battler set (round 80): the coin, the tray slot, the validity
+     line, the verdict stamp, the spotlight ring and the placeholder window
+     read as one family on a match board, so they restyle as one */
+  { id: "battler", name: "Card battler", members: ["coin", "trayslot", "validity", "verdict", "spotlight", "placeholder"] },
   /* the glyph-button fleet is its OWN family — a group restyle sweeps the
      47 buttons together without ever touching the stock button ladder */
   { id: "glyphbuttons", name: "Glyph buttons", members: GLYPH_BUTTONS.map((b) => b.id) },
@@ -2172,6 +2218,13 @@ export const LABEL_MAX: Partial<Record<KitComponentId, number>> = {
      never by the renderer quietly dropping the tail. Each cap is the
      longest string its art still seats cleanly. */
   countbadge: 4, notifydot: 3, avatarframe: 3, booster: 3, circuit: 28,
+  /* the card-battler set (round 80): the coin holds a stake number, the
+     tray slot a tray index, the stamp one shouted word, the placeholder a
+     window's name, the validity line a whole status sentence */
+  coin: 4, trayslot: 3, verdict: 14, placeholder: 24, validity: 48,
+  /* the segmented control's option words (round 81): up to five captions
+     joined by " | " ("Off | Deutan | Protan | Tritan") */
+  segment: 60,
 };
 export const labelMaxOf = (id: KitComponentId | null | undefined): number => (id && LABEL_MAX[id]) || 32;
 
@@ -2196,6 +2249,9 @@ export const KIT_LABEL_EDITABLE = new Set<KitComponentId>([
      what changes card to card while the design stays put */
   "achievetoast", "endturn", "pack", "cardback", "cardface", "orderticket",
   "rewardcard", "qtybadge", "claimbtn", "chestpanel", "boostercard",
+  /* the segmented control (round 81): its Text is the OPTION WORDS, two
+     to five captions joined by " | " (segmentCaptions in bevel) */
+  "segment",
   /* THE COUNTER FAMILY (owner, round 71: "I should be able to edit the
      numbers of the badge in the right drawer just like text"). Each of
      these draws exactly ONE self-drawn number — a notification count, a
@@ -2213,6 +2269,10 @@ export const KIT_LABEL_EDITABLE = new Set<KitComponentId>([
   // are a live seat (the pack's editability contract), so the main Text
   // control drives them
   "ribbonbanner",
+  /* the card-battler set (round 80): the window's name, the coin's big
+     number, the tray index, the status sentence and the stamped word are
+     each the piece's ONE main word, per copy on a board */
+  "placeholder", "coin", "trayslot", "validity", "verdict",
 ]);
 
 /* Pieces that may render TEXT-LESS (the kitNoText flag — a "No text"
@@ -2570,6 +2630,13 @@ export const KIT_SHAPE: Partial<Record<KitComponentId, Shape>> = {
   speedo: "pill",            // v72 · instruments live in CIRCULAR enclosures —
   speedo2: "pill",           // a pill on a square box is a perfect circle
   tacho: "pill",
+  /* the card-battler set (round 80): the coin is a medallion, the window,
+     the spotlight ring and the stamp are rounded rects by default; the
+     tray slot follows the kit's own silhouette (the card frame's corners) */
+  coin: "pill",
+  placeholder: "round",
+  spotlight: "round",
+  verdict: "round",
 };
 // every glyph piece wears its registry outline — the piece's per-piece shape
 // override (kitShapes) can still re-dress it like any other component
