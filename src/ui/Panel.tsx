@@ -10,6 +10,7 @@ import { LessonBody } from "./LessonCard";
 import { PRESETS, KIT_SLOTS, KIT_STATE_POSES, stateSlotKey, KIT_LESSONS, EFFECT_ROLES, ROLE_HINT, STATE_NAMES, GAME_FONTS, TEXT_PRESETS, SPECULAR_MODES, PATTERN_TYPES, SHAPES, ICONS_ENABLED, KIT_COMPONENTS, KIT_SHAPE, BLEND_MODES, GLINT_STYLES, defaultStates, applyKitDesign, applyKitTextFill, applyTextPreset, darken, registerCustomFont, pickDesign, fontByName, clampWeight , defaultBarFx, effKitSize, DESIGN_KEYS, designDiff, mergeKitDesign, iconRigDiff, baseShape, isFlipShape, flipShape, labelMaxOf, groupOf, ctaForFont, ctaEntry, fontLang, KIT_SLICEABLE, KIT_LABEL_EDITABLE, NO_TEXT_ELIGIBLE, PIC_ELIGIBLE, LOGO_ELIGIBLE, SLOT_RESET_HIDDEN, EDGE_SHINE_DEAF, baseOf, isCloneId, CLONE_KINDS, CLONE_INELIGIBLE, isGlyphButton, resolveKitIcon } from "@/generator/model";
 import type { KitSlice, SlotDef } from "@/generator/model";
 import type { GenStateName, BlendMode, GlintStyle, PatternType, KitComponentId, KitDesign, Shape  } from "@/generator/model";
+import { CELEBRATE_DEFAULT } from "@/generator/model";
 import { ICON_LIBS, loadLib, libLoaded, searchLib, getDef, previewSvg } from "@/generator/icons";
 import { ensureFont, ensureDocFonts, fontReady, awaitFonts } from "@/generator/fonts";
 import { renderBevel, renderKit, shapePath, RARITY_FACTORY, VALUE_DRIVEN, effSlotColor, iconDialReach, ICON_DIAL_IDS } from "@/generator/bevel";
@@ -1647,6 +1648,21 @@ export function Panel() {
             </div>
           </>
         )}
+        {/* Celebrate on press (owner, 2026-09-19: the Stand on Business
+            button "needs to have the same effect as the CLAIM button ... a
+            one time button that has a cool brightening / particle effect
+            then it goes dead"). The words are the kit's own and ride the
+            master config like the idle toggles; the burst itself is the
+            renderer's, in Play mode and in Unity. */}
+        <div className="ctl" style={{ marginTop: 12 }}>
+          <label>Celebration</label>
+        </div>
+        <label className="fieldbox" style={{ minWidth: 0 }} title="Plays in Play mode and in Unity. A button that celebrates then rests dead, a one-time press. Click a dead button here to arm it again.">
+          <span className="fl">Words that celebrate on press</span>
+          <input type="text" value={cfgMaster.celebrate ?? CELEBRATE_DEFAULT} placeholder="CLAIM" aria-label="Words that celebrate on press" spellCheck={false}
+            onChange={(e) => { const v = e.target.value; update((c) => { c.celebrate = v; }); }} />
+        </label>
+        <div className="helper">A piece whose words include one of these (comma separated) flashes white-hot and throws the kit's particles when pressed. A button then rests dead until it is armed again. The Claim button, the gift box and the card pack always celebrate.</div>
         {selectedState !== "default" && cfg.stateDesigns?.[selectedState] && (
           <div className="helper">This state has its own design. Edits here never touch Default. Happy accident? <b>Make {STATE_LABEL[selectedState]} the new Default</b> keeps it.</div>
         )}

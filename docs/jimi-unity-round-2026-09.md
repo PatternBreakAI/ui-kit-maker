@@ -54,6 +54,9 @@ Audiowide only comes in one weight, so "couldn't be downloaded just now, re-expo
 **14. Bold text on a one-weight kit keeps the app's width.**
 Hot Rod designs its type heavier than Audiowide can supply, so every label and seat in Unity wears TextMeshPro's synthetic bold. TextMeshPro adds 7 percent of the font size to every letter when it fakes bold. The browser fakes bold without touching letter spacing, and that is what the app draws. So live words in Unity ran about a tenth wider than in the app and walked out of their plates. The importer now zeroes that extra spacing on every font asset it makes or loads, so the stroke is the only difference left. Existing projects fix themselves on the next import, no rebuild needed.
 
+**15. The claim celebration is a one-time press now, and the words are the kit's own.**
+Chevon's call (2026-09-19): a button that celebrates, the white-hot flash and the particle throw, goes dead afterwards, the way a claimed reward should. ClaimBurst has a `oneShot` flag, on by default. After the throw settles, a Button host turns non-interactable and wears its disabled skin; call `ClaimBurst.Rearm()` when the next claim is due. Pieces without a Button (the gift box, the combo) just celebrate as before. The words that celebrate now travel in the manifest (`celebrate`), set per kit in the app (Global, under Idle motion: Celebration). CLAIM stays the default, and a kit can add its own words for its own key button. Prefabs and board copies whose words match get the ClaimBurst exactly as CLAIM copies always have.
+
 ## What we chose not to do
 
 - **Selective export by genre.** Chevon has this on the list as a product decision for the app, not a bug. Nothing built for it yet.

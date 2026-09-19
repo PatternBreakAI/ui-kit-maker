@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, Shape } from "@/generator/model";
+import { celebrates, ONE_TIME_FAMILIES } from "@/generator/model";
 import type { PicSeatFx } from "@/generator/store";
 import { addShine, renderBevel, renderKit, padSvg } from "@/generator/bevel";
 
@@ -243,6 +244,12 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
 }) {
   const id = kit?.id;
   const [live, setLive] = useState<GenStateName>("default");
+  /* the one-time press (owner, 2026-09-19): a button that celebrated rests
+     DEAD until it is armed again. Play off arms every board copy; on the
+     always-live kit page a click on the dead piece arms it (no burst). */
+  const [spent, setSpent] = useState(false);
+  useEffect(() => { if (!playing) setSpent(false); }, [playing]);
+  useEffect(() => { setSpent(false); }, [kit?.label]);
   const [on, setOn] = useState((kit?.value ?? 1) > 0.5);            // toggle
   // dialog rests on CLAIM (left capsule) unless the host says otherwise
   const [val, setVal] = useState(clamp01(kit?.value ?? (kit?.id === "dialog" ? 0 : 0.62))); // slider / tracked pieces
@@ -275,7 +282,7 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
 
   // a piece resting in "disabled" is inert — it never reacts or changes.
   // alt-tone pieces (muted titles) render live but ignore hover and press.
-  const disabled = kit?.baseState === "disabled";
+  const disabled = kit?.baseState === "disabled" || spent;
   const inert = disabled || kit?.tone === "alt";
   const value = id === "toggle" || id === "checkbox" || id === "radio" || id === "orb" ? (playing && !disabled ? (on ? 1 : 0) : kit?.value)
     // stamped-geometry value pipe: sliders and the settings row drag, the
@@ -692,17 +699,20 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
     const s = 5 + ((i * 13) % 8);
     return `<i style="--dx:${(Math.cos(a) * dist).toFixed(0)}px;--dy:${(Math.sin(a) * dist).toFixed(0)}px;width:${s}px;height:${s}px;background:${c}"></i>`;
   }).join("") + `</span>` : "";
-  const fireBurst = () => {
+  const fireBurst = (oneTime = false) => {
     setBurst(Date.now());
-    window.setTimeout(() => setBurst(0), 1200);
+    // the one-time press: the piece goes dead as the throw settles
+    window.setTimeout(() => { setBurst(0); if (oneTime) setSpent(true); }, 1200);
   };
   const activate = (e: React.PointerEvent) => {
     // the gift box IS a claim — opening it earns the ignition (owner:
     // "supposed to have the claim explosion to white"). The check reads the
     // EFFECTIVE label — per-instance word, else the kit-wide one the renderer
-    // actually draws — so a flame button whose visible words say CLAIM
-    // celebrates however the label was set; the Claim button piece always does.
-    if ((kit?.label ?? cfg.content.label ?? "").toUpperCase().includes("CLAIM") || id === "pack" || id === "gifticon" || id === "claimbtn") fireBurst();
+    // actually draws — against the kit's own celebrate words (CLAIM unless
+    // the maker typed others: Stand on Business's Stand button), so a flame
+    // button whose visible words say CLAIM celebrates however the label was
+    // set; the Claim button piece always does. A BUTTON then rests dead.
+    if (celebrates(kit?.label ?? cfg.content.label, cfg) || id === "pack" || id === "gifticon" || id === "claimbtn") fireBurst(!!id && ONE_TIME_FAMILIES.has(id));
     // the combo numeral EXPLODES on click (owner ask): the claim burst's
     // particles plus a punchy scale pop on the art itself
     if (id === "combo") fireBurst();
@@ -766,7 +776,8 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
     return shellHit(svg, e.clientX, e.clientY) ||
       (live !== "default" && !!defShell.current && shellRectHit(svg, defShell.current, e.clientX, e.clientY));
   };
-  const playHandlers = inert ? {} : {
+  // a dead one-time piece answers one thing only: a click arms it again
+  const playHandlers = spent ? { onPointerUp: () => setSpent(false) } : inert ? {} : {
     onPointerEnter: (e: React.PointerEvent) => { if (hit(e)) setLive(e.buttons === 1 ? "pressed" : "hover"); },
     onPointerLeave: (e: React.PointerEvent) => { if (e.buttons !== 1) { setLive("default"); sliding.current = false; } pressedHere.current = false; },
     onPointerDown: (e: React.PointerEvent) => {
@@ -1023,6 +1034,8 @@ export function LiveArt({ cfg, kit, playing, scale, anchorContent, trim, tight, 
            "auto" reclaims the box even under a pointer-transparent host
            (the Board's play stage) */
         ...(playing && !inert ? { pointerEvents: passThrough ? ("none" as const) : ("auto" as const) } : {}),
+        // the dead one-time piece keeps its box so the arming click lands
+        ...(playing && spent ? { pointerEvents: "auto" as const } : {}),
         // the injected shell ring replaces the UA box ring (see above)
         ...(focusV && shellStamped ? { outline: "none" } : {}) }}
       {...(playing ? playHandlers

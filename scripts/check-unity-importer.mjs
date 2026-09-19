@@ -4593,6 +4593,37 @@ const OBSOLETE = [
     errors.push("the segmented control left the label-editable roster or lost its 60-character cap (round 81)");
 }
 
+{
+  /* the one-time celebration (round 82, owner 2026-09-19): the kit's own
+     celebrate words reach the importer, both claim-burst roads read them
+     through Celebrates(), and a Button host rests dead after the throw */
+  const modelSrc82 = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../src/generator/model.ts"), "utf8");
+  const liveArtSrc82 = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../src/ui/LiveArt.tsx"), "utf8");
+  if (!/static bool Celebrates\(string label, PBManifest m\) \{/.test(cs)
+      || !/if \(m == null \|\| m\.celebrate == null\) return up\.Contains\("CLAIM"\);/.test(cs)
+      || !/if \(Celebrates\(it\.label, m\) && inst\.GetComponent<ClaimBurst>\(\) == null\)/.test(cs)
+      || !/\|\| Celebrates\(label, m\)\)\s*\n\s*AddClaimBurst\(go, root, baseAsset\.component, m\);/.test(cs)
+      || !/public PBIdleFork\[\] idleForks; public string\[\] celebrate; \}/.test(cs))
+    errors.push("the importer no longer reads the kit's celebrate words (Celebrates() on both claim-burst roads, PBManifest.celebrate) (round 82)");
+  // the runtime script is its own literal (CLAIMBURST_RUNTIME), so it is read from the TS source
+  if (!/public bool oneShot = true;/.test(src)
+      || !/if \(t >= 0f \|\| spent\) return;/.test(src)
+      || !/if \(oneShot\) Spend\(\);/.test(src)
+      || !/void Spend\(\) \{\s*\n\s*var b = GetComponent<Button>\(\);\s*\n\s*if \(b == null\) return;\s*\n\s*spent = true;\s*\n\s*b\.interactable = false;/.test(src)
+      || !/public void Rearm\(\) \{/.test(src))
+    errors.push("ClaimBurst lost the one-time press (oneShot, the dead Button, Rearm) (round 82)");
+  if (!/celebrate: celebrateWords\(st\.cfg\),/.test(src))
+    errors.push("the manifest no longer ships the celebrate words (round 82)");
+  if (!/export function celebrateWords\(cfg: Pick<GenConfig, "celebrate">\): string\[\] \{/.test(modelSrc82)
+      || !/export function celebrates\(words: string \| undefined \| null, cfg: Pick<GenConfig, "celebrate">\): boolean \{/.test(modelSrc82)
+      || !/export const ONE_TIME_FAMILIES: ReadonlySet<string>/.test(modelSrc82))
+    errors.push("the model lost the celebrate-words rule (celebrateWords / celebrates / ONE_TIME_FAMILIES) (round 82)");
+  if (!/if \(celebrates\(kit\?\.label \?\? cfg\.content\.label, cfg\) \|\| id === "pack" \|\| id === "gifticon" \|\| id === "claimbtn"\) fireBurst\(!!id && ONE_TIME_FAMILIES\.has\(id\)\);/.test(liveArtSrc82)
+      || !/const disabled = kit\?\.baseState === "disabled" \|\| spent;/.test(liveArtSrc82)
+      || !/const playHandlers = spent \? \{ onPointerUp: \(\) => setSpent\(false\) \} : inert \? \{\} : \{/.test(liveArtSrc82))
+    errors.push("LiveArt's press no longer celebrates on the kit's words or no longer rests dead after (round 82)");
+}
+
 if (errors.length) {
   console.error("unity-importer guard FAILED — the emitted C# would not compile in Unity:");
   for (const e of errors) console.error("  " + e);
