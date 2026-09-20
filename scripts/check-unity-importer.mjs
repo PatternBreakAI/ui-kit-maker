@@ -2655,7 +2655,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
       || !/suffix: "legendary"/.test(src) || !/suffix: "mystery"/.test(src)
       || !/suffix: "claimed"/.test(src) || !/suffix: "locked"/.test(src))
     errors.push("the rewards state-variant emission is gone — ALL rewards states stop shelving");
-  if (!/\("REWARDS", "Rewards", new\[\] \{ "Pack", "Cardback", "ClaimbtnDouble", "RewardcardLegendary", "RewardcardMystery", "DailycellClaimed", "DailycellLocked", "Chest", "Giftbox", "Rewardtray", "Chestpanel", "Orderticket" \}\)/.test(cs))
+  if (!/\("REWARDS", "Rewards", new\[\] \{ "Pack", "Cardback", "ClaimbtnDouble", "RewardcardLegendary", "RewardcardMystery", "DailycellClaimed", "DailycellLocked", "Chest", "Giftbox", "Rewardtray", "Chestpanel", "Orderticket", "Ribbonbanner" \}\)/.test(cs))
     errors.push("the Playground's REWARDS chapter is gone or reshuffled");
 }
 
@@ -2988,7 +2988,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("padbtn left the labelSeatOf road — its letter would seat by guesswork (round 44)");
   if (!/"Keycap", "KeycapSpace", "Padbtn", "PadbtnB", "PadbtnX", "PadbtnY", "Pricebtn"/.test(cs))
     errors.push("the Playground BUTTONS chapter no longer shelves the input prompts (round 44, owner ask)");
-  if (!/"dropdown", "keycap-space", "padbtn", "padbtn-b", "padbtn-x", "padbtn-y" \};/.test(cs))
+  if (!/"dropdown", "keycap-space", "padbtn", "padbtn-b", "padbtn-x", "padbtn-y", "ribbonbanner" \};/.test(cs))
     errors.push("SeededFamilies lost the prompt variants — retyped letters would be clobbered by the word seed (round 44)");
   if (!/\["keycap", "keycap-space"\], \["padbtn", "padbtn"\],/.test(src))
     errors.push("the prompt variants lost their stateFx dial rows — no glow, no lift, no Button (round 44)");
@@ -4614,6 +4614,24 @@ const OBSOLETE = [
     errors.push("ClaimBurst lost the one-time press (oneShot, the dead Button, Rearm) (round 82)");
   if (!/celebrate: celebrateWords\(st\.cfg\),/.test(src))
     errors.push("the manifest no longer ships the celebrate words (round 82)");
+  /* the ribbon banner as a prop family (round 83, owner: "the ribbon should
+     generate naturally as part of the export, for everyone"): wordless base
+     + disabled grade + aura, the word a live seat, the importer's labeled
+     and seeded sets, the Rewards shelf */
+  if (!/\{ id: "ribbonbanner", states: \["disabled"\], usage: "Ribbon banner/.test(src)
+      || !/pricebtn: "\$4\.99", ribbonbanner: "DAILY OBJECTIVE" \}/.test(src)
+      || !/const wordlessP = unburnP \|\| p\.id === "ribbonbanner";/.test(src)
+      || !/const baseSvgP = wordlessP \? stripIconInk\(stripWordInk\(baseFullP\)\.svg\)\.svg : baseFullP;/.test(src)
+      || !/wordlessP \? stripIconInk\(stripWordInk\(stateShell\(p\.id, stName, \{\}, p\.value\)\)\.svg\)\.svg : stateShell\(p\.id, stName, \{\}, p\.value\),/.test(src)
+      || !/"pricebtn", "countbadge", "ribbonbanner",/.test(src)
+      || !/\["pricebtn", "pricebtn"\], \["ribbonbanner", "ribbonbanner"\],/.test(src)
+      || !/^  ribbonbanner: "ribbonbanner",/m.test(src))
+    errors.push("the ribbon banner left the PROPS road (wordless base, live word, aura, label ink fork) (round 83)");
+  if (!/if \(family == "ribbonbanner"\) return "DAILY OBJECTIVE";/.test(cs)
+      || !/"padbtn-y", "ribbonbanner" \};/.test(cs)
+      || !/"header-banner", "badge", "ribbonbanner" \};/.test(cs)
+      || !/"Chestpanel", "Orderticket", "Ribbonbanner" \}\),/.test(cs))
+    errors.push("the importer no longer knows the ribbon banner (stock word, seeded and labeled sets, the Rewards shelf) (round 83)");
   if (!/export function celebrateWords\(cfg: Pick<GenConfig, "celebrate">\): string\[\] \{/.test(modelSrc82)
       || !/export function celebrates\(words: string \| undefined \| null, cfg: Pick<GenConfig, "celebrate">\): boolean \{/.test(modelSrc82)
       || !/export const ONE_TIME_FAMILIES: ReadonlySet<string>/.test(modelSrc82))

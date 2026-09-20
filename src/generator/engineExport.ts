@@ -878,6 +878,9 @@ const PREFAB_FAMILY: Partial<Record<KitComponentId, string>> = {
   gearicon: "gearicon", trophyicon: "trophyicon", gifticon: "gifticon",
   firebutton: "firebutton", endturn: "endturn", keycap: "keycap",
   pricebtn: "pricebtn", countbadge: "countbadge",
+  /* the ribbon banner ships as a prop family too (owner, 2026-09-20: "the
+     ribbon should generate naturally as part of the export, for everyone") */
+  ribbonbanner: "ribbonbanner",
   /* the settings controls place as WIRED rigs (owner: "let's get those
      settings screens working") — Slider / Switch prefabs, value-driven */
   slider: "slider", toggle: "toggle",
@@ -3930,7 +3933,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     /* the props glow in their own silhouette too — without an aura sprite
        they fell to the generic radial blob (owner: "the glows are all
        very generic in shape and don't follow the silhouette") */
-    "gearicon", "trophyicon", "gifticon", "firebutton", "endturn", "keycap", "pricebtn", "countbadge",
+    "gearicon", "trophyicon", "gifticon", "firebutton", "endturn", "keycap", "pricebtn", "countbadge", "ribbonbanner",
     // the universal road's pressable families hover/press like buttons —
     // their aura is their own silhouette, never the generic blob
     ...UNIVERSAL_INTERACTIVE,
@@ -5013,10 +5016,19 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       { id: "endturn", states: ["hover", "pressed", "disabled"], value: 0, usage: "End-turn button, bare shell — the label is LIVE text and the countdown ring is endturn-arc (Filled/Radial360, drive fillAmount)." },
       { id: "keycap", states: ["hover", "pressed", "disabled"], usage: "Key prompt cap, bare — the key glyph is LIVE text. Single-char width; wide keys (SPACE) stretch poorly, scale instead." },
       { id: "pricebtn", states: ["hover", "pressed", "disabled"], usage: "Price button — EVERYTHING editable: the PRICE is live text, the ribbon word a live seat, and the coin + ribbon plate are live Image children (swap either sprite in the Inspector)." },
+      /* the ribbon banner (owner, 2026-09-20: "the ribbon should generate
+         naturally as part of the export, for everyone"): the staged piece
+         rode only as a posed board skin, word baked. It is a prop now —
+         bare plate and tails, the WORD a live seat (labelText + metrics),
+         its own aura. No nine-slice: the tails and folds are drawn
+         geometry, so a long word shrinks to the plate (the app's fit) and
+         the piece scales as a whole. A banner never presses; the disabled
+         grade ships for dimmed screens. */
+      { id: "ribbonbanner", states: ["disabled"], usage: "Ribbon banner — bare plate and folded tails; the WORD is LIVE text seated on the plate (retype it: VICTORY, LEVEL 3, BEST VALUE). No nine-slice: the tails are drawn geometry, so a long word shrinks to the plate; scale the whole piece instead of stretching it. Display piece." },
     ];
     /* the labeled props' words: the maker's own (kitLabels) with the
        importer's stock as fallback — mirror of DefaultLabel */
-    const PROP_WORD: Partial<Record<KitComponentId, string>> = { endturn: "END TURN", keycap: "E", pricebtn: "$4.99" };
+    const PROP_WORD: Partial<Record<KitComponentId, string>> = { endturn: "END TURN", keycap: "E", pricebtn: "$4.99", ribbonbanner: "DAILY OBJECTIVE" };
     /* STACKED multi-line label props: the Leading dial travels (owner:
        "Leading did not work on the End Turn button" — fixed app-side; the
        export must carry the resolved value or Unity's LIVE label
@@ -5106,14 +5118,17 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
          PRICE stays the label machinery's live word, so the seat render
          mutes it (label "") — two writers on one word would double it. */
       const unburnP = p.id === "pricebtn";
+      /* the ribbon banner's word leaves the pixels the same way (its word
+         IS the label, so no extra seats: labelText + propLabelSeat carry it) */
+      const wordlessP = unburnP || p.id === "ribbonbanner";
       const baseFullP = shell(p.id, {}, undefined, p.value);
       const iconSeatsP = unburnP ? await iconSeatsOf(p.id, baseFullP) : null;
-      const baseSvgP = unburnP ? stripIconInk(stripWordInk(baseFullP).svg).svg : baseFullP;
+      const baseSvgP = wordlessP ? stripIconInk(stripWordInk(baseFullP).svg).svg : baseFullP;
       const seatsP = unburnP ? textSeatsOf(p.id, baseSvgP, { label: "" }, undefined, p.value, "bake") : {};
       await addPng(`${p.id}/base.png`, baseSvgP,
         { component: p.id, part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: p.usage, ...(propWord !== undefined ? { labelText: propWord } : {}), ...propLabelSeat(p.id, propWord), ...leadingRow(p.id), ...(iconSeatsP ? { iconSeats: iconSeatsP } : {}), ...seatsP }, true, p.id);
       for (const stName of p.states)
-        await addPng(`${p.id}/base-${stName}.png`, unburnP ? stripIconInk(stripWordInk(stateShell(p.id, stName, {}, p.value)).svg).svg : stateShell(p.id, stName, {}, p.value),
+        await addPng(`${p.id}/base-${stName}.png`, wordlessP ? stripIconInk(stripWordInk(stateShell(p.id, stName, {}, p.value)).svg).svg : stateShell(p.id, stName, {}, p.value),
           { component: p.id, part: `base-${stName}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
             usage: `${SWAP_USAGE[stName]} state — wire as Sprite Swap beside base.png.`, ...leadingRow(p.id, stName) }, true, p.id);
       if (p.id === "trophyicon") for (const fin of ["gold", "silver", "bronze"] as const)
@@ -8252,7 +8267,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
            fillMode null); the firebutton sits out on its round-22
            housing contract (the pad pins to rest by design). */
         ...([["datarow", "list-row"], ["slot", "item-slot"], ["iconbtn", "iconbtn"], ["checkbox", "checkbox"], ["radio", "radio"],
-             ["gearicon", "gearicon"], ["trophyicon", "trophyicon"], ["gifticon", "gifticon"], ["endturn", "endturn"], ["keycap", "keycap"], ["pricebtn", "pricebtn"],
+             ["gearicon", "gearicon"], ["trophyicon", "trophyicon"], ["gifticon", "gifticon"], ["endturn", "endturn"], ["keycap", "keycap"], ["pricebtn", "pricebtn"], ["ribbonbanner", "ribbonbanner"],
              ["claimbtn", "claimbtn"], ["levelnode", "levelnode"], ["dailycell", "dailycell"], ["boostercard", "boostercard"], ["rewardcard", "rewardcard"],
              ["skillnode", "skillnode"], ["booster", "booster"], ["claimbtn", "claimbtn-double"],
              ["keycap", "keycap-space"], ["padbtn", "padbtn"], ["padbtn", "padbtn-b"], ["padbtn", "padbtn-x"], ["padbtn", "padbtn-y"]] as const)
@@ -21713,6 +21728,7 @@ namespace PatternBreak {
       if (family == "endturn") return "END TURN";
       if (family == "keycap") return "E";
       if (family == "pricebtn") return "$4.99";
+      if (family == "ribbonbanner") return "DAILY OBJECTIVE";
       if (family == "header-banner") return "SETTINGS";
       if (family == "dropdown") return "SELECT OPTION";
       if (family == "badge") return "12";
@@ -24186,7 +24202,7 @@ namespace PatternBreak {
       return DefaultLabel(fam);
     }
     // every family whose prefab wires a live label from LabelWordOf
-    static readonly string[] SeededFamilies = new string[] { "button-primary", "button-secondary", "button-small", "chip", "tab", "tab-back", "endturn", "keycap", "pricebtn", "header-banner", "badge", "dropdown", "keycap-space", "padbtn", "padbtn-b", "padbtn-x", "padbtn-y" };
+    static readonly string[] SeededFamilies = new string[] { "button-primary", "button-secondary", "button-small", "chip", "tab", "tab-back", "endturn", "keycap", "pricebtn", "header-banner", "badge", "dropdown", "keycap-space", "padbtn", "padbtn-b", "padbtn-x", "padbtn-y", "ribbonbanner" };
     static PBSeedEntry[] SeedTable(PBManifest m) {
       var outp = new List<PBSeedEntry>();
       foreach (var fam in SeededFamilies) {
@@ -25785,7 +25801,7 @@ namespace PatternBreak {
          controls and pure parts opt out (they're layers, not pieces) */
       /* badge joined the labeled set: its count is the app's own content
          (owner round 6 — the panels' words ship) */
-      var labeled = new HashSet<string> { "button-primary", "button-secondary", "button-small", "chip", "tab", "tab-back", "endturn", "keycap", "pricebtn", "header-banner", "badge" };
+      var labeled = new HashSet<string> { "button-primary", "button-secondary", "button-small", "chip", "tab", "tab-back", "endturn", "keycap", "pricebtn", "header-banner", "badge", "ribbonbanner" };
       /* the data-heavy panels (lap times, leaderboard, telemetry) read as
          empty shells without their live content — their sprites still ship,
          but they don't make useful drag-in prefabs (owner) */
@@ -26444,7 +26460,7 @@ namespace PatternBreak {
       ("SHOOTER & ACTION", "Shooter and Action", new[] { "Crosshair", "Hitmarker", "Dmgarc", "Weaponwheel", "Equipselector", "Magazine", "Ammo", "Streakmeter", "Killfeed", "Waypoint", "Capturemeter", "Respawn", "Buffframe", "Hotbar", "Lives" }),
       ("CASUAL & SAGA", "Casual and Saga", new[] { "Heartmeter", "Energymeter", "Starrating", "Pathconnector", "Combo", "Booster", "Flipclock", "Stopwatch" }),
       ("STRATEGY & SOCIAL", "Strategy and Social", new[] { "Scorebug", "Friendrow", "Chatbubble", "Emotewheel", "Clancrest", "Unitplate", "Buildqueue", "Techcard", "Popmeter" }),
-      ("REWARDS", "Rewards", new[] { "Pack", "Cardback", "ClaimbtnDouble", "RewardcardLegendary", "RewardcardMystery", "DailycellClaimed", "DailycellLocked", "Chest", "Giftbox", "Rewardtray", "Chestpanel", "Orderticket" }),
+      ("REWARDS", "Rewards", new[] { "Pack", "Cardback", "ClaimbtnDouble", "RewardcardLegendary", "RewardcardMystery", "DailycellClaimed", "DailycellLocked", "Chest", "Giftbox", "Rewardtray", "Chestpanel", "Orderticket", "Ribbonbanner" }),
       /* round 80: the card-battler set (Stand on Business) shelves as its
          own chapter; the plan timer sits with the bars above */
       ("CARD BATTLER", "Card Battler", new[] { "Coin", "Trayslot", "Validity", "Verdict", "Spotlight", "Placeholder" }),

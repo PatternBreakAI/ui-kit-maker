@@ -57,6 +57,9 @@ Hot Rod designs its type heavier than Audiowide can supply, so every label and s
 **15. The claim celebration is a one-time press now, and the words are the kit's own.**
 Chevon's call (2026-09-19): a button that celebrates, the white-hot flash and the particle throw, goes dead afterwards, the way a claimed reward should. ClaimBurst has a `oneShot` flag, on by default. After the throw settles, a Button host turns non-interactable and wears its disabled skin; call `ClaimBurst.Rearm()` when the next claim is due. Pieces without a Button (the gift box, the combo) just celebrate as before. The words that celebrate now travel in the manifest (`celebrate`), set per kit in the app (Global, under Idle motion: Celebration). CLAIM stays the default, and a kit can add its own words for its own key button. Prefabs and board copies whose words match get the ClaimBurst exactly as CLAIM copies always have.
 
+**16. The ribbon banner ships as a real piece.**
+Until now the ribbon banner reached Unity only as a posed board skin with its word baked in. It is a prop family now: `ribbonbanner/ribbonbanner-base.png` (bare plate and tails, no word), a disabled grade, its own glow, and a live TMP word seated on the plate from the manifest (labelText, size, ink, offset), so the prefab reads VICTORY or LEVEL 3 or whatever you type. It shelves under Rewards. It has no nine-slice on purpose: the tails and folds are drawn geometry, so a long word shrinks to the plate and the piece scales as a whole. Like every staged piece it ships when the kit places it on a board, and for everyone once Chevon releases it.
+
 ## What we chose not to do
 
 - **Selective export by genre.** Chevon has this on the list as a product decision for the app, not a bug. Nothing built for it yet.
