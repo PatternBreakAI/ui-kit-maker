@@ -2056,7 +2056,11 @@ export async function collectExportBoards(st: {
            copy's exact app pixels. Content-less copies ride the family
            bake — the honest optimization, not the default. */
         const universalPose = UNIVERSAL_ROAD.has(idBase) && (b.label != null || b.v != null || b.ov != null);
-        if (!pureType && (isCloneId(id) || universalPose || (Math.abs(poseAspect / natAspect - 1) > 0.08 && !BAR_RIGS.has(idBase)))) {
+        /* a container copy in one of its SHAPES (round, oval, strip — the
+           kind rides ov) has a silhouette the panel's nine-slice bake can
+           never stretch into, so it always travels as its own pixels */
+        const shapedPanel = idBase === "panel" && (b.ov === "circle" || b.ov === "oval" || b.ov === "strip");
+        if (!pureType && (isCloneId(id) || universalPose || shapedPanel || (Math.abs(poseAspect / natAspect - 1) > 0.08 && !BAR_RIGS.has(idBase)))) {
           let ps2 = renderKit(shellCfg(cfgP), idBase, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], {
             icon: resolveKitIcon(st.kitIcons?.[id], undefined),
             label: copyLabel, segments: copySegs, stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov, slots: st.kitSlotVals?.[id],

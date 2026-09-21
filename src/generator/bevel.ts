@@ -6005,10 +6005,16 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       // container shell — same recipe, bigger canvas. tokenH keeps walls,
       // rim and depth at component scale instead of scaling with the height.
       // kinds: circle (medallion dialogs), oval (50s-modern), strip (dialogue)
+      /* the kind also rides the VARIANT slot (owner, 2026-09-21: the kit
+         page shows four container shapes, the board tray offered one): a
+         board copy carries its shape as ov, so every road that speaks
+         overlay (the stage, the tray thumb, the export's posed bake, the
+         PNG board) draws the round, oval and strip containers unchanged */
+      const kindP = opts.kind ?? (opts.overlay === "circle" || opts.overlay === "oval" || opts.overlay === "strip" ? opts.overlay : undefined);
       const dims: Record<KitSize, [number, number]> =
-        opts.kind === "circle" ? { s: [300, 300], m: [380, 380], l: [470, 470] }
-        : opts.kind === "oval" ? { s: [420, 258], m: [540, 330], l: [680, 415] }
-        : opts.kind === "strip" ? { s: [540, 100], m: [700, 124], l: [880, 152] }
+        kindP === "circle" ? { s: [300, 300], m: [380, 380], l: [470, 470] }
+        : kindP === "oval" ? { s: [420, 258], m: [540, 330], l: [680, 415] }
+        : kindP === "strip" ? { s: [540, 100], m: [700, 124], l: [880, 152] }
         : { s: [430, 290], m: [580, 380], l: [780, 470] };
       // blank panels stretch 9-slice BOTH ways (owner: "two modes — 9-slice
       // stretchable and scale"): the shell re-renders at the pulled size while
@@ -6017,7 +6023,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const [pw0, ph0] = dims[size];
       const pw = pw0 * clamp(opts.stretch ?? 1, 0.7, 3);
       const ph2 = ph0 * clamp(opts.stretchY ?? 1, 0.7, 3);
-      return build(cfg, state, { x: 42, y: 33, h: ph2, fs: 0, iconSize: 0, tokenH: 150 }, { iconDef: null, label: "", fixedW: pw, shapeOverride: opts.kind ? "pill" : sov, faceLayer: opts.faceLayer });
+      return build(cfg, state, { x: 42, y: 33, h: ph2, fs: 0, iconSize: 0, tokenH: 150 }, { iconDef: null, label: "", fixedW: pw, shapeOverride: kindP ? "pill" : sov, faceLayer: opts.faceLayer });
     }
     case "vsbar": {
       /* Fighting · VS health bar — two mirrored wells drain toward center,
