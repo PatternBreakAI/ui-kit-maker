@@ -2197,10 +2197,15 @@ export const isCloneId = (id: string): id is ClonePieceId => id.startsWith("copy
 export const baseOf = (id: KitPieceId): KitComponentId => (isCloneId(id) ? (id.slice(10) as KitComponentId) : id);
 export const mintCloneId = (base: KitComponentId): ClonePieceId =>
   `copy-${Array.from({ length: 4 }, () => "abcdefghjkmnpqrstuvwxyz23456789"[Math.floor(Math.random() * 31)]).join("")}-${base}`;
-/** Pieces whose CONTENT lives in store singletons (kitRow, kitKind), not
- *  per-piece maps — a clone would share content with its base, so they
- *  sit out of duplication until that content moves per-piece. */
-export const CLONE_INELIGIBLE = new Set<KitComponentId>(["datarow", "panel"]);
+/** Pieces whose CONTENT lives in store singletons (kitRow), not per-piece
+ *  maps — a clone would share content with its base, so they sit out of
+ *  duplication until that content moves per-piece. The panel left this set
+ *  (owner, 2026-09-21: "saved it as Panel-BLUE, then changed the color, it
+ *  changed the color of the original component as well"): its only
+ *  singleton was the editor's transient kind selector, and a board copy
+ *  carries its container shape itself now, so a panel clone owns its look
+ *  like any other piece. */
+export const CLONE_INELIGIBLE = new Set<KitComponentId>(["datarow"]);
 /** The glyph pieces as a narrowable sub-union — renderKit peels them off
  *  before its switch, which stays compile-time exhaustive for the rest. */
 export type GlyphPieceId = Extract<KitComponentId, `glyph${string}`>;

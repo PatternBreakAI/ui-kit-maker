@@ -2561,7 +2561,7 @@ export const useGen = create<GenStore>((set, get) => ({
        board-history step — one ⌘Z restores the pre-save binding (the
        drawer asset stays saved). Deleting the drawer asset later never
        touches this copy: it lives on the clone, not the libId road.
-       datarow/panel sit out (CLONE_INELIGIBLE) and save drawer-only. */
+       datarow sits out (CLONE_INELIGIBLE) and saves drawer-only. */
     const cloneId = get().duplicateKitPiece(b.kitId, name, "Other");
     if (cloneId) {
       const pins: Record<string, unknown> = {};
