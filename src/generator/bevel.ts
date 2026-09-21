@@ -6011,10 +6011,20 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          overlay (the stage, the tray thumb, the export's posed bake, the
          PNG board) draws the round, oval and strip containers unchanged */
       const kindP = opts.kind ?? (opts.overlay === "circle" || opts.overlay === "oval" || opts.overlay === "strip" ? opts.overlay : undefined);
+      if (kindP === "strip") {
+        /* the dialogue strip is a CONTROL-height plate (owner, 2026-09-21:
+           "trying to achieve the select option strip without any type, but
+           having trouble by scaling the panel because it is so large
+           comparatively"): the dropdown's own shell, 110 by 560 at the
+           component token scale, in the kit's silhouette, no word and no
+           caret. Placed beside a Select option at the same scale it matches
+           it rim for rim; stretch widens it, stretchY makes it taller. */
+        const wS = 560 * k * clamp(opts.stretch ?? 1, 0.7, 3), hS = 110 * k * clamp(opts.stretchY ?? 1, 0.7, 3);
+        return build(cfg, state, { x: 39, y: 30, h: hS, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: wS, shapeOverride: sov, faceLayer: opts.faceLayer });
+      }
       const dims: Record<KitSize, [number, number]> =
         kindP === "circle" ? { s: [300, 300], m: [380, 380], l: [470, 470] }
         : kindP === "oval" ? { s: [420, 258], m: [540, 330], l: [680, 415] }
-        : kindP === "strip" ? { s: [540, 100], m: [700, 124], l: [880, 152] }
         : { s: [430, 290], m: [580, 380], l: [780, 470] };
       // blank panels stretch 9-slice BOTH ways (owner: "two modes — 9-slice
       // stretchable and scale"): the shell re-renders at the pulled size while
