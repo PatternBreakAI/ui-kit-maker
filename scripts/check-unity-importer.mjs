@@ -4656,7 +4656,7 @@ const OBSOLETE = [
       || !/<g data-part="label">\$\{contentText\(titleTT, /.test(bevelSrc)
       || !/"turntrack",\n\]\);/.test(bevelSrc))
     errors.push("the turn tracker's render case, its marked coins, its live title or its Value dial left bevel (round 87)");
-  if (!/\{ id: "turntrack", name: "Turn tracker", staged: true \},/.test(modelSrc82)
+  if (!/\{ id: "turntrack", name: "Turn tracker" \},/.test(modelSrc82)
       || !/"placeholder", "turntrack"\] \},/.test(modelSrc82)
       || !/^  turntrack: 2,/m.test(modelSrc82)
       || !/^  turntrack: \[\n/m.test(modelSrc82))

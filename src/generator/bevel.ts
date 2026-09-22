@@ -7216,7 +7216,14 @@ ${contentText(unitC, cxC, cyC + 78 * k, 21 * k * typeK, { anchor: "middle", list
       const shellTT = shell.replace("<svg ", '<svg data-turntrack="1" ');
       // Unity extras: the bare plate — the title and the coins arrive live
       if (opts.part === "shell") return shellTT;
-      const titleG = `<g data-part="label">${contentText(titleTT, ccx, sy + sh * 0.33, fitFs(titleTT, fsTT, sw - padTT * 1.2, 0.7), { anchor: "middle", ink: effect(cfg.effects, "Highlight"), opacity: dimTT ? 0.55 : 1 })}</g>`;
+      /* the title wears the Highlight role (the owner's gold) wherever it
+         reads on the plate's face; a pale highlight on a pale face (light
+         looks) falls back to the kit's own type ink, so every look keeps
+         a legible readout (released for all looks, 2026-09-22) */
+      const hiTT = effect(cfg.effects, "Highlight");
+      const faceTT = cfg.face.mode === "dark" ? hexMix(bevel, "#0B0714", 0.72) : effect(cfg.effects, "Inner Fill");
+      const inkTT = contrastOf(hiTT, faceTT) >= 3 ? hiTT : undefined;
+      const titleG = `<g data-part="label">${contentText(titleTT, ccx, sy + sh * 0.33, fitFs(titleTT, fsTT, sw - padTT * 1.2, 0.7), { anchor: "middle", ...(inkTT ? { ink: inkTT } : {}), opacity: dimTT ? 0.55 : 1 })}</g>`;
       const cyTT = sy + sh * 0.7;
       const x0TT = ccx - ((totTT - 1) * pitchTT) / 2;
       const boxTT = rTT + 6 * k; // one shared crop frame: the stroke plus a hair of air

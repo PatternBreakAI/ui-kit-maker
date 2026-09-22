@@ -2051,8 +2051,9 @@ export const KIT_COMPONENTS: { id: KitComponentId; name: string; staged?: true; 
   { id: "validity", name: "Validity line", staged: true },
   { id: "verdict", name: "Verdict stamp", staged: true },
   /* the turn tracker (round 87, the owner's "TURN 3 / 8" readout with a
-     row of coins). Staged like the rest of the set. */
-  { id: "turntrack", name: "Turn tracker", staged: true },
+     row of coins). Released for every look (owner, 2026-09-22: "add this
+     component to the kit (for all looks) as a permanent addition"). */
+  { id: "turntrack", name: "Turn tracker" },
   { id: "pricebtn", name: "Price button" },
   { id: "energymeter", name: "Energy meter" },
   { id: "buildqueue", name: "Build queue" },

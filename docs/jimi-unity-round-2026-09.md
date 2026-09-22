@@ -60,8 +60,8 @@ Chevon's call (2026-09-19): a button that celebrates, the white-hot flash and th
 **16. The ribbon banner ships as a real piece.**
 Until now the ribbon banner reached Unity only as a posed board skin with its word baked in. It is a prop family now: `ribbonbanner/ribbonbanner-base.png` (bare plate and tails, no word), a disabled grade, its own glow, and a live TMP word seated on the plate from the manifest (labelText, size, ink, offset), so the prefab reads VICTORY or LEVEL 3 or whatever you type. It shelves under Rewards. It has no nine-slice on purpose: the tails and folds are drawn geometry, so a long word shrinks to the plate and the piece scales as a whole. Like every staged piece it ships when the kit places it on a board, and for everyone once Chevon releases it.
 
-**17. The turn tracker joins the Card Battler shelf (staged).**
-Chevon's turn readout for Stand on Business: "TURN 3 / 8" over a row of coins. It ships as `turntrack/base.png` (the plate alone, no word, no coins), the title as one live TMP seat (write "TURN 4 / 8" from your match state), and every coin as a live Image child (Turn 1 coin through Turn N coin) on one shared frame, with `turntrack/coin-lit.png` and `turntrack/coin-unlit.png` beside them. Swap a coin's sprite as turns pass; nothing needs the app. Staged, so it reaches a zip only once Chevon releases it or a board places one.
+**17. The turn tracker joins the Card Battler shelf.**
+Chevon's turn readout for Stand on Business: "TURN 3 / 8" over a row of coins. It ships as `turntrack/base.png` (the plate alone, no word, no coins), the title as one live TMP seat (write "TURN 4 / 8" from your match state), and every coin as a live Image child (Turn 1 coin through Turn N coin) on one shared frame, with `turntrack/coin-lit.png` and `turntrack/coin-unlit.png` beside them. Swap a coin's sprite as turns pass; nothing needs the app. Chevon released it for every look on 2026-09-22, so it is in every kit's zip from now on; the title takes the kit's Highlight colour where that reads on the plate and the kit's text colour where it would not.
 
 ## What we chose not to do
 
