@@ -3437,6 +3437,9 @@ const kitTier = useGen((s) => s.tier);
           {kitVisible("spotlight", releases, false) && <Piece id="spotlight" caption="Spotlight ring" scale={0.5} />}
           {kitVisible("timerbar", releases, false) && <Piece id="timerbar" caption="Plan timer" value={0.62} scale={0.5} />}
           {kitVisible("placeholder", releases, false) && <Piece id="placeholder" caption="Placeholder window" label="card-hole" scale={0.5} />}
+          {/* the turn tracker (round 87): the match's turn readout, coins lit
+              through the current turn; staged like the rest of the set */}
+          {kitVisible("turntrack", releases, false) && <Piece id="turntrack" caption="Turn tracker" value={0.375} scale={0.5} />}
         </div>
         <StateStrip variants={[
           { cap: "Min", piece: { id: "slider", value: 0, scale: 0.26 } },

@@ -4511,7 +4511,7 @@ const OBSOLETE = [
   if (!/data-barfill="\$\{gT\.toFixed\(1\)\} \$\{gT\.toFixed\(1\)\}/.test(bevelSrc))
     errors.push("the plan timer's mercury lost its mark (round 80)");
   // the shelf claims
-  if (!/\("CARD BATTLER", "Card Battler", new\[\] \{ "Coin", "Trayslot", "Validity", "Verdict", "Spotlight", "Placeholder" \}\)/.test(cs)
+  if (!/\("CARD BATTLER", "Card Battler", new\[\] \{ "Coin", "Trayslot", "Validity", "Verdict", "Spotlight", "Placeholder", "Turntrack" \}\)/.test(cs)
       || !/"Cooldown", "Vitalbar", "Timerbar" \}\)/.test(cs))
     errors.push("the Playground's CARD BATTLER chapter or the Timerbar shelf claim left the importer (round 80)");
 }
@@ -4640,6 +4640,27 @@ const OBSOLETE = [
       || !/const disabled = kit\?\.baseState === "disabled" \|\| spent;/.test(liveArtSrc82)
       || !/const playHandlers = spent \? \{ onPointerUp: \(\) => setSpent\(false\) \} : inert \? \{\} : \{/.test(liveArtSrc82))
     errors.push("LiveArt's press no longer celebrates on the kit's words or no longer rests dead after (round 82)");
+  /* the turn tracker (round 87, owner: "TURN 3 / 8" with a row of coins):
+     a staged card-battler display piece on the universal road, every coin
+     a marked child on one shared frame, the lit/unlit looks cut beside
+     them, the title a live seat, the Card Battler shelf */
+  if (!/^  turntrack: "turntrack",/m.test(src)
+      || !/\n  "turntrack"\]\);/.test(src)
+      || !/\n\s+turntrack: "Turn tracker: /.test(src)
+      || !/if \(uid === "turntrack"\) \{/.test(src)
+      || !/\["coin-lit", 1, /.test(src) || !/\["coin-unlit", 0, /.test(src)
+      || !/markedIconOnlySvgs\(svT\)\.find\(\(c9\) => c9\.name === "coin1"\)/.test(src))
+    errors.push("the turn tracker left the universal road (family entry, display set, usage row, the lit/unlit coin looks) (round 87)");
+  if (!/case "turntrack": \{/.test(bevelSrc)
+      || !/data-icon="coin\$\{i \+ 1\}" data-icon-box=/.test(bevelSrc)
+      || !/<g data-part="label">\$\{contentText\(titleTT, /.test(bevelSrc)
+      || !/"turntrack",\n\]\);/.test(bevelSrc))
+    errors.push("the turn tracker's render case, its marked coins, its live title or its Value dial left bevel (round 87)");
+  if (!/\{ id: "turntrack", name: "Turn tracker", staged: true \},/.test(modelSrc82)
+      || !/"placeholder", "turntrack"\] \},/.test(modelSrc82)
+      || !/^  turntrack: 2,/m.test(modelSrc82)
+      || !/^  turntrack: \[\n/m.test(modelSrc82))
+    errors.push("the model lost the turn tracker (roster entry, Card battler group, label cap, slots) (round 87)");
 }
 
 if (errors.length) {

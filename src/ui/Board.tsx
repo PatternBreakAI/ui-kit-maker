@@ -94,7 +94,7 @@ const ASSET_GROUPS: { name: string; ids: string[] }[] = [
      slot, the validity line, the verdict stamp, the tutorial spotlight and
      the named placeholder window (staged, so kitVisible keeps them admin-
      only until released) */
-  { name: "Card battler", ids: ["cardback", "cardface", "pack", "coin", "trayslot", "validity", "verdict", "spotlight", "placeholder"] },
+  { name: "Card battler", ids: ["cardback", "cardface", "pack", "coin", "trayslot", "validity", "verdict", "spotlight", "placeholder", "turntrack"] },
   /* the semantic glyph rack — registry-derived so the tray and the kit page
      can't drift; the kitVisible filter below keeps it admin-only while
      staged, then per-glyph as releases land. LIVE only — a retired glyph
@@ -157,6 +157,7 @@ const SEARCH_TERMS: Partial<Record<KitComponentId, string>> = {
   // the card-battler set (round 80)
   placeholder: "placeholder window hole slot blank transparent card portrait banner wordmark art layout",
   coin: "legacy coin medallion stake readout number target arrow unit hud",
+  turntrack: "turn tracker round counter coins pips readout match hud",
   timerbar: "timer bar plan turn countdown thin fill warn red mercury",
   spotlight: "spotlight ring halo tutorial highlight frame pulse glow guide",
   trayslot: "tray slot deck builder cell card well empty filled invalid numeral tag",

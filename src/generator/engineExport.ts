@@ -945,6 +945,8 @@ const PREFAB_FAMILY: Partial<Record<KitComponentId, string>> = {
      until the owner releases them or a board places one */
   placeholder: "placeholder", coin: "coin", timerbar: "timerbar", spotlight: "spotlight",
   trayslot: "trayslot", validity: "validity", verdict: "verdict",
+  // the turn tracker (round 87): places live, coins as children
+  turntrack: "turntrack",
 };
 // the glyph rack: pure-art silhouettes, one Image prefab each — placeable,
 // tintable, never fake buttons (the mandate's non-interactive lane)
@@ -1014,7 +1016,10 @@ const UNIVERSAL_DISPLAY = new Set<KitComponentId>(["qtybadge", "resource", "curr
   /* the card-battler set (round 80): the window, the coin readout, the
      plan timer, the spotlight ring, the validity line and the verdict
      stamp are display pieces; the tray slot presses (interactive above) */
-  "placeholder", "coin", "timerbar", "spotlight", "validity", "verdict"]);
+  "placeholder", "coin", "timerbar", "spotlight", "validity", "verdict",
+  /* the turn tracker (round 87): a display readout; its title is a live
+     seat and every coin a live child with lit/unlit looks beside them */
+  "turntrack"]);
 /* the glyph-button fleet (round 52 — the owner: "stock the kit with the
    entire semantic glyph set as buttons… I don't want to have to have one
    master then go round about to save one"): 47 REAL components join the
@@ -5405,6 +5410,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         trayslot: "Tray slot: one cell of the deck tray, a REAL button (Sprite Swap states). The corner tag is a LIVE Image child and its numeral a LIVE seat; the filled pose (a card-shaped well) and the invalid pose (red rim, red numeral) ride posed skins on board copies.",
         validity: "Validity line: the deck builder's status plate. The status sentence is a LIVE seat in the reading voice and the status glyph a LIVE Image child (icons/check ships by default; swap it for icons/close on an error). The error pose (red ink and rim) rides a posed skin on board copies. Display piece.",
         verdict: "Verdict stamp: the word slammed on a tile. The word is a LIVE seat; the sprite bakes upright and the prefab carries the stamp's own tilt as rotation (board copies add it to their own), so re-angle it in the Inspector. The won pose (gold ink) rides a posed skin on board copies. Display piece; your game plays the pop-in.",
+        /* the turn tracker (round 87). No em dashes: read by the developer. */
+        turntrack: "Turn tracker: the match's turn readout. The title (TURN 3 / 8) is one LIVE seat; write it from your match state. Every coin is a LIVE Image child on one shared frame, and the lit and unlit looks ship beside them (turntrack/coin-lit.png, turntrack/coin-unlit.png), so swap any coin's sprite as turns pass. Display piece.",
       };
       const universalIds: KitComponentId[] = [
         ...UNIVERSAL_ROAD,
@@ -6229,6 +6236,37 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
                 .replace(/ height="[\d.]+"/, ` height="${Math.ceil(bh9b)}"`);
               await addPng(`${uid}/${part9}.png`, spr9, {
                 component: uid, part: part9, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: use9,
+              }, false);
+            }
+          } catch { /* the seats above still ship */ }
+        }
+        /* ── the TURN COIN LOOKS (round 87): the base seats every coin as
+           a live child above (one shared frame, data-icon-box, the quest
+           pip lesson); the two LOOKS ship beside them so a dev or the game
+           flips any coin. Lit is cut from the all-lit render, unlit from
+           the none-lit one; the label is blanked so the dial drives both.
+           Additive: a failed look leaves the seats. ── */
+        if (uid === "turntrack") {
+          try {
+            const lookTT: [string, number, string][] = [
+              ["coin-lit", 1, "A turn coin, LIT (the coin material in the kit's Glow and Bevel roles). Swap any Turn coin child to this sprite once that turn is taken."],
+              ["coin-unlit", 0, "A turn coin, UNLIT (the dark well). Swap any Turn coin child to this sprite for a turn still to come."],
+            ];
+            for (const [partT, vT, useT] of lookTT) {
+              const svT = stripLoopsU(shell(uid, { ...uOpts, label: "" }, undefined, vT));
+              const cutT = markedIconOnlySvgs(svT).find((c9) => c9.name === "coin1");
+              if (!cutT || !cutT.box || cutT.box.length !== 4) continue;
+              const shDT = /data-shell="([-\d. ]+)"/.exec(svT)?.[1].split(" ").map(Number);
+              const sh0T = /data-shell0="([-\d. ]+)"/.exec(svT)?.[1].split(" ").map(Number);
+              const riseT = shDT && sh0T && shDT.length === 4 && sh0T.length === 4 ? shDT[1] - sh0T[1] : 0;
+              const bxT = cutT.box[0], byT = cutT.box[1] + riseT, bwT = cutT.box[2], bhT = cutT.box[3];
+              if (!(bwT > 1) || !(bhT > 1)) continue;
+              const sprT = cutT.svg
+                .replace(/viewBox="[^"]+"/, `viewBox="${bxT.toFixed(1)} ${byT.toFixed(1)} ${bwT.toFixed(1)} ${bhT.toFixed(1)}"`)
+                .replace(/ width="[\d.]+"/, ` width="${Math.ceil(bwT)}"`)
+                .replace(/ height="[\d.]+"/, ` height="${Math.ceil(bhT)}"`);
+              await addPng(`${uid}/${partT}.png`, sprT, {
+                component: uid, part: partT, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: useT,
               }, false);
             }
           } catch { /* the seats above still ship */ }
@@ -26467,7 +26505,7 @@ namespace PatternBreak {
       ("REWARDS", "Rewards", new[] { "Pack", "Cardback", "ClaimbtnDouble", "RewardcardLegendary", "RewardcardMystery", "DailycellClaimed", "DailycellLocked", "Chest", "Giftbox", "Rewardtray", "Chestpanel", "Orderticket", "Ribbonbanner" }),
       /* round 80: the card-battler set (Stand on Business) shelves as its
          own chapter; the plan timer sits with the bars above */
-      ("CARD BATTLER", "Card Battler", new[] { "Coin", "Trayslot", "Validity", "Verdict", "Spotlight", "Placeholder" }),
+      ("CARD BATTLER", "Card Battler", new[] { "Coin", "Trayslot", "Validity", "Verdict", "Spotlight", "Placeholder", "Turntrack" }),
     };
     static string ChapterFolderOf(string prefabName, string currentSub) {
       if (currentSub == "Glyphs" || currentSub == "Art") return currentSub; // the rack and the board art keep their own shelves

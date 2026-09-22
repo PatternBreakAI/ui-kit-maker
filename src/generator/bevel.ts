@@ -4376,6 +4376,8 @@ export const VALUE_DRIVEN = new Set<KitComponentId>([
   "bottomnav", "boostercard",
   // round 80: the plan timer fills 0..1 like the progress bar
   "timerbar",
+  // round 87: the turn tracker lights its coins 0..total off the dial
+  "turntrack",
 ]);
 
 /** Pieces the app draws TURNED (round 80, the verdict stamp): the render
@@ -7175,6 +7177,67 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
 ${raisedC && !dimC ? `<g style="filter: drop-shadow(0 0 ${(6 * k).toFixed(1)}px ${hexRgba(glow, 0.9)})">` : ""}${contentText(tgtC, cxC, cyC + 42 * k, 28 * k * typeK, { anchor: "middle", keepCase: true, ...(raisedC ? { ink: glow } : {}), opacity: dimC ? 0.6 : 1 })}${raisedC && !dimC ? "</g>" : ""}
 ${contentText(unitC, cxC, cyC + 78 * k, 21 * k * typeK, { anchor: "middle", list: true, plain: true, keepCase: true, opacity: dimC ? 0.5 : 0.9 })}`;
       return bareRoot(cfg, dC, dC, innerC, { label: `${numC} ${tgtC} ${unitC}`, state, attrs: 'data-coin="1"' });
+    }
+    case "turntrack": {
+      /* Card battler · turn tracker (round 87, the owner's "TURN 3 / 8"
+         with a row of coins): the match's turn readout. A plate in the
+         kit's own silhouette (pinDesign: the frame keeps the Default
+         design in every state, the move counter's road) carries ONE live
+         title in the Highlight role and a row of coin pips, one per turn,
+         lit through the current one. EDITING CONTRACT: caption slot = the
+         word; total slot = the coin count (2..12, the plate grows to fit,
+         the coins never shrink); the current turn follows the Value dial
+         (0..1 → 0..total) unless a typed label (a number) pins it, the
+         counter family's contract verbatim. Every coin is MARKED ink on
+         ONE shared crop frame (data-icon-box), so the export ships each
+         as a live child plus the lit/unlit looks beside them, and a dev
+         flips any coin in the Inspector. Lit coins alone mark the turn
+         (the owner's call: no ring on the current coin). A display piece:
+         hover and pressed only wear the kit's own state glow on the plate;
+         disabled greys the plate and dims the coins and the word. */
+      const capTT = String(opts.slots?.caption ?? "TURN").trim().slice(0, 12) || "TURN";
+      const totTT = clamp(parseInt(String(opts.slots?.total ?? "8"), 10) || 8, 2, 12);
+      const typedTT = (opts.label ?? "").trim();
+      const curTT = /^\d{1,2}$/.test(typedTT) ? clamp(+typedTT, 0, totTT) : Math.round(clamp(value ?? 0.375, 0, 1) * totTT);
+      const dimTT = state === "disabled";
+      const rTT = 15.5 * k, pitchTT = 41 * k, padTT = 34 * k;
+      const fsTT = 17.5 * k * typeK;
+      const titleTT = `${capTT} ${curTT} / ${totTT}`;
+      const coinsW = rTT * 2 + (totTT - 1) * pitchTT;
+      /* the plate fits the wider of the coin row and the title (a wide-face
+         estimate; fitFs trims the word if a face runs wider still) */
+      const wTT = Math.max(coinsW, titleTT.length * fsTT * 0.7) + padTT * 2;
+      const hTT = 108 * k;
+      const shell = build(cfg, state, { x: 39, y: 30, h: hTT, fs: 0, iconSize: 0, tokenH: 150 }, { pinDesign: true, iconDef: null, label: "", fixedW: wTT, shapeOverride: sov });
+      const shellM = /data-shell0="([-\d. ]+)"/.exec(shell);
+      if (!shellM) return shell;
+      const [sx, sy, sw, sh] = shellM[1].split(" ").map(Number);
+      const ccx = sx + sw / 2;
+      const shellTT = shell.replace("<svg ", '<svg data-turntrack="1" ');
+      // Unity extras: the bare plate — the title and the coins arrive live
+      if (opts.part === "shell") return shellTT;
+      const titleG = `<g data-part="label">${contentText(titleTT, ccx, sy + sh * 0.33, fitFs(titleTT, fsTT, sw - padTT * 1.2, 0.7), { anchor: "middle", ink: effect(cfg.effects, "Highlight"), opacity: dimTT ? 0.55 : 1 })}</g>`;
+      const cyTT = sy + sh * 0.7;
+      const x0TT = ccx - ((totTT - 1) * pitchTT) / 2;
+      const boxTT = rTT + 6 * k; // one shared crop frame: the stroke plus a hair of air
+      const rimTT = darken(bevel, 0.5);
+      let coins = "";
+      for (let i = 0; i < totTT; i++) {
+        const cxTT = x0TT + i * pitchTT;
+        const head = `<g data-part="icon" data-icon="coin${i + 1}" data-icon-box="${(cxTT - boxTT).toFixed(1)} ${(cyTT - boxTT).toFixed(1)} ${(boxTT * 2).toFixed(1)} ${(boxTT * 2).toFixed(1)}" data-icon-nick="Turn ${i + 1} coin"${dimTT ? ' opacity="0.5"' : ""}>`;
+        if (i < curTT) {
+          // lit: the coin material in the kit's own roles (Glow face, Bevel rim)
+          const gidTT = "tt" + UID++;
+          coins += head + `<defs><radialGradient id="${gidTT}" cx="0.35" cy="0.3" r="0.95"><stop offset="0" stop-color="${lighten(glow, 0.7)}"/><stop offset="0.55" stop-color="${glow}"/><stop offset="1" stop-color="${darken(bevel, 0.35)}"/></radialGradient></defs>` +
+            `<circle cx="${cxTT.toFixed(1)}" cy="${cyTT.toFixed(1)}" r="${rTT.toFixed(1)}" fill="url(#${gidTT})" stroke="${rimTT}" stroke-width="1.6"/>` +
+            `<circle cx="${cxTT.toFixed(1)}" cy="${cyTT.toFixed(1)}" r="${(rTT * 0.66).toFixed(1)}" fill="none" stroke="${rimTT}" stroke-width="1.1" opacity="0.5"/>` +
+            `<ellipse cx="${(cxTT - rTT * 0.3).toFixed(1)}" cy="${(cyTT - rTT * 0.42).toFixed(1)}" rx="${(rTT * 0.34).toFixed(1)}" ry="${(rTT * 0.18).toFixed(1)}" fill="#FFFFFF" opacity="0.65"/></g>`;
+        } else {
+          // unlit: a dark well with a faint rim, the step indicator's upcoming pip
+          coins += head + `<circle cx="${cxTT.toFixed(1)}" cy="${cyTT.toFixed(1)}" r="${rTT.toFixed(1)}" fill="${wellFill}" stroke="rgba(255,255,255,0.22)" stroke-width="1.2"/></g>`;
+        }
+      }
+      return inject(shellTT, titleG + coins);
     }
     case "timerbar": {
       /* Card battler · plan timer (round 80) — the thin bar under the match
