@@ -10501,8 +10501,21 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       partsF += `</g>`;
       // the darkroom's wash rides ABOVE the art as its own swappable child
       if (artSeat) partsF += artSeat.wash(`${gid}w`, "artwash", "Card art wash", wX, wY, wW, wH);
-      // a scrim up from the well's foot so the name reads over any picture
-      partsF += `<g clip-path="url(#${gid}w)"><rect x="${wX.toFixed(1)}" y="${(wY + wH * 0.58).toFixed(1)}" width="${wW.toFixed(1)}" height="${(wH * 0.42).toFixed(1)}" fill="url(#${gid}s)"/></g>`;
+      /* THE NAME'S GROUND IS ONE MARKED CHILD (week of 9/21 — Jimi: the card
+         name did not read over the face). The foot fade and the vignette
+         used to sit in the base sprite, where a live picture child covers
+         them in Unity, so the band the app draws never showed under a real
+         picture. As marked ink placed after the art group they ship as a
+         Name band child seated OVER the picture and UNDER the words, as the
+         app draws them; delete or restyle it like any other child. No name
+         at all (No text, no wordmark): no band, the foot stays clear for a
+         board stamp (the owner's rule for the vignette, now the whole band). */
+      const logoBase = 30 + h - 52 * k;
+      const logoSizeK = ({ Small: 0.74, Large: 1.24, Huge: 1.5 } as Record<string, number>)[String(slF.logosize ?? "")] ?? 1;
+      const logoPic = opts.logo;
+      const logoOff = !logoPic && opts.label === "";
+      if (!logoOff) partsF += `<g data-part="icon" data-icon="nameband" data-icon-nick="Name band"><g clip-path="url(#${gid}w)"><rect x="${wX.toFixed(1)}" y="${(wY + wH * 0.58).toFixed(1)}" width="${wW.toFixed(1)}" height="${(wH * 0.42).toFixed(1)}" fill="url(#${gid}s)"/></g>` +
+        `<ellipse cx="${(39 + w / 2).toFixed(1)}" cy="${logoBase.toFixed(1)}" rx="${(w * 0.5).toFixed(1)}" ry="${(38 * k * logoSizeK).toFixed(1)}" fill="url(#${gid}v)"/></g>`;
       if (frameOnF) partsF += `<path d="${wellD}" fill="none" stroke="${hexRgba(CD(hexMix(glow, "#FFFFFF", 0.28)), 0.6)}" stroke-width="${(2.4 * k).toFixed(1)}"/>`;
       /* THE CORNER BADGES. Each is a plate the number rides: the shape
          ships as its own sprite and the digits stay live TMP, so a dev
@@ -10605,20 +10618,13 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
          across the lines the maker asks for, at the size they pick. It
          rides the FOOT of the picture, the owner's own framing: "the text
          logo will cover up the bottom part of the raster inserted image". */
-      const logoBase = 30 + h - 52 * k;
-      const logoSizeK = ({ Small: 0.74, Large: 1.24, Huge: 1.5 } as Record<string, number>)[String(slF.logosize ?? "")] ?? 1;
-      const logoPic = opts.logo;
       /* NO LOGO AT ALL is a real answer (owner: "need the option of no
          logo (as it might be added later in boards)") — the No text
          toggle empties the label, and with no uploaded wordmark either
-         the whole band stands down, vignette included. A darkening over
-         the art with nothing in it would be a container for nothing,
-         which is the one thing the owner ruled out here. */
-      const logoOff = !logoPic && opts.label === "";
-      /* the VIGNETTE first (not a plate: the owner asked for no container)
-         — it darkens the ground under whatever the logo turns out to be,
-         so a wordmark reads over any picture the maker drops in */
-      if (!logoOff) partsF += `<ellipse cx="${(39 + w / 2).toFixed(1)}" cy="${logoBase.toFixed(1)}" rx="${(w * 0.5).toFixed(1)}" ry="${(38 * k * logoSizeK).toFixed(1)}" fill="url(#${gid}v)"/>`;
+         the whole band stands down, vignette included (logoOff, drawn with
+         the Name band above). A darkening over the art with nothing in it
+         would be a container for nothing, which is the one thing the owner
+         ruled out here. */
       if (logoOff) {
         // nothing: the foot of the art is left clear for a board stamp
       } else if (logoPic) {
@@ -10674,6 +10680,14 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
         const fs0 = 33 * k * typeK * logoSizeK;
         const lineHL = fs0 * 1.06;
         const topL = logoBase - ((lineArr.length - 1) * lineHL) / 2;
+        /* CONTRAST FALLBACK (owner, 2026-09-25: "contrast fallback plus a
+           light band, universal"): the name reads against the band over the
+           well, not against open paper. Where the kit's own ink would not
+           reach 3:1 there (Brightside's navy on a dark band) the name goes
+           white; a kit whose ink reads keeps its own type treatment. */
+        const groundN = hexMix(CD(darken(effect(cfg.effects, "Inner Fill"), 0.35)), "#000000", 0.45);
+        const inkN0 = cfg.type.fillMode === "solid" ? cfg.type.fill : cfg.type.fillMode === "gradient" ? hexMix(cfg.type.fill, cfg.type.fill2 || cfg.type.fill, 0.5) : "#FFFFFF";
+        const nameInk = contrastOf(inkN0, groundN) >= 3 ? undefined : "#FFFFFF";
         lineArr.forEach((ln, li3) => {
           /* every line still SHRINKS TO FIT rather than running off the
              card — the owner's rule from the claim button's ribbon,
@@ -10681,7 +10695,7 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
              name can stay big */
           const fsL = fs0 * clamp((w * 0.88) / Math.max(1, ln.length * fs0 * 0.56), 0.62, 1);
           partsF += `<g data-part="label"${rasterFx ? ` style="filter:${rasterFx}"` : ""}>${contentText(ln, 39 + w / 2, topL + li3 * lineHL, fsL, {
-            anchor: "middle", keepCase: true, track: 1, autoInk: "#FFFFFF",
+            anchor: "middle", keepCase: true, track: 1, autoInk: "#FFFFFF", ...(nameInk ? { ink: nameInk } : {}),
           })}</g>`;
         });
       }

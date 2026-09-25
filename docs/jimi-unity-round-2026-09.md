@@ -87,7 +87,7 @@ Chevon's turn readout for Stand on Business: "TURN 3 / 8" over a row of coins. I
 
 # Week of 9/21: Brightside
 
-Hey Jimi. Your Brightside notes from 9/24 are in. Five of the seven are fixed below; two are Chevon's call and are listed as still open so you know they were not missed. Hot Rod is next, after Chevon and I go through this batch.
+Hey Jimi. Your Brightside notes from 9/24 are in and all seven are handled below. Hot Rod is next.
 
 ## What changed
 
@@ -103,14 +103,17 @@ It was the card's two connector stubs, the short bars that mark the tree path. T
 **4. KitCardFace, for real this time.**
 You could not add it and the prefab showed a missing script. Same cause as the board rigs earlier in the summer: Unity binds a saved component to its script file only when the file holds a single class, and PatternBreakCardFace.cs held four. The four now live one per file: `Runtime/PatternBreakCardFace.cs` (Kit Card Face), `Runtime/KitCardDef.cs`, `Runtime/KitCardFlip.cs`, `Runtime/KitCardTilt.cs`. Two other files had the same shape and are split the same way: the edge shine (`Runtime/EdgeShine.cs`) and the slider readout (`Runtime/KitSliderReadout.cs`). Add Component, UI Kit Maker, Kit Card Face will list it, and the Cardface prefab carries it wired. A check now refuses any future runtime file with more than one class.
 
-## Still open, Chevon's call
+**5. The Skybound Adventures art is out of the sample kit.**
+That was a logo Chevon had uploaded onto the Brightside boards while testing, and a maker's own uploaded logo ships with a kit on purpose, so a board that uses one is complete in Unity. That rule stays. The logo is off the Brightside boards now, so the sample kit no longer carries it. Your existing project keeps its copy under Prefabs/Art until you delete it; a fresh import will not bring it back.
 
-- **The Skybound Adventures art in the kit.** That is a logo Chevon uploaded onto the Brightside boards, and since June a maker's own uploaded logo ships with the kit on purpose, so a board that uses one is complete in Unity. Whether the sample kits should carry Chevon's test art, or the export should offer a switch, is being decided.
-- **The card name on the card face.** The name takes the kit's text colour, dark blue in Brightside, over the face's gradient. Options on the table: a contrast fallback that switches the ink where it would not read, a soft dark band behind the name, or both. Chevon is choosing.
+**6. The card name reads now, on every look.**
+Two things were wrong. The dark band the app draws under the name sits in the base sprite, and in Unity the live picture child covers the base, so the band never showed under a real picture. The band is its own live child now, Name band, seated over the picture and under the name, so it shows in Unity exactly as the app draws it, and you can delete or restyle it like any other child. And the name took the kit's text colour no matter what, dark blue on Brightside over a dark band. The name now checks its own contrast against the band and switches to white where the kit's ink would not read; kits with a light ink keep theirs.
 
 ## What to hammer on
 
 - Rebuild the Playground: it opens at the top, captions on two lines, nothing touching.
+- Cardface prefab: a Name band child between the picture and the name, the name white on Brightside, and both still right after you drop your own sprite on the picture child.
+- Prefabs/Art: no Skybound Adventures on a fresh import.
 - Cardface prefab: Kit Card Face present, `SetCard` works, and Add Component lists it.
 - Tech card: a clean base, two stub children beside it.
 - Idle shine and the music slider's readout still working after the file split. If either went quiet, that is a bug and I want the Console text.

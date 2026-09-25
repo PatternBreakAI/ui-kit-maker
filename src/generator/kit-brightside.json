@@ -1452,15 +1452,7 @@
     "killfeed:l": -7
   },
   "kitLocks": {},
-  "userAssets": [
-    {
-      "id": "uamt892wvb6agh6",
-      "name": "Skybound Adventures",
-      "ref": "/kit-art/brightside/skybound-adventures.webp",
-      "w": 1444,
-      "h": 954
-    }
-  ],
+  "userAssets": [],
   "boards": [
     {
       "id": "abmt93iheg0",
@@ -1586,21 +1578,6 @@
           "shadow": {
             "s": 98
           }
-        },
-        {
-          "x": 136,
-          "y": 93,
-          "id": "bdmtkqxznb0m47",
-          "logo": {
-            "aid": "uamt892wvb6agh6",
-            "glow": 0,
-            "shadow": 100,
-            "shadowX": 9,
-            "shadowY": 25,
-            "shadowBlur": 10
-          },
-          "libId": "",
-          "scale": 0.18071235966172963
         }
       ],
       "aspect": "mobile",
@@ -1700,21 +1677,6 @@
               "color": "#FFFFFF"
             }
           }
-        },
-        {
-          "x": 58,
-          "y": 102,
-          "id": "bdmt93iheg1i9",
-          "logo": {
-            "aid": "uamt892wvb6agh6",
-            "glow": 0,
-            "shadow": 100,
-            "shadowX": 9,
-            "shadowY": 25,
-            "shadowBlur": 10
-          },
-          "libId": "",
-          "scale": 0.40995191236310774
         },
         {
           "id": "bdmtjmvrbal7mh",
@@ -2252,21 +2214,6 @@
             "y": 4,
             "blur": 8
           }
-        },
-        {
-          "x": 128,
-          "y": 42,
-          "id": "bdmt93iheg4if",
-          "logo": {
-            "aid": "uamt892wvb6agh6",
-            "glow": 0,
-            "shadow": 100,
-            "shadowX": 9,
-            "shadowY": 25,
-            "shadowBlur": 10
-          },
-          "libId": "",
-          "scale": 0.19876818563967233
         },
         {
           "x": 41,
