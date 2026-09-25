@@ -813,6 +813,9 @@ interface GenStore {
   renameKitClone: (id: string, name: string, kind?: string) => void;
   kitShapes: Partial<Record<KitComponentId, Shape>>;
   setKitShape: (id: KitComponentId, shape: Shape) => void;
+  /** The WHOLE-KIT silhouette pick: the master cut, and every unlocked
+      piece's own pin cleared so it follows (see the implementation). */
+  setShapeAll: (shape: Shape) => void;
   kitDesigns: Partial<Record<KitComponentId, KitDesign>>;
   setKitDesign: (id: KitComponentId, d: KitDesign | null) => void;
   /** Per-component vertical text adjustment, keyed `${id}:${size}` so Primary
@@ -2561,7 +2564,7 @@ export const useGen = create<GenStore>((set, get) => ({
        board-history step — one ⌘Z restores the pre-save binding (the
        drawer asset stays saved). Deleting the drawer asset later never
        touches this copy: it lives on the clone, not the libId road.
-       datarow/panel sit out (CLONE_INELIGIBLE) and save drawer-only. */
+       datarow sits out (CLONE_INELIGIBLE) and saves drawer-only. */
     const cloneId = get().duplicateKitPiece(b.kitId, name, "Other");
     if (cloneId) {
       const pins: Record<string, unknown> = {};
@@ -3425,6 +3428,33 @@ export const useGen = create<GenStore>((set, get) => ({
     const kitShapes = { ...get().kitShapes, [id]: shape };
     saveJson("ui-generator-kitshapes", kitShapes);
     set({ kitShapes });
+  },
+  /* The WHOLE-KIT silhouette pick (owner, 2026-09-22: "the panels are not
+     respecting my silhouette choices"). The pick used to move the master
+     shape alone, and two kinds of piece never heard it: one carrying its
+     own pinned cut (a piece the maker once picked a silhouette for, and
+     every saved component, since a save pins the shape it was made with),
+     and the container, whose factory cut is a plain rectangle (KIT_SHAPE:
+     the nine-slice's friend) rather than the kit's own. So a maker picked
+     a silhouette for the whole kit and the panels stayed rectangles, and
+     nothing said why. The whole-kit pick now reaches them the way the
+     group pick reaches its members: every unlocked pinned piece is
+     re-pinned to the new cut, and the container family (the panel and its
+     saved copies) is pinned to it too. Never-pinned pieces keep their
+     family defaults as before; locked pieces keep their pins, the lock's
+     promise. The two writes coalesce into one undo step. */
+  setShapeAll: (shape) => {
+    const st = get();
+    const follow = new Set<string>(Object.keys(st.kitShapes));
+    follow.add("panel");
+    for (const [cid, c] of Object.entries(st.kitClones)) if (c.base === "panel") follow.add(cid);
+    const kitShapes: GenStore["kitShapes"] = { ...st.kitShapes };
+    for (const id of follow) if (!st.kitLocks[id as KitComponentId]) kitShapes[id as KitComponentId] = shape;
+    markTouched();
+    pushHistory(st);
+    saveJson("ui-generator-kitshapes", kitShapes);
+    set({ kitShapes });
+    get().updateMaster((c) => { c.shape = shape; });
   },
   kitTextFill: loadJson<Partial<Record<KitComponentId, string>>>("ui-generator-kittextfill", {}),
   kitLocks: loadJson<Partial<Record<KitComponentId, true>>>("ui-generator-kitlocks", {}),

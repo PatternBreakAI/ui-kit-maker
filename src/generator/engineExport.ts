@@ -14,7 +14,7 @@ import { stampFilter, stampFilterPad, boardBgFilter, drawBoardNoise, drawBoardOv
    filter/base recipes are for the MAKER'S OWN logos, which do (round 72):
    one shadow/glow recipe across stage, board PNG and the Unity bake. */
 import { bigGlyphById, bigGlyphFilter, bigGlyphFilterPad, BIG_GLYPH_BASE } from "./bigGlyphs";
-import { applyKitDesign, applyKitTextFill, baseOf, darken, hexMix, lighten, fontByName, isCloneId, isFlipShape, isGlyphPiece, KIT_COMPONENTS, KIT_SHAPE, KIT_SLICEABLE, STOCK_ICONS, effKitSize, glyphSeatIcon, kitVisible, resolveKitIcon, sanitizeUnitySlug, stateSlotKey } from "./model";
+import { applyKitDesign, applyKitTextFill, baseOf, celebrateWords, darken, hexMix, lighten, fontByName, isCloneId, isFlipShape, isGlyphPiece, KIT_COMPONENTS, KIT_SHAPE, KIT_SLICEABLE, STOCK_ICONS, effKitSize, glyphSeatIcon, kitVisible, resolveKitIcon, sanitizeUnitySlug, stateSlotKey } from "./model";
 /* the glyph-button fleet's registry (round 52) — aliased: this module's own
    GLYPH_BUTTONS is the round-40 ACTION-glyph set (pause/play/replay/home) */
 import { GLYPH_BUTTONS as GLYPH_BUTTON_FLEET, isGlyphButton } from "./model";
@@ -878,6 +878,9 @@ const PREFAB_FAMILY: Partial<Record<KitComponentId, string>> = {
   gearicon: "gearicon", trophyicon: "trophyicon", gifticon: "gifticon",
   firebutton: "firebutton", endturn: "endturn", keycap: "keycap",
   pricebtn: "pricebtn", countbadge: "countbadge",
+  /* the ribbon banner ships as a prop family too (owner, 2026-09-20: "the
+     ribbon should generate naturally as part of the export, for everyone") */
+  ribbonbanner: "ribbonbanner",
   /* the settings controls place as WIRED rigs (owner: "let's get those
      settings screens working") — Slider / Switch prefabs, value-driven */
   slider: "slider", toggle: "toggle",
@@ -942,6 +945,8 @@ const PREFAB_FAMILY: Partial<Record<KitComponentId, string>> = {
      until the owner releases them or a board places one */
   placeholder: "placeholder", coin: "coin", timerbar: "timerbar", spotlight: "spotlight",
   trayslot: "trayslot", validity: "validity", verdict: "verdict",
+  // the turn tracker (round 87): places live, coins as children
+  turntrack: "turntrack",
 };
 // the glyph rack: pure-art silhouettes, one Image prefab each — placeable,
 // tintable, never fake buttons (the mandate's non-interactive lane)
@@ -1011,7 +1016,10 @@ const UNIVERSAL_DISPLAY = new Set<KitComponentId>(["qtybadge", "resource", "curr
   /* the card-battler set (round 80): the window, the coin readout, the
      plan timer, the spotlight ring, the validity line and the verdict
      stamp are display pieces; the tray slot presses (interactive above) */
-  "placeholder", "coin", "timerbar", "spotlight", "validity", "verdict"]);
+  "placeholder", "coin", "timerbar", "spotlight", "validity", "verdict",
+  /* the turn tracker (round 87): a display readout; its title is a live
+     seat and every coin a live child with lit/unlit looks beside them */
+  "turntrack"]);
 /* the glyph-button fleet (round 52 — the owner: "stock the kit with the
    entire semantic glyph set as buttons… I don't want to have to have one
    master then go round about to save one"): 47 REAL components join the
@@ -2053,7 +2061,11 @@ export async function collectExportBoards(st: {
            copy's exact app pixels. Content-less copies ride the family
            bake — the honest optimization, not the default. */
         const universalPose = UNIVERSAL_ROAD.has(idBase) && (b.label != null || b.v != null || b.ov != null);
-        if (!pureType && (isCloneId(id) || universalPose || (Math.abs(poseAspect / natAspect - 1) > 0.08 && !BAR_RIGS.has(idBase)))) {
+        /* a container copy in one of its SHAPES (round, oval, strip — the
+           kind rides ov) has a silhouette the panel's nine-slice bake can
+           never stretch into, so it always travels as its own pixels */
+        const shapedPanel = idBase === "panel" && (b.ov === "circle" || b.ov === "oval" || b.ov === "strip");
+        if (!pureType && (isCloneId(id) || universalPose || shapedPanel || (Math.abs(poseAspect / natAspect - 1) > 0.08 && !BAR_RIGS.has(idBase)))) {
           let ps2 = renderKit(shellCfg(cfgP), idBase, st.kitSizes[id] ?? "l", "default", b.v ?? st.kitVals[id], st.kitShapes[id], {
             icon: resolveKitIcon(st.kitIcons?.[id], undefined),
             label: copyLabel, segments: copySegs, stretch: b.stretch, stretchY: b.stretchY, overlay: b.ov, slots: st.kitSlotVals?.[id],
@@ -3930,7 +3942,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     /* the props glow in their own silhouette too — without an aura sprite
        they fell to the generic radial blob (owner: "the glows are all
        very generic in shape and don't follow the silhouette") */
-    "gearicon", "trophyicon", "gifticon", "firebutton", "endturn", "keycap", "pricebtn", "countbadge",
+    "gearicon", "trophyicon", "gifticon", "firebutton", "endturn", "keycap", "pricebtn", "countbadge", "ribbonbanner",
     // the universal road's pressable families hover/press like buttons —
     // their aura is their own silhouette, never the generic blob
     ...UNIVERSAL_INTERACTIVE,
@@ -5013,10 +5025,19 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       { id: "endturn", states: ["hover", "pressed", "disabled"], value: 0, usage: "End-turn button, bare shell — the label is LIVE text and the countdown ring is endturn-arc (Filled/Radial360, drive fillAmount)." },
       { id: "keycap", states: ["hover", "pressed", "disabled"], usage: "Key prompt cap, bare — the key glyph is LIVE text. Single-char width; wide keys (SPACE) stretch poorly, scale instead." },
       { id: "pricebtn", states: ["hover", "pressed", "disabled"], usage: "Price button — EVERYTHING editable: the PRICE is live text, the ribbon word a live seat, and the coin + ribbon plate are live Image children (swap either sprite in the Inspector)." },
+      /* the ribbon banner (owner, 2026-09-20: "the ribbon should generate
+         naturally as part of the export, for everyone"): the staged piece
+         rode only as a posed board skin, word baked. It is a prop now —
+         bare plate and tails, the WORD a live seat (labelText + metrics),
+         its own aura. No nine-slice: the tails and folds are drawn
+         geometry, so a long word shrinks to the plate (the app's fit) and
+         the piece scales as a whole. A banner never presses; the disabled
+         grade ships for dimmed screens. */
+      { id: "ribbonbanner", states: ["disabled"], usage: "Ribbon banner — bare plate and folded tails; the WORD is LIVE text seated on the plate (retype it: VICTORY, LEVEL 3, BEST VALUE). No nine-slice: the tails are drawn geometry, so a long word shrinks to the plate; scale the whole piece instead of stretching it. Display piece." },
     ];
     /* the labeled props' words: the maker's own (kitLabels) with the
        importer's stock as fallback — mirror of DefaultLabel */
-    const PROP_WORD: Partial<Record<KitComponentId, string>> = { endturn: "END TURN", keycap: "E", pricebtn: "$4.99" };
+    const PROP_WORD: Partial<Record<KitComponentId, string>> = { endturn: "END TURN", keycap: "E", pricebtn: "$4.99", ribbonbanner: "DAILY OBJECTIVE" };
     /* STACKED multi-line label props: the Leading dial travels (owner:
        "Leading did not work on the End Turn button" — fixed app-side; the
        export must carry the resolved value or Unity's LIVE label
@@ -5106,14 +5127,17 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
          PRICE stays the label machinery's live word, so the seat render
          mutes it (label "") — two writers on one word would double it. */
       const unburnP = p.id === "pricebtn";
+      /* the ribbon banner's word leaves the pixels the same way (its word
+         IS the label, so no extra seats: labelText + propLabelSeat carry it) */
+      const wordlessP = unburnP || p.id === "ribbonbanner";
       const baseFullP = shell(p.id, {}, undefined, p.value);
       const iconSeatsP = unburnP ? await iconSeatsOf(p.id, baseFullP) : null;
-      const baseSvgP = unburnP ? stripIconInk(stripWordInk(baseFullP).svg).svg : baseFullP;
+      const baseSvgP = wordlessP ? stripIconInk(stripWordInk(baseFullP).svg).svg : baseFullP;
       const seatsP = unburnP ? textSeatsOf(p.id, baseSvgP, { label: "" }, undefined, p.value, "bake") : {};
       await addPng(`${p.id}/base.png`, baseSvgP,
         { component: p.id, part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: p.usage, ...(propWord !== undefined ? { labelText: propWord } : {}), ...propLabelSeat(p.id, propWord), ...leadingRow(p.id), ...(iconSeatsP ? { iconSeats: iconSeatsP } : {}), ...seatsP }, true, p.id);
       for (const stName of p.states)
-        await addPng(`${p.id}/base-${stName}.png`, unburnP ? stripIconInk(stripWordInk(stateShell(p.id, stName, {}, p.value)).svg).svg : stateShell(p.id, stName, {}, p.value),
+        await addPng(`${p.id}/base-${stName}.png`, wordlessP ? stripIconInk(stripWordInk(stateShell(p.id, stName, {}, p.value)).svg).svg : stateShell(p.id, stName, {}, p.value),
           { component: p.id, part: `base-${stName}`, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
             usage: `${SWAP_USAGE[stName]} state — wire as Sprite Swap beside base.png.`, ...leadingRow(p.id, stName) }, true, p.id);
       if (p.id === "trophyicon") for (const fin of ["gold", "silver", "bronze"] as const)
@@ -5386,6 +5410,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         trayslot: "Tray slot: one cell of the deck tray, a REAL button (Sprite Swap states). The corner tag is a LIVE Image child and its numeral a LIVE seat; the filled pose (a card-shaped well) and the invalid pose (red rim, red numeral) ride posed skins on board copies.",
         validity: "Validity line: the deck builder's status plate. The status sentence is a LIVE seat in the reading voice and the status glyph a LIVE Image child (icons/check ships by default; swap it for icons/close on an error). The error pose (red ink and rim) rides a posed skin on board copies. Display piece.",
         verdict: "Verdict stamp: the word slammed on a tile. The word is a LIVE seat; the sprite bakes upright and the prefab carries the stamp's own tilt as rotation (board copies add it to their own), so re-angle it in the Inspector. The won pose (gold ink) rides a posed skin on board copies. Display piece; your game plays the pop-in.",
+        /* the turn tracker (round 87). No em dashes: read by the developer. */
+        turntrack: "Turn tracker: the match's turn readout. The title (TURN 3 / 8) is one LIVE seat; write it from your match state. Every coin is a LIVE Image child on one shared frame, and the lit and unlit looks ship beside them (turntrack/coin-lit.png, turntrack/coin-unlit.png), so swap any coin's sprite as turns pass. Display piece.",
       };
       const universalIds: KitComponentId[] = [
         ...UNIVERSAL_ROAD,
@@ -6210,6 +6236,37 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
                 .replace(/ height="[\d.]+"/, ` height="${Math.ceil(bh9b)}"`);
               await addPng(`${uid}/${part9}.png`, spr9, {
                 component: uid, part: part9, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: use9,
+              }, false);
+            }
+          } catch { /* the seats above still ship */ }
+        }
+        /* ── the TURN COIN LOOKS (round 87): the base seats every coin as
+           a live child above (one shared frame, data-icon-box, the quest
+           pip lesson); the two LOOKS ship beside them so a dev or the game
+           flips any coin. Lit is cut from the all-lit render, unlit from
+           the none-lit one; the label is blanked so the dial drives both.
+           Additive: a failed look leaves the seats. ── */
+        if (uid === "turntrack") {
+          try {
+            const lookTT: [string, number, string][] = [
+              ["coin-lit", 1, "A turn coin, LIT (the coin material in the kit's Glow and Bevel roles). Swap any Turn coin child to this sprite once that turn is taken."],
+              ["coin-unlit", 0, "A turn coin, UNLIT (the dark well). Swap any Turn coin child to this sprite for a turn still to come."],
+            ];
+            for (const [partT, vT, useT] of lookTT) {
+              const svT = stripLoopsU(shell(uid, { ...uOpts, label: "" }, undefined, vT));
+              const cutT = markedIconOnlySvgs(svT).find((c9) => c9.name === "coin1");
+              if (!cutT || !cutT.box || cutT.box.length !== 4) continue;
+              const shDT = /data-shell="([-\d. ]+)"/.exec(svT)?.[1].split(" ").map(Number);
+              const sh0T = /data-shell0="([-\d. ]+)"/.exec(svT)?.[1].split(" ").map(Number);
+              const riseT = shDT && sh0T && shDT.length === 4 && sh0T.length === 4 ? shDT[1] - sh0T[1] : 0;
+              const bxT = cutT.box[0], byT = cutT.box[1] + riseT, bwT = cutT.box[2], bhT = cutT.box[3];
+              if (!(bwT > 1) || !(bhT > 1)) continue;
+              const sprT = cutT.svg
+                .replace(/viewBox="[^"]+"/, `viewBox="${bxT.toFixed(1)} ${byT.toFixed(1)} ${bwT.toFixed(1)} ${bhT.toFixed(1)}"`)
+                .replace(/ width="[\d.]+"/, ` width="${Math.ceil(bwT)}"`)
+                .replace(/ height="[\d.]+"/, ` height="${Math.ceil(bhT)}"`);
+              await addPng(`${uid}/${partT}.png`, sprT, {
+                component: uid, part: partT, nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: useT,
               }, false);
             }
           } catch { /* the seats above still ship */ }
@@ -7816,6 +7873,12 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         const fam = KIT_SLICEABLE[cid as KitComponentId] ?? NINE.find((n) => n.id === (cid as KitComponentId))?.family ?? cid;
         return [{ family: fam, wipe: i.wipe === undefined ? -1 : i.wipe ? 1 : 0, edge: i.edge === undefined ? -1 : i.edge ? 1 : 0 }];
       }),
+      /* celebrate on press (owner, 2026-09-19): the words whose copies fire
+         the claim burst. The importer's Celebrates() reads these instead of
+         the built-in CLAIM; an empty list means no words (the Claim button
+         and the gift box still celebrate). A button that celebrates rests
+         dead afterwards (ClaimBurst.oneShot). */
+      celebrate: celebrateWords(st.cfg),
       /* I1 — the slug is this kit's permanent identity in the user's
          project; the importer files everything under it and re-exports
          land on the same paths, so placed UI restyles instead of breaking */
@@ -8246,7 +8309,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
            fillMode null); the firebutton sits out on its round-22
            housing contract (the pad pins to rest by design). */
         ...([["datarow", "list-row"], ["slot", "item-slot"], ["iconbtn", "iconbtn"], ["checkbox", "checkbox"], ["radio", "radio"],
-             ["gearicon", "gearicon"], ["trophyicon", "trophyicon"], ["gifticon", "gifticon"], ["endturn", "endturn"], ["keycap", "keycap"], ["pricebtn", "pricebtn"],
+             ["gearicon", "gearicon"], ["trophyicon", "trophyicon"], ["gifticon", "gifticon"], ["endturn", "endturn"], ["keycap", "keycap"], ["pricebtn", "pricebtn"], ["ribbonbanner", "ribbonbanner"],
              ["claimbtn", "claimbtn"], ["levelnode", "levelnode"], ["dailycell", "dailycell"], ["boostercard", "boostercard"], ["rewardcard", "rewardcard"],
              ["skillnode", "skillnode"], ["booster", "booster"], ["claimbtn", "claimbtn-double"],
              ["keycap", "keycap-space"], ["padbtn", "padbtn"], ["padbtn", "padbtn-b"], ["padbtn", "padbtn-x"], ["padbtn", "padbtn-y"]] as const)
@@ -8401,6 +8464,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Runtime/PatternBreakDmgNumber.cs", data: DMG_NUMBER_RUNTIME });
   files.push({ path: "Runtime/PatternBreakCountdownLabel.cs", data: COUNTDOWN_RUNTIME });
   files.push({ path: "Runtime/PatternBreakIdleShine.cs", data: IDLE_SHINE_RUNTIME });
+  files.push({ path: "Runtime/EdgeShine.cs", data: EDGE_SHINE_RUNTIME });
   files.push({ path: "Runtime/PatternBreakPopNumber.cs", data: POP_NUMBER_RUNTIME });
   files.push({ path: "Runtime/PatternBreakRadarDemo.cs", data: RADAR_DEMO_RUNTIME });
   files.push({ path: "Runtime/PatternBreakSeasonTrack.cs", data: SEASON_TRACK_RUNTIME });
@@ -8408,8 +8472,14 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Runtime/PatternBreakRingFill.cs", data: RING_FILL_RUNTIME });
   files.push({ path: "Runtime/PatternBreakBuffSweep.cs", data: BUFF_SWEEP_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitBarFill.cs", data: KIT_BAR_FILL_RUNTIME });
+  files.push({ path: "Runtime/KitSliderReadout.cs", data: KIT_SLIDER_READOUT_RUNTIME });
   files.push({ path: "Runtime/PatternBreakCellMeter.cs", data: CELL_METER_RUNTIME });
   files.push({ path: "Runtime/PatternBreakCardFace.cs", data: CARD_FACE_RUNTIME });
+  /* week of 9/21: one class per file, the newcomers named exactly for their
+     class so Unity binds them under every version's rule */
+  files.push({ path: "Runtime/KitCardDef.cs", data: CARD_DEF_RUNTIME });
+  files.push({ path: "Runtime/KitCardFlip.cs", data: CARD_FLIP_RUNTIME });
+  files.push({ path: "Runtime/KitCardTilt.cs", data: CARD_TILT_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitStepper.cs", data: KIT_STEPPER_RUNTIME });
   files.push({ path: "Runtime/PatternBreakPageDots.cs", data: PAGE_DOTS_RUNTIME });
   files.push({ path: "Runtime/PatternBreakStartLights.cs", data: START_LIGHTS_RUNTIME });
@@ -8514,6 +8584,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
        copy would collide with the first. A live defect in what already
        shipped, found by auditing rather than by a bug report. */
     "Runtime/PatternBreakCardFace.cs",
+    "Runtime/KitCardDef.cs", "Runtime/KitCardFlip.cs", "Runtime/KitCardTilt.cs",
+    "Runtime/KitSliderReadout.cs", "Runtime/EdgeShine.cs",
     "Runtime/PatternBreakKitStepper.cs",
     "Runtime/PatternBreakPageDots.cs", "Runtime/PatternBreakStartLights.cs",
     "Runtime/PatternBreakSkillNode.cs",
@@ -9334,6 +9406,17 @@ namespace PatternBreak {
       if (!Mathf.Approximately(fill.fillAmount, wroteFill)) { value = Snap(fill.fillAmount); Apply(); }
     }
   }
+}
+
+`;
+/* ONE UnityEngine.Object CLASS PER FILE (week of 9/21 — Jimi: the card's KitCardFace
+   could not be added or loaded). Unity binds a saved component to its script
+   file only when the file holds a single class (the BoardRigs lesson above);
+   this class had been sharing a file. */
+const KIT_SLIDER_READOUT_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+
+namespace PatternBreak {
   /* the number that follows a slider (round 78 — the settings row's
      readout was a live seat the Slider never spoke to): wired as a
      persistent onValueChanged listener on import, Editor and Runtime,
@@ -9357,6 +9440,7 @@ namespace PatternBreak {
   }
 }
 `;
+
 
 /* THE CELL-METER SNAPPER (round 44, dossier RIG-2): the app lights WHOLE
    cells; a raw fillAmount write chops mid-pill. The rig snaps every cut
@@ -9426,15 +9510,6 @@ using TMPro;
 #endif
 
 namespace PatternBreak {
-  /* ONE CARD'S DATA. A set is a folder of these plus one prefab. */
-  [CreateAssetMenu(menuName = "UI Kit Maker/Card", fileName = "Card")]
-  public class KitCardDef : ScriptableObject {
-    public string cardName = "CARD NAME";
-    public Sprite art;
-    public int left = 5;
-    public int right = 9;
-  }
-
   [AddComponentMenu("UI Kit Maker/Kit Card Face")]
   public class KitCardFace : MonoBehaviour {
     /* how a number arrived: Quiet just writes it, Hit punches red, Buff
@@ -9552,7 +9627,43 @@ namespace PatternBreak {
     }
 #endif
   }
+}
 
+`;
+/* the card's data asset, in its own file for the same one-class rule */
+const CARD_DEF_RUNTIME = `using System.Collections;
+using UnityEngine;
+using UnityEngine.UI;
+using UnityEngine.EventSystems;
+#if UNITY_2023_2_OR_NEWER
+using TMPro;
+#endif
+
+namespace PatternBreak {
+  /* ONE CARD'S DATA. A set is a folder of these plus one prefab. */
+  [CreateAssetMenu(menuName = "UI Kit Maker/Card", fileName = "Card")]
+  public class KitCardDef : ScriptableObject {
+    public string cardName = "CARD NAME";
+    public Sprite art;
+    public int left = 5;
+    public int right = 9;
+  }
+}
+`;
+
+/* ONE UnityEngine.Object CLASS PER FILE (week of 9/21 — Jimi: the card's KitCardFace
+   could not be added or loaded). Unity binds a saved component to its script
+   file only when the file holds a single class (the BoardRigs lesson above);
+   this class had been sharing a file. */
+const CARD_FLIP_RUNTIME = `using System.Collections;
+using UnityEngine;
+using UnityEngine.UI;
+using UnityEngine.EventSystems;
+#if UNITY_2023_2_OR_NEWER
+using TMPro;
+#endif
+
+namespace PatternBreak {
   /* THE REVEAL (owner: "I'd like to have a card reveal animation in the kit
      that flips the card from back to front"). Park a Cardback and a
      Cardface as two children of one parent, drop this on the parent, and
@@ -9603,7 +9714,22 @@ namespace PatternBreak {
       run = null;
     }
   }
+}
+`;
 
+/* ONE UnityEngine.Object CLASS PER FILE (week of 9/21 — Jimi: the card's KitCardFace
+   could not be added or loaded). Unity binds a saved component to its script
+   file only when the file holds a single class (the BoardRigs lesson above);
+   this class had been sharing a file. */
+const CARD_TILT_RUNTIME = `using System.Collections;
+using UnityEngine;
+using UnityEngine.UI;
+using UnityEngine.EventSystems;
+#if UNITY_2023_2_OR_NEWER
+using TMPro;
+#endif
+
+namespace PatternBreak {
   /* THE BEND (round 73e). The owner, of the app's card modal: "I want to
      make sure the 3D animation comes through for developers?" The FLIP
      above already shipped; the pointer TILT did not — it lived only in the
@@ -9680,6 +9806,7 @@ namespace PatternBreak {
   }
 }
 `;
+
 
 /* the STEPPER'S BRAIN (round 44, item 37): the two cap Buttons step the
    value by whole cells and the cell meter snaps the strip — the app's
@@ -11544,7 +11671,17 @@ namespace PatternBreak {
       band.color = new Color(1f, 1f, 1f, strength * Mathf.Sin(u * Mathf.PI));
     }
   }
+}
 
+`;
+/* ONE UnityEngine.Object CLASS PER FILE (week of 9/21 — Jimi: the card's KitCardFace
+   could not be added or loaded). Unity binds a saved component to its script
+   file only when the file holds a single class (the BoardRigs lesson above);
+   this class had been sharing a file. */
+const EDGE_SHINE_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+
+namespace PatternBreak {
   /* Idle motion, half two: the edge shine — a spark that runs the piece's
      silhouette, shrinking as it travels, flickering along the journey,
      then resting (owner: "gets smaller and fades out… points of
@@ -11632,6 +11769,7 @@ namespace PatternBreak {
   }
 }
 `;
+
 
 const HERO_LABEL_RUNTIME = `using UnityEngine;
 using UnityEngine.UI;
@@ -12751,17 +12889,20 @@ namespace PatternBreak {
     public float throwFrac = 0.75f;
     public float flashSeconds = 0.42f;
     public float life = 0.95f;
+    [Tooltip("One-time press: after the celebration a Button host goes dead (interactable off, its disabled skin) until Rearm() is called. A piece with no Button just celebrates.")]
+    public bool oneShot = true;
     RectTransform rt;
     Image flash;
     RectTransform[] parts;
     Vector2[] dirs;
     float t = -1f;
+    bool spent;
     Vector3 baseScale;
     void Awake() { rt = GetComponent<RectTransform>(); baseScale = rt.localScale; }
     void OnDisable() { if (t >= 0f) Settle(); }
     public void OnPointerClick(PointerEventData e) { Fire(); }
     public void Fire() {
-      if (t >= 0f) return;
+      if (t >= 0f || spent) return;
       if (flash == null) Build();
       if (flash == null) return;
       t = 0f;
@@ -12815,6 +12956,21 @@ namespace PatternBreak {
       rt.localScale = baseScale;
       if (flash != null) flash.gameObject.SetActive(false);
       if (parts != null) foreach (var p in parts) if (p != null) p.gameObject.SetActive(false);
+      if (oneShot) Spend();
+    }
+    /* the dead pose (owner: "a one time button ... then it goes dead"):
+       the Button's own disabled skin, through interactable — the game
+       arms it again with Rearm() when the next claim is due */
+    void Spend() {
+      var b = GetComponent<Button>();
+      if (b == null) return;
+      spent = true;
+      b.interactable = false;
+    }
+    public void Rearm() {
+      spent = false;
+      var b = GetComponent<Button>();
+      if (b != null) b.interactable = true;
     }
     void Update() {
       if (t < 0f) return;
@@ -14702,7 +14858,7 @@ namespace PatternBreak {
      said — a piece missing from a scene must never be a mystery. */
   [Serializable] class PBBoard { public string name; public int w; public int h; public PBBoardBg bg; public PBBoardItem[] items; public string[] artMissing; }
   [Serializable] class PBSkillSkin { public string state; public string faceColor; public string glyphInk; public string rimColor; public string glowColor; public bool glowEnabled; public string pathColor; public float dimAlpha; }
-  [Serializable] class PBManifest { public string kit; public PBSkillSkin[] skillSkins; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public string seatSpace; public string[] stagedFamilies; public PBFleetEntry[] slotFleet; public PBGlyphFleetEntry[] glyphFleet; public PBWell globeWell; public PBSeasonGeo seasonTrack; public PBDotsGeo pageDots; public PBDotsGeo startLights; public PBDotsGeo steps; public PBPathGeo pathConnector; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBTimerBlock timer; public PBMenu menu; public PBRarity rarity; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; }
+  [Serializable] class PBManifest { public string kit; public PBSkillSkin[] skillSkins; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public string seatSpace; public string[] stagedFamilies; public PBFleetEntry[] slotFleet; public PBGlyphFleetEntry[] glyphFleet; public PBWell globeWell; public PBSeasonGeo seasonTrack; public PBDotsGeo pageDots; public PBDotsGeo startLights; public PBDotsGeo steps; public PBPathGeo pathConnector; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBTimerBlock timer; public PBMenu menu; public PBRarity rarity; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; public string[] celebrate; }
   [Serializable] class PBLockEntry { public string file; public string sha256; }
   /* the word each labeled family's prefab was last SEEDED with — the
      ownership ledger: a re-import re-seeds only a label still equal to
@@ -16184,12 +16340,49 @@ namespace PatternBreak {
     }
     /* the shelf caption (round 78): "Prefabs/Buttons/ButtonPrimary" in
        small quiet type under the piece — the Playground as the index */
-    static void ShelfCaption(RectTransform board, string prefabName, string prefabPath, string root, float left, float bottom, float width) {
+    /* the caption's words: the prefab's path inside the kit, folder on one
+       line and name on the next (week of 9/21 — two lines keep the cell
+       narrow, so small pieces stop sharing a caption's air) */
+    static string ShelfRel(string prefabPath, string root, string prefabName) {
       var rel = (prefabPath ?? "").Replace("\\\\", "/");
       var pre = root + "/";
       if (rel.StartsWith(pre)) rel = rel.Substring(pre.Length);
       if (rel.EndsWith(".prefab")) rel = rel.Substring(0, rel.Length - 7);
       if (rel.Length == 0) rel = prefabName;
+      return rel;
+    }
+    static string ShelfCaptionText(string rel) {
+      int cut = rel.LastIndexOf('/');
+      return cut > 0 ? rel.Substring(0, cut + 1) + "\\n" + rel.Substring(cut + 1) : rel;
+    }
+    /* the caption's width at its 14 px face, the longer of its two lines
+       (0.6 em per glyph is generous for a mixed-case sans) */
+    static float ShelfCaptionWidth(string rel) {
+      int cut = rel.LastIndexOf('/');
+      int a = cut > 0 ? cut + 1 : rel.Length, b = cut > 0 ? rel.Length - cut - 1 : 0;
+      return Mathf.Max(a, b) * 14f * 0.6f + 8f;
+    }
+    /* a piece's footprint on the shelf INCLUDING its words (week of 9/21 —
+       Jimi's clumping): rect bounds miss text that overflows its seat (an
+       equip selector's name, a waypoint's distance), so every rendered
+       text's own bounds join the union */
+    static Bounds ShelfBounds(RectTransform board, GameObject inst) {
+      var b = RectTransformUtility.CalculateRelativeRectTransformBounds(board, inst.transform);
+#if UNITY_2023_2_OR_NEWER
+      foreach (var t in inst.GetComponentsInChildren<TMP_Text>(true)) {
+        if (string.IsNullOrEmpty(t.text)) continue;
+        t.ForceMeshUpdate(true, true);
+        var tb = t.textBounds;
+        if (tb.size.x <= 0f || tb.size.y <= 0f) continue;
+        var tr = t.rectTransform;
+        var cs4 = new Vector3[] { tb.min, new Vector3(tb.max.x, tb.min.y, 0f), tb.max, new Vector3(tb.min.x, tb.max.y, 0f) };
+        foreach (var c4 in cs4) b.Encapsulate(board.InverseTransformPoint(tr.TransformPoint(c4)));
+      }
+#endif
+      return b;
+    }
+    static void ShelfCaption(RectTransform board, string prefabName, string prefabPath, string root, float left, float bottom, float width) {
+      var rel = ShelfCaptionText(ShelfRel(prefabPath, root, prefabName));
 #if UNITY_2023_2_OR_NEWER
       var go = new GameObject("Caption — " + prefabName, typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
       go.transform.SetParent(board, false);
@@ -16216,7 +16409,7 @@ namespace PatternBreak {
 #endif
       var rt = (RectTransform)go.transform;
       rt.anchorMin = new Vector2(0f, 1f); rt.anchorMax = new Vector2(0f, 1f); rt.pivot = new Vector2(0f, 1f);
-      rt.sizeDelta = new Vector2(Mathf.Max(width, 120f), 18f);
+      rt.sizeDelta = new Vector2(Mathf.Max(width, 120f), 36f);
       rt.anchoredPosition = new Vector2(left, bottom - 6f);
     }
     static void BuildPlayground(string root) {
@@ -16438,15 +16631,21 @@ namespace PatternBreak {
             rt.anchorMin = new Vector2(0f, 1f); rt.anchorMax = new Vector2(0f, 1f);
             rt.anchoredPosition = Vector2.zero;
             rt.localScale = Vector3.one;
-            var b0 = RectTransformUtility.CalculateRelativeRectTransformBounds(board, inst.transform);
+            var b0 = ShelfBounds(board, inst);
             float w = Mathf.Max(80f, Mathf.Max(rt.sizeDelta.x, b0.size.x)), h = Mathf.Max(40f, Mathf.Max(rt.sizeDelta.y, b0.size.y));
             // oversized furniture scales down to sit in the flow
             float ps2 = Mathf.Min(1f, Mathf.Min(300f / h, 620f / w));
-            if (x + w * ps2 > rowW && x > 91f) { x = 90f; y -= rowH + gut; rowH = 0f; }
+            /* the cell is as wide as the piece OR its caption (week of 9/21 —
+               Jimi: "some clumping/overlap in the playground scene"): a
+               crosshair is 80 wide, its caption three times that, and the
+               captions ran into each other under every small piece */
+            float capW = ShelfCaptionWidth(ShelfRel(pathOf[pf], root, n));
+            float cellW0 = Mathf.Max(w * ps2, capW);
+            if (x + cellW0 > rowW && x > 91f) { x = 90f; y -= rowH + gut; rowH = 0f; }
             if (ps2 < 1f) rt.localScale = new Vector3(ps2, ps2, 1f);
-            var b1 = RectTransformUtility.CalculateRelativeRectTransformBounds(board, inst.transform);
+            var b1 = ShelfBounds(board, inst);
             // the bounds were measured with the pivot at the origin, so their center IS the pivot-to-visual offset
-            float cellL = x, cellW = w * ps2, cellH = h * ps2;
+            float cellL = x, cellW = cellW0, cellH = h * ps2;
             rt.anchoredPosition = new Vector2(cellL + cellW * 0.5f - b1.center.x, y - cellH * 0.5f - b1.center.y);
             /* the INDEX caption (round 78 — Jimi: "some way to visualize
                the prefabs as you navigate the folder"): the prefab's
@@ -16454,7 +16653,7 @@ namespace PatternBreak {
                shelf doubles as the Prefabs index */
             ShelfCaption(board, n, pathOf[pf], root, cellL, y - cellH, cellW);
             x += cellW + gut;
-            if (cellH + 26f > rowH) rowH = cellH + 26f;
+            if (cellH + 44f > rowH) rowH = cellH + 44f; // two caption lines under the piece
             if (x > widest) widest = x;
             placed++;
           }
@@ -16499,6 +16698,15 @@ namespace PatternBreak {
         sbPg.targetGraphic = sbHandle.GetComponent<Image>();
         srPg.verticalScrollbar = sbPg;
         srPg.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHide;
+        /* the shelf OPENS AT THE TOP (week of 9/21 — Jimi: "scroll view is
+           defaulted to start at the bottom", "the Value on the scrollbar
+           component should be set to 1"): a BottomToTop scrollbar is born
+           at value 0, and on Play the ScrollRect obeys the bar before the
+           content, so the catalog landed on its last chapter. For this
+           direction value 1 IS the top; the content's own position agrees. */
+        Canvas.ForceUpdateCanvases();
+        sbPg.value = 1f;
+        srPg.verticalNormalizedPosition = 1f;
         /* no help card in the scene (owner call: the Playground stays
            clean) — the driving instructions live in the README instead */
         if (UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene, scenePath))
@@ -18212,11 +18420,12 @@ namespace PatternBreak {
             var tmp = inst.GetComponentInChildren<TMPro.TMP_Text>(true);
             if (tmp != null) tmp.text = it.label;
 #endif
-            /* a copy whose typed words say CLAIM celebrates its click —
-               the same ignition + themed throw the app plays (owner: the
-               claim animation must survive the trip into Unity). The
+            /* a copy whose typed words celebrate (the kit's own words, CLAIM
+               by default) celebrates its click — the same ignition + themed
+               throw the app plays (owner: the claim animation must survive
+               the trip into Unity), and a Button then rests dead. The
                prefab may already carry one (gift box, claim button). */
-            if (it.label.ToUpperInvariant().Contains("CLAIM") && inst.GetComponent<ClaimBurst>() == null)
+            if (Celebrates(it.label, m) && inst.GetComponent<ClaimBurst>() == null)
               AddClaimBurst(inst, root, it.component, m);
           }
           if (string.IsNullOrEmpty(it.stamp)) {
@@ -20130,6 +20339,16 @@ namespace PatternBreak {
        sprite + the kit's effect inks — the exact recipe the importer has
        always wired to the gift box, shared so prefabs and board copies
        whose visible words say CLAIM celebrate identically. */
+    /* the words that celebrate on press: the kit's own list (manifest
+       celebrate, owner round 2026-09-19). An older manifest without the
+       field keeps the built-in CLAIM; an empty list means no words. */
+    static bool Celebrates(string label, PBManifest m) {
+      if (string.IsNullOrEmpty(label)) return false;
+      var up = label.ToUpperInvariant();
+      if (m == null || m.celebrate == null) return up.Contains("CLAIM");
+      foreach (var w in m.celebrate) if (!string.IsNullOrEmpty(w) && w.Trim().Length > 0 && up.Contains(w.Trim().ToUpperInvariant())) return true;
+      return false;
+    }
     static void AddClaimBurst(GameObject host, string root, string family, PBManifest m) {
       var cb = host.AddComponent<ClaimBurst>();
       var cbGlow = S(root + "/assets/" + family + "/" + family + "-glow.png");
@@ -20626,10 +20845,11 @@ namespace PatternBreak {
       /* the gift box CELEBRATES its claim — the app's white-hot ignition
          + themed particle throw, wired to a click (owner: "supposed to
          have the claim explosion to white"). Any family whose live words
-         say CLAIM earns the same celebration, and the Claim button piece
-         always does — matching the app's rule exactly. */
+         celebrate (the kit's own words, CLAIM by default) earns the same
+         celebration, and the Claim button piece always does — matching
+         the app's rule exactly. A Button then rests dead (oneShot). */
       if (baseAsset.component == "gifticon" || baseAsset.component == "claimbtn"
-          || (label != null && label.ToUpperInvariant().Contains("CLAIM")))
+          || Celebrates(label, m))
         AddClaimBurst(go, root, baseAsset.component, m);
       /* the input's affordance, as a LAYER. It used to be painted into the
          surface, which looked right and could never be taken off (owner:
@@ -21677,6 +21897,7 @@ namespace PatternBreak {
       if (family == "endturn") return "END TURN";
       if (family == "keycap") return "E";
       if (family == "pricebtn") return "$4.99";
+      if (family == "ribbonbanner") return "DAILY OBJECTIVE";
       if (family == "header-banner") return "SETTINGS";
       if (family == "dropdown") return "SELECT OPTION";
       if (family == "badge") return "12";
@@ -24150,7 +24371,7 @@ namespace PatternBreak {
       return DefaultLabel(fam);
     }
     // every family whose prefab wires a live label from LabelWordOf
-    static readonly string[] SeededFamilies = new string[] { "button-primary", "button-secondary", "button-small", "chip", "tab", "tab-back", "endturn", "keycap", "pricebtn", "header-banner", "badge", "dropdown", "keycap-space", "padbtn", "padbtn-b", "padbtn-x", "padbtn-y" };
+    static readonly string[] SeededFamilies = new string[] { "button-primary", "button-secondary", "button-small", "chip", "tab", "tab-back", "endturn", "keycap", "pricebtn", "header-banner", "badge", "dropdown", "keycap-space", "padbtn", "padbtn-b", "padbtn-x", "padbtn-y", "ribbonbanner" };
     static PBSeedEntry[] SeedTable(PBManifest m) {
       var outp = new List<PBSeedEntry>();
       foreach (var fam in SeededFamilies) {
@@ -25749,7 +25970,7 @@ namespace PatternBreak {
          controls and pure parts opt out (they're layers, not pieces) */
       /* badge joined the labeled set: its count is the app's own content
          (owner round 6 — the panels' words ship) */
-      var labeled = new HashSet<string> { "button-primary", "button-secondary", "button-small", "chip", "tab", "tab-back", "endturn", "keycap", "pricebtn", "header-banner", "badge" };
+      var labeled = new HashSet<string> { "button-primary", "button-secondary", "button-small", "chip", "tab", "tab-back", "endturn", "keycap", "pricebtn", "header-banner", "badge", "ribbonbanner" };
       /* the data-heavy panels (lap times, leaderboard, telemetry) read as
          empty shells without their live content — their sprites still ship,
          but they don't make useful drag-in prefabs (owner) */
@@ -26408,10 +26629,10 @@ namespace PatternBreak {
       ("SHOOTER & ACTION", "Shooter and Action", new[] { "Crosshair", "Hitmarker", "Dmgarc", "Weaponwheel", "Equipselector", "Magazine", "Ammo", "Streakmeter", "Killfeed", "Waypoint", "Capturemeter", "Respawn", "Buffframe", "Hotbar", "Lives" }),
       ("CASUAL & SAGA", "Casual and Saga", new[] { "Heartmeter", "Energymeter", "Starrating", "Pathconnector", "Combo", "Booster", "Flipclock", "Stopwatch" }),
       ("STRATEGY & SOCIAL", "Strategy and Social", new[] { "Scorebug", "Friendrow", "Chatbubble", "Emotewheel", "Clancrest", "Unitplate", "Buildqueue", "Techcard", "Popmeter" }),
-      ("REWARDS", "Rewards", new[] { "Pack", "Cardback", "ClaimbtnDouble", "RewardcardLegendary", "RewardcardMystery", "DailycellClaimed", "DailycellLocked", "Chest", "Giftbox", "Rewardtray", "Chestpanel", "Orderticket" }),
+      ("REWARDS", "Rewards", new[] { "Pack", "Cardback", "ClaimbtnDouble", "RewardcardLegendary", "RewardcardMystery", "DailycellClaimed", "DailycellLocked", "Chest", "Giftbox", "Rewardtray", "Chestpanel", "Orderticket", "Ribbonbanner" }),
       /* round 80: the card-battler set (Stand on Business) shelves as its
          own chapter; the plan timer sits with the bars above */
-      ("CARD BATTLER", "Card Battler", new[] { "Coin", "Trayslot", "Validity", "Verdict", "Spotlight", "Placeholder" }),
+      ("CARD BATTLER", "Card Battler", new[] { "Coin", "Trayslot", "Validity", "Verdict", "Spotlight", "Placeholder", "Turntrack" }),
     };
     static string ChapterFolderOf(string prefabName, string currentSub) {
       if (currentSub == "Glyphs" || currentSub == "Art") return currentSub; // the rack and the board art keep their own shelves

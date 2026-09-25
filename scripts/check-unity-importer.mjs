@@ -772,6 +772,19 @@ else {
     if (src[i] === "`") { idleEnd = i; break; }
   }
   idle = idleEnd > 0 ? new Function("return `" + src.slice(idleStart, idleEnd) + "`;")() : "";
+  /* week of 9/21: the edge shine lives in its own file now (one class per
+     runtime file, Unity's binding rule) — the pair's contract reads both */
+  const edgeOpen = src.indexOf("const EDGE_SHINE_RUNTIME = `");
+  if (edgeOpen < 0) errors.push("EDGE_SHINE_RUNTIME not found — the edge shine must ship in its own file (week of 9/21)");
+  else {
+    const edgeStart = edgeOpen + "const EDGE_SHINE_RUNTIME = `".length;
+    let edgeEnd = -1;
+    for (let i = edgeStart; i < src.length; i++) {
+      if (src[i] === "\\") { i++; continue; }
+      if (src[i] === "`") { edgeEnd = i; break; }
+    }
+    idle += edgeEnd > 0 ? "\n" + new Function("return `" + src.slice(edgeStart, edgeEnd) + "`;")() : "";
+  }
 }
 if (!/public int wipe; public int edge; public float freq; public string blend; public float wipeDur; public float edgeDur; public float wipeWidth; public string trigger; \}/.test(cs))
   errors.push("PBIdle must carry the pass dials (wipeDur/edgeDur/wipeWidth/trigger) — JsonUtility drops them without fields (round 25)");
@@ -2655,7 +2668,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
       || !/suffix: "legendary"/.test(src) || !/suffix: "mystery"/.test(src)
       || !/suffix: "claimed"/.test(src) || !/suffix: "locked"/.test(src))
     errors.push("the rewards state-variant emission is gone — ALL rewards states stop shelving");
-  if (!/\("REWARDS", "Rewards", new\[\] \{ "Pack", "Cardback", "ClaimbtnDouble", "RewardcardLegendary", "RewardcardMystery", "DailycellClaimed", "DailycellLocked", "Chest", "Giftbox", "Rewardtray", "Chestpanel", "Orderticket" \}\)/.test(cs))
+  if (!/\("REWARDS", "Rewards", new\[\] \{ "Pack", "Cardback", "ClaimbtnDouble", "RewardcardLegendary", "RewardcardMystery", "DailycellClaimed", "DailycellLocked", "Chest", "Giftbox", "Rewardtray", "Chestpanel", "Orderticket", "Ribbonbanner" \}\)/.test(cs))
     errors.push("the Playground's REWARDS chapter is gone or reshuffled");
 }
 
@@ -2988,7 +3001,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("padbtn left the labelSeatOf road — its letter would seat by guesswork (round 44)");
   if (!/"Keycap", "KeycapSpace", "Padbtn", "PadbtnB", "PadbtnX", "PadbtnY", "Pricebtn"/.test(cs))
     errors.push("the Playground BUTTONS chapter no longer shelves the input prompts (round 44, owner ask)");
-  if (!/"dropdown", "keycap-space", "padbtn", "padbtn-b", "padbtn-x", "padbtn-y" \};/.test(cs))
+  if (!/"dropdown", "keycap-space", "padbtn", "padbtn-b", "padbtn-x", "padbtn-y", "ribbonbanner" \};/.test(cs))
     errors.push("SeededFamilies lost the prompt variants — retyped letters would be clobbered by the word seed (round 44)");
   if (!/\["keycap", "keycap-space"\], \["padbtn", "padbtn"\],/.test(src))
     errors.push("the prompt variants lost their stateFx dial rows — no glow, no lift, no Button (round 44)");
@@ -4414,6 +4427,27 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the setrow handle lost its band-relative rect — the grip's box goes back to guessing at the cross axis (round 62, S53)");
 }
 
+/* ── ONE UnityEngine.Object CLASS PER RUNTIME FILE (week of 9/21) ─────────
+   Jimi could neither add nor load KitCardFace: Unity binds a saved
+   component to its script file only when the file holds a single class,
+   and PatternBreakCardFace.cs held four (the BoardRigs lesson, relearned).
+   Every shipped Runtime/*.cs must declare exactly one MonoBehaviour /
+   ScriptableObject / Graphic-derived class; helper and event classes
+   (UnityEvent subclasses, [Serializable] data) are fine beside it. */
+{
+  const pushes = [...src.matchAll(/files\.push\(\{ path: "(Runtime\/[^"]+\.cs)", data: (\w+) \}\)/g)];
+  if (pushes.length < 40) errors.push("the runtime file roster shrank below 40 — a files.push line went missing");
+  for (const [, path, cname] of pushes) {
+    const m = new RegExp("\\nconst " + cname + " = `([\\s\\S]*?)\\n`;").exec(src);
+    if (!m) { errors.push(`${path}: its literal ${cname} was not found`); continue; }
+    const objClasses = [...m[1].matchAll(/public (?:sealed |abstract )?class (\w+)\s*:\s*([^{]+)\{/g)]
+      .filter((c) => /\b(MonoBehaviour|ScriptableObject|Graphic|Image|Selectable|UIBehaviour|MaskableGraphic|BaseMeshEffect)\b/.test(c[2])).map((c) => c[1]);
+    if (objClasses.length !== 1) errors.push(`${path} holds ${objClasses.length} UnityEngine.Object classes (${objClasses.join(", ") || "none"}) — one per file, or Unity cannot bind the component (week of 9/21)`);
+    if (!new RegExp('"' + path.replace(/[.\/]/g, "\\$&") + '",?').test(src.slice(src.indexOf("const sharedScripts = new Set(["))))
+      errors.push(`${path} ships but is not in sharedScripts — it would land per-slug outside PatternBreak.Runtime (the IdleShine CS0246 lesson)`);
+  }
+}
+
 /* ══════════════════════════════════════════════════════════════════════
    THE OBSOLETE-API DENY-LIST (round 73g)
 
@@ -4511,7 +4545,7 @@ const OBSOLETE = [
   if (!/data-barfill="\$\{gT\.toFixed\(1\)\} \$\{gT\.toFixed\(1\)\}/.test(bevelSrc))
     errors.push("the plan timer's mercury lost its mark (round 80)");
   // the shelf claims
-  if (!/\("CARD BATTLER", "Card Battler", new\[\] \{ "Coin", "Trayslot", "Validity", "Verdict", "Spotlight", "Placeholder" \}\)/.test(cs)
+  if (!/\("CARD BATTLER", "Card Battler", new\[\] \{ "Coin", "Trayslot", "Validity", "Verdict", "Spotlight", "Placeholder", "Turntrack" \}\)/.test(cs)
       || !/"Cooldown", "Vitalbar", "Timerbar" \}\)/.test(cs))
     errors.push("the Playground's CARD BATTLER chapter or the Timerbar shelf claim left the importer (round 80)");
 }
@@ -4591,6 +4625,76 @@ const OBSOLETE = [
   const roster81 = rosterAt81 >= 0 ? modelSrc81.slice(rosterAt81, modelSrc81.indexOf("]);", rosterAt81)) : "";
   if (!/segment: 60,/.test(modelSrc81) || !/"segment",/.test(roster81))
     errors.push("the segmented control left the label-editable roster or lost its 60-character cap (round 81)");
+}
+
+{
+  /* the one-time celebration (round 82, owner 2026-09-19): the kit's own
+     celebrate words reach the importer, both claim-burst roads read them
+     through Celebrates(), and a Button host rests dead after the throw */
+  const modelSrc82 = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../src/generator/model.ts"), "utf8");
+  const liveArtSrc82 = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../src/ui/LiveArt.tsx"), "utf8");
+  if (!/static bool Celebrates\(string label, PBManifest m\) \{/.test(cs)
+      || !/if \(m == null \|\| m\.celebrate == null\) return up\.Contains\("CLAIM"\);/.test(cs)
+      || !/if \(Celebrates\(it\.label, m\) && inst\.GetComponent<ClaimBurst>\(\) == null\)/.test(cs)
+      || !/\|\| Celebrates\(label, m\)\)\s*\n\s*AddClaimBurst\(go, root, baseAsset\.component, m\);/.test(cs)
+      || !/public PBIdleFork\[\] idleForks; public string\[\] celebrate; \}/.test(cs))
+    errors.push("the importer no longer reads the kit's celebrate words (Celebrates() on both claim-burst roads, PBManifest.celebrate) (round 82)");
+  // the runtime script is its own literal (CLAIMBURST_RUNTIME), so it is read from the TS source
+  if (!/public bool oneShot = true;/.test(src)
+      || !/if \(t >= 0f \|\| spent\) return;/.test(src)
+      || !/if \(oneShot\) Spend\(\);/.test(src)
+      || !/void Spend\(\) \{\s*\n\s*var b = GetComponent<Button>\(\);\s*\n\s*if \(b == null\) return;\s*\n\s*spent = true;\s*\n\s*b\.interactable = false;/.test(src)
+      || !/public void Rearm\(\) \{/.test(src))
+    errors.push("ClaimBurst lost the one-time press (oneShot, the dead Button, Rearm) (round 82)");
+  if (!/celebrate: celebrateWords\(st\.cfg\),/.test(src))
+    errors.push("the manifest no longer ships the celebrate words (round 82)");
+  /* the ribbon banner as a prop family (round 83, owner: "the ribbon should
+     generate naturally as part of the export, for everyone"): wordless base
+     + disabled grade + aura, the word a live seat, the importer's labeled
+     and seeded sets, the Rewards shelf */
+  if (!/\{ id: "ribbonbanner", states: \["disabled"\], usage: "Ribbon banner/.test(src)
+      || !/pricebtn: "\$4\.99", ribbonbanner: "DAILY OBJECTIVE" \}/.test(src)
+      || !/const wordlessP = unburnP \|\| p\.id === "ribbonbanner";/.test(src)
+      || !/const baseSvgP = wordlessP \? stripIconInk\(stripWordInk\(baseFullP\)\.svg\)\.svg : baseFullP;/.test(src)
+      || !/wordlessP \? stripIconInk\(stripWordInk\(stateShell\(p\.id, stName, \{\}, p\.value\)\)\.svg\)\.svg : stateShell\(p\.id, stName, \{\}, p\.value\),/.test(src)
+      || !/"pricebtn", "countbadge", "ribbonbanner",/.test(src)
+      || !/\["pricebtn", "pricebtn"\], \["ribbonbanner", "ribbonbanner"\],/.test(src)
+      || !/^  ribbonbanner: "ribbonbanner",/m.test(src))
+    errors.push("the ribbon banner left the PROPS road (wordless base, live word, aura, label ink fork) (round 83)");
+  if (!/if \(family == "ribbonbanner"\) return "DAILY OBJECTIVE";/.test(cs)
+      || !/"padbtn-y", "ribbonbanner" \};/.test(cs)
+      || !/"header-banner", "badge", "ribbonbanner" \};/.test(cs)
+      || !/"Chestpanel", "Orderticket", "Ribbonbanner" \}\),/.test(cs))
+    errors.push("the importer no longer knows the ribbon banner (stock word, seeded and labeled sets, the Rewards shelf) (round 83)");
+  if (!/export function celebrateWords\(cfg: Pick<GenConfig, "celebrate">\): string\[\] \{/.test(modelSrc82)
+      || !/export function celebrates\(words: string \| undefined \| null, cfg: Pick<GenConfig, "celebrate">\): boolean \{/.test(modelSrc82)
+      || !/export const ONE_TIME_FAMILIES: ReadonlySet<string>/.test(modelSrc82))
+    errors.push("the model lost the celebrate-words rule (celebrateWords / celebrates / ONE_TIME_FAMILIES) (round 82)");
+  if (!/if \(celebrates\(kit\?\.label \?\? cfg\.content\.label, cfg\) \|\| id === "pack" \|\| id === "gifticon" \|\| id === "claimbtn"\) fireBurst\(!!id && ONE_TIME_FAMILIES\.has\(id\)\);/.test(liveArtSrc82)
+      || !/const disabled = kit\?\.baseState === "disabled" \|\| spent;/.test(liveArtSrc82)
+      || !/const playHandlers = spent \? \{ onPointerUp: \(\) => setSpent\(false\) \} : inert \? \{\} : \{/.test(liveArtSrc82))
+    errors.push("LiveArt's press no longer celebrates on the kit's words or no longer rests dead after (round 82)");
+  /* the turn tracker (round 87, owner: "TURN 3 / 8" with a row of coins):
+     a staged card-battler display piece on the universal road, every coin
+     a marked child on one shared frame, the lit/unlit looks cut beside
+     them, the title a live seat, the Card Battler shelf */
+  if (!/^  turntrack: "turntrack",/m.test(src)
+      || !/\n  "turntrack"\]\);/.test(src)
+      || !/\n\s+turntrack: "Turn tracker: /.test(src)
+      || !/if \(uid === "turntrack"\) \{/.test(src)
+      || !/\["coin-lit", 1, /.test(src) || !/\["coin-unlit", 0, /.test(src)
+      || !/markedIconOnlySvgs\(svT\)\.find\(\(c9\) => c9\.name === "coin1"\)/.test(src))
+    errors.push("the turn tracker left the universal road (family entry, display set, usage row, the lit/unlit coin looks) (round 87)");
+  if (!/case "turntrack": \{/.test(bevelSrc)
+      || !/data-icon="coin\$\{i \+ 1\}" data-icon-box=/.test(bevelSrc)
+      || !/<g data-part="label">\$\{contentText\(titleTT, /.test(bevelSrc)
+      || !/"turntrack",\n\]\);/.test(bevelSrc))
+    errors.push("the turn tracker's render case, its marked coins, its live title or its Value dial left bevel (round 87)");
+  if (!/\{ id: "turntrack", name: "Turn tracker" \},/.test(modelSrc82)
+      || !/"placeholder", "turntrack"\] \},/.test(modelSrc82)
+      || !/^  turntrack: 2,/m.test(modelSrc82)
+      || !/^  turntrack: \[\n/m.test(modelSrc82))
+    errors.push("the model lost the turn tracker (roster entry, Card battler group, label cap, slots) (round 87)");
 }
 
 if (errors.length) {

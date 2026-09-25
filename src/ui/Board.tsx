@@ -74,7 +74,11 @@ const ASSET_GROUPS: { name: string; ids: string[] }[] = [
      picks a view inside a screen, the nav bar picks the screen). It had no
      tile at all until round 64 — released out of the bay with nowhere to
      appear, exactly like the ribbon in round 60. */
-  { name: "Containers & overlays", ids: ["panel", "header", "ribbonbanner", "tab", "tabback", "bottomnav", "dropdown", "dialog", "toast", "tooltip", "listmenu", "choicelist", "scrollbar", "input", "searchfield", "setrow"] },
+  /* the four container shapes the kit page shows (08 Containers) are all
+     placeable (owner, 2026-09-21: "can't find the container element in the
+     board assets"): the plain panel plus its round, oval and dialogue-strip
+     kinds, each riding the variant slot the renderer reads as the kind */
+  { name: "Containers & overlays", ids: ["panel", "panel~circle", "panel~oval", "panel~strip", "header", "ribbonbanner", "tab", "tabback", "bottomnav", "dropdown", "dialog", "toast", "tooltip", "listmenu", "choicelist", "scrollbar", "input", "searchfield", "setrow"] },
   { name: "HUD & readouts", ids: ["resource", "chip", "badge", "datarow", "slot", "orb", "ring", "bignum", "xpbar", "vitalbar", "currency", "healthglobe", "manarails", "buffframe", "cooldown", "notifydot", "countbadge", "avatarframe", "nameplate", "loadbar", "spinner", "pagedots", "steps", "stepper"] },
   { name: "Timers", ids: ["flipclock", "stopwatch", "timerdigits", "timerbar"] },
   { name: "Controls", ids: ["toggle", "slider", "progress", "segbar", "emblembar", "vsbar", "hotbar", "segment", "checkbox", "radio", "joystick", "gearicon", "trophyicon", "trophyicon~gold", "trophyicon~silver", "trophyicon~bronze", "gifticon"] },
@@ -90,7 +94,7 @@ const ASSET_GROUPS: { name: string; ids: string[] }[] = [
      slot, the validity line, the verdict stamp, the tutorial spotlight and
      the named placeholder window (staged, so kitVisible keeps them admin-
      only until released) */
-  { name: "Card battler", ids: ["cardback", "cardface", "pack", "coin", "trayslot", "validity", "verdict", "spotlight", "placeholder"] },
+  { name: "Card battler", ids: ["cardback", "cardface", "pack", "coin", "trayslot", "validity", "verdict", "spotlight", "placeholder", "turntrack"] },
   /* the semantic glyph rack — registry-derived so the tray and the kit page
      can't drift; the kitVisible filter below keeps it admin-only while
      staged, then per-glyph as releases land. LIVE only — a retired glyph
@@ -108,6 +112,7 @@ const ASSET_GROUPS: { name: string; ids: string[] }[] = [
    search"). Every piece also matches its display name, its id and its
    group name; this map only adds the words those three miss. */
 const SEARCH_TERMS: Partial<Record<KitComponentId, string>> = {
+  panel: "container containers surface plate frame backdrop box card round circle medallion oval dialogue strip sheet",
   starrating: "stars results celebration win level complete replay",
   combo: "multiplier celebration results streak pop",
   bignum: "score results points celebration count",
@@ -152,6 +157,7 @@ const SEARCH_TERMS: Partial<Record<KitComponentId, string>> = {
   // the card-battler set (round 80)
   placeholder: "placeholder window hole slot blank transparent card portrait banner wordmark art layout",
   coin: "legacy coin medallion stake readout number target arrow unit hud",
+  turntrack: "turn tracker round counter coins pips readout match hud",
   timerbar: "timer bar plan turn countdown thin fill warn red mercury",
   spotlight: "spotlight ring halo tutorial highlight frame pulse glow guide",
   trayslot: "tray slot deck builder cell card well empty filled invalid numeral tag",
@@ -1615,13 +1621,15 @@ export function BoardView({ playing }: { playing: boolean }) {
        search") — they still need honest display names here */
     const EXTRA_NAMES: Partial<Record<KitComponentId, string>> = { trophy: "Trophy cup", startlights: "Start lights" };
     const name = (id: KitComponentId) => KIT_COMPONENTS.find((c) => c.id === id)?.name ?? EXTRA_NAMES[id] ?? id;
+    // the container tiles wear the kit page's own names, so the two agree
+    const TILE_NAMES: Record<string, string> = { panel: "Container · Panel", "panel~circle": "Container · Round", "panel~oval": "Container · Oval", "panel~strip": "Container · Dialogue strip" };
     return ASSET_GROUPS.map((g) => ({
       name: g.name,
       // hay = everything search can land on: display name, id, group, synonyms
       items: g.ids.filter((entry) => kitVisible(entry.split("~")[0] as KitComponentId, componentReleases, isAdmin)).map((entry) => {
         const [bid, ov] = entry.split("~");
         const kid = bid as KitComponentId;
-        const nm = ov ? `${name(kid)} · ${ov}` : name(kid);
+        const nm = TILE_NAMES[entry] ?? (ov ? `${name(kid)} · ${ov}` : name(kid));
         return { id: entry, kitId: kid, ov, name: nm, hay: `${nm} ${entry} ${g.name} ${SEARCH_TERMS[kid] ?? ""}${ov ? ` ${ov} overlay` : ""}`.toLowerCase(), svg: thumbOf(entry, kid, kid, ov) };
       }),
     }));

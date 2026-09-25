@@ -785,6 +785,10 @@ export interface GenConfig extends StateDesign {
      face; trigger "hover" arms the motion to play only under the
      pointer (absent = always). */
   idle?: { wipe: boolean; edge: boolean; freq?: number; blend?: BlendMode; wipeDur?: number; edgeDur?: number; wipeWidth?: number; trigger?: "hover" };
+  /** Celebrate on press (owner, 2026-09-19): the words that fire the claim
+   *  burst, comma separated. Unset = the built-in CLAIM; empty = no words.
+   *  A button that fires it rests dead afterwards, a one-time press. */
+  celebrate?: string;
   /** Bar-fill styling layers (see BarFx) — optional, defaults off. */
   barFx?: BarFx;
   /** Dragger ball on sliders, toggles and joysticks — null = derived from
@@ -1164,6 +1168,9 @@ export type KitComponentId =
   // window, the Legacy coin readout, the plan timer, the tutorial spotlight,
   // the deck tray slot, the validity line and the verdict stamp. All staged.
   | "placeholder" | "coin" | "timerbar" | "spotlight" | "trayslot" | "validity" | "verdict"
+  // the turn tracker (round 87, Stand on Business): the match's turn
+  // readout, a plate with a live title and one coin per turn. Staged.
+  | "turntrack"
   // the semantic glyph rack (glyphLibrary.ts) — every glyph is a full kit
   // citizen: its own per-piece forks, sizes, board placement. All staged.
   | "glyphcoin" | "glyphgem" | "glyphheart" | "glyphenergy" | "glyphticket" | "glyphkey" | "glyphstar"
@@ -1379,6 +1386,18 @@ export const KIT_SLOTS: Partial<Record<KitComponentId, SlotDef[]>> = {
       note: "The arrow target under the big number: where the stake is heading. Empty keeps the specimen. It lights in the Glow role on the raised overlay." },
     { id: "unit", name: "Unit word", kind: "free", def: "legacy", maxLen: 12,
       note: "The small unit word at the foot of the coin, in the reading voice (the list font). Empty keeps the specimen." },
+  ],
+  turntrack: [
+    /* the turn tracker's words (round 87): the caption and the coin count
+       are kit-wide slots; the current turn follows the Value dial, or a
+       number typed in the Text field pins it per copy (the counter
+       family's contract). All of it ships as live text and live coins. */
+    { id: "caption", name: "Word", kind: "free", def: "TURN", maxLen: 12,
+      note: "The word before the count: TURN, ROUND, OBJECTIVE. Empty keeps TURN." },
+    { id: "total", name: "Coins", kind: "free", def: "8", maxLen: 2,
+      note: "How many turns the match has, 2 to 12. One coin per turn; the plate grows to fit them." },
+    { id: "readout", name: "Turn", kind: "value",
+      note: "Turns taken, driven by the Value slider: 0% is turn 0, 100% is the last turn. A number in the Text field pins it instead." },
   ],
   vitalbar: [
     { id: "readout", name: "Readout", kind: "free", def: "1,250 / 1,500", maxLen: 18,
@@ -2031,6 +2050,10 @@ export const KIT_COMPONENTS: { id: KitComponentId; name: string; staged?: true; 
   { id: "trayslot", name: "Tray slot", staged: true },
   { id: "validity", name: "Validity line", staged: true },
   { id: "verdict", name: "Verdict stamp", staged: true },
+  /* the turn tracker (round 87, the owner's "TURN 3 / 8" readout with a
+     row of coins). Released for every look (owner, 2026-09-22: "add this
+     component to the kit (for all looks) as a permanent addition"). */
+  { id: "turntrack", name: "Turn tracker" },
   { id: "pricebtn", name: "Price button" },
   { id: "energymeter", name: "Energy meter" },
   { id: "buildqueue", name: "Build queue" },
@@ -2134,11 +2157,33 @@ export const KIT_GROUPS: { id: string; name: string; members: KitComponentId[] }
   /* the card-battler set (round 80): the coin, the tray slot, the validity
      line, the verdict stamp, the spotlight ring and the placeholder window
      read as one family on a match board, so they restyle as one */
-  { id: "battler", name: "Card battler", members: ["coin", "trayslot", "validity", "verdict", "spotlight", "placeholder"] },
+  { id: "battler", name: "Card battler", members: ["coin", "trayslot", "validity", "verdict", "spotlight", "placeholder", "turntrack"] },
   /* the glyph-button fleet is its OWN family — a group restyle sweeps the
      47 buttons together without ever touching the stock button ladder */
   { id: "glyphbuttons", name: "Glyph buttons", members: GLYPH_BUTTONS.map((b) => b.id) },
 ];
+/* Celebrate on press (owner, 2026-09-19: the Stand on Business button
+   "needs to have the same effect as the CLAIM button ... a one time button
+   that has a cool brightening / particle effect then it goes dead"). The
+   claim burst has always fired on any piece whose visible words say CLAIM;
+   the words are now the kit's own, comma separated in cfg.celebrate. Unset
+   = CLAIM; an empty field = no words at all. The Claim button, the gift box
+   and the card pack celebrate whatever the words say. A BUTTON that
+   celebrates rests dead afterwards: a one-time press, in the app's Play
+   mode and in Unity (ClaimBurst.oneShot). */
+export const CELEBRATE_DEFAULT = "CLAIM";
+export function celebrateWords(cfg: Pick<GenConfig, "celebrate">): string[] {
+  return (cfg.celebrate ?? CELEBRATE_DEFAULT).split(",").map((w) => w.trim()).filter(Boolean);
+}
+/** Do these visible words celebrate under this kit's rule? Case-insensitive, substring. */
+export function celebrates(words: string | undefined | null, cfg: Pick<GenConfig, "celebrate">): boolean {
+  const up = (words ?? "").toUpperCase();
+  return !!up && celebrateWords(cfg).some((w) => up.includes(w.toUpperCase()));
+}
+/** The families whose celebration is a one-time press: every button, stock
+ *  ladder and glyph fleet alike, rests dead after it celebrates. */
+export const ONE_TIME_FAMILIES: ReadonlySet<string> = new Set(
+  KIT_GROUPS.filter((g) => g.id === "buttons" || g.id === "glyphbuttons").flatMap((g) => g.members as string[]));
 const GROUP_OF = new Map<KitComponentId, { id: string; name: string; members: KitComponentId[] }>();
 for (const g of KIT_GROUPS) for (const m of g.members) if (!GROUP_OF.has(m)) GROUP_OF.set(m, g);
 /** The group a piece belongs to, or null when it stands alone. A CLONE
@@ -2171,10 +2216,15 @@ export const isCloneId = (id: string): id is ClonePieceId => id.startsWith("copy
 export const baseOf = (id: KitPieceId): KitComponentId => (isCloneId(id) ? (id.slice(10) as KitComponentId) : id);
 export const mintCloneId = (base: KitComponentId): ClonePieceId =>
   `copy-${Array.from({ length: 4 }, () => "abcdefghjkmnpqrstuvwxyz23456789"[Math.floor(Math.random() * 31)]).join("")}-${base}`;
-/** Pieces whose CONTENT lives in store singletons (kitRow, kitKind), not
- *  per-piece maps — a clone would share content with its base, so they
- *  sit out of duplication until that content moves per-piece. */
-export const CLONE_INELIGIBLE = new Set<KitComponentId>(["datarow", "panel"]);
+/** Pieces whose CONTENT lives in store singletons (kitRow), not per-piece
+ *  maps — a clone would share content with its base, so they sit out of
+ *  duplication until that content moves per-piece. The panel left this set
+ *  (owner, 2026-09-21: "saved it as Panel-BLUE, then changed the color, it
+ *  changed the color of the original component as well"): its only
+ *  singleton was the editor's transient kind selector, and a board copy
+ *  carries its container shape itself now, so a panel clone owns its look
+ *  like any other piece. */
+export const CLONE_INELIGIBLE = new Set<KitComponentId>(["datarow"]);
 /** The glyph pieces as a narrowable sub-union — renderKit peels them off
  *  before its switch, which stays compile-time exhaustive for the rest. */
 export type GlyphPieceId = Extract<KitComponentId, `glyph${string}`>;
@@ -2222,6 +2272,9 @@ export const LABEL_MAX: Partial<Record<KitComponentId, number>> = {
      tray slot a tray index, the stamp one shouted word, the placeholder a
      window's name, the validity line a whole status sentence */
   coin: 4, trayslot: 3, verdict: 14, placeholder: 24, validity: 48,
+  // the turn tracker (round 87): the Text field pins the current turn, a
+  // number up to 12
+  turntrack: 2,
   /* the segmented control's option words (round 81): up to five captions
      joined by " | " ("Off | Deutan | Protan | Tritan") */
   segment: 60,
@@ -2273,6 +2326,9 @@ export const KIT_LABEL_EDITABLE = new Set<KitComponentId>([
      number, the tray index, the status sentence and the stamped word are
      each the piece's ONE main word, per copy on a board */
   "placeholder", "coin", "trayslot", "validity", "verdict",
+  /* the turn tracker (round 87): its Text is the CURRENT TURN, a number
+     that pins the coins per copy; untouched, the Value dial drives it */
+  "turntrack",
 ]);
 
 /* Pieces that may render TEXT-LESS (the kitNoText flag — a "No text"
@@ -2323,6 +2379,9 @@ export const PINNED_CHROME = new Set<KitComponentId>([
   "checkbox", "chestpanel", "choicelist", "dialog", "dialoguebox", "flipclock",
   "invgrid", "listmenu", "movecounter", "questpanel", "radio", "respawn",
   "rewardtray", "scorebug", "scrollbar", "seasontrack", "setrow", "stopwatch",
+  // the turn tracker (round 87): the plate rests, the coins and the word
+  // carry the state
+  "turntrack",
 ]);
 
 /* Components whose bespoke renderers build a custom root and never emit

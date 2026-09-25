@@ -54,6 +54,15 @@ Audiowide only comes in one weight, so "couldn't be downloaded just now, re-expo
 **14. Bold text on a one-weight kit keeps the app's width.**
 Hot Rod designs its type heavier than Audiowide can supply, so every label and seat in Unity wears TextMeshPro's synthetic bold. TextMeshPro adds 7 percent of the font size to every letter when it fakes bold. The browser fakes bold without touching letter spacing, and that is what the app draws. So live words in Unity ran about a tenth wider than in the app and walked out of their plates. The importer now zeroes that extra spacing on every font asset it makes or loads, so the stroke is the only difference left. Existing projects fix themselves on the next import, no rebuild needed.
 
+**15. The claim celebration is a one-time press now, and the words are the kit's own.**
+Chevon's call (2026-09-19): a button that celebrates, the white-hot flash and the particle throw, goes dead afterwards, the way a claimed reward should. ClaimBurst has a `oneShot` flag, on by default. After the throw settles, a Button host turns non-interactable and wears its disabled skin; call `ClaimBurst.Rearm()` when the next claim is due. Pieces without a Button (the gift box, the combo) just celebrate as before. The words that celebrate now travel in the manifest (`celebrate`), set per kit in the app (Global, under Idle motion: Celebration). CLAIM stays the default, and a kit can add its own words for its own key button. Prefabs and board copies whose words match get the ClaimBurst exactly as CLAIM copies always have.
+
+**16. The ribbon banner ships as a real piece.**
+Until now the ribbon banner reached Unity only as a posed board skin with its word baked in. It is a prop family now: `ribbonbanner/ribbonbanner-base.png` (bare plate and tails, no word), a disabled grade, its own glow, and a live TMP word seated on the plate from the manifest (labelText, size, ink, offset), so the prefab reads VICTORY or LEVEL 3 or whatever you type. It shelves under Rewards. It has no nine-slice on purpose: the tails and folds are drawn geometry, so a long word shrinks to the plate and the piece scales as a whole. Like every staged piece it ships when the kit places it on a board, and for everyone once Chevon releases it.
+
+**17. The turn tracker joins the Card Battler shelf.**
+Chevon's turn readout for Stand on Business: "TURN 3 / 8" over a row of coins. It ships as `turntrack/base.png` (the plate alone, no word, no coins), the title as one live TMP seat (write "TURN 4 / 8" from your match state), and every coin as a live Image child (Turn 1 coin through Turn N coin) on one shared frame, with `turntrack/coin-lit.png` and `turntrack/coin-unlit.png` beside them. Swap a coin's sprite as turns pass; nothing needs the app. Chevon released it for every look on 2026-09-22, so it is in every kit's zip from now on; the title takes the kit's Highlight colour where that reads on the plate and the kit's text colour where it would not.
+
 ## What we chose not to do
 
 - **Selective export by genre.** Chevon has this on the list as a product decision for the app, not a bug. Nothing built for it yet.
@@ -73,3 +82,38 @@ Hot Rod designs its type heavier than Audiowide can supply, so every label and s
 - Hot Rod: labels single, glyph buttons and the Check button at the right size, flames on every piece after Chevon's restore.
 - Hot Rod: live words (labels and seats) sitting inside their plates at the app's width, not spilling past the edges.
 - Anything the rename moved that a scene lost track of. It should not happen, since the GUIDs do not change.
+
+---
+
+# Week of 9/21: Brightside
+
+Hey Jimi. Your Brightside notes from 9/24 are in and all seven are handled below. Hot Rod is next.
+
+## What changed
+
+**1. The Playground opens at the top.**
+You had it exactly: the scrollbar was born at value 0, and for a bottom-to-top bar that is the bottom, so on Play the shelf snapped to its last chapter. The generated scene now sets the bar to 1 and the scroll position to the top. This is a change to the scene builder, so a kept Playground does not rebuild itself; Tools, PatternBreak, Rebuild Kit Playground Scene gives you a fresh one, or set the bar's Value to 1 once, as you did.
+
+**2. The clumping on the shelf.**
+Two causes. The caption under each piece was one long line, wider than a small piece like the crosshair, so neighbours' captions ran into each other. Captions are two lines now, the folder on the first and the name on the second, and each cell is at least as wide as its caption. Second, a piece's footprint was measured from its rectangles only, so words that overflow their seat, the equip selector's name and the waypoint's distance, did not count. Rendered text now counts in the footprint. Same note as above: rebuild the Playground to see it.
+
+**3. The line behind the tech card.**
+It was the card's two connector stubs, the short bars that mark the tree path. They were drawn under the plate and out both sides, so the base sprite carried a faint bar across its middle. They are live children now, Tree stub (left) and Tree stub (right), each ending at the plate's edge, and the base ships clean. Delete or slide them per tree link.
+
+**4. KitCardFace, for real this time.**
+You could not add it and the prefab showed a missing script. Same cause as the board rigs earlier in the summer: Unity binds a saved component to its script file only when the file holds a single class, and PatternBreakCardFace.cs held four. The four now live one per file: `Runtime/PatternBreakCardFace.cs` (Kit Card Face), `Runtime/KitCardDef.cs`, `Runtime/KitCardFlip.cs`, `Runtime/KitCardTilt.cs`. Two other files had the same shape and are split the same way: the edge shine (`Runtime/EdgeShine.cs`) and the slider readout (`Runtime/KitSliderReadout.cs`). Add Component, UI Kit Maker, Kit Card Face will list it, and the Cardface prefab carries it wired. A check now refuses any future runtime file with more than one class.
+
+**5. The Skybound Adventures art is out of the sample kit.**
+That was a logo Chevon had uploaded onto the Brightside boards while testing, and a maker's own uploaded logo ships with a kit on purpose, so a board that uses one is complete in Unity. That rule stays. The logo is off the Brightside boards now, so the sample kit no longer carries it. Your existing project keeps its copy under Prefabs/Art until you delete it; a fresh import will not bring it back.
+
+**6. The card name reads now, on every look.**
+Two things were wrong. The dark band the app draws under the name sits in the base sprite, and in Unity the live picture child covers the base, so the band never showed under a real picture. The band is its own live child now, Name band, seated over the picture and under the name, so it shows in Unity exactly as the app draws it, and you can delete or restyle it like any other child. And the name took the kit's text colour no matter what, dark blue on Brightside over a dark band. The name now checks its own contrast against the band and switches to white where the kit's ink would not read; kits with a light ink keep theirs.
+
+## What to hammer on
+
+- Rebuild the Playground: it opens at the top, captions on two lines, nothing touching.
+- Cardface prefab: a Name band child between the picture and the name, the name white on Brightside, and both still right after you drop your own sprite on the picture child.
+- Prefabs/Art: no Skybound Adventures on a fresh import.
+- Cardface prefab: Kit Card Face present, `SetCard` works, and Add Component lists it.
+- Tech card: a clean base, two stub children beside it.
+- Idle shine and the music slider's readout still working after the file split. If either went quiet, that is a bug and I want the Console text.

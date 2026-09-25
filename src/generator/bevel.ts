@@ -4376,6 +4376,8 @@ export const VALUE_DRIVEN = new Set<KitComponentId>([
   "bottomnav", "boostercard",
   // round 80: the plan timer fills 0..1 like the progress bar
   "timerbar",
+  // round 87: the turn tracker lights its coins 0..total off the dial
+  "turntrack",
 ]);
 
 /** Pieces the app draws TURNED (round 80, the verdict stamp): the render
@@ -6005,10 +6007,26 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       // container shell — same recipe, bigger canvas. tokenH keeps walls,
       // rim and depth at component scale instead of scaling with the height.
       // kinds: circle (medallion dialogs), oval (50s-modern), strip (dialogue)
+      /* the kind also rides the VARIANT slot (owner, 2026-09-21: the kit
+         page shows four container shapes, the board tray offered one): a
+         board copy carries its shape as ov, so every road that speaks
+         overlay (the stage, the tray thumb, the export's posed bake, the
+         PNG board) draws the round, oval and strip containers unchanged */
+      const kindP = opts.kind ?? (opts.overlay === "circle" || opts.overlay === "oval" || opts.overlay === "strip" ? opts.overlay : undefined);
+      if (kindP === "strip") {
+        /* the dialogue strip is a CONTROL-height plate (owner, 2026-09-21:
+           "trying to achieve the select option strip without any type, but
+           having trouble by scaling the panel because it is so large
+           comparatively"): the dropdown's own shell, 110 by 560 at the
+           component token scale, in the kit's silhouette, no word and no
+           caret. Placed beside a Select option at the same scale it matches
+           it rim for rim; stretch widens it, stretchY makes it taller. */
+        const wS = 560 * k * clamp(opts.stretch ?? 1, 0.7, 3), hS = 110 * k * clamp(opts.stretchY ?? 1, 0.7, 3);
+        return build(cfg, state, { x: 39, y: 30, h: hS, fs: 0, iconSize: 0 }, { iconDef: null, label: "", fixedW: wS, shapeOverride: sov, faceLayer: opts.faceLayer });
+      }
       const dims: Record<KitSize, [number, number]> =
-        opts.kind === "circle" ? { s: [300, 300], m: [380, 380], l: [470, 470] }
-        : opts.kind === "oval" ? { s: [420, 258], m: [540, 330], l: [680, 415] }
-        : opts.kind === "strip" ? { s: [540, 100], m: [700, 124], l: [880, 152] }
+        kindP === "circle" ? { s: [300, 300], m: [380, 380], l: [470, 470] }
+        : kindP === "oval" ? { s: [420, 258], m: [540, 330], l: [680, 415] }
         : { s: [430, 290], m: [580, 380], l: [780, 470] };
       // blank panels stretch 9-slice BOTH ways (owner: "two modes — 9-slice
       // stretchable and scale"): the shell re-renders at the pulled size while
@@ -6017,7 +6035,7 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const [pw0, ph0] = dims[size];
       const pw = pw0 * clamp(opts.stretch ?? 1, 0.7, 3);
       const ph2 = ph0 * clamp(opts.stretchY ?? 1, 0.7, 3);
-      return build(cfg, state, { x: 42, y: 33, h: ph2, fs: 0, iconSize: 0, tokenH: 150 }, { iconDef: null, label: "", fixedW: pw, shapeOverride: opts.kind ? "pill" : sov, faceLayer: opts.faceLayer });
+      return build(cfg, state, { x: 42, y: 33, h: ph2, fs: 0, iconSize: 0, tokenH: 150 }, { iconDef: null, label: "", fixedW: pw, shapeOverride: kindP ? "pill" : sov, faceLayer: opts.faceLayer });
     }
     case "vsbar": {
       /* Fighting · VS health bar — two mirrored wells drain toward center,
@@ -7159,6 +7177,74 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
 ${raisedC && !dimC ? `<g style="filter: drop-shadow(0 0 ${(6 * k).toFixed(1)}px ${hexRgba(glow, 0.9)})">` : ""}${contentText(tgtC, cxC, cyC + 42 * k, 28 * k * typeK, { anchor: "middle", keepCase: true, ...(raisedC ? { ink: glow } : {}), opacity: dimC ? 0.6 : 1 })}${raisedC && !dimC ? "</g>" : ""}
 ${contentText(unitC, cxC, cyC + 78 * k, 21 * k * typeK, { anchor: "middle", list: true, plain: true, keepCase: true, opacity: dimC ? 0.5 : 0.9 })}`;
       return bareRoot(cfg, dC, dC, innerC, { label: `${numC} ${tgtC} ${unitC}`, state, attrs: 'data-coin="1"' });
+    }
+    case "turntrack": {
+      /* Card battler · turn tracker (round 87, the owner's "TURN 3 / 8"
+         with a row of coins): the match's turn readout. A plate in the
+         kit's own silhouette (pinDesign: the frame keeps the Default
+         design in every state, the move counter's road) carries ONE live
+         title in the Highlight role and a row of coin pips, one per turn,
+         lit through the current one. EDITING CONTRACT: caption slot = the
+         word; total slot = the coin count (2..12, the plate grows to fit,
+         the coins never shrink); the current turn follows the Value dial
+         (0..1 → 0..total) unless a typed label (a number) pins it, the
+         counter family's contract verbatim. Every coin is MARKED ink on
+         ONE shared crop frame (data-icon-box), so the export ships each
+         as a live child plus the lit/unlit looks beside them, and a dev
+         flips any coin in the Inspector. Lit coins alone mark the turn
+         (the owner's call: no ring on the current coin). A display piece:
+         hover and pressed only wear the kit's own state glow on the plate;
+         disabled greys the plate and dims the coins and the word. */
+      const capTT = String(opts.slots?.caption ?? "TURN").trim().slice(0, 12) || "TURN";
+      const totTT = clamp(parseInt(String(opts.slots?.total ?? "8"), 10) || 8, 2, 12);
+      const typedTT = (opts.label ?? "").trim();
+      const curTT = /^\d{1,2}$/.test(typedTT) ? clamp(+typedTT, 0, totTT) : Math.round(clamp(value ?? 0.375, 0, 1) * totTT);
+      const dimTT = state === "disabled";
+      const rTT = 15.5 * k, pitchTT = 41 * k, padTT = 34 * k;
+      const fsTT = 17.5 * k * typeK;
+      const titleTT = `${capTT} ${curTT} / ${totTT}`;
+      const coinsW = rTT * 2 + (totTT - 1) * pitchTT;
+      /* the plate fits the wider of the coin row and the title (a wide-face
+         estimate; fitFs trims the word if a face runs wider still) */
+      const wTT = Math.max(coinsW, titleTT.length * fsTT * 0.7) + padTT * 2;
+      const hTT = 108 * k;
+      const shell = build(cfg, state, { x: 39, y: 30, h: hTT, fs: 0, iconSize: 0, tokenH: 150 }, { pinDesign: true, iconDef: null, label: "", fixedW: wTT, shapeOverride: sov });
+      const shellM = /data-shell0="([-\d. ]+)"/.exec(shell);
+      if (!shellM) return shell;
+      const [sx, sy, sw, sh] = shellM[1].split(" ").map(Number);
+      const ccx = sx + sw / 2;
+      const shellTT = shell.replace("<svg ", '<svg data-turntrack="1" ');
+      // Unity extras: the bare plate — the title and the coins arrive live
+      if (opts.part === "shell") return shellTT;
+      /* the title wears the Highlight role (the owner's gold) wherever it
+         reads on the plate's face; a pale highlight on a pale face (light
+         looks) falls back to the kit's own type ink, so every look keeps
+         a legible readout (released for all looks, 2026-09-22) */
+      const hiTT = effect(cfg.effects, "Highlight");
+      const faceTT = cfg.face.mode === "dark" ? hexMix(bevel, "#0B0714", 0.72) : effect(cfg.effects, "Inner Fill");
+      const inkTT = contrastOf(hiTT, faceTT) >= 3 ? hiTT : undefined;
+      const titleG = `<g data-part="label">${contentText(titleTT, ccx, sy + sh * 0.33, fitFs(titleTT, fsTT, sw - padTT * 1.2, 0.7), { anchor: "middle", ...(inkTT ? { ink: inkTT } : {}), opacity: dimTT ? 0.55 : 1 })}</g>`;
+      const cyTT = sy + sh * 0.7;
+      const x0TT = ccx - ((totTT - 1) * pitchTT) / 2;
+      const boxTT = rTT + 6 * k; // one shared crop frame: the stroke plus a hair of air
+      const rimTT = darken(bevel, 0.5);
+      let coins = "";
+      for (let i = 0; i < totTT; i++) {
+        const cxTT = x0TT + i * pitchTT;
+        const head = `<g data-part="icon" data-icon="coin${i + 1}" data-icon-box="${(cxTT - boxTT).toFixed(1)} ${(cyTT - boxTT).toFixed(1)} ${(boxTT * 2).toFixed(1)} ${(boxTT * 2).toFixed(1)}" data-icon-nick="Turn ${i + 1} coin"${dimTT ? ' opacity="0.5"' : ""}>`;
+        if (i < curTT) {
+          // lit: the coin material in the kit's own roles (Glow face, Bevel rim)
+          const gidTT = "tt" + UID++;
+          coins += head + `<defs><radialGradient id="${gidTT}" cx="0.35" cy="0.3" r="0.95"><stop offset="0" stop-color="${lighten(glow, 0.7)}"/><stop offset="0.55" stop-color="${glow}"/><stop offset="1" stop-color="${darken(bevel, 0.35)}"/></radialGradient></defs>` +
+            `<circle cx="${cxTT.toFixed(1)}" cy="${cyTT.toFixed(1)}" r="${rTT.toFixed(1)}" fill="url(#${gidTT})" stroke="${rimTT}" stroke-width="1.6"/>` +
+            `<circle cx="${cxTT.toFixed(1)}" cy="${cyTT.toFixed(1)}" r="${(rTT * 0.66).toFixed(1)}" fill="none" stroke="${rimTT}" stroke-width="1.1" opacity="0.5"/>` +
+            `<ellipse cx="${(cxTT - rTT * 0.3).toFixed(1)}" cy="${(cyTT - rTT * 0.42).toFixed(1)}" rx="${(rTT * 0.34).toFixed(1)}" ry="${(rTT * 0.18).toFixed(1)}" fill="#FFFFFF" opacity="0.65"/></g>`;
+        } else {
+          // unlit: a dark well with a faint rim, the step indicator's upcoming pip
+          coins += head + `<circle cx="${cxTT.toFixed(1)}" cy="${cyTT.toFixed(1)}" r="${rTT.toFixed(1)}" fill="${wellFill}" stroke="rgba(255,255,255,0.22)" stroke-width="1.2"/></g>`;
+        }
+      }
+      return inject(shellTT, titleG + coins);
     }
     case "timerbar": {
       /* Card battler · plan timer (round 80) — the thin bar under the match
@@ -9631,8 +9717,15 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       const ccx = sx + sw / 2;
       const cyM = sy + sh * 0.34, mR = sw * 0.24;
       const ic = opts.icon ?? STOCK_ICONS.sword;
-      const stubs = `<line x1="${(sx - 22 * k).toFixed(1)}" y1="${(sy + sh / 2).toFixed(1)}" x2="${(sx + 4 * k).toFixed(1)}" y2="${(sy + sh / 2).toFixed(1)}" stroke="${done9 ? glow : "rgba(255,255,255,0.25)"}" stroke-width="${(8 * k).toFixed(1)}" stroke-linecap="round"${done9 && state !== "disabled" ? ` style="filter: drop-shadow(0 0 3px ${hexRgba(glow, 0.6)})"` : ""}/>
-        <line x1="${(sx + sw - 4 * k).toFixed(1)}" y1="${(sy + sh / 2).toFixed(1)}" x2="${(sx + sw + 22 * k).toFixed(1)}" y2="${(sy + sh / 2).toFixed(1)}" stroke="rgba(255,255,255,0.25)" stroke-width="${(8 * k).toFixed(1)}" stroke-linecap="round"/>`;
+      /* the connector stubs are MARKED INK (week of 9/21 — Jimi: "tech card
+         base has a sneaky line behind it"): they used to run under the plate
+         and out both sides, so the shipped base sprite carried a faint bar
+         across its middle. As marked groups they leave the base and ship as
+         two live children (delete or slide them per tree link); each ends
+         at the plate's edge, cap included, so nothing rides over the face. */
+      const stubY = (sy + sh / 2).toFixed(1);
+      const stubs = `<g data-part="icon" data-icon="stub-left" data-icon-nick="Tree stub (left)"><line x1="${(sx - 26 * k).toFixed(1)}" y1="${stubY}" x2="${(sx - 4 * k).toFixed(1)}" y2="${stubY}" stroke="${done9 ? glow : "rgba(255,255,255,0.25)"}" stroke-width="${(8 * k).toFixed(1)}" stroke-linecap="round"${done9 && state !== "disabled" ? ` style="filter: drop-shadow(0 0 3px ${hexRgba(glow, 0.6)})"` : ""}/></g>
+        <g data-part="icon" data-icon="stub-right" data-icon-nick="Tree stub (right)"><line x1="${(sx + sw + 4 * k).toFixed(1)}" y1="${stubY}" x2="${(sx + sw + 26 * k).toFixed(1)}" y2="${stubY}" stroke="rgba(255,255,255,0.25)" stroke-width="${(8 * k).toFixed(1)}" stroke-linecap="round"/></g>`;
       let over = `<circle cx="${ccx.toFixed(1)}" cy="${cyM.toFixed(1)}" r="${mR.toFixed(1)}" fill="${wellFill}" stroke="rgba(255,255,255,0.25)" stroke-width="1.4"/>` +
         (ic ? (locked9
           ? `<g data-part="icon" data-icon="glyph">${iconGroup(ic, ccx - mR * 0.55, cyM - mR * 0.55, mR * 1.1, "#A7AAB4", { strokeWidth: 2 * iconWK })}</g>`
@@ -10408,8 +10501,21 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       partsF += `</g>`;
       // the darkroom's wash rides ABOVE the art as its own swappable child
       if (artSeat) partsF += artSeat.wash(`${gid}w`, "artwash", "Card art wash", wX, wY, wW, wH);
-      // a scrim up from the well's foot so the name reads over any picture
-      partsF += `<g clip-path="url(#${gid}w)"><rect x="${wX.toFixed(1)}" y="${(wY + wH * 0.58).toFixed(1)}" width="${wW.toFixed(1)}" height="${(wH * 0.42).toFixed(1)}" fill="url(#${gid}s)"/></g>`;
+      /* THE NAME'S GROUND IS ONE MARKED CHILD (week of 9/21 — Jimi: the card
+         name did not read over the face). The foot fade and the vignette
+         used to sit in the base sprite, where a live picture child covers
+         them in Unity, so the band the app draws never showed under a real
+         picture. As marked ink placed after the art group they ship as a
+         Name band child seated OVER the picture and UNDER the words, as the
+         app draws them; delete or restyle it like any other child. No name
+         at all (No text, no wordmark): no band, the foot stays clear for a
+         board stamp (the owner's rule for the vignette, now the whole band). */
+      const logoBase = 30 + h - 52 * k;
+      const logoSizeK = ({ Small: 0.74, Large: 1.24, Huge: 1.5 } as Record<string, number>)[String(slF.logosize ?? "")] ?? 1;
+      const logoPic = opts.logo;
+      const logoOff = !logoPic && opts.label === "";
+      if (!logoOff) partsF += `<g data-part="icon" data-icon="nameband" data-icon-nick="Name band"><g clip-path="url(#${gid}w)"><rect x="${wX.toFixed(1)}" y="${(wY + wH * 0.58).toFixed(1)}" width="${wW.toFixed(1)}" height="${(wH * 0.42).toFixed(1)}" fill="url(#${gid}s)"/></g>` +
+        `<ellipse cx="${(39 + w / 2).toFixed(1)}" cy="${logoBase.toFixed(1)}" rx="${(w * 0.5).toFixed(1)}" ry="${(38 * k * logoSizeK).toFixed(1)}" fill="url(#${gid}v)"/></g>`;
       if (frameOnF) partsF += `<path d="${wellD}" fill="none" stroke="${hexRgba(CD(hexMix(glow, "#FFFFFF", 0.28)), 0.6)}" stroke-width="${(2.4 * k).toFixed(1)}"/>`;
       /* THE CORNER BADGES. Each is a plate the number rides: the shape
          ships as its own sprite and the digits stay live TMP, so a dev
@@ -10512,20 +10618,13 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
          across the lines the maker asks for, at the size they pick. It
          rides the FOOT of the picture, the owner's own framing: "the text
          logo will cover up the bottom part of the raster inserted image". */
-      const logoBase = 30 + h - 52 * k;
-      const logoSizeK = ({ Small: 0.74, Large: 1.24, Huge: 1.5 } as Record<string, number>)[String(slF.logosize ?? "")] ?? 1;
-      const logoPic = opts.logo;
       /* NO LOGO AT ALL is a real answer (owner: "need the option of no
          logo (as it might be added later in boards)") — the No text
          toggle empties the label, and with no uploaded wordmark either
-         the whole band stands down, vignette included. A darkening over
-         the art with nothing in it would be a container for nothing,
-         which is the one thing the owner ruled out here. */
-      const logoOff = !logoPic && opts.label === "";
-      /* the VIGNETTE first (not a plate: the owner asked for no container)
-         — it darkens the ground under whatever the logo turns out to be,
-         so a wordmark reads over any picture the maker drops in */
-      if (!logoOff) partsF += `<ellipse cx="${(39 + w / 2).toFixed(1)}" cy="${logoBase.toFixed(1)}" rx="${(w * 0.5).toFixed(1)}" ry="${(38 * k * logoSizeK).toFixed(1)}" fill="url(#${gid}v)"/>`;
+         the whole band stands down, vignette included (logoOff, drawn with
+         the Name band above). A darkening over the art with nothing in it
+         would be a container for nothing, which is the one thing the owner
+         ruled out here. */
       if (logoOff) {
         // nothing: the foot of the art is left clear for a board stamp
       } else if (logoPic) {
@@ -10581,6 +10680,14 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
         const fs0 = 33 * k * typeK * logoSizeK;
         const lineHL = fs0 * 1.06;
         const topL = logoBase - ((lineArr.length - 1) * lineHL) / 2;
+        /* CONTRAST FALLBACK (owner, 2026-09-25: "contrast fallback plus a
+           light band, universal"): the name reads against the band over the
+           well, not against open paper. Where the kit's own ink would not
+           reach 3:1 there (Brightside's navy on a dark band) the name goes
+           white; a kit whose ink reads keeps its own type treatment. */
+        const groundN = hexMix(CD(darken(effect(cfg.effects, "Inner Fill"), 0.35)), "#000000", 0.45);
+        const inkN0 = cfg.type.fillMode === "solid" ? cfg.type.fill : cfg.type.fillMode === "gradient" ? hexMix(cfg.type.fill, cfg.type.fill2 || cfg.type.fill, 0.5) : "#FFFFFF";
+        const nameInk = contrastOf(inkN0, groundN) >= 3 ? undefined : "#FFFFFF";
         lineArr.forEach((ln, li3) => {
           /* every line still SHRINKS TO FIT rather than running off the
              card — the owner's rule from the claim button's ribbon,
@@ -10588,7 +10695,7 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
              name can stay big */
           const fsL = fs0 * clamp((w * 0.88) / Math.max(1, ln.length * fs0 * 0.56), 0.62, 1);
           partsF += `<g data-part="label"${rasterFx ? ` style="filter:${rasterFx}"` : ""}>${contentText(ln, 39 + w / 2, topL + li3 * lineHL, fsL, {
-            anchor: "middle", keepCase: true, track: 1, autoInk: "#FFFFFF",
+            anchor: "middle", keepCase: true, track: 1, autoInk: "#FFFFFF", ...(nameInk ? { ink: nameInk } : {}),
           })}</g>`;
         });
       }
