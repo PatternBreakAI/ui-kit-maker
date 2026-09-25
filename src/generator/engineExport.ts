@@ -8464,6 +8464,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Runtime/PatternBreakDmgNumber.cs", data: DMG_NUMBER_RUNTIME });
   files.push({ path: "Runtime/PatternBreakCountdownLabel.cs", data: COUNTDOWN_RUNTIME });
   files.push({ path: "Runtime/PatternBreakIdleShine.cs", data: IDLE_SHINE_RUNTIME });
+  files.push({ path: "Runtime/EdgeShine.cs", data: EDGE_SHINE_RUNTIME });
   files.push({ path: "Runtime/PatternBreakPopNumber.cs", data: POP_NUMBER_RUNTIME });
   files.push({ path: "Runtime/PatternBreakRadarDemo.cs", data: RADAR_DEMO_RUNTIME });
   files.push({ path: "Runtime/PatternBreakSeasonTrack.cs", data: SEASON_TRACK_RUNTIME });
@@ -8471,8 +8472,14 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   files.push({ path: "Runtime/PatternBreakRingFill.cs", data: RING_FILL_RUNTIME });
   files.push({ path: "Runtime/PatternBreakBuffSweep.cs", data: BUFF_SWEEP_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitBarFill.cs", data: KIT_BAR_FILL_RUNTIME });
+  files.push({ path: "Runtime/KitSliderReadout.cs", data: KIT_SLIDER_READOUT_RUNTIME });
   files.push({ path: "Runtime/PatternBreakCellMeter.cs", data: CELL_METER_RUNTIME });
   files.push({ path: "Runtime/PatternBreakCardFace.cs", data: CARD_FACE_RUNTIME });
+  /* week of 9/21: one class per file, the newcomers named exactly for their
+     class so Unity binds them under every version's rule */
+  files.push({ path: "Runtime/KitCardDef.cs", data: CARD_DEF_RUNTIME });
+  files.push({ path: "Runtime/KitCardFlip.cs", data: CARD_FLIP_RUNTIME });
+  files.push({ path: "Runtime/KitCardTilt.cs", data: CARD_TILT_RUNTIME });
   files.push({ path: "Runtime/PatternBreakKitStepper.cs", data: KIT_STEPPER_RUNTIME });
   files.push({ path: "Runtime/PatternBreakPageDots.cs", data: PAGE_DOTS_RUNTIME });
   files.push({ path: "Runtime/PatternBreakStartLights.cs", data: START_LIGHTS_RUNTIME });
@@ -8577,6 +8584,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
        copy would collide with the first. A live defect in what already
        shipped, found by auditing rather than by a bug report. */
     "Runtime/PatternBreakCardFace.cs",
+    "Runtime/KitCardDef.cs", "Runtime/KitCardFlip.cs", "Runtime/KitCardTilt.cs",
+    "Runtime/KitSliderReadout.cs", "Runtime/EdgeShine.cs",
     "Runtime/PatternBreakKitStepper.cs",
     "Runtime/PatternBreakPageDots.cs", "Runtime/PatternBreakStartLights.cs",
     "Runtime/PatternBreakSkillNode.cs",
@@ -9397,6 +9406,17 @@ namespace PatternBreak {
       if (!Mathf.Approximately(fill.fillAmount, wroteFill)) { value = Snap(fill.fillAmount); Apply(); }
     }
   }
+}
+
+`;
+/* ONE UnityEngine.Object CLASS PER FILE (week of 9/21 — Jimi: the card's KitCardFace
+   could not be added or loaded). Unity binds a saved component to its script
+   file only when the file holds a single class (the BoardRigs lesson above);
+   this class had been sharing a file. */
+const KIT_SLIDER_READOUT_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+
+namespace PatternBreak {
   /* the number that follows a slider (round 78 — the settings row's
      readout was a live seat the Slider never spoke to): wired as a
      persistent onValueChanged listener on import, Editor and Runtime,
@@ -9420,6 +9440,7 @@ namespace PatternBreak {
   }
 }
 `;
+
 
 /* THE CELL-METER SNAPPER (round 44, dossier RIG-2): the app lights WHOLE
    cells; a raw fillAmount write chops mid-pill. The rig snaps every cut
@@ -9489,15 +9510,6 @@ using TMPro;
 #endif
 
 namespace PatternBreak {
-  /* ONE CARD'S DATA. A set is a folder of these plus one prefab. */
-  [CreateAssetMenu(menuName = "UI Kit Maker/Card", fileName = "Card")]
-  public class KitCardDef : ScriptableObject {
-    public string cardName = "CARD NAME";
-    public Sprite art;
-    public int left = 5;
-    public int right = 9;
-  }
-
   [AddComponentMenu("UI Kit Maker/Kit Card Face")]
   public class KitCardFace : MonoBehaviour {
     /* how a number arrived: Quiet just writes it, Hit punches red, Buff
@@ -9615,7 +9627,43 @@ namespace PatternBreak {
     }
 #endif
   }
+}
 
+`;
+/* the card's data asset, in its own file for the same one-class rule */
+const CARD_DEF_RUNTIME = `using System.Collections;
+using UnityEngine;
+using UnityEngine.UI;
+using UnityEngine.EventSystems;
+#if UNITY_2023_2_OR_NEWER
+using TMPro;
+#endif
+
+namespace PatternBreak {
+  /* ONE CARD'S DATA. A set is a folder of these plus one prefab. */
+  [CreateAssetMenu(menuName = "UI Kit Maker/Card", fileName = "Card")]
+  public class KitCardDef : ScriptableObject {
+    public string cardName = "CARD NAME";
+    public Sprite art;
+    public int left = 5;
+    public int right = 9;
+  }
+}
+`;
+
+/* ONE UnityEngine.Object CLASS PER FILE (week of 9/21 — Jimi: the card's KitCardFace
+   could not be added or loaded). Unity binds a saved component to its script
+   file only when the file holds a single class (the BoardRigs lesson above);
+   this class had been sharing a file. */
+const CARD_FLIP_RUNTIME = `using System.Collections;
+using UnityEngine;
+using UnityEngine.UI;
+using UnityEngine.EventSystems;
+#if UNITY_2023_2_OR_NEWER
+using TMPro;
+#endif
+
+namespace PatternBreak {
   /* THE REVEAL (owner: "I'd like to have a card reveal animation in the kit
      that flips the card from back to front"). Park a Cardback and a
      Cardface as two children of one parent, drop this on the parent, and
@@ -9666,7 +9714,22 @@ namespace PatternBreak {
       run = null;
     }
   }
+}
+`;
 
+/* ONE UnityEngine.Object CLASS PER FILE (week of 9/21 — Jimi: the card's KitCardFace
+   could not be added or loaded). Unity binds a saved component to its script
+   file only when the file holds a single class (the BoardRigs lesson above);
+   this class had been sharing a file. */
+const CARD_TILT_RUNTIME = `using System.Collections;
+using UnityEngine;
+using UnityEngine.UI;
+using UnityEngine.EventSystems;
+#if UNITY_2023_2_OR_NEWER
+using TMPro;
+#endif
+
+namespace PatternBreak {
   /* THE BEND (round 73e). The owner, of the app's card modal: "I want to
      make sure the 3D animation comes through for developers?" The FLIP
      above already shipped; the pointer TILT did not — it lived only in the
@@ -9743,6 +9806,7 @@ namespace PatternBreak {
   }
 }
 `;
+
 
 /* the STEPPER'S BRAIN (round 44, item 37): the two cap Buttons step the
    value by whole cells and the cell meter snaps the strip — the app's
@@ -11607,7 +11671,17 @@ namespace PatternBreak {
       band.color = new Color(1f, 1f, 1f, strength * Mathf.Sin(u * Mathf.PI));
     }
   }
+}
 
+`;
+/* ONE UnityEngine.Object CLASS PER FILE (week of 9/21 — Jimi: the card's KitCardFace
+   could not be added or loaded). Unity binds a saved component to its script
+   file only when the file holds a single class (the BoardRigs lesson above);
+   this class had been sharing a file. */
+const EDGE_SHINE_RUNTIME = `using UnityEngine;
+using UnityEngine.UI;
+
+namespace PatternBreak {
   /* Idle motion, half two: the edge shine — a spark that runs the piece's
      silhouette, shrinking as it travels, flickering along the journey,
      then resting (owner: "gets smaller and fades out… points of
@@ -11695,6 +11769,7 @@ namespace PatternBreak {
   }
 }
 `;
+
 
 const HERO_LABEL_RUNTIME = `using UnityEngine;
 using UnityEngine.UI;
@@ -16265,12 +16340,49 @@ namespace PatternBreak {
     }
     /* the shelf caption (round 78): "Prefabs/Buttons/ButtonPrimary" in
        small quiet type under the piece — the Playground as the index */
-    static void ShelfCaption(RectTransform board, string prefabName, string prefabPath, string root, float left, float bottom, float width) {
+    /* the caption's words: the prefab's path inside the kit, folder on one
+       line and name on the next (week of 9/21 — two lines keep the cell
+       narrow, so small pieces stop sharing a caption's air) */
+    static string ShelfRel(string prefabPath, string root, string prefabName) {
       var rel = (prefabPath ?? "").Replace("\\\\", "/");
       var pre = root + "/";
       if (rel.StartsWith(pre)) rel = rel.Substring(pre.Length);
       if (rel.EndsWith(".prefab")) rel = rel.Substring(0, rel.Length - 7);
       if (rel.Length == 0) rel = prefabName;
+      return rel;
+    }
+    static string ShelfCaptionText(string rel) {
+      int cut = rel.LastIndexOf('/');
+      return cut > 0 ? rel.Substring(0, cut + 1) + "\\n" + rel.Substring(cut + 1) : rel;
+    }
+    /* the caption's width at its 14 px face, the longer of its two lines
+       (0.6 em per glyph is generous for a mixed-case sans) */
+    static float ShelfCaptionWidth(string rel) {
+      int cut = rel.LastIndexOf('/');
+      int a = cut > 0 ? cut + 1 : rel.Length, b = cut > 0 ? rel.Length - cut - 1 : 0;
+      return Mathf.Max(a, b) * 14f * 0.6f + 8f;
+    }
+    /* a piece's footprint on the shelf INCLUDING its words (week of 9/21 —
+       Jimi's clumping): rect bounds miss text that overflows its seat (an
+       equip selector's name, a waypoint's distance), so every rendered
+       text's own bounds join the union */
+    static Bounds ShelfBounds(RectTransform board, GameObject inst) {
+      var b = RectTransformUtility.CalculateRelativeRectTransformBounds(board, inst.transform);
+#if UNITY_2023_2_OR_NEWER
+      foreach (var t in inst.GetComponentsInChildren<TMP_Text>(true)) {
+        if (string.IsNullOrEmpty(t.text)) continue;
+        t.ForceMeshUpdate(true, true);
+        var tb = t.textBounds;
+        if (tb.size.x <= 0f || tb.size.y <= 0f) continue;
+        var tr = t.rectTransform;
+        var cs4 = new Vector3[] { tb.min, new Vector3(tb.max.x, tb.min.y, 0f), tb.max, new Vector3(tb.min.x, tb.max.y, 0f) };
+        foreach (var c4 in cs4) b.Encapsulate(board.InverseTransformPoint(tr.TransformPoint(c4)));
+      }
+#endif
+      return b;
+    }
+    static void ShelfCaption(RectTransform board, string prefabName, string prefabPath, string root, float left, float bottom, float width) {
+      var rel = ShelfCaptionText(ShelfRel(prefabPath, root, prefabName));
 #if UNITY_2023_2_OR_NEWER
       var go = new GameObject("Caption — " + prefabName, typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
       go.transform.SetParent(board, false);
@@ -16297,7 +16409,7 @@ namespace PatternBreak {
 #endif
       var rt = (RectTransform)go.transform;
       rt.anchorMin = new Vector2(0f, 1f); rt.anchorMax = new Vector2(0f, 1f); rt.pivot = new Vector2(0f, 1f);
-      rt.sizeDelta = new Vector2(Mathf.Max(width, 120f), 18f);
+      rt.sizeDelta = new Vector2(Mathf.Max(width, 120f), 36f);
       rt.anchoredPosition = new Vector2(left, bottom - 6f);
     }
     static void BuildPlayground(string root) {
@@ -16519,15 +16631,21 @@ namespace PatternBreak {
             rt.anchorMin = new Vector2(0f, 1f); rt.anchorMax = new Vector2(0f, 1f);
             rt.anchoredPosition = Vector2.zero;
             rt.localScale = Vector3.one;
-            var b0 = RectTransformUtility.CalculateRelativeRectTransformBounds(board, inst.transform);
+            var b0 = ShelfBounds(board, inst);
             float w = Mathf.Max(80f, Mathf.Max(rt.sizeDelta.x, b0.size.x)), h = Mathf.Max(40f, Mathf.Max(rt.sizeDelta.y, b0.size.y));
             // oversized furniture scales down to sit in the flow
             float ps2 = Mathf.Min(1f, Mathf.Min(300f / h, 620f / w));
-            if (x + w * ps2 > rowW && x > 91f) { x = 90f; y -= rowH + gut; rowH = 0f; }
+            /* the cell is as wide as the piece OR its caption (week of 9/21 —
+               Jimi: "some clumping/overlap in the playground scene"): a
+               crosshair is 80 wide, its caption three times that, and the
+               captions ran into each other under every small piece */
+            float capW = ShelfCaptionWidth(ShelfRel(pathOf[pf], root, n));
+            float cellW0 = Mathf.Max(w * ps2, capW);
+            if (x + cellW0 > rowW && x > 91f) { x = 90f; y -= rowH + gut; rowH = 0f; }
             if (ps2 < 1f) rt.localScale = new Vector3(ps2, ps2, 1f);
-            var b1 = RectTransformUtility.CalculateRelativeRectTransformBounds(board, inst.transform);
+            var b1 = ShelfBounds(board, inst);
             // the bounds were measured with the pivot at the origin, so their center IS the pivot-to-visual offset
-            float cellL = x, cellW = w * ps2, cellH = h * ps2;
+            float cellL = x, cellW = cellW0, cellH = h * ps2;
             rt.anchoredPosition = new Vector2(cellL + cellW * 0.5f - b1.center.x, y - cellH * 0.5f - b1.center.y);
             /* the INDEX caption (round 78 — Jimi: "some way to visualize
                the prefabs as you navigate the folder"): the prefab's
@@ -16535,7 +16653,7 @@ namespace PatternBreak {
                shelf doubles as the Prefabs index */
             ShelfCaption(board, n, pathOf[pf], root, cellL, y - cellH, cellW);
             x += cellW + gut;
-            if (cellH + 26f > rowH) rowH = cellH + 26f;
+            if (cellH + 44f > rowH) rowH = cellH + 44f; // two caption lines under the piece
             if (x > widest) widest = x;
             placed++;
           }
@@ -16580,6 +16698,15 @@ namespace PatternBreak {
         sbPg.targetGraphic = sbHandle.GetComponent<Image>();
         srPg.verticalScrollbar = sbPg;
         srPg.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHide;
+        /* the shelf OPENS AT THE TOP (week of 9/21 — Jimi: "scroll view is
+           defaulted to start at the bottom", "the Value on the scrollbar
+           component should be set to 1"): a BottomToTop scrollbar is born
+           at value 0, and on Play the ScrollRect obeys the bar before the
+           content, so the catalog landed on its last chapter. For this
+           direction value 1 IS the top; the content's own position agrees. */
+        Canvas.ForceUpdateCanvases();
+        sbPg.value = 1f;
+        srPg.verticalNormalizedPosition = 1f;
         /* no help card in the scene (owner call: the Playground stays
            clean) — the driving instructions live in the README instead */
         if (UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene, scenePath))

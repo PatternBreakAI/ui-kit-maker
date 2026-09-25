@@ -772,6 +772,19 @@ else {
     if (src[i] === "`") { idleEnd = i; break; }
   }
   idle = idleEnd > 0 ? new Function("return `" + src.slice(idleStart, idleEnd) + "`;")() : "";
+  /* week of 9/21: the edge shine lives in its own file now (one class per
+     runtime file, Unity's binding rule) — the pair's contract reads both */
+  const edgeOpen = src.indexOf("const EDGE_SHINE_RUNTIME = `");
+  if (edgeOpen < 0) errors.push("EDGE_SHINE_RUNTIME not found — the edge shine must ship in its own file (week of 9/21)");
+  else {
+    const edgeStart = edgeOpen + "const EDGE_SHINE_RUNTIME = `".length;
+    let edgeEnd = -1;
+    for (let i = edgeStart; i < src.length; i++) {
+      if (src[i] === "\\") { i++; continue; }
+      if (src[i] === "`") { edgeEnd = i; break; }
+    }
+    idle += edgeEnd > 0 ? "\n" + new Function("return `" + src.slice(edgeStart, edgeEnd) + "`;")() : "";
+  }
 }
 if (!/public int wipe; public int edge; public float freq; public string blend; public float wipeDur; public float edgeDur; public float wipeWidth; public string trigger; \}/.test(cs))
   errors.push("PBIdle must carry the pass dials (wipeDur/edgeDur/wipeWidth/trigger) — JsonUtility drops them without fields (round 25)");
@@ -4412,6 +4425,27 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the setrow's half-knob travel inset is back — that is the round-62 setrow bug, verbatim (round 62, S53)");
   if (!/hrtSR\.sizeDelta = new Vector2\(thW, thH - bandHSR\);/.test(srSlice))
     errors.push("the setrow handle lost its band-relative rect — the grip's box goes back to guessing at the cross axis (round 62, S53)");
+}
+
+/* ── ONE UnityEngine.Object CLASS PER RUNTIME FILE (week of 9/21) ─────────
+   Jimi could neither add nor load KitCardFace: Unity binds a saved
+   component to its script file only when the file holds a single class,
+   and PatternBreakCardFace.cs held four (the BoardRigs lesson, relearned).
+   Every shipped Runtime/*.cs must declare exactly one MonoBehaviour /
+   ScriptableObject / Graphic-derived class; helper and event classes
+   (UnityEvent subclasses, [Serializable] data) are fine beside it. */
+{
+  const pushes = [...src.matchAll(/files\.push\(\{ path: "(Runtime\/[^"]+\.cs)", data: (\w+) \}\)/g)];
+  if (pushes.length < 40) errors.push("the runtime file roster shrank below 40 — a files.push line went missing");
+  for (const [, path, cname] of pushes) {
+    const m = new RegExp("\\nconst " + cname + " = `([\\s\\S]*?)\\n`;").exec(src);
+    if (!m) { errors.push(`${path}: its literal ${cname} was not found`); continue; }
+    const objClasses = [...m[1].matchAll(/public (?:sealed |abstract )?class (\w+)\s*:\s*([^{]+)\{/g)]
+      .filter((c) => /\b(MonoBehaviour|ScriptableObject|Graphic|Image|Selectable|UIBehaviour|MaskableGraphic|BaseMeshEffect)\b/.test(c[2])).map((c) => c[1]);
+    if (objClasses.length !== 1) errors.push(`${path} holds ${objClasses.length} UnityEngine.Object classes (${objClasses.join(", ") || "none"}) — one per file, or Unity cannot bind the component (week of 9/21)`);
+    if (!new RegExp('"' + path.replace(/[.\/]/g, "\\$&") + '",?').test(src.slice(src.indexOf("const sharedScripts = new Set(["))))
+      errors.push(`${path} ships but is not in sharedScripts — it would land per-slug outside PatternBreak.Runtime (the IdleShine CS0246 lesson)`);
+  }
 }
 
 /* ══════════════════════════════════════════════════════════════════════

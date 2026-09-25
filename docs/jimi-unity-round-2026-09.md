@@ -82,3 +82,35 @@ Chevon's turn readout for Stand on Business: "TURN 3 / 8" over a row of coins. I
 - Hot Rod: labels single, glyph buttons and the Check button at the right size, flames on every piece after Chevon's restore.
 - Hot Rod: live words (labels and seats) sitting inside their plates at the app's width, not spilling past the edges.
 - Anything the rename moved that a scene lost track of. It should not happen, since the GUIDs do not change.
+
+---
+
+# Week of 9/21: Brightside
+
+Hey Jimi. Your Brightside notes from 9/24 are in. Five of the seven are fixed below; two are Chevon's call and are listed as still open so you know they were not missed. Hot Rod is next, after Chevon and I go through this batch.
+
+## What changed
+
+**1. The Playground opens at the top.**
+You had it exactly: the scrollbar was born at value 0, and for a bottom-to-top bar that is the bottom, so on Play the shelf snapped to its last chapter. The generated scene now sets the bar to 1 and the scroll position to the top. This is a change to the scene builder, so a kept Playground does not rebuild itself; Tools, PatternBreak, Rebuild Kit Playground Scene gives you a fresh one, or set the bar's Value to 1 once, as you did.
+
+**2. The clumping on the shelf.**
+Two causes. The caption under each piece was one long line, wider than a small piece like the crosshair, so neighbours' captions ran into each other. Captions are two lines now, the folder on the first and the name on the second, and each cell is at least as wide as its caption. Second, a piece's footprint was measured from its rectangles only, so words that overflow their seat, the equip selector's name and the waypoint's distance, did not count. Rendered text now counts in the footprint. Same note as above: rebuild the Playground to see it.
+
+**3. The line behind the tech card.**
+It was the card's two connector stubs, the short bars that mark the tree path. They were drawn under the plate and out both sides, so the base sprite carried a faint bar across its middle. They are live children now, Tree stub (left) and Tree stub (right), each ending at the plate's edge, and the base ships clean. Delete or slide them per tree link.
+
+**4. KitCardFace, for real this time.**
+You could not add it and the prefab showed a missing script. Same cause as the board rigs earlier in the summer: Unity binds a saved component to its script file only when the file holds a single class, and PatternBreakCardFace.cs held four. The four now live one per file: `Runtime/PatternBreakCardFace.cs` (Kit Card Face), `Runtime/KitCardDef.cs`, `Runtime/KitCardFlip.cs`, `Runtime/KitCardTilt.cs`. Two other files had the same shape and are split the same way: the edge shine (`Runtime/EdgeShine.cs`) and the slider readout (`Runtime/KitSliderReadout.cs`). Add Component, UI Kit Maker, Kit Card Face will list it, and the Cardface prefab carries it wired. A check now refuses any future runtime file with more than one class.
+
+## Still open, Chevon's call
+
+- **The Skybound Adventures art in the kit.** That is a logo Chevon uploaded onto the Brightside boards, and since June a maker's own uploaded logo ships with the kit on purpose, so a board that uses one is complete in Unity. Whether the sample kits should carry Chevon's test art, or the export should offer a switch, is being decided.
+- **The card name on the card face.** The name takes the kit's text colour, dark blue in Brightside, over the face's gradient. Options on the table: a contrast fallback that switches the ink where it would not read, a soft dark band behind the name, or both. Chevon is choosing.
+
+## What to hammer on
+
+- Rebuild the Playground: it opens at the top, captions on two lines, nothing touching.
+- Cardface prefab: Kit Card Face present, `SetCard` works, and Add Component lists it.
+- Tech card: a clean base, two stub children beside it.
+- Idle shine and the music slider's readout still working after the file split. If either went quiet, that is a bug and I want the Console text.

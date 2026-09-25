@@ -9717,8 +9717,15 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       const ccx = sx + sw / 2;
       const cyM = sy + sh * 0.34, mR = sw * 0.24;
       const ic = opts.icon ?? STOCK_ICONS.sword;
-      const stubs = `<line x1="${(sx - 22 * k).toFixed(1)}" y1="${(sy + sh / 2).toFixed(1)}" x2="${(sx + 4 * k).toFixed(1)}" y2="${(sy + sh / 2).toFixed(1)}" stroke="${done9 ? glow : "rgba(255,255,255,0.25)"}" stroke-width="${(8 * k).toFixed(1)}" stroke-linecap="round"${done9 && state !== "disabled" ? ` style="filter: drop-shadow(0 0 3px ${hexRgba(glow, 0.6)})"` : ""}/>
-        <line x1="${(sx + sw - 4 * k).toFixed(1)}" y1="${(sy + sh / 2).toFixed(1)}" x2="${(sx + sw + 22 * k).toFixed(1)}" y2="${(sy + sh / 2).toFixed(1)}" stroke="rgba(255,255,255,0.25)" stroke-width="${(8 * k).toFixed(1)}" stroke-linecap="round"/>`;
+      /* the connector stubs are MARKED INK (week of 9/21 — Jimi: "tech card
+         base has a sneaky line behind it"): they used to run under the plate
+         and out both sides, so the shipped base sprite carried a faint bar
+         across its middle. As marked groups they leave the base and ship as
+         two live children (delete or slide them per tree link); each ends
+         at the plate's edge, cap included, so nothing rides over the face. */
+      const stubY = (sy + sh / 2).toFixed(1);
+      const stubs = `<g data-part="icon" data-icon="stub-left" data-icon-nick="Tree stub (left)"><line x1="${(sx - 26 * k).toFixed(1)}" y1="${stubY}" x2="${(sx - 4 * k).toFixed(1)}" y2="${stubY}" stroke="${done9 ? glow : "rgba(255,255,255,0.25)"}" stroke-width="${(8 * k).toFixed(1)}" stroke-linecap="round"${done9 && state !== "disabled" ? ` style="filter: drop-shadow(0 0 3px ${hexRgba(glow, 0.6)})"` : ""}/></g>
+        <g data-part="icon" data-icon="stub-right" data-icon-nick="Tree stub (right)"><line x1="${(sx + sw + 4 * k).toFixed(1)}" y1="${stubY}" x2="${(sx + sw + 26 * k).toFixed(1)}" y2="${stubY}" stroke="rgba(255,255,255,0.25)" stroke-width="${(8 * k).toFixed(1)}" stroke-linecap="round"/></g>`;
       let over = `<circle cx="${ccx.toFixed(1)}" cy="${cyM.toFixed(1)}" r="${mR.toFixed(1)}" fill="${wellFill}" stroke="rgba(255,255,255,0.25)" stroke-width="1.4"/>` +
         (ic ? (locked9
           ? `<g data-part="icon" data-icon="glyph">${iconGroup(ic, ccx - mR * 0.55, cyM - mR * 0.55, mR * 1.1, "#A7AAB4", { strokeWidth: 2 * iconWK })}</g>`
