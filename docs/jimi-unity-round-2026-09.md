@@ -87,7 +87,7 @@ Chevon's turn readout for Stand on Business: "TURN 3 / 8" over a row of coins. I
 
 # Week of 9/21: Brightside
 
-Hey Jimi. Your Brightside notes from 9/24 are in and all seven are handled below. Hot Rod is next.
+Hey Jimi. Your Brightside notes from 9/24 are in and all seven are handled below. Hot Rod follows in the next section.
 
 ## What changed
 
@@ -117,3 +117,36 @@ Two things were wrong. The dark band the app draws under the name sits in the ba
 - Cardface prefab: Kit Card Face present, `SetCard` works, and Add Component lists it.
 - Tech card: a clean base, two stub children beside it.
 - Idle shine and the music slider's readout still working after the file split. If either went quiet, that is a bug and I want the Console text.
+
+---
+
+# Week of 9/14: Hot Rod
+
+Hey Jimi. Your Hot Rod notes from the 9/17 re-download are in. One fact explains most of them: the Console stamp in your own note says that zip was export build 8801726, made on 9/14. The Hot Rod answers from your week of 9/7 notes (single labels, glyph sizes, the catalog leaving the zip, the font notice) went live on 9/19, in build a7fffc6, two days after you downloaded. So you were testing the old exporter against the new answers. Everything below was checked today against a zip made from the current site, on a look with the same layered type as Hot Rod (outline, glow and shadow on, a one-weight font).
+
+## What changed
+
+**1. The ghost's stacked word, both halves.**
+Two things were wrong in your picture, and the 9/19 build fixed only the first. The label read GHOST GHOST GHOST GHOST because the exporter wrote the word once per type layer; since 9/19 it is written once, and today's zip carries the ghost's label as GHOST, the badge's as 12, the level node's as 12, with the base sprites bare. The second half is the plain white GHOST you circled under Words, "the unformatted text". That was a different bug, and it is fixed now: the label's glints are cut with a text-shaped clip, and the exporter was reading that clip's text copy as a word seat, so every look with glints on shipped its label word a second time as an undressed Words child. The seat parser now ignores anything under defs, clips and masks. And for a project imported before this, the importer retires that child on the next refresh, with a Console receipt, as long as it still reads exactly what it was seeded with; a word you retyped stays yours. Expect to see "retired 1 orphan word" lines for the ghost and the level node.
+
+**2. Glyphs still oversized.**
+Same timing. The stock glyph buttons that are not customized ship as thin variants of the slot button, and the plain white glyph was sized to the box the kit's own glyph reaches with its glow; on Hot Rod that box is several times the glyph. Since 9/19 the manifest carries the glyph's ink box beside its reach box, and the importer sizes the thin variants' glyphs to the ink. On today's zip the icon button's glyph reaches 191 by 196 with an ink box of 51 by 65; the skill node's reaches 200 by 204 with 62 by 73 of ink. The fleet reads the same field.
+
+**3. The catalog error on a fresh import.**
+Your 9/14 build still packed atlas/catalog.png, and the error is Unity refusing to read that image, which had grown taller than Unity opens. The removal went live on 9/19 with the rest. Today's zip has no atlas folder at all, and nothing in the importer or the README asks for one. A project that still carries an old atlas folder can delete it; the importer never touches it.
+
+**4. The Primary button's silhouette.**
+Not the exporter, and not fixed by a download. The flame outline on Hot Rod's Primary is an imported silhouette the account lost, and the app now shows a "Restore lost silhouette" row in the silhouette rack for exactly that. Chevon picks the SVG once and every piece wearing it heals, in the app and in the next export. Until that is done, Hot Rod exports draw the Primary without its flames. I will say so here when it is restored.
+
+**The font notice you screenshotted** ("the real Bold cut of Audiowide couldn't be downloaded just now") is gone too. Today's export of a one-weight look says the family comes in Regular only, that Unity synthesizes the bold the same way the browser does, and that there is nothing to re-export.
+
+## What to hammer on
+
+- Download a fresh Hot Rod zip after this lands (the Console stamp will read a build newer than 4abe0e3) and import it into a fresh project: no catalog error.
+- Ghost prefab: the label reads GHOST once, the base is bare, and there is no plain GHOST under Words. Badge and level node likewise.
+- Your existing project, re-imported: a Console line retiring the orphan word on the ghost and the level node, and nothing else under Words touched.
+- Glyph buttons (Gem, Sword, Key, Hammer, Gear, Check): the glyph fits its tile.
+- Primary button: flames, once Chevon has restored the silhouette.
+- Live words sitting inside their plates at the app's width.
+
+Your Brightside notes from the same week (the unzip replacing files, the friend row and list row shapes, the choice list's indent and gradient) are the next batch.

@@ -3399,6 +3399,14 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     for (const t of Array.from(doc.querySelectorAll("text"))) {
       // build()-machinery labels ride the LABEL pipeline, never seats
       if (t.closest('[data-part="label"]')) continue;
+      /* GEOMETRY, NOT WORDS (Jimi's Hot Rod field notes, weeks of 9/7 and
+         9/14: "the Words object has the unformatted text in it", a plain
+         white GHOST riding over the styled label): a text inside <defs>
+         is a clip, mask or pattern shape — the glints' text-shaped clip
+         (build()'s glintsDefs) is the word again, never drawn — and it
+         shipped as a second, undressed seat on every look with glints on.
+         Nothing under defs/clipPath/mask/pattern/symbol is a seat. */
+      if (t.closest("defs, clipPath, mask, pattern, symbol")) continue;
       const fs = parseFloat(t.getAttribute("font-size") ?? "0");
       const str0 = (t.textContent ?? "").replace(/\s+/g, " ").trim();
       if (!(fs > 1) || !str0) continue;
@@ -3720,6 +3728,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       }
       let seatsStripped = 0;
       for (const t of Array.from(dom.querySelectorAll("text"))) {
+        // clip/mask/pattern geometry under <defs> is not a word (parseTextSeats' rule) — it stays, and it counts for nothing
+        if (t.closest("defs, clipPath, mask, pattern, symbol")) continue;
         const fs = parseFloat(t.getAttribute("font-size") ?? "0");
         const str0 = (t.textContent ?? "").replace(/\s+/g, " ").trim();
         if (!(fs > 1) || !str0) continue;
@@ -24026,6 +24036,58 @@ namespace PatternBreak {
       return drift;
     }
 #endif
+    /* ORPHAN WORDS STEP ASIDE (Jimi's Hot Rod notes, 9/11 and 9/17: a plain
+       white GHOST rode over the styled label, "the Words object has the
+       unformatted text in it"). The label's glints clip carries a text copy
+       of the word inside <defs>, and the exporter used to read it as a seat,
+       so every look with glints on shipped its label word a second time as
+       an undressed Words child. The exporter no longer writes that seat, but
+       a project imported before the fix keeps the child until someone
+       deletes it. The signature is exact and checked on every refresh: a
+       Words text still carrying its seeded name (name equals text, so the
+       dev never touched it) whose word is the piece's own LABEL word (a word
+       no seat ever carries, since labels and seats are disjoint) and which
+       no seat in the manifest lists. Such a child is provably ours and
+       provably stale, so it is destroyed with a receipt, and a Row or Words
+       group left empty goes with it. A retyped word (name differs from
+       text) is the dev's and stays, as always. Fully-qualified TMP per the
+       guard standard's rule 2: this runs on every rung. */
+    static List<GameObject> OrphanSeatWordsOf(GameObject host, PBManifest m, string famName) {
+      var found = new List<GameObject>();
+      if (host == null || m == null || string.IsNullOrEmpty(famName)) return found;
+      var wordsT = host.transform.Find("Words");
+      if (wordsT == null) return found;
+      string labelW = PlainWord(LabelWordOf(m, famName, "")).Trim();
+      if (string.IsNullOrEmpty(labelW)) return found;
+      var live = new HashSet<string>();
+      if (m.assets != null)
+        foreach (var aO in m.assets)
+          if (aO != null && aO.component == famName && aO.textSeats != null)
+            foreach (var sO in aO.textSeats)
+              if (sO != null && !string.IsNullOrEmpty(sO.text)) live.Add(PlainWord(sO.text).Trim());
+      if (live.Contains(labelW)) return found;
+      foreach (var tO in wordsT.GetComponentsInChildren<TMPro.TMP_Text>(true)) {
+        if (tO == null) continue;
+        string nmO = PlainWord(tO.gameObject.name).Trim(), txO = PlainWord(tO.text).Trim();
+        if (nmO == txO && txO == labelW) found.Add(tO.gameObject);
+      }
+      return found;
+    }
+    static int RetireOrphanSeats(GameObject host, PBManifest m, string famName) {
+      var gone = OrphanSeatWordsOf(host, m, famName);
+      if (gone.Count == 0) return 0;
+      var wordsT = host.transform.Find("Words");
+      var names = new List<string>();
+      foreach (var gO in gone) {
+        names.Add(gO.name);
+        var rowT = gO.transform.parent;
+        UnityEngine.Object.DestroyImmediate(gO, true);
+        if (rowT != null && rowT != wordsT && rowT.childCount == 0 && rowT.name.StartsWith("Row ")) UnityEngine.Object.DestroyImmediate(rowT.gameObject, true);
+      }
+      if (wordsT != null && wordsT.childCount == 0) UnityEngine.Object.DestroyImmediate(wordsT.gameObject, true);
+      Debug.Log("UI Kit Maker: " + host.name + ": retired " + gone.Count + " word(s) under Words that repeated the piece's own label (" + string.Join(", ", names.ToArray()) + "). An older export shipped the label's glints clip as a plain seat; these were untouched since seeding. A retyped word would have stayed.");
+      return gone.Count;
+    }
     static void WireTextSeats(GameObject host, string root, PBManifest m, int pngScale) {
       var row = SeatRowOf(host, m, root);
       if (row == null) return;
@@ -26907,7 +26969,7 @@ namespace PatternBreak {
       RenameArtShelf(root); // BigGlyphs → Art, the class's name everywhere
       RenamePlainNames(root); // plain ASCII names (round 78), healed on every import
       RetireMoveCounterTwin(root, prevLock); // the case-twin that shadowed the universal Movecounter
-      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, glyphSeated = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0, reseeded = 0, wordKept = 0, rebodied = 0, mapGrafted = 0, padTuned = 0, rigGrafted = 0, sinkTuned = 0, barRigged = 0, capRigged = 0, pieceBound = 0, ddRigged = 0, unburned = 0, retiredIc = 0, medalWorded = 0;
+      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, glyphSeated = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0, reseeded = 0, wordKept = 0, rebodied = 0, mapGrafted = 0, padTuned = 0, rigGrafted = 0, sinkTuned = 0, barRigged = 0, capRigged = 0, pieceBound = 0, ddRigged = 0, unburned = 0, retiredIc = 0, medalWorded = 0, orphaned = 0;
       /* the ROOT-RECT ownership ledger (F5 — the resize pass was the one
          maintenance heal with NO ours-vs-theirs guard): rects we last
          authored, carried in kit.lock.json > authoredRects. A rect still
@@ -27838,6 +27900,10 @@ namespace PatternBreak {
            dev retyped stays theirs (owner: "a lot of text wasn't
            appearing on these panels") */
         bool wantSeats = TextSeatsStale(asset, m, root, m.pngScale > 0 ? m.pngScale : 2);
+        /* a Words child that repeats the piece's own label word, untouched
+           since seeding and listed by no seat: the old glints-clip orphan
+           (Jimi's Hot Rod field notes) — it steps aside on refresh */
+        bool wantOrphanWords = OrphanSeatWordsOf(asset, m, famName).Count > 0;
         /* label-machinery pieces that gained a live word (dropdown value,
            badge count): an older prefab without any label grows one */
         bool wantSeatLabel = (famName == "badge" || famName == "dropdown")
@@ -28076,7 +28142,7 @@ namespace PatternBreak {
            untouched. */
         bool wantSelectRoot = asset.GetComponent<KitPiece>() == null;
         if (!wantWiring && !wantDress && !wantFx && !wantUnswap && !wantResize && !wantSpecAdd && !wantSpecCut && !wantPad && !wantShape && !wantFbLift && !wantFbSeat && !wantFaceRects
-            && !wantWipeAdd && !wantWipeCut && !wantEdgeAdd && !wantEdgeCut && !wantGauge && !wantSeats && !wantSeatLabel && !wantWordSeed && !wantBody && !wantGlowPad && !wantSinkFix && !wantIconAdd && !wantIconStroke && !wantUnburn && !wantIconRetire && !wantSelectRoot) continue;
+            && !wantWipeAdd && !wantWipeCut && !wantEdgeAdd && !wantEdgeCut && !wantGauge && !wantSeats && !wantOrphanWords && !wantSeatLabel && !wantWordSeed && !wantBody && !wantGlowPad && !wantSinkFix && !wantIconAdd && !wantIconStroke && !wantUnburn && !wantIconRetire && !wantSelectRoot) continue;
         var contents = PrefabUtility.LoadPrefabContents(path);
         try {
           bool changed = false;
@@ -28173,6 +28239,11 @@ namespace PatternBreak {
             // and/or re-dresses a drifted readout, existing children honored
             WireGauge(contents, root, m, famName, m.pngScale > 0 ? m.pngScale : 2);
             if (contents.GetComponent<GaugeDial>() != null) { gauged++; changed = true; }
+          }
+          if (wantOrphanWords) {
+            // the orphan steps aside FIRST, so a seat heal in the same pass counts a clean Words group
+            int orphanN = RetireOrphanSeats(contents, m, famName);
+            if (orphanN > 0) { orphaned += orphanN; changed = true; }
           }
           if (wantSeats) {
             // idempotent: creates the Words group, or re-seeds/re-dresses
@@ -28460,6 +28531,8 @@ namespace PatternBreak {
         Debug.Log("UI Kit Maker: armed the baked press sink on " + sinkTuned + " prefab(s) — their pressed pose sinks inside the swap sprite (extrusion collapse), and the hover halo now slides with it instead of holding its hover seat.");
       if (padTuned > 0)
         Debug.Log("UI Kit Maker: re-measured the hover aura's overhang on " + padTuned + " prefab(s) — this export's aura sprites reach differently than the pad their StateFx still carried, so the halo would have sized off the old overhang.");
+      if (orphaned > 0)
+        Debug.Log("UI Kit Maker: retired " + orphaned + " orphan word(s) that repeated their piece's own label under Words. An older export read the label's glints clip as a plain text seat (the undressed GHOST over the styled one); this export no longer writes it, and the untouched children stepped aside. Anything retyped stayed.");
       if (worded > 0)
         Debug.Log("UI Kit Maker: gave " + worded + " panel prefab(s) their WORDS — every text the app renders for the piece now rides as live TMP under a 'Words' group (or a live label), pre-filled with the words from your kit, seated and dressed as the app draws them (kit-manifest.json > textSeats / labelText). Words you retype in Unity are yours: a re-import never overwrites a text that no longer matches its seeded string.");
       if (reseeded > 0)
