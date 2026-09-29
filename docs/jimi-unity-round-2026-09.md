@@ -113,6 +113,7 @@ Two things were wrong. The dark band the app draws under the name sits in the ba
 
 - Rebuild the Playground: it opens at the top, captions on two lines, nothing touching.
 - Cardface prefab: a Name band child between the picture and the name, the name white on Brightside, and both still right after you drop your own sprite on the picture child.
+- Cardface prefab: the corner numbers centred on their badges with their dark rim, the way the app draws them (Chevon's note from 9/29: they sat low and lost their stroke in Unity). A kept project re-seats and re-dresses them on the next import.
 - Prefabs/Art: no Skybound Adventures on a fresh import.
 - Cardface prefab: Kit Card Face present, `SetCard` works, and Add Component lists it.
 - Tech card: a clean base, two stub children beside it.
