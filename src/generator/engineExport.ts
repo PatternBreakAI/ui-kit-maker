@@ -23690,9 +23690,26 @@ namespace PatternBreak {
       }
       foreach (var k in new List<int>(fy.Keys)) fy[k] = fy[k] / count[k];
     }
-    static bool RowRect(RectTransform rrt, float rowFy, float rowFfs, float rootH, bool apply) {
+    /* a row made of RIDER words (the card face's two corner numbers share
+       one row) is exempt from the edge clamp, the way a lone rider is in
+       SeatRect: its plates hang off the card's top corners by design, and
+       the clamp used to drag both digits about half an em down their
+       badges before adoption froze them there (the owner: "positioning is
+       off"). A header row keeps the clamp. */
+    static bool RowIsRiders(PBAsset row, int rowIx) {
+      if (row == null || row.textSeats == null) return false;
+      bool any = false;
+      foreach (var sR in row.textSeats) {
+        if (sR == null || sR.row != rowIx) continue;
+        if (string.IsNullOrEmpty(sR.rider)) return false;
+        any = true;
+      }
+      return any;
+    }
+    static bool RowRect(RectTransform rrt, float rowFy, float rowFfs, float rootH, bool apply) { return RowRect(rrt, rowFy, rowFfs, rootH, apply, true); }
+    static bool RowRect(RectTransform rrt, float rowFy, float rowFfs, float rootH, bool apply, bool clampEdges) {
       float fsR = rowFfs * rootH;
-      float rowFyC = rootH > fsR * 1.3f ? Mathf.Clamp(rowFy, (fsR * 0.62f) / rootH, 1f - (fsR * 0.62f) / rootH) : rowFy;
+      float rowFyC = clampEdges && rootH > fsR * 1.3f ? Mathf.Clamp(rowFy, (fsR * 0.62f) / rootH, 1f - (fsR * 0.62f) / rootH) : rowFy;
       float yf = Mathf.Clamp01(1f - rowFyC);
       var mn = new Vector2(0f, yf); var mx = new Vector2(1f, yf);
       var sz = new Vector2(0f, rowFfs * rootH * 1.8f);
@@ -23983,13 +24000,14 @@ namespace PatternBreak {
         // the row container is the seat's parent when clustered — ours
         if (inRow) {
           var rrt = t.transform.parent as RectTransform;
-          if (rrt != null && rrt != wordsT && !RowRect(rrt, rowFy[seat.row], rowFfs[seat.row], rootH, apply)) drift = true;
+          if (rrt != null && rrt != wordsT && !RowRect(rrt, rowFy[seat.row], rowFfs[seat.row], rootH, apply, !RowIsRiders(row, seat.row))) drift = true;
         }
         TMP_FontAsset face; Material mat; int aboardWeight;
         SeatVoice(seat, m, kitFace, dressMat, grotesk, plainKitMat, instrument, contentFace, dressMatC, plainMatC, kitVoice, kitVoiceW, out face, out mat, out aboardWeight);
         /* the understroke rim rides a preset material on the plain voices —
            probe passes only look; a wanted-but-missing preset IS drift */
-        if (!seat.kit && mat == null && face != null && seat.strokeEmPct > 0.5f) {
+        if (face != null && seat.strokeEmPct > 0.5f && (mat == null || (seat.kit && !seat.dressed))) {
+          // the kit-face rim too (the card's corner digits) — the builder's rule, mirrored
           var rimMat = EnsureSeatStrokeMaterial(root, face, seat, apply);
           if (rimMat != null) mat = rimMat;
           else if (!apply) drift = true;
@@ -24144,7 +24162,7 @@ namespace PatternBreak {
             nRow++;
             var rGo = new GameObject("Row " + nRow, typeof(RectTransform));
             rGo.transform.SetParent(wordsT, false);
-            RowRect(rGo.GetComponent<RectTransform>(), rowFy[seat.row], rowFfs[seat.row], rootH, true);
+            RowRect(rGo.GetComponent<RectTransform>(), rowFy[seat.row], rowFfs[seat.row], rootH, true, !RowIsRiders(row, seat.row));
             rT = rGo.transform;
             made[seat.row] = rT;
           }
@@ -24162,7 +24180,14 @@ namespace PatternBreak {
         t.alignment = seat.anchor == "middle" ? TextAlignmentOptions.Center : seat.anchor == "end" ? TextAlignmentOptions.Right : TextAlignmentOptions.Left;
         TMP_FontAsset face; Material mat; int aboardWeight;
         SeatVoice(seat, m, kitFace, dressMat, grotesk, plainKitMat, instrument, contentFace, dressMatC, plainMatC, kitVoice, kitVoiceW, out face, out mat, out aboardWeight);
-        if (!seat.kit && mat == null && face != null && seat.strokeEmPct > 0.5f)
+        /* the UNDERSTROKE on a KIT-face seat too (owner, the card face's
+           corner numbers: "numbers lack stroke"): the app draws the cost
+           and power digits in the kit face with their own dark rim under
+           the fill, and this rule dressed only the non-kit voices, so an
+           undressed kit seat wore the plain material and lost its rim. A
+           dressed kit seat keeps the kit's full type dress, which carries
+           its own outline. The probe in SeatsDrift reads the same rule. */
+        if (face != null && seat.strokeEmPct > 0.5f && (mat == null || (seat.kit && !seat.dressed)))
           mat = EnsureSeatStrokeMaterial(root, face, seat, true);
         SeatRect(go.GetComponent<RectTransform>(), seat, face, rootH, inRow, inRow ? rowFy[seat.row] : 0f, true);
         if (face != null) t.font = face;
