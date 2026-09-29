@@ -150,4 +150,6 @@ Not the exporter, and not fixed by a download. The flame outline on Hot Rod's Pr
 - Primary button: flames, once Chevon has restored the silhouette.
 - Live words sitting inside their plates at the app's width.
 
+**The Responsive Check scene is gone from every export** (Chevon's call, 9/29). The safe-area root it demonstrated lives in every board scene and is grafted into kept ones, so the scene had nothing left to show. A project that already holds Scenes/Responsive Check.unity keeps it until you delete it; nothing rebuilds it, and the Tools menu item for it is gone.
+
 Your Brightside notes from the same week (the unzip replacing files, the friend row and list row shapes, the choice list's indent and gradient) are the next batch.

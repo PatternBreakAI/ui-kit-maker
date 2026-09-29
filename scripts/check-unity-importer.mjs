@@ -1055,9 +1055,11 @@ if (!/\*\*Input\*\*: a WORKING TMP_InputField/.test(src))
    content; Background/Overlay stay full-bleed on the Canvas. The scaler
    match policy lives in ONE seat (ScalerMatchFor: portrait matches
    width, landscape 0.5). Kept scenes adopt the root heal-out-loud; the
-   word-heal walk follows the root; a Responsive Check scene ships the
-   whole story visibly. The runtime is CORE-ONLY (Screen.safeArea) — the
-   round-19 P0 rule extends to it verbatim. */
+   word-heal walk follows the root. The Responsive Check scene that used
+   to ship the story visibly is gone (the owner, 2026-09-29: "drop the
+   responsive scene from all exports"), so two builders carry the root.
+   The runtime is CORE-ONLY (Screen.safeArea) — the round-19 P0 rule
+   extends to it verbatim. */
 const safeOpen = src.indexOf("const SAFE_AREA_RUNTIME = `");
 let safe = "";
 if (safeOpen < 0) errors.push("SAFE_AREA_RUNTIME not found — the safe-area runtime template is missing (round 29)");
@@ -1082,18 +1084,20 @@ if (!/path: "Runtime\/PatternBreakSafeArea\.cs", data: SAFE_AREA_RUNTIME/.test(s
   errors.push("PatternBreakSafeArea.cs must ship AND ride the sharedScripts set — per-slug runtime copies kill the assembly (the IdleShine lesson)");
 {
   const roots = (cs.match(/new GameObject\("Safe Area", typeof\(RectTransform\), typeof\(KitSafeArea\)\)/g) ?? []).length;
-  if (roots < 3)
-    errors.push(`the "Safe Area" root must be built in the board builder, the Responsive Check scene AND the kept-scene graft — found ${roots} of 3 (round 29)`);
+  if (roots < 2)
+    errors.push(`the "Safe Area" root must be built in the board builder AND the kept-scene graft — found ${roots} of 2 (round 29; the Responsive Check scene no longer ships)`);
   const reparents = (cs.match(/SetParent\(safeT, false\)/g) ?? []).length;
   if (reparents < 6)
     errors.push(`board content must parent under the Safe Area root (safeT) — found ${reparents} SetParent(safeT, false) sites, expected >=6 (round 29)`);
 }
-if (!/bgGo\.transform\.SetParent\(canvasGo\.transform, false\);/.test(cs))
-  errors.push("the Background must stay on the CANVAS (full-bleed, outside the safe root) — backdrops fill the screen, UI respects cutouts (round 29)");
+if (!/bgGo\.transform\.SetParent\(contentHost, false\);/.test(cs) || /bgGo\.transform\.SetParent\(safeT/.test(cs))
+  errors.push("the board scene's Background must stay on the CANVAS host (full-bleed, outside the safe root) — backdrops fill the screen, UI respects cutouts (round 29)");
 if (!/static float ScalerMatchFor\(float refW, float refH\)/.test(cs) || !/return refH > refW \? 0f : 0\.5f;/.test(cs))
   errors.push("ScalerMatchFor (the ONE-seat match policy: portrait width-match, landscape 0.5) is missing (round 29)");
-if ((cs.match(/scaler\.matchWidthOrHeight = ScalerMatchFor\(/g) ?? []).length !== 2)
-  errors.push("both responsive scene builders (board + check) must dial the scaler through ScalerMatchFor — an inline match value forks the policy (round 29)");
+if ((cs.match(/scaler\.matchWidthOrHeight = ScalerMatchFor\(/g) ?? []).length !== 1)
+  errors.push("the board scene builder must dial the scaler through ScalerMatchFor, once — an inline match value forks the policy (round 29; the Responsive Check builder is gone)");
+if (/BuildResponsiveCheck\(|Responsive Check\.unity|Rebuild Responsive Check/.test(cs))
+  errors.push("the Responsive Check scene must not ship: no builder, no scene path, no menu item (the owner, 2026-09-29)");
 if (!/static void HealSafeAreaRoots\(string root, PBManifest m\)/.test(cs) || !/HealSafeAreaRoots\(root, manifest\);/.test(cs))
   errors.push("the kept-scene safe-area graft (HealSafeAreaRoots) is missing or never runs (round 29)");
 if (!/canvasC\.transform\.Find\("Safe Area"\) != null\) continue;/.test(cs))
@@ -1104,12 +1108,6 @@ if (!/adopted the responsive Safe Area root/.test(cs))
   errors.push("the safe-area graft must speak (heal-out-loud receipt line) (round 29)");
 if (!/var safeWalk = canvasC\.transform\.Find\("Safe Area"\);/.test(cs))
   errors.push("HealBoardWords' walk must follow the Safe Area root when present — the word heal would go blind on responsive scenes (round 29)");
-if (!/static void BuildResponsiveCheck\(string root, PBManifest m\)/.test(cs) || !/BuildResponsiveCheck\(root, manifest\);/.test(cs))
-  errors.push("the Responsive Check scene builder is missing or never runs (round 29)");
-if (!/Responsive Check\.unity/.test(cs) || !/Rebuild Responsive Check Scene/.test(cs))
-  errors.push("the Responsive Check scene path or its Rebuild menu is missing (round 29)");
-if ((cs.match(/CheckEdge\(safeT, "Safe Edge /g) ?? []).length !== 4)
-  errors.push("the Responsive Check must outline all four safe-area edges (round 29)");
 if (!/### Safe areas & scaling/.test(src))
   errors.push("the README's safe-area & scaling section is missing (round 29)");
 
@@ -1360,8 +1358,10 @@ if (!/files\.push\(\{ path: "Documentation\/QuickStart\.md", data: quickStartDoc
       errors.push("QuickStart beat 3 must name the real menu path (GameObject > UI Kit Maker >) — round 31");
     if (!/Inspector/.test(qs) || !/live text/.test(qs))
       errors.push("QuickStart beat 4 (retype live-text labels; restyle via the components' Inspector notes) is missing — round 31");
-    if (!/Responsive Check\.unity/.test(qs) || !/extract over the same spot/.test(qs))
-      errors.push("QuickStart beat 5 must keep the Responsive Check scene and the re-export-heals-in-place promise — round 31");
+    if (/Responsive Check\.unity/.test(qs))
+      errors.push("QuickStart must not promise the Responsive Check scene (dropped from every export, the owner, 2026-09-29)");
+    if (!/extract over the same spot/.test(qs))
+      errors.push("QuickStart beat 5 must keep the re-export-heals-in-place promise — round 31");
     if (!/UNITY-README\.md/.test(qs))
       errors.push("QuickStart must cross-reference the deck (UNITY-README.md) — round 31");
   }
