@@ -24,7 +24,7 @@ import { useEffect, useState } from "react";
 
 export type RouteName =
   | "landing" | "app" | "kit" | "terms" | "privacy" | "signin" | "account" | "pricing" | "student" | "review"
-  | "community" | "studio" | "projects" | "user" | "admin" | "faq" | "releases" | "how" | "unity" | "typeproof" | "italicprobe";
+  | "community" | "studio" | "projects" | "user" | "admin" | "faq" | "releases" | "how" | "unity" | "support" | "typeproof" | "italicprobe";
 export type Route = { name: RouteName; viewer: boolean; param?: string };
 
 export function parseHash(hash: string): Route {
@@ -65,6 +65,8 @@ export function parseHash(hash: string): Route {
   if (path === "/releases") return { name: "releases", viewer: false };
   if (path === "/how") return { name: "how", viewer: false };
   if (path === "/unity") return { name: "unity", viewer: false };
+  // the support desk — the address the Asset Store listing and the zip's docs point at
+  if (path === "/support") return { name: "support", viewer: false };
   // QA sheet for real-browser (read: Safari) type-filter passes — public
   // but unlinked; humans reach it by being told the URL
   if (path === "/typeproof") return { name: "typeproof", viewer: false };

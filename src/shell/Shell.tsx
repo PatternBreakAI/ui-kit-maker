@@ -73,6 +73,9 @@ const HowPage = lazy(() =>
 const UnityPage = lazy(() =>
   import("@/marketing/UnityPage").then((m) => ({ default: m.UnityPage })),
 );
+const SupportPage = lazy(() =>
+  import("@/marketing/SupportPage").then((m) => ({ default: m.SupportPage })),
+);
 /* `#/kit/<slug>` — a shipped kit's public page. Its own chunk, so the
    committed kit definitions never ride the shell every visitor loads. */
 const KitViewer = lazy(() =>
@@ -346,6 +349,10 @@ export function Shell() {
       ) : route.name === "unity" ? (
         <Suspense fallback={<RouteLoading />}>
           <UnityPage />
+        </Suspense>
+      ) : route.name === "support" ? (
+        <Suspense fallback={<RouteLoading />}>
+          <SupportPage />
         </Suspense>
       ) : route.name === "typeproof" ? (
         <Suspense fallback={<RouteLoading />}>

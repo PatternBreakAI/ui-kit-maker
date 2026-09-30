@@ -229,6 +229,7 @@ export function MarketingFooter() {
               <a href="#/faq" onClick={go("#/faq")}>{t("fpFaq")}</a>
         <a href="#/releases" onClick={go("#/releases")}>Release notes</a>
               <a href="#/how" onClick={go("#/how")}>{t("fpHow")}</a>
+              <a href="#/support" onClick={go("#/support")}>Support</a>
             </nav>
             <nav className="footer-col" aria-label={t("fpLegalH")}>
               <h4>{t("fpLegalH")}</h4>

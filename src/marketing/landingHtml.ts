@@ -591,6 +591,7 @@ export const LANDING_HTML = `</head>
           <a href="#/faq" id="fpFaq">FAQ</a>
           <a href="#/releases" id="fpReleases">Release notes</a>
           <a href="#/how" id="fpHow">How it works</a>
+          <a href="#/support" id="fpSupport">Support</a>
         </nav>
         <nav class="footer-col" aria-labelledby="fpLegalH">
           <h4 id="fpLegalH">LEGAL</h4>

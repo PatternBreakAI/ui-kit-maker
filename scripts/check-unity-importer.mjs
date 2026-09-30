@@ -2101,22 +2101,34 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the Input System settings mint is direction-scoped again (!routed) — the un-route toggle would write a package-resident settings asset in place; mint on ANY non-Assets path (immutable-package policy, round 33)");
   if (!/settingsPath\.Replace\("\\\\", "\/"\)\.StartsWith\("Assets\/"\)/.test(cs))
     errors.push("the TMP settings write must stay Assets/-gated (the round-10 immutable-package guard) (immutable-package policy)");
-  /* round 33 — the TRIPWIRE: whatever still dirties a package asset (TMP's
-     font-asset version upgrade is the known third-party dirtier), the
+  /* round 33 — the TRIPWIRE: whatever dirties a package asset, the
      alteration only lands at flush time. The processor must exist, gate on
      IMMUTABLE sources only (embedded/local = the dev's own, untouchable by
      us in the other direction), drop the path from the save list, and name
-     the asset out loud — the field's next Console says which asset and who
-     flushed. */
+     the file. THE VOICE (9/30, the owner's fresh Unity 6 project with the
+     Asset Store build: a yellow, stack-traced, TextMeshPro-blaming line
+     about a Version Control package icon, on every save): the line is a
+     plain Debug.Log, once per file per editor session (SessionState, so a
+     domain reload cannot bring it back), names no cause it cannot know,
+     carries no stack trace, and never tells anyone to delete anything. The
+     round-37 import-time package audit retired with it. */
   if (!/class KitImmutablePackageTripwire : UnityEditor\.AssetModificationProcessor/.test(cs))
     errors.push("the immutable-package tripwire (KitImmutablePackageTripwire) is missing — package-asset flushes go unblocked and unnamed (immutable-package policy, round 33)");
   if (!/pkg\.source != UnityEditor\.PackageManager\.PackageSource\.Embedded/.test(cs)
       || !/pkg\.source != UnityEditor\.PackageManager\.PackageSource\.Local/.test(cs))
     errors.push("the tripwire must exempt Embedded and Local packages — those are the developer's own, writable by design (immutable-package policy, round 33)");
-  if (!/blocked a save into the immutable package asset/.test(cs))
-    errors.push("the tripwire must NAME the blocked asset in the Console (the diagnostic half of the round-33 mandate)");
+  if (!/if \(!SessionState\.GetBool\("pbPkgSaveKept:" \+ norm, false\)\) \{\s*\n\s*SessionState\.SetBool\("pbPkgSaveKept:" \+ norm, true\);\s*\n\s*Debug\.Log\("UI Kit Maker: skipped writing '" \+ norm \+ "' because it sits inside a read-only Unity package\. Something outside the kit had marked it as changed; the kit only writes under Assets\/\. Harmless, nothing to do\."\);/.test(cs))
+    errors.push("the tripwire must name the skipped file once per file per editor session, as a plain Debug.Log in the 9/30 wording (no cause named, no stack trace)");
+  if (/Environment\.StackTrace/.test(cs) || /blocked a save into the immutable package asset/.test(cs) || /TextMeshPro's font-asset version upgrade/.test(cs)
+      || /AuditImmutablePackagesNow|ReportDirtyPackageAsset|pbPkgAudited/.test(cs))
+    errors.push("the old tripwire voice is back (a stack trace in the message, 'blocked a save', the TextMeshPro attribution, or the retired round-37 package audit) — the 9/30 voice pass");
+  for (const m of cs.matchAll(/Debug\.Log(?:Warning|Error)?\("([^\n]*)/g))
+    if (/PackageCache/.test(m[1]) && /delete/i.test(m[1]))
+      errors.push("a Console line tells people to delete something under Library/PackageCache — the kit never gives that instruction automatically (the 9/30 voice pass)");
   if (!/return keep != null \? keep\.ToArray\(\) : paths;/.test(cs))
     errors.push("the tripwire must actually DROP blocked paths from the save list (returning the filtered array is the kill)");
+  if (!/> \*\*A Console line that starts "UI Kit Maker: skipped writing …/.test(src) || /BLOCKS any save aimed into an immutable package/.test(src))
+    errors.push("the QuickStart's read-only package box must describe the calm 9/30 line (skipped writing …), not the old blocking-and-naming story");
   /* every object-addressed save stays on a known-ours target — a new
      SaveAssetIfDirty on an unvetted object is how a package asset gets
      flushed by us */
