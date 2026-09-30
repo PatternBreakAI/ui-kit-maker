@@ -6,7 +6,7 @@ Everything below lands with the next deploy to uikitmaker.com. Download fresh zi
 
 ## Already fixed when you wrote
 
-**Hot Rod had no flame edge in the preview.** That was a lost imported silhouette, not the exporter. Silhouettes now travel with the design, heal themselves from a saved look, and survive account sync. That went live on 9/14. The two Primary buttons in that look wore a second lost outline, and the app now shows a "Restore lost silhouette" row for exactly that. Chevon is restoring it. Your next Hot Rod export will draw the flames on every piece.
+**Hot Rod had no flame edge in the preview.** That was a lost imported silhouette, not the exporter. Silhouettes now travel with the design, heal themselves from a saved look, and survive account sync. That went live on 9/14. The two Primary buttons in that look wore a second lost outline, and the app now shows a "Restore lost silhouette" row for exactly that. Chevon restored it on 9/30. A Hot Rod zip downloaded after that draws the flames on every piece.
 
 ## What changed
 
@@ -79,7 +79,7 @@ Chevon's turn readout for Stand on Business: "TURN 3 / 8" over a row of coins. I
 - Playground: nothing overlapping, every caption naming a real file, the scrollbar, the music slider's number following the knob.
 - Card face in a scene: call `SetCard`, then hit and buff the corner numbers.
 - Settings row: delete the Well child and confirm a bare plate.
-- Hot Rod: labels single, glyph buttons and the Check button at the right size, flames on every piece after Chevon's restore.
+- Hot Rod: labels single, glyph buttons and the Check button at the right size, flames on every piece (Chevon restored the silhouette on 9/30).
 - Hot Rod: live words (labels and seats) sitting inside their plates at the app's width, not spilling past the edges.
 - Anything the rename moved that a scene lost track of. It should not happen, since the GUIDs do not change.
 
@@ -137,7 +137,7 @@ Same timing. The stock glyph buttons that are not customized ship as thin varian
 Your 9/14 build still packed atlas/catalog.png, and the error is Unity refusing to read that image, which had grown taller than Unity opens. The removal went live on 9/19 with the rest. Today's zip has no atlas folder at all, and nothing in the importer or the README asks for one. A project that still carries an old atlas folder can delete it; the importer never touches it.
 
 **4. The Primary button's silhouette.**
-Not the exporter, and not fixed by a download. The flame outline on Hot Rod's Primary is an imported silhouette the account lost, and the app now shows a "Restore lost silhouette" row in the silhouette rack for exactly that. Chevon picks the SVG once and every piece wearing it heals, in the app and in the next export. Until that is done, Hot Rod exports draw the Primary without its flames. I will say so here when it is restored.
+Not the exporter, and not fixed by a download. The flame outline on Hot Rod's Primary is an imported silhouette the account lost, and the app now shows a "Restore lost silhouette" row in the silhouette rack for exactly that. Chevon picked the SVG on 9/30, so every piece wearing it is healed, in the app and in every export from then on. A Hot Rod zip downloaded before 9/30 still has the Primary without its flames; download a fresh one.
 
 **The font notice you screenshotted** ("the real Bold cut of Audiowide couldn't be downloaded just now") is gone too. Today's export of a one-weight look says the family comes in Regular only, that Unity synthesizes the bold the same way the browser does, and that there is nothing to re-export.
 
@@ -147,7 +147,7 @@ Not the exporter, and not fixed by a download. The flame outline on Hot Rod's Pr
 - Ghost prefab: the label reads GHOST once, the base is bare, and there is no plain GHOST under Words. Badge and level node likewise.
 - Your existing project, re-imported: a Console line retiring the orphan word on the ghost and the level node, and nothing else under Words touched.
 - Glyph buttons (Gem, Sword, Key, Hammer, Gear, Check): the glyph fits its tile.
-- Primary button: flames, once Chevon has restored the silhouette.
+- Primary button: flames on every piece, from a zip downloaded after 9/30.
 - Live words sitting inside their plates at the app's width.
 
 **The Responsive Check scene is gone from every export** (Chevon's call, 9/29). The safe-area root it demonstrated lives in every board scene and is grafted into kept ones, so the scene had nothing left to show. A project that already holds Scenes/Responsive Check.unity keeps it until you delete it; nothing rebuilds it, and the Tools menu item for it is gone.
@@ -174,9 +174,13 @@ It named files that no longer exist. It now says what it does: rebuilds the gene
 **4. Tools > PatternBreak holds only what a kit needs.**
 Chevon's call for the Asset Store build: the menu keeps Kit Status, Reapply Kit Import Settings, Regenerate Example Prefabs and Rebuild Kit Playground Scene. Rebuild Kit Board Scenes appears only on a zip that carries boards, so your game exports keep it and a bare kit does not show it. Gone: Review Orphaned Kit Files (the import receipt still names every orphan; delete them from the Project window when nothing uses them), Sync Label Kerning (saving the font asset already records your kerning), Audit Immutable Packages (the audit still runs by itself after each import), and Route All Editor Input To Game View (if you want hover to work without clicking the Game view first, Unity's own setting does it: Edit > Project Settings > Input System Package > Editor Input Behavior In Play Mode, set to All Device Input Always Goes To Game View; the README says the same).
 
+**5. The Asset Store build.**
+Your "someone else's game" point landed. The kit page now has a second Unity download, admin-only for now: "Unity kit, Asset Store build (ZIP)". It is the full kit with no board scenes and none of the maker's uploaded pictures (a picture seat with nothing to show wears its icon instead), and its settings.json carries the look without the boards, the pictures or the stage backdrop. You can tell the two zips apart three ways: the file name ends in `-asset-store`, the README and QuickStart open with an Asset Store note, and Kit Status prints "Asset Store build" after the kit's name. The Brightside zip going to the store is that build. Your game exports are the other download, unchanged, boards and all.
+
 ## What to hammer on
 
 - Drop a fresh zip over your Brightside project and read the Console: a line naming the bars it moved onto the width road.
+- The Asset Store build, in a fresh project: no Scenes folder, no Prefabs/Art, four entries under Tools > PatternBreak, and Kit Status naming the build.
 - Playground in Play: click the weapon wheel's chambers and the emote wheel's sectors. If a click does nothing, check the Game view has focus first (the editor gate), then send me the Console.
 - ProgressBar, EmblemBar and Timerbar: a rounded end on the mercury and no Cap child under Fill Area. Drag Value on the Fill Area's KitBarFill and watch the end stay round down to the floor.
 - Slider prefab, if yours was generated before round 58: the knob and the mercury's end on the same line at every value.

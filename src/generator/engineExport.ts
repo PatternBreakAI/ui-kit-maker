@@ -433,6 +433,14 @@ export interface EngineExportState {
       tiers ship every component. Same folder, same paths: upgrading later
       lands the full kit over the starter without moving anything. */
   scope: "free" | "full";
+  /** The ASSET STORE build (the owner, 2026-09-30, on Jimi's "someone
+      else's game" point): the same full kit with NO board scenes and NONE
+      of the maker's uploaded pictures — components only, for a kit that
+      ships to other people's games. The kit page passes boards, kitPics
+      and the picture registries as undefined for it; this flag names the
+      zip, stamps the manifest and the README so a zip is never mistaken
+      for the full export. Absent = the full export, byte for byte. */
+  build?: "asset-store";
   /** Boards→Scenes (Pro): the user's artboards, pre-collected by
       collectExportBoards. Emitted ONLY when scope is "full" — a remix
       never exits the browser on the free tier. */
@@ -8381,6 +8389,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           ...(b.artMissing?.length ? { artMissing: b.artMissing } : {}),
         })),
       } : {}),
+      // the Asset Store build says so in the manifest — Kit Status reads it back
+      ...(st.build ? { build: st.build } : {}),
       assets: manifest,
     }, null, 2),
   });
@@ -8630,7 +8640,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     ...f,
     path: sharedScripts.has(f.path) ? `UIKitMaker/${f.path}` : `UIKitMaker/${safeSlug}/${f.path}`,
   }));
-  download(`${safeSlug}-engine-kit.zip`, makeZip(rooted));
+  // the Asset Store build wears its name on the zip, so the two downloads never get mixed up on disk
+  download(`${safeSlug}-engine-kit${st.build === "asset-store" ? "-asset-store" : ""}.zip`, makeZip(rooted));
   setEmbedFont("", null); // don't leak the embed into unrelated rasterizations
 }
 
@@ -13726,7 +13737,10 @@ function quickStartDoc(st: EngineExportState): string {
 Five minutes from zip to a working scene. The full slide-by-slide
 walkthrough is **UNITY-README.md**, one folder up — this page is the
 short front door.
-
+${st.build === "asset-store" ? `
+> **Asset Store build:** components only — no board scenes, none of the
+> maker's uploaded pictures. Everything below applies as written.
+` : ""}
 **1 · Drag the folder in.** Unzip the download and drag the whole
 **UIKitMaker** folder into your project's **Assets/**. Unity imports
 everything by itself: sprites arrive nine-sliced with the right pivots,
@@ -13912,7 +13926,11 @@ function unityReadme(st: EngineExportState, fontShipped: boolean, bakedShipped =
 **Export build ${stamp}** · kit v${st.kitVersion} — the Console prints this same
 stamp on every import (\`[export build ${stamp}]\`); if a fix you expected
 isn't in the Console line's build, this zip predates it — re-export.
-
+${st.build === "asset-store" ? `
+> **Asset Store build.** This zip carries the components only: no board
+> scenes and none of the maker's own uploaded pictures. Everything else
+> is the full export, byte for byte, and Kit Status names the build.
+` : ""}
 Three steps, then a slide-by-slide tour of the whole export. (In a
 hurry? **Documentation/QuickStart.md** is the five-minute version.)
 
@@ -14947,7 +14965,7 @@ namespace PatternBreak {
      said — a piece missing from a scene must never be a mystery. */
   [Serializable] class PBBoard { public string name; public int w; public int h; public PBBoardBg bg; public PBBoardItem[] items; public string[] artMissing; }
   [Serializable] class PBSkillSkin { public string state; public string faceColor; public string glyphInk; public string rimColor; public string glowColor; public bool glowEnabled; public string pathColor; public float dimAlpha; }
-  [Serializable] class PBManifest { public string kit; public PBSkillSkin[] skillSkins; public string slug; public int kitVersion; public string generatorVersion; public string tier; public int pngScale; public string seatSpace; public string[] stagedFamilies; public PBFleetEntry[] slotFleet; public PBGlyphFleetEntry[] glyphFleet; public PBWell globeWell; public PBSeasonGeo seasonTrack; public PBDotsGeo pageDots; public PBDotsGeo startLights; public PBDotsGeo steps; public PBPathGeo pathConnector; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBTimerBlock timer; public PBMenu menu; public PBRarity rarity; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; public string[] celebrate; }
+  [Serializable] class PBManifest { public string kit; public PBSkillSkin[] skillSkins; public string slug; public int kitVersion; public string generatorVersion; public string build; public string tier; public int pngScale; public string seatSpace; public string[] stagedFamilies; public PBFleetEntry[] slotFleet; public PBGlyphFleetEntry[] glyphFleet; public PBWell globeWell; public PBSeasonGeo seasonTrack; public PBDotsGeo pageDots; public PBDotsGeo startLights; public PBDotsGeo steps; public PBPathGeo pathConnector; public PBTypography typography; public PBPlaceholder placeholder; public PBLabelState[] labelStates; public PBStateFx[] stateFx; public PBLabelSize[] labelSizes; public PBPalette palette; public PBBloom bloom; public PBTimerBlock timer; public PBMenu menu; public PBRarity rarity; public PBBoard[] boards; public PBAsset[] assets; public PBIdle idle; public PBIdleFork[] idleForks; public string[] celebrate; }
   [Serializable] class PBLockEntry { public string file; public string sha256; }
   /* the word each labeled family's prefab was last SEEDED with — the
      ownership ledger: a re-import re-seeds only a label still equal to
@@ -15185,6 +15203,7 @@ namespace PatternBreak {
         try { m = JsonUtility.FromJson<PBManifest>(File.ReadAllText(mPath)); } catch (Exception) { }
         if (m == null) { sb.Append("\\n" + mPath + ": unreadable manifest."); continue; }
         sb.Append("\\n'" + (string.IsNullOrEmpty(m.kit) ? m.slug : m.kit) + "'" + (m.kitVersion > 0 ? " v" + m.kitVersion : "")
+          + (m.build == "asset-store" ? " (Asset Store build: components only, no board scenes, no uploaded pictures)" : "")
           + " [export build " + (string.IsNullOrEmpty(m.generatorVersion) ? "UNKNOWN — old zip, re-download" : m.generatorVersion) + "] — ");
         sb.Append(File.Exists(root + "/kit.lock.json") ? "imported. " : "NOT imported yet. ");
         sb.Append(m.typography != null && m.typography.bakedFace != null
