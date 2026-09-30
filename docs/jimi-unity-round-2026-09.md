@@ -6,7 +6,7 @@ Everything below lands with the next deploy to uikitmaker.com. Download fresh zi
 
 ## Already fixed when you wrote
 
-**Hot Rod had no flame edge in the preview.** That was a lost imported silhouette, not the exporter. Silhouettes now travel with the design, heal themselves from a saved look, and survive account sync. That went live on 9/14. The two Primary buttons in that look wore a second lost outline, and the app now shows a "Restore lost silhouette" row for exactly that. Chevon is restoring it. Your next Hot Rod export will draw the flames on every piece.
+**Hot Rod had no flame edge in the preview.** That was a lost imported silhouette, not the exporter. Silhouettes now travel with the design, heal themselves from a saved look, and survive account sync. That went live on 9/14. The two Primary buttons in that look wore a second lost outline, and the app now shows a "Restore lost silhouette" row for exactly that. Chevon restored it on 9/30. A Hot Rod zip downloaded after that draws the flames on every piece.
 
 ## What changed
 
@@ -79,7 +79,7 @@ Chevon's turn readout for Stand on Business: "TURN 3 / 8" over a row of coins. I
 - Playground: nothing overlapping, every caption naming a real file, the scrollbar, the music slider's number following the knob.
 - Card face in a scene: call `SetCard`, then hit and buff the corner numbers.
 - Settings row: delete the Well child and confirm a bare plate.
-- Hot Rod: labels single, glyph buttons and the Check button at the right size, flames on every piece after Chevon's restore.
+- Hot Rod: labels single, glyph buttons and the Check button at the right size, flames on every piece (Chevon restored the silhouette on 9/30).
 - Hot Rod: live words (labels and seats) sitting inside their plates at the app's width, not spilling past the edges.
 - Anything the rename moved that a scene lost track of. It should not happen, since the GUIDs do not change.
 
@@ -137,7 +137,7 @@ Same timing. The stock glyph buttons that are not customized ship as thin varian
 Your 9/14 build still packed atlas/catalog.png, and the error is Unity refusing to read that image, which had grown taller than Unity opens. The removal went live on 9/19 with the rest. Today's zip has no atlas folder at all, and nothing in the importer or the README asks for one. A project that still carries an old atlas folder can delete it; the importer never touches it.
 
 **4. The Primary button's silhouette.**
-Not the exporter, and not fixed by a download. The flame outline on Hot Rod's Primary is an imported silhouette the account lost, and the app now shows a "Restore lost silhouette" row in the silhouette rack for exactly that. Chevon picks the SVG once and every piece wearing it heals, in the app and in the next export. Until that is done, Hot Rod exports draw the Primary without its flames. I will say so here when it is restored.
+Not the exporter, and not fixed by a download. The flame outline on Hot Rod's Primary is an imported silhouette the account lost, and the app now shows a "Restore lost silhouette" row in the silhouette rack for exactly that. Chevon picked the SVG on 9/30, so every piece wearing it is healed, in the app and in every export from then on. A Hot Rod zip downloaded before 9/30 still has the Primary without its flames; download a fresh one.
 
 **The font notice you screenshotted** ("the real Bold cut of Audiowide couldn't be downloaded just now") is gone too. Today's export of a one-weight look says the family comes in Regular only, that Unity synthesizes the bold the same way the browser does, and that there is nothing to re-export.
 
@@ -147,7 +147,7 @@ Not the exporter, and not fixed by a download. The flame outline on Hot Rod's Pr
 - Ghost prefab: the label reads GHOST once, the base is bare, and there is no plain GHOST under Words. Badge and level node likewise.
 - Your existing project, re-imported: a Console line retiring the orphan word on the ghost and the level node, and nothing else under Words touched.
 - Glyph buttons (Gem, Sword, Key, Hammer, Gear, Check): the glyph fits its tile.
-- Primary button: flames, once Chevon has restored the silhouette.
+- Primary button: flames on every piece, from a zip downloaded after 9/30.
 - Live words sitting inside their plates at the app's width.
 
 **The Responsive Check scene is gone from every export** (Chevon's call, 9/29). The safe-area root it demonstrated lives in every board scene and is grafted into kept ones, so the scene had nothing left to show. A project that already holds Scenes/Responsive Check.unity keeps it until you delete it; nothing rebuilds it, and the Tools menu item for it is gone.
