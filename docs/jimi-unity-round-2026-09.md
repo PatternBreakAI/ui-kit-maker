@@ -87,7 +87,7 @@ Chevon's turn readout for Stand on Business: "TURN 3 / 8" over a row of coins. I
 
 # Week of 9/21: Brightside
 
-Hey Jimi. Your Brightside notes from 9/24 are in and all seven are handled below. Hot Rod is next.
+Hey Jimi. Your Brightside notes from 9/24 are in and all seven are handled below. Hot Rod follows in the next section.
 
 ## What changed
 
@@ -113,7 +113,71 @@ Two things were wrong. The dark band the app draws under the name sits in the ba
 
 - Rebuild the Playground: it opens at the top, captions on two lines, nothing touching.
 - Cardface prefab: a Name band child between the picture and the name, the name white on Brightside, and both still right after you drop your own sprite on the picture child.
+- Cardface prefab: the corner numbers centred on their badges with their dark rim, the way the app draws them (Chevon's note from 9/29: they sat low and lost their stroke in Unity). A kept project re-seats and re-dresses them on the next import.
 - Prefabs/Art: no Skybound Adventures on a fresh import.
 - Cardface prefab: Kit Card Face present, `SetCard` works, and Add Component lists it.
 - Tech card: a clean base, two stub children beside it.
 - Idle shine and the music slider's readout still working after the file split. If either went quiet, that is a bug and I want the Console text.
+
+---
+
+# Week of 9/14: Hot Rod
+
+Hey Jimi. Your Hot Rod notes from the 9/17 re-download are in. One fact explains most of them: the Console stamp in your own note says that zip was export build 8801726, made on 9/14. The Hot Rod answers from your week of 9/7 notes (single labels, glyph sizes, the catalog leaving the zip, the font notice) went live on 9/19, in build a7fffc6, two days after you downloaded. So you were testing the old exporter against the new answers. Everything below was checked today against a zip made from the current site, on a look with the same layered type as Hot Rod (outline, glow and shadow on, a one-weight font).
+
+## What changed
+
+**1. The ghost's stacked word, both halves.**
+Two things were wrong in your picture, and the 9/19 build fixed only the first. The label read GHOST GHOST GHOST GHOST because the exporter wrote the word once per type layer; since 9/19 it is written once, and today's zip carries the ghost's label as GHOST, the badge's as 12, the level node's as 12, with the base sprites bare. The second half is the plain white GHOST you circled under Words, "the unformatted text". That was a different bug, and it is fixed now: the label's glints are cut with a text-shaped clip, and the exporter was reading that clip's text copy as a word seat, so every look with glints on shipped its label word a second time as an undressed Words child. The seat parser now ignores anything under defs, clips and masks. And for a project imported before this, the importer retires that child on the next refresh, with a Console receipt, as long as it still reads exactly what it was seeded with; a word you retyped stays yours. Expect to see "retired 1 orphan word" lines for the ghost and the level node.
+
+**2. Glyphs still oversized.**
+Same timing. The stock glyph buttons that are not customized ship as thin variants of the slot button, and the plain white glyph was sized to the box the kit's own glyph reaches with its glow; on Hot Rod that box is several times the glyph. Since 9/19 the manifest carries the glyph's ink box beside its reach box, and the importer sizes the thin variants' glyphs to the ink. On today's zip the icon button's glyph reaches 191 by 196 with an ink box of 51 by 65; the skill node's reaches 200 by 204 with 62 by 73 of ink. The fleet reads the same field.
+
+**3. The catalog error on a fresh import.**
+Your 9/14 build still packed atlas/catalog.png, and the error is Unity refusing to read that image, which had grown taller than Unity opens. The removal went live on 9/19 with the rest. Today's zip has no atlas folder at all, and nothing in the importer or the README asks for one. A project that still carries an old atlas folder can delete it; the importer never touches it.
+
+**4. The Primary button's silhouette.**
+Not the exporter, and not fixed by a download. The flame outline on Hot Rod's Primary is an imported silhouette the account lost, and the app now shows a "Restore lost silhouette" row in the silhouette rack for exactly that. Chevon picks the SVG once and every piece wearing it heals, in the app and in the next export. Until that is done, Hot Rod exports draw the Primary without its flames. I will say so here when it is restored.
+
+**The font notice you screenshotted** ("the real Bold cut of Audiowide couldn't be downloaded just now") is gone too. Today's export of a one-weight look says the family comes in Regular only, that Unity synthesizes the bold the same way the browser does, and that there is nothing to re-export.
+
+## What to hammer on
+
+- Download a fresh Hot Rod zip after this lands (the Console stamp will read a build newer than 4abe0e3) and import it into a fresh project: no catalog error.
+- Ghost prefab: the label reads GHOST once, the base is bare, and there is no plain GHOST under Words. Badge and level node likewise.
+- Your existing project, re-imported: a Console line retiring the orphan word on the ghost and the level node, and nothing else under Words touched.
+- Glyph buttons (Gem, Sword, Key, Hammer, Gear, Check): the glyph fits its tile.
+- Primary button: flames, once Chevon has restored the silhouette.
+- Live words sitting inside their plates at the app's width.
+
+**The Responsive Check scene is gone from every export** (Chevon's call, 9/29). The safe-area root it demonstrated lives in every board scene and is grafted into kept ones, so the scene had nothing left to show. A project that already holds Scenes/Responsive Check.unity keeps it until you delete it; nothing rebuilds it, and the Tools menu item for it is gone.
+
+Your Brightside notes from the same week (the unzip replacing files, the friend row and list row shapes, the choice list's indent and gradient) are the next batch.
+
+---
+
+# 9/30: Chevon's Brightside Playground pass
+
+Hey Jimi. Chevon went through the Brightside Playground on 9/30 with the Unity project open and sent four notes. All four are live, and three of them change what you see in a kept project, so this is worth a re-import before your next round.
+
+## What changed
+
+**1. The weapon wheel and the emote wheel answer the pointer in Play.**
+They did not before: both rigs were pure dials, a value in and a pose out, and nothing on them read the mouse. In Play, click a chamber on the weapon wheel and the cylinder spins it round to the hammer the short way, with the app's own revolver feel (0.78 seconds, a heavy wind-up and a small clunk as it seats). Click a sector on the emote wheel and it is picked at once, the way emotes should be. Both work through the EventSystem only, so they behave in a build exactly as in the editor. `SetValue`, `ArmChamber` and `SetSector` still work as before, and there is a new `SpinTo` on the weapon wheel if you want the spin from code. Each rig has an off switch in the Inspector (Pointer Arms on the weapon wheel, Pointer Picks on the emote wheel) for a game that drives them itself. The runtime files are shared and replaced on every import, so your kept wheels get this on the next drop; a fresh import also makes the wheel's body a raycast target.
+
+**2. The old cap on some bars in a kept project.**
+Chevon saw the progress bar, the emblem bar and the plan timer in the Brightside Playground still drawing the old parked bead at the end of the mercury, while every other bar showed the rounded stadium. The fresh build has drawn bars the stadium way since round 58 (the mercury is one nine-sliced sprite whose own borders round the ends, and the rig drives the rect's width), and the manifest confirms every fill row ships its borders. What Chevon saw was the kept-project road: a bar prefab generated before round 58 kept its old cap rig for good, because the maintenance pass treated it as "already rigged" and nothing ever moved it. The importer now converges those on the next import, only when the rig is ours and the fill still wears our sprite, and prints the names it moved. The old Cap child is removed, a kept Slider is rewired the way a fresh one is built (the Slider drives the bar through its listener, not through Fill Rect), and your staged value survives. Placed copies, the Playground included, follow the prefab. A fill you re-sprited to your own art is left alone.
+
+**3. The Regenerate Example Prefabs dialog reads plainly.**
+It named files that no longer exist. It now says what it does: rebuilds the generated example prefabs from the current sprites and type, replaces each in place so placed copies restyle, and never touches a prefab you created, renamed or moved.
+
+**4. Tools > PatternBreak holds only what a kit needs.**
+Chevon's call for the Asset Store build: the menu keeps Kit Status, Reapply Kit Import Settings, Regenerate Example Prefabs and Rebuild Kit Playground Scene. Rebuild Kit Board Scenes appears only on a zip that carries boards, so your game exports keep it and a bare kit does not show it. Gone: Review Orphaned Kit Files (the import receipt still names every orphan; delete them from the Project window when nothing uses them), Sync Label Kerning (saving the font asset already records your kerning), Audit Immutable Packages (the audit still runs by itself after each import), and Route All Editor Input To Game View (if you want hover to work without clicking the Game view first, Unity's own setting does it: Edit > Project Settings > Input System Package > Editor Input Behavior In Play Mode, set to All Device Input Always Goes To Game View; the README says the same).
+
+## What to hammer on
+
+- Drop a fresh zip over your Brightside project and read the Console: a line naming the bars it moved onto the width road.
+- Playground in Play: click the weapon wheel's chambers and the emote wheel's sectors. If a click does nothing, check the Game view has focus first (the editor gate), then send me the Console.
+- ProgressBar, EmblemBar and Timerbar: a rounded end on the mercury and no Cap child under Fill Area. Drag Value on the Fill Area's KitBarFill and watch the end stay round down to the floor.
+- Slider prefab, if yours was generated before round 58: the knob and the mercury's end on the same line at every value.
+- Tools > PatternBreak: four entries on the Brightside zip, five on a zip with boards.

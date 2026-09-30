@@ -3399,6 +3399,14 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     for (const t of Array.from(doc.querySelectorAll("text"))) {
       // build()-machinery labels ride the LABEL pipeline, never seats
       if (t.closest('[data-part="label"]')) continue;
+      /* GEOMETRY, NOT WORDS (Jimi's Hot Rod field notes, weeks of 9/7 and
+         9/14: "the Words object has the unformatted text in it", a plain
+         white GHOST riding over the styled label): a text inside <defs>
+         is a clip, mask or pattern shape — the glints' text-shaped clip
+         (build()'s glintsDefs) is the word again, never drawn — and it
+         shipped as a second, undressed seat on every look with glints on.
+         Nothing under defs/clipPath/mask/pattern/symbol is a seat. */
+      if (t.closest("defs, clipPath, mask, pattern, symbol")) continue;
       const fs = parseFloat(t.getAttribute("font-size") ?? "0");
       const str0 = (t.textContent ?? "").replace(/\s+/g, " ").trim();
       if (!(fs > 1) || !str0) continue;
@@ -3720,6 +3728,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       }
       let seatsStripped = 0;
       for (const t of Array.from(dom.querySelectorAll("text"))) {
+        // clip/mask/pattern geometry under <defs> is not a word (parseTextSeats' rule) — it stays, and it counts for nothing
+        if (t.closest("defs, clipPath, mask, pattern, symbol")) continue;
         const fs = parseFloat(t.getAttribute("font-size") ?? "0");
         const str0 = (t.textContent ?? "").replace(/\s+/g, " ").trim();
         if (!(fs > 1) || !str0) continue;
@@ -8395,7 +8405,12 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   /* the Documentation/ front door — store reviewers and buyers look for
      the folder by name; the deck stays the long-form walkthrough */
   files.push({ path: "Documentation/QuickStart.md", data: quickStartDoc(st) });
-  files.push({ path: "Editor/PatternBreakKitImporter.cs", data: UNITY_IMPORTER });
+  /* Tools > PatternBreak holds only what THIS zip needs (the owner, 9/30):
+     Rebuild Kit Board Scenes ships only when the zip carries boards — a
+     kit with no boards has nothing for that entry to rebuild. */
+  const boardMenuAttr = '    [MenuItem("Tools/PatternBreak/Rebuild Kit Board Scenes")]\n';
+  const importerCs = full && st.boards?.length ? UNITY_IMPORTER : UNITY_IMPORTER.replace(boardMenuAttr, "");
+  files.push({ path: "Editor/PatternBreakKitImporter.cs", data: importerCs });
   /* assembly definitions — the kit's scripts compile into their OWN
      assemblies. Without these, a second copy of the kit anywhere in the
      project (a drop into an open subfolder, an unmerged macOS folder)
@@ -10142,11 +10157,12 @@ namespace PatternBreak {
    drive. */
 const WEAPON_WHEEL_RUNTIME = `using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
 
 namespace PatternBreak {
   [AddComponentMenu("UI Kit Maker/Weapon Wheel")]
   [ExecuteAlways]
-  public class PatternBreakWeaponWheel : MonoBehaviour {
+  public class PatternBreakWeaponWheel : MonoBehaviour, IPointerDownHandler {
     [Tooltip("Cylinder rotation, 0..1 turn clockwise (the app's own dial) — the chamber landing at the hammer is armed. Drive this, SetValue, or ArmChamber.")]
     [Range(0f, 1f)] public float value = 0f;
     [Tooltip("How many chambers this wheel was exported with.")]
@@ -10164,10 +10180,65 @@ namespace PatternBreak {
     [Tooltip("The chamber orbit radius as fractions of the root rect (generated).")]
     public float orbitFx = 0.3f;
     public float orbitFy = 0.3f;
+    /* the POINTER arms it (the owner, 9/30: "the weapon wheel and the
+       emote wheel aren't active in the Playground") — the app's own Play
+       behavior: click a chamber and the cylinder carries it round to the
+       hammer the short way, with the revolver's weight (LiveArt's
+       "western" tween: slow wind-up, travel, a small seating clunk).
+       Play mode only, EventSystem only (the kit never polls input); the
+       dial API underneath is unchanged, and a dev who wants code-only
+       control turns Pointer Arms off. */
+    [Tooltip("Play mode: clicking a chamber spins the cylinder until that chamber seats at the hammer (the app's own behavior). Off = the rotation is driven only by code or the Value slider.")]
+    public bool pointerArms = true;
+    [Tooltip("The spin's travel time in seconds (unscaled time, so a paused game still lets the wheel answer).")]
+    public float spinSeconds = 0.78f;
+    float spinFrom, spinTo, spinT0 = -1f;
     public int ArmedChamber() { int n = Mathf.Max(1, chambers); return ((1 - Mathf.RoundToInt(Mathf.Clamp01(value) * n)) % n + n) % n; }
-    public void SetValue(float v) { value = Mathf.Clamp01(v); Apply(); }
+    public void SetValue(float v) { spinT0 = -1f; value = Mathf.Clamp01(v); Apply(); }
     [Tooltip("Spin so chamber i (0-based) lands at the hammer.")]
-    public void ArmChamber(int i) { int n = Mathf.Max(1, chambers); value = (((1 - i) % n + n) % n) / (float)n; Apply(); }
+    public void ArmChamber(int i) { int n = Mathf.Max(1, chambers); spinT0 = -1f; value = (((1 - i) % n + n) % n) / (float)n; Apply(); }
+    [Tooltip("Spin to a rotation with the revolver's own ease; a target past 0..1 travels the short way round. Outside Play it lands at once.")]
+    public void SpinTo(float target) {
+      if (!Application.isPlaying || spinSeconds <= 0.01f) { SetValue(((target % 1f) + 1f) % 1f); return; }
+      spinFrom = Mathf.Clamp01(value); spinTo = target; spinT0 = Time.unscaledTime;
+    }
+    public void OnPointerDown(PointerEventData e) {
+      if (!pointerArms || !Application.isPlaying) return;
+      float p;
+      if (!PointerTurn(e, out p)) return;
+      int n = Mathf.Max(1, chambers);
+      // the chamber under the pointer rides the cylinder round to the hammer, the short way (the app's own arithmetic)
+      int chamber = ((Mathf.RoundToInt((p - Mathf.Clamp01(value)) * n) % n) + n) % n;
+      float t0 = ((1f / n - chamber / (float)n) % 1f + 1f) % 1f;
+      float best = t0;
+      foreach (var cand in new float[] { t0 - 1f, t0, t0 + 1f }) if (Mathf.Abs(cand - value) < Mathf.Abs(best - value)) best = cand;
+      SpinTo(best);
+    }
+    // the pointer's angle around the hub, as a fraction of a turn clockwise from the top (the hammer side)
+    bool PointerTurn(PointerEventData e, out float p) {
+      p = 0f;
+      var rt = transform as RectTransform;
+      if (rt == null) return false;
+      Vector2 local;
+      if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(rt, e.position, e.pressEventCamera, out local)) return false;
+      var r = rt.rect;
+      var hub = new Vector2(r.xMin + centerAnchor.x * r.width, r.yMin + centerAnchor.y * r.height);
+      var d = local - hub;
+      if (d.sqrMagnitude < 1f) return false;
+      p = (Mathf.Atan2(d.x, d.y) / (Mathf.PI * 2f) + 1f) % 1f;
+      return true;
+    }
+    void Update() {
+      if (spinT0 < 0f) return;
+      float u = Mathf.Clamp01((Time.unscaledTime - spinT0) / Mathf.Max(0.01f, spinSeconds));
+      // easeOutBack — a heavy cylinder: slow wind-up, weighty travel, a small overshoot clunk as it seats
+      const float c1 = 1.70158f;
+      float e2 = 1f + (c1 + 1f) * Mathf.Pow(u - 1f, 3f) + c1 * Mathf.Pow(u - 1f, 2f);
+      float v = spinFrom + (spinTo - spinFrom) * e2;
+      value = ((v % 1f) + 1f) % 1f;
+      if (u >= 1f) spinT0 = -1f;
+      Apply();
+    }
     public void Apply() {
       int n = Mathf.Max(1, chambers);
       if (cylinder != null) cylinder.localRotation = Quaternion.Euler(0f, 0f, -Mathf.Clamp01(value) * 360f);
@@ -10380,11 +10451,12 @@ namespace PatternBreak {
    the app's own selection story, drivable. */
 const EMOTE_WHEEL_RUNTIME = `using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
 
 namespace PatternBreak {
   [AddComponentMenu("UI Kit Maker/Emote Wheel")]
   [ExecuteAlways]
-  public class PatternBreakEmoteWheel : MonoBehaviour {
+  public class PatternBreakEmoteWheel : MonoBehaviour, IPointerDownHandler {
     [Tooltip("The picked sector (0-based, clockwise from the top-right) — rotates the Armed highlight there, arms that emote and shows it in the hub.")]
     public int sector = 0;
     [Tooltip("How many sectors this wheel was exported with.")]
@@ -10403,7 +10475,38 @@ namespace PatternBreak {
     public Image hub;
     [Tooltip("The hub's own resting cut (generated) — worn while the pick rests on its shipped sector, so nothing drifts.")]
     public Sprite hubRest;
+    /* the POINTER picks it (the owner, 9/30: "the weapon wheel and the
+       emote wheel aren't active in the Playground") — the app's own Play
+       behavior: click a sector and it is picked at once (emotes are
+       fast, no spin). Play mode only, EventSystem only (the kit never
+       polls input); the dial API underneath is unchanged. */
+    [Tooltip("Play mode: clicking a sector picks it, instantly (the app's own behavior). Off = the pick is driven only by code or the Sector field.")]
+    public bool pointerPicks = true;
     public void SetSector(int i) { int n = Mathf.Max(1, sectors); sector = ((i % n) + n) % n; Apply(); }
+    public void OnPointerDown(PointerEventData e) {
+      if (!pointerPicks || !Application.isPlaying) return;
+      float p;
+      if (!PointerTurn(e, out p)) return;
+      SetSector(Mathf.FloorToInt(p * Mathf.Max(1, sectors)));
+    }
+    /* the pointer's angle around the hub, as a fraction of a turn
+       clockwise from the top — sector 0 spans the first slice past
+       twelve o'clock, the app's own numbering. The hub is the Armed
+       highlight's centre (a full-disc wedge parked ON the hub); the
+       root's centre when no highlight rides. */
+    bool PointerTurn(PointerEventData e, out float p) {
+      p = 0f;
+      var rt = transform as RectTransform;
+      if (rt == null) return false;
+      Vector2 local;
+      if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(rt, e.position, e.pressEventCamera, out local)) return false;
+      Vector2 hub = rt.rect.center;
+      if (highlight != null) { var lh = rt.InverseTransformPoint(highlight.TransformPoint(highlight.rect.center)); hub = new Vector2(lh.x, lh.y); }
+      var d = local - hub;
+      if (d.sqrMagnitude < 1f) return false;
+      p = (Mathf.Atan2(d.x, d.y) / (Mathf.PI * 2f) + 1f) % 1f;
+      return true;
+    }
     public void SetValue(float v) { SetSector(Mathf.FloorToInt(Mathf.Clamp(v, 0f, 0.999f) * Mathf.Max(1, sectors))); }
     public void Apply() {
       int n = Mathf.Max(1, sectors);
@@ -13675,12 +13778,6 @@ ${hasBoards ? `
   piece zone-anchored with your words on live labels. Open one and press
   Play; the buttons respond.
 ` : ""}
-- **Responsive Check** — **${root}/Scenes/Responsive Check.unity** is a
-  thirty-second sanity pass: press Play and switch Game-view aspect
-  ratios (or the Device Simulator) to watch the safe-area outline move
-  while the UI stays inside it. Backdrops bleed under cutouts on
-  purpose; your UI never does.
-
 - **Re-exporting heals in place** — change the kit on uikitmaker.com,
   download again and extract over the same spot. Everything you placed
   restyles where it stands, and words you typed in Unity are kept.
@@ -13696,9 +13793,9 @@ ${hasBoards ? `
 > load). On import the kit also audits the package caches and names any
 > already-altered file in the Console. To heal the package, close
 > Unity, delete that package's folder under **Library/PackageCache**,
-> and reopen — Unity re-extracts it clean. If the warning returns, run
-> **Tools > PatternBreak > Audit Immutable Packages** and send us the
-> Console lines it prints — they name the exact file and the writer.
+> and reopen — Unity re-extracts it clean. If the warning returns, send
+> us the Console lines the import's package audit prints — they name
+> the exact file and the writer.
 
 ## Driving the animations
 
@@ -13968,14 +14065,6 @@ Every board scene ships phone-ready, three deliberate layers deep:
   stretched") so you can audit every decision, and re-anchoring a piece
   by hand in Unity is always respected — the kit's heals key on OUR
   seats and never touch a piece you moved.
-- **The Responsive Check scene.** **Scenes/Responsive Check.unity** is
-  a thirty-second sanity check: a bright green outline drawn by the
-  live safe area, a backdrop that deliberately bleeds under cutouts,
-  corner tags that hug their corners, and a couple of live kit pieces.
-  Open it, press Play, switch Game-view aspect ratios or the Device
-  Simulator, and watch the outline move while the UI stays inside it.
-  Built once, then yours — **Tools > PatternBreak > Rebuild Responsive
-  Check Scene** refreshes it.
 
 Re-importing a newer export over an older project grafts the Safe Area
 root into KEPT board scenes too (the Console says so per scene) —
@@ -14037,10 +14126,10 @@ prefab rigs land — the Hierarchy suffixes are the always-current truth.
 > hover goes quiet until you click the game once more. That's the
 > editor, not the kit: a real build always has focus, so players never
 > see this. The kit prints a one-line Console reminder when the gate
-> actually bites. Prefer it gone entirely? **Tools > PatternBreak >
-> Route All Editor Input To Game View** flips the Input System's own
-> editor setting so input flows regardless of focus — run it again to
-> restore the Unity default.
+> actually bites. Prefer it gone entirely? Unity's own setting does it:
+> **Edit > Project Settings > Input System Package > Editor Input
+> Behavior In Play Mode**, set to *All Device Input Always Goes To Game
+> View*.
 
 **Scene pieces vs Prefabs — the working contract.** A board scene is a
 FINISHED composition: every piece on it was crafted at its exact size,
@@ -14679,8 +14768,8 @@ const UNITY_IMPORTER = `// UI Kit Maker / PatternBreak — kit importer. Editor-
 //      at the same assets. The manifest carries a sha256 per sprite so the
 //      receipt reports new / restyled / unchanged exactly.
 //  I3  nothing disappears silently — pieces removed from the kit stay on
-//      disk, are listed loudly, and are deleted only from the explicit
-//      Tools > PatternBreak > Review Orphaned Kit Files action.
+//      disk, are listed loudly in the import receipt, and are deleted
+//      only by the dev, from the Project window.
 //  I4  idempotent settings — import settings are applied only when they
 //      differ, so repeat imports don't churn the asset database.
 //  I5  prefabs generate once — wired examples are created on FIRST import
@@ -15155,10 +15244,10 @@ namespace PatternBreak {
        and files already ALTERED on disk inside an immutable package's
        cache (drift that landed through a non-save road, or in a session
        before this kit existed). The kit itself only ever writes under
-       Assets/ — this is a reporter and changes nothing. */
-    const string AuditPkgMenu = "Tools/PatternBreak/Audit Immutable Packages";
-    [MenuItem(AuditPkgMenu, false, 901)]
-    public static void AuditImmutablePackages() { AuditImmutablePackagesNow(true); }
+       Assets/ — this is a reporter and changes nothing. It runs by
+       itself once per editor session after an import; the menu entry
+       that re-ran it on demand retired with the 9/30 menu cut (the
+       owner: the menu holds only what this export needs). */
     public static void AuditImmutablePackagesNow(bool always) {
       if (!always && SessionState.GetBool("pbPkgAudited", false)) return;
       SessionState.SetBool("pbPkgAudited", true);
@@ -15259,80 +15348,6 @@ namespace PatternBreak {
       try { var v = p.GetValue(iset, null); return v != null && v.ToString() == "AllDeviceInputAlwaysGoesToGameView"; }
       catch (Exception) { return false; }
     }
-    /* Round 18 — the editor's input-focus gate, removable BY CHOICE.
-       This toggle sets the package's own "All Device Input Always Goes
-       To Game View" option so editor input flows regardless of focus.
-       STRICTLY an explicit menu action — the import must never touch
-       project settings uninvited (the same principle as never editing
-       immutable packages). Editor-only either way: builds never had the
-       gate. */
-    const string RouteInputMenu = "Tools/PatternBreak/Route All Editor Input To Game View";
-    [MenuItem(RouteInputMenu, false, 900)]
-    static void RouteEditorInput() {
-      var iset = InputSettingsLive();
-      var prop = EditorBehaviorProp(iset);
-      if (prop == null) { Debug.LogWarning("UI Kit Maker: this project's Input System package does not expose the editor input-behavior setting (or the package is absent) — nothing changed. The gate still lifts the manual way: click the Game view once in Play mode."); return; }
-      bool routed = RoutedAllInput(iset, prop);
-      var uobj = iset as UnityEngine.Object;
-      var isetPath = uobj != null ? AssetDatabase.GetAssetPath(uobj).Replace("\\\\", "/") : "";
-      /* BOTH directions mint (round 33): the un-route toggle used to be
-         willing to write whatever asset the live settings resolved to —
-         on a project whose routed state came from a package-resident
-         asset, that write would alter an immutable package. Any write
-         goes to an Assets/ mint, period. */
-      if (uobj != null && !isetPath.StartsWith("Assets/")) {
-        /* the project runs on the package's defaults — in-memory (path
-           empty) OR the package's own asset (path under Packages/). A
-           value set on the first evaporates on the next domain reload; a
-           write to the second ALTERS AN IMMUTABLE PACKAGE (the exact
-           Unity warning the owner screenshotted — we only ever write
-           under Assets/, as policy). Mint the same settings asset the
-           package's Project Settings page creates on first edit, and say
-           so out loud. */
-        var asset = UnityEngine.Object.Instantiate(uobj);
-        asset.name = "InputSystem.inputsettings";
-        AssetDatabase.CreateAsset(asset, "Assets/InputSystem.inputsettings.asset");
-        var tIS2 = Type.GetType("UnityEngine.InputSystem.InputSystem, Unity.InputSystem");
-        var pSet = tIS2 != null ? tIS2.GetProperty("settings", BindingFlags.Public | BindingFlags.Static) : null;
-        if (pSet != null && pSet.CanWrite) pSet.SetValue(null, asset, null);
-        iset = asset;
-        prop = EditorBehaviorProp(iset); // re-bind on the asset instance
-        if (prop == null) return;
-        Debug.Log("UI Kit Maker: created Assets/InputSystem.inputsettings.asset — the project had no Input System settings asset, and the setting needs one to persist. (This is the same asset Edit > Project Settings > Input System Package creates.)");
-      }
-      try {
-        prop.SetValue(iset, Enum.Parse(prop.PropertyType, routed ? "PointersAndKeyboardsRespectGameViewFocus" : "AllDeviceInputAlwaysGoesToGameView"), null);
-      } catch (Exception e) { Debug.LogWarning("UI Kit Maker: could not change the editor input behavior (" + e.Message + ") — nothing changed."); return; }
-      var dirty = iset as UnityEngine.Object;
-      if (dirty != null) { EditorUtility.SetDirty(dirty); AssetDatabase.SaveAssetIfDirty(dirty); }
-      SyncRouteMenuCheck(); // the checkmark follows the toggle — stamped OUTSIDE any menu-layout pass
-      Debug.Log(routed
-        ? "UI Kit Maker: editor input RESPECTS Game view focus again (the Unity default). In Play mode, click the game once before hover answers."
-        : "UI Kit Maker: ALL editor input now goes to the Game view in Play mode — hover and press answer without clicking the game first. Editor-only behavior; builds are unaffected either way. Run this menu again to restore the Unity default.");
-    }
-    [MenuItem(RouteInputMenu, true)]
-    static bool RouteEditorInputCheck() {
-      /* VALIDATE ONLY — zero side effects (round 26, owner Console).
-         Menu.SetChecked used to live here, but a validator runs while
-         the editor is MID-MENU-LAYOUT (an IMGUI pass), and poking the
-         menu tree from inside it is exactly the re-entrancy IMGUI
-         forbids — the owner's Console filled with anonymous
-         "EndLayoutGroup: BeginLayoutGroup must be called first" errors.
-         The checkmark is stamped OUTSIDE GUI instead: once per domain
-         reload (ArmRouteMenuCheck) and on every toggle. If the setting
-         is flipped on the Project Settings page directly, the checkmark
-         catches up on the next reload — a stale tick is cosmetic; the
-         layout spam was not. */
-      return EditorBehaviorProp(InputSettingsLive()) != null;
-    }
-    /* the ONE place the menu checkmark is written — never from a
-       validator, never from any OnGUI-adjacent context */
-    static void SyncRouteMenuCheck() {
-      var isetC = InputSettingsLive();
-      UnityEditor.Menu.SetChecked(RouteInputMenu, RoutedAllInput(isetC, EditorBehaviorProp(isetC)));
-    }
-    [InitializeOnLoadMethod]
-    static void ArmRouteMenuCheck() { EditorApplication.delayCall += SyncRouteMenuCheck; }
     /* the focus-gate HINT (round 18), living EDITOR-SIDE since round 19 —
        the runtime keeps only StateFx.editorPointerSeen. One Console line,
        once per Play, only when the gate actually bites: kit pieces
@@ -15377,8 +15392,10 @@ namespace PatternBreak {
       if (StateFx.editorPointerSeen) { fgUnfocusedAt = -1.0; return; } // events flow anyway — no gate in effect
       if (nowT - fgUnfocusedAt < 2.5) return;
       fgHintShown = true;
+      /* the one-click menu toggle for this setting retired with the 9/30
+         menu cut — the hint points at Unity's own settings page instead */
       Debug.Log(propW != null
-        ? "UI Kit Maker: hover and press are quiet because the GAME VIEW isn't focused — a Unity editor input rule (the Input System routes pointer events by Game-view focus), not the kit. Click the game once and sweep again; a real build never has this gate. Optional: Tools > PatternBreak > Route All Editor Input To Game View."
+        ? "UI Kit Maker: hover and press are quiet because the GAME VIEW isn't focused — a Unity editor input rule (the Input System routes pointer events by Game-view focus), not the kit. Click the game once and sweep again; a real build never has this gate. Optional: Edit > Project Settings > Input System Package > Editor Input Behavior In Play Mode = All Device Input Always Goes To Game View."
         : "UI Kit Maker: hover and press are quiet because the GAME VIEW isn't focused — a Unity editor input rule (the Input System routes pointer events by Game-view focus), not the kit. Click the game once and sweep again; a real build never has this gate.");
     }
 
@@ -15736,7 +15753,7 @@ namespace PatternBreak {
       // missing state wiring is added, stale label dress is re-applied —
       // in place, surgical, no menu hunt (fresh generations are current
       // by construction and skip this)
-      if (prefabsReady && !prefabsNew) { MaintainExamplePrefabs(root, manifest, prev); GenerateMissingPrefabs(root, manifest, prev); HealScrollView(root, manifest); HealScrollbar(root, manifest); ShelveIntoChapters(root); }
+      if (prefabsReady && !prefabsNew) { MaintainExamplePrefabs(root, manifest, prev); ConvergeBarsOntoWidthRoad(root, manifest); GenerateMissingPrefabs(root, manifest, prev); HealScrollView(root, manifest); HealScrollbar(root, manifest); ShelveIntoChapters(root); }
       /* the renamed files' short-named twins go LAST — the maintenance
          pass above has re-pointed every prefab reference off them */
       foreach (var twin in renameTwins) AssetDatabase.DeleteAsset(root + "/" + twin);
@@ -15823,11 +15840,10 @@ namespace PatternBreak {
             Debug.Log("UI Kit Maker: " + scenesOurs.Count + " board scene(s) adopted this update's layout automatically — their files were still byte-identical to our last build, so there were no edits of yours to lose. A scene you've touched is never rebuilt without asking.");
         }
         BuildBoardScenes(root, manifest);
-        /* the Responsive Check scene rides the same beat (round 29) —
-           built once, then yours; Tools > PatternBreak > Rebuild
-           Responsive Check Scene refreshes it */
-        try { BuildResponsiveCheck(root, manifest); }
-        catch (Exception e) { Debug.LogWarning("UI Kit Maker: the Responsive Check scene failed — " + e.Message); }
+        /* the Responsive Check scene no longer ships (the owner, 2026-09-29:
+           "drop the responsive scene from all exports"). The safe-area root
+           lives in every board scene and the kept-scene graft; a Responsive
+           Check scene a project already holds is the dev's and stays. */
         /* a kit UPDATE leaves EDITED scenes wearing their build era's
            sizing and words — new sprites on old decisions (field: the
            flame button back at its default proportions and label). A
@@ -15941,7 +15957,7 @@ namespace PatternBreak {
       if (orphans.Count > 0)
         Debug.LogWarning(line + "\\n" + orphans.Count + " piece(s) are no longer part of this kit but STAY on disk (nothing is deleted without you): "
           + string.Join(", ", orphans.ToArray())
-          + "\\nRemove them via Tools > PatternBreak > Review Orphaned Kit Files.");
+          + "\\nThey are safe to delete from the Project window once nothing in your scenes uses them.");
       else
         Debug.Log(line);
       if (missing > 0)
@@ -16056,8 +16072,11 @@ namespace PatternBreak {
         Debug.LogWarning("UI Kit Maker: no kit-manifest.json in this project — drop a kit in first.");
         return;
       }
-      if (!EditorUtility.DisplayDialog("UI Kit Maker — regenerate example prefabs",
-        "Rebuilds the GENERATED examples in each kit's Prefabs folder (PrimaryButton, Chip, ProgressBar and friends) from the current sprites and the styled face. Same-named generated prefabs are replaced in place — placed instances restyle. Prefabs you created or renamed are not touched.",
+      /* the dialog's copy (the owner, 9/30: "fix the copy") — plain words,
+         the prefab folder as it is shelved today (Buttons, Sliders and
+         Progress...), no stale file names, no dashes */
+      if (!EditorUtility.DisplayDialog("UI Kit Maker: regenerate the example prefabs",
+        "This rebuilds the example prefabs the kit generated in its Prefabs folder from the current sprites and type. Each generated prefab is replaced in place, so copies you already placed in scenes pick up the new look. Prefabs you created, renamed or moved are not touched.",
         "Regenerate", "Cancel")) return;
       foreach (var guid in manifests) {
         var mPath = AssetDatabase.GUIDToAssetPath(guid);
@@ -16128,172 +16147,6 @@ namespace PatternBreak {
        scene builder — the policy can never fork. ── */
     static float ScalerMatchFor(float refW, float refH) {
       return refH > refW ? 0f : 0.5f;
-    }
-    /* one bright edge of the Responsive Check's safe-area outline */
-    static void CheckEdge(Transform parent, string edgeName, Vector2 aMin, Vector2 aMax, Vector2 size, Vector2 pivot) {
-      var go = new GameObject(edgeName, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-      go.transform.SetParent(parent, false);
-      var img = go.GetComponent<Image>();
-      img.color = new Color(0.30f, 0.95f, 0.55f, 0.9f); // loud spring green — diagnostics, not kit dress
-      img.raycastTarget = false;
-      var rt = (RectTransform)go.transform;
-      rt.anchorMin = aMin; rt.anchorMax = aMax; rt.pivot = pivot;
-      rt.sizeDelta = size; rt.anchoredPosition = Vector2.zero;
-    }
-    /* one anchored word tag of the Responsive Check (TMP editors only —
-       the outline carries the scene on older editors). side: -1 = the
-       words grow rightward from the seat, 1 = leftward, 0 = centered. */
-    static void CheckTag(Transform parent, string word, float fs, Vector2 a, Vector2 pivot, Vector2 pos, int side) {
-#if UNITY_2023_2_OR_NEWER
-      var go = new GameObject("Tag — " + word, typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
-      go.transform.SetParent(parent, false);
-      var t = go.GetComponent<TextMeshProUGUI>();
-      t.text = word; t.fontSize = fs; t.fontStyle = FontStyles.Bold;
-      t.color = new Color(0.92f, 0.96f, 1f, 0.95f);
-      t.alignment = side < 0 ? TextAlignmentOptions.MidlineLeft : side > 0 ? TextAlignmentOptions.MidlineRight : TextAlignmentOptions.Midline;
-      t.raycastTarget = false;
-#pragma warning disable 0618
-      t.enableWordWrapping = false;
-#pragma warning restore 0618
-      t.overflowMode = TMPro.TextOverflowModes.Overflow;
-      var rt = (RectTransform)go.transform;
-      rt.anchorMin = a; rt.anchorMax = a; rt.pivot = pivot;
-      rt.sizeDelta = new Vector2(fs * 14f, fs * 1.4f);
-      rt.anchoredPosition = pos;
-#endif
-    }
-    /* ── the RESPONSIVE CHECK scene (round 29): one screen a dev opens to
-       SEE the safe-area behavior before shipping. The green outline IS
-       the live Screen.safeArea; the backdrop deliberately bleeds under
-       cutouts; corner tags hug their corners at every aspect; a couple
-       of live kit pieces sit center/bottom so the kit itself is in the
-       frame. Switch Game-view aspect ratios — or the Device Simulator —
-       and watch. Cheap on purpose, built once, then yours. ── */
-    static void BuildResponsiveCheck(string root, PBManifest m) {
-      if (!AssetDatabase.IsValidFolder(root + "/Prefabs")) return; // prefabs not in yet — the next pass retries
-      var dir = root + "/Scenes";
-      if (!AssetDatabase.IsValidFolder(dir)) AssetDatabase.CreateFolder(root, "Scenes");
-      var scenePath = dir + "/Responsive Check.unity";
-      if (File.Exists(scenePath)) return; // yours after first generation
-      UnityEngine.SceneManagement.Scene scene;
-      if (!TryNewKitScene(out scene, "the Responsive Check scene")) return;
-      try {
-        var stale = UnityEngine.SceneManagement.SceneManager.GetSceneByPath(scenePath);
-        if (stale.IsValid() && stale != scene) UnityEditor.SceneManagement.EditorSceneManager.CloseScene(stale, true);
-        var camGo = new GameObject("Camera", typeof(Camera));
-        UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(camGo, scene);
-        var cam = camGo.GetComponent<Camera>();
-        cam.orthographic = true;
-        cam.clearFlags = CameraClearFlags.SolidColor;
-        cam.backgroundColor = new Color(0.09f, 0.10f, 0.15f);
-        camGo.tag = "MainCamera";
-        var canvasGo = new GameObject("Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
-        UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(canvasGo, scene);
-        canvasGo.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
-        // reference frame: the kit's first board (the aspect the maker
-        // actually designed at), else landscape HD
-        float rw = 1920f, rh = 1080f;
-        if (m != null && m.boards != null && m.boards.Length > 0 && m.boards[0] != null && m.boards[0].w > 0) { rw = m.boards[0].w; rh = m.boards[0].h; }
-        var scaler = canvasGo.GetComponent<CanvasScaler>();
-        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(rw, rh);
-        scaler.matchWidthOrHeight = ScalerMatchFor(rw, rh);
-        var esGo = new GameObject("EventSystem", typeof(UnityEngine.EventSystems.EventSystem));
-        UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(esGo, scene);
-#if ENABLE_LEGACY_INPUT_MANAGER
-        esGo.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();
-#elif ENABLE_INPUT_SYSTEM
-        esGo.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
-#endif
-        /* the backdrop bleeds FULL-SCREEN, outside the safe root, exactly
-           like a board scene's Background — on a notched device it slides
-           under the cutout while everything else stays clear of it */
-        var bgGo = new GameObject("Backdrop (full-bleed)", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-        bgGo.transform.SetParent(canvasGo.transform, false);
-        var brt = (RectTransform)bgGo.transform;
-        brt.anchorMin = Vector2.zero; brt.anchorMax = Vector2.one;
-        brt.offsetMin = Vector2.zero; brt.offsetMax = Vector2.zero;
-        var bimg = bgGo.GetComponent<Image>();
-        bimg.color = new Color(0.11f, 0.13f, 0.20f, 1f);
-        bimg.raycastTarget = false;
-        var safeGo = new GameObject("Safe Area", typeof(RectTransform), typeof(KitSafeArea));
-        safeGo.transform.SetParent(canvasGo.transform, false);
-        var safeRt = (RectTransform)safeGo.transform;
-        safeRt.anchorMin = Vector2.zero; safeRt.anchorMax = Vector2.one;
-        safeRt.offsetMin = Vector2.zero; safeRt.offsetMax = Vector2.zero;
-        var safeT = safeGo.transform;
-        // the outline: four thin bars hugging the safe rect's edges
-        CheckEdge(safeT, "Safe Edge Top", new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, 6f), new Vector2(0.5f, 1f));
-        CheckEdge(safeT, "Safe Edge Bottom", new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(0f, 6f), new Vector2(0.5f, 0f));
-        CheckEdge(safeT, "Safe Edge Left", new Vector2(0f, 0f), new Vector2(0f, 1f), new Vector2(6f, 0f), new Vector2(0f, 0.5f));
-        CheckEdge(safeT, "Safe Edge Right", new Vector2(1f, 0f), new Vector2(1f, 1f), new Vector2(6f, 0f), new Vector2(1f, 0.5f));
-        /* corner tags — each hugs ITS corner on every aspect. The tag
-           sizes were authored against the 1920×1080 reference; a PHONE
-           reference frame (390 wide) keeps the same PROPORTION, or the
-           diagnostic words dwarf the screen and read as a text-scale bug
-           (P0 field round: "TOP LEFT"/"TOP RIGHT" nearly met mid-screen). */
-        float tagK = Mathf.Clamp(Mathf.Min(rw, rh) / 1080f, 0.36f, 1f);
-        CheckTag(safeT, "TOP LEFT", 30f * tagK, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f * tagK, -24f * tagK), -1);
-        CheckTag(safeT, "TOP RIGHT", 30f * tagK, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-24f * tagK, -24f * tagK), 1);
-        CheckTag(safeT, "BOTTOM LEFT", 30f * tagK, new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(24f * tagK, 24f * tagK), -1);
-        CheckTag(safeT, "BOTTOM RIGHT", 30f * tagK, new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-24f * tagK, 24f * tagK), 1);
-        // the hint on two lines (round 78): one long line cropped at both edges on a phone-referenced kit
-        CheckTag(safeT, "green outline = live Screen.safeArea · backdrop bleeds under cutouts", 22f * tagK, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 94f * tagK), 0);
-        CheckTag(safeT, "try other Game-view aspects, or the Device Simulator", 22f * tagK, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 64f * tagK), 0);
-        // a couple of live kit pieces so the check shows the real kit
-        int livePlaced = 0;
-        var pfBtn = KitPrefab(root, "ButtonPrimary");
-        if (pfBtn != null) {
-          var iB = (GameObject)PrefabUtility.InstantiatePrefab(pfBtn, scene);
-          iB.transform.SetParent(safeT, false);
-          var rtB = iB.GetComponent<RectTransform>();
-          if (rtB != null) {
-            rtB.anchorMin = new Vector2(0.5f, 0.5f); rtB.anchorMax = new Vector2(0.5f, 0.5f);
-            rtB.anchoredPosition = Vector2.zero;
-            rtB.localScale = new Vector3(tagK, tagK, 1f); // sized to the reference frame (round 78: a phone kit blew these up to giants)
-            livePlaced++;
-          }
-        }
-        var pfBar = KitPrefab(root, "ProgressBar");
-        if (pfBar != null) {
-          var iP = (GameObject)PrefabUtility.InstantiatePrefab(pfBar, scene);
-          iP.transform.SetParent(safeT, false);
-          var rtP = iP.GetComponent<RectTransform>();
-          if (rtP != null) {
-            rtP.anchorMin = new Vector2(0.5f, 1f); rtP.anchorMax = new Vector2(0.5f, 1f);
-            rtP.anchoredPosition = new Vector2(0f, -90f * tagK);
-            rtP.localScale = new Vector3(tagK, tagK, 1f);
-            livePlaced++;
-          }
-        }
-        if (UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene, scenePath))
-          Debug.Log("UI Kit Maker: Responsive Check ready — open " + scenePath + ", press Play, and switch Game-view aspect ratios (or the Device Simulator): the green outline is the live safe area, the backdrop bleeds under cutouts, and the corner tags hold their corners (" + livePlaced + " live kit piece(s) placed).");
-        else
-          Debug.LogWarning("UI Kit Maker: couldn't save the Responsive Check scene at " + scenePath + " — run Tools > PatternBreak > Rebuild Responsive Check Scene.");
-      } finally {
-        if (UnityEngine.SceneManagement.SceneManager.sceneCount > 1)
-          UnityEditor.SceneManagement.EditorSceneManager.CloseScene(scene, true);
-      }
-    }
-    [MenuItem("Tools/PatternBreak/Rebuild Responsive Check Scene")]
-    public static void RebuildResponsiveCheck() {
-      var manifests = AssetDatabase.FindAssets("kit-manifest t:TextAsset");
-      if (manifests.Length == 0) {
-        Debug.LogWarning("UI Kit Maker: no kit-manifest.json in this project — drop a kit in first.");
-        return;
-      }
-      if (!EditorUtility.DisplayDialog("UI Kit Maker — rebuild the Responsive Check scene",
-        "Replaces each kit's Scenes/Responsive Check.unity with a fresh one. Changes you made inside it are lost; every other scene is untouched.",
-        "Rebuild", "Cancel")) return;
-      foreach (var guid in manifests) {
-        var mPath = AssetDatabase.GUIDToAssetPath(guid);
-        var root = Path.GetDirectoryName(mPath).Replace("\\\\", "/");
-        PBManifest m = null;
-        try { m = JsonUtility.FromJson<PBManifest>(File.ReadAllText(mPath)); } catch (Exception) { continue; }
-        var scenePath = root + "/Scenes/Responsive Check.unity";
-        if (File.Exists(scenePath)) AssetDatabase.DeleteAsset(scenePath);
-        BuildResponsiveCheck(root, m);
-      }
     }
     /* the EDIT-VIEW graft for KEPT Playgrounds (owner: "seems cut off"):
        one additive component on OUR OWN Catalog Scroll/Viewport — no
@@ -18866,34 +18719,10 @@ namespace PatternBreak {
       }
     }
 
-    /* ── I3's explicit hand: review and remove, never automatic ── */
-    [MenuItem("Tools/PatternBreak/Review Orphaned Kit Files")]
-    public static void ReviewOrphans() {
-      var manifests = AssetDatabase.FindAssets("kit-manifest t:TextAsset");
-      var all = new List<string>();
-      foreach (var guid in manifests) {
-        var mPath = AssetDatabase.GUIDToAssetPath(guid);
-        var root = Path.GetDirectoryName(mPath).Replace("\\\\", "/");
-        var lockPath = root + "/kit.lock.json";
-        if (!File.Exists(lockPath)) continue;
-        PBLock rec = null;
-        try { rec = JsonUtility.FromJson<PBLock>(File.ReadAllText(lockPath)); } catch (Exception) { continue; }
-        if (rec == null || rec.orphans == null) continue;
-        foreach (var o in rec.orphans)
-          if (!string.IsNullOrEmpty(o) && File.Exists(root + "/" + o)) all.Add(root + "/" + o);
-      }
-      if (all.Count == 0) {
-        EditorUtility.DisplayDialog("UI Kit Maker", "No orphaned kit files — every sprite on disk is part of the current kit.", "Nice");
-        return;
-      }
-      var listing = string.Join("\\n", all.ToArray());
-      if (EditorUtility.DisplayDialog("UI Kit Maker — orphaned kit files",
-        "These " + all.Count + " file(s) were part of an earlier version of the kit and are no longer in it. They are safe to remove IF nothing in your scenes still uses them.\\n\\n" + listing,
-        "Remove them", "Keep everything")) {
-        foreach (var p in all) AssetDatabase.DeleteAsset(p);
-        Debug.Log("UI Kit Maker: removed " + all.Count + " orphaned file(s).");
-      }
-    }
+    /* ── I3's explicit hand: orphans are named in the import receipt and
+       deleted only by the dev, from the Project window. The Review
+       Orphaned Kit Files menu entry that batch-deleted them retired
+       with the 9/30 menu cut; the receipt still lists every file. ── */
 
     /* ── generated examples — REAL sprite references (a text prefab can
        never carry the GUIDs your Unity mints at import; building them
@@ -19420,10 +19249,9 @@ namespace PatternBreak {
        fonts/kerning-overrides.json so the next zip re-applies it. */
     static bool s_kernSyncing;
     /* saving the font asset IS the gesture — no menu item to remember
-       (owner: "running a tool is a bit cumbersome") */
+       (owner: "running a tool is a bit cumbersome"); the manual menu
+       entry retired with the 9/30 menu cut, the save hook stays */
     public static void SyncKerningQuiet() { SyncKerningCore(true); }
-    [MenuItem("Tools/PatternBreak/Sync Label Kerning (usually automatic)")]
-    public static void SyncKerning() { SyncKerningCore(false); }
     static void SyncKerningCore(bool auto) {
       if (s_kernSyncing) return; // our own SaveAssets re-enters the save hook
       s_kernSyncing = true;
@@ -21006,6 +20834,9 @@ namespace PatternBreak {
           rigEW.lit = litEW.ToArray();
           rigEW.sectors = slotsEW.Count;
           rigEW.highlight = (RectTransform)hiEW;
+          // the pointer picks in Play (9/30): the wheel's body must catch the raycast
+          var bodyEW = BodyImage(go);
+          if (bodyEW != null) bodyEW.raycastTarget = true;
           var hubEW = go.transform.Find("Selected emote");
           rigEW.hub = hubEW != null ? hubEW.GetComponent<Image>() : null;
           if (rigEW.hub != null) rigEW.hubRest = rigEW.hub.sprite;
@@ -21258,6 +21089,8 @@ namespace PatternBreak {
           float orbitWW = 0f;
           foreach (var aWW in m.assets) if (aWW != null && aWW.component == "weaponwheel" && aWW.part != null && aWW.part.EndsWith("-lit") && aWW.railW > 1f) { orbitWW = aWW.railW; break; }
           var bodyWW = BodyImage(go);
+          // the pointer arms in Play (9/30): the wheel's body must catch the raycast
+          if (bodyWW != null) bodyWW.raycastTarget = true;
           if (orbitWW > 1f && bodyWW != null && bodyWW.sprite != null && bodyWW.sprite.rect.width > 2f) {
             rigWW.orbitFx = orbitWW / bodyWW.sprite.rect.width;
             rigWW.orbitFy = orbitWW / bodyWW.sprite.rect.height;
@@ -21832,6 +21665,109 @@ namespace PatternBreak {
        pose until their prefabs regenerate on the width road. SCOPE
        DISCIPLINE: a dev's own custom fill material never matches either
        test and is never touched. ── */
+    /* ── the WIDTH-ROAD convergence for KEPT bars (the owner, 9/30: "we're
+       still getting the old cap progress bar on some assets" — ProgressBar,
+       EmblemBar and Timerbar in a kept Playground). A bar prefab generated
+       before round 58 rides the legacy Cap/Filled rig FOREVER: the
+       rounded-head retrofit in MaintainExamplePrefabs skips anything
+       "already rigged", and nothing else ever re-armed it — so its fill
+       kept the scissor cut and the parked bead while every fresh build
+       (and the app) drew the bordered stadium. OURS-ONLY, exactly the
+       fresh build's own gate (WireBarCap/WireBarBodies): the rig is our
+       KitBarFill still on the legacy road (barMode 0), its fill wears OUR
+       sprite (under root/assets), that sprite NOW carries borders, and
+       the manifest row names its center mode. Then the rig arms the width
+       road, the legacy Cap/Nub children WE built retire (the road never
+       draws them), a kept Slider hands the rig its value the fresh way
+       (listener, not fillRect — the round-58 one-writer rule), and Apply
+       re-seats the rect. A fill re-sprited to the dev's own art, or a rig
+       whose row ships no mode, is theirs and stays. Idempotent: an armed
+       rig never matches again. ── */
+    static bool OurKitSprite(Sprite sp, string root) {
+      return sp != null && AssetDatabase.GetAssetPath(sp).Replace("\\\\", "/").StartsWith(root + "/assets/");
+    }
+    static bool WidthRoadDue(KitBarFill kb, string root, PBManifest m) {
+      if (kb == null || kb.barMode != 0 || kb.fill == null || kb.fill.sprite == null) return false;
+      var sp = kb.fill.sprite;
+      if (!OurKitSprite(sp, root) || sp.border.x + sp.border.z <= 1f) return false;
+      var row = RowOfSprite(m, sp);
+      return row != null && row.barMode != null;
+    }
+    static int ConvergeBarsOntoWidthRoad(string root, PBManifest m) {
+      var pdirWR = root + "/Prefabs";
+      if (m == null || m.assets == null || !AssetDatabase.IsValidFolder(pdirWR)) return 0;
+      int converged = 0;
+      var namesWR = new List<string>();
+      foreach (var guidWR in AssetDatabase.FindAssets("t:Prefab", new string[] { pdirWR })) {
+        var pathWR = AssetDatabase.GUIDToAssetPath(guidWR);
+        var assetWR = AssetDatabase.LoadAssetAtPath<GameObject>(pathWR);
+        if (assetWR == null || PrefabUtility.GetPrefabAssetType(assetWR) == PrefabAssetType.Variant) continue;
+        bool wantWR = false;
+        foreach (var kbWR in assetWR.GetComponentsInChildren<KitBarFill>(true))
+          if (WidthRoadDue(kbWR, root, m)) { wantWR = true; break; }
+        if (!wantWR) continue;
+        var contentsWR = PrefabUtility.LoadPrefabContents(pathWR);
+        try {
+          int armedWR = 0;
+          foreach (var kbWR in contentsWR.GetComponentsInChildren<KitBarFill>(true)) {
+            if (!WidthRoadDue(kbWR, root, m)) continue;
+            var rowWR = RowOfSprite(m, kbWR.fill.sprite);
+            /* the dev's staged value survives: the rig's own field when it
+               has one, else the legacy cut read back through the body map
+               (the round-48 cold-load rule) */
+            float spanWR = kbWR.bodyU1 - kbWR.bodyU0 > 0.05f ? kbWR.bodyU1 - kbWR.bodyU0 : 1f;
+            float vWR = kbWR.value >= 0f ? kbWR.value
+              : Mathf.Clamp01((kbWR.fill.fillAmount - (kbWR.fromRight ? 1f - kbWR.bodyU1 : kbWR.bodyU0)) / spanWR);
+            kbWR.barMode = rowWR.barMode == "tiled" ? 2 : 1;
+            kbWR.stretchRun = false;
+            /* the ramped class (a nub atom shipped beside the fill — the VS
+               bar) keeps its floor ink the way a fresh build wires it: the
+               ONE mercury Image wears the nub below one cap-diameter */
+            var nubImgWR = kbWR.nub != null ? kbWR.nub.GetComponent<Image>() : null;
+            if (nubImgWR != null && OurKitSprite(nubImgWR.sprite, root)) { kbWR.floorSprite = nubImgWR.sprite; kbWR.mercurySprite = kbWR.fill.sprite; }
+            // the legacy children WE built step down — the width road never draws them
+            var capImgWR = kbWR.capHead != null ? kbWR.capHead.GetComponent<Image>() : null;
+            if (capImgWR != null && OurKitSprite(capImgWR.sprite, root)) UnityEngine.Object.DestroyImmediate(kbWR.capHead.gameObject);
+            kbWR.capHead = null;
+            if (nubImgWR != null && OurKitSprite(nubImgWR.sprite, root)) UnityEngine.Object.DestroyImmediate(kbWR.nub.gameObject);
+            kbWR.nub = null;
+            // the body map rides the manifest, exactly like a fresh build
+            if (rowWR.body != null && rowWR.body.w > 2f && kbWR.fill.sprite.rect.width > 2f) {
+              kbWR.bodyU0 = Mathf.Clamp01(rowWR.body.x / kbWR.fill.sprite.rect.width);
+              kbWR.bodyU1 = Mathf.Clamp01((rowWR.body.x + rowWR.body.w) / kbWR.fill.sprite.rect.width);
+            }
+            /* a kept SLIDER drove the Filled rect through Slider.fillRect —
+               on the width road that is the second writer that smashed the
+               mercury past the knob (round 58). It talks to the rig the way
+               a fresh build does: a persistent onValueChanged → SetValue
+               listener, and the knob-seated run (round 62) read off the
+               handle's own slide area. */
+            var slWR = kbWR.GetComponentInParent<Slider>();
+            if (slWR != null && slWR.fillRect == kbWR.fill.rectTransform) {
+              slWR.fillRect = null;
+              bool wiredWR = false;
+              for (int iWR = 0; iWR < slWR.onValueChanged.GetPersistentEventCount(); iWR++)
+                if (slWR.onValueChanged.GetPersistentTarget(iWR) == kbWR && slWR.onValueChanged.GetPersistentMethodName(iWR) == "SetValue") { wiredWR = true; break; }
+              if (!wiredWR) {
+                UnityEditor.Events.UnityEventTools.AddPersistentListener(slWR.onValueChanged, kbWR.SetValue);
+                slWR.onValueChanged.SetPersistentListenerState(slWR.onValueChanged.GetPersistentEventCount() - 1, UnityEngine.Events.UnityEventCallState.EditorAndRuntime);
+              }
+              var areaWR = kbWR.transform as RectTransform;
+              var slideWR = slWR.handleRect != null ? slWR.handleRect.parent as RectTransform : null;
+              if (areaWR != null && slideWR != null && slideWR != areaWR && slideWR.offsetMin.x - areaWR.offsetMin.x > 0.5f)
+                kbWR.stub = slideWR.offsetMin.x - areaWR.offsetMin.x;
+              vWR = Mathf.Clamp01(slWR.value);
+            }
+            kbWR.SetValue(vWR);
+            armedWR++;
+          }
+          if (armedWR > 0) { PrefabUtility.SaveAsPrefabAsset(contentsWR, pathWR); converged += armedWR; namesWR.Add(Path.GetFileNameWithoutExtension(pathWR)); }
+        } finally { PrefabUtility.UnloadPrefabContents(contentsWR); }
+      }
+      if (converged > 0)
+        Debug.Log("UI Kit Maker: moved " + converged + " kept bar fill(s) onto the width road (" + string.Join(", ", namesWR.ToArray()) + ") — the mercury is the bordered stadium sprite now, its own 9-slice caps round the ends and the rig drives the rect's width, so the old parked cap bead and its flat cut are gone. Placed copies (the Playground included) picked it up. Keep driving Value on KitBarFill, or SetValue; a raw fillAmount write still adopts.");
+      return converged;
+    }
     static void HealBarClipRelics(string root) {
       var matBC = AssetDatabase.LoadAssetAtPath<Material>(root + "/fonts/Bar Clip.mat");
       bool strayShader = File.Exists(root + "/Runtime/UIKitBarClip.shader");
@@ -23680,9 +23616,26 @@ namespace PatternBreak {
       }
       foreach (var k in new List<int>(fy.Keys)) fy[k] = fy[k] / count[k];
     }
-    static bool RowRect(RectTransform rrt, float rowFy, float rowFfs, float rootH, bool apply) {
+    /* a row made of RIDER words (the card face's two corner numbers share
+       one row) is exempt from the edge clamp, the way a lone rider is in
+       SeatRect: its plates hang off the card's top corners by design, and
+       the clamp used to drag both digits about half an em down their
+       badges before adoption froze them there (the owner: "positioning is
+       off"). A header row keeps the clamp. */
+    static bool RowIsRiders(PBAsset row, int rowIx) {
+      if (row == null || row.textSeats == null) return false;
+      bool any = false;
+      foreach (var sR in row.textSeats) {
+        if (sR == null || sR.row != rowIx) continue;
+        if (string.IsNullOrEmpty(sR.rider)) return false;
+        any = true;
+      }
+      return any;
+    }
+    static bool RowRect(RectTransform rrt, float rowFy, float rowFfs, float rootH, bool apply) { return RowRect(rrt, rowFy, rowFfs, rootH, apply, true); }
+    static bool RowRect(RectTransform rrt, float rowFy, float rowFfs, float rootH, bool apply, bool clampEdges) {
       float fsR = rowFfs * rootH;
-      float rowFyC = rootH > fsR * 1.3f ? Mathf.Clamp(rowFy, (fsR * 0.62f) / rootH, 1f - (fsR * 0.62f) / rootH) : rowFy;
+      float rowFyC = clampEdges && rootH > fsR * 1.3f ? Mathf.Clamp(rowFy, (fsR * 0.62f) / rootH, 1f - (fsR * 0.62f) / rootH) : rowFy;
       float yf = Mathf.Clamp01(1f - rowFyC);
       var mn = new Vector2(0f, yf); var mx = new Vector2(1f, yf);
       var sz = new Vector2(0f, rowFfs * rootH * 1.8f);
@@ -23973,13 +23926,14 @@ namespace PatternBreak {
         // the row container is the seat's parent when clustered — ours
         if (inRow) {
           var rrt = t.transform.parent as RectTransform;
-          if (rrt != null && rrt != wordsT && !RowRect(rrt, rowFy[seat.row], rowFfs[seat.row], rootH, apply)) drift = true;
+          if (rrt != null && rrt != wordsT && !RowRect(rrt, rowFy[seat.row], rowFfs[seat.row], rootH, apply, !RowIsRiders(row, seat.row))) drift = true;
         }
         TMP_FontAsset face; Material mat; int aboardWeight;
         SeatVoice(seat, m, kitFace, dressMat, grotesk, plainKitMat, instrument, contentFace, dressMatC, plainMatC, kitVoice, kitVoiceW, out face, out mat, out aboardWeight);
         /* the understroke rim rides a preset material on the plain voices —
            probe passes only look; a wanted-but-missing preset IS drift */
-        if (!seat.kit && mat == null && face != null && seat.strokeEmPct > 0.5f) {
+        if (face != null && seat.strokeEmPct > 0.5f && (mat == null || (seat.kit && !seat.dressed))) {
+          // the kit-face rim too (the card's corner digits) — the builder's rule, mirrored
           var rimMat = EnsureSeatStrokeMaterial(root, face, seat, apply);
           if (rimMat != null) mat = rimMat;
           else if (!apply) drift = true;
@@ -24026,6 +23980,58 @@ namespace PatternBreak {
       return drift;
     }
 #endif
+    /* ORPHAN WORDS STEP ASIDE (Jimi's Hot Rod notes, 9/11 and 9/17: a plain
+       white GHOST rode over the styled label, "the Words object has the
+       unformatted text in it"). The label's glints clip carries a text copy
+       of the word inside <defs>, and the exporter used to read it as a seat,
+       so every look with glints on shipped its label word a second time as
+       an undressed Words child. The exporter no longer writes that seat, but
+       a project imported before the fix keeps the child until someone
+       deletes it. The signature is exact and checked on every refresh: a
+       Words text still carrying its seeded name (name equals text, so the
+       dev never touched it) whose word is the piece's own LABEL word (a word
+       no seat ever carries, since labels and seats are disjoint) and which
+       no seat in the manifest lists. Such a child is provably ours and
+       provably stale, so it is destroyed with a receipt, and a Row or Words
+       group left empty goes with it. A retyped word (name differs from
+       text) is the dev's and stays, as always. Fully-qualified TMP per the
+       guard standard's rule 2: this runs on every rung. */
+    static List<GameObject> OrphanSeatWordsOf(GameObject host, PBManifest m, string famName) {
+      var found = new List<GameObject>();
+      if (host == null || m == null || string.IsNullOrEmpty(famName)) return found;
+      var wordsT = host.transform.Find("Words");
+      if (wordsT == null) return found;
+      string labelW = PlainWord(LabelWordOf(m, famName, "")).Trim();
+      if (string.IsNullOrEmpty(labelW)) return found;
+      var live = new HashSet<string>();
+      if (m.assets != null)
+        foreach (var aO in m.assets)
+          if (aO != null && aO.component == famName && aO.textSeats != null)
+            foreach (var sO in aO.textSeats)
+              if (sO != null && !string.IsNullOrEmpty(sO.text)) live.Add(PlainWord(sO.text).Trim());
+      if (live.Contains(labelW)) return found;
+      foreach (var tO in wordsT.GetComponentsInChildren<TMPro.TMP_Text>(true)) {
+        if (tO == null) continue;
+        string nmO = PlainWord(tO.gameObject.name).Trim(), txO = PlainWord(tO.text).Trim();
+        if (nmO == txO && txO == labelW) found.Add(tO.gameObject);
+      }
+      return found;
+    }
+    static int RetireOrphanSeats(GameObject host, PBManifest m, string famName) {
+      var gone = OrphanSeatWordsOf(host, m, famName);
+      if (gone.Count == 0) return 0;
+      var wordsT = host.transform.Find("Words");
+      var names = new List<string>();
+      foreach (var gO in gone) {
+        names.Add(gO.name);
+        var rowT = gO.transform.parent;
+        UnityEngine.Object.DestroyImmediate(gO, true);
+        if (rowT != null && rowT != wordsT && rowT.childCount == 0 && rowT.name.StartsWith("Row ")) UnityEngine.Object.DestroyImmediate(rowT.gameObject, true);
+      }
+      if (wordsT != null && wordsT.childCount == 0) UnityEngine.Object.DestroyImmediate(wordsT.gameObject, true);
+      Debug.Log("UI Kit Maker: " + host.name + ": retired " + gone.Count + " word(s) under Words that repeated the piece's own label (" + string.Join(", ", names.ToArray()) + "). An older export shipped the label's glints clip as a plain seat; these were untouched since seeding. A retyped word would have stayed.");
+      return gone.Count;
+    }
     static void WireTextSeats(GameObject host, string root, PBManifest m, int pngScale) {
       var row = SeatRowOf(host, m, root);
       if (row == null) return;
@@ -24082,7 +24088,7 @@ namespace PatternBreak {
             nRow++;
             var rGo = new GameObject("Row " + nRow, typeof(RectTransform));
             rGo.transform.SetParent(wordsT, false);
-            RowRect(rGo.GetComponent<RectTransform>(), rowFy[seat.row], rowFfs[seat.row], rootH, true);
+            RowRect(rGo.GetComponent<RectTransform>(), rowFy[seat.row], rowFfs[seat.row], rootH, true, !RowIsRiders(row, seat.row));
             rT = rGo.transform;
             made[seat.row] = rT;
           }
@@ -24100,7 +24106,14 @@ namespace PatternBreak {
         t.alignment = seat.anchor == "middle" ? TextAlignmentOptions.Center : seat.anchor == "end" ? TextAlignmentOptions.Right : TextAlignmentOptions.Left;
         TMP_FontAsset face; Material mat; int aboardWeight;
         SeatVoice(seat, m, kitFace, dressMat, grotesk, plainKitMat, instrument, contentFace, dressMatC, plainMatC, kitVoice, kitVoiceW, out face, out mat, out aboardWeight);
-        if (!seat.kit && mat == null && face != null && seat.strokeEmPct > 0.5f)
+        /* the UNDERSTROKE on a KIT-face seat too (owner, the card face's
+           corner numbers: "numbers lack stroke"): the app draws the cost
+           and power digits in the kit face with their own dark rim under
+           the fill, and this rule dressed only the non-kit voices, so an
+           undressed kit seat wore the plain material and lost its rim. A
+           dressed kit seat keeps the kit's full type dress, which carries
+           its own outline. The probe in SeatsDrift reads the same rule. */
+        if (face != null && seat.strokeEmPct > 0.5f && (mat == null || (seat.kit && !seat.dressed)))
           mat = EnsureSeatStrokeMaterial(root, face, seat, true);
         SeatRect(go.GetComponent<RectTransform>(), seat, face, rootH, inRow, inRow ? rowFy[seat.row] : 0f, true);
         if (face != null) t.font = face;
@@ -26907,7 +26920,7 @@ namespace PatternBreak {
       RenameArtShelf(root); // BigGlyphs → Art, the class's name everywhere
       RenamePlainNames(root); // plain ASCII names (round 78), healed on every import
       RetireMoveCounterTwin(root, prevLock); // the case-twin that shadowed the universal Movecounter
-      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, glyphSeated = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0, reseeded = 0, wordKept = 0, rebodied = 0, mapGrafted = 0, padTuned = 0, rigGrafted = 0, sinkTuned = 0, barRigged = 0, capRigged = 0, pieceBound = 0, ddRigged = 0, unburned = 0, retiredIc = 0, medalWorded = 0;
+      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, glyphSeated = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0, reseeded = 0, wordKept = 0, rebodied = 0, mapGrafted = 0, padTuned = 0, rigGrafted = 0, sinkTuned = 0, barRigged = 0, capRigged = 0, pieceBound = 0, ddRigged = 0, unburned = 0, retiredIc = 0, medalWorded = 0, orphaned = 0;
       /* the ROOT-RECT ownership ledger (F5 — the resize pass was the one
          maintenance heal with NO ours-vs-theirs guard): rects we last
          authored, carried in kit.lock.json > authoredRects. A rect still
@@ -27838,6 +27851,10 @@ namespace PatternBreak {
            dev retyped stays theirs (owner: "a lot of text wasn't
            appearing on these panels") */
         bool wantSeats = TextSeatsStale(asset, m, root, m.pngScale > 0 ? m.pngScale : 2);
+        /* a Words child that repeats the piece's own label word, untouched
+           since seeding and listed by no seat: the old glints-clip orphan
+           (Jimi's Hot Rod field notes) — it steps aside on refresh */
+        bool wantOrphanWords = OrphanSeatWordsOf(asset, m, famName).Count > 0;
         /* label-machinery pieces that gained a live word (dropdown value,
            badge count): an older prefab without any label grows one */
         bool wantSeatLabel = (famName == "badge" || famName == "dropdown")
@@ -28076,7 +28093,7 @@ namespace PatternBreak {
            untouched. */
         bool wantSelectRoot = asset.GetComponent<KitPiece>() == null;
         if (!wantWiring && !wantDress && !wantFx && !wantUnswap && !wantResize && !wantSpecAdd && !wantSpecCut && !wantPad && !wantShape && !wantFbLift && !wantFbSeat && !wantFaceRects
-            && !wantWipeAdd && !wantWipeCut && !wantEdgeAdd && !wantEdgeCut && !wantGauge && !wantSeats && !wantSeatLabel && !wantWordSeed && !wantBody && !wantGlowPad && !wantSinkFix && !wantIconAdd && !wantIconStroke && !wantUnburn && !wantIconRetire && !wantSelectRoot) continue;
+            && !wantWipeAdd && !wantWipeCut && !wantEdgeAdd && !wantEdgeCut && !wantGauge && !wantSeats && !wantOrphanWords && !wantSeatLabel && !wantWordSeed && !wantBody && !wantGlowPad && !wantSinkFix && !wantIconAdd && !wantIconStroke && !wantUnburn && !wantIconRetire && !wantSelectRoot) continue;
         var contents = PrefabUtility.LoadPrefabContents(path);
         try {
           bool changed = false;
@@ -28173,6 +28190,11 @@ namespace PatternBreak {
             // and/or re-dresses a drifted readout, existing children honored
             WireGauge(contents, root, m, famName, m.pngScale > 0 ? m.pngScale : 2);
             if (contents.GetComponent<GaugeDial>() != null) { gauged++; changed = true; }
+          }
+          if (wantOrphanWords) {
+            // the orphan steps aside FIRST, so a seat heal in the same pass counts a clean Words group
+            int orphanN = RetireOrphanSeats(contents, m, famName);
+            if (orphanN > 0) { orphaned += orphanN; changed = true; }
           }
           if (wantSeats) {
             // idempotent: creates the Words group, or re-seeds/re-dresses
@@ -28460,6 +28482,8 @@ namespace PatternBreak {
         Debug.Log("UI Kit Maker: armed the baked press sink on " + sinkTuned + " prefab(s) — their pressed pose sinks inside the swap sprite (extrusion collapse), and the hover halo now slides with it instead of holding its hover seat.");
       if (padTuned > 0)
         Debug.Log("UI Kit Maker: re-measured the hover aura's overhang on " + padTuned + " prefab(s) — this export's aura sprites reach differently than the pad their StateFx still carried, so the halo would have sized off the old overhang.");
+      if (orphaned > 0)
+        Debug.Log("UI Kit Maker: retired " + orphaned + " orphan word(s) that repeated their piece's own label under Words. An older export read the label's glints clip as a plain text seat (the undressed GHOST over the styled one); this export no longer writes it, and the untouched children stepped aside. Anything retyped stayed.");
       if (worded > 0)
         Debug.Log("UI Kit Maker: gave " + worded + " panel prefab(s) their WORDS — every text the app renders for the piece now rides as live TMP under a 'Words' group (or a live label), pre-filled with the words from your kit, seated and dressed as the app draws them (kit-manifest.json > textSeats / labelText). Words you retype in Unity are yours: a re-import never overwrites a text that no longer matches its seeded string.");
       if (reseeded > 0)
