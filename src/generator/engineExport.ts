@@ -8405,7 +8405,12 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
   /* the Documentation/ front door — store reviewers and buyers look for
      the folder by name; the deck stays the long-form walkthrough */
   files.push({ path: "Documentation/QuickStart.md", data: quickStartDoc(st) });
-  files.push({ path: "Editor/PatternBreakKitImporter.cs", data: UNITY_IMPORTER });
+  /* Tools > PatternBreak holds only what THIS zip needs (the owner, 9/30):
+     Rebuild Kit Board Scenes ships only when the zip carries boards — a
+     kit with no boards has nothing for that entry to rebuild. */
+  const boardMenuAttr = '    [MenuItem("Tools/PatternBreak/Rebuild Kit Board Scenes")]\n';
+  const importerCs = full && st.boards?.length ? UNITY_IMPORTER : UNITY_IMPORTER.replace(boardMenuAttr, "");
+  files.push({ path: "Editor/PatternBreakKitImporter.cs", data: importerCs });
   /* assembly definitions — the kit's scripts compile into their OWN
      assemblies. Without these, a second copy of the kit anywhere in the
      project (a drop into an open subfolder, an unmerged macOS folder)
@@ -10152,11 +10157,12 @@ namespace PatternBreak {
    drive. */
 const WEAPON_WHEEL_RUNTIME = `using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
 
 namespace PatternBreak {
   [AddComponentMenu("UI Kit Maker/Weapon Wheel")]
   [ExecuteAlways]
-  public class PatternBreakWeaponWheel : MonoBehaviour {
+  public class PatternBreakWeaponWheel : MonoBehaviour, IPointerDownHandler {
     [Tooltip("Cylinder rotation, 0..1 turn clockwise (the app's own dial) — the chamber landing at the hammer is armed. Drive this, SetValue, or ArmChamber.")]
     [Range(0f, 1f)] public float value = 0f;
     [Tooltip("How many chambers this wheel was exported with.")]
@@ -10174,10 +10180,65 @@ namespace PatternBreak {
     [Tooltip("The chamber orbit radius as fractions of the root rect (generated).")]
     public float orbitFx = 0.3f;
     public float orbitFy = 0.3f;
+    /* the POINTER arms it (the owner, 9/30: "the weapon wheel and the
+       emote wheel aren't active in the Playground") — the app's own Play
+       behavior: click a chamber and the cylinder carries it round to the
+       hammer the short way, with the revolver's weight (LiveArt's
+       "western" tween: slow wind-up, travel, a small seating clunk).
+       Play mode only, EventSystem only (the kit never polls input); the
+       dial API underneath is unchanged, and a dev who wants code-only
+       control turns Pointer Arms off. */
+    [Tooltip("Play mode: clicking a chamber spins the cylinder until that chamber seats at the hammer (the app's own behavior). Off = the rotation is driven only by code or the Value slider.")]
+    public bool pointerArms = true;
+    [Tooltip("The spin's travel time in seconds (unscaled time, so a paused game still lets the wheel answer).")]
+    public float spinSeconds = 0.78f;
+    float spinFrom, spinTo, spinT0 = -1f;
     public int ArmedChamber() { int n = Mathf.Max(1, chambers); return ((1 - Mathf.RoundToInt(Mathf.Clamp01(value) * n)) % n + n) % n; }
-    public void SetValue(float v) { value = Mathf.Clamp01(v); Apply(); }
+    public void SetValue(float v) { spinT0 = -1f; value = Mathf.Clamp01(v); Apply(); }
     [Tooltip("Spin so chamber i (0-based) lands at the hammer.")]
-    public void ArmChamber(int i) { int n = Mathf.Max(1, chambers); value = (((1 - i) % n + n) % n) / (float)n; Apply(); }
+    public void ArmChamber(int i) { int n = Mathf.Max(1, chambers); spinT0 = -1f; value = (((1 - i) % n + n) % n) / (float)n; Apply(); }
+    [Tooltip("Spin to a rotation with the revolver's own ease; a target past 0..1 travels the short way round. Outside Play it lands at once.")]
+    public void SpinTo(float target) {
+      if (!Application.isPlaying || spinSeconds <= 0.01f) { SetValue(((target % 1f) + 1f) % 1f); return; }
+      spinFrom = Mathf.Clamp01(value); spinTo = target; spinT0 = Time.unscaledTime;
+    }
+    public void OnPointerDown(PointerEventData e) {
+      if (!pointerArms || !Application.isPlaying) return;
+      float p;
+      if (!PointerTurn(e, out p)) return;
+      int n = Mathf.Max(1, chambers);
+      // the chamber under the pointer rides the cylinder round to the hammer, the short way (the app's own arithmetic)
+      int chamber = ((Mathf.RoundToInt((p - Mathf.Clamp01(value)) * n) % n) + n) % n;
+      float t0 = ((1f / n - chamber / (float)n) % 1f + 1f) % 1f;
+      float best = t0;
+      foreach (var cand in new float[] { t0 - 1f, t0, t0 + 1f }) if (Mathf.Abs(cand - value) < Mathf.Abs(best - value)) best = cand;
+      SpinTo(best);
+    }
+    // the pointer's angle around the hub, as a fraction of a turn clockwise from the top (the hammer side)
+    bool PointerTurn(PointerEventData e, out float p) {
+      p = 0f;
+      var rt = transform as RectTransform;
+      if (rt == null) return false;
+      Vector2 local;
+      if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(rt, e.position, e.pressEventCamera, out local)) return false;
+      var r = rt.rect;
+      var hub = new Vector2(r.xMin + centerAnchor.x * r.width, r.yMin + centerAnchor.y * r.height);
+      var d = local - hub;
+      if (d.sqrMagnitude < 1f) return false;
+      p = (Mathf.Atan2(d.x, d.y) / (Mathf.PI * 2f) + 1f) % 1f;
+      return true;
+    }
+    void Update() {
+      if (spinT0 < 0f) return;
+      float u = Mathf.Clamp01((Time.unscaledTime - spinT0) / Mathf.Max(0.01f, spinSeconds));
+      // easeOutBack — a heavy cylinder: slow wind-up, weighty travel, a small overshoot clunk as it seats
+      const float c1 = 1.70158f;
+      float e2 = 1f + (c1 + 1f) * Mathf.Pow(u - 1f, 3f) + c1 * Mathf.Pow(u - 1f, 2f);
+      float v = spinFrom + (spinTo - spinFrom) * e2;
+      value = ((v % 1f) + 1f) % 1f;
+      if (u >= 1f) spinT0 = -1f;
+      Apply();
+    }
     public void Apply() {
       int n = Mathf.Max(1, chambers);
       if (cylinder != null) cylinder.localRotation = Quaternion.Euler(0f, 0f, -Mathf.Clamp01(value) * 360f);
@@ -10390,11 +10451,12 @@ namespace PatternBreak {
    the app's own selection story, drivable. */
 const EMOTE_WHEEL_RUNTIME = `using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
 
 namespace PatternBreak {
   [AddComponentMenu("UI Kit Maker/Emote Wheel")]
   [ExecuteAlways]
-  public class PatternBreakEmoteWheel : MonoBehaviour {
+  public class PatternBreakEmoteWheel : MonoBehaviour, IPointerDownHandler {
     [Tooltip("The picked sector (0-based, clockwise from the top-right) — rotates the Armed highlight there, arms that emote and shows it in the hub.")]
     public int sector = 0;
     [Tooltip("How many sectors this wheel was exported with.")]
@@ -10413,7 +10475,38 @@ namespace PatternBreak {
     public Image hub;
     [Tooltip("The hub's own resting cut (generated) — worn while the pick rests on its shipped sector, so nothing drifts.")]
     public Sprite hubRest;
+    /* the POINTER picks it (the owner, 9/30: "the weapon wheel and the
+       emote wheel aren't active in the Playground") — the app's own Play
+       behavior: click a sector and it is picked at once (emotes are
+       fast, no spin). Play mode only, EventSystem only (the kit never
+       polls input); the dial API underneath is unchanged. */
+    [Tooltip("Play mode: clicking a sector picks it, instantly (the app's own behavior). Off = the pick is driven only by code or the Sector field.")]
+    public bool pointerPicks = true;
     public void SetSector(int i) { int n = Mathf.Max(1, sectors); sector = ((i % n) + n) % n; Apply(); }
+    public void OnPointerDown(PointerEventData e) {
+      if (!pointerPicks || !Application.isPlaying) return;
+      float p;
+      if (!PointerTurn(e, out p)) return;
+      SetSector(Mathf.FloorToInt(p * Mathf.Max(1, sectors)));
+    }
+    /* the pointer's angle around the hub, as a fraction of a turn
+       clockwise from the top — sector 0 spans the first slice past
+       twelve o'clock, the app's own numbering. The hub is the Armed
+       highlight's centre (a full-disc wedge parked ON the hub); the
+       root's centre when no highlight rides. */
+    bool PointerTurn(PointerEventData e, out float p) {
+      p = 0f;
+      var rt = transform as RectTransform;
+      if (rt == null) return false;
+      Vector2 local;
+      if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(rt, e.position, e.pressEventCamera, out local)) return false;
+      Vector2 hub = rt.rect.center;
+      if (highlight != null) { var lh = rt.InverseTransformPoint(highlight.TransformPoint(highlight.rect.center)); hub = new Vector2(lh.x, lh.y); }
+      var d = local - hub;
+      if (d.sqrMagnitude < 1f) return false;
+      p = (Mathf.Atan2(d.x, d.y) / (Mathf.PI * 2f) + 1f) % 1f;
+      return true;
+    }
     public void SetValue(float v) { SetSector(Mathf.FloorToInt(Mathf.Clamp(v, 0f, 0.999f) * Mathf.Max(1, sectors))); }
     public void Apply() {
       int n = Mathf.Max(1, sectors);
@@ -13700,9 +13793,9 @@ ${hasBoards ? `
 > load). On import the kit also audits the package caches and names any
 > already-altered file in the Console. To heal the package, close
 > Unity, delete that package's folder under **Library/PackageCache**,
-> and reopen — Unity re-extracts it clean. If the warning returns, run
-> **Tools > PatternBreak > Audit Immutable Packages** and send us the
-> Console lines it prints — they name the exact file and the writer.
+> and reopen — Unity re-extracts it clean. If the warning returns, send
+> us the Console lines the import's package audit prints — they name
+> the exact file and the writer.
 
 ## Driving the animations
 
@@ -14033,10 +14126,10 @@ prefab rigs land — the Hierarchy suffixes are the always-current truth.
 > hover goes quiet until you click the game once more. That's the
 > editor, not the kit: a real build always has focus, so players never
 > see this. The kit prints a one-line Console reminder when the gate
-> actually bites. Prefer it gone entirely? **Tools > PatternBreak >
-> Route All Editor Input To Game View** flips the Input System's own
-> editor setting so input flows regardless of focus — run it again to
-> restore the Unity default.
+> actually bites. Prefer it gone entirely? Unity's own setting does it:
+> **Edit > Project Settings > Input System Package > Editor Input
+> Behavior In Play Mode**, set to *All Device Input Always Goes To Game
+> View*.
 
 **Scene pieces vs Prefabs — the working contract.** A board scene is a
 FINISHED composition: every piece on it was crafted at its exact size,
@@ -14675,8 +14768,8 @@ const UNITY_IMPORTER = `// UI Kit Maker / PatternBreak — kit importer. Editor-
 //      at the same assets. The manifest carries a sha256 per sprite so the
 //      receipt reports new / restyled / unchanged exactly.
 //  I3  nothing disappears silently — pieces removed from the kit stay on
-//      disk, are listed loudly, and are deleted only from the explicit
-//      Tools > PatternBreak > Review Orphaned Kit Files action.
+//      disk, are listed loudly in the import receipt, and are deleted
+//      only by the dev, from the Project window.
 //  I4  idempotent settings — import settings are applied only when they
 //      differ, so repeat imports don't churn the asset database.
 //  I5  prefabs generate once — wired examples are created on FIRST import
@@ -15151,10 +15244,10 @@ namespace PatternBreak {
        and files already ALTERED on disk inside an immutable package's
        cache (drift that landed through a non-save road, or in a session
        before this kit existed). The kit itself only ever writes under
-       Assets/ — this is a reporter and changes nothing. */
-    const string AuditPkgMenu = "Tools/PatternBreak/Audit Immutable Packages";
-    [MenuItem(AuditPkgMenu, false, 901)]
-    public static void AuditImmutablePackages() { AuditImmutablePackagesNow(true); }
+       Assets/ — this is a reporter and changes nothing. It runs by
+       itself once per editor session after an import; the menu entry
+       that re-ran it on demand retired with the 9/30 menu cut (the
+       owner: the menu holds only what this export needs). */
     public static void AuditImmutablePackagesNow(bool always) {
       if (!always && SessionState.GetBool("pbPkgAudited", false)) return;
       SessionState.SetBool("pbPkgAudited", true);
@@ -15255,80 +15348,6 @@ namespace PatternBreak {
       try { var v = p.GetValue(iset, null); return v != null && v.ToString() == "AllDeviceInputAlwaysGoesToGameView"; }
       catch (Exception) { return false; }
     }
-    /* Round 18 — the editor's input-focus gate, removable BY CHOICE.
-       This toggle sets the package's own "All Device Input Always Goes
-       To Game View" option so editor input flows regardless of focus.
-       STRICTLY an explicit menu action — the import must never touch
-       project settings uninvited (the same principle as never editing
-       immutable packages). Editor-only either way: builds never had the
-       gate. */
-    const string RouteInputMenu = "Tools/PatternBreak/Route All Editor Input To Game View";
-    [MenuItem(RouteInputMenu, false, 900)]
-    static void RouteEditorInput() {
-      var iset = InputSettingsLive();
-      var prop = EditorBehaviorProp(iset);
-      if (prop == null) { Debug.LogWarning("UI Kit Maker: this project's Input System package does not expose the editor input-behavior setting (or the package is absent) — nothing changed. The gate still lifts the manual way: click the Game view once in Play mode."); return; }
-      bool routed = RoutedAllInput(iset, prop);
-      var uobj = iset as UnityEngine.Object;
-      var isetPath = uobj != null ? AssetDatabase.GetAssetPath(uobj).Replace("\\\\", "/") : "";
-      /* BOTH directions mint (round 33): the un-route toggle used to be
-         willing to write whatever asset the live settings resolved to —
-         on a project whose routed state came from a package-resident
-         asset, that write would alter an immutable package. Any write
-         goes to an Assets/ mint, period. */
-      if (uobj != null && !isetPath.StartsWith("Assets/")) {
-        /* the project runs on the package's defaults — in-memory (path
-           empty) OR the package's own asset (path under Packages/). A
-           value set on the first evaporates on the next domain reload; a
-           write to the second ALTERS AN IMMUTABLE PACKAGE (the exact
-           Unity warning the owner screenshotted — we only ever write
-           under Assets/, as policy). Mint the same settings asset the
-           package's Project Settings page creates on first edit, and say
-           so out loud. */
-        var asset = UnityEngine.Object.Instantiate(uobj);
-        asset.name = "InputSystem.inputsettings";
-        AssetDatabase.CreateAsset(asset, "Assets/InputSystem.inputsettings.asset");
-        var tIS2 = Type.GetType("UnityEngine.InputSystem.InputSystem, Unity.InputSystem");
-        var pSet = tIS2 != null ? tIS2.GetProperty("settings", BindingFlags.Public | BindingFlags.Static) : null;
-        if (pSet != null && pSet.CanWrite) pSet.SetValue(null, asset, null);
-        iset = asset;
-        prop = EditorBehaviorProp(iset); // re-bind on the asset instance
-        if (prop == null) return;
-        Debug.Log("UI Kit Maker: created Assets/InputSystem.inputsettings.asset — the project had no Input System settings asset, and the setting needs one to persist. (This is the same asset Edit > Project Settings > Input System Package creates.)");
-      }
-      try {
-        prop.SetValue(iset, Enum.Parse(prop.PropertyType, routed ? "PointersAndKeyboardsRespectGameViewFocus" : "AllDeviceInputAlwaysGoesToGameView"), null);
-      } catch (Exception e) { Debug.LogWarning("UI Kit Maker: could not change the editor input behavior (" + e.Message + ") — nothing changed."); return; }
-      var dirty = iset as UnityEngine.Object;
-      if (dirty != null) { EditorUtility.SetDirty(dirty); AssetDatabase.SaveAssetIfDirty(dirty); }
-      SyncRouteMenuCheck(); // the checkmark follows the toggle — stamped OUTSIDE any menu-layout pass
-      Debug.Log(routed
-        ? "UI Kit Maker: editor input RESPECTS Game view focus again (the Unity default). In Play mode, click the game once before hover answers."
-        : "UI Kit Maker: ALL editor input now goes to the Game view in Play mode — hover and press answer without clicking the game first. Editor-only behavior; builds are unaffected either way. Run this menu again to restore the Unity default.");
-    }
-    [MenuItem(RouteInputMenu, true)]
-    static bool RouteEditorInputCheck() {
-      /* VALIDATE ONLY — zero side effects (round 26, owner Console).
-         Menu.SetChecked used to live here, but a validator runs while
-         the editor is MID-MENU-LAYOUT (an IMGUI pass), and poking the
-         menu tree from inside it is exactly the re-entrancy IMGUI
-         forbids — the owner's Console filled with anonymous
-         "EndLayoutGroup: BeginLayoutGroup must be called first" errors.
-         The checkmark is stamped OUTSIDE GUI instead: once per domain
-         reload (ArmRouteMenuCheck) and on every toggle. If the setting
-         is flipped on the Project Settings page directly, the checkmark
-         catches up on the next reload — a stale tick is cosmetic; the
-         layout spam was not. */
-      return EditorBehaviorProp(InputSettingsLive()) != null;
-    }
-    /* the ONE place the menu checkmark is written — never from a
-       validator, never from any OnGUI-adjacent context */
-    static void SyncRouteMenuCheck() {
-      var isetC = InputSettingsLive();
-      UnityEditor.Menu.SetChecked(RouteInputMenu, RoutedAllInput(isetC, EditorBehaviorProp(isetC)));
-    }
-    [InitializeOnLoadMethod]
-    static void ArmRouteMenuCheck() { EditorApplication.delayCall += SyncRouteMenuCheck; }
     /* the focus-gate HINT (round 18), living EDITOR-SIDE since round 19 —
        the runtime keeps only StateFx.editorPointerSeen. One Console line,
        once per Play, only when the gate actually bites: kit pieces
@@ -15373,8 +15392,10 @@ namespace PatternBreak {
       if (StateFx.editorPointerSeen) { fgUnfocusedAt = -1.0; return; } // events flow anyway — no gate in effect
       if (nowT - fgUnfocusedAt < 2.5) return;
       fgHintShown = true;
+      /* the one-click menu toggle for this setting retired with the 9/30
+         menu cut — the hint points at Unity's own settings page instead */
       Debug.Log(propW != null
-        ? "UI Kit Maker: hover and press are quiet because the GAME VIEW isn't focused — a Unity editor input rule (the Input System routes pointer events by Game-view focus), not the kit. Click the game once and sweep again; a real build never has this gate. Optional: Tools > PatternBreak > Route All Editor Input To Game View."
+        ? "UI Kit Maker: hover and press are quiet because the GAME VIEW isn't focused — a Unity editor input rule (the Input System routes pointer events by Game-view focus), not the kit. Click the game once and sweep again; a real build never has this gate. Optional: Edit > Project Settings > Input System Package > Editor Input Behavior In Play Mode = All Device Input Always Goes To Game View."
         : "UI Kit Maker: hover and press are quiet because the GAME VIEW isn't focused — a Unity editor input rule (the Input System routes pointer events by Game-view focus), not the kit. Click the game once and sweep again; a real build never has this gate.");
     }
 
@@ -15732,7 +15753,7 @@ namespace PatternBreak {
       // missing state wiring is added, stale label dress is re-applied —
       // in place, surgical, no menu hunt (fresh generations are current
       // by construction and skip this)
-      if (prefabsReady && !prefabsNew) { MaintainExamplePrefabs(root, manifest, prev); GenerateMissingPrefabs(root, manifest, prev); HealScrollView(root, manifest); HealScrollbar(root, manifest); ShelveIntoChapters(root); }
+      if (prefabsReady && !prefabsNew) { MaintainExamplePrefabs(root, manifest, prev); ConvergeBarsOntoWidthRoad(root, manifest); GenerateMissingPrefabs(root, manifest, prev); HealScrollView(root, manifest); HealScrollbar(root, manifest); ShelveIntoChapters(root); }
       /* the renamed files' short-named twins go LAST — the maintenance
          pass above has re-pointed every prefab reference off them */
       foreach (var twin in renameTwins) AssetDatabase.DeleteAsset(root + "/" + twin);
@@ -15936,7 +15957,7 @@ namespace PatternBreak {
       if (orphans.Count > 0)
         Debug.LogWarning(line + "\\n" + orphans.Count + " piece(s) are no longer part of this kit but STAY on disk (nothing is deleted without you): "
           + string.Join(", ", orphans.ToArray())
-          + "\\nRemove them via Tools > PatternBreak > Review Orphaned Kit Files.");
+          + "\\nThey are safe to delete from the Project window once nothing in your scenes uses them.");
       else
         Debug.Log(line);
       if (missing > 0)
@@ -16051,8 +16072,11 @@ namespace PatternBreak {
         Debug.LogWarning("UI Kit Maker: no kit-manifest.json in this project — drop a kit in first.");
         return;
       }
-      if (!EditorUtility.DisplayDialog("UI Kit Maker — regenerate example prefabs",
-        "Rebuilds the GENERATED examples in each kit's Prefabs folder (PrimaryButton, Chip, ProgressBar and friends) from the current sprites and the styled face. Same-named generated prefabs are replaced in place — placed instances restyle. Prefabs you created or renamed are not touched.",
+      /* the dialog's copy (the owner, 9/30: "fix the copy") — plain words,
+         the prefab folder as it is shelved today (Buttons, Sliders and
+         Progress...), no stale file names, no dashes */
+      if (!EditorUtility.DisplayDialog("UI Kit Maker: regenerate the example prefabs",
+        "This rebuilds the example prefabs the kit generated in its Prefabs folder from the current sprites and type. Each generated prefab is replaced in place, so copies you already placed in scenes pick up the new look. Prefabs you created, renamed or moved are not touched.",
         "Regenerate", "Cancel")) return;
       foreach (var guid in manifests) {
         var mPath = AssetDatabase.GUIDToAssetPath(guid);
@@ -18695,34 +18719,10 @@ namespace PatternBreak {
       }
     }
 
-    /* ── I3's explicit hand: review and remove, never automatic ── */
-    [MenuItem("Tools/PatternBreak/Review Orphaned Kit Files")]
-    public static void ReviewOrphans() {
-      var manifests = AssetDatabase.FindAssets("kit-manifest t:TextAsset");
-      var all = new List<string>();
-      foreach (var guid in manifests) {
-        var mPath = AssetDatabase.GUIDToAssetPath(guid);
-        var root = Path.GetDirectoryName(mPath).Replace("\\\\", "/");
-        var lockPath = root + "/kit.lock.json";
-        if (!File.Exists(lockPath)) continue;
-        PBLock rec = null;
-        try { rec = JsonUtility.FromJson<PBLock>(File.ReadAllText(lockPath)); } catch (Exception) { continue; }
-        if (rec == null || rec.orphans == null) continue;
-        foreach (var o in rec.orphans)
-          if (!string.IsNullOrEmpty(o) && File.Exists(root + "/" + o)) all.Add(root + "/" + o);
-      }
-      if (all.Count == 0) {
-        EditorUtility.DisplayDialog("UI Kit Maker", "No orphaned kit files — every sprite on disk is part of the current kit.", "Nice");
-        return;
-      }
-      var listing = string.Join("\\n", all.ToArray());
-      if (EditorUtility.DisplayDialog("UI Kit Maker — orphaned kit files",
-        "These " + all.Count + " file(s) were part of an earlier version of the kit and are no longer in it. They are safe to remove IF nothing in your scenes still uses them.\\n\\n" + listing,
-        "Remove them", "Keep everything")) {
-        foreach (var p in all) AssetDatabase.DeleteAsset(p);
-        Debug.Log("UI Kit Maker: removed " + all.Count + " orphaned file(s).");
-      }
-    }
+    /* ── I3's explicit hand: orphans are named in the import receipt and
+       deleted only by the dev, from the Project window. The Review
+       Orphaned Kit Files menu entry that batch-deleted them retired
+       with the 9/30 menu cut; the receipt still lists every file. ── */
 
     /* ── generated examples — REAL sprite references (a text prefab can
        never carry the GUIDs your Unity mints at import; building them
@@ -19249,10 +19249,9 @@ namespace PatternBreak {
        fonts/kerning-overrides.json so the next zip re-applies it. */
     static bool s_kernSyncing;
     /* saving the font asset IS the gesture — no menu item to remember
-       (owner: "running a tool is a bit cumbersome") */
+       (owner: "running a tool is a bit cumbersome"); the manual menu
+       entry retired with the 9/30 menu cut, the save hook stays */
     public static void SyncKerningQuiet() { SyncKerningCore(true); }
-    [MenuItem("Tools/PatternBreak/Sync Label Kerning (usually automatic)")]
-    public static void SyncKerning() { SyncKerningCore(false); }
     static void SyncKerningCore(bool auto) {
       if (s_kernSyncing) return; // our own SaveAssets re-enters the save hook
       s_kernSyncing = true;
@@ -20835,6 +20834,9 @@ namespace PatternBreak {
           rigEW.lit = litEW.ToArray();
           rigEW.sectors = slotsEW.Count;
           rigEW.highlight = (RectTransform)hiEW;
+          // the pointer picks in Play (9/30): the wheel's body must catch the raycast
+          var bodyEW = BodyImage(go);
+          if (bodyEW != null) bodyEW.raycastTarget = true;
           var hubEW = go.transform.Find("Selected emote");
           rigEW.hub = hubEW != null ? hubEW.GetComponent<Image>() : null;
           if (rigEW.hub != null) rigEW.hubRest = rigEW.hub.sprite;
@@ -21087,6 +21089,8 @@ namespace PatternBreak {
           float orbitWW = 0f;
           foreach (var aWW in m.assets) if (aWW != null && aWW.component == "weaponwheel" && aWW.part != null && aWW.part.EndsWith("-lit") && aWW.railW > 1f) { orbitWW = aWW.railW; break; }
           var bodyWW = BodyImage(go);
+          // the pointer arms in Play (9/30): the wheel's body must catch the raycast
+          if (bodyWW != null) bodyWW.raycastTarget = true;
           if (orbitWW > 1f && bodyWW != null && bodyWW.sprite != null && bodyWW.sprite.rect.width > 2f) {
             rigWW.orbitFx = orbitWW / bodyWW.sprite.rect.width;
             rigWW.orbitFy = orbitWW / bodyWW.sprite.rect.height;
@@ -21661,6 +21665,109 @@ namespace PatternBreak {
        pose until their prefabs regenerate on the width road. SCOPE
        DISCIPLINE: a dev's own custom fill material never matches either
        test and is never touched. ── */
+    /* ── the WIDTH-ROAD convergence for KEPT bars (the owner, 9/30: "we're
+       still getting the old cap progress bar on some assets" — ProgressBar,
+       EmblemBar and Timerbar in a kept Playground). A bar prefab generated
+       before round 58 rides the legacy Cap/Filled rig FOREVER: the
+       rounded-head retrofit in MaintainExamplePrefabs skips anything
+       "already rigged", and nothing else ever re-armed it — so its fill
+       kept the scissor cut and the parked bead while every fresh build
+       (and the app) drew the bordered stadium. OURS-ONLY, exactly the
+       fresh build's own gate (WireBarCap/WireBarBodies): the rig is our
+       KitBarFill still on the legacy road (barMode 0), its fill wears OUR
+       sprite (under root/assets), that sprite NOW carries borders, and
+       the manifest row names its center mode. Then the rig arms the width
+       road, the legacy Cap/Nub children WE built retire (the road never
+       draws them), a kept Slider hands the rig its value the fresh way
+       (listener, not fillRect — the round-58 one-writer rule), and Apply
+       re-seats the rect. A fill re-sprited to the dev's own art, or a rig
+       whose row ships no mode, is theirs and stays. Idempotent: an armed
+       rig never matches again. ── */
+    static bool OurKitSprite(Sprite sp, string root) {
+      return sp != null && AssetDatabase.GetAssetPath(sp).Replace("\\\\", "/").StartsWith(root + "/assets/");
+    }
+    static bool WidthRoadDue(KitBarFill kb, string root, PBManifest m) {
+      if (kb == null || kb.barMode != 0 || kb.fill == null || kb.fill.sprite == null) return false;
+      var sp = kb.fill.sprite;
+      if (!OurKitSprite(sp, root) || sp.border.x + sp.border.z <= 1f) return false;
+      var row = RowOfSprite(m, sp);
+      return row != null && row.barMode != null;
+    }
+    static int ConvergeBarsOntoWidthRoad(string root, PBManifest m) {
+      var pdirWR = root + "/Prefabs";
+      if (m == null || m.assets == null || !AssetDatabase.IsValidFolder(pdirWR)) return 0;
+      int converged = 0;
+      var namesWR = new List<string>();
+      foreach (var guidWR in AssetDatabase.FindAssets("t:Prefab", new string[] { pdirWR })) {
+        var pathWR = AssetDatabase.GUIDToAssetPath(guidWR);
+        var assetWR = AssetDatabase.LoadAssetAtPath<GameObject>(pathWR);
+        if (assetWR == null || PrefabUtility.GetPrefabAssetType(assetWR) == PrefabAssetType.Variant) continue;
+        bool wantWR = false;
+        foreach (var kbWR in assetWR.GetComponentsInChildren<KitBarFill>(true))
+          if (WidthRoadDue(kbWR, root, m)) { wantWR = true; break; }
+        if (!wantWR) continue;
+        var contentsWR = PrefabUtility.LoadPrefabContents(pathWR);
+        try {
+          int armedWR = 0;
+          foreach (var kbWR in contentsWR.GetComponentsInChildren<KitBarFill>(true)) {
+            if (!WidthRoadDue(kbWR, root, m)) continue;
+            var rowWR = RowOfSprite(m, kbWR.fill.sprite);
+            /* the dev's staged value survives: the rig's own field when it
+               has one, else the legacy cut read back through the body map
+               (the round-48 cold-load rule) */
+            float spanWR = kbWR.bodyU1 - kbWR.bodyU0 > 0.05f ? kbWR.bodyU1 - kbWR.bodyU0 : 1f;
+            float vWR = kbWR.value >= 0f ? kbWR.value
+              : Mathf.Clamp01((kbWR.fill.fillAmount - (kbWR.fromRight ? 1f - kbWR.bodyU1 : kbWR.bodyU0)) / spanWR);
+            kbWR.barMode = rowWR.barMode == "tiled" ? 2 : 1;
+            kbWR.stretchRun = false;
+            /* the ramped class (a nub atom shipped beside the fill — the VS
+               bar) keeps its floor ink the way a fresh build wires it: the
+               ONE mercury Image wears the nub below one cap-diameter */
+            var nubImgWR = kbWR.nub != null ? kbWR.nub.GetComponent<Image>() : null;
+            if (nubImgWR != null && OurKitSprite(nubImgWR.sprite, root)) { kbWR.floorSprite = nubImgWR.sprite; kbWR.mercurySprite = kbWR.fill.sprite; }
+            // the legacy children WE built step down — the width road never draws them
+            var capImgWR = kbWR.capHead != null ? kbWR.capHead.GetComponent<Image>() : null;
+            if (capImgWR != null && OurKitSprite(capImgWR.sprite, root)) UnityEngine.Object.DestroyImmediate(kbWR.capHead.gameObject);
+            kbWR.capHead = null;
+            if (nubImgWR != null && OurKitSprite(nubImgWR.sprite, root)) UnityEngine.Object.DestroyImmediate(kbWR.nub.gameObject);
+            kbWR.nub = null;
+            // the body map rides the manifest, exactly like a fresh build
+            if (rowWR.body != null && rowWR.body.w > 2f && kbWR.fill.sprite.rect.width > 2f) {
+              kbWR.bodyU0 = Mathf.Clamp01(rowWR.body.x / kbWR.fill.sprite.rect.width);
+              kbWR.bodyU1 = Mathf.Clamp01((rowWR.body.x + rowWR.body.w) / kbWR.fill.sprite.rect.width);
+            }
+            /* a kept SLIDER drove the Filled rect through Slider.fillRect —
+               on the width road that is the second writer that smashed the
+               mercury past the knob (round 58). It talks to the rig the way
+               a fresh build does: a persistent onValueChanged → SetValue
+               listener, and the knob-seated run (round 62) read off the
+               handle's own slide area. */
+            var slWR = kbWR.GetComponentInParent<Slider>();
+            if (slWR != null && slWR.fillRect == kbWR.fill.rectTransform) {
+              slWR.fillRect = null;
+              bool wiredWR = false;
+              for (int iWR = 0; iWR < slWR.onValueChanged.GetPersistentEventCount(); iWR++)
+                if (slWR.onValueChanged.GetPersistentTarget(iWR) == kbWR && slWR.onValueChanged.GetPersistentMethodName(iWR) == "SetValue") { wiredWR = true; break; }
+              if (!wiredWR) {
+                UnityEditor.Events.UnityEventTools.AddPersistentListener(slWR.onValueChanged, kbWR.SetValue);
+                slWR.onValueChanged.SetPersistentListenerState(slWR.onValueChanged.GetPersistentEventCount() - 1, UnityEngine.Events.UnityEventCallState.EditorAndRuntime);
+              }
+              var areaWR = kbWR.transform as RectTransform;
+              var slideWR = slWR.handleRect != null ? slWR.handleRect.parent as RectTransform : null;
+              if (areaWR != null && slideWR != null && slideWR != areaWR && slideWR.offsetMin.x - areaWR.offsetMin.x > 0.5f)
+                kbWR.stub = slideWR.offsetMin.x - areaWR.offsetMin.x;
+              vWR = Mathf.Clamp01(slWR.value);
+            }
+            kbWR.SetValue(vWR);
+            armedWR++;
+          }
+          if (armedWR > 0) { PrefabUtility.SaveAsPrefabAsset(contentsWR, pathWR); converged += armedWR; namesWR.Add(Path.GetFileNameWithoutExtension(pathWR)); }
+        } finally { PrefabUtility.UnloadPrefabContents(contentsWR); }
+      }
+      if (converged > 0)
+        Debug.Log("UI Kit Maker: moved " + converged + " kept bar fill(s) onto the width road (" + string.Join(", ", namesWR.ToArray()) + ") — the mercury is the bordered stadium sprite now, its own 9-slice caps round the ends and the rig drives the rect's width, so the old parked cap bead and its flat cut are gone. Placed copies (the Playground included) picked it up. Keep driving Value on KitBarFill, or SetValue; a raw fillAmount write still adopts.");
+      return converged;
+    }
     static void HealBarClipRelics(string root) {
       var matBC = AssetDatabase.LoadAssetAtPath<Material>(root + "/fonts/Bar Clip.mat");
       bool strayShader = File.Exists(root + "/Runtime/UIKitBarClip.shader");

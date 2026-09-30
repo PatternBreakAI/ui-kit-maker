@@ -411,18 +411,33 @@ if (!/references: \["Unity.TextMeshPro", "UnityEngine.UI"\]/.test(src))
   errors.push("the Runtime asmdef must reference ONLY the two UI staples — a package reference there is how round 19's compile break happened");
 if (/UnityEngine\.Input\.|Input\.GetMouse|Input\.mousePosition|Mouse\.current|Pointer\.current/.test(fx))
   errors.push("StateFx must never poll input — hover/press ride the EventSystem alone (round-18 verified contract)");
-/* round-18 menu action: removing the gate is an EXPLICIT choice, never an
-   import side effect, and the hint's menu reference must name the real menu. */
-if (!/const string RouteInputMenu = "Tools\/PatternBreak\/Route All Editor Input To Game View";/.test(cs)
-    || !/STRICTLY an explicit menu action/.test(cs))
-  errors.push("the Route All Editor Input To Game View menu action (explicit, never automatic) is missing (round 18)");
+/* the 9/30 MENU CUT (the owner: "remove everything we don't need for THIS
+   particular export from Tools > PatternBreak"): the round-18 route-input
+   toggle, the orphan review, the manual kerning sync and the package
+   audit entry all retired — the import never touches project settings
+   (that principle stands), and the focus hint now points at Unity's own
+   settings page instead of a kit menu. The focus-gate WATCHER still reads
+   the Input System by reflection only. */
+if (/Route All Editor Input To Game View|Review Orphaned Kit Files|Sync Label Kerning|Audit Immutable Packages/.test(cs))
+  errors.push("a retired Tools > PatternBreak entry is back (the 9/30 menu cut: route input, orphan review, kerning sync, package audit)");
+if (/AssetDatabase\.CreateAsset\(asset, "Assets\/InputSystem\.inputsettings\.asset"\)/.test(cs) || /InputSystem\.inputsettings/.test(cs))
+  errors.push("the importer must never mint or write Input System settings — the route-input toggle retired with the 9/30 menu cut, and imports never touch project settings");
 if (!/Type\.GetType\("UnityEngine\.InputSystem\.InputSystem, Unity\.InputSystem"\)/.test(cs)
     || !/GetProperty\("editorInputBehaviorInPlayMode"/.test(cs))
-  errors.push("the route-input machinery must reach the Input System by REFLECTION only (round 19 P0 — direct references break compiles on other package versions)");
-if (!/AssetDatabase\.CreateAsset\(asset, "Assets\/InputSystem\.inputsettings\.asset"\)/.test(cs))
-  errors.push("the route-input menu must mint the settings asset when the project runs on in-memory defaults — the change would evaporate otherwise (round 18)");
-if (cs.includes("Tools > PatternBreak > Route All Editor Input To Game View") !== true)
-  errors.push("the focus hint must point at the real menu item by its exact name (round 18)");
+  errors.push("the focus-gate watcher must reach the Input System by REFLECTION only (round 19 P0 — direct references break compiles on other package versions)");
+if (cs.includes("Optional: Edit > Project Settings > Input System Package > Editor Input Behavior In Play Mode = All Device Input Always Goes To Game View") !== true)
+  errors.push("the focus hint must point at Unity's own Input System setting by its exact page and name (round 18, re-pointed by the 9/30 menu cut)");
+/* the menu that REMAINS, by exact name: the four entries every export
+   needs; Rebuild Kit Board Scenes stays in the template and is stripped
+   at push time for a zip with no boards (nothing for it to rebuild). */
+for (const menuKeep of ["Kit Status", "Reapply Kit Import Settings", "Regenerate Example Prefabs", "Rebuild Kit Playground Scene", "Rebuild Kit Board Scenes"])
+  if (!cs.includes(`[MenuItem("Tools/PatternBreak/${menuKeep}")]`))
+    errors.push(`Tools > PatternBreak > ${menuKeep} is missing from the importer (the 9/30 menu cut keeps exactly these)`);
+if (!/const boardMenuAttr = '    \[MenuItem\("Tools\/PatternBreak\/Rebuild Kit Board Scenes"\)\]\\n';/.test(src)
+    || !/UNITY_IMPORTER\.replace\(boardMenuAttr, ""\)/.test(src))
+  errors.push("Rebuild Kit Board Scenes must be stripped from the importer at push time when the zip carries no boards (the 9/30 menu cut)");
+if ((cs.match(/\[MenuItem\("Tools\/PatternBreak\//g) || []).length !== 5)
+  errors.push("Tools > PatternBreak must carry exactly five entries in the template (Kit Status, Reapply, Regenerate, Rebuild Playground, Rebuild Board Scenes) — the 9/30 menu cut");
 
 /* ── round-19 P0 CLASS INVARIANT: version-fragile package APIs must never
    be referenced directly in ANY emitted C#. InputSettings.EditorInputBehavior
@@ -449,8 +464,8 @@ if (cs.includes("Tools > PatternBreak > Route All Editor Input To Game View") !=
   }
 }
 if (!/Testing hover & press in the editor/.test(src)
-    || !/Route All Editor Input To Game View\*\*/.test(src))
-  errors.push("the README's editor-testing box (the focus-gate story + the menu pointer) is missing (round 18)");
+    || !/Input System Package > Editor Input\n> Behavior In Play Mode\*\*/.test(src))
+  errors.push("the README's editor-testing box (the focus-gate story + the pointer at Unity's own setting) is missing (round 18, re-pointed by the 9/30 menu cut)");
 
 /* round-18: the ghost joystick is a PLACEABLE RIG (owner: "make sure to
    include Joystick-ghost in the prefabs") — ghost base + thumb sprites
@@ -827,20 +842,18 @@ if (!/ws1\.width = ws0\.width; ws1\.hoverArmed = ws0\.hoverArmed;/.test(cs))
    is mid-menu-layout (an IMGUI pass), and poking the menu tree from
    inside it is the re-entrancy IMGUI forbids: the owner's Console
    filled with anonymous "EndLayoutGroup: BeginLayoutGroup must be
-   called first" errors. The checkmark now writes in exactly ONE place
-   (SyncRouteMenuCheck), stamped after domain reload and on toggle. */
+   called first" errors. The route-input toggle (and with it the only
+   checkmark the menu ever carried) retired in the 9/30 menu cut, so the
+   invariant is now the general one: NO Menu.SetChecked anywhere in the
+   importer, and any MenuItem validator that ever lands must stay
+   side-effect free. */
 {
   const setChecked = (cs.match(/Menu\.SetChecked\(/g) ?? []).length;
-  if (setChecked !== 1 || !/static void SyncRouteMenuCheck\(\) \{[\s\S]{0,400}?Menu\.SetChecked\(/.test(cs))
-    errors.push(`Menu.SetChecked must be written in exactly ONE place (SyncRouteMenuCheck), found ${setChecked} (round 26 — the EndLayoutGroup Console spam)`);
-  const validator = cs.match(/\[MenuItem\(RouteInputMenu, true\)\]\s*\n\s*static bool RouteEditorInputCheck\(\) \{[\s\S]*?\n    \}/);
-  if (!validator) errors.push("the RouteInput menu validator is missing (round 26)");
-  else if (/SetChecked\(|DisplayDialog\(|CreateAsset\(|SaveAsset|SetDirty\(|Debug\.Log\(/.test(validator[0]))
-    errors.push("the RouteInput menu validator must stay side-effect FREE — no SetChecked/dialogs/asset writes/logs inside it (round 26)");
-  if (!/\[InitializeOnLoadMethod\]\s*\n\s*static void ArmRouteMenuCheck\(\) \{ EditorApplication\.delayCall \+= SyncRouteMenuCheck; \}/.test(cs))
-    errors.push("the reload-time checkmark stamp (ArmRouteMenuCheck via delayCall) is missing (round 26)");
-  if (!/SyncRouteMenuCheck\(\); \/\/ the checkmark follows the toggle/.test(cs))
-    errors.push("the toggle handler must re-stamp the menu checkmark after flipping the setting (round 26)");
+  if (setChecked !== 0)
+    errors.push(`Menu.SetChecked must not appear in the importer (the checkmarked route-input toggle retired in the 9/30 menu cut), found ${setChecked} (round 26 — the EndLayoutGroup Console spam)`);
+  for (const validator of cs.matchAll(/\[MenuItem\([^\n]*, true\)\]\s*\n\s*static bool \w+\(\) \{[\s\S]*?\n    \}/g))
+    if (/SetChecked\(|DisplayDialog\(|CreateAsset\(|SaveAsset|SetDirty\(|Debug\.Log\(/.test(validator[0]))
+      errors.push("a MenuItem validator must stay side-effect FREE — no SetChecked/dialogs/asset writes/logs inside it (round 26)");
 }
 
 /* round-26 item 1: the double "0:56". The round-24 cast-shadow bake fired
@@ -2078,9 +2091,12 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
       }
     }
   }
-  if (!/var isetPath = uobj != null \? AssetDatabase\.GetAssetPath\(uobj\)\.Replace\("\\\\", "\/"\) : "";/.test(cs)
-      || !/!isetPath\.StartsWith\("Assets\/"\)/.test(cs))
-    errors.push("the Input System settings write must mint an Assets/ copy whenever the live settings asset is NOT under Assets/ (package-resident settings would be altered in place) (immutable-package policy)");
+  /* the Input System settings are READ (the focus-gate watcher, by
+     reflection) and never written: the route-input toggle that wrote
+     them retired in the 9/30 menu cut, and a write into a package-
+     resident settings asset would alter an immutable package */
+  if (/prop\.SetValue\(iset|pSet\.SetValue\(null, asset/.test(cs))
+    errors.push("the importer must never WRITE the Input System settings (the route-input toggle retired in the 9/30 menu cut; package-resident settings would be altered in place) (immutable-package policy)");
   if (/if \(!routed && uobj != null && !isetPath\.StartsWith\("Assets\/"\)\)/.test(cs))
     errors.push("the Input System settings mint is direction-scoped again (!routed) — the un-route toggle would write a package-resident settings asset in place; mint on ANY non-Assets path (immutable-package policy, round 33)");
   if (!/settingsPath\.Replace\("\\\\", "\/"\)\.StartsWith\("Assets\/"\)/.test(cs))
@@ -3367,6 +3383,57 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the WeaponWheel prefab wiring left the importer (round 44, item 44)");
   if (!/var wwS = inst\.GetComponent<PatternBreakWeaponWheel>\(\);/.test(cs))
     errors.push("weaponwheel left the board value strike (round 44, item 44)");
+}
+
+/* ── 9/30 · the WHEELS ANSWER THE POINTER (the owner: "the weapon wheel
+   and the emote wheel aren't active in the Playground"): both rigs take
+   IPointerDownHandler — the weapon wheel spins the clicked chamber to the
+   hammer with the app's revolver ease, the emote wheel picks the clicked
+   sector at once. Play mode only, EventSystem only (no input polling —
+   the round-18 contract), the dial API untouched, a per-rig off switch,
+   and the builders make the body a raycast target so kept wheels arm
+   too. EventSystems lives in UnityEngine.UI, so the Runtime asmdef law
+   (two references) still holds. ── */
+{
+  for (const [name, re] of [["WEAPON_WHEEL_RUNTIME", /const WEAPON_WHEEL_RUNTIME = `([\s\S]*?)\n`;/], ["EMOTE_WHEEL_RUNTIME", /const EMOTE_WHEEL_RUNTIME = `([\s\S]*?)\n`;/]]) {
+    const body = (src.match(re) ?? [])[1] ?? "";
+    if (!/using UnityEngine\.EventSystems;/.test(body) || !/: MonoBehaviour, IPointerDownHandler \{/.test(body)
+        || !/public void OnPointerDown\(PointerEventData e\) \{\s*\n\s*if \(!pointer\w+ \|\| !Application\.isPlaying\) return;/.test(body)
+        || !/RectTransformUtility\.ScreenPointToLocalPointInRectangle\(rt, e\.position, e\.pressEventCamera, out local\)/.test(body))
+      errors.push(`${name} must arm from the pointer through IPointerDownHandler, Play-only, with a per-rig off switch (9/30)`);
+    if (/UnityEngine\.Input\.|Input\.GetMouse|Input\.mousePosition|Mouse\.current|Pointer\.current/.test(body))
+      errors.push(`${name} must never poll input — the pointer rides the EventSystem alone (round-18 contract, 9/30)`);
+  }
+  if (!/public bool pointerArms = true;/.test(src) || !/public float spinSeconds = 0\.78f;/.test(src) || !/public void SpinTo\(float target\) \{/.test(src)
+      || !/const float c1 = 1\.70158f;/.test(src))
+    errors.push("the weapon wheel's pointer spin (Pointer Arms, the 0.78 s revolver ease, SpinTo) left the runtime (9/30)");
+  if (!/public bool pointerPicks = true;/.test(src) || !/SetSector\(Mathf\.FloorToInt\(p \* Mathf\.Max\(1, sectors\)\)\);/.test(src))
+    errors.push("the emote wheel's pointer pick (Pointer Picks, floor(p × sectors)) left the runtime (9/30)");
+  if (!/if \(bodyEW != null\) bodyEW\.raycastTarget = true;/.test(cs) || !/if \(bodyWW != null\) bodyWW\.raycastTarget = true;/.test(cs))
+    errors.push("the wheel builders must make the body Image a raycast target, or the pointer never reaches the rig (9/30)");
+}
+
+/* ── 9/30 · KEPT BARS CONVERGE ONTO THE WIDTH ROAD (the owner: "we're
+   still getting the old cap progress bar on some assets"): a bar prefab
+   generated before round 58 sat on the legacy Cap/Filled rig forever —
+   the rounded-head retrofit skips "already rigged" and nothing re-armed
+   it. ConvergeBarsOntoWidthRoad runs after MaintainExamplePrefabs (the
+   sprite re-adoption must come first), OURS-ONLY on the fresh build's own
+   gate (barMode 0, our bordered sprite, a manifest row with a mode),
+   retires the Cap/Nub children we built, re-wires a kept Slider the
+   one-writer way, and says so. ── */
+{
+  if (!/static int ConvergeBarsOntoWidthRoad\(string root, PBManifest m\) \{/.test(cs)
+      || !/static bool WidthRoadDue\(KitBarFill kb, string root, PBManifest m\) \{\s*\n\s*if \(kb == null \|\| kb\.barMode != 0 \|\| kb\.fill == null \|\| kb\.fill\.sprite == null\) return false;/.test(cs)
+      || !/if \(!OurKitSprite\(sp, root\) \|\| sp\.border\.x \+ sp\.border\.z <= 1f\) return false;/.test(cs)
+      || !/return row != null && row\.barMode != null;/.test(cs))
+    errors.push("the kept-bar width-road convergence (or its ours-only gate: legacy rig, our bordered sprite, a row with a mode) left the importer (9/30)");
+  if (!/MaintainExamplePrefabs\(root, manifest, prev\); ConvergeBarsOntoWidthRoad\(root, manifest\); GenerateMissingPrefabs\(root, manifest, prev\);/.test(cs))
+    errors.push("ConvergeBarsOntoWidthRoad must run right after MaintainExamplePrefabs on the maintenance beat (re-adoption first, then the road) (9/30)");
+  if (!/if \(slWR != null && slWR\.fillRect == kbWR\.fill\.rectTransform\) \{\s*\n\s*slWR\.fillRect = null;/.test(cs))
+    errors.push("a converged kept Slider must drop fillRect and drive the rig through the listener — the round-58 one-writer rule (9/30)");
+  if (!/moved " \+ converged \+ " kept bar fill\(s\) onto the width road/.test(cs))
+    errors.push("the width-road convergence must say what it moved (9/30)");
 }
 
 /* ── ROUND 44 · S29 (staged roads — items 23 + 31 + vitalbar): the gated
