@@ -3436,6 +3436,35 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the width-road convergence must say what it moved (9/30)");
 }
 
+/* ── 9/30 · the ASSET STORE BUILD (the owner, on Jimi's "someone else's
+   game" point): a second, admin-only Unity download that is the full kit
+   with NO board scenes and NONE of the maker's uploaded pictures. The
+   kit page leaves boards, the picture seats and both picture registries
+   home and strips them (plus the stage backdrop and the board library)
+   from settings.json; the exporter names the zip, stamps the manifest,
+   and the README, the QuickStart and Kit Status all say which build a
+   zip is. The full download is untouched. ── */
+{
+  const kitPage = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../src/ui/KitPage.tsx"), "utf8");
+  if (!/build\?: "asset-store";/.test(src))
+    errors.push("EngineExportState must carry the build flag (build?: \"asset-store\") (9/30)");
+  if (!/download\(`\$\{safeSlug\}-engine-kit\$\{st\.build === "asset-store" \? "-asset-store" : ""\}\.zip`, makeZip\(rooted\)\);/.test(src))
+    errors.push("the Asset Store build must wear its name on the zip (9/30)");
+  if (!/\.\.\.\(st\.build \? \{ build: st\.build \} : \{\}\),\s*\n\s*assets: manifest,/.test(src))
+    errors.push("the manifest must carry the build stamp (9/30)");
+  if (!/public string generatorVersion; public string build;/.test(cs)
+      || !/m\.build == "asset-store" \? " \(Asset Store build: components only, no board scenes, no uploaded pictures\)" : ""/.test(cs))
+    errors.push("PBManifest.build and the Kit Status build phrase left the importer (9/30)");
+  if (!/\$\{st\.build === "asset-store" \? `\n> \*\*Asset Store build\.\*\*/.test(src) || !/\$\{st\.build === "asset-store" \? `\n> \*\*Asset Store build:\*\*/.test(src))
+    errors.push("the README and the QuickStart must name the Asset Store build (9/30)");
+  if (!/\.\.\.\(isAdmin \? \[\{\s*\n\s*id: "engine-store",/.test(kitPage))
+    errors.push("the Asset Store build download must stay ADMIN-ONLY on the kit page (9/30)");
+  if (!/const exBoards = scope === "full" && !store \? await collectExportBoards\(st\)/.test(kitPage)
+      || !/\.\.\.\(store \? \{\} : \{ kitPics: st\.kitPics, kitPicFx: st\.kitPicFx, userAssets: st\.userAssets, kitAssets: st\.kitAssets \}\),/.test(kitPage)
+      || !/const \{ boards: _b, library: _l, kitPics: _p, kitPicFx: _f, bgImage: _g, \.\.\.rest \} = fullDoc as Record<string, unknown>; return \{ \.\.\.rest, build: "asset-store" \};/.test(kitPage))
+    errors.push("the Asset Store build must leave boards, the picture seats, both picture registries and the settings.json boards/library/pictures/backdrop at home (9/30)");
+}
+
 /* ── ROUND 44 · S29 (staged roads — items 23 + 31 + vitalbar): the gated
    families' roads stand READY (marked mercury + zone stamps, marked slot
    glyphs, the bar-rig rosters) while stagedShips keeps every byte out of

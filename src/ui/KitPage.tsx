@@ -2314,9 +2314,21 @@ export function KitPage() {
     }
     return want;
   };
-  const downloadEngineKit = async () => {
+  /* which Unity download is running — the progress readout rides only the
+     card that started it (the two share one engine lane) */
+  const [engineKind, setEngineKind] = useState<"full" | "asset-store" | null>(null);
+  /* the ASSET STORE build (the owner, 2026-09-30, on Jimi's "someone else's
+     game" point): the same full export with no board scenes and none of
+     the maker's uploaded pictures — components only, for a kit that ships
+     to other people's games. Boards, the picture seats and both picture
+     registries stay home; settings.json sheds the boards, the pictures and
+     the stage backdrop too, so a customer restoring the look in the app
+     gets the look and nothing of the maker's game. Admin-only on the kit
+     page; the full download is untouched. */
+  const downloadEngineKit = async (build?: "asset-store") => {
     if (engineBusy) return;
     setEngineBusy(true);
+    setEngineKind(build ?? "full");
     try {
       await guardedExport("engine", gateHandlers, async (grant) => {
         const st = useGen.getState();
@@ -2328,28 +2340,35 @@ export function KitPage() {
            The tier fallback only covers cloud-off local builds, where the
            whole paid layer is inert anyway. */
         const scope = grant.scope ?? (st.tier === "student" || st.tier === "pro" ? "full" as const : "free" as const);
+        const store = build === "asset-store";
         /* Boards→Scenes rides the FULL scope only — the server's grant is
            the door (a remix never exits the browser on the free tier) */
         /* the briefing plays from here — the scope is settled, the wait
            is about to be real (board collection + every sprite render) */
-        try { setBrief(buildUnityBriefing(st, scope)); setBriefHidden(false); } catch { setBrief(null); }
+        try { setBrief(buildUnityBriefing(store ? { ...st, boards: [] } : st, scope)); setBriefHidden(false); } catch { setBrief(null); }
         /* a failed board collection must never kill the export — but it
            must never be SILENT either: without boards the zip ships no
            scenes and no label variants, and that absence looks like an
            importer bug (round-8 investigation) */
-        const exBoards = scope === "full" ? await collectExportBoards(st).catch((e) => { console.warn("UI Kit Maker: board collection failed — this export ships WITHOUT board scenes and label variants", e); return undefined; }) : undefined;
+        const exBoards = scope === "full" && !store ? await collectExportBoards(st).catch((e) => { console.warn("UI Kit Maker: board collection failed — this export ships WITHOUT board scenes and label variants", e); return undefined; }) : undefined;
         // the zip's settings.json is the whole kit document (boards, clones, every map), so it restores the kit exactly
-        const settingsDoc = await st.kitPayloadWithBoards().catch(() => undefined);
+        const fullDoc = await st.kitPayloadWithBoards().catch(() => undefined);
+        const settingsDoc = store && fullDoc
+          ? (() => { const { boards: _b, library: _l, kitPics: _p, kitPicFx: _f, bgImage: _g, ...rest } = fullDoc as Record<string, unknown>; return { ...rest, build: "asset-store" }; })()
+          : fullDoc;
         await downloadEngineExport(
           { cfg: st.cfg, kitDesigns: st.kitDesigns, kitTextFill: st.kitTextFill, kitShapes: st.kitShapes, kitSizes: st.kitSizes, kitSlices: st.kitSlices, kitName: name, slug: uslug, kitVersion, scope, boards: exBoards, settingsDoc, releases: st.componentReleases,
+            ...(store ? { build: "asset-store" as const } : {}),
             // the maker's own words ride into the bones prefabs' live text
             kitLabels: st.kitLabels, kitNoText: st.kitNoText, kitSubs: st.kitSubs, kitVals: st.kitVals, kitSlotVals: st.kitSlotVals,
             // per-piece icon overrides — the chip bake and the notices' icon-credit walk read these
             kitIcons: st.kitIcons,
             /* the maker's own uploaded pictures, plus the registries that
                name their bytes — the export resolves them to real pixels
-               so a card carries its art to any machine (round 73) */
-            kitPics: st.kitPics, kitPicFx: st.kitPicFx, userAssets: st.userAssets, kitAssets: st.kitAssets,
+               so a card carries its art to any machine (round 73). The
+               Asset Store build leaves every one of them home: a picture
+               seat with nothing to resolve falls back to its icon. */
+            ...(store ? {} : { kitPics: st.kitPics, kitPicFx: st.kitPicFx, userAssets: st.userAssets, kitAssets: st.kitAssets }),
             // the maker's text-nudge dials — labels bake and seat where the maker pushed them (engine-lane slice 2; cross-lane one-liner, called out in the PR)
             kitTextOy: st.kitTextOy, kitTextOx: st.kitTextOx },
           /* no catalog image in the Unity zip (round 78): the Playground is
@@ -2364,6 +2383,7 @@ export function KitPage() {
       });
     } finally {
       setEngineBusy(false);
+      setEngineKind(null);
       setEngineProg(null);
       setBrief(null);
     }
@@ -2521,7 +2541,14 @@ const kitTier = useGen((s) => s.tier);
       // promise, not a format, until it gets the same first-class bridge
       name: "Unity kit (ZIP)",
       desc: "Every component as drop-in Unity assets: nine-sliced sprites, wired prefabs, styled live text, in-place restyle on re-import. Unreal support coming soon.",
-      busy: engineBusy, locked: !mayEngine, prog: engineProg, run: () => void downloadEngineKit() },
+      busy: engineBusy, locked: !mayEngine, prog: engineKind === "full" ? engineProg : null, run: () => void downloadEngineKit() },
+    /* the ASSET STORE build (owner, 2026-09-30) — admin-only: the same kit
+       with no board scenes and none of the maker's uploaded pictures */
+    ...(isAdmin ? [{
+      id: "engine-store",
+      name: "Unity kit, Asset Store build (ZIP)",
+      desc: "The same kit with no board scenes and none of your uploaded pictures: components only, for a kit that ships to other people's games. Admin-only for now.",
+      busy: engineBusy, locked: !mayEngine, prog: engineKind === "asset-store" ? engineProg : null, run: () => void downloadEngineKit("asset-store") }] : []),
     /* the free tier's one download (Gate Round): a canned, admin-blessed
        STOCK kit — the same free-kit zip for everyone, never this design.
        Guests see it as a register incentive; paid tiers have the real
