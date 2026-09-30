@@ -174,9 +174,13 @@ It named files that no longer exist. It now says what it does: rebuilds the gene
 **4. Tools > PatternBreak holds only what a kit needs.**
 Chevon's call for the Asset Store build: the menu keeps Kit Status, Reapply Kit Import Settings, Regenerate Example Prefabs and Rebuild Kit Playground Scene. Rebuild Kit Board Scenes appears only on a zip that carries boards, so your game exports keep it and a bare kit does not show it. Gone: Review Orphaned Kit Files (the import receipt still names every orphan; delete them from the Project window when nothing uses them), Sync Label Kerning (saving the font asset already records your kerning), Audit Immutable Packages (the audit still runs by itself after each import), and Route All Editor Input To Game View (if you want hover to work without clicking the Game view first, Unity's own setting does it: Edit > Project Settings > Input System Package > Editor Input Behavior In Play Mode, set to All Device Input Always Goes To Game View; the README says the same).
 
+**5. The Asset Store build.**
+Your "someone else's game" point landed. The kit page now has a second Unity download, admin-only for now: "Unity kit, Asset Store build (ZIP)". It is the full kit with no board scenes and none of the maker's uploaded pictures (a picture seat with nothing to show wears its icon instead), and its settings.json carries the look without the boards, the pictures or the stage backdrop. You can tell the two zips apart three ways: the file name ends in `-asset-store`, the README and QuickStart open with an Asset Store note, and Kit Status prints "Asset Store build" after the kit's name. The Brightside zip going to the store is that build. Your game exports are the other download, unchanged, boards and all.
+
 ## What to hammer on
 
 - Drop a fresh zip over your Brightside project and read the Console: a line naming the bars it moved onto the width road.
+- The Asset Store build, in a fresh project: no Scenes folder, no Prefabs/Art, four entries under Tools > PatternBreak, and Kit Status naming the build.
 - Playground in Play: click the weapon wheel's chambers and the emote wheel's sectors. If a click does nothing, check the Game view has focus first (the editor gate), then send me the Console.
 - ProgressBar, EmblemBar and Timerbar: a rounded end on the mercury and no Cap child under Fill Area. Drag Value on the Fill Area's KitBarFill and watch the end stay round down to the floor.
 - Slider prefab, if yours was generated before round 58: the knob and the mercury's end on the same line at every value.
