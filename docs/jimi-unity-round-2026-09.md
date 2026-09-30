@@ -153,3 +153,31 @@ Not the exporter, and not fixed by a download. The flame outline on Hot Rod's Pr
 **The Responsive Check scene is gone from every export** (Chevon's call, 9/29). The safe-area root it demonstrated lives in every board scene and is grafted into kept ones, so the scene had nothing left to show. A project that already holds Scenes/Responsive Check.unity keeps it until you delete it; nothing rebuilds it, and the Tools menu item for it is gone.
 
 Your Brightside notes from the same week (the unzip replacing files, the friend row and list row shapes, the choice list's indent and gradient) are the next batch.
+
+---
+
+# 9/30: Chevon's Brightside Playground pass
+
+Hey Jimi. Chevon went through the Brightside Playground on 9/30 with the Unity project open and sent four notes. All four are live, and three of them change what you see in a kept project, so this is worth a re-import before your next round.
+
+## What changed
+
+**1. The weapon wheel and the emote wheel answer the pointer in Play.**
+They did not before: both rigs were pure dials, a value in and a pose out, and nothing on them read the mouse. In Play, click a chamber on the weapon wheel and the cylinder spins it round to the hammer the short way, with the app's own revolver feel (0.78 seconds, a heavy wind-up and a small clunk as it seats). Click a sector on the emote wheel and it is picked at once, the way emotes should be. Both work through the EventSystem only, so they behave in a build exactly as in the editor. `SetValue`, `ArmChamber` and `SetSector` still work as before, and there is a new `SpinTo` on the weapon wheel if you want the spin from code. Each rig has an off switch in the Inspector (Pointer Arms on the weapon wheel, Pointer Picks on the emote wheel) for a game that drives them itself. The runtime files are shared and replaced on every import, so your kept wheels get this on the next drop; a fresh import also makes the wheel's body a raycast target.
+
+**2. The old cap on some bars in a kept project.**
+Chevon saw the progress bar, the emblem bar and the plan timer in the Brightside Playground still drawing the old parked bead at the end of the mercury, while every other bar showed the rounded stadium. The fresh build has drawn bars the stadium way since round 58 (the mercury is one nine-sliced sprite whose own borders round the ends, and the rig drives the rect's width), and the manifest confirms every fill row ships its borders. What Chevon saw was the kept-project road: a bar prefab generated before round 58 kept its old cap rig for good, because the maintenance pass treated it as "already rigged" and nothing ever moved it. The importer now converges those on the next import, only when the rig is ours and the fill still wears our sprite, and prints the names it moved. The old Cap child is removed, a kept Slider is rewired the way a fresh one is built (the Slider drives the bar through its listener, not through Fill Rect), and your staged value survives. Placed copies, the Playground included, follow the prefab. A fill you re-sprited to your own art is left alone.
+
+**3. The Regenerate Example Prefabs dialog reads plainly.**
+It named files that no longer exist. It now says what it does: rebuilds the generated example prefabs from the current sprites and type, replaces each in place so placed copies restyle, and never touches a prefab you created, renamed or moved.
+
+**4. Tools > PatternBreak holds only what a kit needs.**
+Chevon's call for the Asset Store build: the menu keeps Kit Status, Reapply Kit Import Settings, Regenerate Example Prefabs and Rebuild Kit Playground Scene. Rebuild Kit Board Scenes appears only on a zip that carries boards, so your game exports keep it and a bare kit does not show it. Gone: Review Orphaned Kit Files (the import receipt still names every orphan; delete them from the Project window when nothing uses them), Sync Label Kerning (saving the font asset already records your kerning), Audit Immutable Packages (the audit still runs by itself after each import), and Route All Editor Input To Game View (if you want hover to work without clicking the Game view first, Unity's own setting does it: Edit > Project Settings > Input System Package > Editor Input Behavior In Play Mode, set to All Device Input Always Goes To Game View; the README says the same).
+
+## What to hammer on
+
+- Drop a fresh zip over your Brightside project and read the Console: a line naming the bars it moved onto the width road.
+- Playground in Play: click the weapon wheel's chambers and the emote wheel's sectors. If a click does nothing, check the Game view has focus first (the editor gate), then send me the Console.
+- ProgressBar, EmblemBar and Timerbar: a rounded end on the mercury and no Cap child under Fill Area. Drag Value on the Fill Area's KitBarFill and watch the end stay round down to the floor.
+- Slider prefab, if yours was generated before round 58: the knob and the mercury's end on the same line at every value.
+- Tools > PatternBreak: four entries on the Brightside zip, five on a zip with boards.
