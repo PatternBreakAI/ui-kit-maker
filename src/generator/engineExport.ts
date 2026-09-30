@@ -13903,6 +13903,8 @@ text is 2023.2+, the same rung rule as the step-4 word note.
 ---
 
 **Remix this kit:** https://uikitmaker.com/?src=unity-asset-store — restyle every piece, retype every word, re-export; the new zip drops over this folder and heals in place.
+
+**Support:** https://www.uikitmaker.com/#/support — the quick checks, the Console lines explained, and the address a person answers.
 `;
 }
 
