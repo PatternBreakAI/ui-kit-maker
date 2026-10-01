@@ -6682,14 +6682,31 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          becomes live text over it (owner: "the countdown numerics should
          be dynamic — I'll want those to animate on play") */
       const bareB = opts.overlay === "plain";
+      const swBn = Math.max(2, dB * 0.055), swB = swBn.toFixed(1);
+      /* 10/1 (the owner's CountBadge screenshot: "glow should be separate
+         layer"): the red halo is marked ink BEHIND the plate. A badge-red
+         disc of the plate's own reach (radius + stroke) wears the exact
+         drop-shadow the group used to wear, and a mask inside the marked
+         group removes the disc's own pixels, so what is left is the halo
+         alone — an annulus from the plate's edge out to the shadow's tail,
+         the app's exact old halo pixels. The mask rides INSIDE the wrapper
+         (not <defs>) so the export's strip takes it with the group and the
+         cut keeps it; its region is userSpaceOnUse and far wider than the
+         canvas because the seat road measures the cut on a widened viewBox
+         and crops it to an arbitrary window. The export cuts the annulus
+         white (tint = the badge red, Image.color carries it) and the
+         CountBadge prefab wears it as a live "Glow" child under a
+         Body-shaped plate. The plate's own group draws unfiltered over it.
+         Disabled never glowed and is byte-identical. */
       return `<svg xmlns="http://www.w3.org/2000/svg" width="${totB}" height="${totB}" viewBox="0 0 ${totB} ${totB}" data-shell="${padB} ${padB} ${dB.toFixed(1)} ${dB.toFixed(1)}" data-countbadge="1" role="img" aria-label="${esc(txtB)} notifications">
 <defs><radialGradient id="${gidB}" cx="0.35" cy="0.3" r="0.95">
   <stop offset="0" stop-color="${lighten(badgeB, 0.32)}"/>
   <stop offset="0.62" stop-color="${badgeB}"/>
   <stop offset="1" stop-color="${darken(badgeB, 0.18)}"/>
 </radialGradient></defs>
-<g${liveB ? ` style="filter: drop-shadow(0 0 ${(rB * 0.28).toFixed(1)}px ${hexRgba(badgeB, 0.65)})"` : ""}>
-  <circle cx="${cxB}" cy="${cyB}" r="${rB.toFixed(1)}" fill="url(#${gidB})" stroke="rgba(255,255,255,${liveB ? 0.92 : 0.55})" stroke-width="${Math.max(2, dB * 0.055).toFixed(1)}"/>
+${liveB ? `<g data-part="icon" data-icon="glow" data-icon-nick="Glow" data-icon-behind="1" data-icon-tint="${badgeB}"><mask id="${gidB}m" maskUnits="userSpaceOnUse" x="-500" y="-500" width="${totB + 1000}" height="${totB + 1000}"><rect x="-500" y="-500" width="${totB + 1000}" height="${totB + 1000}" fill="#FFFFFF"/><circle cx="${cxB}" cy="${cyB}" r="${(rB + swBn / 2).toFixed(1)}" fill="#000000"/></mask><circle cx="${cxB}" cy="${cyB}" r="${rB.toFixed(1)}" fill="${badgeB}" stroke="${badgeB}" stroke-width="${swB}" mask="url(#${gidB}m)" style="filter: drop-shadow(0 0 ${(rB * 0.28).toFixed(1)}px ${hexRgba(badgeB, 0.65)})"/></g>
+` : ""}<g>
+  <circle cx="${cxB}" cy="${cyB}" r="${rB.toFixed(1)}" fill="url(#${gidB})" stroke="rgba(255,255,255,${liveB ? 0.92 : 0.55})" stroke-width="${swB}"/>
   ${bareB ? "" : `<text x="${cxB}" y="${(cyB + dB * 0.02).toFixed(1)}" font-family="Inter, sans-serif" font-size="${fsB.toFixed(1)}" font-weight="900" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">${esc(txtB)}</text>`}
 </g>
 </svg>`;
@@ -7166,7 +7183,24 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const numC = (opts.label ?? "4").slice(0, 4);
       const tgtC = (opts.slots?.target ?? "→8").slice(0, 6);
       const unitC = (opts.slots?.unit ?? "legacy").slice(0, 12);
-      const fsNum = fitFs(numC, 84 * k * typeK, rFace * 1.3);
+      /* the numeral CLEARS the target row (round 107, the owner's Unity
+         screenshot: "push the 4 up so it is not crashing into the 8"). The
+         three words scale with the kit's type dial but their seats were
+         fixed offsets, so past ~1.1x (Brightside's 76 reads 1.46x) the
+         numeral's ink bottom met the target's cap top in the app and
+         overlapped it in TMP. Every word sits at dominant-baseline central,
+         so a glyph reaches ~0.4em either side of its y: the numeral's
+         centre rides high enough that its ink stops 10k short of the
+         target's cap top, never lower than the old 18k seat (kits at type
+         size <= 58 draw byte-still). A face too short for the stack (from
+         ~1.8x type on a 13-wide ring, ~1.6x on the 26 maximum) fits the
+         numeral DOWN instead of pushing it out through the ring. The label
+         seat and Unity's Label child are measured off this render, so the
+         lift ships as is. */
+      const fsTgt = 28 * k * typeK, yTgt = cyC + 42 * k;
+      const roomNum = (yTgt - 0.4 * fsTgt - 10 * k) - (cyC - rFace + 8 * k);
+      const fsNum = Math.min(fitFs(numC, 84 * k * typeK, rFace * 1.3), Math.max(24 * k, roomNum / 0.8));
+      const yNum = Math.min(cyC - 18 * k, yTgt - 0.4 * fsTgt - 10 * k - 0.4 * fsNum);
       const innerC = `<defs>
   <linearGradient id="${gidC}b" x1="${gpC(-lxC)}" y1="${gpC(-lyC)}" x2="${gpC(lxC)}" y2="${gpC(lyC)}"><stop offset="0" stop-color="${lighten(ringC, 0.42)}"/><stop offset="0.5" stop-color="${ringC}"/><stop offset="1" stop-color="${darken(ringC, 0.34)}"/></linearGradient>
   <radialGradient id="${gidC}f" cx="0.38" cy="0.32" r="0.8"><stop offset="0" stop-color="${lighten(faceC, 0.16)}"/><stop offset="1" stop-color="${darken(faceC, 0.18)}"/></radialGradient>
@@ -7177,8 +7211,8 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
   <circle cx="${cxC.toFixed(1)}" cy="${cyC.toFixed(1)}" r="${rFace.toFixed(1)}" fill="url(#${gidC}f)" stroke="${darken(ringC, 0.45)}" stroke-width="${(1.2 * k).toFixed(1)}"/>
   <circle cx="${cxC.toFixed(1)}" cy="${cyC.toFixed(1)}" r="${(rFace - 5 * k).toFixed(1)}" fill="none" stroke="${ringC}" stroke-width="${(1.2 * k).toFixed(1)}" stroke-dasharray="${(3 * k).toFixed(1)} ${(4 * k).toFixed(1)}" opacity="${dimC ? 0.3 : 0.6}"/>
 </g>
-<g data-part="label">${contentText(numC, cxC, cyC - 18 * k, fsNum, { anchor: "middle", opacity: dimC ? 0.6 : 1 })}</g>
-${raisedC && !dimC ? `<g style="filter: drop-shadow(0 0 ${(6 * k).toFixed(1)}px ${hexRgba(glow, 0.9)})">` : ""}${contentText(tgtC, cxC, cyC + 42 * k, 28 * k * typeK, { anchor: "middle", keepCase: true, ...(raisedC ? { ink: glow } : {}), opacity: dimC ? 0.6 : 1 })}${raisedC && !dimC ? "</g>" : ""}
+<g data-part="label">${contentText(numC, cxC, yNum, fsNum, { anchor: "middle", opacity: dimC ? 0.6 : 1 })}</g>
+${raisedC && !dimC ? `<g style="filter: drop-shadow(0 0 ${(6 * k).toFixed(1)}px ${hexRgba(glow, 0.9)})">` : ""}${contentText(tgtC, cxC, yTgt, fsTgt, { anchor: "middle", keepCase: true, ...(raisedC ? { ink: glow } : {}), opacity: dimC ? 0.6 : 1 })}${raisedC && !dimC ? "</g>" : ""}
 ${contentText(unitC, cxC, cyC + 78 * k, 21 * k * typeK, { anchor: "middle", list: true, plain: true, keepCase: true, opacity: dimC ? 0.5 : 0.9 })}`;
       return bareRoot(cfg, dC, dC, innerC, { label: `${numC} ${tgtC} ${unitC}`, state, attrs: 'data-coin="1"' });
     }
@@ -7991,7 +8025,20 @@ ${cardS}
       const pxPerDeg = (w / 2 - inset - 26 * k) / span;
       const gidC9 = "cp" + UID++;
       const wellP = wellOf(w, h, inset + 3 * k);
+      /* r107 (the owner's Unity screenshot: "aren't the white dashes
+         supposed to animate? if so they need their own layer"): the tick
+         strip is MARKED ink — its own "Ticks" child a dev can slide or
+         restyle, cut on the window's box (the well's rect + 1px of AA air)
+         so the child IS the window. The wrapper is inert (the app's draw
+         is unchanged); the lines gather in ticks9 and are emitted AFTER the
+         letters, never between them, which keeps the paint byte-identical:
+         a cardinal letter's shadow tail reaches only its own tick, and that
+         tick painted over it before too. The well itself stays in the base
+         on purpose: a posed board copy keeps its letters IN the pixels and
+         an under child would plate over them (see the posed road). */
+      const boxC9 = `${(39 + inset + 3 * k - 1).toFixed(1)} ${(30 + inset + 3 * k - 1).toFixed(1)} ${(w - inset * 2 - 6 * k + 2).toFixed(1)} ${(h - inset * 2 - 6 * k + 2).toFixed(1)}`;
       let inner = `<defs><clipPath id="${gidC9}"><path d="${wellP}"/></clipPath></defs><path d="${wellP}" fill="${wellFill}" opacity="0.9"/><g clip-path="url(#${gidC9})">`;
+      let ticks9 = "";
       const names: Record<number, string> = { 0: "N", 45: "NE", 90: "E", 135: "SE", 180: "S", 225: "SW", 270: "W", 315: "NW" };
       for (let d9 = 0; d9 < 360; d9 += 15) {
         const delta = ((d9 - heading + 540) % 360) - 180;
@@ -8003,9 +8050,9 @@ ${cardS}
         } else if (d9 % 45 === 0) {
           inner += `<text x="${x9.toFixed(1)}" y="${(cy - 3 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(15 * k).toFixed(1)}" font-weight="700" fill="rgba(255,255,255,0.55)" text-anchor="middle" dominant-baseline="central" opacity="${fade.toFixed(2)}">${names[d9]}</text>`;
         }
-        inner += `<line x1="${x9.toFixed(1)}" y1="${(cy + 14 * k).toFixed(1)}" x2="${x9.toFixed(1)}" y2="${(cy + (d9 % 45 === 0 ? 26 : 21) * k).toFixed(1)}" stroke="rgba(255,255,255,${d9 % 45 === 0 ? 0.75 : 0.45})" stroke-width="${(d9 % 90 === 0 ? 2.6 : 1.7).toFixed(1)}" opacity="${fade.toFixed(2)}"/>`;
+        ticks9 += `<line x1="${x9.toFixed(1)}" y1="${(cy + 14 * k).toFixed(1)}" x2="${x9.toFixed(1)}" y2="${(cy + (d9 % 45 === 0 ? 26 : 21) * k).toFixed(1)}" stroke="rgba(255,255,255,${d9 % 45 === 0 ? 0.75 : 0.45})" stroke-width="${(d9 % 90 === 0 ? 2.6 : 1.7).toFixed(1)}" opacity="${fade.toFixed(2)}"/>`;
       }
-      inner += "</g>";
+      inner += `<g data-part="icon" data-icon="ticks" data-icon-nick="Ticks" data-icon-box="${boxC9}">${ticks9}</g></g>`;
       const needleTop = 30 + inset + 5 * k;
       // round 44 (R7, RIG-4): the heading caret + stem are MARKED ink —
       // one live child to restyle, re-glyph or delete in the Inspector
@@ -8359,7 +8406,11 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
         /* round 44 (kit-wide mercury ruling): the cells wear the mercury's
            own rounding, so the streak's visible end reads like the XP
            bar's bead at any count */
-        const cellRect = `<rect x="${cx9.toFixed(1)}" y="${(cy - 12 * k).toFixed(1)}" width="${cellW9.toFixed(1)}" height="${(24 * k).toFixed(1)}" rx="${Math.min(cellW9 / 2, 12 * k).toFixed(1)}" fill="${on ? `url(#${gidS9})` : "rgba(255,255,255,0.1)"}" stroke="${on ? darken(glow, 0.35) : "rgba(255,255,255,0.12)"}" stroke-width="1"${on && state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(3 * k).toFixed(1)}px ${hexRgba(glow, 0.5)})"` : ""}/>`;
+        /* r107: a lit cell carries the inert data-litcell stamp — the Lit
+           strip ships plate-less from exactly these rects, so it never
+           paints over the Well and Cell children beneath it (the 10/1
+           precedent's full-plate strip hid the well left of the cut) */
+        const cellRect = `<rect${on ? ' data-litcell="1"' : ""} x="${cx9.toFixed(1)}" y="${(cy - 12 * k).toFixed(1)}" width="${cellW9.toFixed(1)}" height="${(24 * k).toFixed(1)}" rx="${Math.min(cellW9 / 2, 12 * k).toFixed(1)}" fill="${on ? `url(#${gidS9})` : "rgba(255,255,255,0.1)"}" stroke="${on ? darken(glow, 0.35) : "rgba(255,255,255,0.12)"}" stroke-width="1"${on && state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(3 * k).toFixed(1)}px ${hexRgba(glow, 0.5)})"` : ""}/>`;
         inner += on ? cellRect : `<g data-part="icon" data-icon="cell${i + 1}" data-icon-nick="Cell ${i + 1}" data-icon-under="1" data-icon-box="${(cx9 - 1).toFixed(1)} ${(cy - 12 * k - 1).toFixed(1)} ${(cellW9 + 2).toFixed(1)} ${(24 * k + 2).toFixed(1)}">${cellRect}</g>`;
       }
       const zapX = 39 + w - inset - 52 * k;
@@ -9082,7 +9133,19 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
         // the lock is the same class of swappable ink (the law's sweep)
         over += `<g data-part="icon" data-icon="lockbadge" data-icon-nick="Lock badge">${iconGroup(STOCK_ICONS.lock, ccx - 12 * k, sy + sh - 30 * k, 24 * k, "#A7AAB4", { strokeWidth: 2.2 * iconWK })}</g>`;
       } else if (state !== "disabled") {
-        over += `<rect x="${(sx - 5 * k).toFixed(1)}" y="${(sy - 5 * k).toFixed(1)}" width="${(sw + 10 * k).toFixed(1)}" height="${(sh + 10 * k).toFixed(1)}" rx="${(16 * k).toFixed(1)}" fill="none" stroke="${hexRgba(glow, 0.85)}" stroke-width="${(2.6 * k).toFixed(1)}" style="filter: drop-shadow(0 0 ${(6 * k).toFixed(1)}px ${hexRgba(glow, 0.55)})"><animate attributeName="stroke-opacity" values="0.9;0.4;0.9" dur="2s" repeatCount="indefinite" calcMode="spline" keySplines="0.42 0 0.58 1; 0.42 0 0.58 1"/></rect>`;
+        /* TODAY's ring and its glow are ONE marked child (10/1 — the
+           owner: "ring and glow as one can be its own layer"): a DEFAULT
+           seat — over the plate, under the day word, the app's own paint
+           order (the ring's bottom edge crosses the plate's extrusion
+           wall, so a behind seat would lose it under the body) — white-cut
+           and tinted the Glow role (the translucent stroke and the
+           drop-shadow are both drawn in it, so the child's Image.color
+           restores the halo). The pulse stays the app's; the export strips
+           loops before it cuts. The claimed and locked poses take the
+           branches above and never draw it, so their rows carry no seat;
+           the disabled render has none either, so the seat ships liveOnly
+           and the state rig hides the child on a disabled Button. */
+        over += `<g data-part="icon" data-icon="ring" data-icon-nick="Today ring" data-icon-tint="${glow}"><rect x="${(sx - 5 * k).toFixed(1)}" y="${(sy - 5 * k).toFixed(1)}" width="${(sw + 10 * k).toFixed(1)}" height="${(sh + 10 * k).toFixed(1)}" rx="${(16 * k).toFixed(1)}" fill="none" stroke="${hexRgba(glow, 0.85)}" stroke-width="${(2.6 * k).toFixed(1)}" style="filter: drop-shadow(0 0 ${(6 * k).toFixed(1)}px ${hexRgba(glow, 0.55)})"><animate attributeName="stroke-opacity" values="0.9;0.4;0.9" dur="2s" repeatCount="indefinite" calcMode="spline" keySplines="0.42 0 0.58 1; 0.42 0 0.58 1"/></rect></g>`;
       }
       return inject(shell.replace("<svg ", '<svg data-dailycell="1" '), over);
     }
@@ -9175,15 +9238,21 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
   ${numLayers(mult, cxC0, cyC0)}
 </g></g>`;
       // the COMBO! plate — chamfered corners, dark well fill, glow trim.
-      // Round 47 (item 3): MARKED as one live child (the AD-ribbon
-      // precedent — the rotated word stays in the plate's pixels by the
-      // warped-stamp contract; the app's word slot re-bakes it)
+      // Round 47 (item 3): MARKED as one live child. 10/1 (the owner's
+      // "combo-plaque-should-be-editable"): the word is no longer in the
+      // plate's pixels — it RIDES the plate (data-seat-rider, the badge
+      // grammar) as live TMP and keeps its −3°. The rotate + drop-shadow
+      // group is the OUTER wrapper now and holds two siblings: the inert
+      // marked plate (path only) and the word — the same paint tree the
+      // app drew before, one attribute-less <g> deeper, so the raster is
+      // identical (measured 0 px at 2x, every size/state). The export's
+      // riderTurnOf accepts this one pure rotate on a rider's chain (the
+      // numeral's layers ride no plate and stay baked).
       const pW = (96 + plateWord.length * 15) * k, pH = 46 * k, ch9 = 9 * k;
       const pcy = cyC0 + fsC * 0.72 + 30 * k;
-      const plate = `<g data-part="icon" data-icon="plaque" data-icon-nick="Combo plaque"><g transform="rotate(-3 ${cxC0.toFixed(1)} ${pcy.toFixed(1)})"${state !== "disabled" ? ` style="filter: drop-shadow(0 2px 4px rgba(6,10,18,0.5))"` : ""}>
+      const plate = `<g transform="rotate(-3 ${cxC0.toFixed(1)} ${pcy.toFixed(1)})"${state !== "disabled" ? ` style="filter: drop-shadow(0 2px 4px rgba(6,10,18,0.5))"` : ""}><g data-part="icon" data-icon="plaque" data-icon-nick="Combo plaque">
   <path d="M ${(cxC0 - pW / 2 + ch9).toFixed(1)} ${(pcy - pH / 2).toFixed(1)} h ${(pW - ch9 * 2).toFixed(1)} l ${ch9.toFixed(1)} ${ch9.toFixed(1)} v ${(pH - ch9 * 2).toFixed(1)} l ${(-ch9).toFixed(1)} ${ch9.toFixed(1)} h ${(-(pW - ch9 * 2)).toFixed(1)} l ${(-ch9).toFixed(1)} ${(-ch9).toFixed(1)} v ${(-(pH - ch9 * 2)).toFixed(1)} Z" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.78)}" stroke="${hexMix(glow, "#FFFFFF", 0.4)}" stroke-width="${(2 * k).toFixed(1)}" stroke-linejoin="round"/>
-  <text x="${cxC0.toFixed(1)}" y="${(pcy + 0.5).toFixed(1)}" font-family="'${font}', 'Inter Variable', Inter, sans-serif" font-size="${(21 * k).toFixed(1)}" font-weight="900" font-style="italic" letter-spacing="0.1em" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central" style="paint-order: stroke; stroke: rgba(8,12,22,0.55); stroke-width: ${(2.4 * k).toFixed(1)}px; stroke-linejoin: round">${esc(plateWord)}</text>
-</g></g>`;
+</g><text x="${cxC0.toFixed(1)}" y="${(pcy + 0.5).toFixed(1)}" font-family="'${font}', 'Inter Variable', Inter, sans-serif" font-size="${(21 * k).toFixed(1)}" font-weight="900" font-style="italic" letter-spacing="0.1em" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central" style="paint-order: stroke; stroke: rgba(8,12,22,0.55); stroke-width: ${(2.4 * k).toFixed(1)}px; stroke-linejoin: round" data-seat-rider="plaque">${esc(plateWord)}</text></g>`;
       // the authored numeral anchor rides an attribute (round 47, item 3)
       // — geometry for the digit compose, zero raster change
       return `<svg xmlns="http://www.w3.org/2000/svg" width="${WC.toFixed(0)}" height="${HC.toFixed(0)}" viewBox="0 0 ${WC.toFixed(0)} ${HC.toFixed(0)}" data-combo="1" data-comboseat="${cxC0.toFixed(1)} ${cyC0.toFixed(1)}" role="img" aria-label="combo ${mult}">
@@ -9512,10 +9581,16 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
         const rw = 64 * k, rh = 26 * k;
         /* the ANGLED gold ribbon is marked swappable ink (owner, round 41:
            "the angled text may stay an image but ships as its OWN child —
-           never burned into the orange background"): the rotated word
-           stays in the ribbon's pixels by the warped-stamp contract, and
-           the whole ribbon ships as one live, delete-and-replace child */
-        innerB += `<g data-part="icon" data-icon="adribbon" data-icon-nick="AD x2 ribbon"><g transform="rotate(8 ${(sx + sw - 18 * k).toFixed(1)} ${(sy + 4 * k).toFixed(1)})"><rect x="${(sx + sw - rw - 4 * k).toFixed(1)}" y="${(sy - rh * 0.45).toFixed(1)}" width="${rw.toFixed(1)}" height="${rh.toFixed(1)}" rx="${(7 * k).toFixed(1)}" fill="${CHEST_TIERS.Gold}" stroke="${darken(CHEST_TIERS.Gold, 0.4)}" stroke-width="1.4"/><text x="${(sx + sw - rw / 2 - 4 * k).toFixed(1)}" y="${(sy + rh * 0.05).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(14 * k).toFixed(1)}" font-weight="900" letter-spacing="0.08em" fill="#3A2A08" text-anchor="middle" dominant-baseline="central">AD ×2</text></g></g>`;
+           never burned into the orange background"), and since 10/1 its
+           word is LIVE too (owner: "adx2 ribbon needs to be editable"):
+           the plate alone is the marked cut, the word RIDES it
+           (data-seat-rider) under its own copy of the ribbon's rotate —
+           the export seats the turned center and records the angle, the
+           importer tilts the live word on the plate child. Same transform,
+           same paint order: the pixels are the one-group draw's exactly. */
+        const ribTf = `rotate(8 ${(sx + sw - 18 * k).toFixed(1)} ${(sy + 4 * k).toFixed(1)})`;
+        innerB += `<g data-part="icon" data-icon="adribbon" data-icon-nick="AD x2 ribbon"><g transform="${ribTf}"><rect x="${(sx + sw - rw - 4 * k).toFixed(1)}" y="${(sy - rh * 0.45).toFixed(1)}" width="${rw.toFixed(1)}" height="${rh.toFixed(1)}" rx="${(7 * k).toFixed(1)}" fill="${CHEST_TIERS.Gold}" stroke="${darken(CHEST_TIERS.Gold, 0.4)}" stroke-width="1.4"/></g></g>` +
+          `<g transform="${ribTf}"><text x="${(sx + sw - rw / 2 - 4 * k).toFixed(1)}" y="${(sy + rh * 0.05).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(14 * k).toFixed(1)}" font-weight="900" letter-spacing="0.08em" fill="#3A2A08" text-anchor="middle" dominant-baseline="central" data-seat-rider="adribbon">AD ×2</text></g>`;
       } else {
         const gx = sx + 30 * k;
         // the gift glyph is marked swappable ink (maximum-editability law):
@@ -9664,8 +9739,18 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       const cellW9 = (cellsW - (nCe - 1) * 5 * k) / nCe;
       const litE = Math.round(vE * nCe);
       const gidE = "en" + UID++;
+      /* the r107 un-burn (the owner's Energymeter screenshot: "break wells
+         into separate elements, do not bake in") — the streak meter's
+         precedent: the container well and every UNLIT cell are marked ink,
+         under everything, each its own live child (Well, Cell 1…10) a dev
+         can move, recolor, duplicate or delete. Lit cells stay unmarked and
+         carry the inert data-litcell stamp instead: the Lit strip (the v=1
+         render) ships PLATE-LESS from exactly those rects, so it never
+         paints over the Well and Cell children beneath it. The base (v=0)
+         marks all ten, and the cell rig's seats are measured there. Inert
+         wrappers and attributes only; the app's own draw is unchanged. */
       let inner = bolt +
-        `<rect x="${(cellsX - 6 * k).toFixed(1)}" y="${(cy - 18 * k).toFixed(1)}" width="${(cellsW + 12 * k).toFixed(1)}" height="${(36 * k).toFixed(1)}" rx="${(9 * k).toFixed(1)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.8)}" stroke="rgba(0,0,0,0.3)" stroke-width="1"/>` +
+        `<g data-part="icon" data-icon="well" data-icon-nick="Well" data-icon-under="1" data-icon-box="${(cellsX - 6 * k - 1).toFixed(1)} ${(cy - 18 * k - 1).toFixed(1)} ${(cellsW + 12 * k + 2).toFixed(1)} ${(36 * k + 2).toFixed(1)}"><rect x="${(cellsX - 6 * k).toFixed(1)}" y="${(cy - 18 * k).toFixed(1)}" width="${(cellsW + 12 * k).toFixed(1)}" height="${(36 * k).toFixed(1)}" rx="${(9 * k).toFixed(1)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.8)}" stroke="rgba(0,0,0,0.3)" stroke-width="1"/></g>` +
         `<defs><linearGradient id="${gidE}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFF3B0"/><stop offset="0.5" stop-color="${GOLD}"/><stop offset="1" stop-color="#D97706"/></linearGradient></defs>`;
       for (let i = 0; i < nCe; i++) {
         const cx9 = cellsX + i * (cellW9 + 5 * k);
@@ -9673,7 +9758,8 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
         /* round 44 (kit-wide mercury ruling): the cells wear the mercury's
            own rounding, so the charge's visible end reads like the XP
            bar's bead at any count */
-        inner += `<rect x="${cx9.toFixed(1)}" y="${(cy - 11.5 * k).toFixed(1)}" width="${cellW9.toFixed(1)}" height="${(23 * k).toFixed(1)}" rx="${Math.min(cellW9 / 2, 11.5 * k).toFixed(1)}" fill="${on ? `url(#${gidE})` : "rgba(255,255,255,0.1)"}" stroke="${on ? "#B45309" : "rgba(255,255,255,0.12)"}" stroke-width="1"${on && state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(2.5 * k).toFixed(1)}px rgba(250,204,21,0.55))"` : ""}/>`;
+        const cellRect = `<rect${on ? ' data-litcell="1"' : ""} x="${cx9.toFixed(1)}" y="${(cy - 11.5 * k).toFixed(1)}" width="${cellW9.toFixed(1)}" height="${(23 * k).toFixed(1)}" rx="${Math.min(cellW9 / 2, 11.5 * k).toFixed(1)}" fill="${on ? `url(#${gidE})` : "rgba(255,255,255,0.1)"}" stroke="${on ? "#B45309" : "rgba(255,255,255,0.12)"}" stroke-width="1"${on && state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(2.5 * k).toFixed(1)}px rgba(250,204,21,0.55))"` : ""}/>`;
+        inner += on ? cellRect : `<g data-part="icon" data-icon="cell${i + 1}" data-icon-nick="Cell ${i + 1}" data-icon-under="1" data-icon-box="${(cx9 - 1).toFixed(1)} ${(cy - 11.5 * k - 1).toFixed(1)} ${(cellW9 + 2).toFixed(1)} ${(23 * k + 2).toFixed(1)}">${cellRect}</g>`;
       }
       inner += infoText(opts.label ?? `${Math.round(vE * 30)}/30`, 39 + w - inset - 16 * k, cy + 1, 19 * k, "end");
       // the cell run's zone stamp — the engine's cell scissor cuts by it
@@ -9696,12 +9782,17 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       const barY9 = 30 + h - inset - 26 * k;
       const gidB0 = "bq" + UID++;
       const gB = 2.5 * k, mH = barH9 - gB * 2;
-      const parts = `<rect x="${wx.toFixed(1)}" y="${wy.toFixed(1)}" width="${wellS.toFixed(1)}" height="${wellS.toFixed(1)}" rx="${(12 * k).toFixed(1)}" fill="${wellFill}" opacity="0.92"/>` +
+      /* the ICON WELL and the bar WELL are marked ink, under everything (the
+         owner, 10/1: "separate wells for everything") — each ships as its
+         own live child: "Icon well" lands under the glyph child, "Well"
+         under the Fill; the base plate ships bare. Inert wrappers — the
+         app's own draw is byte-identical. */
+      const parts = `<g data-part="icon" data-icon="iconwell" data-icon-nick="Icon well" data-icon-under="1" data-icon-box="${(wx - 1).toFixed(1)} ${(wy - 1).toFixed(1)} ${(wellS + 2).toFixed(1)} ${(wellS + 2).toFixed(1)}"><rect x="${wx.toFixed(1)}" y="${wy.toFixed(1)}" width="${wellS.toFixed(1)}" height="${wellS.toFixed(1)}" rx="${(12 * k).toFixed(1)}" fill="${wellFill}" opacity="0.92"/></g>` +
         // the unit glyph is marked swappable ink (owner: "editable down to the icon")
         (ic ? `<g data-part="icon" data-icon="glyph">${themedIcon(ic, wx + wellS * 0.2, wy + wellS * 0.2, wellS * 0.6, hexMix(glow, "#FFFFFF", 0.25), 2.2)}</g>` : "") +
         contentText(opts.label ?? "WAR GOLEM", tx0, 30 + inset + 22 * k, 22 * k * typeK) +
         infoText("×3 · 0:42", tx0 + barW9, barY9 - 14 * k, 16 * k, "end", 700) +
-        `<rect x="${tx0.toFixed(1)}" y="${barY9.toFixed(1)}" width="${barW9.toFixed(1)}" height="${barH9.toFixed(1)}" rx="${(barH9 / 2).toFixed(1)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.8)}" stroke="rgba(0,0,0,0.3)" stroke-width="1"/>` +
+        `<g data-part="icon" data-icon="well" data-icon-nick="Well" data-icon-under="1" data-icon-box="${(tx0 - 1).toFixed(1)} ${(barY9 - 1).toFixed(1)} ${(barW9 + 2).toFixed(1)} ${(barH9 + 2).toFixed(1)}"><rect x="${tx0.toFixed(1)}" y="${barY9.toFixed(1)}" width="${barW9.toFixed(1)}" height="${barH9.toFixed(1)}" rx="${(barH9 / 2).toFixed(1)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.8)}" stroke="rgba(0,0,0,0.3)" stroke-width="1"/></g>` +
         `<defs><linearGradient id="${gidB0}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(glow, 0.45)}"/><stop offset="1" stop-color="${darken(glow, 0.25)}"/></linearGradient></defs>` +
         (vB0 > 0.03 ? `<g data-barfill="${(tx0 + gB).toFixed(1)} ${(barY9 + gB).toFixed(1)} ${Math.max(0, (barW9 - gB * 2) * vB0).toFixed(1)} ${mH.toFixed(1)}"><rect x="${(tx0 + gB).toFixed(1)}" y="${(barY9 + gB).toFixed(1)}" width="${Math.max(0, (barW9 - gB * 2) * vB0).toFixed(1)}" height="${mH.toFixed(1)}" rx="${(mH / 2).toFixed(1)}" fill="url(#${gidB0})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 3px ${hexRgba(glow, 0.6)})"` : ""}/></g>` : "");
       return stampTrack(inject(shell.replace("<svg ", '<svg data-buildqueue="1" '), parts), tx0 + gB, barW9 - gB * 2, barY9 + gB, mH);
@@ -9948,8 +10039,10 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       const darkFace9 = cfg.face.mode === "dark";
       const joinFill = online ? (darkFace9 ? lighten(bevel, 0.5) : darken(bevel, 0.45)) : "rgba(120,128,148,0.3)";
       const joinInk = online ? (darkFace9 ? darken(bevel, 0.66) : "#FFFFFF") : infoInk;
-      /* the portrait is a marked WELL (avatarframe grammar) and the JOIN
-         capsule a marked BUTTON plate whose word rides it (qtybtn
+      /* the portrait is a marked WELL (avatarframe grammar) sitting on a
+         marked UNDER disc (the unit plate's Avatar well grammar, 10/1 —
+         owner: "profile circle well needs own layer, do not burn in") and
+         the JOIN capsule a marked BUTTON plate whose word rides it (qtybtn
          grammar) — maximum-editability law. Round 44 (owner item 16): the
          presence dot is marked swappable ink too — it was the row's only
          burned picture. NO data-icon-tint on purpose: the dot is MIXED
@@ -9958,7 +10051,7 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
          would turn the white ring green. The full-color cut recomposes
          the app's pixels exactly; a dev still moves/deletes/swaps it. */
       const parts = `<defs><clipPath id="${gidF}"><circle cx="${pcx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${pr.toFixed(1)}"/></clipPath></defs>
-        <circle cx="${pcx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${pr.toFixed(1)}" fill="${wellFill}"/>
+        <g data-part="icon" data-icon="avatarwell" data-icon-nick="Avatar well" data-icon-under="1" data-icon-box="${(pcx - pr - 2).toFixed(1)} ${(cy - pr - 2).toFixed(1)} ${(pr * 2 + 4).toFixed(1)} ${(pr * 2 + 4).toFixed(1)}"><circle cx="${pcx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${pr.toFixed(1)}" fill="${wellFill}"/></g>
         <g data-part="icon" data-icon="portrait" data-icon-well="${pcx.toFixed(1)} ${cy.toFixed(1)} ${pr.toFixed(1)}" clip-path="url(#${gidF})" opacity="${state === "disabled" ? 0.4 : 1}">
           <circle cx="${pcx.toFixed(1)}" cy="${(cy - pr * 0.28).toFixed(1)}" r="${(pr * 0.34).toFixed(1)}" fill="rgba(255,255,255,0.4)"/>
           <ellipse cx="${pcx.toFixed(1)}" cy="${(cy + pr * 0.75).toFixed(1)}" rx="${(pr * 0.62).toFixed(1)}" ry="${(pr * 0.5).toFixed(1)}" fill="rgba(255,255,255,0.4)"/>
@@ -10607,6 +10700,10 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
          allowed to be special without dragging the kit's type with them */
       const numFontName = String(slF.numfont ?? "");
       const numFam = numFontName && numFontName !== "Kit font" ? fontByName(numFontName).name : font;
+      /* the kit's own type ink, the dark voice a pale badge's numeral falls
+         back to (the name's inkN0 rule, lifted to the corners; an auto-ink
+         kit has no type colour of its own and leaves this null) */
+      const typeInkC = cfg.type.fillMode === "solid" ? CD(cfg.type.fill) : cfg.type.fillMode === "gradient" ? CD(hexMix(cfg.type.fill, cfg.type.fill2 || cfg.type.fill, 0.5)) : null;
       const corner = (side: "l" | "r") => {
         const shape = (slF[`${side}shape`] as string) ?? (side === "l" ? "Hexagon" : "Circle");
         if (shape === "Off") return "";
@@ -10657,7 +10754,22 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
         if (num) {
           // sized off the FULL badge, so the dial never shrinks the digits
           const nFs = Math.min(38 * k, (38 * k * 1.6) / Math.max(1.6, num.length)) * typeK;
-          outN += `<text x="${cxB.toFixed(1)}" y="${(cyB + 1.5 * k).toFixed(1)}" font-family="'${numFam}', 'Inter Variable', Inter, sans-serif" font-size="${nFs.toFixed(1)}" font-weight="900" fill="#FFFFFF" stroke="${darken(CD(bevel), 0.6)}" stroke-width="${(2.4 * k).toFixed(1)}" paint-order="stroke" text-anchor="middle" dominant-baseline="central" data-seat-rider="${nm}">${esc(num)}</text>`;
+          /* THE NUMERAL READS ON ITS OWN BADGE (owner, 10/1: "the numbers
+             are not readable"). White digits with a dark rim were the one
+             answer for every badge, and on a pale badge (Brightside's sand)
+             white is no ink at all: the rim did the reading in the app, and
+             the thin TMP outline the seat's understroke becomes could not do
+             it in Unity. So each corner picks its ink against its OWN
+             mid-tone by the name's 3:1 rule: white where it reads (a dark
+             badge keeps today's draw to the byte), else the kit's own type
+             ink where THAT reads, else the badge's own deep shade. A dark
+             numeral wears the badge's top-light as its rim, so it still
+             separates after a dev retints the plate. Every colour here is
+             the kit's or the badge's own; nothing is invented. */
+          const groundC = lighten(ink, 0.2);
+          const numInk = contrastOf("#FFFFFF", groundC) >= 3 ? "#FFFFFF" : typeInkC && contrastOf(typeInkC, groundC) >= 3 ? typeInkC : darken(ink, 0.7);
+          const numRim = numInk === "#FFFFFF" ? darken(CD(bevel), 0.6) : lighten(ink, 0.62);
+          outN += `<text x="${cxB.toFixed(1)}" y="${(cyB + 1.5 * k).toFixed(1)}" font-family="'${numFam}', 'Inter Variable', Inter, sans-serif" font-size="${nFs.toFixed(1)}" font-weight="900" fill="${numInk}" stroke="${numRim}" stroke-width="${(2.4 * k).toFixed(1)}" paint-order="stroke" text-anchor="middle" dominant-baseline="central" data-seat-rider="${nm}">${esc(num)}</text>`;
         }
         return outN;
       };
@@ -11225,7 +11337,15 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       const icPlay = clamp((cfg.icon.size ?? 100) / 75, 0.55, 1.45);
       const icF = krF * 0.8 * icPlay;
       const icTone = live8 ? hexMix(glow, "#FFFFFF", 0.15) : "#A7AAB4";
-      const armedIc = `<g${live8 ? ` style="filter: drop-shadow(0 0 ${(krF * 0.09).toFixed(1)}px ${hexRgba(glow, 0.8)})"` : ""}>${themedIcon(opts.icon ?? ROSTER9[armed9], cx9 - icF / 2, cy9 + sink + krF * 0.14 - icF / 2, icF, icTone, 2.6)}</g>`;
+      /* round 107 (owner, Unity screenshot: "push main icon north by 10
+         px"): the armed glyph CENTERS on the dome. It used to sit
+         krF·0.14 below the centre (10.4 px at m) and read low under the
+         dome's top specular. icCy9 is the one centre the drawn glyph and
+         the data-fireseat stamp below both read, so the app and Unity's
+         Weapon seat agree; the Icons nudge dial rides both as well —
+         themedIcon adds it to the draw, the stamp adds it explicitly. */
+      const icCy9 = cy9 + sink;
+      const armedIc = `<g${live8 ? ` style="filter: drop-shadow(0 0 ${(krF * 0.09).toFixed(1)}px ${hexRgba(glow, 0.8)})"` : ""}>${themedIcon(opts.icon ?? ROSTER9[armed9], cx9 - icF / 2, icCy9 - icF / 2, icF, icTone, 2.6)}</g>`;
       /* the quick-select carousel: each waiting weapon is its own MINI
          fire button — rim ring, well band, candy dome, the glyph as big
          as the dome allows — kissing the main button's edge. Cycle order
@@ -11255,7 +11375,7 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
          it shell-relative on the dome row (fireDx/fireDy/fireW). */
       const bare9 = opts.overlay === "plain";
       const gsA9 = Math.round(dF9 * 0.5), gpadA9 = Math.ceil(gsA9 * 0.32);
-      const fireSeat9 = ` data-fireseat="${cx9.toFixed(1)} ${(cy9 + sink + krF * 0.14).toFixed(1)} ${(icF * (gsA9 + 2 * gpadA9) / gsA9).toFixed(1)}"`;
+      const fireSeat9 = ` data-fireseat="${(cx9 + (ICR.ox || 0) * k).toFixed(1)} ${(icCy9 + (ICR.oy || 0) * k).toFixed(1)} ${(icF * (gsA9 + 2 * gpadA9) / gsA9).toFixed(1)}"`;
       const dome9 = inject(track,
         `<path d="${roundRect(x9 + inset9, y9 + inset9, dF9 - inset9 * 2, dF9 - inset9 * 2, (dF9 - inset9 * 2) / 2)}" fill="${wellFill}" opacity="0.94"/>
          ${ticks}` +
