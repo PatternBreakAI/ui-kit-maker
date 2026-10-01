@@ -11375,13 +11375,15 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       const icF = krF * 0.8 * icPlay;
       const icTone = live8 ? hexMix(glow, "#FFFFFF", 0.15) : "#A7AAB4";
       /* round 107 (owner, Unity screenshot: "push main icon north by 10
-         px"): the armed glyph CENTERS on the dome. It used to sit
-         krF·0.14 below the centre (10.4 px at m) and read low under the
-         dome's top specular. icCy9 is the one centre the drawn glyph and
-         the data-fireseat stamp below both read, so the app and Unity's
-         Weapon seat agree; the Icons nudge dial rides both as well —
-         themedIcon adds it to the draw, the stamp adds it explicitly. */
-      const icCy9 = cy9 + sink;
+         px"): the glyph's resting seat is krF·0.14 below the dome centre,
+         the owner's own call from #250 — and the APP was never the
+         problem: Brightside nudges the sword up 8 px through the Icons
+         dial, which themedIcon draws but the data-fireseat stamp below
+         never carried, so only Unity's Weapon child sat 10 px low. icCy9 is
+         the one centre the drawn glyph and the stamp both read, and the
+         stamp now adds the nudge too, so the app's draw is byte-identical
+         and Unity lands exactly where the app draws. */
+      const icCy9 = cy9 + sink + krF * 0.14;
       const armedIc = `<g${live8 ? ` style="filter: drop-shadow(0 0 ${(krF * 0.09).toFixed(1)}px ${hexRgba(glow, 0.8)})"` : ""}>${themedIcon(opts.icon ?? ROSTER9[armed9], cx9 - icF / 2, icCy9 - icF / 2, icF, icTone, 2.6)}</g>`;
       /* the quick-select carousel: each waiting weapon is its own MINI
          fire button — rim ring, well band, candy dome, the glyph as big
