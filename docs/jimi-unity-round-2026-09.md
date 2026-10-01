@@ -209,7 +209,7 @@ Chevon's screenshot batch named the problem in the file names: "in general do no
 - Tech card: the **Icon disc** under the glyph.
 - Validity: the **Status stripe** down the left edge.
 - Streak meter: the **Well** plus **Cell 1** to **Cell 5**, one child per segment. Add, remove or stretch cells and the lit strip still lights whole cells over them.
-- Weapon wheel: **Disc**, **Hammer wedge**, **Rim** and **Hub plate**, beside the Cylinder, the chamber glyphs and the Name tag it already had. The rim is a full-canvas child, so it stretches with the root.
+- Weapon wheel: **Disc**, **Hammer wedge** and **Hub plate**, beside the Cylinder, the chamber glyphs and the Name tag it already had. The rim stays in the base sprite: it is the outermost ink, the thing the sprite is cropped to, and the root needs it to keep its size.
 - Rarity frame and reward card: the colored aura is a **Rarity glow** child that sits BEHIND the plate. To make room for it the plate moves into a Body child (the structure the glow families already have); the root keeps the raycast. The glow is a white cut tinted through its Image color, so changing the tier is one color edit. The rarity frame's five per-tier sprites are now identical bare plates (kept under their old names so your prefab keeps its sprite); the tier is the glow's color, and `kit-manifest.json > rarity` lists the ladder's colors. The mystery reward card keeps its own dashed white ring as a plain child.
 
 Kept projects get these children seeded once on the next import, the same one-shot rule as every other live child: rename, retint, resize or delete one and it is yours; the kit never puts it back. Board scenes' posed copies stack the layers the same way around their posed art.
@@ -219,6 +219,6 @@ Kept projects get these children seeded once on the next import, the same one-sh
 - ProgressBar, EmblemBar and Slider in the Playground: one smooth ramp from the left to the rounded end at every value. No pale block, no seam. The XP bar keeps its pattern at natural density.
 - Streak meter: select Cell 3 in the Hierarchy and move it. Drag the rig's value: the lit strip lights whole cells and the moved cell shows its own gap.
 - Rarity frame: pick the Rarity glow child and set its Image color to another tier's color from the manifest. The frame plate itself does not change.
-- Weapon wheel in Play: click a chamber; the cylinder still spins and the Disc, Rim and Hub plate stay put.
+- Weapon wheel in Play: click a chamber; the cylinder still spins and the Disc and Hub plate stay put.
 - Unit plate: drop your own sprite on the Portrait child; the Avatar well sits under it and the Avatar ring over it.
 - A kept prefab you had retinted or moved a well on: still yours after the import.
