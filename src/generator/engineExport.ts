@@ -383,6 +383,16 @@ interface AssetMeta {
      *  order, and the default is under (picture ink beneath the words);
      *  this flag is the exception, for structure that crosses a number. */
     over?: boolean;
+    /** UNDER the other live children (data-icon-under — the owner's 10/1
+     *  un-burn: wells, discs, stripes): the child lands at the bottom of
+     *  the stack, right over the plate, so fills, lit strips, portraits
+     *  and words all paint over it, exactly the app's own order. */
+    under?: boolean;
+    /** BEHIND the plate itself (data-icon-behind — the rarity and reward
+     *  auras): the piece takes the Body shape (art in a full-stretch Body
+     *  child) and this child lands before it, so the glow draws under the
+     *  frame the way the app draws it. */
+    behind?: boolean;
     /** the PER-STATE GLYPH DRESS (round 53): a state icon fork (the ICR
      *  ladder — stateDesigns[state].icon) ships that state's cut on the
      *  SAME window as the resting sprite; the StateFx rig swaps the live
@@ -580,6 +590,10 @@ export interface ExportBoardItemData {
      *  scorebug would have shipped WHITE team bars): white-cut sprite,
      *  the slot color rides Image.color in the scene rebuild. */
     tint?: string;
+    /** the 10/1 layers: under = right over the posed art, under the other
+     *  rebuilt children and the words (wells, discs, stripes); behind =
+     *  under the posed art itself (the rarity auras). */
+    under?: boolean; behind?: boolean;
     /** a RIDER WORD stripped from the posed pixels with its plate (round
      *  40 — the owner's Booster Select cards lost their ×3/×1/×2: the
      *  un-burn rebuilt the pill as a live child ON TOP of the bake, so
@@ -691,12 +705,13 @@ function inheritedPaint(el: Element, attr: string): string | null {
    for ink whose flatness only the EXPORT can prove (it rasters the cut
    and reads the drawn color back; see skillFlatInkOf). Keyed by the
    group's data-icon name. */
-function markedIconOnlySvgs(svgIn: string, tintOverride?: Record<string, string>): { name: string; btn: boolean; well: number[] | null; box: number[] | null; nick: string | null; tint: string | null; over: boolean; svg: string }[] {
+type MarkedIconCut = { name: string; btn: boolean; well: number[] | null; box: number[] | null; nick: string | null; tint: string | null; over: boolean; under: boolean; behind: boolean; svg: string };
+function markedIconOnlySvgs(svgIn: string, tintOverride?: Record<string, string>): MarkedIconCut[] {
   try {
     const dom0 = new DOMParser().parseFromString(svgIn, "image/svg+xml");
     const gs0 = Array.from(dom0.querySelectorAll('[data-part="icon"]'));
     if (!gs0.length) return [];
-    const out: { name: string; btn: boolean; well: number[] | null; box: number[] | null; nick: string | null; tint: string | null; over: boolean; svg: string }[] = [];
+    const out: MarkedIconCut[] = [];
     for (let gi = 0; gi < gs0.length; gi++) {
       const dom = new DOMParser().parseFromString(svgIn, "image/svg+xml");
       const gs = Array.from(dom.querySelectorAll('[data-part="icon"]'));
@@ -722,10 +737,23 @@ function markedIconOnlySvgs(svgIn: string, tintOverride?: Record<string, string>
            entirely un-whitened while its seat claimed a tint. Ink outside
            defs only, and still only ink drawn IN the tint colour: outlines
            and shading in other colours stay the art's. */
+        /* 10/1 (the rarity auras): a drop-shadow drawn IN the tint colour
+           whitens too — the filter colour lives in the style attribute as
+           rgba(r,g,b,a), so the match is by channels, alpha kept. White ×
+           tint reproduces the halo exactly; a shadow in any other colour
+           stays the art's, like every other non-tint paint. */
+        const tintHex = /^#([0-9a-f]{6})$/i.exec(tint.trim());
+        const tintRgb = tintHex ? [parseInt(tintHex[1].slice(0, 2), 16), parseInt(tintHex[1].slice(2, 4), 16), parseInt(tintHex[1].slice(4, 6), 16)] : null;
         for (const el of [keep, ...Array.from(keep.querySelectorAll("*"))]) {
           if (el !== keep && el.closest("defs")) continue;
           if (norm(el.getAttribute("fill")) === norm(tint)) el.setAttribute("fill", "#FFFFFF");
           if (norm(el.getAttribute("stroke")) === norm(tint)) el.setAttribute("stroke", "#FFFFFF");
+          const stA = el.getAttribute("style");
+          if (stA && tintRgb) {
+            const st2 = stA.replace(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/g, (m0, r9, g9, b9, a9) =>
+              +r9 === tintRgb[0] && +g9 === tintRgb[1] && +b9 === tintRgb[2] ? `rgba(255,255,255,${a9})` : m0);
+            if (st2 !== stA) el.setAttribute("style", st2);
+          }
         }
       }
       out.push({
@@ -742,6 +770,10 @@ function markedIconOnlySvgs(svgIn: string, tintOverride?: Record<string, string>
         tint,
         /* draws ON TOP of the live words (the flip clock's split bar) */
         over: gs0[gi].getAttribute("data-icon-over") === "1",
+        /* the 10/1 un-burn: under the other live children (wells, discs,
+           stripes) or behind the plate itself (the auras) */
+        under: gs0[gi].getAttribute("data-icon-under") === "1",
+        behind: gs0[gi].getAttribute("data-icon-behind") === "1",
         svg: new XMLSerializer().serializeToString(dom.documentElement),
       });
     }
@@ -2117,7 +2149,7 @@ export async function collectExportBoards(st: {
              posedLabel. This retires round 27's "the posed pixels carry
              the styled icon" stand-down: the icon rides LIVE on posed
              copies now, per the law. */
-          const posedCuts: { name: string; btn: boolean; well: number[] | null; nick: string | null; tint: string | null; box: [number, number, number, number]; svg: string }[] = [];
+          const posedCuts: { name: string; btn: boolean; well: number[] | null; nick: string | null; tint: string | null; under: boolean; behind: boolean; box: [number, number, number, number]; svg: string }[] = [];
           {
             const shD9 = /data-shell="([-\d. ]+)"/.exec(ps2)?.[1].split(" ").map(Number);
             const sh09 = /data-shell0="([-\d. ]+)"/.exec(ps2)?.[1].split(" ").map(Number);
@@ -2251,6 +2283,9 @@ export async function collectExportBoards(st: {
                   ...(cut.well ? { wellR: r1p(cut.well[2] * Math.min(kx2, ky2)) } : {}),
                   ...(cut.nick ? { nick: cut.nick } : {}),
                   ...(cut.tint ? { tint: cut.tint } : {}),
+                  // the 10/1 layers ride the posed road too (the scene stacks them like the prefabs)
+                  ...(cut.under ? { under: true } : {}),
+                  ...(cut.behind ? { behind: true } : {}),
                   ...(rw ? {
                     word: rw.text,
                     wordFs: r1p(rw.fs * ky2),
@@ -3946,6 +3981,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         ...(mk.nick ? { nick: mk.nick } : {}),
         ...(mk.tint ? { tint: mk.tint } : {}),
         ...(mk.over ? { over: true } : {}),
+        ...(mk.under ? { under: true } : {}),
+        ...(mk.behind ? { behind: true } : {}),
       };
       SEAT_CUTS.set(seatRow, { spr, box: [bx, by, bw9, bh9] });
       seats.push(seatRow);
@@ -5665,7 +5702,15 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
             else skillFlatInk = null;
           } catch { skillInkTint = undefined; skillFlatInk = null; }
         }
-        const iconSeatsU = isArt ? null : await iconSeatsOf(uid, fullU, undefined, undefined, skillInkTint);
+        /* 10/1: a CELL RIG's seats speak the base's OWN pose — the base
+           bakes at v=0 (the cell-meter atoms below), and a mark that exists
+           only unlit (the streak meter's cells) must be measured there, or
+           the stripped base loses ink no seat carries. One call per family,
+           so no cut is ever queued twice. */
+        const cellRigU = uid === "energymeter" || uid === "ammo" || uid === "magazine" || uid === "streakmeter";
+        let zeroSvgSeatU: string | null = null;
+        if (cellRigU && !isArt) { try { zeroSvgSeatU = stripLoopsU(shell(uid, uOpts, undefined, 0)); } catch { zeroSvgSeatU = null; } }
+        const iconSeatsU = isArt ? null : await iconSeatsOf(uid, zeroSvgSeatU ?? fullU, undefined, undefined, skillInkTint);
         let baseSvgU = iconSeatsU ? stripIconInk(strippedU.svg).svg : strippedU.svg;
         /* the inventory grid's family base ships RINGLESS (the posed
            road's own data-invring cut): the selection is a live layer —
@@ -5821,11 +5866,11 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         /* round 44 tail: the magazine (item 20) and the streak meter's
            cells (item 40) join the same road — base rests all-dark, the
            Lit strip lights whole cells, the zone stamp snaps the cut */
-        const cellRig = uid === "energymeter" || uid === "ammo" || uid === "magazine" || uid === "streakmeter";
+        const cellRig = cellRigU;
         let litSvgU: string | null = null;
         if (cellRig) {
           try {
-            const zeroSvg = stripLoopsU(shell(uid, uOpts, undefined, 0));
+            const zeroSvg = zeroSvgSeatU ?? stripLoopsU(shell(uid, uOpts, undefined, 0));
             const oneSvg = stripLoopsU(shell(uid, uOpts, undefined, 1));
             baseSvgU = iconSeatsU ? stripIconInk(stripWordInk(zeroSvg).svg).svg : stripWordInk(zeroSvg).svg;
             litSvgU = iconSeatsU ? stripIconInk(stripWordInk(oneSvg).svg).svg : stripWordInk(oneSvg).svg;
@@ -7054,12 +7099,27 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      rides kit-manifest.json > rarity — the engine picks the tier from its
      own item data and renders the tier word as live text. ── */
   const slugR = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "tier";
+  /* the 10/1 un-burn (the owner: "rarity color glow needs to be its own
+     layer not burned into the bkg", "make the well a separate layer"): the
+     aura and the well leave the bake and ride every tier row as live
+     children. The aura cuts WHITE (marked tintable), so ONE cut serves
+     every tier and each row records its own tier colour — in Unity the
+     tier is the "Rarity glow" child's Image.color. The per-tier frame
+     files stay (older projects wear them by name), now identical bare
+     plates. */
+  let seatsRF: NonNullable<AssetMeta["iconSeats"]> | null = null;
   for (let i = 0; i < tiersR.length; i++) {
     const rfSvgI = shell("rarityframe", { overlay: "frame" }, undefined, i / (tiersR.length - 1));
-    await addPng(`rarityframe/${slugR(tiersR[i].name)}.png`, rfSvgI,
-      { component: "rarityframe", part: slugR(tiersR[i].name), nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: `Item frame, ${tiersR[i].name} tier — aura pre-tinted ${tiersR[i].c}. Drop the item icon in the well; the tier word arrives as live text on the RarityFrame prefab (ladder in manifest > rarity).`,
+    if (i === 0) seatsRF = await iconSeatsOf("rarityframe", rfSvgI);
+    const seatsI = seatsRF ? seatsRF.map((s9) => s9.name === "glow" ? { ...s9, tint: tiersR[i].c } : s9) : null;
+    await addPng(`rarityframe/${slugR(tiersR[i].name)}.png`, seatsI ? stripIconInk(rfSvgI).svg : rfSvgI,
+      { component: "rarityframe", part: slugR(tiersR[i].name), nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+        usage: seatsI
+          ? `Item frame plate (the same for every tier). The tier lives on the RarityFrame prefab's live "Rarity glow" child: its color is ${tiersR[i].name}'s ${tiersR[i].c} on this row — set that one Image color to change tier (ladder in manifest > rarity). The well is its own live child too; drop the item icon over it; the tier word arrives as live text.`
+          : `Item frame, ${tiersR[i].name} tier — aura pre-tinted ${tiersR[i].c}. Drop the item icon in the well; the tier word arrives as live text on the RarityFrame prefab (ladder in manifest > rarity).`,
         // the tier word rides the TIER's own staged value, never the user dial
-        ...textSeatsOf("rarityframe", rfSvgI, {}, undefined, i / (tiersR.length - 1), "bake") });
+        ...textSeatsOf("rarityframe", rfSvgI, {}, undefined, i / (tiersR.length - 1), "bake"),
+        ...(seatsI ? { iconSeats: seatsI } : {}) });
   }
   {
     const ltSvg = shell("loottag", { overlay: "frame" }, slim);
@@ -8116,7 +8176,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         "<family>-base.9.png = full material (gloss baked); <family>-base-flat.9.png = tintable flat variant for independent effects. Every filename carries its family so search finds it.",
         "Progress = track + fill; slider = track + fill + thumb; toggle = track + thumb; buttons = base + engine text + separate icon.",
         "Season track = bare board + well/node/spine parts; the SeasonTrack prefab builds live tier cells from them (tier count, claims, reward icons and progress are Inspector dials). seasonTrack below maps the drawn geometry.",
-        "Rarity: drive the displayed tier from your item data. rarityframe/ ships one pre-tinted frame per tier; the rarity block below carries the tier names and colors for stripes, tier words and glows.",
+        "Rarity: drive the displayed tier from your item data. The RarityFrame prefab's \"Rarity glow\" child is a white cut tinted by Image.color, so the tier is one color edit; the rarity block below carries the tier names and colors for stripes, tier words and glows.",
         "States: interactive pieces ship base-hover/base-pressed/base-disabled — the kit's designed states, same nine-slice as base. Sprite Swap them; hover glow and press lift stay engine-composed.",
       ],
       /* The input's affordance, as NUMBERS rather than baked pixels. The
@@ -8393,7 +8453,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       bloom: { opacity: base.candy.bloom?.opacity ?? 0, size: base.candy.bloom?.size ?? 0 },
       ...(full ? {
         rarity: {
-          note: "This kit's five-tier ladder, lowest to highest — names and colors are the maker's own (custom edits included). Pick the tier from your item data: frame = assets/rarityframe/rarityframe-<tier>.png, stripe/glow/tier-word color = the tier's color, tier word = live engine text.",
+          note: "This kit's five-tier ladder, lowest to highest — names and colors are the maker's own (custom edits included). Pick the tier from your item data: the RarityFrame's \"Rarity glow\" child's Image.color = the tier's color (the frame plate is the same for every tier), stripe/tier-word color = the tier's color, tier word = live engine text.",
           tiers: tiersR.map((t, i) => ({ index: i, name: t.name, color: t.c })),
         },
       } : {}),
@@ -14638,9 +14698,10 @@ move it in the Inspector), and the open menu's colors and options are
 yours to edit — they travel in \`kit-manifest.json > menu\`, with the
 maker's typed items seeding the option list.
 
-**RarityFrame**: wears the first tier's frame and its live tier word;
-every other tier sits beside it in assets/rarityframe/ — swap the
-sprite per item (retype the word to match).
+**RarityFrame**: the frame plate with its live tier word, a live **Well**
+child and a live **Rarity glow** child. The glow is a white cut tinted by
+its Image color, so changing tier is one color edit (the ladder's colors
+are in \`kit-manifest.json > rarity\`); retype the word to match.
 
 **MoveCounter / Achievement**: plates with the number, caption and
 announcement as live text on top — your app words, ready to bind. The
@@ -14903,7 +14964,7 @@ namespace PatternBreak {
      per swappable icon/image the app drew — its own full-color sprite,
      box center vs the shell center (design px, y down), box size. btn =
      a REAL small-button plate; wellR > 0 = circular-masked image well. */
-  [Serializable] class PBIconChild { public string name; public string file; public float dx; public float dy; public float w; public float h; public bool btn; public float wellR; public bool pinRight; public float rightGap; public string nick; public string tint;
+  [Serializable] class PBIconChild { public string name; public string file; public float dx; public float dy; public float w; public float h; public bool btn; public float wellR; public bool pinRight; public float rightGap; public string nick; public string tint; public bool under; public bool behind;
     /* OVER THE WORDS (round 72 — the flip clock's split bar): the app
        draws this ink on top of the live text, so the child lands ABOVE
        the Words group instead of under it. */
@@ -17912,6 +17973,7 @@ namespace PatternBreak {
                   if (rigSNP.learnedBadge != null) rigSNP.learnedBadge.SetActive(false);
                   if (rigSNP.lockGlyph != null) rigSNP.lockGlyph.SetActive(false);
                 }
+                int underPlacedP = 0;
                 if (it.posedIcons != null) foreach (var pIc in it.posedIcons) {
                   if (pIc == null || string.IsNullOrEmpty(pIc.file) || pIc.w < 1f || pIc.h < 1f) continue;
                   var pIcSp = S(root + "/" + pIc.file);
@@ -17945,6 +18007,13 @@ namespace PatternBreak {
                     if (!string.IsNullOrEmpty(pIc.tint) && ColorUtility.TryParseHtmlString(pIc.tint, out pTintC)) pIi.color = pTintC;
                   }
                   pIcGo.transform.SetParent(inst.transform, false);
+                  /* the 10/1 un-burn on the posed road: a BEHIND seat (the
+                     auras) lands under the posed art itself; an UNDER seat
+                     (wells, discs, stripes) lands right over it, under the
+                     other rebuilt children and the words — in seat order,
+                     which is paint order. Everything else appends as before. */
+                  if (pIc.behind) pIcGo.transform.SetSiblingIndex(artRt.GetSiblingIndex());
+                  else if (pIc.under) pIcGo.transform.SetSiblingIndex(artRt.GetSiblingIndex() + 1 + underPlacedP++);
                   var pIcRt = pIcGo.GetComponent<RectTransform>();
                   pIcRt.anchorMin = pIcRt.anchorMax = new Vector2(0.5f, 0.5f);
                   pIcRt.pivot = new Vector2(0.5f, 0.5f);
@@ -20272,6 +20341,28 @@ namespace PatternBreak {
       }
       if (lowest >= 0) words.transform.SetSiblingIndex(lowest);
     }
+    /* the first sibling index ABOVE the plate's own layers and the under
+       seats already placed: Halo, Body, behind seats and under seats sit
+       below it; a lit strip or a fresh under child slots in here, so it
+       draws over the wells and under everything else (10/1). */
+    static int UnderTop(GameObject go, PBAsset row) {
+      int idx = 0;
+      while (idx < go.transform.childCount) {
+        var nmU = go.transform.GetChild(idx).name;
+        bool plateLayer = nmU == "Halo" || nmU == "Body";
+        bool underSeat = false;
+        if (!plateLayer && row != null && row.iconSeats != null)
+          foreach (var icU in row.iconSeats)
+            if (icU != null && (icU.under || icU.behind) && IconChildName(icU) == nmU) { underSeat = true; break; }
+        if (!plateLayer && !underSeat) break;
+        idx++;
+      }
+      return idx;
+    }
+    /* a BEHIND seat needs the plate as a Body child (the glow-family
+       shape) so a sibling can draw under the art: the same one move the
+       glow families make, without the glow gate (10/1). */
+    static void EnsureBodyShape(GameObject go) { RebodyCore(go); }
     static List<string> WireIconChildren(GameObject go, string root, PBManifest m, string fam) {
       return WireIconChildrenRow(go, root, m, LabelRow(m, fam));
     }
@@ -20336,10 +20427,20 @@ namespace PatternBreak {
            bar crosses the digits in the app): it takes the top of the
            stack instead, so the live words pass UNDER it. */
         if (ic.over) { cgo.transform.SetAsLastSibling(); }
+        /* the 10/1 un-burn (the owner: "in general do not burn the wells
+           into the backgrounds but keep them as a separate layer"): a
+           BEHIND seat (the auras) needs the plate in a Body child so a
+           sibling can draw under it, and lands before that Body; an UNDER
+           seat (wells, discs, stripes) lands at the bottom of the stack
+           right over the plate, so fills, lit strips, portraits and words
+           all paint over it. Among under seats, seat order stays paint
+           order (the well before the cells drawn on it). */
+        else if (ic.behind) { EnsureBodyShape(go); cgo.transform.SetSiblingIndex(0); }
+        else if (ic.under) { cgo.transform.SetSiblingIndex(UnderTop(go, row)); }
         else {
           Transform beforeIC = null;
           for (int nxI = icI + 1; nxI < row.iconSeats.Length && beforeIC == null; nxI++)
-            if (row.iconSeats[nxI] != null && !row.iconSeats[nxI].over) beforeIC = go.transform.Find(IconChildName(row.iconSeats[nxI]));
+            if (row.iconSeats[nxI] != null && !row.iconSeats[nxI].over && !row.iconSeats[nxI].under && !row.iconSeats[nxI].behind) beforeIC = go.transform.Find(IconChildName(row.iconSeats[nxI]));
           if (beforeIC == null) beforeIC = go.transform.Find("Words");
           if (beforeIC != null) cgo.transform.SetSiblingIndex(beforeIC.GetSiblingIndex());
         }
@@ -20847,8 +20948,9 @@ namespace PatternBreak {
           }
           kcm.SetValue(litRowCM != null && litRowCM.ringV > 0f ? Mathf.Clamp01(litRowCM.ringV) : (famCM == "ammo" ? 1f : famCM == "lives" ? 0.6f : famCM == "magazine" ? 0.66f : famCM == "streakmeter" ? 0.64f : 0.8f));
           /* the Lit strip lands directly over the base — but UNDER the
-             live children (words, glyphs): first in the paint order */
-          lgoCM.transform.SetSiblingIndex(0);
+             live children (words, glyphs): first in the paint order, above
+             any under seats (the streak meter's cells, 10/1) */
+          lgoCM.transform.SetSiblingIndex(UnderTop(go, baseAsset));
         }
       }
       /* ── round 80: a piece the app draws TURNED (the verdict stamp) bakes
@@ -21330,6 +21432,9 @@ namespace PatternBreak {
        single-image shape it always had. */
     static bool RebodyIfGlow(GameObject go, PBManifest m, string fam) {
       if (!HasStateFx(m, fam)) return false;
+      return RebodyCore(go);
+    }
+    static bool RebodyCore(GameObject go) {
       var rootB = go.GetComponent<Image>();
       if (rootB == null || rootB.sprite == null) return false; // already Body-shaped (or imageless rig)
       if (go.transform.Find("Body") != null) return false; // occupied — theirs
