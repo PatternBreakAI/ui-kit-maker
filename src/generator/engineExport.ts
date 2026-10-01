@@ -311,6 +311,11 @@ interface AssetMeta {
      *  disable or delete as ONE group (the bottomnav badge's plate +
      *  count). Absent = the word sits on the Words tree as ever. */
     rider?: string;
+    /** the rider's TILT (10/1 — the 2x button's AD ×2 ribbon): the SVG's
+     *  own rotate angle in degrees, clockwise (y down); fx/fy already
+     *  mark the TURNED center. The importer rotates the live word on its
+     *  plate (RectTransform z = -rot). Absent = upright, as ever. */
+    rot?: number;
     /** round 48 (the smashed-pair guard, cross-lane): this seat's word
      *  trips kernCollides in its own face — the app renders it with
      *  kerning off, and the live TMP seat must too (per-label, never
@@ -382,6 +387,22 @@ interface AssetMeta {
      *  order, and the default is under (picture ink beneath the words);
      *  this flag is the exception, for structure that crosses a number. */
     over?: boolean;
+    /** UNDER the other live children (data-icon-under — the owner's 10/1
+     *  un-burn: wells, discs, stripes): the child lands at the bottom of
+     *  the stack, right over the plate, so fills, lit strips, portraits
+     *  and words all paint over it, exactly the app's own order. */
+    under?: boolean;
+    /** BEHIND the plate itself (data-icon-behind — the rarity and reward
+     *  auras): the piece takes the Body shape (art in a full-stretch Body
+     *  child) and this child lands before it, so the glow draws under the
+     *  frame the way the app draws it. */
+    behind?: boolean;
+    /** LIVE-ONLY ink (10/1, the daily cell's today ring): the resting
+     *  render carries this mark and the family's DISABLED render does
+     *  not, so the importer hands the child to StateFx.hideWhenDisabled
+     *  (the end-turn arc's road) and a disabled Button drops it exactly
+     *  as the app does. */
+    liveOnly?: boolean;
     /** the PER-STATE GLYPH DRESS (round 53): a state icon fork (the ICR
      *  ladder — stateDesigns[state].icon) ships that state's cut on the
      *  SAME window as the resting sprite; the StateFx rig swaps the live
@@ -579,6 +600,10 @@ export interface ExportBoardItemData {
      *  scorebug would have shipped WHITE team bars): white-cut sprite,
      *  the slot color rides Image.color in the scene rebuild. */
     tint?: string;
+    /** the 10/1 layers: under = right over the posed art, under the other
+     *  rebuilt children and the words (wells, discs, stripes); behind =
+     *  under the posed art itself (the rarity auras). */
+    under?: boolean; behind?: boolean;
     /** a RIDER WORD stripped from the posed pixels with its plate (round
      *  40 — the owner's Booster Select cards lost their ×3/×1/×2: the
      *  un-burn rebuilt the pill as a live child ON TOP of the bake, so
@@ -590,7 +615,10 @@ export interface ExportBoardItemData {
      *  offset from the CHILD's center in board px (y down); wordFs the
      *  rendered size in board px; wordInk the resolved hex; wordW the
      *  weight. Absent = the plate carries no riding word. */
-    word?: string; wordFs?: number; wordDx?: number; wordDy?: number; wordInk?: string; wordW?: number }[];
+    word?: string; wordFs?: number; wordDx?: number; wordDy?: number; wordInk?: string; wordW?: number;
+    /** the rider word's TILT on a posed copy (10/1): degrees clockwise, the
+     *  SVG's own rotate; the scene sets the word's z to -wordRot. */
+    wordRot?: number }[];
   /** render-variant overlay (trophy ~gold) — the importer swaps the
       matching variant sprite onto the placed prefab; null = stock */
   ov?: string | null;
@@ -667,6 +695,32 @@ export interface ExportBoardData {
    ancestors, filters and clips kept, so the sprite is the app's exact
    pixels) and strip the groups from the shipping bake. ── */
 const ICON_DRAWABLE_SEL = "path,rect,circle,ellipse,line,polyline,polygon,text,image,use";
+/* a rider word TILTED with its plate (10/1 — the 2x button's AD ×2 ribbon):
+   the ONE warp a seat may carry is a single pure rotate(a cx cy) in a
+   data-seat-rider text's ancestry — no skew/matrix/scale, no textPath, no
+   second rotate, and the word centered (dominant-baseline central) so its
+   rect pivot IS the turned point. The seat records the turn and the
+   importer rotates the live word on its plate; any other warp stays baked,
+   exactly as before. One rule, three readers (parseTextSeats, stripWordInk,
+   the posed rider capture), so a stripped word always has a seat. */
+const RIDER_ROTATE_RE = /^\s*rotate\(\s*(-?[\d.]+)[ ,]+(-?[\d.]+)[ ,]+(-?[\d.]+)\s*\)\s*$/;
+function riderTurnOf(t: Element): { a: number; cx: number; cy: number } | null {
+  if (!t.getAttribute("data-seat-rider") || t.getAttribute("dominant-baseline") !== "central" || t.querySelector("textPath")) return null;
+  let turn: { a: number; cx: number; cy: number } | null = null;
+  for (let p: Element | null = t; p && p.tagName.toLowerCase() !== "svg"; p = p.parentElement) {
+    const tf = p.getAttribute("transform") ?? "";
+    if (!/rotate|skew|matrix|scale/.test(tf)) continue;
+    const rm = RIDER_ROTATE_RE.exec(tf);
+    if (!rm || turn) return null;
+    turn = { a: +rm[1], cx: +rm[2], cy: +rm[3] };
+  }
+  return turn;
+}
+/* where a turned point lands: (x, y) rotated about (cx, cy) by a degrees, SVG's y-down clockwise */
+function turnPoint(x: number, y: number, turn: { a: number; cx: number; cy: number }): [number, number] {
+  const r = (turn.a * Math.PI) / 180, px = x - turn.cx, py = y - turn.cy;
+  return [turn.cx + px * Math.cos(r) - py * Math.sin(r), turn.cy + px * Math.sin(r) + py * Math.cos(r)];
+}
 /* SVG paint INHERITS (round 61f). A built kit icon carries its ink on the
    wrapping <g> — iconGroup writes fill/stroke there and the Lucide inner
    markup states nothing — so a judge that reads only the leaf shape sees
@@ -690,12 +744,13 @@ function inheritedPaint(el: Element, attr: string): string | null {
    for ink whose flatness only the EXPORT can prove (it rasters the cut
    and reads the drawn color back; see skillFlatInkOf). Keyed by the
    group's data-icon name. */
-function markedIconOnlySvgs(svgIn: string, tintOverride?: Record<string, string>): { name: string; btn: boolean; well: number[] | null; box: number[] | null; nick: string | null; tint: string | null; over: boolean; svg: string }[] {
+type MarkedIconCut = { name: string; btn: boolean; well: number[] | null; box: number[] | null; nick: string | null; tint: string | null; over: boolean; under: boolean; behind: boolean; svg: string };
+function markedIconOnlySvgs(svgIn: string, tintOverride?: Record<string, string>): MarkedIconCut[] {
   try {
     const dom0 = new DOMParser().parseFromString(svgIn, "image/svg+xml");
     const gs0 = Array.from(dom0.querySelectorAll('[data-part="icon"]'));
     if (!gs0.length) return [];
-    const out: { name: string; btn: boolean; well: number[] | null; box: number[] | null; nick: string | null; tint: string | null; over: boolean; svg: string }[] = [];
+    const out: MarkedIconCut[] = [];
     for (let gi = 0; gi < gs0.length; gi++) {
       const dom = new DOMParser().parseFromString(svgIn, "image/svg+xml");
       const gs = Array.from(dom.querySelectorAll('[data-part="icon"]'));
@@ -721,10 +776,34 @@ function markedIconOnlySvgs(svgIn: string, tintOverride?: Record<string, string>
            entirely un-whitened while its seat claimed a tint. Ink outside
            defs only, and still only ink drawn IN the tint colour: outlines
            and shading in other colours stay the art's. */
+        /* 10/1 (the rarity auras): a drop-shadow drawn IN the tint colour
+           whitens too — the filter colour lives in the style attribute as
+           rgba(r,g,b,a), so the match is by channels, alpha kept. White ×
+           tint reproduces the halo exactly; a shadow in any other colour
+           stays the art's, like every other non-tint paint. */
+        const tintHex = /^#([0-9a-f]{6})$/i.exec(tint.trim());
+        const tintRgb = tintHex ? [parseInt(tintHex[1].slice(0, 2), 16), parseInt(tintHex[1].slice(2, 4), 16), parseInt(tintHex[1].slice(4, 6), 16)] : null;
         for (const el of [keep, ...Array.from(keep.querySelectorAll("*"))]) {
           if (el !== keep && el.closest("defs")) continue;
           if (norm(el.getAttribute("fill")) === norm(tint)) el.setAttribute("fill", "#FFFFFF");
           if (norm(el.getAttribute("stroke")) === norm(tint)) el.setAttribute("stroke", "#FFFFFF");
+          /* 10/1 (the daily cell's today ring): a fill or stroke drawn as
+             rgba() IN the tint colour whitens too, alpha kept — hexRgba's
+             own form, the drop-shadow rule below brought to the paint
+             attributes. White at the ring's own alpha × the child's
+             Image.color is the app's translucent gold; an rgba() in any
+             other colour stays the art's. */
+          if (tintRgb) for (const atA of ["fill", "stroke"] as const) {
+            const vA = el.getAttribute(atA);
+            const mA = vA ? /^rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)$/.exec(vA.trim()) : null;
+            if (mA && +mA[1] === tintRgb[0] && +mA[2] === tintRgb[1] && +mA[3] === tintRgb[2]) el.setAttribute(atA, `rgba(255,255,255,${mA[4]})`);
+          }
+          const stA = el.getAttribute("style");
+          if (stA && tintRgb) {
+            const st2 = stA.replace(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/g, (m0, r9, g9, b9, a9) =>
+              +r9 === tintRgb[0] && +g9 === tintRgb[1] && +b9 === tintRgb[2] ? `rgba(255,255,255,${a9})` : m0);
+            if (st2 !== stA) el.setAttribute("style", st2);
+          }
         }
       }
       out.push({
@@ -741,6 +820,10 @@ function markedIconOnlySvgs(svgIn: string, tintOverride?: Record<string, string>
         tint,
         /* draws ON TOP of the live words (the flip clock's split bar) */
         over: gs0[gi].getAttribute("data-icon-over") === "1",
+        /* the 10/1 un-burn: under the other live children (wells, discs,
+           stripes) or behind the plate itself (the auras) */
+        under: gs0[gi].getAttribute("data-icon-under") === "1",
+        behind: gs0[gi].getAttribute("data-icon-behind") === "1",
         svg: new XMLSerializer().serializeToString(dom.documentElement),
       });
     }
@@ -2089,11 +2172,25 @@ export async function collectExportBoards(st: {
           let posedLabelRaw: { dx: number; dy: number } | null = null;
           {
             const lg2 = ps2.slice(ps2.indexOf('data-part="label"'));
-            const tm2 = /<text x="(-?[\d.]+)" y="(-?[\d.]+)" font-size="([\d.]+)"/.exec(lg2);
+            /* attribute-order-tolerant posed label parse (round 107, the
+               owner's Coin screenshot): the rigid x/y/font-size regex never
+               matched a contentText label (its <text> leads x, y,
+               font-family), so every posed copy of a contentText-labelled
+               universal piece (the board's two coins, the verdict stamps,
+               the trayslots, the validity rows) shipped NO posed seat and
+               parked its word at the shell centre. Read the first text
+               tag's attrs wherever they sit, the uLabelMeta road (round
+               41), and carry its start-anchor half-shell shift exactly as
+               LabelSeatShift does for the family row; rows off the
+               universal road never ship labelAnchor, so they keep today's
+               centred seat. */
+            const tTag2 = /<text\b[^>]*>/.exec(lg2)?.[0] ?? "";
+            const gx2 = /\bx="(-?[\d.]+)"/.exec(tTag2), gy2 = /\by="(-?[\d.]+)"/.exec(tTag2), gf2 = /\bfont-size="([\d.]+)"/.exec(tTag2);
             const s0m2 = /data-shell0="([-\d. ]+)"/.exec(ps2);
             const s02 = s0m2?.[1].split(" ").map(Number);
-            if (tm2 && s02 && s02.length === 4)
-              posedLabelRaw = { dx: +tm2[1] - (s02[0] + s02[2] / 2), dy: +tm2[2] - (s02[1] + s02[3] / 2) };
+            const startX2 = UNIVERSAL_ROAD.has(idBase) && (/\btext-anchor="([a-z]+)"/.exec(tTag2)?.[1] ?? "start") === "start" && s02 ? s02[2] / 2 : 0;
+            if (gx2 && gy2 && gf2 && +gf2[1] > 1 && s02 && s02.length === 4)
+              posedLabelRaw = { dx: +gx2[1] - (s02[0] + s02[2] / 2) + startX2, dy: +gy2[1] - (s02[1] + s02[3] / 2) };
           }
           // the label leaves the pixels — it rides the prefab as live text
           const dom2 = new DOMParser().parseFromString(ps2, "image/svg+xml");
@@ -2117,12 +2214,30 @@ export async function collectExportBoards(st: {
              posedLabel. This retires round 27's "the posed pixels carry
              the styled icon" stand-down: the icon rides LIVE on posed
              copies now, per the law. */
-          const posedCuts: { name: string; btn: boolean; well: number[] | null; nick: string | null; tint: string | null; box: [number, number, number, number]; svg: string }[] = [];
+          const posedCuts: { name: string; btn: boolean; well: number[] | null; nick: string | null; tint: string | null; under: boolean; behind: boolean; box: [number, number, number, number]; svg: string }[] = [];
           {
             const shD9 = /data-shell="([-\d. ]+)"/.exec(ps2)?.[1].split(" ").map(Number);
             const sh09 = /data-shell0="([-\d. ]+)"/.exec(ps2)?.[1].split(" ").map(Number);
             const riseDy9 = shD9 && sh09 && shD9.length === 4 && sh09.length === 4 ? shD9[1] - sh09[1] : 0;
             const vbm9 = /viewBox="(-?[\d.]+) (-?[\d.]+)/.exec(ps2);
+            /* r107 (the energy meter's wells, then the review's build-queue
+               catch): a posed copy is a SNAPSHOT — its art bakes the copy's
+               words, its mercury (the posed road never strips data-barfill)
+               and, on a cell rig, its lit cells — and the posed road seats
+               every under child right OVER that art. A Well, a socket or a
+               disc rebuilt live here would paint over the baked words and
+               fills (the family prefab avoids this with its plate-less Lit
+               strip, its live Fill Area and its live Words; a snapshot has
+               none of its own). So on EVERY posed copy the under layers stay
+               in the posed pixels, as the app draws them; the family prefab
+               is the editable one. Behind layers (the auras) still cut: they
+               draw under the art and cover nothing. */
+            {
+              const domU9 = new DOMParser().parseFromString(ps2, "image/svg+xml");
+              const gsU9 = Array.from(domU9.querySelectorAll('[data-part="icon"][data-icon-under="1"]'));
+              for (const gU9 of gsU9) gU9.removeAttribute("data-part");
+              if (gsU9.length) ps2 = new XMLSerializer().serializeToString(domU9.documentElement);
+            }
             for (const cut of markedIconOnlySvgs(ps2)) {
               let boxI: [number, number, number, number] | null = null;
               if (cut.well && cut.well.length === 3 && cut.well.every(Number.isFinite)) {
@@ -2147,7 +2262,7 @@ export async function collectExportBoards(st: {
              child-center relative) and removed before the raster — it
              re-seats as live TMP riding the rebuilt child in the scene.
              A rider naming NO stripped plate stays baked, as ever. */
-          const posedRiderWords: { rider: string; text: string; x: number; y: number; fs: number; weight: number; ink: string | null }[] = [];
+          const posedRiderWords: { rider: string; text: string; x: number; y: number; fs: number; weight: number; ink: string | null; rot?: number }[] = [];
           if (posedCuts.length) {
             /* the DRAWN-frame conversion (the cut boxes' own riseDy rule):
                a <text>'s x/y are authored RAW while the cut boxes measure
@@ -2165,16 +2280,21 @@ export async function collectExportBoards(st: {
               const wordR = (tR.textContent ?? "").replace(/\s+/g, " ").trim();
               if (!(fsR > 1) || !wordR) continue;
               const fillR = /^#[0-9a-fA-F]{6}$/.exec(tR.getAttribute("fill") ?? "")?.[0] ?? null;
+              // a TURNED rider (10/1, the AD ×2 ribbon): the word center is the turned point, the angle ships as wordRot
+              const turnR = riderTurnOf(tR);
+              let xR = parseFloat(tR.getAttribute("x") ?? "0"), yR = parseFloat(tR.getAttribute("y") ?? "0");
+              if (turnR) [xR, yR] = turnPoint(xR, yR, turnR);
               posedRiderWords.push({
                 rider: riderR, text: wordR,
-                x: parseFloat(tR.getAttribute("x") ?? "0"),
+                x: xR,
                 /* dominant-baseline central is the rider grammar (both
                    authored sites); a baseline-anchored stray would seat a
                    hair high, still inside the plate */
-                y: parseFloat(tR.getAttribute("y") ?? "0") + riseDyW,
+                y: yR + riseDyW,
                 fs: fsR,
                 weight: parseInt(tR.getAttribute("font-weight") ?? "400", 10) || 400,
                 ink: fillR,
+                ...(turnR ? { rot: Math.round(turnR.a * 10) / 10 } : {}),
               });
               tR.remove();
               cutR++;
@@ -2251,6 +2371,9 @@ export async function collectExportBoards(st: {
                   ...(cut.well ? { wellR: r1p(cut.well[2] * Math.min(kx2, ky2)) } : {}),
                   ...(cut.nick ? { nick: cut.nick } : {}),
                   ...(cut.tint ? { tint: cut.tint } : {}),
+                  // the 10/1 layers ride the posed road too (the scene stacks them like the prefabs)
+                  ...(cut.under ? { under: true } : {}),
+                  ...(cut.behind ? { behind: true } : {}),
                   ...(rw ? {
                     word: rw.text,
                     wordFs: r1p(rw.fs * ky2),
@@ -2258,6 +2381,7 @@ export async function collectExportBoards(st: {
                     wordDy: r1p((rw.y - (cut.box[1] + cut.box[3] / 2)) * ky2),
                     ...(rw.ink ? { wordInk: rw.ink } : {}),
                     wordW: rw.weight,
+                    ...(rw.rot ? { wordRot: rw.rot } : {}),
                   } : {}),
                 });
               }
@@ -3433,13 +3557,21 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
          word with font-kerning:none — the seat carries the flag so the
          live TMP applies the same guard, per-label */
       let unkern = false;
-      let tdx = 0, tdy = 0;
+      /* a TURNED rider (10/1 — the 2x button's AD ×2 ribbon): the one pure
+         rotate riderTurnOf proves is a seat, not a warp — it lands on the
+         turned center and carries the angle. Translates UNDER the rotate
+         move the point before the turn, those above it (the shell's
+         headroom, the lift group) after. */
+      const turn = riderTurnOf(t);
+      let tdx = 0, tdy = 0, tdxIn = 0, tdyIn = 0, underTurn = !!turn;
       for (let p: Element | null = t; p && p.tagName.toLowerCase() !== "svg"; p = p.parentElement) {
         const tf = p.getAttribute("transform") ?? "";
-        if (/rotate|skew|matrix|scale/.test(tf)) warped = true;
+        const isTurn = !!turn && RIDER_ROTATE_RE.test(tf);
+        if (isTurn) underTurn = false;
+        else if (/rotate|skew|matrix|scale/.test(tf)) warped = true;
         for (const mt of tf.matchAll(/translate\(\s*(-?[\d.]+)[ ,]*(-?[\d.]+)?\s*\)/g)) {
-          tdx += parseFloat(mt[1]);
-          tdy += parseFloat(mt[2] ?? "0");
+          if (underTurn) { tdxIn += parseFloat(mt[1]); tdyIn += parseFloat(mt[2] ?? "0"); }
+          else { tdx += parseFloat(mt[1]); tdy += parseFloat(mt[2] ?? "0"); }
         }
         if (p.getAttribute("opacity") === "0") ghosted = true;
         if (p !== t && p.getAttribute("filter")) dressed = true;
@@ -3504,8 +3636,9 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         }
       }
       const central = t.getAttribute("dominant-baseline") === "central";
-      const x = parseFloat(t.getAttribute("x") ?? "0") + tdx;
-      const y0 = parseFloat(t.getAttribute("y") ?? "0") + tdy;
+      let x = parseFloat(t.getAttribute("x") ?? "0"), y0 = parseFloat(t.getAttribute("y") ?? "0");
+      if (turn) [x, y0] = turnPoint(x + tdxIn, y0 + tdyIn, turn);
+      x += tdx; y0 += tdy;
       // baseline-anchored nodes center on the MEASURED mid-cap of their
       // own face (canvas metrics), not a constant guess
       const midEm = central ? 0 : capMidOf(kit ? `'${kitFont}', Inter, sans-serif` : "Inter, sans-serif");
@@ -3531,6 +3664,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         // a word marked to RIDE an icon seat travels with that live child
         // (the bottomnav badge count on its plate) — see AssetMeta.rider
         ...(t.getAttribute("data-seat-rider") ? { rider: t.getAttribute("data-seat-rider")! } : {}),
+        // the rider's tilt (10/1) — the importer rotates the live word on its plate
+        ...(turn ? { rot: Math.round(turn.a * 10) / 10 } : {}),
         ...(unkern ? { unkern: true } : {}),
       });
       if (seats.length >= 40) break; // sanity cap
@@ -3743,9 +3878,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         if (!(fs > 1) || !str0) continue;
         let warped = !!t.querySelector("textPath");
         let ghosted = false;
+        const turnS = riderTurnOf(t); // a turned rider (10/1) is a seat, not a warp — parseTextSeats' own rule, mirrored
         for (let p: Element | null = t; p && p.tagName.toLowerCase() !== "svg"; p = p.parentElement) {
           const tf = p.getAttribute("transform") ?? "";
-          if (/rotate|skew|matrix|scale/.test(tf)) warped = true;
+          if (!turnS && /rotate|skew|matrix|scale/.test(tf)) warped = true;
           if (p.getAttribute("opacity") === "0") ghosted = true;
         }
         // exactly parseTextSeats' acceptance: words that can't be
@@ -3946,6 +4082,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         ...(mk.nick ? { nick: mk.nick } : {}),
         ...(mk.tint ? { tint: mk.tint } : {}),
         ...(mk.over ? { over: true } : {}),
+        ...(mk.under ? { under: true } : {}),
+        ...(mk.behind ? { behind: true } : {}),
       };
       SEAT_CUTS.set(seatRow, { spr, box: [bx, by, bw9, bh9] });
       seats.push(seatRow);
@@ -4114,7 +4252,30 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       let gross = 0;
       for (let i9 = 1; i9 < sm.length; i9++) gross += Math.abs(sm[i9] - sm[i9 - 1]);
       const monotone = gross > 0.01 ? Math.abs(sm[sm.length - 1] - sm[0]) / gross : 1;
-      const mode: "tiled" | "sliced" = monotone >= 0.5 ? "sliced" : "tiled";
+      /* ── 10/1, the owner's "still cappin" (a fresh Brightside project:
+         the ProgressBar's mercury restarted its ramp near the value line,
+         a pale block with a hard edge that read as the old cap): a SHALLOW
+         ramp fails the net-over-gross test. Brightside's progress fill
+         climbs 15 luminance over 1113 columns, 0.013 per column, so the
+         raster's own dithering (±0.5 per column) is most of the gross
+         travel and the ratio read 0.30, "tiled", while Hot Rod's 68-point
+         ramps read 0.98. Tiling a ramp is exactly the seam the owner saw.
+         The second judge reads the TREND instead of the wiggle: a heavy
+         smooth (a tenth of the center) and the trend's end-to-end travel
+         against the raw range. A ramp's trend crosses most of the range
+         (Brightside 0.88, Hot Rod 0.90); a repeating pattern's trend is
+         flat (xpbar and loadbar 0.00 on both kits, residual 70+ off the
+         trend). Measured on every shipped fill of both kits: the only
+         verdicts that change are the shallow ramps, to sliced. */
+      const winT = Math.max(5, Math.floor(prof.length / 10));
+      const trend = prof.map((_, i9) => {
+        const a9 = Math.max(0, i9 - winT), b9 = Math.min(prof.length, i9 + winT);
+        let s8 = 0;
+        for (let k9 = a9; k9 < b9; k9++) s8 += prof[k9];
+        return s8 / (b9 - a9);
+      });
+      const trendRatio = Math.abs(trend[trend.length - 1] - trend[0]) / (mx - mn);
+      const mode: "tiled" | "sliced" = monotone >= 0.5 || trendRatio >= 0.5 ? "sliced" : "tiled";
       return { nineSlice: { left, right, top, bottom }, mode };
     } catch { return null; }
   };
@@ -5319,10 +5480,22 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
     /* the count badge goes DYNAMIC: bare circle + live count text on the
        prefab (owner: "the countdown numerics should be dynamic — I'll
        want those to animate on play") */
-    if (shipProp("countbadge"))
-      await addPng("countbadge/base-plain.png", shell("countbadge", { overlay: "plain" }, undefined, 0.03),
+    if (shipProp("countbadge")) {
+      /* 10/1 (the owner's CountBadge screenshot: "glow should be separate
+         layer"): the red halo is marked ink BEHIND the plate — cut white
+         (a bare annulus: the halo and nothing under the plate), tintable,
+         seated on this row and stripped from the bake; the CountBadge
+         prefab wears it as a live "Glow" child under a Body-shaped plate,
+         the rarity frame's own road. */
+      const cbSvg = shell("countbadge", { overlay: "plain" }, undefined, 0.03);
+      const cbSeats = await iconSeatsOf("countbadge", cbSvg);
+      await addPng("countbadge/base-plain.png", cbSeats ? stripIconInk(cbSvg).svg : cbSvg,
         { component: "countbadge", part: "base-plain", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
-          usage: "Bare count circle — the number is LIVE text on the CountBadge prefab. Drive it and it animates." });
+          usage: cbSeats
+            ? "Bare count circle — the number is LIVE text on the CountBadge prefab (drive it and it animates), and the red halo is the prefab's live \"Glow\" child behind the plate: a white halo ring tinted through its Image color, so recoloring, growing or removing the glow is one Inspector edit."
+            : "Bare count circle — the number is LIVE text on the CountBadge prefab. Drive it and it animates.",
+          ...(cbSeats ? { iconSeats: cbSeats } : {}) });
+    }
 
     /* ── THE UNIVERSAL LIVE-PIECE ROAD (owner mandate, 2026-08-27:
        "Everything should be a prefab, nothing baked — what's the point?").
@@ -5346,7 +5519,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       const UNIVERSAL_USAGE: Partial<Record<KitComponentId, string>> = {
         qtybadge: "Quantity badge — the count is LIVE text on the prefab (per-copy counts ride posed skins). Display piece: no button wiring by design.",
         levelnode: "Level-map node — a REAL button (Sprite Swap states); the level number is LIVE text. Star/lock poses ride per-copy posed skins.",
-        dailycell: "Daily reward cell — a REAL button; the day word is a LIVE seat and the reward glyph a LIVE Image child (swap the sprite in the Inspector). Claimed/today/locked poses ride per-copy posed skins.",
+        dailycell: "Daily reward cell — a REAL button; the day word is a LIVE seat, the reward glyph a LIVE Image child (swap the sprite in the Inspector), and today's gold ring with its glow ONE live \"Today ring\" child over the plate (a white cut: retint it through Image.color, delete it for a plain day; the StateFx rig hides it while the Button is disabled, as the app draws no ring on a dead cell). Claimed/today/locked poses ride per-copy posed skins.",
         boostercard: "Booster card — a REAL button; name/effect words are LIVE seats, the glyph a LIVE Image child, and the qty pill a REAL small-button child with its live count over it (per-copy content rides posed skins).",
         slotbtn: "Slot button — the item slot's framed look as a REAL button (Sprite Swap states, glow + lift): the glyph is a LIVE Image child (swap it in the Inspector; icons/* fit the seat — the per-glyph fleet in Prefabs/Variants wears them ready-made), and a typed qty pins the corner chip as a real small-button child with its riding count.",
         resource: "Resource chip — the count is a LIVE seat and the medallion is a LIVE Image child (swap the sprite in the Inspector). Display piece.",
@@ -5373,7 +5546,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         xpbar: "XP bar — LIVE: the NEXT line and XP readout are seats, the mercury is a KitBarFill bar (the Value slider or SetValue; the milestone notch cuts ride the fill), and the level knob is a live child whose number RIDES it. Display piece.",
         invgrid: "Inventory grid — every cell glyph is a LIVE Image child (the app's cell pickers steer them) and the count chips are live plates with their numbers riding them. The selection ring is NOT baked: compose invgrid/cell-ring.png over any cell (the board scenes wire InvGridSelect for you). Display piece.",
         partyframe: "Party frame — drop YOUR sprite on the Portrait child (the well clips it round); the name is a LIVE seat and the class glyph a LIVE Image child. HP and MP are each their own KitBarFill bar (each area's Value slider or SetValue), and the level bubble is a LIVE Level knob child with the number riding it. Display piece.",
-        compass: "Compass ribbon — the cardinal letters are LIVE seats and the Heading caret a LIVE child (restyle or delete it). The tick ribbon bakes at the staged heading (per-copy headings ride posed skins). Display piece.",
+        compass: "Compass ribbon — the cardinal letters are LIVE seats, the Heading caret a LIVE child (restyle or delete it) and the tick strip a LIVE Ticks child cut at the staged heading (on the prefab, slide Ticks together with the letters to move the heading by hand; board copies keep their letters in the posed skin). Display piece.",
         dmgnumber: "Damage number — a DEV INSTRUMENT (round 47): PatternBreakDmgNumber.Show(n) composes the amount from the kit's own damage digits at the authored seat and plays the app's float-up-and-fade; Value 0 keeps the authored number byte-for-byte as a live, swappable child.",
         equipslot: "Equipment slot — the ghost silhouette showing what belongs is a LIVE Image child; the app's icon picker steers it and the Inspector swaps it. Display piece.",
         skillnode: "Skill-tree node — a REAL button (Sprite Swap states) with a STATE DROPDOWN (round 61e): the SkillNode rig's Available/Learned/Locked flips the whole look in the Inspector, driven by three COMPLETE resolved paint skins (zero inheritance to decode — SetState in code). The skill glyph, the connector Path (tinted by the skin), the Learned badge and the padlock are all LIVE children; the Locked veil dims the frame's own silhouette. Board copies stay posed snapshots wearing per-copy paint; a LEARNED copy's corner check arrives as its OWN Learned badge child — move, restyle, swap its sprite or delete it, and a badge set to None in the app ships no badge at all.",
@@ -5393,20 +5566,20 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         hotbar: "Hotbar — every stocked slot glyph is a LIVE Image child and the indices/counts are LIVE seats. The Selected ring child IS the selection: move it a cell over (one cell pitch) or disable it. Display piece.",
         lives: "Lives — DRIVABLE: the hearts rest dark and the Lit layer lights whole hearts (KitCellMeter: drive Value or SetValue; hearts go out right to left as lives are spent). Display piece.",
         heartmeter: "Heart meter — every pip is a LIVE Image child answering the app's icon picker (swap any sprite in the Inspector); the timer is a LIVE seat and the add cap ITSELF a REAL small-button child with its + mark riding it (move, restyle or delete cap + mark as one). Display piece with one pressable corner.",
-        energymeter: "Energy meter — LIVE: the ten cells snap whole (KitCellMeter — drive Value or SetValue), the Energy badge is a LIVE Image child (the app's icon picker steers it) and the count is a LIVE seat. Display piece.",
+        energymeter: "Energy meter — LIVE: the ten cells snap whole (KitCellMeter — drive Value or SetValue), the Energy badge is a LIVE Image child (the app's icon picker steers it) and the count is a LIVE seat. The container well and every unlit socket are live children (Well, Cell 1 … Cell 10): move, recolor, duplicate or delete them; the Lit strip ships plate-less and lights whole cells over them. Display piece.",
         starrating: "Star rating — DRIVABLE (round 44): the three Stars, the Celebration flare and the Replay button are LIVE children, and PatternBreakStarRating makes the score a dial (SetStars 0..3, or drive Value — earned/unearned looks swap on one shared frame; celebration + replay appear only at full marks, the app's own rule). The Replay button is a REAL Button. Display piece.",
         vitalbar: "Vital bar — LIVE: the mercury is a KitBarFill bar (the Value slider or SetValue); the readout is a LIVE seat — drive both from your resource. Display piece.",
         pathconnector: "Saga path connector — DRIVABLE (round 44): the Pathconnector prefab deals nine live beads along the kit's own S-curve and PatternBreakPathConnector lights them by value (SetProgress / SetValue 0..1). This baked sheet stays for older scenes and board stamps.",
-        combo: "Combo burst — DYNAMIC (round 47): ComboPop.SetCount(n) deals the ×N numeral from the kit's own celebration digits at the authored seat (the Multiplier child holds the app-staged pose at rest; the Combo plaque is its own live child); Pop() replays the app's exact squash-overshoot-settle on whatever count is set, and ClaimBurst throws the sparks. CLICK IT IN PLAY.",
+        combo: "Combo burst — DYNAMIC (round 47): ComboPop.SetCount(n) deals the ×N numeral from the kit's own celebration digits at the authored seat (the Multiplier child holds the app-staged pose at rest; the Combo plaque is its own live child and its COMBO! word rides it as live text, tilt and all); Pop() replays the app's exact squash-overshoot-settle on whatever count is set, and ClaimBurst throws the sparks. CLICK IT IN PLAY.",
         booster: "Booster button — a REAL button (Sprite Swap states); the booster glyph is a LIVE Image child and the count badge a live plate child with its count RIDING it (the ×0 FREE ribbon ships the same way).",
         flipclock: "Flip countdown — the tile digits and caption are LIVE seats; drive them from your own clock. Each tile's Split Bar is its own Image child sitting ABOVE the digits (never baked into the tile), so the hinge crosses the number exactly as the app draws it — move it, restyle it or delete it per tile. Display piece.",
         stopwatch: "Stopwatch — the dial FUNCTIONS (round 44): PatternBreakStopwatch drives the remaining-time arc (Radial360 + rotating round head), the sweep hand, the alarm mood below 25% and the m:ss readout from ONE value (SetValue 0..1, or SetSeconds on the 90s dial). The readout stays a LIVE seat — retype it and it is yours. Display piece.",
         scorebug: "Match score bug — Home and Away names, both scores and the clock are LIVE seats (the app's Home/Away word slots land verbatim); each team's color bar is a LIVE TINTABLE child (its sprite ships white, the slot color rides Image.color — retint a side in one edit). Display piece; the value slider stays the match clock, exactly as in the app.",
-        friendrow: "Friend row — drop YOUR sprite on the Portrait child (the well clips it round); name, status and time are LIVE seats, the JOIN capsule is a REAL small-button child with its word riding it, and the presence dot a LIVE Image child (move it, delete it, or tint a copy for offline). Display piece.",
+        friendrow: "Friend row — drop YOUR sprite on the Portrait child (the well clips it round; the dark disc behind it is its own Avatar well child — retint, move or delete it); name, status and time are LIVE seats, the JOIN capsule is a REAL small-button child with its word riding it, and the presence dot a LIVE Image child (move it, delete it, or tint a copy for offline). Display piece.",
         clancrest: "Clan crest — the emblem is a LIVE Image child and the tag ribbon a live plate whose tag RIDES it. Display piece.",
         chatbubble: "Chat bubble — sender, timestamp and every message line are LIVE seats on the speech silhouette. Display piece.",
         emotewheel: "Emote wheel — DRIVABLE (round 44): the pick is a dial (PatternBreakEmoteWheel — SetSector, or SetValue 0..1, the app's own mapping). The Armed highlight is a LIVE full-disc wedge the rig parks by rotation, every sector's emote swaps ghost/armed on one fixed frame, and the hub mirrors the pick. All emotes stay swappable Inspector children. Display piece.",
-        buildqueue: "Build queue — LIVE: the unit glyph is a LIVE Image child (editable down to the icon, as asked), name and queue line are seats, and the progress bar is a KitBarFill bar (the Value slider or SetValue). Display piece.",
+        buildqueue: "Build queue — LIVE: the unit glyph is a LIVE Image child (editable down to the icon, as asked), name and queue line are seats, and the progress bar is a KitBarFill bar (the Value slider or SetValue). The glyph's dark square and the bar's track are live children (Icon well, Well) under the glyph and the fill. Display piece.",
         unitplate: "Unit plate — drop YOUR sprite on the Portrait child; the name and stat numbers are LIVE seats and the attack/defense glyphs LIVE Image children. The HP mercury is a KitBarFill bar (the Value slider or SetValue). Display piece.",
         techcard: "Tech card (researchable) — the tech glyph is a LIVE Image child (editable down to the icon); the name and cost are LIVE seats and the cost gem its own LIVE Image child beside the number. Researched/locked poses ride per-copy posed skins. Display piece.",
         popmeter: "Population meter — LIVE: the population glyph is a LIVE Image child, the count a seat, and the supply bar a KitBarFill bar (the Value slider or SetValue; the app's near-cap alarm red stays an app-side draw for now). Display piece.",
@@ -5642,7 +5815,15 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
             else skillFlatInk = null;
           } catch { skillInkTint = undefined; skillFlatInk = null; }
         }
-        const iconSeatsU = isArt ? null : await iconSeatsOf(uid, fullU, undefined, undefined, skillInkTint);
+        /* 10/1: a CELL RIG's seats speak the base's OWN pose — the base
+           bakes at v=0 (the cell-meter atoms below), and a mark that exists
+           only unlit (the streak meter's cells) must be measured there, or
+           the stripped base loses ink no seat carries. One call per family,
+           so no cut is ever queued twice. */
+        const cellRigU = uid === "energymeter" || uid === "ammo" || uid === "magazine" || uid === "streakmeter";
+        let zeroSvgSeatU: string | null = null;
+        if (cellRigU && !isArt) { try { zeroSvgSeatU = stripLoopsU(shell(uid, uOpts, undefined, 0)); } catch { zeroSvgSeatU = null; } }
+        const iconSeatsU = isArt ? null : await iconSeatsOf(uid, zeroSvgSeatU ?? fullU, undefined, undefined, skillInkTint);
         let baseSvgU = iconSeatsU ? stripIconInk(strippedU.svg).svg : strippedU.svg;
         /* the inventory grid's family base ships RINGLESS (the posed
            road's own data-invring cut): the selection is a live layer —
@@ -5798,14 +5979,32 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         /* round 44 tail: the magazine (item 20) and the streak meter's
            cells (item 40) join the same road — base rests all-dark, the
            Lit strip lights whole cells, the zone stamp snaps the cut */
-        const cellRig = uid === "energymeter" || uid === "ammo" || uid === "magazine" || uid === "streakmeter";
+        const cellRig = cellRigU;
         let litSvgU: string | null = null;
         if (cellRig) {
           try {
-            const zeroSvg = stripLoopsU(shell(uid, uOpts, undefined, 0));
+            const zeroSvg = zeroSvgSeatU ?? stripLoopsU(shell(uid, uOpts, undefined, 0));
             const oneSvg = stripLoopsU(shell(uid, uOpts, undefined, 1));
             baseSvgU = iconSeatsU ? stripIconInk(stripWordInk(zeroSvg).svg).svg : stripWordInk(zeroSvg).svg;
             litSvgU = iconSeatsU ? stripIconInk(stripWordInk(oneSvg).svg).svg : stripWordInk(oneSvg).svg;
+            /* r107 (the energy meter's wells): a family whose container well
+               and unlit sockets ride as UNDER children needs a PLATE-LESS
+               Lit strip — the importer parks Lit above those children,
+               Filled/Horizontal, so a full-plate strip painted its plate
+               over the Well left of the cut (the 10/1 streak meter shipped
+               exactly that). The render stamps its lit cells data-litcell;
+               keep only those drawables (defs kept: the cell gradient), on
+               the same viewBox, width, height and root stamps, so the crop
+               group shared with base and the data-track zone are untouched.
+               Families without the stamp (ammo, magazine) ship as before. */
+            if (/\sdata-litcell="1"/.test(litSvgU)) {
+              const domLit9 = new DOMParser().parseFromString(litSvgU, "image/svg+xml");
+              if (!domLit9.querySelector("parsererror")) {
+                for (const el of Array.from(domLit9.querySelectorAll(ICON_DRAWABLE_SEL)))
+                  if (!el.closest("defs") && !el.closest('[data-litcell="1"]')) el.remove();
+                litSvgU = new XMLSerializer().serializeToString(domLit9.documentElement);
+              }
+            }
           } catch { litSvgU = null; }
         }
         /* ── the RIG-1 DISPLAY-BAR ATOMS (round 44, items 19/27/30 +
@@ -6677,7 +6876,16 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
            the ignition slot to None ships neither, and the rig sits out. */
         if (uid === "streakmeter") {
           try {
-            const litSvg = stripLoopsU(shell(uid, uOpts, undefined, 1));
+            const litSvg0 = stripLoopsU(shell(uid, uOpts, undefined, 1));
+            /* r107: since 10/1 the well is a marked group at v=1 too, so this
+               render carried TWO marked groups and the name override (one
+               cut only) never applied — the lit pose re-shipped icon-well.png
+               and OVERWROTE icon-endicon.png with the ignited glyph while no
+               endicon-lit.png shipped at all (the r106 zip lists both files
+               twice). Only the ignition glyph is this cut. */
+            const domLitS = new DOMParser().parseFromString(litSvg0, "image/svg+xml");
+            for (const gL of Array.from(domLitS.querySelectorAll('[data-part="icon"]'))) if (gL.getAttribute("data-icon") !== "endicon") gL.remove();
+            const litSvg = new XMLSerializer().serializeToString(domLitS.documentElement);
             await iconSeatsOf(uid, litSvg, undefined, "endicon-lit");
           } catch { /* unlit-only — the meter still ships */ }
         }
@@ -6688,6 +6896,20 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
                is an input this road can't store — but SILENT skin-dropping
                is an alarm-worthy event, never a shrug */
             try { sSvg = stripLoopsU(stateShell(uid, stName, uOpts, uVal)); } catch (eSk) { console.warn(`engine export: ${uid}'s ${stName} state failed to render — the piece ships WITHOUT this skin (Sprite Swap keeps the resting face for it)`, eSk); continue; }
+            /* LIVE-ONLY ink (10/1, the daily cell's today ring): a mark the
+               resting render carries and the DISABLED render does not is
+               ink the app draws only on a live piece. The seat says so and
+               the importer hands the child to StateFx.hideWhenDisabled (the
+               end-turn arc's road), so a disabled Button drops it exactly as
+               the app does. Judged by mark name on the renders — no family
+               is named here; buttons and wells keep their own machinery. */
+            if (stName === "disabled" && iconSeatsU) {
+              try {
+                const disNamesLO = new Set(markedIconOnlySvgs(sSvg).map((cLO) => cLO.name));
+                for (const seatLO of iconSeatsU)
+                  if (!seatLO.btn && !((seatLO.wellR ?? 0) > 0.5) && !disNamesLO.has(seatLO.name)) seatLO.liveOnly = true;
+              } catch { /* the seat stays unflagged — the child stays visible, as before */ }
+            }
             /* ── the PER-STATE GLYPH DRESS (round 53 blocker: a Pressed
                icon-color pin rendered green in the editor and navy in
                Unity — the glyph is marked ink, stripped from every skin
@@ -6917,7 +7139,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
            union-cropped state skins bake below, stateFx dials ship under
            its family name, and FamilyPrefab wires the Button from them. */
         { uid: "claimbtn", suffix: "double", interactive: true, opts: { slots: { ...(st.kitSlotVals?.claimbtn ?? {}), mode: "2x by ad" } },
-          usage: "The 2x reward button — the claim button's Double-by-ad state, a REAL button (Sprite Swap states, glow + lift): the word is a LIVE seat, the play badge a LIVE Image child, and the ANGLED gold ribbon its OWN delete-and-replace child (the rotated word stays in its pixels by the warped-stamp contract — never burned into the button face)." },
+          usage: "The 2x reward button — the claim button's Double-by-ad state, a REAL button (Sprite Swap states, glow + lift): the word is a LIVE seat, the play badge a LIVE Image child, and the ANGLED gold ribbon its OWN delete-and-replace child with its AD ×2 word riding it as LIVE, tilted TMP (retype or re-angle it in the Inspector — never burned into the button face)." },
         { uid: "rewardcard", suffix: "legendary", opts: {}, value: 1,
           usage: "Reward reveal at LEGENDARY — the aura at the ladder's top; words are LIVE seats, the glyph a LIVE Image child, and the amber qty chip a live plate whose count RIDES it. The pressing lives on the Rewardcard prefab." },
         { uid: "rewardcard", suffix: "mystery", opts: { slots: { ...(st.kitSlotVals?.rewardcard ?? {}), kind: "Mystery" } },
@@ -7031,12 +7253,27 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      rides kit-manifest.json > rarity — the engine picks the tier from its
      own item data and renders the tier word as live text. ── */
   const slugR = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "tier";
+  /* the 10/1 un-burn (the owner: "rarity color glow needs to be its own
+     layer not burned into the bkg", "make the well a separate layer"): the
+     aura and the well leave the bake and ride every tier row as live
+     children. The aura cuts WHITE (marked tintable), so ONE cut serves
+     every tier and each row records its own tier colour — in Unity the
+     tier is the "Rarity glow" child's Image.color. The per-tier frame
+     files stay (older projects wear them by name), now identical bare
+     plates. */
+  let seatsRF: NonNullable<AssetMeta["iconSeats"]> | null = null;
   for (let i = 0; i < tiersR.length; i++) {
     const rfSvgI = shell("rarityframe", { overlay: "frame" }, undefined, i / (tiersR.length - 1));
-    await addPng(`rarityframe/${slugR(tiersR[i].name)}.png`, rfSvgI,
-      { component: "rarityframe", part: slugR(tiersR[i].name), nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: `Item frame, ${tiersR[i].name} tier — aura pre-tinted ${tiersR[i].c}. Drop the item icon in the well; the tier word arrives as live text on the RarityFrame prefab (ladder in manifest > rarity).`,
+    if (i === 0) seatsRF = await iconSeatsOf("rarityframe", rfSvgI);
+    const seatsI = seatsRF ? seatsRF.map((s9) => s9.name === "glow" ? { ...s9, tint: tiersR[i].c } : s9) : null;
+    await addPng(`rarityframe/${slugR(tiersR[i].name)}.png`, seatsI ? stripIconInk(rfSvgI).svg : rfSvgI,
+      { component: "rarityframe", part: slugR(tiersR[i].name), nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+        usage: seatsI
+          ? `Item frame plate (the same for every tier). The tier lives on the RarityFrame prefab's live "Rarity glow" child: its color is ${tiersR[i].name}'s ${tiersR[i].c} on this row — set that one Image color to change tier (ladder in manifest > rarity). The well is its own live child too; drop the item icon over it; the tier word arrives as live text.`
+          : `Item frame, ${tiersR[i].name} tier — aura pre-tinted ${tiersR[i].c}. Drop the item icon in the well; the tier word arrives as live text on the RarityFrame prefab (ladder in manifest > rarity).`,
         // the tier word rides the TIER's own staged value, never the user dial
-        ...textSeatsOf("rarityframe", rfSvgI, {}, undefined, i / (tiersR.length - 1), "bake") });
+        ...textSeatsOf("rarityframe", rfSvgI, {}, undefined, i / (tiersR.length - 1), "bake"),
+        ...(seatsI ? { iconSeats: seatsI } : {}) });
   }
   {
     const ltSvg = shell("loottag", { overlay: "frame" }, slim);
@@ -8093,7 +8330,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         "<family>-base.9.png = full material (gloss baked); <family>-base-flat.9.png = tintable flat variant for independent effects. Every filename carries its family so search finds it.",
         "Progress = track + fill; slider = track + fill + thumb; toggle = track + thumb; buttons = base + engine text + separate icon.",
         "Season track = bare board + well/node/spine parts; the SeasonTrack prefab builds live tier cells from them (tier count, claims, reward icons and progress are Inspector dials). seasonTrack below maps the drawn geometry.",
-        "Rarity: drive the displayed tier from your item data. rarityframe/ ships one pre-tinted frame per tier; the rarity block below carries the tier names and colors for stripes, tier words and glows.",
+        "Rarity: drive the displayed tier from your item data. The RarityFrame prefab's \"Rarity glow\" child is a white cut tinted by Image.color, so the tier is one color edit; the rarity block below carries the tier names and colors for stripes, tier words and glows.",
         "States: interactive pieces ship base-hover/base-pressed/base-disabled — the kit's designed states, same nine-slice as base. Sprite Swap them; hover glow and press lift stay engine-composed.",
       ],
       /* The input's affordance, as NUMBERS rather than baked pixels. The
@@ -8370,7 +8607,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       bloom: { opacity: base.candy.bloom?.opacity ?? 0, size: base.candy.bloom?.size ?? 0 },
       ...(full ? {
         rarity: {
-          note: "This kit's five-tier ladder, lowest to highest — names and colors are the maker's own (custom edits included). Pick the tier from your item data: frame = assets/rarityframe/rarityframe-<tier>.png, stripe/glow/tier-word color = the tier's color, tier word = live engine text.",
+          note: "This kit's five-tier ladder, lowest to highest — names and colors are the maker's own (custom edits included). Pick the tier from your item data: the RarityFrame's \"Rarity glow\" child's Image.color = the tier's color (the frame plate is the same for every tier), stripe/tier-word color = the tier's color, tier word = live engine text.",
           tiers: tiersR.map((t, i) => ({ index: i, name: t.name, color: t.c })),
         },
       } : {}),
@@ -14615,9 +14852,10 @@ move it in the Inspector), and the open menu's colors and options are
 yours to edit — they travel in \`kit-manifest.json > menu\`, with the
 maker's typed items seeding the option list.
 
-**RarityFrame**: wears the first tier's frame and its live tier word;
-every other tier sits beside it in assets/rarityframe/ — swap the
-sprite per item (retype the word to match).
+**RarityFrame**: the frame plate with its live tier word, a live **Well**
+child and a live **Rarity glow** child. The glow is a white cut tinted by
+its Image color, so changing tier is one color edit (the ladder's colors
+are in \`kit-manifest.json > rarity\`); retype the word to match.
 
 **MoveCounter / Achievement**: plates with the number, caption and
 announcement as live text on top — your app words, ready to bind. The
@@ -14866,7 +15104,7 @@ namespace PatternBreak {
      gauge contract; the importer multiplies by the prefab's live rect.
      Readers gate on text non-empty AND ffs > 0 (px-era rows and
      JsonUtility's default-constructed nested objects both read 0). */
-  [Serializable] class PBSeat { public string text; public float fx; public float fy; public float ffs; public float midEm; public string anchor; public int row; public bool kit; public bool dressed; public string voice; public int weight; public bool italic; public float spacingEmPct; public string fillMode; public string fill; public string fill2; public float fillOpacity; public string stroke; public float strokeA; public float strokeEmPct; public string rider; public bool unkern; }
+  [Serializable] class PBSeat { public string text; public float fx; public float fy; public float ffs; public float midEm; public string anchor; public int row; public bool kit; public bool dressed; public string voice; public int weight; public bool italic; public float spacingEmPct; public string fillMode; public string fill; public string fill2; public float fillOpacity; public string stroke; public float strokeA; public float strokeEmPct; public string rider; public bool unkern; public float rot; }
   /* the piece's kit icon beside its words (round 26 — the chip's star):
      center offset from the shell center in design px, rendered size, the
      shipped white glyph, and the app's ink. s 0 / file "" on older
@@ -14880,11 +15118,15 @@ namespace PatternBreak {
      per swappable icon/image the app drew — its own full-color sprite,
      box center vs the shell center (design px, y down), box size. btn =
      a REAL small-button plate; wellR > 0 = circular-masked image well. */
-  [Serializable] class PBIconChild { public string name; public string file; public float dx; public float dy; public float w; public float h; public bool btn; public float wellR; public bool pinRight; public float rightGap; public string nick; public string tint;
+  [Serializable] class PBIconChild { public string name; public string file; public float dx; public float dy; public float w; public float h; public bool btn; public float wellR; public bool pinRight; public float rightGap; public string nick; public string tint; public bool under; public bool behind;
     /* OVER THE WORDS (round 72 — the flip clock's split bar): the app
        draws this ink on top of the live text, so the child lands ABOVE
        the Words group instead of under it. */
     public bool over;
+    /* LIVE-ONLY ink (10/1 — the daily cell's today ring): the app draws
+       this mark only on a live piece, so WireIconChildrenRow hands the
+       child to StateFx.hideWhenDisabled (the end-turn arc's road). */
+    public bool liveOnly;
     /* the PER-STATE GLYPH DRESS (round 53): a state icon fork ships that
        state's cut on the resting sprite's exact canvas — WireGlyphStateSwaps
        arms the StateFx rig to swap the live child in lockstep with the
@@ -14893,7 +15135,9 @@ namespace PatternBreak {
     /* posed board copies only (round 40): a rider word stripped from the
        posed pixels with its plate — rebuilt as live TMP ON the live child
        (wordDx/wordDy = word center from the CHILD center, board px). */
-    public string word; public float wordFs; public float wordDx; public float wordDy; public string wordInk; public int wordW; }
+    public string word; public float wordFs; public float wordDx; public float wordDy; public string wordInk; public int wordW;
+    /* the posed rider word's TILT (10/1 — the AD x2 ribbon): degrees clockwise, the app's own rotate; the scene sets z = -wordRot */
+    public float wordRot; }
   [Serializable] class PBAsset { public string file; public string component; public string part; public string sha256; public PBSlice nineSlice; public PBPivot pivot; public PBShellBox shell; public PBTrack track; public PBTrack body; public PBShellBox ink; public bool flip; public float[] outline; public float prefW; public float prefH; public float labelDx; public float labelDy; public float labelFs; public string labelInk; public string labelInk2; public float leading; public string labelText; public PBIconSeat icon; public PBGauge gauge; public PBChart chart; public PBLoot loot; public PBSeat[] textSeats; public PBStyle seatInk; public float ringV; public PBIconChild[] iconSeats; public float fireDx; public float fireDy; public float fireW; public float railDx; public float railDy; public float railW; public float railH; public string labelAnchor; public string barMode;
     /* a piece the app draws TURNED (round 80, the verdict stamp): the base
        row's own rotation, in the board rows' rot grammar */
@@ -14995,7 +15239,12 @@ namespace PatternBreak {
      scene FILES (the seededLabels precedent, applied to .unity bytes):
      only a scene byte-identical to our own last save may auto-rebuild. */
   [Serializable] class PBSceneShaEntry { public string scene; public string sha; }
-  [Serializable] class PBLock { public string slug; public int kitVersion; public string generatorVersion; public string imported; public bool prefabsGenerated; public PBLockEntry[] files; public string[] orphans; public PBSeedEntry[] seededLabels; public bool variantsPending; public PBVariantEntry[] seededVariants; public bool chartsSeeded; public string[] pendingScenes; public int[] pendingMissing; public PBSceneShaEntry[] sceneShas; public PBRectEntry[] authoredRects; public string[] seededChildren; public string[] seededPrefabs; }
+  [Serializable] class PBLock { public string slug; public int kitVersion; public string generatorVersion; public string imported; public bool prefabsGenerated; public PBLockEntry[] files; public string[] orphans; public PBSeedEntry[] seededLabels; public bool variantsPending; public PBVariantEntry[] seededVariants; public bool chartsSeeded; public string[] pendingScenes; public int[] pendingMissing; public PBSceneShaEntry[] sceneShas; public PBRectEntry[] authoredRects; public string[] seededChildren; public string[] seededPrefabs;
+    /* r107 review: every rider-word seat the manifest carried at the last
+       import ("<row file>|Rider <word>") — a word missing from a prefab whose
+       seat was already known is the dev's deletion and never reseeds; only a
+       seat NEW to the project may seed, once. */
+    public string[] knownRiders; }
   /* the example-prefab root rects WE last authored (family prefab name →
      size) — MaintainExamplePrefabs' resize pass converges only rects
      still matching this ledger; anything else is the dev's. */
@@ -15882,6 +16131,21 @@ namespace PatternBreak {
       // the prefab-seeding ledger rides the receipt exactly like the
       // children ledger — one import without the pass must never amnesia it
       receipt.seededPrefabs = passSeededPrefabs != null ? passSeededPrefabs : (prev != null ? prev.seededPrefabs : null);
+      /* r107 review: the rider-word ledger — every rider seat THIS manifest
+         carries, keyed by its row's file. The next import reads it: a word
+         gone from a prefab whose seat was already known is the dev's
+         deletion, never reseeded. Rewritten from the manifest every time,
+         so it is never stale and never grows. */
+      {
+        var knownRidersNow = new List<string>();
+        if (manifest.assets != null)
+          foreach (var aKR in manifest.assets) {
+            if (aKR == null || aKR.textSeats == null || string.IsNullOrEmpty(aKR.file)) continue;
+            foreach (var tKR in aKR.textSeats)
+              if (tKR != null && !string.IsNullOrEmpty(tKR.rider) && !string.IsNullOrEmpty(tKR.text)) knownRidersNow.Add(aKR.file + "|Rider " + PlainWord(tKR.text));
+          }
+        receipt.knownRiders = knownRidersNow.ToArray();
+      }
       File.WriteAllText(lockPath, JsonUtility.ToJson(receipt, true));
 
       var kitName = string.IsNullOrEmpty(manifest.kit) ? (string.IsNullOrEmpty(manifest.slug) ? "kit" : manifest.slug) : manifest.kit;
@@ -17863,7 +18127,12 @@ namespace PatternBreak {
                    The family base row names every live child we built —
                    walk it, nicks included; a rider word we parented under
                    a plate goes down with it. */
-                var famRowSD = LabelRow(m, it.component);
+                /* r107 review: resolve the row the way the prefab builder
+                   did — a family without a "base" row (the count badge's
+                   seats ride base-plain) names its children on the worn
+                   sprite's row, and the Glow it built must stand down here
+                   too or the copy draws two halos. */
+                var famRowSD = IconSeatRowOf(inst, m, root, it.component);
                 if (famRowSD != null && famRowSD.iconSeats != null)
                   foreach (var icSD in famRowSD.iconSeats) {
                     if (icSD == null) continue;
@@ -17889,6 +18158,7 @@ namespace PatternBreak {
                   if (rigSNP.learnedBadge != null) rigSNP.learnedBadge.SetActive(false);
                   if (rigSNP.lockGlyph != null) rigSNP.lockGlyph.SetActive(false);
                 }
+                int underPlacedP = 0;
                 if (it.posedIcons != null) foreach (var pIc in it.posedIcons) {
                   if (pIc == null || string.IsNullOrEmpty(pIc.file) || pIc.w < 1f || pIc.h < 1f) continue;
                   var pIcSp = S(root + "/" + pIc.file);
@@ -17922,6 +18192,13 @@ namespace PatternBreak {
                     if (!string.IsNullOrEmpty(pIc.tint) && ColorUtility.TryParseHtmlString(pIc.tint, out pTintC)) pIi.color = pTintC;
                   }
                   pIcGo.transform.SetParent(inst.transform, false);
+                  /* the 10/1 un-burn on the posed road: a BEHIND seat (the
+                     auras) lands under the posed art itself; an UNDER seat
+                     (wells, discs, stripes) lands right over it, under the
+                     other rebuilt children and the words — in seat order,
+                     which is paint order. Everything else appends as before. */
+                  if (pIc.behind) pIcGo.transform.SetSiblingIndex(artRt.GetSiblingIndex());
+                  else if (pIc.under) pIcGo.transform.SetSiblingIndex(artRt.GetSiblingIndex() + 1 + underPlacedP++);
                   var pIcRt = pIcGo.GetComponent<RectTransform>();
                   pIcRt.anchorMin = pIcRt.anchorMax = new Vector2(0.5f, 0.5f);
                   pIcRt.pivot = new Vector2(0.5f, 0.5f);
@@ -17965,6 +18242,8 @@ namespace PatternBreak {
                     pwRt.pivot = new Vector2(0.5f, 0.5f);
                     pwRt.anchoredPosition = new Vector2(pIc.wordDx, -pIc.wordDy); // board y runs down
                     pwRt.sizeDelta = new Vector2(Mathf.Max(pIc.w, pIc.wordFs * (pIc.word.Length + 2f)), pIc.wordFs * 1.8f);
+                    // the ribbon's tilt (10/1): SVG turns clockwise, UI z turns counter-clockwise — the board rows' own rot grammar
+                    if (Mathf.Abs(pIc.wordRot) > 0.01f) pwRt.localRotation = Quaternion.Euler(0f, 0f, -pIc.wordRot);
                   }
                 }
                 /* the dropdown's open-list TEMPLATE was built in PREFAB
@@ -20249,6 +20528,28 @@ namespace PatternBreak {
       }
       if (lowest >= 0) words.transform.SetSiblingIndex(lowest);
     }
+    /* the first sibling index ABOVE the plate's own layers and the under
+       seats already placed: Halo, Body, behind seats and under seats sit
+       below it; a lit strip or a fresh under child slots in here, so it
+       draws over the wells and under everything else (10/1). */
+    static int UnderTop(GameObject go, PBAsset row) {
+      int idx = 0;
+      while (idx < go.transform.childCount) {
+        var nmU = go.transform.GetChild(idx).name;
+        bool plateLayer = nmU == "Halo" || nmU == "Body";
+        bool underSeat = false;
+        if (!plateLayer && row != null && row.iconSeats != null)
+          foreach (var icU in row.iconSeats)
+            if (icU != null && (icU.under || icU.behind) && IconChildName(icU) == nmU) { underSeat = true; break; }
+        if (!plateLayer && !underSeat) break;
+        idx++;
+      }
+      return idx;
+    }
+    /* a BEHIND seat needs the plate as a Body child (the glow-family
+       shape) so a sibling can draw under the art: the same one move the
+       glow families make, without the glow gate (10/1). */
+    static void EnsureBodyShape(GameObject go) { RebodyCore(go); }
     static List<string> WireIconChildren(GameObject go, string root, PBManifest m, string fam) {
       return WireIconChildrenRow(go, root, m, LabelRow(m, fam));
     }
@@ -20262,6 +20563,7 @@ namespace PatternBreak {
        seeded-children ledger and count honestly. */
     static List<string> WireIconChildrenRow(GameObject go, string root, PBManifest m, PBAsset row, HashSet<string> theirs) {
       var addedIC = new List<string>();
+      bool armedLO = false; // this call's live-only seats ride ONE hide list (armed once per prefab)
       if (go == null || row == null || row.iconSeats == null || row.iconSeats.Length == 0) return addedIC;
       var bodyIC = BodyImage(go);
       var bsIC = bodyIC != null ? bodyIC.sprite : null;
@@ -20313,10 +20615,20 @@ namespace PatternBreak {
            bar crosses the digits in the app): it takes the top of the
            stack instead, so the live words pass UNDER it. */
         if (ic.over) { cgo.transform.SetAsLastSibling(); }
+        /* the 10/1 un-burn (the owner: "in general do not burn the wells
+           into the backgrounds but keep them as a separate layer"): a
+           BEHIND seat (the auras) needs the plate in a Body child so a
+           sibling can draw under it, and lands before that Body; an UNDER
+           seat (wells, discs, stripes) lands at the bottom of the stack
+           right over the plate, so fills, lit strips, portraits and words
+           all paint over it. Among under seats, seat order stays paint
+           order (the well before the cells drawn on it). */
+        else if (ic.behind) { EnsureBodyShape(go); cgo.transform.SetSiblingIndex(0); }
+        else if (ic.under) { cgo.transform.SetSiblingIndex(UnderTop(go, row)); }
         else {
           Transform beforeIC = null;
           for (int nxI = icI + 1; nxI < row.iconSeats.Length && beforeIC == null; nxI++)
-            if (row.iconSeats[nxI] != null && !row.iconSeats[nxI].over) beforeIC = go.transform.Find(IconChildName(row.iconSeats[nxI]));
+            if (row.iconSeats[nxI] != null && !row.iconSeats[nxI].over && !row.iconSeats[nxI].under && !row.iconSeats[nxI].behind) beforeIC = go.transform.Find(IconChildName(row.iconSeats[nxI]));
           if (beforeIC == null) beforeIC = go.transform.Find("Words");
           if (beforeIC != null) cgo.transform.SetSiblingIndex(beforeIC.GetSiblingIndex());
         }
@@ -20336,6 +20648,22 @@ namespace PatternBreak {
           crt.anchoredPosition = Vector2.zero;
         }
         crt.sizeDelta = new Vector2(ic.w, ic.h);
+        /* LIVE-ONLY ink (10/1, the daily cell's today ring): the app draws
+           this mark only on a live piece — its disabled render has none —
+           so the state rig hides the child while the Button is disabled
+           and shows it again (the end-turn arc's own road). Armed once: a
+           hide list a dev already holds is theirs and stands. Runs on the
+           fresh build AND the kept-project seed (both land here). */
+        if (ic.liveOnly) {
+          var fxLO = go.GetComponent<StateFx>();
+          var giLO = cgo.GetComponent<Image>();
+          if (fxLO != null && giLO != null && (armedLO || fxLO.hideWhenDisabled == null || fxLO.hideWhenDisabled.Length == 0)) {
+            var oldLO = fxLO.hideWhenDisabled != null ? fxLO.hideWhenDisabled : new Graphic[0];
+            var newLO = new Graphic[oldLO.Length + 1];
+            oldLO.CopyTo(newLO, 0); newLO[oldLO.Length] = giLO;
+            fxLO.hideWhenDisabled = newLO; armedLO = true;
+          }
+        }
         addedIC.Add(cn);
       }
       return addedIC;
@@ -20824,8 +21152,9 @@ namespace PatternBreak {
           }
           kcm.SetValue(litRowCM != null && litRowCM.ringV > 0f ? Mathf.Clamp01(litRowCM.ringV) : (famCM == "ammo" ? 1f : famCM == "lives" ? 0.6f : famCM == "magazine" ? 0.66f : famCM == "streakmeter" ? 0.64f : 0.8f));
           /* the Lit strip lands directly over the base — but UNDER the
-             live children (words, glyphs): first in the paint order */
-          lgoCM.transform.SetSiblingIndex(0);
+             live children (words, glyphs): first in the paint order, above
+             any under seats (the streak meter's cells, 10/1) */
+          lgoCM.transform.SetSiblingIndex(UnderTop(go, baseAsset));
         }
       }
       /* ── round 80: a piece the app draws TURNED (the verdict stamp) bakes
@@ -21307,6 +21636,9 @@ namespace PatternBreak {
        single-image shape it always had. */
     static bool RebodyIfGlow(GameObject go, PBManifest m, string fam) {
       if (!HasStateFx(m, fam)) return false;
+      return RebodyCore(go);
+    }
+    static bool RebodyCore(GameObject go) {
       var rootB = go.GetComponent<Image>();
       if (rootB == null || rootB.sprite == null) return false; // already Body-shaped (or imageless rig)
       if (go.transform.Find("Body") != null) return false; // occupied — theirs
@@ -21631,23 +21963,48 @@ namespace PatternBreak {
       var row = RowOfSprite(m, sp);
       return row != null && row.barMode != null;
     }
+    /* the CENTER MODE follows the manifest (10/1, the owner's "still
+       cappin"): a kept rig already on the width road keeps the mode it
+       was armed with, and this export's measurement may have changed it
+       (the shallow-ramp verdicts moved from tiled to sliced). Ours-only
+       on the same gate: our rig, our bordered sprite, a row naming a
+       mode that differs from the armed one. */
+    static bool WidthRoadRetune(KitBarFill kb, string root, PBManifest m) {
+      if (kb == null || kb.barMode == 0 || kb.stretchRun || kb.fill == null || kb.fill.sprite == null) return false;
+      var sp = kb.fill.sprite;
+      if (!OurKitSprite(sp, root) || sp.border.x + sp.border.z <= 1f) return false;
+      var row = RowOfSprite(m, sp);
+      if (row == null || row.barMode == null) return false;
+      int want = row.barMode == "tiled" ? 2 : 1;
+      return kb.barMode != want;
+    }
     static int ConvergeBarsOntoWidthRoad(string root, PBManifest m) {
       var pdirWR = root + "/Prefabs";
       if (m == null || m.assets == null || !AssetDatabase.IsValidFolder(pdirWR)) return 0;
-      int converged = 0;
+      int converged = 0, retuned = 0;
       var namesWR = new List<string>();
+      var namesRT = new List<string>();
       foreach (var guidWR in AssetDatabase.FindAssets("t:Prefab", new string[] { pdirWR })) {
         var pathWR = AssetDatabase.GUIDToAssetPath(guidWR);
         var assetWR = AssetDatabase.LoadAssetAtPath<GameObject>(pathWR);
         if (assetWR == null || PrefabUtility.GetPrefabAssetType(assetWR) == PrefabAssetType.Variant) continue;
-        bool wantWR = false;
-        foreach (var kbWR in assetWR.GetComponentsInChildren<KitBarFill>(true))
-          if (WidthRoadDue(kbWR, root, m)) { wantWR = true; break; }
-        if (!wantWR) continue;
+        bool wantWR = false, wantRT = false;
+        foreach (var kbWR in assetWR.GetComponentsInChildren<KitBarFill>(true)) {
+          if (WidthRoadDue(kbWR, root, m)) wantWR = true;
+          else if (WidthRoadRetune(kbWR, root, m)) wantRT = true;
+        }
+        if (!wantWR && !wantRT) continue;
         var contentsWR = PrefabUtility.LoadPrefabContents(pathWR);
         try {
-          int armedWR = 0;
+          int armedWR = 0, tunedWR = 0;
           foreach (var kbWR in contentsWR.GetComponentsInChildren<KitBarFill>(true)) {
+            if (WidthRoadRetune(kbWR, root, m)) {
+              var rowRT = RowOfSprite(m, kbWR.fill.sprite);
+              kbWR.barMode = rowRT.barMode == "tiled" ? 2 : 1;
+              kbWR.SetValue(kbWR.value >= 0f ? kbWR.value : 1f);
+              tunedWR++;
+              continue;
+            }
             if (!WidthRoadDue(kbWR, root, m)) continue;
             var rowWR = RowOfSprite(m, kbWR.fill.sprite);
             /* the dev's staged value survives: the rig's own field when it
@@ -21699,12 +22056,16 @@ namespace PatternBreak {
             kbWR.SetValue(vWR);
             armedWR++;
           }
-          if (armedWR > 0) { PrefabUtility.SaveAsPrefabAsset(contentsWR, pathWR); converged += armedWR; namesWR.Add(Path.GetFileNameWithoutExtension(pathWR)); }
+          if (armedWR > 0 || tunedWR > 0) PrefabUtility.SaveAsPrefabAsset(contentsWR, pathWR);
+          if (armedWR > 0) { converged += armedWR; namesWR.Add(Path.GetFileNameWithoutExtension(pathWR)); }
+          if (tunedWR > 0) { retuned += tunedWR; namesRT.Add(Path.GetFileNameWithoutExtension(pathWR)); }
         } finally { PrefabUtility.UnloadPrefabContents(contentsWR); }
       }
       if (converged > 0)
         Debug.Log("UI Kit Maker: moved " + converged + " kept bar fill(s) onto the width road (" + string.Join(", ", namesWR.ToArray()) + ") — the mercury is the bordered stadium sprite now, its own 9-slice caps round the ends and the rig drives the rect's width, so the old parked cap bead and its flat cut are gone. Placed copies (the Playground included) picked it up. Keep driving Value on KitBarFill, or SetValue; a raw fillAmount write still adopts.");
-      return converged;
+      if (retuned > 0)
+        Debug.Log("UI Kit Maker: retuned the mercury's center mode on " + retuned + " kept bar fill(s) (" + string.Join(", ", namesRT.ToArray()) + ") to this export's measurement — a ramped fill stretches its center (sliced) instead of repeating it, so the ramp never restarts near the value line. Placed copies picked it up.");
+      return converged + retuned;
     }
     static void HealBarClipRelics(string root) {
       var matBC = AssetDatabase.LoadAssetAtPath<Material>(root + "/fonts/Bar Clip.mat");
@@ -22495,6 +22856,13 @@ namespace PatternBreak {
       if (bg == null) return false;
       var go = ImageObject("CountBadge", bg, pngScale);
       go.GetComponent<Image>().raycastTarget = false;
+      /* the halo is a live child BEHIND the plate (10/1 — the owner's
+         screenshot: "glow should be separate layer"): the base-plain row
+         seats it; WireIconChildrenRow moves the plate into a Body child
+         and lands "Glow" under it — a white halo ring, the badge red on
+         its Image color. The digits below still center on the shell: the
+         anchor reads the plate through BodyImage. */
+      WireIconChildrenRow(go, root, m, IconSeatRowOf(go, m, root, "countbadge"));
 #if UNITY_2023_2_OR_NEWER
       var tGo = new GameObject("Count", typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
       tGo.transform.SetParent(go.transform, false);
@@ -23743,8 +24111,17 @@ namespace PatternBreak {
        seat keeps everything — word, place, look — with a receipt. */
     static bool SeatsDrift(GameObject host, PBAsset row, string root, PBManifest m, int pngScale, bool apply) {
       var wordsT = host.transform.Find("Words");
-      if (wordsT == null) return true; // unseeded — the builder path fills it
-      var texts = wordsT.GetComponentsInChildren<TMP_Text>(true);
+      /* A RIDERS-ONLY TREE HAS NO WORDS GROUP BY DESIGN (round 107, the card
+         face's corner numbers): adoption parks every word under its plate
+         and SweepEmptySeatRows retires the empty group on build, so a kept
+         card face read as UNSEEDED here on every refresh — the builder then
+         seeded a second "5" and "9" under the plates and this heal never
+         reached the first pair. A row whose seats are all riders, with at
+         least one still adopted under its plate, IS seeded: account for it
+         with an empty Words set and let the rider pairing below heal it. */
+      bool ridersOnly = wordsT == null && RidersOnlyAdopted(host, row);
+      if (wordsT == null && !ridersOnly) return true; // unseeded — the builder path fills it
+      var texts = ridersOnly ? new TMP_Text[0] : wordsT.GetComponentsInChildren<TMP_Text>(true);
       /* RIDER-AWARE ACCOUNTING (round 41 review blocker): AdoptSeatRiders
          moves each rider word OUT of Words and under its plate child, so
          the kit's own generation output tripped this gate by construction
@@ -23975,7 +24352,7 @@ namespace PatternBreak {
       if (row == null) return;
       float rootH = SeatRootH(host, pngScale);
       if (rootH < 2f) return;
-      if (host.transform.Find("Words") != null) {
+      if (host.transform.Find("Words") != null || RidersOnlyAdopted(host, row)) {
 #if UNITY_2023_2_OR_NEWER
         SeatsDrift(host, row, root, m, pngScale, true);
 #endif
@@ -24099,6 +24476,13 @@ namespace PatternBreak {
           if (rtW != wordsTR && rtW.gameObject.name == wantN) { wordT = rtW; break; }
         if (wordT == null || wordT.parent == plateT) continue;
         wordT.SetParent(plateT, true);
+        /* a TURNED rider (10/1 — the 2x button's AD x2 ribbon): the seat
+           already marks the turned center and the rect pivots there, so the
+           tilt is one local rotation on the adopted word (SVG clockwise →
+           UI z counter-clockwise, the board rows' rot grammar). Set at
+           adoption only — an already-adopted word keeps whatever the dev
+           turned it to, like its place. */
+        if (Mathf.Abs(seatR.rot) > 0.01f) wordT.localRotation = Quaternion.Euler(0f, 0f, -seatR.rot);
       }
     }
     /* where adoption PUT a rider's word: under its plate child, still
@@ -24116,6 +24500,91 @@ namespace PatternBreak {
         return null;
       }
       return null;
+    }
+    /* a seat row made ONLY of riders whose words sit adopted under their
+       plates (the card face's two corner numbers): built, then its empty
+       Words group swept by design — a SEEDED tree with no Words object.
+       True when every seat is a rider and at least one is still found under
+       its plate wearing its seeded name; a rider the dev renamed, moved or
+       deleted sits out as ever, and a tree with none of ours left reads as
+       unseeded (the "delete the Words object to re-seed" road). Fully
+       qualified-free on purpose: PBAsset/PBSeat only, both rungs. */
+    static bool RidersOnlyAdopted(GameObject host, PBAsset row) {
+      if (host == null || row == null || row.textSeats == null) return false;
+      bool any = false;
+      foreach (var sR in row.textSeats) {
+        if (sR == null) continue;
+        if (string.IsNullOrEmpty(sR.rider)) return false;
+        if (AdoptedRiderText(host, row, sR) != null) any = true;
+      }
+      return any;
+    }
+    /* a RIDER WORD seeded onto a plate that ALREADY lives on a kept prefab
+       (10/1 — the 2x button's AD x2 ribbon: round 41 seeded the ribbon
+       child with its word in the pixels; the word is a live seat now and
+       the wordless cut lands by path, so a kept ClaimbtnDouble would read
+       a blank plate). Built on the posed rider's recipe (instrument face,
+       seat size, ink, hardening — fully qualified, both rungs) and seated
+       PLATE-RELATIVE: the kit's own offset between the word's seat and
+       the plate's seat (WireIconChildrenRow's fraction arithmetic), laid
+       in the plate's frame — so a plate the dev moved, scaled or
+       re-anchored since round 41 carries the word exactly as a fresh
+       build's adopted word would, instead of the word landing where the
+       KIT drew the ribbon beside an empty plate. The tilt is one local
+       rotation (SVG clockwise → UI z counter-clockwise, the board rows'
+       rot grammar). A right-pinned plate (the caret grammar) seats by a
+       gap, not a fraction — none carries a word; it returns false and the
+       caller ledgers nothing. */
+    static bool SeedRiderWord(GameObject host, PBAsset row, PBSeat seat, string root, PBManifest m, int pngScale) {
+      if (host == null || row == null || seat == null || row.iconSeats == null || row.shell == null || string.IsNullOrEmpty(seat.rider) || string.IsNullOrEmpty(seat.text) || seat.ffs <= 0f) return false;
+      PBIconChild icS = null;
+      foreach (var icR in row.iconSeats) if (icR != null && icR.name == seat.rider) { icS = icR; break; }
+      if (icS == null || icS.pinRight) return false;
+      var plateT = host.transform.Find(IconChildName(icS));
+      var hostRt = host.transform as RectTransform;
+      var bodyS = BodyImage(host);
+      if (plateT == null || hostRt == null || bodyS == null || bodyS.sprite == null || bodyS.sprite.rect.width < 2f || bodyS.sprite.rect.height < 2f) return false;
+      float rootH = SeatRootH(host, pngScale), rootW = hostRt.rect.width;
+      if (rootH < 2f || rootW < 2f) return false;
+      float psS = pngScale > 0 ? pngScale : 2f;
+      // the plate's kit seat as host fractions — WireIconChildrenRow's own arithmetic
+      float fxP = (row.shell.x + row.shell.w / 2f + icS.dx * psS) / bodyS.sprite.rect.width;
+      float fyP = 1f - (row.shell.y + row.shell.h / 2f + icS.dy * psS) / bodyS.sprite.rect.height;
+      var go = new GameObject(PlainWord(seat.text), typeof(RectTransform), typeof(CanvasRenderer), typeof(TMPro.TextMeshProUGUI));
+      go.transform.SetParent(plateT, false);
+      var t = go.GetComponent<TMPro.TextMeshProUGUI>();
+      t.text = seat.text;
+      t.raycastTarget = false;
+      t.richText = seat.text.Contains("<color=");
+      float fs = SeatFs(seat, rootH);
+      t.fontSize = fs;
+      SeatHarden(t);
+      t.alignment = seat.anchor == "middle" ? TMPro.TextAlignmentOptions.Center : seat.anchor == "end" ? TMPro.TextAlignmentOptions.Right : TMPro.TextAlignmentOptions.Left;
+#if UNITY_2023_2_OR_NEWER
+      var face = EnsureInstrumentFace(root, m); // styled rung: dynamic-source stamping + weight honestizing ride along
+#else
+      var face = RiderFace(root, m);
+#endif
+      if (face != null) t.font = face;
+      else if (seat.weight >= 700) t.fontStyle = TMPro.FontStyles.Bold; // synthetic bold only when the real cut is absent
+      t.characterSpacing = seat.spacingEmPct;
+      Color ink;
+      if (!string.IsNullOrEmpty(seat.fill) && ColorUtility.TryParseHtmlString(seat.fill, out ink)) {
+        if (seat.fillOpacity > 0f) ink.a *= Mathf.Clamp01(seat.fillOpacity / 100f);
+        t.color = ink;
+      }
+      if (seat.unkern) SeatKernOff(t);
+      // SeatRect's own pivot and cap-middle lift rules, laid in the plate's frame
+      float lift = 0f;
+      if (seat.midEm > 0f && face != null && face.faceInfo.pointSize > 0f)
+        lift = ((face.faceInfo.ascentLine + face.faceInfo.descentLine) * 0.5f / face.faceInfo.pointSize - seat.midEm) * fs;
+      var rt = go.GetComponent<RectTransform>();
+      rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+      rt.pivot = new Vector2(seat.anchor == "middle" ? 0.5f : seat.anchor == "end" ? 1f : 0f, 0.5f);
+      rt.anchoredPosition = new Vector2((seat.fx - fxP) * rootW, (1f - seat.fy - fyP) * rootH + lift);
+      rt.sizeDelta = SeatBox(seat, fs);
+      if (Mathf.Abs(seat.rot) > 0.01f) rt.localRotation = Quaternion.Euler(0f, 0f, -seat.rot);
+      return true;
     }
     /* seat hardening, rung-agnostic (moved out of the styled-rung guard,
        round 41 review blocker 2 — posed rider counts rebuild on 2022.3
@@ -25255,8 +25724,10 @@ namespace PatternBreak {
         wRt.anchoredPosition += new Vector2(rowFS.fireDx, -rowFS.fireDy);
       } else {
         wRt.sizeDelta = new Vector2(domeShellW, domeShellW) * (themed ? 0.62f : 0.52f);
-        // the app seats the armed glyph a touch BELOW the dome's center
-        // (cy + kr·0.14) — the up-nudge read off-center (owner)
+        // older renders seated the armed glyph a touch BELOW the dome's
+        // center (cy + kr·0.14); the app centers it now (round 107) and
+        // ships the exact seat — this estimate serves only zips without a
+        // seat and the flat icons/ fallback
         wRt.anchoredPosition += new Vector2(0f, -domeShellW * 0.045f);
       }
       fb.weapon = wIm;
@@ -26858,7 +27329,7 @@ namespace PatternBreak {
       RenameArtShelf(root); // BigGlyphs → Art, the class's name everywhere
       RenamePlainNames(root); // plain ASCII names (round 78), healed on every import
       RetireMoveCounterTwin(root, prevLock); // the case-twin that shadowed the universal Movecounter
-      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, glyphSeated = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0, reseeded = 0, wordKept = 0, rebodied = 0, mapGrafted = 0, padTuned = 0, rigGrafted = 0, sinkTuned = 0, barRigged = 0, capRigged = 0, pieceBound = 0, ddRigged = 0, unburned = 0, retiredIc = 0, medalWorded = 0, orphaned = 0;
+      int wired = 0, redressed = 0, purgedGhosts = 0, unswapped = 0, resized = 0, speced = 0, clickFit = 0, retracked = 0, readopted = 0, reshaped = 0, pressArmed = 0, glyphSeated = 0, faceRects = 0, idled = 0, gauged = 0, worded = 0, reseeded = 0, wordKept = 0, rebodied = 0, mapGrafted = 0, padTuned = 0, rigGrafted = 0, sinkTuned = 0, barRigged = 0, capRigged = 0, pieceBound = 0, ddRigged = 0, unburned = 0, retiredIc = 0, medalWorded = 0, riderWorded = 0, orphaned = 0;
       /* the ROOT-RECT ownership ledger (F5 — the resize pass was the one
          maintenance heal with NO ours-vs-theirs guard): rects we last
          authored, carried in kit.lock.json > authoredRects. A rect still
@@ -26883,9 +27354,13 @@ namespace PatternBreak {
       if (prevLock != null && prevLock.seededChildren != null)
         foreach (var scU in prevLock.seededChildren) if (!string.IsNullOrEmpty(scU)) unburnLedger.Add(scU);
       HashSet<string> prevFilesU = null;
+      /* prevShaU: the previous import's file → sha256 (the rider-word seed's
+         "did this plate's cut actually change in this refresh" call, 10/1) */
+      Dictionary<string, string> prevShaU = null;
       if (prevLock != null && prevLock.files != null) {
         prevFilesU = new HashSet<string>();
-        foreach (var pfU in prevLock.files) if (pfU != null && !string.IsNullOrEmpty(pfU.file)) prevFilesU.Add(pfU.file);
+        prevShaU = new Dictionary<string, string>();
+        foreach (var pfU in prevLock.files) if (pfU != null && !string.IsNullOrEmpty(pfU.file)) { prevFilesU.Add(pfU.file); prevShaU[pfU.file] = pfU.sha256; }
       }
       float armedSink = 0f;
 #if UNITY_2023_2_OR_NEWER
@@ -27685,6 +28160,63 @@ namespace PatternBreak {
             }
           }
         }
+        /* a RIDER WORD new to a plate ALREADY on the prefab (10/1 — the 2x
+           button's AD x2 ribbon: round 41 seeded the ribbon child with its
+           word in the pixels; the word is a live seat now and the wordless
+           cut lands by path, so a kept ClaimbtnDouble would read a blank
+           plate). The VS medal's road (Medal Words), one word at a time,
+           under the ledger's own verbs, keyed "<prefab>|Rider <word>":
+           - a text of that name anywhere on the prefab → adopt at first
+             sight (every existing rider word on every family, once);
+           - ledgered and gone → the dev's deletion, theirs forever;
+           - the plate's cut UNCHANGED since the previous import (same sha
+             in the lock's file table) and the word gone → the dev deleted
+             it before the ledger knew words; adopt as theirs, don't rebuild
+             (the un-burn's prevFilesU rule, applied to words);
+           - only a word whose plate is here (or seeds in this very pass —
+             absent and still unledgered after the un-burn probe above)
+             AND whose plate's sprite changed in this refresh still seeds,
+             once, recorded at the apply. No Words tree = the seat builder
+             seeds everything fresh, riders included. */
+        var riderSeeds = new List<PBSeat>();
+        {
+          var rowRS = IconSeatRowOf(asset, m, root, famName);
+          if (!tiledBuild && rowRS != null && rowRS.textSeats != null && rowRS.iconSeats != null && asset.transform.Find("Words") != null) {
+            var relRS = path.StartsWith(root + "/") ? path.Substring(root.Length + 1) : path;
+            foreach (var sRS in rowRS.textSeats) {
+              if (sRS == null || string.IsNullOrEmpty(sRS.rider) || string.IsNullOrEmpty(sRS.text) || sRS.ffs <= 0f) continue;
+              string kRS = relRS + "|Rider " + PlainWord(sRS.text);
+              if (unburnLedger.Contains(kRS)) continue;
+              bool haveRS = false;
+              foreach (var tRS in asset.GetComponentsInChildren<TMPro.TMP_Text>(true))
+                if (tRS != null && PlainWord(tRS.gameObject.name) == PlainWord(sRS.text)) { haveRS = true; break; }
+              if (haveRS) { unburnLedger.Add(kRS); continue; }
+              PBIconChild icRS = null;
+              foreach (var ic0RS in rowRS.iconSeats) if (ic0RS != null && ic0RS.name == sRS.rider) { icRS = ic0RS; break; }
+              if (icRS == null || string.IsNullOrEmpty(icRS.file)) continue;
+              string cnRS = IconChildName(icRS);
+              bool hereRS = asset.transform.Find(cnRS) != null;
+              bool bornRS = !hereRS && wantUnburn && !unburnLedger.Contains(relRS + "|" + cnRS);
+              if (!hereRS && !bornRS) continue; // no plate, none coming — nothing to ride (a later pass may)
+              /* r107 review: the previous lock's rider ledger is the plain
+                 answer — a seat the last import already carried and whose
+                 word is gone now is the dev's deletion, whatever happened
+                 to the plate's sprite since. The sha gate below stays as
+                 the first-pass heuristic for a project whose lock predates
+                 the ledger. */
+              string knownKeyRS = rowRS.file + "|Rider " + PlainWord(sRS.text);
+              bool knownRS = prevLock != null && prevLock.knownRiders != null && System.Array.IndexOf(prevLock.knownRiders, knownKeyRS) >= 0;
+              if (knownRS) { unburnLedger.Add(kRS); continue; }
+              string shaRS = null;
+              if (m.assets != null) foreach (var aRS in m.assets) if (aRS != null && aRS.file == icRS.file) { shaRS = aRS.sha256; break; }
+              if (string.IsNullOrEmpty(shaRS)) continue;
+              bool freshRS = prevShaU == null || !prevShaU.ContainsKey(icRS.file) || prevShaU[icRS.file] != shaRS;
+              if (!freshRS) { unburnLedger.Add(kRS); continue; }
+              riderSeeds.Add(sRS);
+            }
+          }
+        }
+        bool wantRiderSeed = riderSeeds.Count > 0;
         /* RE-CUT SEAT RETIRE (round 40 — the resource's one-group
            medallion split into plate + glyph): an icon child WE seeded
            whose manifest seat was re-cut into new names steps down before
@@ -28031,7 +28563,7 @@ namespace PatternBreak {
            untouched. */
         bool wantSelectRoot = asset.GetComponent<KitPiece>() == null;
         if (!wantWiring && !wantDress && !wantFx && !wantUnswap && !wantResize && !wantSpecAdd && !wantSpecCut && !wantPad && !wantShape && !wantFbLift && !wantFbSeat && !wantFaceRects
-            && !wantWipeAdd && !wantWipeCut && !wantEdgeAdd && !wantEdgeCut && !wantGauge && !wantSeats && !wantOrphanWords && !wantSeatLabel && !wantWordSeed && !wantBody && !wantGlowPad && !wantSinkFix && !wantIconAdd && !wantIconStroke && !wantUnburn && !wantIconRetire && !wantSelectRoot) continue;
+            && !wantWipeAdd && !wantWipeCut && !wantEdgeAdd && !wantEdgeCut && !wantGauge && !wantSeats && !wantOrphanWords && !wantSeatLabel && !wantWordSeed && !wantBody && !wantGlowPad && !wantSinkFix && !wantIconAdd && !wantIconStroke && !wantUnburn && !wantIconRetire && !wantSelectRoot && !wantRiderSeed) continue;
         var contents = PrefabUtility.LoadPrefabContents(path);
         try {
           bool changed = false;
@@ -28138,7 +28670,7 @@ namespace PatternBreak {
             // idempotent: creates the Words group, or re-seeds/re-dresses
             // only seats still carrying their seeded text
             WireTextSeats(contents, root, m, m.pngScale > 0 ? m.pngScale : 2);
-            if (contents.transform.Find("Words") != null) { worded++; changed = true; }
+            if (contents.transform.Find("Words") != null || RidersOnlyAdopted(contents, SeatRowOf(contents, m, root))) { worded++; changed = true; }
           }
           if (wantSeatLabel && FindOurLabelRoot(contents) == null) {
             /* the badge's stock star stands down for the live count — ours
@@ -28223,6 +28755,28 @@ namespace PatternBreak {
                  on kept projects too) */
               AdoptSeatRiders(contents, rowUA);
               unburned++; changed = true;
+            }
+          }
+          /* the RIDER-WORD seed lands AFTER the un-burn (10/1), so a plate
+             born in this very pass takes its word in the same import — one
+             import, plate and word. SeedRiderWord re-proves the plate on
+             the loaded contents; each success is ledgered as
+             "<prefab>|Rider <word>", and the styled rung's seat heal
+             dresses the adopted word with the family recipe now (only when
+             the probe says the group is still ours), not next import. */
+          if (wantRiderSeed) {
+            var relRW = path.StartsWith(root + "/") ? path.Substring(root.Length + 1) : path;
+            var rowRW = IconSeatRowOf(contents, m, root, famName);
+            int psRW = m.pngScale > 0 ? m.pngScale : 2;
+            int seededRW = 0;
+            foreach (var sRW in riderSeeds) {
+              if (rowRW == null || !SeedRiderWord(contents, rowRW, sRW, root, m, psRW)) continue;
+              unburnLedger.Add(relRW + "|Rider " + PlainWord(sRW.text));
+              seededRW++;
+            }
+            if (seededRW > 0) {
+              riderWorded += seededRW; changed = true;
+              if (TextSeatsStale(contents, m, root, psRW)) WireTextSeats(contents, root, m, psRW);
             }
           }
           /* round 27: the pristine fill-only Icon steps down and the
@@ -28396,6 +28950,8 @@ namespace PatternBreak {
         Debug.Log("UI Kit Maker: gave " + capRigged + " bar prefab(s) their ROUNDED mercury head — the app redraws the bead at every value, and the bar now parks that exact bead on the value line instead of showing the Filled crop's flat cut. Keep driving fillAmount (or KitBarFill.SetValue); the head follows.");
       if (medalWorded > 0)
         Debug.Log("UI Kit Maker: seated the VS bar medallion's word LIVE on " + medalWorded + " prefab(s) — the medal sprite ships wordless now and the VS rides it as editable TMP (retype or restyle it in the Inspector; deleting the Words tree is yours and sticks).");
+      if (riderWorded > 0)
+        Debug.Log("UI Kit Maker: seated " + riderWorded + " rider word(s) LIVE on plate children already living on your prefabs (the 2x button's AD x2 ribbon) — each plate's sprite changed in this refresh and no word of that name lived anywhere on the prefab, so the word now rides the plate as editable TMP, tilt and all, placed relative to the plate wherever you left it (retype, restyle or re-angle it in the Inspector; deleting it is yours and sticks).");
       if (readopted > 0)
         Debug.Log("UI Kit Maker: re-adopted the kit's current sprites on " + readopted + " example prefab(s) — they were still wearing files this kit no longer exports (the pre-rename names), so their look froze while everything else updated. They now restyle with every re-export, like the rest.");
       if (reshaped > 0)
