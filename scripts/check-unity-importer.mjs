@@ -158,6 +158,18 @@ else {
    (3) a pinned word that can't be made real counts the scene incomplete
        (missing++) so the pbBoardPending marker self-heals it.
    (4) the per-board pinned-words receipt (the K=0 field check) exists. */
+/* 10/1 — the fresh-project opener (the Asset Store reviewer's first look):
+   a kit whose receipt is already current never reaches ImportKit, so the
+   post-reload sweep itself must ask for TMP's Essential Resources whenever a
+   kit is present and TMP isn't ready (pink labels otherwise), and the
+   Playground build must ride a session flag so a build that died with the
+   domain reload or found no prefabs yet retries on the next editor beat. */
+if (!/if \(!anyImported && manifests\.Length > 0 && !EditorApplication\.isPlayingOrWillChangePlaymode && !TmpReady\(\) && RequestEssentials\(\)\) EditorApplication\.delayCall \+= Apply;/.test(cs))
+  errors.push("the post-reload sweep must request TMP Essential Resources for a present kit whose receipt is already current (pink labels in a fresh project, 10/1)");
+if (!/SessionState\.SetBool\("PBKitPlaygroundPending", true\);\s*\n\s*EditorApplication\.delayCall \+= \(\) => \{ if \(!BuildPlayground\(root\)\) SessionState\.SetBool\("PBKitPlaygroundPending", true\); \};/.test(cs))
+  errors.push("the Playground build must be armed in SessionState BEFORE its delayCall and re-armed when the build can't finish (10/1)");
+if (!/if \(SessionState\.GetBool\("PBKitPlaygroundPending", false\)\) \{/.test(cs) || !/static bool BuildPlayground\(string root\)/.test(cs) || !/if \(guids\.Length == 0\) return false;/.test(cs))
+  errors.push("the post-reload sweep must honor PBKitPlaygroundPending, and BuildPlayground must report a no-prefabs-yet pass as unfinished (10/1)");
 const pendingClears = (cs.match(/SetBool\("PBKitVariantsPending", false\)/g) ?? []).length;
 if (pendingClears !== 1)
   errors.push(`PBKitVariantsPending must be cleared exactly once (inside ClearVariantsPending); found ${pendingClears} clear(s)`);
