@@ -2762,9 +2762,9 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/data-fireseat="\$\{\(cx9 \+ \(ICR\.ox \|\| 0\) \* k\)\.toFixed\(1\)\} \$\{\(icCy9 \+ \(ICR\.oy \|\| 0\) \* k\)\.toFixed\(1\)\} \$\{\(icF \* \(gsA9 \+ 2 \* gpadA9\) \/ gsA9\)\.toFixed\(1\)\}"/.test(bevelSrc))
     errors.push("the bare dome render no longer stamps data-fireseat (drawn glyph center incl. the Icons nudge + padded glyph-sprite box) — the exact armed seat can't reach the manifest (round 44, item 15; round 107 nudge fold)");
   // round 107: the draw and the stamp share one centre, and that centre is the dome's
-  if (!/const icCy9 = cy9 \+ sink;/.test(bevelSrc)
+  if (!/const icCy9 = cy9 \+ sink \+ krF \* 0\.14;/.test(bevelSrc)
       || !/themedIcon\(opts\.icon \?\? ROSTER9\[armed9\], cx9 - icF \/ 2, icCy9 - icF \/ 2, icF, icTone, 2\.6\)/.test(bevelSrc))
-    errors.push("the fire button's armed glyph no longer centers on the dome, or the drawn glyph and the data-fireseat stamp stopped sharing icCy9 — the app and Unity's Weapon seat drift apart (round 107, owner: 'push main icon north by 10 px')");
+    errors.push("the fire button's armed glyph must keep its #250 resting seat (krF*0.14 below the dome centre) with the drawn glyph and the data-fireseat stamp sharing icCy9 — the app's draw stays byte-identical and Unity follows the stamp, nudge included (round 107, owner: 'push main icon north by 10 px' — the nudge was the whole gap)");
   if (!/fireDx: r1\(fsM\[0\] - \(shM\[0\] \+ shM\[2\] \/ 2\)\), fireDy: r1\(fsM\[1\] - \(shM\[1\] \+ shM\[3\] \/ 2\)\), fireW: r1\(fsM\[2\]\)/.test(src))
     errors.push("the emission no longer re-speaks data-fireseat shell-center relative onto the dome row (fireDx/fireDy/fireW)");
   if (!/public PBIconChild\[\] iconSeats; public float fireDx; public float fireDy; public float fireW; public float railDx; public float railDy; public float railW; public float railH; public string labelAnchor; public string barMode;/.test(cs)) // round 58: barMode rides the same row; round 61f appends tintable after it
