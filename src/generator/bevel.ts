@@ -8574,11 +8574,14 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       let inner = "";
       /* the 10/1 un-burn (the owner: "weapon wheel needs to be broken up
          further to be useful, too much burned into the bkg"): the disc,
-         the hammer wedge, the rim and the hub plate are each marked ink
-         (inert wrappers, the draw byte-identical), so Unity gets them as
-         live children — Disc and Hammer wedge under everything, Rim and
-         Hub plate in their paint order — beside the Cylinder, the chamber
-         glyphs and the name tag that already ship live. */
+         the hammer wedge and the hub plate are each marked ink (inert
+         wrappers, the draw byte-identical), so Unity gets them as live
+         children — Disc and Hammer wedge under everything, Hub plate in
+         its paint order — beside the Cylinder, the chamber glyphs and the
+         name tag that already ship live. The RIM stays in the base: it is
+         the piece's outermost ink and what the sprite crops to, and a base
+         with nothing left in it would hand the prefab an empty, uncropped
+         root (the 10/1 proof export showed exactly that). */
       const innerBox = `data-icon-box="${(cW - innerR).toFixed(1)} ${(cW - innerR).toFixed(1)} ${(innerR * 2).toFixed(1)} ${(innerR * 2).toFixed(1)}"`;
       // fixed hammer wedge at 2 o'clock — the arming position
       inner += `<g data-part="icon" data-icon="hammer" data-icon-nick="Hammer wedge" data-icon-under="1" ${innerBox}><path d="M ${cW} ${cW} L ${(cW + innerR * Math.cos(hamA - wSpan)).toFixed(1)} ${(cW + innerR * Math.sin(hamA - wSpan)).toFixed(1)} A ${innerR.toFixed(1)} ${innerR.toFixed(1)} 0 0 1 ${(cW + innerR * Math.cos(hamA + wSpan)).toFixed(1)} ${(cW + innerR * Math.sin(hamA + wSpan)).toFixed(1)} Z" fill="url(#${gidW9}w)"/></g>`;
@@ -8666,9 +8669,9 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
   <g data-part="icon" data-icon="disc" data-icon-nick="Disc" data-icon-under="1" data-icon-box="${(cW - rimR).toFixed(1)} ${(cW - rimR).toFixed(1)} ${(rimR * 2).toFixed(1)} ${(rimR * 2).toFixed(1)}"><circle cx="${cW}" cy="${cW}" r="${(rimR - rimW9 / 2).toFixed(1)}" fill="url(#${gidW9}g)"/>
   ${patW ? `<circle cx="${cW}" cy="${cW}" r="${(innerR - 1).toFixed(1)}" fill="url(#${gidW9}p)" opacity="${((PT!.opacity / 100) * 0.4).toFixed(2)}"/>` : ""}</g>
   ${inner}
-  <g data-part="icon" data-icon="rim" data-icon-nick="Rim" data-icon-box="0 0 ${totalW.toFixed(0)} ${totalW.toFixed(0)}"><circle cx="${cW}" cy="${cW}" r="${rimR.toFixed(1)}" fill="none" stroke="url(#${gidW9}r)" stroke-width="${rimW9.toFixed(1)}"${live9 ? ` style="filter: drop-shadow(0 0 ${(rimW9 * 0.7).toFixed(1)}px ${hexRgba(glow, 0.5)})"` : ""}/>
+  <circle cx="${cW}" cy="${cW}" r="${rimR.toFixed(1)}" fill="none" stroke="url(#${gidW9}r)" stroke-width="${rimW9.toFixed(1)}"${live9 ? ` style="filter: drop-shadow(0 0 ${(rimW9 * 0.7).toFixed(1)}px ${hexRgba(glow, 0.5)})"` : ""}/>
   ${sweepArc}
-  <circle cx="${cW}" cy="${cW}" r="${(rimR - rimW9 - 0.6).toFixed(1)}" fill="none" stroke="${darken(bevel, 0.5)}" stroke-width="1" opacity="0.7"/></g>
+  <circle cx="${cW}" cy="${cW}" r="${(rimR - rimW9 - 0.6).toFixed(1)}" fill="none" stroke="${darken(bevel, 0.5)}" stroke-width="1" opacity="0.7"/>
   ${armedSvg}
   ${glyphSvg}
   ${tagSvg}

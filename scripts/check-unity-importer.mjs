@@ -3509,9 +3509,12 @@ if (!/const winT = Math\.max\(5, Math\.floor\(prof\.length \/ 10\)\);/.test(src)
       || !/else if \(pIc\.under\) pIcGo\.transform\.SetSiblingIndex\(artRt\.GetSiblingIndex\(\) \+ 1 \+ underPlacedP\+\+\);/.test(cs))
     errors.push("the posed board copies must stack behind/under children around the posed art like the prefabs (10/1 layers)");
   // the thirteen pieces' marks, by nick (bevel.ts) — a wrapper lost is a well burned back in
-  const nicks10 = ["Well", "Avatar well", "Avatar ring", "Icon disc", "Status stripe", "Body well", "Cell ${i + 1}", "Rarity glow", "Hammer wedge", "Disc", "Rim", "Hub plate"];
+  const nicks10 = ["Well", "Avatar well", "Avatar ring", "Icon disc", "Status stripe", "Body well", "Cell ${i + 1}", "Rarity glow", "Hammer wedge", "Disc", "Hub plate"];
   for (const nk of nicks10)
     if (!bevelSrc.includes(`data-icon-nick="${nk}"`)) errors.push(`bevel.ts lost the "${nk}" layer mark (10/1 layers)`);
+  /* the wheel's RIM stays in the base: it is the outermost ink the sprite crops to, and a base
+     emptied of it shipped as a 1796px transparent root in the 10/1 proof export */
+  if (/data-icon-nick="Rim"/.test(bevelSrc)) errors.push("the weapon wheel's rim must stay in the base sprite (the crop driver); Disc, Hammer wedge and Hub plate are the wheel's layer children (10/1)");
   const underN = (bevelSrc.match(/data-icon-under="1"/g) ?? []).length;
   const behindN = (bevelSrc.match(/data-icon-behind="1"/g) ?? []).length;
   if (underN < 16) errors.push(`bevel.ts carries ${underN} under marks; the 10/1 layers batch authored 16 (vitalbar, respawn, popmeter, questpanel, xpbar, unitplate ×2, techcard, validity, dialog, streakmeter ×2, rarityframe, rewardcard, weaponwheel ×2)`);
