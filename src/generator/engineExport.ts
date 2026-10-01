@@ -15380,10 +15380,11 @@ namespace PatternBreak {
           }
         }
         var manifests = AssetDatabase.FindAssets("kit-manifest t:TextAsset");
+        bool anyImported = false;
         foreach (var guid in manifests) {
           var mPath = AssetDatabase.GUIDToAssetPath(guid);
           var root = Path.GetDirectoryName(mPath).Replace("\\\\", "/");
-          if (force || Stale(root, mPath)) { ImportKit(mPath); continue; }
+          if (force || Stale(root, mPath)) { ImportKit(mPath); anyImported = true; continue; }
           /* receipt current but its variant JOB never completed (editor
              restart ate the delayCall): finish it now */
           PBLock lv = null;
@@ -15429,6 +15430,37 @@ namespace PatternBreak {
              heard "done". A kit that threw re-arms so the next sweep
              retries every kit (idempotent). */
           if (anyFailed) SessionState.SetBool("PBKitVariantsPending", true);
+        }
+#if UNITY_2023_2_OR_NEWER
+        /* a kit whose receipt is already CURRENT never reaches ImportKit —
+           and ImportKit was the only place that ever asked for TMP's
+           Essential Resources. A pre-built .unitypackage (the Asset Store
+           reviewer's fresh project: receipt and Playground ship inside it)
+           therefore opened Playground.unity with every label PINK, the TMP
+           shaders missing. Whenever a kit is present and TMP isn't ready,
+           request the essentials here too, then one bounded re-pass once
+           they land — idempotent, a current kit reports "already right".
+           Skipped when this sweep already imported (ImportKit asked) and
+           during Play (essentials can't come in cleanly there; the next
+           reload is edit mode). */
+        if (!anyImported && manifests.Length > 0 && !EditorApplication.isPlayingOrWillChangePlaymode && !TmpReady() && RequestEssentials()) EditorApplication.delayCall += Apply;
+#endif
+        /* the PLAYGROUND build armed by an import whose delayCall died with
+           the domain reload, or that ran and found NO prefabs yet (TMP
+           essentials still landing, so GeneratePrefabs waited a pass) —
+           the old code said "the next pass retries" and nothing did: the
+           receipt stood current, the kit opened with no Playground. Same
+           contract as the variant pass: cleared here, re-armed by every
+           kit that still can't finish. */
+        if (SessionState.GetBool("PBKitPlaygroundPending", false)) {
+          SessionState.SetBool("PBKitPlaygroundPending", false);
+          foreach (var guid in manifests) {
+            var mPath = AssetDatabase.GUIDToAssetPath(guid);
+            var root = Path.GetDirectoryName(mPath).Replace("\\\\", "/");
+            if (File.Exists(root + "/Playground.unity")) continue;
+            try { if (!BuildPlayground(root)) SessionState.SetBool("PBKitPlaygroundPending", true); }
+            catch (Exception e) { SessionState.SetBool("PBKitPlaygroundPending", true); Debug.LogWarning("UI Kit Maker: the Playground build is retrying on the next editor beat — " + e.Message); }
+          }
         }
       };
     }
@@ -15720,9 +15752,14 @@ namespace PatternBreak {
       // and the examples placed — built once after this pass settles, then
       // yours (Tools > PatternBreak > Rebuild Kit Playground Scene refreshes).
       // Scenes can't be created mid-import, hence the delayCall.
-      if (!File.Exists(root + "/Playground.unity"))
-        EditorApplication.delayCall += () => BuildPlayground(root);
-      else if (prev != null) {
+      if (!File.Exists(root + "/Playground.unity")) {
+        /* ARMED in session state FIRST, like the variant pass: this
+           delayCall does not survive the domain reload the import's own
+           .cs files cause, and a build that runs but finds no prefabs yet
+           (TMP essentials still landing) must come back on the next beat */
+        SessionState.SetBool("PBKitPlaygroundPending", true);
+        EditorApplication.delayCall += () => { if (!BuildPlayground(root)) SessionState.SetBool("PBKitPlaygroundPending", true); };
+      } else if (prev != null) {
         /* the Playground never rebuilds itself ("yours after first
            generation") — but a kit UPDATE leaving it stale in SILENCE
            read as "same problem" in the field. Say where the fresh one
@@ -16203,13 +16240,19 @@ namespace PatternBreak {
       rt.sizeDelta = new Vector2(Mathf.Max(width, 120f), 36f);
       rt.anchoredPosition = new Vector2(left, bottom - 6f);
     }
-    static void BuildPlayground(string root) {
+    /* returns TRUE when nothing is left to do (built, or already yours),
+       FALSE when the caller should keep PBKitPlaygroundPending armed so
+       the post-reload sweep retries on the next editor beat */
+    static bool BuildPlayground(string root) {
       var scenePath = root + "/Playground.unity";
-      if (File.Exists(scenePath)) return; // yours after first generation
+      if (File.Exists(scenePath)) return true; // yours after first generation
       var guids = AssetDatabase.FindAssets("t:Prefab", new string[] { root + "/Prefabs" });
-      if (guids.Length == 0) return; // prefabs not in yet — the next pass retries
+      if (guids.Length == 0) return false; // prefabs not in yet — the sweep retries on the next beat
       UnityEngine.SceneManagement.Scene scene;
-      if (!TryNewKitScene(out scene, "the Playground scene")) return;
+      // the dirty-Untitled skip already told the maker the way out (save,
+      // then the Rebuild menu) — no automatic retry nags them per reload
+      if (!TryNewKitScene(out scene, "the Playground scene")) return true;
+      bool saved = false;
       try {
         /* field case: the user deleted the kit folder while the old
            Playground was still OPEN — its file is gone but the editor
@@ -16500,7 +16543,8 @@ namespace PatternBreak {
         srPg.verticalNormalizedPosition = 1f;
         /* no help card in the scene (owner call: the Playground stays
            clean) — the driving instructions live in the README instead */
-        if (UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene, scenePath))
+        saved = UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene, scenePath);
+        if (saved)
           Debug.Log("UI Kit Maker: Playground ready — open " + scenePath + " and press Play. Hover/press states are pre-wired; the shelf SCROLLS (wheel or drag) — " + placed + " piece(s) across " + allSecs.Count + " chapter(s), the whole released kit. In EDIT mode the scroll mask relaxes so the entire shelf is visible in the Scene view; Play clips and scrolls it exactly as it ships.");
         else
           Debug.LogWarning("UI Kit Maker: couldn't save the Playground at " + scenePath + " — go File > New Scene, then Tools > PatternBreak > Rebuild Kit Playground Scene.");
@@ -16513,6 +16557,7 @@ namespace PatternBreak {
         if (UnityEngine.SceneManagement.SceneManager.sceneCount > 1)
           UnityEditor.SceneManagement.EditorSceneManager.CloseScene(scene, true);
       }
+      return saved;
     }
 
     /* ── Boards→Scenes: every artboard the maker composed in the app
