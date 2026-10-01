@@ -189,3 +189,36 @@ Chevon saw a yellow line at the bottom of a fresh Unity 6 project: "UI Kit Maker
 - ProgressBar, EmblemBar and Timerbar: a rounded end on the mercury and no Cap child under Fill Area. Drag Value on the Fill Area's KitBarFill and watch the end stay round down to the floor.
 - Slider prefab, if yours was generated before round 58: the knob and the mercury's end on the same line at every value.
 - Tools > PatternBreak: four entries on the Brightside zip, five on a zip with boards.
+
+---
+
+# 10/1: the seam on the progress bar, and the layers
+
+Hey Jimi. Two changes from Chevon's 10/1 pass over the Brightside store build in Unity. The first is small and fixes the "endcap" he kept seeing. The second is a batch over thirteen pieces and changes what you see in the Hierarchy, so read it before your next re-import.
+
+## What changed
+
+**1. The ramp seam on the progress bar (the "still cappin" report).**
+What Chevon saw on a fresh Brightside project was not the old cap rig; that one is gone. It was Unity tiling the fill's center: the mercury's ramp restarted near the value line, a pale block with a hard edge. The export decides per fill whether its center tiles (a pattern, like the XP bar's) or slices (a ramp), and the judge read Brightside's very shallow ramps as noise and shipped them tiled. The judge now also reads the trend, so progress, emblem bar and slider ship sliced. In a kept project the importer retunes the center mode on rigs already on the width road, only when the rig and the sprite are ours, and prints "retuned the mercury's center mode on 3 kept bar fill(s) (EmblemBar, ProgressBar, Slider)". Patterns stay tiled.
+
+**2. The layers: wells, discs, stripes and glows ship as their own children.**
+Chevon's screenshot batch named the problem in the file names: "in general do not burn the wells into the backgrounds but keep them as a separate layer." Thirteen pieces had something burned into the base sprite that a dev would want to move, recolor or delete. Each of those now ships as a live Image child on the prefab, at the bottom of the stack right over the plate, so fills, lit strips, portraits and words paint over it:
+
+- Vital bar, respawn, pop meter, quest panel, XP bar, unit plate (the HP well), dialog (the body well): a **Well** child under the mercury.
+- Unit plate: an **Avatar well** under the portrait and an **Avatar ring** over it.
+- Tech card: the **Icon disc** under the glyph.
+- Validity: the **Status stripe** down the left edge.
+- Streak meter: the **Well** plus **Cell 1** to **Cell 5**, one child per segment. Add, remove or stretch cells and the lit strip still lights whole cells over them.
+- Weapon wheel: **Disc**, **Hammer wedge** and **Hub plate**, beside the Cylinder, the chamber glyphs and the Name tag it already had. The rim stays in the base sprite: it is the outermost ink, the thing the sprite is cropped to, and the root needs it to keep its size.
+- Rarity frame and reward card: the colored aura is a **Rarity glow** child that sits BEHIND the plate. To make room for it the plate moves into a Body child (the structure the glow families already have); the root keeps the raycast. The glow is a white cut tinted through its Image color, so changing the tier is one color edit. The rarity frame's five per-tier sprites are now identical bare plates (kept under their old names so your prefab keeps its sprite); the tier is the glow's color, and `kit-manifest.json > rarity` lists the ladder's colors. The mystery reward card keeps its own dashed white ring as a plain child.
+
+Kept projects get these children seeded once on the next import, the same one-shot rule as every other live child: rename, retint, resize or delete one and it is yours; the kit never puts it back. Board scenes' posed copies stack the layers the same way around their posed art.
+
+## What to hammer on
+
+- ProgressBar, EmblemBar and Slider in the Playground: one smooth ramp from the left to the rounded end at every value. No pale block, no seam. The XP bar keeps its pattern at natural density.
+- Streak meter: select Cell 3 in the Hierarchy and move it. Drag the rig's value: the lit strip lights whole cells and the moved cell shows its own gap.
+- Rarity frame: pick the Rarity glow child and set its Image color to another tier's color from the manifest. The frame plate itself does not change.
+- Weapon wheel in Play: click a chamber; the cylinder still spins and the Disc and Hub plate stay put.
+- Unit plate: drop your own sprite on the Portrait child; the Avatar well sits under it and the Avatar ring over it.
+- A kept prefab you had retinted or moved a well on: still yours after the import.
