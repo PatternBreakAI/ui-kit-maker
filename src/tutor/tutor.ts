@@ -57,8 +57,11 @@ const WIRED: Array<Tip & { detect: (s: Gen, p: Gen) => boolean }> = [
       if (!textNudged || s.phase !== "master") return false;
       /* DOM truth, not rig guess: many pieces (End turn, rows…) never draw
          a glyph no matter what the icon rig says — the tip is only honest
-         when an icon is actually on the canvas (hero or a state card). */
-      return !!document.querySelector('.canvas-wrap [data-part="icon"]');
+         when an icon is actually on the canvas (hero or a state card).
+         The export's LAYER marks (wells, sockets, auras: under / behind)
+         are not icons, so they do not count (10/2 review: the stepper and
+         the segmented meter carry wells and no glyph). */
+      return !!document.querySelector('.canvas-wrap [data-part="icon"]:not([data-icon-under="1"]):not([data-icon-behind="1"])');
     },
   },
 ];

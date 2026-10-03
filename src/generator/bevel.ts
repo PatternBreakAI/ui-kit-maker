@@ -5922,8 +5922,19 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
              reaches the cells — gloss ∩ cell body ∩ silhouette, the
              progress/slider construction. The straight gloss rect ran
              past every pill's rounded corners. */
-          if (on) litCells += body + `<clipPath id="${gid}g${i}"><rect x="${xC.toFixed(1)}" y="${by.toFixed(1)}" width="${wC.toFixed(1)}" height="${bh.toFixed(1)}" rx="${Math.min(cellW / 2, bh / 2).toFixed(1)}"/></clipPath><g clip-path="url(#${gid}g${i})"><rect x="${xC.toFixed(1)}" y="${(by + bh * 0.08).toFixed(1)}" width="${wC.toFixed(1)}" height="${(bh * 0.3).toFixed(1)}" rx="${(bh * 0.15).toFixed(1)}" fill="#FFFFFF" opacity="0.28"/></g>`;
-          else offCells += body;
+          /* r111 (the owner's SegmentMeter screenshot: "break this up so it
+             is more customizable; everything broken into layers on this
+             asset") — the energy meter's recipe: every UNLIT socket is
+             marked ink, under everything, its own live child (Cell 1…n) a
+             dev can move, recolor, duplicate or delete; the base (v=0)
+             marks all of them and the export measures the seats on that
+             render. A LIT cell stays unmarked and wears the inert
+             data-litcell stamp instead, so the Lit strip (the v=1 render)
+             ships PLATE-LESS from exactly these rects — body, clip and
+             gloss — and never paints over the Well and Cell children
+             beneath it. Wrappers and attributes only; the draw is unchanged. */
+          if (on) litCells += `<g data-litcell="1">` + body + `<clipPath id="${gid}g${i}"><rect x="${xC.toFixed(1)}" y="${by.toFixed(1)}" width="${wC.toFixed(1)}" height="${bh.toFixed(1)}" rx="${Math.min(cellW / 2, bh / 2).toFixed(1)}"/></clipPath><g clip-path="url(#${gid}g${i})"><rect x="${xC.toFixed(1)}" y="${(by + bh * 0.08).toFixed(1)}" width="${wC.toFixed(1)}" height="${(bh * 0.3).toFixed(1)}" rx="${(bh * 0.15).toFixed(1)}" fill="#FFFFFF" opacity="0.28"/></g></g>`;
+          else offCells += `<g data-part="icon" data-icon="cell${i + 1}" data-icon-nick="Cell ${i + 1}" data-icon-under="1" data-icon-box="${(xC - 1).toFixed(1)} ${(by - 1).toFixed(1)} ${(wC + 2).toFixed(1)} ${(bh + 2).toFixed(1)}">${body}</g>`;
         }
       } else {
         const fw2 = trackW * v;
@@ -5947,9 +5958,12 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       }
       const pfx = barFx(gid + "f", bx, by, snap ? trackW * (Math.round(v * n) / n) : trackW * v, bh, bh / 2);
       let out = stampTrack(inject(track,
-        `<path d="${wellP}" fill="${wellFill}" opacity="0.92"/>
+        /* r111: the well is marked ink, under everything — its own live
+           "Well" child (the dialog's body-well mark, the same fixed box:
+           the well path + 1px of air); the base plate bakes bare. */
+        `<g data-part="icon" data-icon="well" data-icon-nick="Well" data-icon-under="1" data-icon-box="${(39 + inset - 1).toFixed(1)} ${(30 + inset - 1).toFixed(1)} ${(w - inset * 2 + 2).toFixed(1)} ${(h - inset * 2 + 2).toFixed(1)}"><path d="${wellP}" fill="${wellFill}" opacity="0.92"/></g>
          <defs>${grad}${clip}${pfx.defs}</defs>
-         <g clip-path="url(#${gid}c)" data-seg="${n}">${pfx.open}${litCells}${pfx.close}${offCells}</g>${pfx.over}`), bx, trackW);
+         <g clip-path="url(#${gid}c)" data-seg="${n}">${pfx.open}${litCells}${pfx.close}${offCells}</g>${pfx.over ? `<g data-litcell="1">${pfx.over}</g>` : ""}`), bx, trackW);
       if (opts.dock) out = applyDock(out, opts.dock, 39, w, 30 + h / 2, h * 1.8);
       return out;
     }
@@ -6995,12 +7009,23 @@ ${liveB ? `<g data-part="icon" data-icon="glow" data-icon-nick="Glow" data-icon-
       const gidT = "st" + UID++;
       /* negative-space canon: the cell strip sits in ONE sunken container
          well; every cell (filled and empty alike) floats inset within it */
-      inner += `<rect x="${(cellsX - 6 * k).toFixed(1)}" y="${(cy - 21 * k).toFixed(1)}" width="${(cellsW + 12 * k).toFixed(1)}" height="${(42 * k).toFixed(1)}" rx="${(10 * k).toFixed(1)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.8)}" stroke="rgba(0,0,0,0.3)" stroke-width="1"/>` +
+      /* r111 (the owner's Stepper screenshot: "bkg well items should not be
+         baked into the panel, should be their own layers") — the energy
+         meter's recipe (r107): the container well and every UNLIT socket
+         are marked ink, under everything, each its own live child (Well,
+         Cell 1…8) a dev can move, recolor, duplicate or delete. Lit cells
+         stay unmarked and carry the inert data-litcell stamp instead: the
+         Lit strip (the v=1 render) ships PLATE-LESS from exactly those
+         rects, so it never paints over the Well and Cell children beneath
+         it. The base (v=0) marks all eight and the seats are measured
+         there. Inert wrappers and attributes only; the draw is unchanged. */
+      inner += `<g data-part="icon" data-icon="well" data-icon-nick="Well" data-icon-under="1" data-icon-box="${(cellsX - 6 * k - 1).toFixed(1)} ${(cy - 21 * k - 1).toFixed(1)} ${(cellsW + 12 * k + 2).toFixed(1)} ${(42 * k + 2).toFixed(1)}"><rect x="${(cellsX - 6 * k).toFixed(1)}" y="${(cy - 21 * k).toFixed(1)}" width="${(cellsW + 12 * k).toFixed(1)}" height="${(42 * k).toFixed(1)}" rx="${(10 * k).toFixed(1)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.8)}" stroke="rgba(0,0,0,0.3)" stroke-width="1"/></g>` +
         `<defs><linearGradient id="${gidT}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(glow, 0.2)}"/><stop offset="1" stop-color="${bevel}"/></linearGradient></defs>`;
       for (let i = 0; i < nC; i++) {
         const cx0 = cellsX + i * (cellW + 6 * k);
         const on = i < filled;
-        inner += `<rect x="${cx0.toFixed(1)}" y="${(cy - 13 * k).toFixed(1)}" width="${cellW.toFixed(1)}" height="${(26 * k).toFixed(1)}" rx="${(5 * k).toFixed(1)}" fill="${on ? `url(#${gidT})` : "rgba(255,255,255,0.1)"}"${on && state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(3 * k).toFixed(1)}px ${hexRgba(glow, 0.5)})"` : ""} stroke="${on ? darken(bevel, 0.3) : "rgba(255,255,255,0.12)"}" stroke-width="1"/>`;
+        const cellRect = `<rect${on ? ' data-litcell="1"' : ""} x="${cx0.toFixed(1)}" y="${(cy - 13 * k).toFixed(1)}" width="${cellW.toFixed(1)}" height="${(26 * k).toFixed(1)}" rx="${(5 * k).toFixed(1)}" fill="${on ? `url(#${gidT})` : "rgba(255,255,255,0.1)"}"${on && state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(3 * k).toFixed(1)}px ${hexRgba(glow, 0.5)})"` : ""} stroke="${on ? darken(bevel, 0.3) : "rgba(255,255,255,0.12)"}" stroke-width="1"/>`;
+        inner += on ? cellRect : `<g data-part="icon" data-icon="cell${i + 1}" data-icon-nick="Cell ${i + 1}" data-icon-under="1" data-icon-box="${(cx0 - 1).toFixed(1)} ${(cy - 13 * k - 1).toFixed(1)} ${(cellW + 2).toFixed(1)} ${(26 * k + 2).toFixed(1)}">${cellRect}</g>`;
       }
       // the stamp speaks the cell run + band (round 44, item 37) — the
       // cell meter's snapper seats exactly here
@@ -7829,7 +7854,14 @@ ${cardS}
         infoText("9/12", 42 + w - insetI - 10 * k, 33 + insetI + 22 * k, 19 * k, "end");
       for (let i = 0; i < cols * rowsI; i++) {
         const cxI = gx0 + (i % cols) * (cell + gap), cyI = gy0 + Math.floor(i / cols) * (cell + gap);
-        inner += `<rect x="${cxI.toFixed(1)}" y="${cyI.toFixed(1)}" width="${cell.toFixed(1)}" height="${cell.toFixed(1)}" rx="${(10 * k).toFixed(1)}" fill="${wellFill}" opacity="0.9"/>`;
+        /* the r111 un-burn (the owner's Invgrid screenshot: "container wells
+           should not be burned into the background panel"): every cell well
+           is marked ink UNDER everything with its fixed box — one live
+           "Well N" child per cell a dev can move, recolor, duplicate or
+           delete, beneath the glyphs, the count chips and the selection
+           ring; the panel bakes bare. Inert wrapper — the app's own draw is
+           byte-identical (the energy meter's socket recipe). */
+        inner += `<g data-part="icon" data-icon="well${i + 1}" data-icon-nick="Well ${i + 1}" data-icon-under="1" data-icon-box="${(cxI - 1).toFixed(1)} ${(cyI - 1).toFixed(1)} ${(cell + 2).toFixed(1)} ${(cell + 2).toFixed(1)}"><rect x="${cxI.toFixed(1)}" y="${cyI.toFixed(1)}" width="${cell.toFixed(1)}" height="${cell.toFixed(1)}" rx="${(10 * k).toFixed(1)}" fill="${wellFill}" opacity="0.9"/></g>`;
         // per-cell glyph slots (owner: "change the icons in the text
         // section") — Factory keeps the stock loadout, Empty clears
         const pickI = opts.slots?.[`cell${i + 1}`];
@@ -8092,11 +8124,18 @@ ${cardS}
       const vHP = atomsPF ? 1 : clamp(value ?? 0.78, 0, 1);
       const vMP = atomsPF ? 1 : clamp(0.25 + (1 - vHP) * 0.5, 0, 1);
       const railH = 14 * k;
-      const rail9 = (ry: number, vR: number, cR: string, nm9: string) => {
+      const rail9 = (ry: number, vR: number, cR: string, nm9: string, wellNick9: string) => {
         const gid9b = "pr" + UID++;
         // progress-bar canon: mercury floats in the container with air
         const g9 = 2.5 * k, mH9 = railH - g9 * 2, mW9 = Math.max(0, (txw - g9 * 2) * vR);
-        return `<rect x="${tx0.toFixed(1)}" y="${ry.toFixed(1)}" width="${txw.toFixed(1)}" height="${railH.toFixed(1)}" rx="${(railH / 2).toFixed(1)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.8)}" stroke="rgba(0,0,0,0.3)" stroke-width="0.8"/>` +
+        /* r111 (the owner's Partyframe screenshot: "progress bar wells
+           should not be baked into the panel"): each rail's dark track is
+           marked ink UNDER its live rail — "HP well" / "MP well", a fixed
+           box one px past the stroke — so the base bakes well-less and the
+           twin KitBarFill rails paint over their own live wells. The
+           mercury's data-barfill group stays OUTSIDE this wrapper: the well
+           is base ink, the mercury the fill atom's. */
+        return `<g data-part="icon" data-icon="${nm9}well" data-icon-nick="${wellNick9}" data-icon-under="1" data-icon-box="${(tx0 - 1).toFixed(1)} ${(ry - 1).toFixed(1)} ${(txw + 2).toFixed(1)} ${(railH + 2).toFixed(1)}"><rect x="${tx0.toFixed(1)}" y="${ry.toFixed(1)}" width="${txw.toFixed(1)}" height="${railH.toFixed(1)}" rx="${(railH / 2).toFixed(1)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.8)}" stroke="rgba(0,0,0,0.3)" stroke-width="0.8"/></g>` +
           `<defs><linearGradient id="${gid9b}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(cR, 0.45)}"/><stop offset="1" stop-color="${darken(cR, 0.3)}"/></linearGradient></defs>` +
           (vR > 0.04 ? `<g data-barfill="${(tx0 + g9).toFixed(1)} ${(ry + g9).toFixed(1)} ${mW9.toFixed(1)} ${mH9.toFixed(1)}" data-barfill-name="${nm9}"><rect x="${(tx0 + g9).toFixed(1)}" y="${(ry + g9).toFixed(1)}" width="${mW9.toFixed(1)}" height="${mH9.toFixed(1)}" rx="${(mH9 / 2).toFixed(1)}" fill="url(#${gid9b})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 2.5px ${hexRgba(cR, 0.55)})"` : ""}/></g>` : "");
       };
@@ -8105,7 +8144,7 @@ ${cardS}
         // themed like the name — a white ghost glyph vanished on light
         // faces; marked swappable ink (the law): the class glyph ships live
         (STOCK_ICONS.sword ? `<g data-part="icon" data-icon="class" data-icon-nick="Class glyph">${themedIcon(STOCK_ICONS.sword, 39 + w - inset - 30 * k, 30 + inset + 8 * k, 22 * k, hexMix(glow, "#FFFFFF", 0.25), 2)}</g>` : "") +
-        rail9(cy + 8 * k, vHP, "#4ade80", "hp") + rail9(cy + 28 * k, vMP, "#38bdf8", "mp");
+        rail9(cy + 8 * k, vHP, "#4ade80", "hp", "HP well") + rail9(cy + 28 * k, vMP, "#38bdf8", "mp", "MP well");
       return inject(shell.replace("<svg ", '<svg data-partyframe="1" '), parts);
     }
     case "dmgnumber": {
@@ -8626,7 +8665,24 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
          name tag that already ship live. The RIM stays in the base: it is
          the piece's outermost ink and what the sprite crops to, and a base
          with nothing left in it would hand the prefab an empty, uncropped
-         root (the 10/1 proof export showed exactly that). */
+         root (the 10/1 proof export showed exactly that). Its HALO does
+         not (r111, the owner's Weaponwheel screenshot: "should not have
+         the highlight baked in; it should be its own layer"): the rim's
+         drop-shadow leaves the stroke and rides a glow-only copy of the
+         rim — the same stroke wearing the same shadow, its own band
+         masked away (userSpaceOnUse, inside the wrapper so the cut keeps
+         it) — marked "Rim glow", tintable in the Glow, drawn right where
+         the filter used to paint. A DEFAULT seat, not behind: the halo's
+         inner tail paints over the disc and the cylinder in the app, and
+         a behind seat buried it under the Disc child (pixel-proved). The
+         halo's reach is ALSO what framed the base sprite, so the export
+         crops the stripped base with the halo-only cut as a frame donor
+         (engineExport's cropWith): weaponwheel-base.png keeps the size
+         it has always had and a kept wheel's fraction-anchored children
+         stand still. The mask paints in the white/black KEYWORDS on
+         purpose: the tint sweep whitens hex ink equal to the Glow, and a
+         #000000 Glow would otherwise unmask the band and ship the rim in
+         the cut. */
       const innerBox = `data-icon-box="${(cW - innerR).toFixed(1)} ${(cW - innerR).toFixed(1)} ${(innerR * 2).toFixed(1)} ${(innerR * 2).toFixed(1)}"`;
       // fixed hammer wedge at 2 o'clock — the arming position
       inner += `<g data-part="icon" data-icon="hammer" data-icon-nick="Hammer wedge" data-icon-under="1" ${innerBox}><path d="M ${cW} ${cW} L ${(cW + innerR * Math.cos(hamA - wSpan)).toFixed(1)} ${(cW + innerR * Math.sin(hamA - wSpan)).toFixed(1)} A ${innerR.toFixed(1)} ${innerR.toFixed(1)} 0 0 1 ${(cW + innerR * Math.cos(hamA + wSpan)).toFixed(1)} ${(cW + innerR * Math.sin(hamA + wSpan)).toFixed(1)} Z" fill="url(#${gidW9}w)"/></g>`;
@@ -8714,7 +8770,8 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
   <g data-part="icon" data-icon="disc" data-icon-nick="Disc" data-icon-under="1" data-icon-box="${(cW - rimR).toFixed(1)} ${(cW - rimR).toFixed(1)} ${(rimR * 2).toFixed(1)} ${(rimR * 2).toFixed(1)}"><circle cx="${cW}" cy="${cW}" r="${(rimR - rimW9 / 2).toFixed(1)}" fill="url(#${gidW9}g)"/>
   ${patW ? `<circle cx="${cW}" cy="${cW}" r="${(innerR - 1).toFixed(1)}" fill="url(#${gidW9}p)" opacity="${((PT!.opacity / 100) * 0.4).toFixed(2)}"/>` : ""}</g>
   ${inner}
-  <circle cx="${cW}" cy="${cW}" r="${rimR.toFixed(1)}" fill="none" stroke="url(#${gidW9}r)" stroke-width="${rimW9.toFixed(1)}"${live9 ? ` style="filter: drop-shadow(0 0 ${(rimW9 * 0.7).toFixed(1)}px ${hexRgba(glow, 0.5)})"` : ""}/>
+  ${live9 ? `<g data-part="icon" data-icon="rimglow" data-icon-nick="Rim glow" data-icon-tint="${glow}"><mask id="${gidW9}m" maskUnits="userSpaceOnUse" x="-500" y="-500" width="${(totalW + 1000).toFixed(0)}" height="${(totalW + 1000).toFixed(0)}"><rect x="-500" y="-500" width="${(totalW + 1000).toFixed(0)}" height="${(totalW + 1000).toFixed(0)}" fill="white"/><circle cx="${cW}" cy="${cW}" r="${rimR.toFixed(1)}" fill="none" stroke="black" stroke-width="${rimW9.toFixed(1)}"/></mask><circle cx="${cW}" cy="${cW}" r="${rimR.toFixed(1)}" fill="none" stroke="${glow}" stroke-width="${rimW9.toFixed(1)}" mask="url(#${gidW9}m)" style="filter: drop-shadow(0 0 ${(rimW9 * 0.7).toFixed(1)}px ${hexRgba(glow, 0.5)})"/></g>
+  ` : ""}<circle cx="${cW}" cy="${cW}" r="${rimR.toFixed(1)}" fill="none" stroke="url(#${gidW9}r)" stroke-width="${rimW9.toFixed(1)}"/>
   ${sweepArc}
   <circle cx="${cW}" cy="${cW}" r="${(rimR - rimW9 - 0.6).toFixed(1)}" fill="none" stroke="${darken(bevel, 0.5)}" stroke-width="1" opacity="0.7"/>
   ${armedSvg}
@@ -9623,7 +9680,16 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       for (let i = 0; i < 4; i++) {
         const cx9 = sx + inset + 6 * k + i * (cell + gap);
         const on = i < shown && !dimT;
-        cells += `<rect x="${cx9.toFixed(1)}" y="${rowY.toFixed(1)}" width="${cell.toFixed(1)}" height="${cell.toFixed(1)}" rx="${(10 * k).toFixed(1)}" fill="${wellFill}" opacity="0.9"${on ? ` stroke="${hexRgba(glow, 0.55)}" stroke-width="1.6"` : ""}/>`;
+        /* r111 (the owner's Rewardtray screenshot: "wells need to be
+           separate layers"): every slot well is marked ink, UNDER the
+           glyphs, the counts and the ? marks, each its own live child
+           (Slot 1 well … Slot 4 well) on one fixed box, so a dev can move,
+           recolor, duplicate or delete a well and a sprite swap registers
+           1:1. A revealed well keeps its glow rim in its own cut (one
+           child per slot, the app's look). Posed board copies keep the
+           wells baked (the under rule: a snapshot bakes its words). Inert
+           wrapper and attributes only; the app's own draw is unchanged. */
+        cells += `<g data-part="icon" data-icon="well${i + 1}" data-icon-nick="Slot ${i + 1} well" data-icon-under="1" data-icon-box="${(cx9 - 2).toFixed(1)} ${(rowY - 2).toFixed(1)} ${(cell + 4).toFixed(1)} ${(cell + 4).toFixed(1)}"><rect x="${cx9.toFixed(1)}" y="${rowY.toFixed(1)}" width="${cell.toFixed(1)}" height="${cell.toFixed(1)}" rx="${(10 * k).toFixed(1)}" fill="${wellFill}" opacity="0.9"${on ? ` stroke="${hexRgba(glow, 0.55)}" stroke-width="1.6"` : ""}/></g>`;
         if (on) {
           /* round 44 (item 31 — the gated RIG-4 road): every revealed slot
              glyph is MARKED swappable ink (the law) — the release-day
@@ -9647,8 +9713,18 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       const gLine9 = paleFace ? hexRgba(ghostBase, 0.4) : "rgba(255,255,255,0.2)";
       const gInk9 = paleFace ? hexRgba(ghostBase, 0.85) : "rgba(255,255,255,0.45)";
       cells += `<defs><linearGradient id="${gidT9}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(glow, 0.35)}"/><stop offset="1" stop-color="${darken(glow, 0.22)}"/></linearGradient></defs>` +
-        `<rect x="${px9.toFixed(1)}" y="${py9.toFixed(1)}" width="${pw.toFixed(1)}" height="${ph.toFixed(1)}" rx="${(ph / 2).toFixed(1)}" fill="${all ? `url(#${gidT9})` : gFill9}" stroke="${all ? darken(glow, 0.35) : gLine9}" stroke-width="1.5"${all ? ` style="filter: drop-shadow(0 0 5px ${hexRgba(glow, 0.5)})"` : ""}/>` +
-        `<text x="${(px9 + pw / 2).toFixed(1)}" y="${(py9 + ph / 2 + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(15 * k).toFixed(1)}" font-weight="900" letter-spacing="0.1em" fill="${all ? darken(glow, 0.6) : gInk9}" text-anchor="middle" dominant-baseline="central">CLAIM</text>`;
+        /* r111: the capsule is marked ink too — a live "Claim plate" child
+           on a fixed box wide enough for the lit pose's drop-shadow, and
+           CLAIM RIDES it (data-seat-rider, the badge-plate grammar) as live
+           TMP: plate and word move, restyle or delete as one. A default
+           seat (over the plate, under the words), never under: an under
+           seat stays baked in posed copies and would bake its word with
+           it. The box starts 14k before the capsule and may sit close to
+           (on a thick-border kit, overlap) the fourth well's box — harmless,
+           each cut holds only its own group's drawables. Inert attributes
+           only; the pixels are the app's exactly. */
+        `<g data-part="icon" data-icon="claimplate" data-icon-nick="Claim plate" data-icon-box="${(px9 - 14 * k).toFixed(1)} ${(py9 - 14 * k).toFixed(1)} ${(pw + 28 * k).toFixed(1)} ${(ph + 28 * k).toFixed(1)}"><rect x="${px9.toFixed(1)}" y="${py9.toFixed(1)}" width="${pw.toFixed(1)}" height="${ph.toFixed(1)}" rx="${(ph / 2).toFixed(1)}" fill="${all ? `url(#${gidT9})` : gFill9}" stroke="${all ? darken(glow, 0.35) : gLine9}" stroke-width="1.5"${all ? ` style="filter: drop-shadow(0 0 5px ${hexRgba(glow, 0.5)})"` : ""}/></g>` +
+        `<text x="${(px9 + pw / 2).toFixed(1)}" y="${(py9 + ph / 2 + 1).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(15 * k).toFixed(1)}" font-weight="900" letter-spacing="0.1em" fill="${all ? darken(glow, 0.6) : gInk9}" text-anchor="middle" dominant-baseline="central" data-seat-rider="claimplate">CLAIM</text>`;
       return inject(shell.replace("<svg ", '<svg data-rewardtray="1" '), title + cells);
     }
     case "chestpanel": {
@@ -9894,7 +9970,19 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
         // the number beside it was always live; now the gem ships live too
         over += `<g data-part="icon" data-icon="cost" data-icon-nick="Cost gem"><circle cx="${(ccx - 26 * k).toFixed(1)}" cy="${costY.toFixed(1)}" r="${(11 * k).toFixed(1)}" fill="#FACC15" stroke="#92400E" stroke-width="1.3"/></g>` +
           infoText("120", ccx - 10 * k, costY + 1, 17 * k, "start", 800);
-        if (state !== "disabled") over += `<rect x="${(sx - 5 * k).toFixed(1)}" y="${(sy - 5 * k).toFixed(1)}" width="${(sw + 10 * k).toFixed(1)}" height="${(sh + 10 * k).toFixed(1)}" rx="${(18 * k).toFixed(1)}" fill="none" stroke="${hexRgba(glow, 0.7)}" stroke-width="${(2.4 * k).toFixed(1)}"><animate attributeName="stroke-opacity" values="0.8;0.3;0.8" dur="2.2s" repeatCount="indefinite" calcMode="spline" keySplines="0.42 0 0.58 1; 0.42 0 0.58 1"/></rect>`;
+        /* the HIGHLIGHT RING is marked ink (the owner's Techcard screenshot,
+           10/1: "highlight ring and circle should not be baked in but
+           separate layers" — the circle is the Icon disc above): ONE
+           tintable child on a DEFAULT seat, the daily cell's Today ring
+           road — over the plate, because its bottom edge crosses the
+           extrusion wall (pixel-proved: an under/behind seat buries it),
+           and under the words it never touches. White-cut and tinted the
+           Glow role, so the child's Image.color restores the translucent
+           gold; the breath stays the app's (the export strips loops before
+           it cuts). The done and locked poses take the branches above and
+           never draw it, and a disabled render has none, so those rows
+           carry no seat. A display piece: no state rig, no liveOnly. */
+        if (state !== "disabled") over += `<g data-part="icon" data-icon="ring" data-icon-nick="Highlight ring" data-icon-tint="${glow}"><rect x="${(sx - 5 * k).toFixed(1)}" y="${(sy - 5 * k).toFixed(1)}" width="${(sw + 10 * k).toFixed(1)}" height="${(sh + 10 * k).toFixed(1)}" rx="${(18 * k).toFixed(1)}" fill="none" stroke="${hexRgba(glow, 0.7)}" stroke-width="${(2.4 * k).toFixed(1)}"><animate attributeName="stroke-opacity" values="0.8;0.3;0.8" dur="2.2s" repeatCount="indefinite" calcMode="spline" keySplines="0.42 0 0.58 1; 0.42 0 0.58 1"/></rect></g>`;
       }
       return inject(injectUnder(shell.replace("<svg ", '<svg data-techcard="1" '), stubs), over);
     }
