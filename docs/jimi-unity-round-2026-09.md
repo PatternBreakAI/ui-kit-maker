@@ -189,3 +189,96 @@ Chevon saw a yellow line at the bottom of a fresh Unity 6 project: "UI Kit Maker
 - ProgressBar, EmblemBar and Timerbar: a rounded end on the mercury and no Cap child under Fill Area. Drag Value on the Fill Area's KitBarFill and watch the end stay round down to the floor.
 - Slider prefab, if yours was generated before round 58: the knob and the mercury's end on the same line at every value.
 - Tools > PatternBreak: four entries on the Brightside zip, five on a zip with boards.
+
+---
+
+# 10/1: the seam on the progress bar, and the layers
+
+Hey Jimi. Two changes from Chevon's 10/1 pass over the Brightside store build in Unity. The first is small and fixes the "endcap" he kept seeing. The second is a batch over thirteen pieces and changes what you see in the Hierarchy, so read it before your next re-import.
+
+## What changed
+
+**1. The ramp seam on the progress bar (the "still cappin" report).**
+What Chevon saw on a fresh Brightside project was not the old cap rig; that one is gone. It was Unity tiling the fill's center: the mercury's ramp restarted near the value line, a pale block with a hard edge. The export decides per fill whether its center tiles (a pattern, like the XP bar's) or slices (a ramp), and the judge read Brightside's very shallow ramps as noise and shipped them tiled. The judge now also reads the trend, so progress, emblem bar and slider ship sliced. In a kept project the importer retunes the center mode on rigs already on the width road, only when the rig and the sprite are ours, and prints "retuned the mercury's center mode on 3 kept bar fill(s) (EmblemBar, ProgressBar, Slider)". Patterns stay tiled.
+
+**2. The layers: wells, discs, stripes and glows ship as their own children.**
+Chevon's screenshot batch named the problem in the file names: "in general do not burn the wells into the backgrounds but keep them as a separate layer." Thirteen pieces had something burned into the base sprite that a dev would want to move, recolor or delete. Each of those now ships as a live Image child on the prefab, at the bottom of the stack right over the plate, so fills, lit strips, portraits and words paint over it:
+
+- Vital bar, respawn, pop meter, quest panel, XP bar, unit plate (the HP well), dialog (the body well): a **Well** child under the mercury.
+- Unit plate: an **Avatar well** under the portrait and an **Avatar ring** over it.
+- Tech card: the **Icon disc** under the glyph.
+- Validity: the **Status stripe** down the left edge.
+- Streak meter: the **Well** plus **Cell 1** to **Cell 5**, one child per segment. Add, remove or stretch cells and the lit strip still lights whole cells over them.
+- Weapon wheel: **Disc**, **Hammer wedge** and **Hub plate**, beside the Cylinder, the chamber glyphs and the Name tag it already had. The rim stays in the base sprite: it is the outermost ink, the thing the sprite is cropped to, and the root needs it to keep its size.
+- Rarity frame and reward card: the colored aura is a **Rarity glow** child that sits BEHIND the plate. To make room for it the plate moves into a Body child (the structure the glow families already have); the root keeps the raycast. The glow is a white cut tinted through its Image color, so changing the tier is one color edit. The rarity frame's five per-tier sprites are now identical bare plates (kept under their old names so your prefab keeps its sprite); the tier is the glow's color, and `kit-manifest.json > rarity` lists the ladder's colors. The mystery reward card keeps its own dashed white ring as a plain child.
+
+Kept projects get these children seeded once on the next import, the same one-shot rule as every other live child: rename, retint, resize or delete one and it is yours; the kit never puts it back. Board scenes' posed copies keep their wells and discs in the posed pixels (a snapshot bakes its words and fills, and a live well over them would cover them); only the auras cut behind the posed art.
+
+## What to hammer on
+
+- ProgressBar, EmblemBar and Slider in the Playground: one smooth ramp from the left to the rounded end at every value. No pale block, no seam. The XP bar keeps its pattern at natural density.
+- Streak meter: select Cell 3 in the Hierarchy and move it. Drag the rig's value: the lit strip lights whole cells and the moved cell shows its own gap.
+- Rarity frame: pick the Rarity glow child and set its Image color to another tier's color from the manifest. The frame plate itself does not change.
+- Weapon wheel in Play: click a chamber; the cylinder still spins and the Disc and Hub plate stay put.
+- Unit plate: drop your own sprite on the Portrait child; the Avatar well sits under it and the Avatar ring over it.
+- A kept prefab you had retinted or moved a well on: still yours after the import.
+
+---
+
+# 10/1, the second zip: eleven more prefabs
+
+Hey Jimi. Chevon sent a second zip of Unity screenshots the same day, eleven prefabs, the problems again in the file names. Eight are the same kind of thing as the layers batch above (something burned in that should be a child), two are words baked into a plate, and three are look fixes he asked for by eye. Everything below ships in the same drop.
+
+## What changed
+
+- Energy meter: the container well and every unlit socket are live children (**Well**, **Cell 1** to **Cell 10**), the streak meter's road. The Lit strip ships plate-less and lights whole cells over them.
+- Build queue: the glyph's dark square is an **Icon well** child and the bar's track a **Well** child, under the glyph and the fill.
+- Friend row: the dark disc behind the portrait is an **Avatar well** child under the masked Portrait well.
+- Compass: the white dashes are a **Ticks** child the size of the ribbon's window, under the N / NE / E words and the Heading caret. On the prefab, slide Ticks and the letters together to move the heading by hand. A rig that scrolls ticks and letters from one Heading value inside a masked window, the way the app does, is the next step, not this one; say if you want it. The ribbon's well stays in the base for now.
+- Count badge: the red halo is a **Glow** child behind the plate (the plate moves into a Body child, the rarity frame's shape; the root keeps an invisible Image and the rect). It is the halo ring only, a white cut tinted through its Image color: recolor it, scale it to grow the glow, or delete it. The Count text is unchanged.
+- Daily cell: today's gold ring and its glow are ONE **Today ring** child between the plate and the day word (no Body move: it has to paint over the plate's extruded wall, which its bottom edge crosses), a white cut tinted through its Image color. The Claimed and Locked variants never had the ring and ship without the child. The rig's Hide When Disabled list carries it, so a non-interactable Button drops the ring exactly as the app does (clear the list to keep it). The State FX glow sprite is now derived from the ringless plate, so the hover halo and its Glow Pad shrink to the plate.
+- Claim button, the 2x variant: the **AD ×2** word is live text riding the "AD x2 ribbon" child, tilted with it (Rotation Z = -8). Retype it, re-angle it, or move the ribbon and the word follows. Rotated rider words are new: the seat carries the angle, and the importer tilts the word on its plate.
+- Combo: the **COMBO!** word is live text riding the "Combo plaque" child, tilted with it. The ComboPop rig keeps dealing the ×N numeral exactly as before.
+- Card face: the corner numbers pick their ink per badge. On a pale badge like Brightside's sand they are the kit's navy type ink with a cream rim; on a dark badge they stay white with the dark rim they had. The badges, the art and the name are unchanged. A kept card face no longer grows a second pair of digits on each refresh (that was a defect of every all-rider family; it is fixed for all of them).
+- Fire button: the Weapon child now sits exactly where the app draws the glyph. The app's Icons nudge (Brightside nudges the sword up 8 px) never travelled to Unity, so the sword sat 10 px low there and nowhere else; the seat carries the nudge now and the app itself does not change. In an existing Unity project run Tools > PatternBreak > Regenerate Example Prefabs after the import; a plain re-import keeps the Weapon at its old seat.
+- Coin: the big numeral clears the "→ 8" row below it on kits with large type (Brightside's "4" rises about 15 px); kits at the factory type size draw exactly as before. Board copies of the coin now carry their numeral seat too (they used to park it at the shell center).
+
+Two importer rules ride along. A rider word the kit seeds on a kept prefab is ledgered in kit.lock.json (knownRiders), so a word you delete never comes back, whatever happens to its plate's sprite later. And every under child the batch above added keeps out of board scenes' posed copies on purpose: a posed copy is a snapshot with its words and fills baked in, and a live well over it would cover them.
+
+## What to hammer on
+
+- Energy meter: move Cell 3; drag the rig's Value. The Lit strip lights whole cells and the moved cell shows its own gap.
+- Compass: select Ticks and drag it sideways. The dashes move; the plate, the well and the Heading caret stay put.
+- Count badge and Daily cell: retint the Glow / Today ring child; delete it; the plate is clean underneath. Set the Daily cell's Button non-interactable: the ring hides.
+- Claim button (2x) and Combo: retype the AD ×2 and COMBO! words in the Hierarchy; tilt the ribbon and the word follows.
+- Card face: the corner digits read on Brightside's sand badge; a hit or buff flash still goes through the KitCardFace colors and back.
+- Fire button after Regenerate Example Prefabs: the sword on the dome's center, and it still rides the dome on press.
+- Coin: the 4 clears the → 8 row.
+- A rider word you deleted on any kept prefab (a booster count, a badge count): still gone after the import.
+
+---
+
+# 10/2, the third zip: seven more prefabs
+
+Hey Jimi. Chevon's third zip had fourteen screenshots; eight of them are pieces the two batches above already fixed (his project was an older export), and these seven are new. Same drop, same rules.
+
+## What changed
+
+- Stepper: the dark container well and the eight sockets are live children (**Well**, **Cell 1** to **Cell 8**) under the Lit strip, which now ships plate-less (cells only) and lights whole cells over them. The Minus and Plus buttons are unchanged.
+- Segment meter: **Well** and **Cell 1** to **Cell 5** under its Lit strip, same road.
+- Inventory grid: the twelve dark cell wells are **Well 1** to **Well 12**, under the icons and the count chips; the selection ring stays live as before.
+- Tech card: the golden outline is a **Highlight ring** child over the plate (a white cut tinted through its Image color; the disc was already a child). The app's breathing pulse on it stays app-only.
+- Party frame: **HP well** and **MP well** under the two rails, and the dark disc behind the portrait is an **Avatar well** child (the friend row's road), so the base is a plain plate.
+- Weapon wheel: the soft halo around the rim is a **Rim glow** child (tintable); the rim stroke itself stays in the base, which is what the sprite crops to.
+- Reward tray: **Slot 1 well** to **Slot 4 well** under the reward glyphs, and the **Claim plate** is its own child with its word live on it.
+
+Two importer notes. A very old project whose stepper or segment meter still gets the arrival-era Lit graft now seeds its wells in that same pass (before this round the graft skipped the seed, and the next import would have read the wells as your deletion). And the app's "use Icons > Nudge" tip no longer fires on a piece that only carries wells.
+
+## What to hammer on
+
+- Stepper and segment meter: move Cell 3, drag the rig's value; the Lit strip lights whole cells and the moved cell shows its own gap. Click Minus / Plus on the stepper.
+- Inventory grid: delete Well 10, 11 and 12; the empty slots vanish and the filled ones keep their icons and chips.
+- Tech card: retint the Highlight ring; delete it; the card is clean underneath.
+- Party frame: move the HP well; the HP rail still fills where the well was (the rail is its own child).
+- Weapon wheel in Play: click a chamber; the cylinder spins and the Rim glow stays put. Delete the Rim glow: the wheel keeps its rim.
+- Reward tray: retype CLAIM on the Claim plate; move the plate and the word follows.

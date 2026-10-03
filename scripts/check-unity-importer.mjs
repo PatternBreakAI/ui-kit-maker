@@ -2296,7 +2296,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/function markedIconOnlySvgs\(svgIn: string[,)]/.test(src)
       || !/function stripMarkedIcons\(svgIn: string\)/.test(src))
     errors.push("the un-burn's marked-group hands (markedIconOnlySvgs / stripMarkedIcons) are missing from the export");
-  if (!/const iconSeatsU = isArt \? null : await iconSeatsOf\(uid, fullU[,)]/.test(src)
+  if (!/const iconSeatsU = isArt \? null : await iconSeatsOf\(uid, zeroSvgSeatU \?\? fullU[,)]/.test(src)
       || !/stripIconInk\(stripWordInk\(sSvg\)\.svg\)\.svg/.test(src))
     errors.push("the universal road stopped stripping marked icon ink (base and/or state skins) — burned swappables are back");
   if (!/const ibSeats = await iconSeatsOf\("iconbtn", ibFull\);/.test(src)
@@ -2308,12 +2308,12 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
       || !/posedIcons: posedIconsPx/.test(src))
     errors.push("the POSED road stopped stripping marked icons / shipping posedIcons — board copies burn their swappables again");
   if (!/\[Serializable\] class PBIconChild \{ public string name; public string file; public float dx; public float dy; public float w; public float h; public bool btn; public float wellR; public bool pinRight; public float rightGap; public string nick;/.test(cs)
-      || !/public string word; public float wordFs; public float wordDx; public float wordDy; public string wordInk; public int wordW; \}/.test(cs))
-    errors.push("PBIconChild is missing from the importer (or lost its rider-word fields, round 40) — JsonUtility drops every un-burn seat row");
+      || !/public string word; public float wordFs; public float wordDx; public float wordDy; public string wordInk; public int wordW;\s*\n[^\n]*\n\s*public float wordRot; \}/.test(cs))
+    errors.push("PBIconChild is missing from the importer (or lost its rider-word fields, round 40, or the posed rider's tilt (10/1)) — JsonUtility drops every un-burn seat row");
   if (!/if \(!string\.IsNullOrEmpty\(pIc\.word\) && pIc\.wordFs > 1f\) \{/.test(cs)
       || !/pwRt\.anchoredPosition = new Vector2\(pIc\.wordDx, -pIc\.wordDy\); \/\/ board y runs down/.test(cs))
     errors.push("the posed road no longer rebuilds rider words on live plates — the Booster Select counts hide under their pills again (round 40)");
-  if (!/var famRowSD = LabelRow\(m, it\.component\);/.test(cs)
+  if (!/var famRowSD = IconSeatRowOf\(inst, m, root, it\.component\);/.test(cs)
       || !/var tSD = inst\.transform\.Find\(IconChildName\(icSD\)\);/.test(cs))
     errors.push("posed copies no longer stand down nick-named family children by the manifest — the Shop bottomnav's Selected ring blobs over MAP again (round 40)");
   if (!/public PBStyle seatInk; public float ringV; public PBIconChild\[\] iconSeats;/.test(cs))
@@ -2330,8 +2330,8 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the avatar's circle-masked Portrait well structure is missing (Mask + hidden mask graphic)");
   if (!/if \(wantUnburn\) \{/.test(cs) || !/un-burned/.test(cs))
     errors.push("the kept-project un-burn convergence (wantUnburn + its Console receipt) is missing from the maintenance pass");
-  if (!/&& !wantUnburn && !wantIconRetire && !wantSelectRoot\) continue;/.test(cs))
-    errors.push("the maintenance skip-gate no longer counts wantUnburn/wantIconRetire — a kept project whose only need is un-burning (or a re-cut seat retire, round 40) would be skipped");
+  if (!/&& !wantUnburn && !wantIconRetire && !wantSelectRoot && !wantRiderSeed\) continue;/.test(cs))
+    errors.push("the maintenance skip-gate no longer counts wantUnburn/wantIconRetire — a kept project whose only need is un-burning (or a re-cut seat retire, round 40, or a rider-word seed (10/1)) would be skipped");
   if (!/bool wantIconRetire = false;/.test(cs) || !/stepped down \(disabled, not deleted\): this update re-cut that seat into new live children/.test(cs))
     errors.push("the re-cut seat retire is gone — a split seat (the resource medallion → plate + glyph, round 40) leaves the untouched original drawing doubled over the new pair");
   /* round 41 review, paper cut 3: the retire proves what it claims — a
@@ -2376,7 +2376,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
      is recorded in kit.lock.json > seededChildren, and is never re-added
      — a deleted child stays deleted, a renamed child never grows a
      canonical twin, and unburned++ only counts real adds. */
-  if (!/public PBRectEntry\[\] authoredRects; public string\[\] seededChildren; public string\[\] seededPrefabs; \}/.test(cs))
+  if (!/public PBRectEntry\[\] authoredRects; public string\[\] seededChildren; public string\[\] seededPrefabs;/.test(cs))
     errors.push("PBLock lost the seededChildren ledger — the un-burn resurrects deleted children and twins renamed ones again");
   if (!/receipt\.seededChildren = passSeededChildren != null \? passSeededChildren : \(prev != null \? prev\.seededChildren : null\);/.test(cs))
     errors.push("the receipt no longer carries the seeded-children ledger forward — one import without maintenance would amnesia every seeded seat");
@@ -2403,7 +2403,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
       || !/\.\.\.\(mk\.nick \? \{ nick: mk\.nick \} : \{\}\),/.test(src)
       || !/\.\.\.\(t\.getAttribute\("data-seat-rider"\) \? \{ rider: t\.getAttribute\("data-seat-rider"\)! \} : \{\}\),/.test(src))
     errors.push("the export no longer carries the friendly child names (nick) or the badge count's rider through to the manifest");
-  if (!/public float strokeEmPct; public string rider; public bool unkern; \}/.test(cs) // round 48 appended the smashed-pair flag
+  if (!/public float strokeEmPct; public string rider; public bool unkern; public float rot; \}/.test(cs) // round 48 appended the smashed-pair flag, 10/1 the rider's tilt
       || !/static void AdoptSeatRiders\(GameObject host, PBAsset row\)/.test(cs)
       || !/AdoptSeatRiders\(host, row\);/.test(cs)
       || !/AdoptSeatRiders\(contents, rowUA\);/.test(cs))
@@ -2719,7 +2719,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/\.\.\.\(cut\.tint \? \{ tint: cut\.tint \} : \{\}\),/.test(src))
     errors.push("posed icon cuts no longer carry their tint into posedIcons");
   // PAPER CUT 3: the prefab-seeding ledger + quiet staging
-  if (!/public string\[\] seededPrefabs; \}/.test(cs))
+  if (!/public string\[\] seededChildren; public string\[\] seededPrefabs;\s*\n/.test(cs))
     errors.push("PBLock lost the seededPrefabs ledger — deleted prefabs resurrect on every import again");
   if (!/if \(ledgerP\.Contains\(name\)\) \{ skippedDeleted\+\+; continue; \}/.test(cs)
       || !/foreach \(var nmL in have\) ledgerP\.Add\(nmL\); \/\/ adopt-present/.test(cs)
@@ -2759,8 +2759,12 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
       || !/if \(apply\) srt\.position = hostRt9\.TransformPoint\(new Vector3\(oldP9\.x, r9\.yMin \+ \(1f - seat\.fy\) \* r9\.height \+ lift9, oldP9\.z\)\);/.test(cs))
     errors.push("the adopted-rider clamp heal is gone (or lost its provably-ours gate) — kept kits keep the speaker parked low forever, or a dev-moved rider gets re-seated (round 44, item 8)");
   // 3) the fire seat plumb: bevel stamp → manifest row → prefab + converge
-  if (!/data-fireseat="\$\{cx9\.toFixed\(1\)\} \$\{\(cy9 \+ sink \+ krF \* 0\.14\)\.toFixed\(1\)\} \$\{\(icF \* \(gsA9 \+ 2 \* gpadA9\) \/ gsA9\)\.toFixed\(1\)\}"/.test(bevelSrc))
-    errors.push("the bare dome render no longer stamps data-fireseat (center + padded glyph-sprite box) — the exact armed seat can't reach the manifest (round 44, item 15)");
+  if (!/data-fireseat="\$\{\(cx9 \+ \(ICR\.ox \|\| 0\) \* k\)\.toFixed\(1\)\} \$\{\(icCy9 \+ \(ICR\.oy \|\| 0\) \* k\)\.toFixed\(1\)\} \$\{\(icF \* \(gsA9 \+ 2 \* gpadA9\) \/ gsA9\)\.toFixed\(1\)\}"/.test(bevelSrc))
+    errors.push("the bare dome render no longer stamps data-fireseat (drawn glyph center incl. the Icons nudge + padded glyph-sprite box) — the exact armed seat can't reach the manifest (round 44, item 15; round 107 nudge fold)");
+  // round 107: the draw and the stamp share one centre, and that centre is the dome's
+  if (!/const icCy9 = cy9 \+ sink \+ krF \* 0\.14;/.test(bevelSrc)
+      || !/themedIcon\(opts\.icon \?\? ROSTER9\[armed9\], cx9 - icF \/ 2, icCy9 - icF \/ 2, icF, icTone, 2\.6\)/.test(bevelSrc))
+    errors.push("the fire button's armed glyph must keep its #250 resting seat (krF*0.14 below the dome centre) with the drawn glyph and the data-fireseat stamp sharing icCy9 — the app's draw stays byte-identical and Unity follows the stamp, nudge included (round 107, owner: 'push main icon north by 10 px' — the nudge was the whole gap)");
   if (!/fireDx: r1\(fsM\[0\] - \(shM\[0\] \+ shM\[2\] \/ 2\)\), fireDy: r1\(fsM\[1\] - \(shM\[1\] \+ shM\[3\] \/ 2\)\), fireW: r1\(fsM\[2\]\)/.test(src))
     errors.push("the emission no longer re-speaks data-fireseat shell-center relative onto the dome row (fireDx/fireDy/fireW)");
   if (!/public PBIconChild\[\] iconSeats; public float fireDx; public float fireDy; public float fireW; public float railDx; public float railDy; public float railW; public float railH; public string labelAnchor; public string barMode;/.test(cs)) // round 58: barMode rides the same row; round 61f appends tintable after it
@@ -2877,7 +2881,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/return stampTrack\(inject\(track, bullets \+ txt\), 39 \+ 16 \* k, 23 \* k\);/.test(bevelSrc)
       || !/return stampTrack\(inject\(shell\.replace\("<svg ", '<svg data-energymeter="1" '\), inner\), cellsX, cellsW\);/.test(bevelSrc))
     errors.push("the cell meters' zone stamps left bevel — the engine scissor cannot land in the gaps");
-  if (!/const cellRig = uid === "energymeter" \|\| uid === "ammo" \|\| uid === "magazine" \|\| uid === "streakmeter";/.test(src)
+  if (!/const cellRigU = uid === "energymeter" \|\| uid === "ammo" \|\| uid === "magazine" \|\| uid === "streakmeter";/.test(src)
       || !/await addPng\(`\$\{uid\}\/lit\.png`, litSvgU, \{/.test(src))
     errors.push("the cell-rig emission (empty base + full lit, one crop group) is gone");
   if (!/public class KitCellMeter : MonoBehaviour \{/.test(src)
@@ -3210,6 +3214,37 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("the kept-project stepper graft era gate left the importer (round 44, item 37)");
 }
 
+/* ── r111 · the STEPPER's well and sockets (the owner's Stepper screenshot:
+   "bkg well items should not be baked into the panel, should be their own
+   layers"): the energy meter's recipe on the stepper's own lit road — the
+   container well under with a fixed box, every UNLIT socket under as its own
+   Cell N child, lit cells unmarked but stamped data-litcell; the seats are
+   measured on the v=0 render (zeroSvgSeatU, the base's own pose), the base
+   sheds the marks (on the cap road AND on its failure path), the Lit strip
+   ships PLATE-LESS, the manifest row carries the marked seats AND the cap
+   Buttons, and the importer parks Lit above the under seats (UnderTop) in
+   fresh builds and kept-project grafts alike. ── */
+{
+  if (!/data-icon="well" data-icon-nick="Well" data-icon-under="1" data-icon-box="\$\{\(cellsX - 6 \* k - 1\)\.toFixed\(1\)\} \$\{\(cy - 21 \* k - 1\)\.toFixed\(1\)\} \$\{\(cellsW \+ 12 \* k \+ 2\)\.toFixed\(1\)\} \$\{\(42 \* k \+ 2\)\.toFixed\(1\)\}"><rect x="\$\{\(cellsX - 6 \* k\)\.toFixed\(1\)\}" y="\$\{\(cy - 21 \* k\)\.toFixed\(1\)\}"/.test(bevelSrc))
+    errors.push("the stepper's container well must be marked under with its fixed box (r111 — a well burned back into stepper-base)");
+  if (!/data-icon="cell\$\{i \+ 1\}" data-icon-nick="Cell \$\{i \+ 1\}" data-icon-under="1" data-icon-box="\$\{\(cx0 - 1\)\.toFixed\(1\)\} \$\{\(cy - 13 \* k - 1\)\.toFixed\(1\)\} \$\{\(cellW \+ 2\)\.toFixed\(1\)\} \$\{\(26 \* k \+ 2\)\.toFixed\(1\)\}">\$\{cellRect\}<\/g>`;/.test(bevelSrc))
+    errors.push("the stepper's unlit cells must be marked under, one Cell N child per socket, the lit cells unmarked for the Lit strip (r111)");
+  if (!bevelSrc.includes('<rect${on ? \' data-litcell="1"\' : ""} x="${cx0.toFixed(1)}" y="${(cy - 13 * k).toFixed(1)}"'))
+    errors.push("the stepper's LIT cells must carry the data-litcell stamp — the plate-less Lit strip is cut from it (r111)");
+  if (!/if \(\(cellRigU \|\| uid === "stepper"\) && !isArt\) \{ try \{ zeroSvgSeatU = stripLoopsU\(shell\(uid, uOpts, undefined, 0\)\); \} catch \{ zeroSvgSeatU = null; \} \}/.test(src))
+    errors.push("the stepper's seats must be measured on the v=0 render — its base bakes there, and a socket marked only unlit has no seat otherwise (r111)");
+  if (!src.includes('const litSvgST = litCellsOnlySvg(stripWordInk(stripCapsS(sv1)).svg);') || !src.includes('lit: litSvgST,'))
+    errors.push("the stepper's Lit strip must ship PLATE-LESS (the data-litcell drawables + defs) — a full-plate strip paints its plate over the Well and Cell children left of the cut (r111)");
+  if (!src.includes('baseSvgU = iconSeatsU ? stripIconInk(stripWordInk(stripCapsS(sv0)).svg).svg : stripWordInk(stripCapsS(sv0)).svg;'))
+    errors.push("the stepper's v=0 base must shed its marked well and sockets once their seats exist (r111)");
+  if (!src.includes('if (!stepperOut && iconSeatsU && zeroSvgSeatU) baseSvgU = stripIconInk(stripWordInk(zeroSvgSeatU).svg).svg;'))
+    errors.push("a stepper whose cap road fails must still bake its base at v=0 with the marks shed — its seats speak that pose, and a staged-value bake would hide lit cells under the live Well (r111)");
+  if (!src.includes('...(iconSeatsU || stepperSeats ? { iconSeats: [...(iconSeatsU ?? []), ...(stepperSeats ?? [])] } : {}),'))
+    errors.push("the stepper's manifest row must carry BOTH its marked seats and its cap Buttons — the old either/or dropped the caps the moment a well was marked (r111)");
+  if (!cs.includes('lgoST.transform.SetSiblingIndex(UnderTop(go, baseRow));'))
+    errors.push("WireStepper must park the Lit strip above the under seats (UnderTop), not at index 0 under the Well (r111)");
+}
+
 /* ── ROUND 44 · S21 (the RIG-6 selection sweep — R2 listmenu, R3
    choicelist, R4 leaderboard, R5 equipselector): every baked selection
    dress becomes a live child; the choicelist's active capsule rides an
@@ -3446,6 +3481,178 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("a converged kept Slider must drop fillRect and drive the rig through the listener — the round-58 one-writer rule (9/30)");
   if (!/moved " \+ converged \+ " kept bar fill\(s\) onto the width road/.test(cs))
     errors.push("the width-road convergence must say what it moved (9/30)");
+  /* 10/1, the owner's "still cappin": a kept rig already on the width road
+     follows the manifest's CURRENT center mode (the shallow-ramp verdicts
+     moved from tiled to sliced), ours-only, with its own receipt */
+  if (!/static bool WidthRoadRetune\(KitBarFill kb, string root, PBManifest m\) \{/.test(cs)
+      || !/if \(kb == null \|\| kb\.barMode == 0 \|\| kb\.stretchRun \|\| kb\.fill == null \|\| kb\.fill\.sprite == null\) return false;/.test(cs)
+      || !/retuned the mercury's center mode on " \+ retuned \+ " kept bar fill\(s\)/.test(cs))
+    errors.push("a kept width-road rig must retune its center mode to the manifest's current measurement, ours-only, with a receipt (10/1)");
+}
+
+/* ── 10/1 · the RAMP JUDGE reads the trend (the owner's "still cappin": a
+   fresh Brightside project's ProgressBar restarted its ramp near the value
+   line, the tile seam that reads as a cap). A shallow ramp's dithering
+   dominates the round-72b net-over-gross ratio (Brightside's progress fill:
+   0.30, "tiled"), so a second judge smooths a tenth of the center and
+   measures the trend's travel against the raw range; either judge saying
+   ramp means sliced. Patterns (xpbar, loadbar) keep tiled: their trend is
+   flat. ── */
+if (!/const winT = Math\.max\(5, Math\.floor\(prof\.length \/ 10\)\);/.test(src)
+    || !/const trendRatio = Math\.abs\(trend\[trend\.length - 1\] - trend\[0\]\) \/ \(mx - mn\);/.test(src)
+    || !/const mode: "tiled" \| "sliced" = monotone >= 0\.5 \|\| trendRatio >= 0\.5 \? "sliced" : "tiled";/.test(src))
+  errors.push("analyzeBarCenter must judge a ramp by its TREND as well as net-over-gross (10/1, the shallow-ramp tile seam)");
+
+/* ── 10/1 · THE LAYERS (the owner's Unity screenshots, thirteen pieces:
+   "in general do not burn the wells into the backgrounds but keep them as a
+   separate layer"). Two new seat flags on the marked-ink road: UNDER (a
+   well, disc or stripe lands at the bottom of the stack right over the
+   plate — fills, lit strips, portraits and words paint over it) and BEHIND
+   (a rarity aura lands under the plate itself, which takes the Body shape
+   so a sibling can draw beneath its art). Cell rigs measure their seats on
+   the v=0 render (the streak meter's cells are marked only unlit); the
+   rarity frame's aura cuts WHITE and tintable, so every tier row shares
+   one cut and records its own colour; a drop-shadow in the tint colour
+   whitens with the ink. Both the family prefabs and the posed board copies
+   stack the layers the same way. ── */
+{
+  if (!/under: gs0\[gi\]\.getAttribute\("data-icon-under"\) === "1",/.test(src)
+      || !/behind: gs0\[gi\]\.getAttribute\("data-icon-behind"\) === "1",/.test(src))
+    errors.push("markedIconOnlySvgs must read the data-icon-under and data-icon-behind flags (10/1 layers)");
+  if (!/\.\.\.\(mk\.under \? \{ under: true \} : \{\}\),\s*\n\s*\.\.\.\(mk\.behind \? \{ behind: true \} : \{\}\),/.test(src))
+    errors.push("iconSeatsOf must carry under/behind onto the manifest seat row (10/1 layers)");
+  if (!/\.\.\.\(cut\.under \? \{ under: true \} : \{\}\),\s*\n\s*\.\.\.\(cut\.behind \? \{ behind: true \} : \{\}\),/.test(src))
+    errors.push("the posed board copies must carry under/behind on their posedIcons (10/1 layers)");
+  if (!/\? `rgba\(255,255,255,\$\{a9\}\)` : m0\);/.test(src))
+    errors.push("the tint sweep must whiten a drop-shadow drawn in the tint colour (the rarity auras, 10/1)");
+  if (!/const iconSeatsU = isArt \? null : await iconSeatsOf\(uid, zeroSvgSeatU \?\? fullU, undefined, undefined, skillInkTint\);/.test(src))
+    errors.push("a cell rig's seats must be measured on the v=0 render, the base's own pose (10/1, the streak meter's cells)");
+  if (!/if \(i === 0\) seatsRF = await iconSeatsOf\("rarityframe", rfSvgI\);/.test(src)
+      || !/s9\.name === "glow" \? \{ \.\.\.s9, tint: tiersR\[i\]\.c \} : s9/.test(src)
+      || !/seatsI \? stripIconInk\(rfSvgI\)\.svg : rfSvgI,/.test(src))
+    errors.push("the rarity frame's tier rows must share one white glow cut, each row tinted its own tier colour, the bake stripped (10/1)");
+  if (!/public bool under; public bool behind;/.test(cs))
+    errors.push("PBIconChild must carry under/behind (10/1 layers)");
+  if (!/static int UnderTop\(GameObject go, PBAsset row\) \{/.test(cs)
+      || !/static void EnsureBodyShape\(GameObject go\) \{ RebodyCore\(go\); \}/.test(cs)
+      || !/else if \(ic\.behind\) \{ EnsureBodyShape\(go\); cgo\.transform\.SetSiblingIndex\(0\); \}/.test(cs)
+      || !/else if \(ic\.under\) \{ cgo\.transform\.SetSiblingIndex\(UnderTop\(go, row\)\); \}/.test(cs))
+    errors.push("WireIconChildrenRow must seat BEHIND children under a Body-shaped plate and UNDER children at the bottom of the stack (10/1 layers)");
+  if (!/lgoCM\.transform\.SetSiblingIndex\(UnderTop\(go, baseAsset\)\);/.test(cs))
+    errors.push("a cell meter's Lit strip must land over the under seats (the wells and unlit cells), not at index 0 (10/1 layers)");
+  if (!/if \(pIc\.behind\) pIcGo\.transform\.SetSiblingIndex\(artRt\.GetSiblingIndex\(\)\);/.test(cs)
+      || !/else if \(pIc\.under\) pIcGo\.transform\.SetSiblingIndex\(artRt\.GetSiblingIndex\(\) \+ 1 \+ underPlacedP\+\+\);/.test(cs))
+    errors.push("the posed board copies must stack behind/under children around the posed art like the prefabs (10/1 layers)");
+  // the thirteen pieces' marks, by nick (bevel.ts) — a wrapper lost is a well burned back in
+  const nicks10 = ["Well", "Avatar well", "Avatar ring", "Icon disc", "Status stripe", "Body well", "Cell ${i + 1}", "Rarity glow", "Hammer wedge", "Disc", "Hub plate", "Today ring", "Well ${i + 1}", "Highlight ring", "Rim glow"];
+  for (const nk of nicks10)
+    if (!bevelSrc.includes(`data-icon-nick="${nk}"`)) errors.push(`bevel.ts lost the "${nk}" layer mark (10/1 layers)`);
+  /* the wheel's RIM stays in the base: it is the outermost ink the sprite crops to, and a base
+     emptied of it shipped as a 1796px transparent root in the 10/1 proof export */
+  if (/data-icon-nick="Rim"/.test(bevelSrc)) errors.push("the weapon wheel's rim must stay in the base sprite (the crop driver); Disc, Hammer wedge and Hub plate are the wheel's layer children (10/1)");
+  const underN = (bevelSrc.match(/data-icon-under="1"/g) ?? []).length;
+  const behindN = (bevelSrc.match(/data-icon-behind="1"/g) ?? []).length;
+  if (underN < 28) errors.push(`bevel.ts carries ${underN} under marks; the 10/1 layers batch authored 16 (vitalbar, respawn, popmeter, questpanel, xpbar, unitplate ×2, techcard, validity, dialog, streakmeter ×2, rarityframe, rewardcard, weaponwheel ×2), r107 added 2 (energymeter well + cells), the friend row's profile well makes 19, buildqueue ×2 (Icon well, Well) makes 21, the stepper ×2 (Well, Cell N) makes 23, the segmented meter ×2 (Well, Cell) makes 25, the inventory grid's cell wells make 26, the party frame's rail9 hand (one mark, HP well + MP well) makes 27 and the reward tray's slot-well loop (one mark, Slot N well) makes 28 (r111)`);
+  /* the FRIEND ROW's profile well (the owner's Friendrow screenshot, 10/1: "profile circle well needs
+     own layer, do not burn in"): the dark disc is an UNDER seat drawn right before the masked Portrait Well */
+  if (!/data-icon="avatarwell" data-icon-nick="Avatar well" data-icon-under="1" data-icon-box="[^"]*"><circle cx="\$\{pcx\.toFixed\(1\)\}" cy="\$\{cy\.toFixed\(1\)\}" r="\$\{pr\.toFixed\(1\)\}" fill="\$\{wellFill\}"\/><\/g>\s*<g data-part="icon" data-icon="portrait" data-icon-well="[^"]*" clip-path="url\(#\$\{gidF\}\)"/.test(bevelSrc))
+    errors.push("the friend row's profile well lost its layer mark — the dark disc behind the Portrait burns into friendrow-base again (10/1, the owner's Friendrow screenshot)");
+  /* r107 — the ENERGY METER joins the streak meter's cell road (the owner's
+     "break wells into separate elements, do not bake in"): the container
+     well under with a fixed box, every UNLIT socket under as its own
+     Cell N child, lit cells unmarked but stamped data-litcell — and the
+     cell-rig Lit strip ships PLATE-LESS from those stamps, or the strip's
+     plate paints over the Well left of the cut (the 10/1 streak meter
+     shipped exactly that). Posed cell-rig copies keep their under layers
+     baked (their art bakes the lit cells the live Well would cover). */
+  if (!/data-icon-nick="Well" data-icon-under="1" data-icon-box="\$\{\(cellsX - 6 \* k - 1\)\.toFixed\(1\)\} \$\{\(cy - 18 \* k - 1\)\.toFixed\(1\)\} \$\{\(cellsW \+ 12 \* k \+ 2\)\.toFixed\(1\)\} \$\{\(36 \* k \+ 2\)\.toFixed\(1\)\}"/.test(bevelSrc))
+    errors.push("the energy meter's container well must be marked under with its fixed box (r107 — a well burned back into energymeter-base)");
+  if (!/data-icon-nick="Cell \$\{i \+ 1\}" data-icon-under="1" data-icon-box="\$\{\(cx9 - 1\)\.toFixed\(1\)\} \$\{\(cy - 11\.5 \* k - 1\)\.toFixed\(1\)\} \$\{\(cellW9 \+ 2\)\.toFixed\(1\)\} \$\{\(23 \* k \+ 2\)\.toFixed\(1\)\}">\$\{cellRect\}<\/g>`;/.test(bevelSrc))
+    errors.push("the energy meter's unlit cells must be marked under, one Cell N child per socket, the lit cells unmarked for the Lit strip (r107)");
+  if (!bevelSrc.includes('<rect${on ? \' data-litcell="1"\' : ""} x="${cx9.toFixed(1)}" y="${(cy - 11.5 * k).toFixed(1)}"')
+      || !bevelSrc.includes('<rect${on ? \' data-litcell="1"\' : ""} x="${cx9.toFixed(1)}" y="${(cy - 12 * k).toFixed(1)}"'))
+    errors.push("the energy meter's and the streak meter's LIT cells must carry the data-litcell stamp — the plate-less Lit strip is cut from it (r107)");
+  if (!src.includes('if (/\\sdata-litcell="1"/.test(litSvgU)) {')
+      || !src.includes('if (!el.closest("defs") && !el.closest(\'[data-litcell="1"]\')) el.remove();'))
+    errors.push("the cell-rig Lit strip must ship PLATE-LESS (keep only the data-litcell drawables + defs) — a full-plate strip hides the Well and Cell children left of the cut (r107)");
+  if (!src.includes('querySelectorAll(\'[data-part="icon"][data-icon-under="1"]\')') || !src.includes('for (const gU9 of gsU9) gU9.removeAttribute("data-part");'))
+    errors.push("posed cell-rig copies must keep their under layers baked in the posed art — a live Well copy would paint over the baked lit cells (r107)");
+  /* r111 — the SEGMENTED METER joins the layers road (the owner's SegmentMeter screenshot: "break this up so it is more customizable; everything broken into layers on this asset"): the well and every UNLIT socket are under marks with fixed boxes, lit cells (and the bar-fx overlays over the lit run) wear the data-litcell stamp, the base bakes at v=0 with its seats measured on that render, the Lit strip ships plate-less through litCellsOnlySvg, and SegBarPrefab wires the children before the Lit strip. */
+  if (!/data-icon="well" data-icon-nick="Well" data-icon-under="1" data-icon-box="\$\{\(39 \+ inset - 1\)\.toFixed\(1\)\} \$\{\(30 \+ inset - 1\)\.toFixed\(1\)\} \$\{\(w - inset \* 2 \+ 2\)\.toFixed\(1\)\} \$\{\(h - inset \* 2 \+ 2\)\.toFixed\(1\)\}"><path d="\$\{wellP\}" fill="\$\{wellFill\}" opacity="0\.92"\/><\/g>/.test(bevelSrc))
+    errors.push("the segmented meter's well must be marked under with its fixed box (r111 — a well burned back into segbar-base)");
+  if (!/else offCells \+= `<g data-part="icon" data-icon="cell\$\{i \+ 1\}" data-icon-nick="Cell \$\{i \+ 1\}" data-icon-under="1" data-icon-box="\$\{\(xC - 1\)\.toFixed\(1\)\} \$\{\(by - 1\)\.toFixed\(1\)\} \$\{\(wC \+ 2\)\.toFixed\(1\)\} \$\{\(bh \+ 2\)\.toFixed\(1\)\}">\$\{body\}<\/g>`;/.test(bevelSrc))
+    errors.push("the segmented meter's unlit sockets must be marked under, one Cell N child per socket, the lit cells unmarked for the Lit strip (r111)");
+  if (!bevelSrc.includes('if (on) litCells += `<g data-litcell="1">` + body + `<clipPath id="${gid}g${i}">')
+      || !bevelSrc.includes('</g>${pfx.over ? `<g data-litcell="1">${pfx.over}</g>` : ""}`), bx, trackW);'))
+    errors.push("the segmented meter's LIT cells and the bar-fx overlays over the lit run must carry the data-litcell stamp — the plate-less Lit strip is cut from it (r111)");
+  if (!/^function litCellsOnlySvg\(svgIn: string\): string \{/m.test(src)
+      || !src.includes('if (!el.closest("defs") && !el.closest(\'[data-litcell="1"]\')) el.remove();\n    return new XMLSerializer().serializeToString(dom.documentElement);\n  } catch { return svgIn; }')
+      || !/const sbSeats = await iconSeatsOf\("segbar", sbZero\);/.test(src)
+      || !/await addPng\("segbar\/base\.png", sbSeats \? stripIconInk\(sbZero\)\.svg : sbZero, \{/.test(src)
+      || !/\.\.\.\(sbSeats \? \{ iconSeats: sbSeats \} : \{\}\) \}\);/.test(src)
+      || !/await addPng\("segbar\/lit\.png", sbSeats \? litCellsOnlySvg\(stripIconInk\(sbOne\)\.svg\) : sbOne, \{/.test(src))
+    errors.push("the segbar export must measure its seats on the v=0 base, ship the base stripped with iconSeats on its row, and ship the Lit strip plate-less through litCellsOnlySvg (r111)");
+  if (!/var go = ImageObject\("SegmentMeter", baseSp, pngScale\);[\s\S]{0,700}?WireIconChildren\(go, root, m, "segbar"\);\s*\n\s*var lit = S\(root \+ "\/assets\/segbar\/segbar-lit\.png"\);/.test(cs))
+    errors.push("SegBarPrefab must wire the Well / Cell children from the base row BEFORE adding the Lit strip (r111)");
+  if (!src.includes('if (gL.getAttribute("data-icon") !== "endicon") gL.remove();')
+      || !src.includes('const litSvg = new XMLSerializer().serializeToString(domLitS.documentElement);'))
+    errors.push("the streak meter's ignition-lit cut must be the endicon group alone — with the well marked at v=1 the name override never applied and the lit pose overwrote the resting cuts (r107)");
+  if (behindN < 3) errors.push(`bevel.ts carries ${behindN} behind marks; the rarity frame and reward card auras and the count badge's glow make 3 (10/1 layers)`);
+  if (!/data-icon-nick="Rarity glow" data-icon-behind="1" data-icon-tint="\$\{tier\.c\}"/.test(bevelSrc))
+    errors.push("the rarity frame's aura must be marked behind AND tintable in the tier colour (10/1 layers)");
+  /* r107 review: a posed board copy is a snapshot (words, fills and lit
+     cells baked), so EVERY under layer stays in its pixels — the unwrap is
+     unconditional, not a cell-rig special case; the posed stand-down walks
+     the worn sprite's row; the rider-word seed reads the lock's own ledger */
+  if (/if \(idBase === "energymeter" \|\| idBase === "ammo" \|\| idBase === "magazine" \|\| idBase === "streakmeter"\) \{\s*\n\s*const domU9/.test(src))
+    errors.push("the posed under-layer unwrap must cover every posed copy, not only the cell rigs (r107 review: the build queue's live Well covered its baked mercury)");
+  if (!/var famRowSD = IconSeatRowOf\(inst, m, root, it\.component\);/.test(cs))
+    errors.push("the posed stand-down must resolve the family's seat row by the worn sprite (IconSeatRowOf), or a count badge copy draws two halos (r107 review)");
+  if (!/public string\[\] knownRiders; \}/.test(cs)
+      || !/string knownKeyRS = rowRS\.file \+ "\|Rider " \+ PlainWord\(sRS\.text\);/.test(cs)
+      || !/if \(knownRS\) \{ unburnLedger\.Add\(kRS\); continue; \}/.test(cs)
+      || !/receipt\.knownRiders = knownRidersNow\.ToArray\(\);/.test(cs))
+    errors.push("the rider-word seed must read and write the lock's knownRiders ledger (r107 review: a word the dev deleted must never reseed because its plate's sprite changed)");
+  /* the daily cell (10/1, the owner's "ring and glow as one can be its own layer"): today's ring + its
+     drop-shadow glow are ONE tintable child on a DEFAULT seat — over the plate, under the day word. Its
+     bottom edge crosses the plate's extrusion wall, so a behind/under seat would bury it (pixel-proved
+     in the r107 review); its stroke is hexRgba() ink, so the tint sweep must whiten an rgba() fill/stroke
+     in the tint colour (alpha kept) or Unity double-tints the cut; and the app draws it only on a LIVE
+     cell, so the seat ships liveOnly and the importer hands the child to StateFx.hideWhenDisabled. */
+  if (!/data-icon="ring" data-icon-nick="Today ring" data-icon-tint="\$\{glow\}"><rect/.test(bevelSrc))
+    errors.push("the daily cell's today ring + glow must be marked as ONE tintable child on a default seat (10/1, the owner's ring-and-glow-as-one)");
+  if (/data-icon-nick="Today ring"[^>]*data-icon-(behind|under)="1"/.test(bevelSrc))
+    errors.push("the daily cell's today ring must NOT be a behind/under seat — its bottom edge crosses the plate's extrusion wall and must paint over it (10/1)");
+  if (!/el\.setAttribute\(atA, `rgba\(255,255,255,\$\{mA\[4\]\}\)`\);/.test(src))
+    errors.push("the tint sweep must whiten a fill/stroke drawn as rgba() in the tint colour, alpha kept (the daily cell's translucent ring, 10/1)");
+  if (!/&& !disNamesLO\.has\(seatLO\.name\)\) seatLO\.liveOnly = true;/.test(src))
+    errors.push("the universal state loop must stamp liveOnly on a resting seat the disabled render lacks (the daily cell's ring, 10/1)");
+  if (!/public bool liveOnly;/.test(cs))
+    errors.push("PBIconChild must declare liveOnly — JsonUtility drops the flag in SILENCE (10/1)");
+  if (!/if \(ic\.liveOnly\) \{/.test(cs) || !/fxLO\.hideWhenDisabled = newLO; armedLO = true;/.test(cs))
+    errors.push("WireIconChildrenRow must hand a liveOnly child to StateFx.hideWhenDisabled, armed once (the daily cell's ring on a disabled Button, 10/1)");
+  if (!/public Graphic\[\] hideWhenDisabled;/.test(fx) || !/PushHides\(\);/.test(fx))
+    errors.push("the StateFx rig lost its hideWhenDisabled road — the end-turn arc and the daily cell's ring would stay visible on a disabled Button");
+}
+
+/* ── 10/1 · the COUNT BADGE's halo (the owner's CountBadge screenshot,
+   "glow-should-be-separate-layer"): the red glow leaves countbadge-base-plain
+   and rides the CountBadge prefab as a live "Glow" child BEHIND the plate —
+   a white halo ring tinted through Image.color, the rarity frame's own road.
+   The glow circle is MASKED to the halo alone (a userSpaceOnUse mask inside
+   the marked group): a lost mask ships a solid red disc under the plate, a
+   bbox-unit mask clips the tail on the seat road's widened viewBox. ── */
+{
+  if (!/data-icon-nick="Glow" data-icon-behind="1" data-icon-tint="\$\{badgeB\}"/.test(bevelSrc))
+    errors.push("bevel.ts lost the count badge's \"Glow\" layer mark (behind + tintable in the badge red) — the halo is burned back into countbadge-base-plain (10/1)");
+  if (!/<mask id="\$\{gidB\}m" maskUnits="userSpaceOnUse" x="-500" y="-500"/.test(bevelSrc)
+      || !/mask="url\(#\$\{gidB\}m\)"/.test(bevelSrc))
+    errors.push("the count badge's glow circle must be masked to the halo alone through a userSpaceOnUse mask inside the marked group (10/1)");
+  if (!/const cbSeats = await iconSeatsOf\("countbadge", cbSvg\);/.test(src)
+      || !/cbSeats \? stripIconInk\(cbSvg\)\.svg : cbSvg,/.test(src))
+    errors.push("the count badge's base-plain must seat the glow cut and ship stripped of it (10/1)");
+  if (!/WireIconChildrenRow\(go, root, m, IconSeatRowOf\(go, m, root, "countbadge"\)\);/.test(cs))
+    errors.push("CountBadgePrefab must wire the base-plain row's icon seats (the Glow child behind a Body-shaped plate, 10/1)");
 }
 
 /* ── 9/30 · the ASSET STORE BUILD (the owner, on Jimi's "someone else's
@@ -3723,7 +3930,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
       || !/\.\.\.\(unkern \? \{ unkern: true \} : \{\}\),/.test(src)
       || !/unkern\?: boolean;/.test(src))
     errors.push("the seat parse lost the unkern flag — guarded words kern again in Unity (round 48, S39)");
-  if (!/public bool unkern; \}/.test(src)
+  if (!/public bool unkern; public float rot; \}/.test(src) // 10/1 appended the rider's tilt after the smashed-pair flag
       || !/static bool SeatKernIsOff\(TMPro\.TMP_Text t\) \{/.test(cs)
       || !/static void SeatKernOff\(TMPro\.TMP_Text t\) \{/.test(cs)
       || !/if \(seat\.unkern\) SeatKernOff\(t\); \/\/ the smashed-pair guard, this label only/.test(cs)
@@ -4416,7 +4623,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
       errors.push("the white-cut grammar went back to reading/rewriting LEAF shapes only — a built glyph's ink lives on its group, so the flat road either never opens or ships an inked sprite under an absolute tint (round 61f, S53)");
     // A3 — the cut reaches the seat, and the seat tells the importer
     if (!/const tint = gs0\[gi\]\.getAttribute\("data-icon-tint"\) \|\| tintOverride\?\.\[nm0\] \|\| null;/.test(src)
-        || !/await iconSeatsOf\(uid, fullU, undefined, undefined, skillInkTint\)/.test(src))
+        || !/await iconSeatsOf\(uid, zeroSvgSeatU \?\? fullU, undefined, undefined, skillInkTint\)/.test(src))
       errors.push("the export-proved tintOverride no longer reaches markedIconOnlySvgs / the glyph seat — the flat road cuts nothing (round 61f, S53)");
     if (!/var gc = absoluteInk \? sk\.glyphInk/.test(src))
       errors.push("the glyph ink went back to a pure relative tint — a Learned glyph LIGHTER than Available is unreachable again (round 61f, S53)");
@@ -4803,6 +5010,272 @@ const OBSOLETE = [
       || !/^  turntrack: 2,/m.test(modelSrc82)
       || !/^  turntrack: \[\n/m.test(modelSrc82))
     errors.push("the model lost the turn tracker (roster entry, Card battler group, label cap, slots) (round 87)");
+}
+
+/* ══ 10/1 layers batch 2 — the owner's second screenshot batch of burned-in
+   ink, one prefab at a time ══ */
+/* ── r107 · the COMPASS TICKS (the owner's Unity screenshot: "aren't the
+   white dashes supposed to animate? if so they need their own layer"): the
+   tick strip is its own "Ticks" child cut on the window's box; the lines
+   gather into ticks9 and are emitted AFTER the letters so the app's paint
+   stays byte-identical (a letter's shadow tail meets only its own tick,
+   which painted over it before too). The well stays in the base on purpose:
+   posed board copies keep their letters in the pixels and an under child
+   would plate over them. ── */
+{
+  const cpSlice = bevelSrc.slice(bevelSrc.indexOf('case "compass"'), bevelSrc.indexOf('case "partyframe"'));
+  if (!cpSlice || !/inner \+= `<g data-part="icon" data-icon="ticks" data-icon-nick="Ticks" data-icon-box="\$\{boxC9\}">\$\{ticks9\}<\/g><\/g>`;/.test(cpSlice))
+    errors.push("the compass ticks lost their own Ticks layer, or left the after-the-letters order that keeps the app's paint byte-identical (r107)");
+  if (!/ticks9 \+= `<line x1="\$\{x9\.toFixed\(1\)\}" y1="\$\{\(cy \+ 14 \* k\)\.toFixed\(1\)\}"/.test(cpSlice) || /inner \+= `<line x1="\$\{x9\.toFixed\(1\)\}"/.test(cpSlice))
+    errors.push("the compass tick lines must gather into ticks9 for the Ticks layer, never append to inner between the letters (r107)");
+  if (!/data-icon="caret" data-icon-nick="Heading caret"/.test(cpSlice) || cpSlice.indexOf('data-icon-nick="Ticks"') > cpSlice.indexOf('data-icon-nick="Heading caret"'))
+    errors.push("the compass Ticks mark must precede the Heading caret mark — seat order is paint order, and the caret draws over the dashes (r107)");
+  if (/data-icon-nick="Well"/.test(cpSlice))
+    errors.push("the compass well must stay in the base sprite until the posed road refuses an under cut over baked seat words — a live Well plates over a board copy's baked N / NE / E (r107)");
+  if (!/<path d="\$\{wellP\}" fill="\$\{wellFill\}" opacity="0\.9"\/><g clip-path="url\(#\$\{gidC9\}\)">/.test(cpSlice))
+    errors.push("the compass well path and clip group changed shape (r107 pinned them unmarked, in the base)");
+  if (!/compass: "Compass ribbon — the cardinal letters are LIVE seats, the Heading caret a LIVE child \(restyle or delete it\) and the tick strip a LIVE Ticks child cut at the staged heading/.test(src))
+    errors.push("the compass usage line no longer tells the dev about the Ticks layer (r107)");
+}
+/* ── 10/1 (round 107): the 2x button's AD ×2 ribbon — the plate stays the cut, the word is a live, TILTED rider ── */
+{
+  if (!/data-icon="adribbon" data-icon-nick="AD x2 ribbon"><g transform="\$\{ribTf\}"><rect /.test(bevelSrc)
+      || !/<g transform="\$\{ribTf\}"><text [^`]*data-seat-rider="adribbon">AD ×2<\/text><\/g>/.test(bevelSrc))
+    errors.push("the AD x2 ribbon's word is burned into the ribbon cut again (or lost its rider mark / its own copy of the ribbon's rotate) — owner: 'adx2 ribbon needs to be editable'");
+  if (!/const RIDER_ROTATE_RE = /.test(src) || !/function riderTurnOf\(t: Element\)/.test(src)
+      || !/function turnPoint\(x: number, y: number, turn: \{ a: number; cx: number; cy: number \}\): \[number, number\]/.test(src))
+    errors.push("the turned-rider grammar (RIDER_ROTATE_RE / riderTurnOf / turnPoint) is gone — a rotated rider word can't seat");
+  if (!/const turn = riderTurnOf\(t\);/.test(src) || !/if \(turn\) \[x, y0\] = turnPoint\(x \+ tdxIn, y0 \+ tdyIn, turn\);/.test(src)
+      || !/\.\.\.\(turn \? \{ rot: Math\.round\(turn\.a \* 10\) \/ 10 \} : \{\}\),/.test(src))
+    errors.push("parseTextSeats no longer seats a turned rider on its turned center with its angle — the AD x2 word seats upright at the pre-rotation point");
+  if (!/const turnS = riderTurnOf\(t\);/.test(src) || !/if \(!turnS && \/rotate\|skew\|matrix\|scale\/\.test\(tf\)\) warped = true;/.test(src))
+    errors.push("stripWordInk no longer mirrors the turned-rider acceptance — the AD x2 word bakes under its live plate (the round-40 hidden-count bug)");
+  if (!/const turnR = riderTurnOf\(tR\);/.test(src) || !/\.\.\.\(turnR \? \{ rot: Math\.round\(turnR\.a \* 10\) \/ 10 \} : \{\}\),/.test(src)
+      || !/\.\.\.\(rw\.rot \? \{ wordRot: rw\.rot \} : \{\}\),/.test(src))
+    errors.push("posed board copies lost the rider's tilt (posedRiderWords rot / posedIcons wordRot) — a 2x copy seats its word upright");
+  if (!/if \(Mathf\.Abs\(seatR\.rot\) > 0\.01f\) wordT\.localRotation = Quaternion\.Euler\(0f, 0f, -seatR\.rot\);/.test(cs)
+      || !/if \(Mathf\.Abs\(pIc\.wordRot\) > 0\.01f\) pwRt\.localRotation = Quaternion\.Euler\(0f, 0f, -pIc\.wordRot\);/.test(cs))
+    errors.push("the importer no longer tilts a rider word on its plate (AdoptSeatRiders / the posed rider builder) — the AD x2 word sits upright on the angled ribbon");
+  if (!/static bool SeedRiderWord\(GameObject host, PBAsset row, PBSeat seat, string root, PBManifest m, int pngScale\)/.test(cs)
+      || !/go\.transform\.SetParent\(plateT, false\);/.test(cs)
+      || !/rt\.anchoredPosition = new Vector2\(\(seat\.fx - fxP\) \* rootW, \(1f - seat\.fy - fyP\) \* rootH \+ lift\);/.test(cs))
+    errors.push("the kept-project rider seed (SeedRiderWord, seated PLATE-RELATIVE on the plate child) is gone or seats in the host frame again — a kept ClaimbtnDouble reads a blank ribbon, or the word floats beside a plate the dev moved");
+  if (!/bool wantRiderSeed = riderSeeds\.Count > 0;/.test(cs) || !/\|Rider " \+ PlainWord\(/.test(cs)
+      || !/bool freshRS = prevShaU == null \|\| !prevShaU\.ContainsKey\(icRS\.file\) \|\| prevShaU\[icRS\.file\] != shaRS;/.test(cs)
+      || !/if \(!freshRS\) \{ unburnLedger\.Add\(kRS\); continue; \}/.test(cs)
+      || !/if \(haveRS\) \{ unburnLedger\.Add\(kRS\); continue; \}/.test(cs))
+    errors.push("the rider seed lost its one-shot discriminators (the '|Rider <word>' ledger, first-sight adoption, the plate-sha gate) — a rider word the dev deleted on any family resurrects every import");
+  if (!/SeedRiderWord\(contents, rowRW, sRW, root, m, psRW\)/.test(cs) || !/riderWorded \+= seededRW; changed = true;/.test(cs)
+      || !/if \(TextSeatsStale\(contents, m, root, psRW\)\) WireTextSeats\(contents, root, m, psRW\);/.test(cs)
+      || !/seated " \+ riderWorded \+ " rider word\(s\) LIVE/.test(cs))
+    errors.push("the rider seed's apply (after the un-burn block: seed, ledger, dress heal, Console receipt) is missing from the maintenance pass");
+  // the apply must follow the un-burn block, or a plate born this pass never gets its word until a second import
+  if (cs.indexOf("if (wantRiderSeed) {") < cs.indexOf("AdoptSeatRiders(contents, rowUA);"))
+    errors.push("the rider-word seed runs BEFORE the un-burn block — a kept ClaimbtnDouble with no ribbon child yet needs two imports for plate + word");
+}
+/* ── 10/1 · r107 (the owner's "combo-plaque-should-be-editable"): the
+   COMBO! word leaves the plate's pixels and RIDES the plate as live TMP,
+   tilt and all — the rotate+shadow group wraps an INERT marked plate and
+   the word as siblings (zero raster change in the app: the word still
+   rasterizes inside the plate's drop-shadow layer), and the shared
+   turned-rider road (riderTurnOf in parseTextSeats / stripWordInk / the
+   posed capture, the seat's rot, the importer's -rot turn) carries it. ── */
+{
+  if (!/<g transform="rotate\(-3 \$\{cxC0\.toFixed\(1\)\} \$\{pcy\.toFixed\(1\)\}\)"\$\{state !== "disabled" \? ` style="filter: drop-shadow\(0 2px 4px rgba\(6,10,18,0\.5\)\)"` : ""\}><g data-part="icon" data-icon="plaque" data-icon-nick="Combo plaque">/.test(bevelSrc)
+      || !/stroke-linejoin: round" data-seat-rider="plaque">\$\{esc\(plateWord\)\}<\/text><\/g>`;/.test(bevelSrc))
+    errors.push("the combo plaque's word is burned into the plate again (or the plate's rotate/shadow group no longer wraps an inert marked plate + rider word as siblings) — the owner's 10/1 'combo-plaque-should-be-editable'");
+  // the plaque word must be the plate group's SIBLING, never inside it (markedIconOnlySvgs would cut it into the plate)
+  if (/data-icon-nick="Combo plaque">(?:(?!<\/g>)[^`])*<text /.test(bevelSrc))
+    errors.push("the combo plaque's rider word sits INSIDE the marked plate group — it bakes into icon-plaque.png and doubles under the live TMP (10/1)");
+  if (!/function riderTurnOf\(t: Element\)/.test(src) || !/const turnS = riderTurnOf\(t\);/.test(src)
+      || !/\.\.\.\(turn \? \{ rot: Math\.round\(turn\.a \* 10\) \/ 10 \} : \{\}\),/.test(src))
+    errors.push("the turned-rider acceptance the combo plaque's word rides (riderTurnOf in parseTextSeats AND stripWordInk, the seat's rot) left the exporter — COMBO! bakes back into its plate or seats level (10/1)");
+  if (!/combo: "Combo burst — DYNAMIC \(round 47\)[^"]*the Combo plaque is its own live child and its COMBO! word rides it as live text, tilt and all\)/.test(src))
+    errors.push("the combo usage line no longer tells the dev the plaque's word is live and tilted (10/1)");
+}
+/* ── ROUND 107 (the owner's Coin screenshot: "push the 4 up so it is not crashing into the 8"): the coin's numeral clears the target row by the type scale — never lower than the old 18k seat, fit down when the face is too short — the target row draws from the same seat it is measured against, and a POSED copy's label is read attribute-order tolerant (the uLabelMeta road) so contentText-labelled copies ship a real posed seat ── */
+{
+  if (!/const fsTgt = 28 \* k \* typeK, yTgt = cyC \+ 42 \* k;/.test(bevelSrc)
+      || !/const roomNum = \(yTgt - 0\.4 \* fsTgt - 10 \* k\) - \(cyC - rFace \+ 8 \* k\);/.test(bevelSrc)
+      || !/const fsNum = Math\.min\(fitFs\(numC, 84 \* k \* typeK, rFace \* 1\.3\), Math\.max\(24 \* k, roomNum \/ 0\.8\)\);/.test(bevelSrc)
+      || !/const yNum = Math\.min\(cyC - 18 \* k, yTgt - 0\.4 \* fsTgt - 10 \* k - 0\.4 \* fsNum\);/.test(bevelSrc))
+    errors.push("the coin's numeral lost its clearance over the target row (round 107)");
+  if (!/<g data-part="label">\$\{contentText\(numC, cxC, yNum, fsNum, \{ anchor: "middle", opacity: dimC \? 0\.6 : 1 \}\)\}<\/g>/.test(bevelSrc)
+      || !/\$\{contentText\(tgtC, cxC, yTgt, fsTgt, \{ anchor: "middle", keepCase: true,/.test(bevelSrc))
+    errors.push("the coin's numeral or target row stopped drawing from the round-107 seats (round 107)");
+  if (!/const tTag2 = \/<text\\b\[\^>\]\*>\/\.exec\(lg2\)\?\.\[0\] \?\? "";/.test(src)
+      || !/const gx2 = \/\\bx="\(-\?\[\\d\.\]\+\)"\/\.exec\(tTag2\), gy2 = \/\\by="\(-\?\[\\d\.\]\+\)"\/\.exec\(tTag2\), gf2 = \/\\bfont-size="\(\[\\d\.\]\+\)"\/\.exec\(tTag2\);/.test(src)
+      || !/const startX2 = UNIVERSAL_ROAD\.has\(idBase\) && \(\/\\btext-anchor="\(\[a-z\]\+\)"\/\.exec\(tTag2\)\?\.\[1\] \?\? "start"\) === "start" && s02 \? s02\[2\] \/ 2 : 0;/.test(src)
+      || !/if \(gx2 && gy2 && gf2 && \+gf2\[1\] > 1 && s02 && s02\.length === 4\)/.test(src)
+      || !/posedLabelRaw = \{ dx: \+gx2\[1\] - \(s02\[0\] \+ s02\[2\] \/ 2\) \+ startX2, dy: \+gy2\[1\] - \(s02\[1\] \+ s02\[3\] \/ 2\) \};/.test(src)
+      || /const tm2 = \/<text x="\(-\?\[\\d\.\]\+\)" y=/.test(src))
+    errors.push("the posed copy's label parse fell back to the rigid x/y/font-size regex — contentText-labelled posed copies lose their seat (round 107)");
+}
+/* ── 10/1 · r107 · the BUILD QUEUE's two wells (the owner's screenshot,
+   "separate-wells-for-everything"): the icon's dark square and the bar's
+   track leave buildqueue-base and ship as two UNDER children — "Icon well"
+   under the glyph child, "Well" under the Fill. No importer change: the
+   10/1 under road seats both. ── */
+{
+  if (!/data-icon="iconwell" data-icon-nick="Icon well" data-icon-under="1" data-icon-box="\$\{\(wx - 1\)\.toFixed\(1\)\} \$\{\(wy - 1\)\.toFixed\(1\)\} \$\{\(wellS \+ 2\)\.toFixed\(1\)\} \$\{\(wellS \+ 2\)\.toFixed\(1\)\}"><rect x="\$\{wx\.toFixed\(1\)\}" y="\$\{wy\.toFixed\(1\)\}"/.test(bevelSrc))
+    errors.push("buildqueue's icon well must be marked ink under the glyph (\"Icon well\", 10/1 r107)");
+  if (!/data-icon="well" data-icon-nick="Well" data-icon-under="1" data-icon-box="\$\{\(tx0 - 1\)\.toFixed\(1\)\} \$\{\(barY9 - 1\)\.toFixed\(1\)\} \$\{\(barW9 \+ 2\)\.toFixed\(1\)\} \$\{\(barH9 \+ 2\)\.toFixed\(1\)\}"><rect x="\$\{tx0\.toFixed\(1\)\}" y="\$\{barY9\.toFixed\(1\)\}"/.test(bevelSrc))
+    errors.push("buildqueue's bar well must be marked ink under the fill (\"Well\", 10/1 r107)");
+  if (/const parts = `<rect x="\$\{wx\.toFixed\(1\)\}"/.test(bevelSrc))
+    errors.push("buildqueue's icon well went back to a bare rect — burned into the base again (10/1 r107)");
+}
+/* ── 10/2 layers batch 3 · r111 · the INVENTORY GRID's twelve cell wells (the
+   owner's Invgrid screenshot: "container wells should not be burned into the
+   background panel"): every well is marked ink UNDER everything with its
+   fixed box — one "Well N" child per cell, beneath the Icon cellN glyphs,
+   the Count chips and the live selection ring; the base panel ships bare and
+   ringless. No exporter or importer change: the 10/1 under road seats all
+   twelve, and the posed road keeps them baked in a snapshot copy. ── */
+{
+  if (!/data-icon="well\$\{i \+ 1\}" data-icon-nick="Well \$\{i \+ 1\}" data-icon-under="1" data-icon-box="\$\{\(cxI - 1\)\.toFixed\(1\)\} \$\{\(cyI - 1\)\.toFixed\(1\)\} \$\{\(cell \+ 2\)\.toFixed\(1\)\} \$\{\(cell \+ 2\)\.toFixed\(1\)\}"><rect x="\$\{cxI\.toFixed\(1\)\}" y="\$\{cyI\.toFixed\(1\)\}" width="\$\{cell\.toFixed\(1\)\}" height="\$\{cell\.toFixed\(1\)\}" rx="\$\{\(10 \* k\)\.toFixed\(1\)\}" fill="\$\{wellFill\}" opacity="0\.9"\/><\/g>`;/.test(bevelSrc))
+    errors.push("the inventory grid's cell wells must be marked ink under the glyphs — one \"Well N\" child per cell with its fixed box (r111: the wells burned back into invgrid-base)");
+  if (/inner \+= `<rect x="\$\{cxI\.toFixed\(1\)\}" y="\$\{cyI\.toFixed\(1\)\}"/.test(bevelSrc))
+    errors.push("the inventory grid's wells went back to bare rects — burned into the background panel again (r111)");
+}
+/* ── r107 · the CARD FACE'S CORNER NUMERALS (the owner's Unity screenshot:
+   "the numbers are not readable"): each numeral picks its ink against its
+   OWN badge by the name's 3:1 rule — white on a dark badge (byte-identical
+   to before), the kit's type ink then the badge's deep shade on a pale one;
+   the rider mark, size and place stay. In the importer a riders-only seat
+   tree (Words swept on build by design) counts as SEEDED, so a kept card
+   face heals its digits instead of growing a second pair. ── */
+{
+  if (!/const typeInkC = cfg\.type\.fillMode === "solid" \? CD\(cfg\.type\.fill\) : cfg\.type\.fillMode === "gradient" \? CD\(hexMix\(cfg\.type\.fill, cfg\.type\.fill2 \|\| cfg\.type\.fill, 0\.5\)\) : null;/.test(bevelSrc)
+      || !/const numInk = contrastOf\("#FFFFFF", groundC\) >= 3 \? "#FFFFFF" : typeInkC && contrastOf\(typeInkC, groundC\) >= 3 \? typeInkC : darken\(ink, 0\.7\);/.test(bevelSrc)
+      || !/const numRim = numInk === "#FFFFFF" \? darken\(CD\(bevel\), 0\.6\) : lighten\(ink, 0\.62\);/.test(bevelSrc)
+      || !/fill="\$\{numInk\}" stroke="\$\{numRim\}" stroke-width="\$\{\(2\.4 \* k\)\.toFixed\(1\)\}" paint-order="stroke" text-anchor="middle" dominant-baseline="central" data-seat-rider="\$\{nm\}"/.test(bevelSrc)
+      || !/const nick = side === "l" \? "Left corner" : "Right corner";/.test(bevelSrc))
+    errors.push("the card face's corner numerals lost their per-badge contrast ink (or the Left corner / Right corner rider marks) (r107)");
+  if (!/static bool RidersOnlyAdopted\(GameObject host, PBAsset row\)/.test(cs)
+      || !/bool ridersOnly = wordsT == null && RidersOnlyAdopted\(host, row\);/.test(cs)
+      || !/if \(wordsT == null && !ridersOnly\) return true;/.test(cs)
+      || !/var texts = ridersOnly \? new TMP_Text\[0\] : wordsT\.GetComponentsInChildren<TMP_Text>\(true\);/.test(cs)
+      || !/if \(host\.transform\.Find\("Words"\) != null \|\| RidersOnlyAdopted\(host, row\)\) \{/.test(cs)
+      || !/if \(contents\.transform\.Find\("Words"\) != null \|\| RidersOnlyAdopted\(contents, SeatRowOf\(contents, m, root\)\)\) \{ worded\+\+; changed = true; \}/.test(cs))
+    errors.push("the riders-only seat tree reads as unseeded again — a kept card face re-seeds a second pair of corner digits on every refresh and never heals the first (r107)");
+}
+/* ── 10/2 layers batch 3 · r111 · the TECH CARD's highlight ring (the owner's Techcard screenshot,
+   "highlight ring and circle should not be baked in but separate layers"; the circle is the Icon
+   disc, d169326): the researchable gold outline leaves techcard-base and rides the Techcard prefab
+   as ONE tintable "Highlight ring" child on a DEFAULT seat — the daily cell's Today ring road. Its
+   bottom edge crosses the plate's extrusion wall (pixel-proved: an under/behind seat buries it), so
+   it must paint over the plate; no importer change — the default-seat road seats it and the tint
+   sweep whitens its rgba() stroke. A display piece: no state rig, no liveOnly. ── */
+{
+  if (!/data-icon="ring" data-icon-nick="Highlight ring" data-icon-tint="\$\{glow\}"><rect x="\$\{\(sx - 5 \* k\)\.toFixed\(1\)\}" y="\$\{\(sy - 5 \* k\)\.toFixed\(1\)\}" width="\$\{\(sw \+ 10 \* k\)\.toFixed\(1\)\}" height="\$\{\(sh \+ 10 \* k\)\.toFixed\(1\)\}" rx="\$\{\(18 \* k\)\.toFixed\(1\)\}" fill="none" stroke="\$\{hexRgba\(glow, 0\.7\)\}"/.test(bevelSrc))
+    errors.push("the tech card's highlight ring lost its marked wrap — the gold outline burns into techcard-base again (r111, the owner's Techcard screenshot)");
+  if (/data-icon-nick="Highlight ring"[^>]*data-icon-(behind|under)="1"/.test(bevelSrc))
+    errors.push("the tech card's highlight ring must NOT be a behind/under seat — its bottom edge crosses the plate's extrusion wall and must paint over it (r111)");
+  if (!/if \(state !== "disabled"\) over \+= `<g data-part="icon" data-icon="ring" data-icon-nick="Highlight ring"/.test(bevelSrc))
+    errors.push("the tech card's highlight ring must stay inside the researchable, non-disabled branch — the done and locked poses never draw it (r111)");
+  if (!src.includes('the researchable highlight ring is ONE live \\"Highlight ring\\" child over the plate'))
+    errors.push("the techcard usage note must name the Highlight ring child (r111)");
+}
+/* ── 10/2 layers batch 3 · r111 · the PARTY FRAME's rail wells (the owner's Partyframe screenshot:
+   "progress bar wells should not be baked into the panel"): each rail's
+   dark track is an UNDER child with a fixed box — "HP well" and "MP well" —
+   marked by the same rail9 hand that marks the mercury, so the base bakes
+   well-less AND fill-less while the twin KitBarFill rails keep their bands
+   (railDx/railDy/railW/railH ride the fill rows exactly as before). The
+   well must stay OUTSIDE the mercury's data-barfill group: barFillGroups
+   keeps only that group's own drawables for the fill atoms. The wrapper-line
+   pin (the well <g> closes right after its rect) is what catches a nested
+   mercury; the slice pin below only keeps the well mark ahead of it. ── */
+{
+  if (!/const rail9 = \(ry: number, vR: number, cR: string, nm9: string, wellNick9: string\) => \{/.test(bevelSrc))
+    errors.push("partyframe's rail9 hand lost its well-nick argument — the HP/MP wells can't be marked (r111)");
+  if (!/return `<g data-part="icon" data-icon="\$\{nm9\}well" data-icon-nick="\$\{wellNick9\}" data-icon-under="1" data-icon-box="\$\{\(tx0 - 1\)\.toFixed\(1\)\} \$\{\(ry - 1\)\.toFixed\(1\)\} \$\{\(txw \+ 2\)\.toFixed\(1\)\} \$\{\(railH \+ 2\)\.toFixed\(1\)\}"><rect x="\$\{tx0\.toFixed\(1\)\}" y="\$\{ry\.toFixed\(1\)\}" width="\$\{txw\.toFixed\(1\)\}" height="\$\{railH\.toFixed\(1\)\}" rx="\$\{\(railH \/ 2\)\.toFixed\(1\)\}" fill="\$\{darken\(effect\(cfg\.effects, "Inner Fill"\), 0\.8\)\}" stroke="rgba\(0,0,0,0\.3\)" stroke-width="0\.8"\/><\/g>` \+/.test(bevelSrc))
+    errors.push("partyframe's rail well must be marked ink under its rail with a fixed box, its group closing right after the rect — the HP/MP wells burn back into partyframe-base, or swallow the mercury (r111)");
+  if (!/rail9\(cy \+ 8 \* k, vHP, "#4ade80", "hp", "HP well"\) \+ rail9\(cy \+ 28 \* k, vMP, "#38bdf8", "mp", "MP well"\);/.test(bevelSrc))
+    errors.push("partyframe's rails must name their wells \"HP well\" and \"MP well\" (r111)");
+  for (const nkPF of ["HP well", "MP well"])
+    if (!bevelSrc.includes(`"${nkPF}"`)) errors.push(`bevel.ts lost the party frame's "${nkPF}" layer mark (r111)`);
+  const pfSlice = bevelSrc.slice(bevelSrc.indexOf('case "partyframe"'), bevelSrc.indexOf('case "dmgnumber"'));
+  if (pfSlice.indexOf('data-icon="${nm9}well"') < 0 || pfSlice.indexOf('data-barfill="') < 0 || pfSlice.indexOf('data-icon="${nm9}well"') > pfSlice.indexOf('data-barfill="'))
+    errors.push("partyframe's well mark must precede the mercury's data-barfill group inside rail9 — the well is base ink, the mercury the fill atom's (r111)");
+  if (!/riding over their own live HP well \/ MP well children/.test(src))
+    errors.push("the manifest's partyframe usage line no longer tells the dev the wells are live children (r111)");
+}
+/* ── 10/2 layers batch 3 · r111 · the REWARD TRAY's wells (the owner's Rewardtray screenshot: "wells need to be
+   separate layers"): every slot well is an UNDER seat on one fixed box (Slot 1 well … Slot 4 well), the lit glow
+   rim staying in the well's own cut; the Claim plate is a DEFAULT seat with CLAIM riding it as live text; the
+   posed rider capture reads rgba() ghost ink ── */
+{
+  for (const nk of ["Slot ${i + 1} well", "Claim plate"])
+    if (!bevelSrc.includes(`data-icon-nick="${nk}"`)) errors.push(`bevel.ts lost the "${nk}" layer mark (r111, the reward tray)`);
+  if (!/data-icon="well\$\{i \+ 1\}" data-icon-nick="Slot \$\{i \+ 1\} well" data-icon-under="1" data-icon-box="\$\{\(cx9 - 2\)\.toFixed\(1\)\} \$\{\(rowY - 2\)\.toFixed\(1\)\} \$\{\(cell \+ 4\)\.toFixed\(1\)\} \$\{\(cell \+ 4\)\.toFixed\(1\)\}"><rect x="\$\{cx9\.toFixed\(1\)\}" y="\$\{rowY\.toFixed\(1\)\}" width="\$\{cell\.toFixed\(1\)\}" height="\$\{cell\.toFixed\(1\)\}" rx="\$\{\(10 \* k\)\.toFixed\(1\)\}" fill="\$\{wellFill\}" opacity="0\.9"\$\{on \? ` stroke="\$\{hexRgba\(glow, 0\.55\)\}" stroke-width="1\.6"` : ""\}\/><\/g>`;/.test(bevelSrc))
+    errors.push("the reward tray's slot wells must be marked under, one Slot N well child per slot on a fixed box, the lit rim in the well's own cut (r111, the owner's Rewardtray screenshot)");
+  if (!/data-icon="claimplate" data-icon-nick="Claim plate" data-icon-box="\$\{\(px9 - 14 \* k\)\.toFixed\(1\)\} \$\{\(py9 - 14 \* k\)\.toFixed\(1\)\} \$\{\(pw \+ 28 \* k\)\.toFixed\(1\)\} \$\{\(ph \+ 28 \* k\)\.toFixed\(1\)\}"><rect x="\$\{px9\.toFixed\(1\)\}"/.test(bevelSrc)
+      || !/dominant-baseline="central" data-seat-rider="claimplate">CLAIM<\/text>`;/.test(bevelSrc))
+    errors.push("the reward tray's Claim plate must be a marked child on its fixed box with CLAIM riding it as live text (r111)");
+  /* the burned-word pin reads across the template-literal pieces on purpose ([\s\S], lazy, stopping at the group's own </g>): the realistic burn moves </g> past the next piece's <text> */
+  if (/data-icon-nick="Claim plate"[^>]*>(?:(?!<\/g>)[\s\S])*?<text /.test(bevelSrc))
+    errors.push("the reward tray's CLAIM word is burned into the Claim plate cut again (r111)");
+  if (/data-icon-nick="Claim plate"[^>]*data-icon-(behind|under)="1"/.test(bevelSrc))
+    errors.push("the reward tray's Claim plate must stay a default seat — an under seat is kept baked in posed copies and would bake its rider word with it (r111)");
+  if (!/^function posedRiderInk\(fill: string \| null\): string \| null \{$/m.test(src) || !/const fillR = posedRiderInk\(tR\.getAttribute\("fill"\)\);/.test(src))
+    errors.push("the posed rider capture must read its ink through posedRiderInk (hex, or rgba() as #RRGGBBAA) — a dim posed Claim plate would seat a white CLAIM (r111)");
+  if (!/rewardtray: "Reward tray — the multi-reward strip; title, quantities and the \? marks are LIVE seats, every slot well is its OWN Image child under them \(Slot 1 well … Slot 4 well/.test(src))
+    errors.push("the reward tray's usage note must name the Slot N well children and the Claim plate (r111)");
+}
+/* ── 10/2 layers batch 3 · r111 · the WEAPON WHEEL's rim halo (the owner's Weaponwheel screenshot,
+   "should not have the highlight baked in; it should be its own layer"): the
+   rim STROKE stays in the base (the crop driver's ink, 5a31477) and only its
+   drop-shadow leaves — a glow-only copy of the rim, masked to the shadow
+   alone (userSpaceOnUse, inside the marked group), marked "Rim glow" on a
+   DEFAULT seat and tintable in the Glow. Default, not behind: the halo's
+   inner tail paints over the Disc and the Cylinder in the app, and a behind
+   seat buried it under the Disc child (pixel-proved, r111). The rim stroke
+   left in the base draws UNFILTERED, or the halo is baked twice. And the
+   halo's REACH still frames the base: the export crops the stripped base
+   with the halo-only cut as a FRAME DONOR (cropWith), so weaponwheel-base
+   keeps its size and a kept wheel's fraction-anchored children (Armed
+   chamber ring, Name tag, the rig's glyph orbit) do not drift. ── */
+{
+  if (!/data-icon="rimglow" data-icon-nick="Rim glow" data-icon-tint="\$\{glow\}"><mask id="\$\{gidW9\}m" maskUnits="userSpaceOnUse" x="-500" y="-500"/.test(bevelSrc)
+      || !/mask="url\(#\$\{gidW9\}m\)" style="filter: drop-shadow\(0 0 \$\{\(rimW9 \* 0\.7\)\.toFixed\(1\)\}px \$\{hexRgba\(glow, 0\.5\)\}\)"\/><\/g>/.test(bevelSrc))
+    errors.push("bevel.ts lost the weapon wheel's \"Rim glow\" layer mark (a masked glow-only rim copy, tintable in the Glow) — the halo is burned back into weaponwheel-base (r111)");
+  if (/data-icon-nick="Rim glow"[^>]*data-icon-(behind|under)="1"/.test(bevelSrc))
+    errors.push("the weapon wheel's Rim glow must ride a DEFAULT seat (over the Disc and the Cylinder, under the armed ring) — a behind/under seat buries its inner tail under the Disc child (r111)");
+  if (!bevelSrc.includes('<circle cx="${cW}" cy="${cW}" r="${rimR.toFixed(1)}" fill="none" stroke="url(#${gidW9}r)" stroke-width="${rimW9.toFixed(1)}"/>'))
+    errors.push("the weapon wheel's rim stroke must draw UNFILTERED in the base — its drop-shadow is the Rim glow child now (r111)");
+  if (/stroke="url\(#\$\{gidW9\}r\)" stroke-width="\$\{rimW9\.toFixed\(1\)\}"\$\{live9 \? ` style="filter: drop-shadow/.test(bevelSrc))
+    errors.push("the weapon wheel's rim stroke carries its drop-shadow again — the halo is baked back into the base beside the Rim glow child (r111)");
+  if (!bevelSrc.includes('<rect x="-500" y="-500" width="${(totalW + 1000).toFixed(0)}" height="${(totalW + 1000).toFixed(0)}" fill="white"/><circle cx="${cW}" cy="${cW}" r="${rimR.toFixed(1)}" fill="none" stroke="black" stroke-width="${rimW9.toFixed(1)}"/></mask>'))
+    errors.push("the Rim glow's mask must paint in the white/black KEYWORDS, never hex — a kit whose Glow is #000000 would have the tint sweep whiten the mask ring and ship the rim band in the cut (r111)");
+  if (!src.includes('tintable \\"Rim glow\\" child (its Image color carries the Glow'))
+    errors.push("the weapon wheel's usage note must name the Rim glow child (r111)");
+  // the FRAME DONOR: the queue field, the in-step pad, the union flush, and the wheel's hand-off
+  if (!src.includes('crop: boolean | number; group?: string; cropWith?: string; sliceMin?:')
+      || !src.includes('...(extras?.cropWith ? { cropWith: extras.cropWith } : {}), sliceMin: extras?.sliceMin ?? null,'))
+    errors.push("the png queue lost its frame donor (cropWith) — weaponwheel-base shrinks to the bare rim and every kept wheel's children drift off their sockets (r111)");
+  if (!src.includes('if (wants && q.cropWith) q.cropWith = padGlowCanvas(q.cropWith, 72);'))
+    errors.push("a frame donor must pad in step with its member (the widened-canvas pre-pass) — a lone padded member tears the union's pixel grid (r111)");
+  if (!src.includes('? q.cropWith\n            ? (await svgsToPngBytesTightUnion([q.svg, q.cropWith], PNG_SCALE, typeof q.crop === "number" ? q.crop : 4))[0]\n            : await svgToPngBytesTight(q.svg, PNG_SCALE, typeof q.crop === "number" ? q.crop : undefined)'))
+    errors.push("the raster flush no longer crops a donor-carrying member on the [member, donor] union — the wheel's base frame is lost (r111)");
+  if (!src.includes('const frameU = uid === "weaponwheel" ? markedIconOnlySvgs(fullU).find((c9) => c9.name === "rimglow")?.svg ?? null : null;')
+      || !src.includes('? uid : undefined, frameU ? { cropWith: frameU } : undefined);'))
+    errors.push("the weapon wheel's base must hand the Rim glow cut to the crop as its frame donor (r111)");
+}
+
+/* ── 10/2 · r111 review: the arrival-era grafts (stepper, segbar, the cell
+   meters) `continue` past the un-burn seed while the family's base on disk
+   is already the bare plate, so each graft seeds the family's layer
+   children itself, ledgered; the stepper's Lit strip rides the shared
+   plate-less helper; the tutor's icon-nudge tip ignores layer marks. ── */
+{
+  if (!/foreach \(var nST in WireIconChildrenRow\(contentsST, root, m, rowST, null\)\) unburnLedger\.Add\(keyST \+ nST\);/.test(cs)
+      || !/foreach \(var nSB in WireIconChildrenRow\(contentsSB, root, m, LabelRow\(m, "segbar"\), null\)\) unburnLedger\.Add\(keySB \+ nSB\);/.test(cs)
+      || !/foreach \(var nCM in WireIconChildrenRow\(contentsCM, root, m, IconSeatRowOf\(contentsCM, m, root, famCMk\), null\)\) unburnLedger\.Add\(keyCM \+ nCM\);/.test(cs))
+    errors.push("the stepper, segbar and cell-meter era grafts must seed the family's layer children in the same pass, ledgered (r111 review: a graft that continues past the un-burn seed leaves a bare plate with no wells, forever)");
+  const tutorSrc = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../src/tutor/tutor.ts"), "utf8");
+  if (!tutorSrc.includes(`'.canvas-wrap [data-part="icon"]:not([data-icon-under="1"]):not([data-icon-behind="1"])'`))
+    errors.push("the tutor's icon-nudge tip must ignore the export's layer marks (under/behind), or a well-only piece shows an icon tip (r111 review)");
 }
 
 if (errors.length) {
