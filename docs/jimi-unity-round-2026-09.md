@@ -268,7 +268,7 @@ Hey Jimi. Chevon's third zip had fourteen screenshots; eight of them are pieces 
 - Segment meter: **Well** and **Cell 1** to **Cell 5** under its Lit strip, same road.
 - Inventory grid: the twelve dark cell wells are **Well 1** to **Well 12**, under the icons and the count chips; the selection ring stays live as before.
 - Tech card: the golden outline is a **Highlight ring** child over the plate (a white cut tinted through its Image color; the disc was already a child). The app's breathing pulse on it stays app-only.
-- Party frame: **HP well** and **MP well** under the two rails.
+- Party frame: **HP well** and **MP well** under the two rails, and the dark disc behind the portrait is an **Avatar well** child (the friend row's road), so the base is a plain plate.
 - Weapon wheel: the soft halo around the rim is a **Rim glow** child (tintable); the rim stroke itself stays in the base, which is what the sprite crops to.
 - Reward tray: **Slot 1 well** to **Slot 4 well** under the reward glyphs, and the **Claim plate** is its own child with its word live on it.
 
