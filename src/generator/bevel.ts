@@ -8144,7 +8144,7 @@ ${cardS}
          Portrait child — drop YOUR sprite on it and the frame clips it
          round. The rim ring stays anatomy. */
       const portrait = `<defs><clipPath id="${gidP9}"><circle cx="${pcx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${pr.toFixed(1)}"/></clipPath></defs>
-        <circle cx="${pcx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${pr.toFixed(1)}" fill="${wellFill}"/>
+        <g data-part="icon" data-icon="avatarwell" data-icon-nick="Avatar well" data-icon-under="1" data-icon-box="${(pcx - pr - 2).toFixed(1)} ${(cy - pr - 2).toFixed(1)} ${(pr * 2 + 4).toFixed(1)} ${(pr * 2 + 4).toFixed(1)}"><circle cx="${pcx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${pr.toFixed(1)}" fill="${wellFill}"/></g>
         <g data-part="icon" data-icon="portrait" data-icon-well="${pcx.toFixed(1)} ${cy.toFixed(1)} ${pr.toFixed(1)}" clip-path="url(#${gidP9})" opacity="${state === "disabled" ? 0.4 : 1}">
           <circle cx="${pcx.toFixed(1)}" cy="${(cy - pr * 0.28).toFixed(1)}" r="${(pr * 0.34).toFixed(1)}" fill="rgba(255,255,255,0.4)"/>
           <ellipse cx="${pcx.toFixed(1)}" cy="${(cy + pr * 0.75).toFixed(1)}" rx="${(pr * 0.62).toFixed(1)}" ry="${(pr * 0.5).toFixed(1)}" fill="rgba(255,255,255,0.4)"/>
