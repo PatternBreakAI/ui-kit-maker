@@ -255,3 +255,30 @@ Two importer rules ride along. A rider word the kit seeds on a kept prefab is le
 - Fire button after Regenerate Example Prefabs: the sword on the dome's center, and it still rides the dome on press.
 - Coin: the 4 clears the → 8 row.
 - A rider word you deleted on any kept prefab (a booster count, a badge count): still gone after the import.
+
+---
+
+# 10/2, the third zip: seven more prefabs
+
+Hey Jimi. Chevon's third zip had fourteen screenshots; eight of them are pieces the two batches above already fixed (his project was an older export), and these seven are new. Same drop, same rules.
+
+## What changed
+
+- Stepper: the dark container well and the eight sockets are live children (**Well**, **Cell 1** to **Cell 8**) under the Lit strip, which now ships plate-less (cells only) and lights whole cells over them. The Minus and Plus buttons are unchanged.
+- Segment meter: **Well** and **Cell 1** to **Cell 5** under its Lit strip, same road.
+- Inventory grid: the twelve dark cell wells are **Well 1** to **Well 12**, under the icons and the count chips; the selection ring stays live as before.
+- Tech card: the golden outline is a **Highlight ring** child over the plate (a white cut tinted through its Image color; the disc was already a child). The app's breathing pulse on it stays app-only.
+- Party frame: **HP well** and **MP well** under the two rails.
+- Weapon wheel: the soft halo around the rim is a **Rim glow** child (tintable); the rim stroke itself stays in the base, which is what the sprite crops to.
+- Reward tray: **Slot 1 well** to **Slot 4 well** under the reward glyphs, and the **Claim plate** is its own child with its word live on it.
+
+Two importer notes. A very old project whose stepper or segment meter still gets the arrival-era Lit graft now seeds its wells in that same pass (before this round the graft skipped the seed, and the next import would have read the wells as your deletion). And the app's "use Icons > Nudge" tip no longer fires on a piece that only carries wells.
+
+## What to hammer on
+
+- Stepper and segment meter: move Cell 3, drag the rig's value; the Lit strip lights whole cells and the moved cell shows its own gap. Click Minus / Plus on the stepper.
+- Inventory grid: delete Well 10, 11 and 12; the empty slots vanish and the filled ones keep their icons and chips.
+- Tech card: retint the Highlight ring; delete it; the card is clean underneath.
+- Party frame: move the HP well; the HP rail still fills where the well was (the rail is its own child).
+- Weapon wheel in Play: click a chamber; the cylinder spins and the Rim glow stays put. Delete the Rim glow: the wheel keeps its rim.
+- Reward tray: retype CLAIM on the Claim plate; move the plate and the word follows.
