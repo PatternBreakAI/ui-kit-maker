@@ -1915,7 +1915,8 @@ button.kp-fact { cursor: pointer; }
 .bd-snap { white-space: nowrap; }
 .bd-title h2 { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -.01em; color: var(--ink); }
 .bd-title span { font-size: 12px; color: var(--ink2); }
-.bd-aspect { margin-left: auto; display: inline-flex; border: 1px solid var(--line2); border-radius: 999px; overflow: hidden; }
+.bd-aspect { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; padding-left: 12px; border: 1px solid var(--line2); border-radius: 999px; overflow: hidden; color: var(--ink2); }
+.bd-aspect select { border: 0; background: none; font: inherit; font-size: 12px; font-weight: 700; color: var(--ink); padding: 8px 10px 8px 0; cursor: pointer; max-width: 320px; }
 .bd-aspect button { display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; padding: 8px 15px; font: inherit; font-size: 12px; font-weight: 700; color: var(--ink2); cursor: pointer; }
 .bd-aspect button.on { background: var(--soft); color: var(--ink); }
 .bd-snap { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; color: var(--ink); }
@@ -2647,6 +2648,7 @@ video.bd-bgprev { margin-top: 10px; aspect-ratio: 16 / 9; height: auto; border-r
   width: 32%; height: 3.4%; border-radius: 999px; background: rgba(8, 12, 22, .5);
   border: 1px solid rgba(159, 226, 255, .3);
 }
+.bd-safe__notch--side { top: 50%; left: 1.2%; transform: translateY(-50%); width: 3.4%; height: 32%; }
 .bd-safe__homebar {
   position: absolute; bottom: 1.1%; left: 50%; transform: translateX(-50%);
   width: 36%; height: .6%; min-height: 3px; border-radius: 999px; background: rgba(231, 236, 245, .45);

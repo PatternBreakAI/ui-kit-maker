@@ -8,6 +8,7 @@
    a visual catalog only, produced after the atomics. */
 import type { GenConfig, IconDef, KitComponentId, KitDesign, Shape } from "./model";
 import type { BoardDef, LibItem, PicSeatFx } from "./store";
+import { stageDims } from "./stages";
 import { stampFilter, stampFilterPad, boardBgFilter, drawBoardNoise, drawBoardOverlays, stampSvg, warpStampRaster, kitShadowFilter, kitShadowPad, suppressCastShadow, findAsset } from "./store";
 /* bigGlyphById names the excluded piece in the export-skip warn — the
    PAINTED glyph drop never ships in the Unity download (round 44). The
@@ -1154,7 +1155,6 @@ export async function collectExportBoards(st: {
      first, then the signed-in account's cloud copy — so a scene built on
      another machine still ships its backdrop */
   const { resolveBgAsset } = await import("./assets");
-  const STAGE_DIMS: Record<"169" | "mobile", [number, number]> = { "169": [1920, 1080], mobile: [390, 844] };
   const out: ExportBoardData[] = [];
   const seen = new Set<string>();
   /* ── THE ART DRAWER'S TWO HALVES ─────────────────────────────────────
@@ -1210,7 +1210,7 @@ export async function collectExportBoards(st: {
     }
     const items = bd.items.filter((b) => b.kitId || b.stamp || b.libId || b.logo);
     if (!items.length) continue;
-    const [W, H] = STAGE_DIMS[bd.aspect];
+    const [W, H] = stageDims(bd.aspect);
     let slug = bd.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "board";
     while (seen.has(slug)) slug += "2";
     seen.add(slug);
