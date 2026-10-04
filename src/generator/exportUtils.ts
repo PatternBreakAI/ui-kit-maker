@@ -70,7 +70,7 @@ export function probeSfntWeight(bytes: Uint8Array): { variable: boolean; weight:
    ship as data. The export still probes the bytes it receives — a stale
    entry falls through to the live roads instead of shipping a lie. */
 export const GSTATIC_ORIGIN = "https://fonts.gstatic.com/";
-/* BAKED-FONT-STATICS-BEGIN (generated 2026-09-18 by scripts/bake-font-statics.mjs — do not hand-edit) */
+/* BAKED-FONT-STATICS-BEGIN (generated 2026-10-04 by scripts/bake-font-statics.mjs — do not hand-edit) */
 export const FONT_STATIC_TTF: Record<string, Record<number, string>> = {
  "Inter": {
   100: "s/inter/v20/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuLyeMZg.ttf",
@@ -154,6 +154,16 @@ export const FONT_STATIC_TTF: Record<string, Record<number, string>> = {
   700: "s/crimsonpro/v28/q5uUsoa5M_tv7IihmnkabC5XiXCAlXGks1WZKWp8OA.ttf",
   800: "s/crimsonpro/v28/q5uUsoa5M_tv7IihmnkabC5XiXCAlXGks1WZTmp8OA.ttf",
   900: "s/crimsonpro/v28/q5uUsoa5M_tv7IihmnkabC5XiXCAlXGks1WZZ2p8OA.ttf"
+ },
+ "Literata": {
+  200: "s/literata/v40/or3PQ6P12-iJxAIgLa78DkrbXsDgk0oVDaDPYLanFLHpPf2TbJG_F_Y.ttf",
+  300: "s/literata/v40/or3PQ6P12-iJxAIgLa78DkrbXsDgk0oVDaDPYLanFLHpPf2TbE-_F_Y.ttf",
+  400: "s/literata/v40/or3PQ6P12-iJxAIgLa78DkrbXsDgk0oVDaDPYLanFLHpPf2TbBG_F_Y.ttf",
+  500: "s/literata/v40/or3PQ6P12-iJxAIgLa78DkrbXsDgk0oVDaDPYLanFLHpPf2TbCO_F_Y.ttf",
+  600: "s/literata/v40/or3PQ6P12-iJxAIgLa78DkrbXsDgk0oVDaDPYLanFLHpPf2TbM-4F_Y.ttf",
+  700: "s/literata/v40/or3PQ6P12-iJxAIgLa78DkrbXsDgk0oVDaDPYLanFLHpPf2TbPa4F_Y.ttf",
+  800: "s/literata/v40/or3PQ6P12-iJxAIgLa78DkrbXsDgk0oVDaDPYLanFLHpPf2TbJG4F_Y.ttf",
+  900: "s/literata/v40/or3PQ6P12-iJxAIgLa78DkrbXsDgk0oVDaDPYLanFLHpPf2TbLi4F_Y.ttf"
  },
  "Creepster": {
   400: "s/creepster/v13/AlZy_zVUqJz4yMrniH4hdQ.ttf"
@@ -293,12 +303,12 @@ export const FONT_STATIC_TTF: Record<string, Record<number, string>> = {
   400: "s/liujianmaocao/v24/845DNN84HJrccNonurqXILGpvCOofeo.ttf"
  },
  "Noto Sans SC": {
-  400: "s/notosanssc/v40/k3kCo84MPvpLmixcA63oeAL7Iqp5IZJF9bmaG9_FnYw.ttf",
-  500: "s/notosanssc/v40/k3kCo84MPvpLmixcA63oeAL7Iqp5IZJF9bmaG-3FnYw.ttf",
-  600: "s/notosanssc/v40/k3kCo84MPvpLmixcA63oeAL7Iqp5IZJF9bmaGwHCnYw.ttf",
-  700: "s/notosanssc/v40/k3kCo84MPvpLmixcA63oeAL7Iqp5IZJF9bmaGzjCnYw.ttf",
-  800: "s/notosanssc/v40/k3kCo84MPvpLmixcA63oeAL7Iqp5IZJF9bmaG1_CnYw.ttf",
-  900: "s/notosanssc/v40/k3kCo84MPvpLmixcA63oeAL7Iqp5IZJF9bmaG3bCnYw.ttf"
+  400: "s/notosanssc/v41/k3kCo84MPvpLmixcA63oeAL7Iqp5IZJF9bmaG9_FnYw.ttf",
+  500: "s/notosanssc/v41/k3kCo84MPvpLmixcA63oeAL7Iqp5IZJF9bmaG-3FnYw.ttf",
+  600: "s/notosanssc/v41/k3kCo84MPvpLmixcA63oeAL7Iqp5IZJF9bmaGwHCnYw.ttf",
+  700: "s/notosanssc/v41/k3kCo84MPvpLmixcA63oeAL7Iqp5IZJF9bmaGzjCnYw.ttf",
+  800: "s/notosanssc/v41/k3kCo84MPvpLmixcA63oeAL7Iqp5IZJF9bmaG1_CnYw.ttf",
+  900: "s/notosanssc/v41/k3kCo84MPvpLmixcA63oeAL7Iqp5IZJF9bmaG3bCnYw.ttf"
  }
 };
 /* BAKED-FONT-STATICS-END */

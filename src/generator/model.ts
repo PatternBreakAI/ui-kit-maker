@@ -598,6 +598,13 @@ export const GAME_FONTS: { name: string; css: string | null; factor: number; cap
      the chrome's body copy sits with them). SIL OFL, variable 200..900
      with true italics. */
   { name: "Crimson Pro", css: "Crimson+Pro:ital,wght@0,200..900;1,200..900", factor: 0.47, caps: { wght: [200, 900, 400], italic: true } },
+  /* the game's display face (Stand on Business, phone round 2: card names
+     in Literata Bold, the big calls in ExtraBold, Crimson Pro still the
+     reading voice). SIL OFL, variable 200..900 with true italics and an
+     optical-size axis; the stylesheet asks for the full opsz range so the
+     browser picks the cut for the size on screen, the export's static
+     table carries the 12pt cuts. */
+  { name: "Literata", css: "Literata:ital,opsz,wght@0,7..72,200..900;1,7..72,200..900", factor: 0.52, caps: { wght: [200, 900, 400], italic: true } },
   { name: "Creepster", css: "Creepster", factor: 0.48, caps: { weights: [400] } },
   { name: "Titan One", css: "Titan+One", factor: 0.6, caps: { weights: [400] } },
   { name: "Lilita One", css: "Lilita+One", factor: 0.55, caps: { weights: [400] } },
