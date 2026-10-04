@@ -4114,7 +4114,30 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       let gross = 0;
       for (let i9 = 1; i9 < sm.length; i9++) gross += Math.abs(sm[i9] - sm[i9 - 1]);
       const monotone = gross > 0.01 ? Math.abs(sm[sm.length - 1] - sm[0]) / gross : 1;
-      const mode: "tiled" | "sliced" = monotone >= 0.5 ? "sliced" : "tiled";
+      /* ── 10/1, the owner's "still cappin" (a fresh Brightside project:
+         the ProgressBar's mercury restarted its ramp near the value line,
+         a pale block with a hard edge that read as the old cap): a SHALLOW
+         ramp fails the net-over-gross test. Brightside's progress fill
+         climbs 15 luminance over 1113 columns, 0.013 per column, so the
+         raster's own dithering (±0.5 per column) is most of the gross
+         travel and the ratio read 0.30, "tiled", while Hot Rod's 68-point
+         ramps read 0.98. Tiling a ramp is exactly the seam the owner saw.
+         The second judge reads the TREND instead of the wiggle: a heavy
+         smooth (a tenth of the center) and the trend's end-to-end travel
+         against the raw range. A ramp's trend crosses most of the range
+         (Brightside 0.88, Hot Rod 0.90); a repeating pattern's trend is
+         flat (xpbar and loadbar 0.00 on both kits, residual 70+ off the
+         trend). Measured on every shipped fill of both kits: the only
+         verdicts that change are the shallow ramps, to sliced. */
+      const winT = Math.max(5, Math.floor(prof.length / 10));
+      const trend = prof.map((_, i9) => {
+        const a9 = Math.max(0, i9 - winT), b9 = Math.min(prof.length, i9 + winT);
+        let s8 = 0;
+        for (let k9 = a9; k9 < b9; k9++) s8 += prof[k9];
+        return s8 / (b9 - a9);
+      });
+      const trendRatio = Math.abs(trend[trend.length - 1] - trend[0]) / (mx - mn);
+      const mode: "tiled" | "sliced" = monotone >= 0.5 || trendRatio >= 0.5 ? "sliced" : "tiled";
       return { nineSlice: { left, right, top, bottom }, mode };
     } catch { return null; }
   };
@@ -21631,23 +21654,48 @@ namespace PatternBreak {
       var row = RowOfSprite(m, sp);
       return row != null && row.barMode != null;
     }
+    /* the CENTER MODE follows the manifest (10/1, the owner's "still
+       cappin"): a kept rig already on the width road keeps the mode it
+       was armed with, and this export's measurement may have changed it
+       (the shallow-ramp verdicts moved from tiled to sliced). Ours-only
+       on the same gate: our rig, our bordered sprite, a row naming a
+       mode that differs from the armed one. */
+    static bool WidthRoadRetune(KitBarFill kb, string root, PBManifest m) {
+      if (kb == null || kb.barMode == 0 || kb.stretchRun || kb.fill == null || kb.fill.sprite == null) return false;
+      var sp = kb.fill.sprite;
+      if (!OurKitSprite(sp, root) || sp.border.x + sp.border.z <= 1f) return false;
+      var row = RowOfSprite(m, sp);
+      if (row == null || row.barMode == null) return false;
+      int want = row.barMode == "tiled" ? 2 : 1;
+      return kb.barMode != want;
+    }
     static int ConvergeBarsOntoWidthRoad(string root, PBManifest m) {
       var pdirWR = root + "/Prefabs";
       if (m == null || m.assets == null || !AssetDatabase.IsValidFolder(pdirWR)) return 0;
-      int converged = 0;
+      int converged = 0, retuned = 0;
       var namesWR = new List<string>();
+      var namesRT = new List<string>();
       foreach (var guidWR in AssetDatabase.FindAssets("t:Prefab", new string[] { pdirWR })) {
         var pathWR = AssetDatabase.GUIDToAssetPath(guidWR);
         var assetWR = AssetDatabase.LoadAssetAtPath<GameObject>(pathWR);
         if (assetWR == null || PrefabUtility.GetPrefabAssetType(assetWR) == PrefabAssetType.Variant) continue;
-        bool wantWR = false;
-        foreach (var kbWR in assetWR.GetComponentsInChildren<KitBarFill>(true))
-          if (WidthRoadDue(kbWR, root, m)) { wantWR = true; break; }
-        if (!wantWR) continue;
+        bool wantWR = false, wantRT = false;
+        foreach (var kbWR in assetWR.GetComponentsInChildren<KitBarFill>(true)) {
+          if (WidthRoadDue(kbWR, root, m)) wantWR = true;
+          else if (WidthRoadRetune(kbWR, root, m)) wantRT = true;
+        }
+        if (!wantWR && !wantRT) continue;
         var contentsWR = PrefabUtility.LoadPrefabContents(pathWR);
         try {
-          int armedWR = 0;
+          int armedWR = 0, tunedWR = 0;
           foreach (var kbWR in contentsWR.GetComponentsInChildren<KitBarFill>(true)) {
+            if (WidthRoadRetune(kbWR, root, m)) {
+              var rowRT = RowOfSprite(m, kbWR.fill.sprite);
+              kbWR.barMode = rowRT.barMode == "tiled" ? 2 : 1;
+              kbWR.SetValue(kbWR.value >= 0f ? kbWR.value : 1f);
+              tunedWR++;
+              continue;
+            }
             if (!WidthRoadDue(kbWR, root, m)) continue;
             var rowWR = RowOfSprite(m, kbWR.fill.sprite);
             /* the dev's staged value survives: the rig's own field when it
@@ -21699,12 +21747,16 @@ namespace PatternBreak {
             kbWR.SetValue(vWR);
             armedWR++;
           }
-          if (armedWR > 0) { PrefabUtility.SaveAsPrefabAsset(contentsWR, pathWR); converged += armedWR; namesWR.Add(Path.GetFileNameWithoutExtension(pathWR)); }
+          if (armedWR > 0 || tunedWR > 0) PrefabUtility.SaveAsPrefabAsset(contentsWR, pathWR);
+          if (armedWR > 0) { converged += armedWR; namesWR.Add(Path.GetFileNameWithoutExtension(pathWR)); }
+          if (tunedWR > 0) { retuned += tunedWR; namesRT.Add(Path.GetFileNameWithoutExtension(pathWR)); }
         } finally { PrefabUtility.UnloadPrefabContents(contentsWR); }
       }
       if (converged > 0)
         Debug.Log("UI Kit Maker: moved " + converged + " kept bar fill(s) onto the width road (" + string.Join(", ", namesWR.ToArray()) + ") — the mercury is the bordered stadium sprite now, its own 9-slice caps round the ends and the rig drives the rect's width, so the old parked cap bead and its flat cut are gone. Placed copies (the Playground included) picked it up. Keep driving Value on KitBarFill, or SetValue; a raw fillAmount write still adopts.");
-      return converged;
+      if (retuned > 0)
+        Debug.Log("UI Kit Maker: retuned the mercury's center mode on " + retuned + " kept bar fill(s) (" + string.Join(", ", namesRT.ToArray()) + ") to this export's measurement — a ramped fill stretches its center (sliced) instead of repeating it, so the ramp never restarts near the value line. Placed copies picked it up.");
+      return converged + retuned;
     }
     static void HealBarClipRelics(string root) {
       var matBC = AssetDatabase.LoadAssetAtPath<Material>(root + "/fonts/Bar Clip.mat");

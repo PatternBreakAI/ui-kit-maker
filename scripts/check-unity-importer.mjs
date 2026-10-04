@@ -3446,7 +3446,27 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
     errors.push("a converged kept Slider must drop fillRect and drive the rig through the listener — the round-58 one-writer rule (9/30)");
   if (!/moved " \+ converged \+ " kept bar fill\(s\) onto the width road/.test(cs))
     errors.push("the width-road convergence must say what it moved (9/30)");
+  /* 10/1, the owner's "still cappin": a kept rig already on the width road
+     follows the manifest's CURRENT center mode (the shallow-ramp verdicts
+     moved from tiled to sliced), ours-only, with its own receipt */
+  if (!/static bool WidthRoadRetune\(KitBarFill kb, string root, PBManifest m\) \{/.test(cs)
+      || !/if \(kb == null \|\| kb\.barMode == 0 \|\| kb\.stretchRun \|\| kb\.fill == null \|\| kb\.fill\.sprite == null\) return false;/.test(cs)
+      || !/retuned the mercury's center mode on " \+ retuned \+ " kept bar fill\(s\)/.test(cs))
+    errors.push("a kept width-road rig must retune its center mode to the manifest's current measurement, ours-only, with a receipt (10/1)");
 }
+
+/* ── 10/1 · the RAMP JUDGE reads the trend (the owner's "still cappin": a
+   fresh Brightside project's ProgressBar restarted its ramp near the value
+   line, the tile seam that reads as a cap). A shallow ramp's dithering
+   dominates the round-72b net-over-gross ratio (Brightside's progress fill:
+   0.30, "tiled"), so a second judge smooths a tenth of the center and
+   measures the trend's travel against the raw range; either judge saying
+   ramp means sliced. Patterns (xpbar, loadbar) keep tiled: their trend is
+   flat. ── */
+if (!/const winT = Math\.max\(5, Math\.floor\(prof\.length \/ 10\)\);/.test(src)
+    || !/const trendRatio = Math\.abs\(trend\[trend\.length - 1\] - trend\[0\]\) \/ \(mx - mn\);/.test(src)
+    || !/const mode: "tiled" \| "sliced" = monotone >= 0\.5 \|\| trendRatio >= 0\.5 \? "sliced" : "tiled";/.test(src))
+  errors.push("analyzeBarCenter must judge a ramp by its TREND as well as net-over-gross (10/1, the shallow-ramp tile seam)");
 
 /* ── 9/30 · the ASSET STORE BUILD (the owner, on Jimi's "someone else's
    game" point): a second, admin-only Unity download that is the full kit
