@@ -12,4 +12,4 @@ first written, kept so the home board can be re-flowed by numbers instead of by 
   sizes (no word under 11 pt at 874 pt across, taps 34 pt and up) and writes the board into the document.
 - `shot-board.mjs` loads the document into the running app the way a shipped kit loads and screenshots the board.
 
-`KIT_SCRATCH` holds `fonts/` (Cinzel-Bold.ttf, CrimsonPro-SemiBold.ttf, used only to measure stamps for centring).
+`KIT_SCRATCH` holds `fonts/` (Literata_12pt-Bold.ttf, CrimsonPro-SemiBold.ttf, used only to measure stamps for centring).

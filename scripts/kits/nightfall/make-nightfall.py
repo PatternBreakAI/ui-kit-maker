@@ -33,7 +33,7 @@ c["shadow"] = {"distance": 12, "blur": 18, "opacity": 50}
 c["transparency"] = {"frame": 100, "interior": 100, "content": 100}
 c["content"] = {"label": "Play"}
 t = c["type"]
-t.update({"font": "Cinzel", "size": 60, "weight": 700, "spacing": 6, "case": "upper", "fillMode": "solid", "fill": CREAM, "fill2": INK_GOLD, "fillOpacity": 100,
+t.update({"font": "Literata", "size": 60, "weight": 700, "spacing": 6, "case": "upper", "fillMode": "solid", "fill": CREAM, "fill2": INK_GOLD, "fillOpacity": 100,
           "shadow": {"on": True, "color": SHADOW, "x": 0, "y": 2, "blur": 2, "opacity": 70},
           "emboss": {"on": True, "strength": -14, "softness": 30, "hiOpacity": 20, "distance": 1, "shOpacity": 35, "hiColor": "#FFF6E0", "shColor": "#05091A"},
           "glow": {"on": False, "color": GOLD, "size": 6, "opacity": 40}, "listFont": "Crimson Pro", "listInk": CREAM, "infoInk": INK_GOLD})

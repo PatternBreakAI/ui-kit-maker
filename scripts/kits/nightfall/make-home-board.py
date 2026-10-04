@@ -11,7 +11,7 @@ KIT = os.path.join(os.environ.get("MAKER_ROOT", os.path.abspath(os.path.join(os.
 k = json.load(open(KIT))
 geom = json.load(open(f"{S}/kit/probe/geom-l.json"))
 TYPE_SIZE = k["cfg"]["type"]["size"]
-CIN = f"{S}/fonts/Cinzel-Bold.ttf"; CRI = f"{S}/fonts/CrimsonPro-SemiBold.ttf"
+CIN = f"{S}/fonts/Literata_12pt-Bold.ttf"; CRI = f"{S}/fonts/CrimsonPro-SemiBold.ttf"  # the display face is Literata now; the name CIN stays for the measuring helper
 GOLD, DIM_GOLD, CREAM, PALE, INK = "#E6C15A", "#C9A24A", "#F3E6C8", "#D8C8A0", "#2A1E05"
 # unstretched bases at size l (k = 1.22): the blank panel, the panel strip, the placeholder window, the progress bar
 K = 1.22
@@ -69,7 +69,7 @@ def window(X, Y, W, H, label):
 
 # ── top bar ───────────────────────────────────────────────────────────────────────────────────────────
 piece("avatarframe", 62, 40, 0.65, tag="portrait")
-stamp("Silverlake Slayer", 230, 48, 52, "#F0D890")
+stamp("Silverlake Slayer", 230, 50, 46, "#F0D890")
 stamp("Collection level 47", 230, 90, 40, DIM_GOLD)
 piece("progress", 230, 122, 0.31, stretch=240 / (BASE["progress"][0] * 0.31), v=0.78, tag="xp")
 stamp("2,340 / 3,000", 486, 124, 40, PALE)

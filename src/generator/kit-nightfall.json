@@ -110,7 +110,7 @@
 "label": "Play"
 },
 "type": {
-"font": "Cinzel",
+"font": "Literata",
 "customFonts": [],
 "size": 60,
 "weight": 700,
@@ -1262,7 +1262,7 @@
 }
 },
 "type": {
-"font": "Cinzel",
+"font": "Literata",
 "customFonts": [],
 "size": 60,
 "weight": 700,
@@ -1323,7 +1323,7 @@
 "midpoint": 50
 },
 "type": {
-"font": "Cinzel",
+"font": "Literata",
 "customFonts": [],
 "size": 60,
 "weight": 700,
@@ -1491,7 +1491,7 @@
 },
 "currency": {
 "type": {
-"font": "Cinzel",
+"font": "Literata",
 "customFonts": [],
 "size": 60,
 "weight": 700,
@@ -1547,7 +1547,7 @@
 "Inner Fill": "#0C1220"
 },
 "type": {
-"font": "Cinzel",
+"font": "Literata",
 "customFonts": [],
 "size": 48,
 "weight": 700,
@@ -1646,7 +1646,7 @@
 }
 },
 "type": {
-"font": "Cinzel",
+"font": "Literata",
 "customFonts": [],
 "size": 60,
 "weight": 600,
@@ -1714,7 +1714,7 @@
 }
 },
 "type": {
-"font": "Cinzel",
+"font": "Literata",
 "customFonts": [],
 "size": 60,
 "weight": 600,
@@ -1782,7 +1782,7 @@
 }
 },
 "type": {
-"font": "Cinzel",
+"font": "Literata",
 "customFonts": [],
 "size": 60,
 "weight": 600,
@@ -1831,7 +1831,7 @@
 },
 "tab": {
 "type": {
-"font": "Cinzel",
+"font": "Literata",
 "customFonts": [],
 "size": 44,
 "weight": 700,
@@ -1880,7 +1880,7 @@
 },
 "tabback": {
 "type": {
-"font": "Cinzel",
+"font": "Literata",
 "customFonts": [],
 "size": 44,
 "weight": 700,
@@ -1929,7 +1929,7 @@
 },
 "chip": {
 "type": {
-"font": "Cinzel",
+"font": "Literata",
 "customFonts": [],
 "size": 44,
 "weight": 700,
@@ -2149,7 +2149,7 @@
 },
 "nameplate": {
 "type": {
-"font": "Cinzel",
+"font": "Literata",
 "customFonts": [],
 "size": 50,
 "weight": 700,
@@ -2205,7 +2205,7 @@
 "Inner Fill": "#0F2419"
 },
 "type": {
-"font": "Cinzel",
+"font": "Literata",
 "customFonts": [],
 "size": 44,
 "weight": 700,
@@ -2554,12 +2554,12 @@
 {
 "id": "nf-home-t-2",
 "libId": "",
-"x": 144.9,
-"y": -65.3,
+"x": 145.6,
+"y": -64.4,
 "scale": 1,
 "stamp": {
 "text": "Silverlake Slayer",
-"size": 52,
+"size": 46,
 "plain": {
 "color": "#F0D890"
 }
@@ -2606,7 +2606,7 @@
 {
 "id": "nf-home-wordmark-6",
 "libId": "",
-"x": 513.8,
+"x": 514.3,
 "y": -54.4,
 "scale": 1,
 "stamp": {
@@ -2622,7 +2622,7 @@
 {
 "id": "nf-home-t-7",
 "libId": "",
-"x": 687.6,
+"x": 684.2,
 "y": 34.4,
 "scale": 1,
 "stamp": {
@@ -2711,7 +2711,7 @@
 {
 "id": "nf-home-t-15",
 "libId": "",
-"x": 307.6,
+"x": 307.2,
 "y": 224.4,
 "scale": 1,
 "stamp": {
@@ -2749,7 +2749,7 @@
 {
 "id": "nf-home-t-18",
 "libId": "",
-"x": 282.2,
+"x": 278.7,
 "y": 326.4,
 "scale": 1,
 "stamp": {
@@ -2798,7 +2798,7 @@
 {
 "id": "nf-home-t-22",
 "libId": "",
-"x": 356.2,
+"x": 355.7,
 "y": 392.4,
 "scale": 1,
 "stamp": {
@@ -2847,7 +2847,7 @@
 {
 "id": "nf-home-t-26",
 "libId": "",
-"x": 355.1,
+"x": 354.5,
 "y": 463.4,
 "scale": 1,
 "stamp": {
@@ -2896,7 +2896,7 @@
 {
 "id": "nf-home-t-30",
 "libId": "",
-"x": 352.8,
+"x": 354.3,
 "y": 534.4,
 "scale": 1,
 "stamp": {
@@ -2945,7 +2945,7 @@
 {
 "id": "nf-home-t-34",
 "libId": "",
-"x": 355.1,
+"x": 354.5,
 "y": 605.4,
 "scale": 1,
 "stamp": {
@@ -2959,7 +2959,7 @@
 {
 "id": "nf-home-t-35",
 "libId": "",
-"x": 790.2,
+"x": 792.3,
 "y": 114.8,
 "scale": 1,
 "stamp": {
@@ -3024,7 +3024,7 @@
 {
 "id": "nf-home-t-41",
 "libId": "",
-"x": 720.4,
+"x": 720.2,
 "y": 496.1,
 "scale": 1,
 "stamp": {
@@ -3038,7 +3038,7 @@
 {
 "id": "nf-home-t-42",
 "libId": "",
-"x": 922.6,
+"x": 923.6,
 "y": 496.1,
 "scale": 1,
 "stamp": {
@@ -3090,7 +3090,7 @@
 {
 "id": "nf-home-t-46",
 "libId": "",
-"x": 775.4,
+"x": 775.1,
 "y": 615.7,
 "scale": 1,
 "stamp": {
@@ -3140,7 +3140,7 @@
 {
 "id": "nf-home-playword-51",
 "libId": "",
-"x": 799.9,
+"x": 797.3,
 "y": 744.8,
 "scale": 1,
 "stamp": {
@@ -3187,7 +3187,7 @@
 {
 "id": "nf-home-t-55",
 "libId": "",
-"x": 1648.2,
+"x": 1644.7,
 "y": 128.4,
 "scale": 1,
 "stamp": {
@@ -3279,7 +3279,7 @@
 {
 "id": "nf-home-t-62",
 "libId": "",
-"x": 1549.4,
+"x": 1548.8,
 "y": 499.7,
 "scale": 1,
 "stamp": {
@@ -3362,7 +3362,7 @@
 {
 "id": "nf-home-t-69",
 "libId": "",
-"x": 308.9,
+"x": 309.4,
 "y": 930.4,
 "scale": 1,
 "stamp": {
@@ -3385,7 +3385,7 @@
 {
 "id": "nf-home-t-71",
 "libId": "",
-"x": 499.9,
+"x": 501.3,
 "y": 930.4,
 "scale": 1,
 "stamp": {
@@ -3408,7 +3408,7 @@
 {
 "id": "nf-home-t-73",
 "libId": "",
-"x": 1112.7,
+"x": 1111.6,
 "y": 930.4,
 "scale": 1,
 "stamp": {
@@ -3431,7 +3431,7 @@
 {
 "id": "nf-home-t-75",
 "libId": "",
-"x": 1359.7,
+"x": 1358.5,
 "y": 930.4,
 "scale": 1,
 "stamp": {
@@ -3445,7 +3445,7 @@
 {
 "id": "nf-home-t-76",
 "libId": "",
-"x": 703.8,
+"x": 699.3,
 "y": 930.4,
 "scale": 1,
 "stamp": {
