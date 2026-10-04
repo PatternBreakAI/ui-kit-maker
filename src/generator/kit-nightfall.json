@@ -265,6 +265,24 @@
 "name": "nav-bar",
 "kind": "Other",
 "createdAt": "2026-10-04T00:00:00.000Z"
+},
+"copy-card-panel": {
+"base": "panel",
+"name": "card-frame",
+"kind": "Other",
+"createdAt": "2026-10-04T00:00:00.000Z"
+},
+"copy-avyu-avatarframe": {
+"base": "avatarframe",
+"name": "portrait-you",
+"kind": "Other",
+"createdAt": "2026-10-04T00:00:00.000Z"
+},
+"copy-avop-avatarframe": {
+"base": "avatarframe",
+"name": "portrait-opp",
+"kind": "Other",
+"createdAt": "2026-10-04T00:00:00.000Z"
 }
 },
 "kitShapes": {
@@ -1601,6 +1619,46 @@
 "content": 100
 },
 "candy": {
+"gloss": {
+"on": true,
+"height": 34,
+"curve": 14,
+"opacity": 14,
+"softness": 92,
+"layer": "below",
+"fill": "highlight",
+"tint": "#FFFFFF",
+"tint2": "#FFFFFF"
+},
+"specular": {
+"on": true,
+"mode": "line",
+"size": 30,
+"stretch": 14,
+"intensity": 22,
+"softness": 70,
+"angle": -18,
+"gap": 300,
+"ox": 33,
+"oy": -30
+},
+"innerEdge": {
+"strength": 62,
+"width": 2
+},
+"innerGlow": {
+"opacity": 22,
+"size": 56,
+"color": "#F2C94C"
+},
+"rim": {
+"width": 2.5,
+"brightness": 100
+},
+"texture": {
+"amount": 10,
+"scale": 48
+},
 "pattern": {
 "type": "diamonds",
 "scale": 40,
@@ -2130,6 +2188,46 @@
 "content": 100
 },
 "candy": {
+"gloss": {
+"on": true,
+"height": 34,
+"curve": 14,
+"opacity": 14,
+"softness": 92,
+"layer": "below",
+"fill": "highlight",
+"tint": "#FFFFFF",
+"tint2": "#FFFFFF"
+},
+"specular": {
+"on": true,
+"mode": "line",
+"size": 30,
+"stretch": 14,
+"intensity": 22,
+"softness": 70,
+"angle": -18,
+"gap": 300,
+"ox": 33,
+"oy": -30
+},
+"innerEdge": {
+"strength": 62,
+"width": 2
+},
+"innerGlow": {
+"opacity": 22,
+"size": 56,
+"color": "#F2C94C"
+},
+"rim": {
+"width": 2.5,
+"brightness": 100
+},
+"texture": {
+"amount": 10,
+"scale": 48
+},
 "pattern": {
 "type": "diamonds",
 "scale": 40,
@@ -2324,11 +2422,11 @@
 },
 "states": {
 "default": {
-"brightness": 0,
-"glow": 0,
+"brightness": 2,
+"glow": 38,
 "lift": 0,
 "opacity": 100,
-"saturation": 0
+"saturation": 4
 },
 "hover": {
 "brightness": 6,
@@ -2351,6 +2449,102 @@
 "opacity": 65,
 "saturation": -60
 }
+}
+},
+"copy-card-panel": {
+"effects": {
+"Bevel": "#D4AF37",
+"Glow": "#F2C94C",
+"Highlight": "#FFF0B0",
+"Shadow": "#05080F",
+"Inner Fill": "#0F1626"
+},
+"bevel": {
+"width": 6,
+"softness": 30
+},
+"candy": {
+"gloss": {
+"on": true,
+"height": 34,
+"curve": 14,
+"opacity": 14,
+"softness": 92,
+"layer": "below",
+"fill": "highlight",
+"tint": "#FFFFFF",
+"tint2": "#FFFFFF"
+},
+"specular": {
+"on": true,
+"mode": "line",
+"size": 30,
+"stretch": 14,
+"intensity": 22,
+"softness": 70,
+"angle": -18,
+"gap": 300,
+"ox": 33,
+"oy": -30
+},
+"innerEdge": {
+"strength": 62,
+"width": 2
+},
+"innerGlow": {
+"opacity": 22,
+"size": 56,
+"color": "#F2C94C"
+},
+"rim": {
+"width": 2.5,
+"brightness": 100
+},
+"texture": {
+"amount": 10,
+"scale": 48
+},
+"pattern": {
+"type": "diamonds",
+"scale": 40,
+"angle": 0,
+"opacity": 4,
+"color": null,
+"zone": "face",
+"wall": {
+"type": "none",
+"scale": 9,
+"angle": 0,
+"opacity": 0,
+"color": null
+}
+}
+}
+},
+"copy-avyu-avatarframe": {
+"effects": {
+"Bevel": "#D4AF37",
+"Glow": "#F2C94C",
+"Highlight": "#F6DC8C",
+"Shadow": "#05080F",
+"Inner Fill": "#0F1626"
+},
+"bevel": {
+"width": 9,
+"softness": 30
+}
+},
+"copy-avop-avatarframe": {
+"effects": {
+"Bevel": "#D4AF37",
+"Glow": "#F2C94C",
+"Highlight": "#F6DC8C",
+"Shadow": "#05080F",
+"Inner Fill": "#0F1626"
+},
+"bevel": {
+"width": 9,
+"softness": 30
 }
 },
 "copy-navg-iconbtn": {
@@ -2473,7 +2667,10 @@
 "loottag": "Mansa Musa",
 "pricebtn": "400"
 },
-"kitNoText": {},
+"kitNoText": {
+"copy-avyu-avatarframe": true,
+"copy-avop-avatarframe": true
+},
 "kitSubs": {
 "datarow": "1/3"
 },
@@ -2535,24 +2732,128 @@
 "kitTextOy": {},
 "kitTextOx": {},
 "kitLocks": {},
-"userAssets": [],
+"userAssets": [
+{
+"id": "uanflogo",
+"name": "Stand on Business logo",
+"ref": "/kit-art/nightfall/sob-logo.webp",
+"w": 900,
+"h": 595
+},
+{
+"id": "uanfyou",
+"name": "Portrait, Harriet Tubman",
+"ref": "/kit-art/nightfall/you.webp",
+"w": 256,
+"h": 256
+},
+{
+"id": "uanfopp",
+"name": "Portrait, Frederick Douglass",
+"ref": "/kit-art/nightfall/opp.webp",
+"w": 256,
+"h": 256
+},
+{
+"id": "uanfoshun",
+"name": "Oshun",
+"ref": "/kit-art/nightfall/oshun.webp",
+"w": 512,
+"h": 370
+},
+{
+"id": "uanfshango",
+"name": "Shango",
+"ref": "/kit-art/nightfall/shango.webp",
+"w": 512,
+"h": 370
+},
+{
+"id": "uanfogun",
+"name": "Ogun",
+"ref": "/kit-art/nightfall/ogun.webp",
+"w": 512,
+"h": 370
+},
+{
+"id": "uanfmansa",
+"name": "Mansa Musa",
+"ref": "/kit-art/nightfall/mansa_musa.webp",
+"w": 512,
+"h": 512
+},
+{
+"id": "uanfevent",
+"name": "Juneteenth",
+"ref": "/kit-art/nightfall/event.webp",
+"w": 1024,
+"h": 776
+},
+{
+"id": "uanfseason",
+"name": "The Great Migration",
+"ref": "/kit-art/nightfall/season.webp",
+"w": 600,
+"h": 450
+},
+{
+"id": "uanfmissions",
+"name": "The Ancestors",
+"ref": "/kit-art/nightfall/missions.webp",
+"w": 1024,
+"h": 240
+},
+{
+"id": "uanfframegold",
+"name": "Card frame, gold",
+"ref": "/kit-art/nightfall/character-gold.webp",
+"w": 551,
+"h": 713
+},
+{
+"id": "uanfframeamethyst",
+"name": "Card frame, amethyst",
+"ref": "/kit-art/nightfall/character-amethyst.webp",
+"w": 551,
+"h": 713
+},
+{
+"id": "uanfframeemerald",
+"name": "Card frame, emerald",
+"ref": "/kit-art/nightfall/character-emerald.webp",
+"w": 551,
+"h": 713
+}
+],
 "boards": [
 {
 "id": "nf-home",
 "name": "home",
 "aspect": "169",
-"bgShow": false,
+"bgShow": true,
+"bgImage": "/kit-art/nightfall/bg.webp",
 "items": [
 {
 "id": "nf-home-portrait-1",
 "libId": "",
-"kitId": "avatarframe",
+"kitId": "copy-avyu-avatarframe",
 "x": 36.6,
-"y": -16.0,
-"scale": 0.65
+"y": -16.2,
+"scale": 0.6521,
+"label": ""
 },
 {
-"id": "nf-home-t-2",
+"id": "nf-home-face-2",
+"libId": "",
+"x": 71.1,
+"y": 49.1,
+"scale": 0.9508,
+"logo": {
+"aid": "uanfyou"
+}
+},
+{
+"id": "nf-home-t-3",
 "libId": "",
 "x": 145.6,
 "y": -64.4,
@@ -2566,7 +2867,7 @@
 }
 },
 {
-"id": "nf-home-t-3",
+"id": "nf-home-t-4",
 "libId": "",
 "x": 146.2,
 "y": -25.6,
@@ -2580,7 +2881,7 @@
 }
 },
 {
-"id": "nf-home-xp-4",
+"id": "nf-home-xp-5",
 "libId": "",
 "kitId": "progress",
 "x": 217.9,
@@ -2590,7 +2891,7 @@
 "v": 0.78
 },
 {
-"id": "nf-home-t-5",
+"id": "nf-home-t-6",
 "libId": "",
 "x": 402.2,
 "y": 8.4,
@@ -2604,26 +2905,22 @@
 }
 },
 {
-"id": "nf-home-wordmark-6",
+"id": "nf-home-logo-7",
 "libId": "",
-"x": 514.3,
-"y": -54.4,
-"scale": 1,
-"stamp": {
-"text": "Stand on Business",
-"size": 100,
-"plain": {
-"color": "#E6C15A"
-},
-"glow": 35,
-"shadow": 40
+"x": 789,
+"y": 6,
+"scale": 0.7556,
+"logo": {
+"aid": "uanflogo",
+"glow": 42,
+"glowInk": "#F2C94C"
 }
 },
 {
-"id": "nf-home-t-7",
+"id": "nf-home-t-8",
 "libId": "",
 "x": 684.2,
-"y": 34.4,
+"y": 121.2,
 "scale": 1,
 "stamp": {
 "text": "History plays different",
@@ -2634,7 +2931,7 @@
 }
 },
 {
-"id": "nf-home-coins-8",
+"id": "nf-home-coins-9",
 "libId": "",
 "kitId": "currency",
 "x": 1398.9,
@@ -2643,7 +2940,7 @@
 "label": "1,250"
 },
 {
-"id": "nf-home-gems-9",
+"id": "nf-home-gems-10",
 "libId": "",
 "kitId": "currency",
 "x": 1584.9,
@@ -2652,7 +2949,7 @@
 "label": "38"
 },
 {
-"id": "nf-home-settings-10",
+"id": "nf-home-settings-11",
 "libId": "",
 "kitId": "iconbtn",
 "x": 1774.5,
@@ -2660,7 +2957,7 @@
 "scale": 0.47
 },
 {
-"id": "nf-home-season-11",
+"id": "nf-home-season-12",
 "libId": "",
 "kitId": "panel",
 "x": 35.2,
@@ -2670,7 +2967,7 @@
 "stretchY": 0.9468
 },
 {
-"id": "nf-home-t-12",
+"id": "nf-home-t-13",
 "libId": "",
 "x": -4.0,
 "y": 124.8,
@@ -2684,14 +2981,14 @@
 }
 },
 {
-"id": "nf-home-t-13",
+"id": "nf-home-t-14",
 "libId": "",
-"x": -5.3,
-"y": 167.6,
+"x": -4.4,
+"y": 165.4,
 "scale": 1,
 "stamp": {
 "text": "The Great Migration",
-"size": 54,
+"size": 46,
 "plain": {
 "color": "#F3E6C8"
 },
@@ -2699,19 +2996,19 @@
 }
 },
 {
-"id": "nf-home-seasonbar-14",
+"id": "nf-home-seasonbar-15",
 "libId": "",
 "kitId": "progress",
 "x": 67.9,
 "y": 322.4,
 "scale": 0.31,
-"stretch": 1.5254,
+"stretch": 0.9153,
 "v": 0.62
 },
 {
-"id": "nf-home-t-15",
+"id": "nf-home-t-16",
 "libId": "",
-"x": 307.2,
+"x": 173.2,
 "y": 224.4,
 "scale": 1,
 "stamp": {
@@ -2723,7 +3020,27 @@
 }
 },
 {
-"id": "nf-home-missions-16",
+"id": "nf-home-seasonframe-17",
+"libId": "",
+"kitId": "copy-card-panel",
+"x": 365.7,
+"y": 225.2,
+"scale": 0.15,
+"stretch": 1.0256,
+"stretchY": 1.3617
+},
+{
+"id": "nf-home-seasonart-18",
+"libId": "",
+"x": 378,
+"y": 242,
+"scale": 0.36,
+"logo": {
+"aid": "uanfseason"
+}
+},
+{
+"id": "nf-home-missions-19",
 "libId": "",
 "kitId": "panel",
 "x": 35.2,
@@ -2733,7 +3050,17 @@
 "stretchY": 1.9468
 },
 {
-"id": "nf-home-t-17",
+"id": "nf-home-art-20",
+"libId": "",
+"x": 60,
+"y": 422,
+"scale": 0.8555,
+"logo": {
+"aid": "uanfmissions"
+}
+},
+{
+"id": "nf-home-t-21",
 "libId": "",
 "x": -4.0,
 "y": 322.8,
@@ -2743,11 +3070,12 @@
 "size": 42,
 "plain": {
 "color": "#E6C15A"
-}
+},
+"shadow": 50
 }
 },
 {
-"id": "nf-home-t-18",
+"id": "nf-home-t-22",
 "libId": "",
 "x": 278.7,
 "y": 326.4,
@@ -2757,38 +3085,39 @@
 "size": 40,
 "plain": {
 "color": "#D8C8A0"
-}
+},
+"shadow": 50
 }
 },
 {
-"id": "nf-home-row-19",
+"id": "nf-home-row-23",
 "libId": "",
 "kitId": "copy-rowp-panel",
-"x": 51.6,
-"y": 451.8,
-"scale": 0.462,
-"stretch": 1.3306,
+"x": 55.4,
+"y": 512.4,
+"scale": 0.3726,
+"stretch": 1.65,
 "stretchY": 1.0,
 "ov": "strip"
 },
 {
-"id": "nf-home-rowglyph-20",
+"id": "nf-home-rowglyph-24",
 "libId": "",
 "kitId": "copy-navg-iconbtn",
-"x": 77.7,
-"y": 488.1,
-"scale": 0.19,
+"x": 78.4,
+"y": 538.6,
+"scale": 0.17,
 "ov": "icon:zap"
 },
 {
-"id": "nf-home-t-21",
+"id": "nf-home-t-25",
 "libId": "",
-"x": 41.8,
-"y": 393.9,
+"x": 42.0,
+"y": 442.3,
 "scale": 1,
 "stamp": {
 "text": "Play 3 Events",
-"size": 44,
+"size": 42,
 "plain": {
 "color": "#F3E6C8"
 },
@@ -2796,10 +3125,10 @@
 }
 },
 {
-"id": "nf-home-t-22",
+"id": "nf-home-t-26",
 "libId": "",
 "x": 355.7,
-"y": 392.4,
+"y": 441.4,
 "scale": 1,
 "stamp": {
 "text": "1/3",
@@ -2810,34 +3139,34 @@
 }
 },
 {
-"id": "nf-home-row-23",
+"id": "nf-home-row-27",
 "libId": "",
 "kitId": "copy-rowp-panel",
-"x": 51.6,
-"y": 522.8,
-"scale": 0.462,
-"stretch": 1.3306,
+"x": 55.4,
+"y": 570.4,
+"scale": 0.3726,
+"stretch": 1.65,
 "stretchY": 1.0,
 "ov": "strip"
 },
 {
-"id": "nf-home-rowglyph-24",
+"id": "nf-home-rowglyph-28",
 "libId": "",
 "kitId": "copy-navg-iconbtn",
-"x": 77.7,
-"y": 559.1,
-"scale": 0.19,
+"x": 78.4,
+"y": 596.6,
+"scale": 0.17,
 "ov": "icon:zap"
 },
 {
-"id": "nf-home-t-25",
+"id": "nf-home-t-29",
 "libId": "",
-"x": 41.8,
-"y": 464.9,
+"x": 42.0,
+"y": 500.3,
 "scale": 1,
 "stamp": {
 "text": "Win at Harpers Ferry",
-"size": 44,
+"size": 42,
 "plain": {
 "color": "#F3E6C8"
 },
@@ -2845,10 +3174,10 @@
 }
 },
 {
-"id": "nf-home-t-26",
+"id": "nf-home-t-30",
 "libId": "",
 "x": 354.5,
-"y": 463.4,
+"y": 499.4,
 "scale": 1,
 "stamp": {
 "text": "0/1",
@@ -2859,34 +3188,34 @@
 }
 },
 {
-"id": "nf-home-row-27",
+"id": "nf-home-row-31",
 "libId": "",
 "kitId": "copy-done-panel",
-"x": 51.6,
-"y": 594.6,
-"scale": 0.462,
-"stretch": 1.3306,
+"x": 55.4,
+"y": 629.1,
+"scale": 0.3726,
+"stretch": 1.65,
 "stretchY": 1.0,
 "ov": "strip"
 },
 {
-"id": "nf-home-rowglyph-28",
+"id": "nf-home-rowglyph-32",
 "libId": "",
 "kitId": "copy-navg-iconbtn",
-"x": 77.7,
-"y": 630.1,
-"scale": 0.19,
+"x": 78.4,
+"y": 654.6,
+"scale": 0.17,
 "ov": "icon:check"
 },
 {
-"id": "nf-home-t-29",
+"id": "nf-home-t-33",
 "libId": "",
-"x": 41.8,
-"y": 535.9,
+"x": 42.0,
+"y": 558.3,
 "scale": 1,
 "stamp": {
 "text": "Break 2 Threats",
-"size": 44,
+"size": 42,
 "plain": {
 "color": "#7CF0A0"
 },
@@ -2894,10 +3223,10 @@
 }
 },
 {
-"id": "nf-home-t-30",
+"id": "nf-home-t-34",
 "libId": "",
 "x": 354.3,
-"y": 534.4,
+"y": 557.4,
 "scale": 1,
 "stamp": {
 "text": "2/2",
@@ -2908,34 +3237,34 @@
 }
 },
 {
-"id": "nf-home-row-31",
+"id": "nf-home-row-35",
 "libId": "",
 "kitId": "copy-rowp-panel",
-"x": 51.6,
-"y": 664.8,
-"scale": 0.462,
-"stretch": 1.3306,
+"x": 55.4,
+"y": 686.4,
+"scale": 0.3726,
+"stretch": 1.65,
 "stretchY": 1.0,
 "ov": "strip"
 },
 {
-"id": "nf-home-rowglyph-32",
+"id": "nf-home-rowglyph-36",
 "libId": "",
 "kitId": "copy-navg-iconbtn",
-"x": 77.7,
-"y": 701.1,
-"scale": 0.19,
+"x": 78.4,
+"y": 712.6,
+"scale": 0.17,
 "ov": "icon:zap"
 },
 {
-"id": "nf-home-t-33",
+"id": "nf-home-t-37",
 "libId": "",
-"x": 41.8,
-"y": 606.9,
+"x": 42.0,
+"y": 616.3,
 "scale": 1,
 "stamp": {
 "text": "Stand on Business once",
-"size": 44,
+"size": 42,
 "plain": {
 "color": "#F3E6C8"
 },
@@ -2943,10 +3272,10 @@
 }
 },
 {
-"id": "nf-home-t-34",
+"id": "nf-home-t-38",
 "libId": "",
 "x": 354.5,
-"y": 605.4,
+"y": 615.4,
 "scale": 1,
 "stamp": {
 "text": "0/1",
@@ -2957,10 +3286,10 @@
 }
 },
 {
-"id": "nf-home-t-35",
+"id": "nf-home-t-39",
 "libId": "",
 "x": 792.3,
-"y": 114.8,
+"y": 150.8,
 "scale": 1,
 "stamp": {
 "text": "Your deck",
@@ -2971,97 +3300,267 @@
 }
 },
 {
-"id": "nf-home-win-36",
+"id": "nf-home-art-40",
 "libId": "",
-"kitId": "placeholder",
-"x": 632.0,
-"y": 316.0,
-"scale": 1.0,
-"stretch": 0.49,
-"stretchY": 0.7,
-"label": "card"
-},
-{
-"id": "nf-home-win-37",
-"libId": "",
-"kitId": "placeholder",
-"x": 1092.0,
-"y": 316.0,
-"scale": 1.0,
-"stretch": 0.49,
-"stretchY": 0.7,
-"label": "card"
-},
-{
-"id": "nf-home-win-38",
-"libId": "",
-"kitId": "placeholder",
-"x": 827.0,
-"y": 265.0,
-"scale": 1.0,
-"stretch": 0.66,
-"stretchY": 0.83,
-"label": "card"
-},
-{
-"id": "nf-home-prev-39",
-"libId": "",
-"kitId": "iconbtn",
-"x": 530.5,
-"y": 392.5,
-"scale": 0.47,
-"ov": "icon:back"
-},
-{
-"id": "nf-home-next-40",
-"libId": "",
-"kitId": "iconbtn",
-"x": 1280.5,
-"y": 392.5,
-"scale": 0.47,
-"ov": "icon:forward"
-},
-{
-"id": "nf-home-t-41",
-"libId": "",
-"x": 720.2,
-"y": 496.1,
-"scale": 1,
-"stamp": {
-"text": "Influence",
-"size": 38,
-"plain": {
-"color": "#E6C15A"
+"x": 672.4,
+"y": 356.0,
+"scale": 0.4736,
+"logo": {
+"aid": "uanfoshun"
 }
+},
+{
+"id": "nf-home-art-41",
+"libId": "",
+"x": 648,
+"y": 340,
+"scale": 0.6171,
+"logo": {
+"aid": "uanfframeamethyst",
+"shadow": 35
 }
 },
 {
 "id": "nf-home-t-42",
 "libId": "",
-"x": 923.6,
-"y": 496.1,
+"x": 604.6,
+"y": 420.5,
 "scale": 1,
 "stamp": {
-"text": "Force",
-"size": 38,
+"text": "Oshun",
+"size": 36,
 "plain": {
-"color": "#E6C15A"
+"color": "#F3E6C8"
 }
 }
 },
 {
-"id": "nf-home-dots-43",
+"id": "nf-home-t-43",
 "libId": "",
-"kitId": "pagedots",
-"x": 903.2,
-"y": 640,
-"scale": 0.45
+"x": 583.7,
+"y": 240.1,
+"scale": 1,
+"stamp": {
+"text": "4",
+"size": 38,
+"plain": {
+"color": "#F3E6C8"
+}
+}
 },
 {
 "id": "nf-home-t-44",
 "libId": "",
+"x": 579.1,
+"y": 410.4,
+"scale": 1,
+"stamp": {
+"text": "4",
+"size": 38,
+"plain": {
+"color": "#2A1E05"
+}
+}
+},
+{
+"id": "nf-home-t-45",
+"libId": "",
+"x": 706.2,
+"y": 410.4,
+"scale": 1,
+"stamp": {
+"text": "5",
+"size": 38,
+"plain": {
+"color": "#F3E6C8"
+}
+}
+},
+{
+"id": "nf-home-art-46",
+"libId": "",
+"x": 1126.4,
+"y": 356.0,
+"scale": 0.4736,
+"logo": {
+"aid": "uanfogun"
+}
+},
+{
+"id": "nf-home-art-47",
+"libId": "",
+"x": 1102,
+"y": 340,
+"scale": 0.6171,
+"logo": {
+"aid": "uanfframeemerald",
+"shadow": 35
+}
+},
+{
+"id": "nf-home-t-48",
+"libId": "",
+"x": 1066.9,
+"y": 420.5,
+"scale": 1,
+"stamp": {
+"text": "Ogun",
+"size": 36,
+"plain": {
+"color": "#F3E6C8"
+}
+}
+},
+{
+"id": "nf-home-t-49",
+"libId": "",
+"x": 1038.3,
+"y": 240.1,
+"scale": 1,
+"stamp": {
+"text": "5",
+"size": 38,
+"plain": {
+"color": "#F3E6C8"
+}
+}
+},
+{
+"id": "nf-home-t-50",
+"libId": "",
+"x": 1033.6,
+"y": 410.4,
+"scale": 1,
+"stamp": {
+"text": "3",
+"size": 38,
+"plain": {
+"color": "#2A1E05"
+}
+}
+},
+{
+"id": "nf-home-t-51",
+"libId": "",
+"x": 1159.8,
+"y": 410.4,
+"scale": 1,
+"stamp": {
+"text": "6",
+"size": 38,
+"plain": {
+"color": "#F3E6C8"
+}
+}
+},
+{
+"id": "nf-home-art-52",
+"libId": "",
+"x": 877.0,
+"y": 323.7,
+"scale": 0.6408,
+"logo": {
+"aid": "uanfshango"
+}
+},
+{
+"id": "nf-home-art-53",
+"libId": "",
+"x": 844,
+"y": 302,
+"scale": 0.8348,
+"logo": {
+"aid": "uanfframegold",
+"shadow": 35
+}
+},
+{
+"id": "nf-home-t-54",
+"libId": "",
+"x": 811.2,
+"y": 454.3,
+"scale": 1,
+"stamp": {
+"text": "Shango",
+"size": 44,
+"plain": {
+"color": "#F3E6C8"
+}
+}
+},
+{
+"id": "nf-home-t-55",
+"libId": "",
+"x": 786.8,
+"y": 210.3,
+"scale": 1,
+"stamp": {
+"text": "6",
+"size": 46,
+"plain": {
+"color": "#F3E6C8"
+}
+}
+},
+{
+"id": "nf-home-t-56",
+"libId": "",
+"x": 780.6,
+"y": 440.6,
+"scale": 1,
+"stamp": {
+"text": "6",
+"size": 46,
+"plain": {
+"color": "#2A1E05"
+}
+}
+},
+{
+"id": "nf-home-t-57",
+"libId": "",
+"x": 951.7,
+"y": 440.6,
+"scale": 1,
+"stamp": {
+"text": "6",
+"size": 46,
+"plain": {
+"color": "#F3E6C8"
+}
+}
+},
+{
+"id": "nf-home-prev-58",
+"libId": "",
+"kitId": "iconbtn",
+"x": 540.5,
+"y": 387.5,
+"scale": 0.47,
+"ov": "icon:back"
+},
+{
+"id": "nf-home-next-59",
+"libId": "",
+"kitId": "iconbtn",
+"x": 1274.5,
+"y": 387.5,
+"scale": 0.47,
+"ov": "icon:forward"
+},
+{
+"id": "nf-home-dots-60",
+"libId": "",
+"kitId": "pagedots",
+"x": 903.2,
+"y": 612,
+"scale": 0.45
+},
+{
+"id": "nf-home-t-61",
+"libId": "",
 "x": 661.7,
-"y": 555.8,
+"y": 523.8,
 "scale": 1,
 "stamp": {
 "text": "Three orisha with the church behind them,",
@@ -3073,10 +3572,10 @@
 }
 },
 {
-"id": "nf-home-t-45",
+"id": "nf-home-t-62",
 "libId": "",
 "x": 576.8,
-"y": 585.8,
+"y": 551.8,
 "scale": 1,
 "stamp": {
 "text": "Crowther brings a friend across and Seacole tends the Gates.",
@@ -3088,10 +3587,10 @@
 }
 },
 {
-"id": "nf-home-t-46",
+"id": "nf-home-t-63",
 "libId": "",
 "x": 775.1,
-"y": 615.7,
+"y": 581.7,
 "scale": 1,
 "stamp": {
 "text": "The Pantheon",
@@ -3102,46 +3601,68 @@
 }
 },
 {
-"id": "nf-home-you-47",
+"id": "nf-home-portrait-64",
 "libId": "",
-"kitId": "avatarframe",
-"x": 650.0,
-"y": 725.0,
-"scale": 0.36
+"kitId": "copy-avyu-avatarframe",
+"x": 650.9,
+"y": 693.1,
+"scale": 0.3354,
+"label": ""
 },
 {
-"id": "nf-home-vs-48",
+"id": "nf-home-face-65",
+"libId": "",
+"x": 668.7,
+"y": 726.7,
+"scale": 0.489,
+"logo": {
+"aid": "uanfyou"
+}
+},
+{
+"id": "nf-home-vs-66",
 "libId": "",
 "kitId": "chip",
 "x": 730.2,
-"y": 729.8,
+"y": 695.8,
 "scale": 0.56,
 "label": "VS Harborlight · Railroad"
 },
 {
-"id": "nf-home-opp-49",
+"id": "nf-home-portrait-67",
 "libId": "",
-"kitId": "avatarframe",
-"x": 1164.0,
-"y": 725.0,
-"scale": 0.36
+"kitId": "copy-avop-avatarframe",
+"x": 1170.9,
+"y": 693.1,
+"scale": 0.3354,
+"label": ""
 },
 {
-"id": "nf-home-play-50",
+"id": "nf-home-face-68",
+"libId": "",
+"x": 1188.7,
+"y": 726.7,
+"scale": 0.489,
+"logo": {
+"aid": "uanfopp"
+}
+},
+{
+"id": "nf-home-play-69",
 "libId": "",
 "kitId": "copy-play-panel",
 "x": 663.4,
-"y": 794.5,
+"y": 762.5,
 "scale": 0.6557,
 "stretch": 1.2076,
 "stretchY": 1.0,
 "ov": "strip"
 },
 {
-"id": "nf-home-playword-51",
+"id": "nf-home-playword-70",
 "libId": "",
 "x": 797.3,
-"y": 744.8,
+"y": 712.8,
 "scale": 1,
 "stamp": {
 "text": "Play",
@@ -3152,16 +3673,16 @@
 }
 },
 {
-"id": "nf-home-modes-52",
+"id": "nf-home-modes-71",
 "libId": "",
 "kitId": "segment",
 "x": 769.3,
-"y": 897.3,
+"y": 865.3,
 "scale": 0.48,
 "label": "PvP | Practice | Challenges"
 },
 {
-"id": "nf-home-event-53",
+"id": "nf-home-event-72",
 "libId": "",
 "kitId": "panel",
 "x": 1393.2,
@@ -3171,10 +3692,31 @@
 "stretchY": 1.8723
 },
 {
-"id": "nf-home-t-54",
+"id": "nf-home-art-73",
+"libId": "",
+"x": 1418,
+"y": 224,
+"scale": 0.875,
+"logo": {
+"aid": "uanfevent"
+}
+},
+{
+"id": "nf-home-evhead-74",
+"libId": "",
+"kitId": "copy-rowp-panel",
+"x": 1401.7,
+"y": 195.3,
+"scale": 0.3875,
+"stretch": 1.6923,
+"stretchY": 1.0,
+"ov": "strip"
+},
+{
+"id": "nf-home-t-75",
 "libId": "",
 "x": 1351.0,
-"y": 124.8,
+"y": 122.8,
 "scale": 1,
 "stamp": {
 "text": "Featured event",
@@ -3185,10 +3727,10 @@
 }
 },
 {
-"id": "nf-home-t-55",
+"id": "nf-home-t-76",
 "libId": "",
 "x": 1644.7,
-"y": 128.4,
+"y": 126.4,
 "scale": 1,
 "stamp": {
 "text": "View all",
@@ -3199,25 +3741,25 @@
 }
 },
 {
-"id": "nf-home-win-56",
+"id": "nf-home-caption-77",
 "libId": "",
-"kitId": "placeholder",
-"x": 1424.0,
-"y": 276.0,
-"scale": 1.0,
-"stretch": 1.09,
-"stretchY": 0.425,
-"label": "event art"
+"kitId": "copy-rowp-panel",
+"x": 1385.5,
+"y": 402.1,
+"scale": 0.775,
+"stretch": 0.8462,
+"stretchY": 1.0,
+"ov": "strip"
 },
 {
-"id": "nf-home-t-57",
+"id": "nf-home-t-78",
 "libId": "",
-"x": 1349.7,
-"y": 349.6,
+"x": 1350.3,
+"y": 361.5,
 "scale": 1,
 "stamp": {
 "text": "Juneteenth Weekend",
-"size": 54,
+"size": 48,
 "plain": {
 "color": "#F3E6C8"
 },
@@ -3225,35 +3767,35 @@
 }
 },
 {
-"id": "nf-home-t-58",
+"id": "nf-home-t-79",
 "libId": "",
-"x": 1351.2,
-"y": 384.4,
-"scale": 1,
-"stamp": {
-"text": "Freedom moves together.",
-"size": 40,
-"plain": {
-"color": "#E6C15A"
-}
-}
-},
-{
-"id": "nf-home-t-59",
-"libId": "",
-"x": 1351.2,
-"y": 416.4,
+"x": 1640.6,
+"y": 361.2,
 "scale": 1,
 "stamp": {
 "text": "2d 14h 12m",
-"size": 40,
+"size": 36,
 "plain": {
 "color": "#D8C8A0"
 }
 }
 },
 {
-"id": "nf-home-shop-60",
+"id": "nf-home-t-80",
+"libId": "",
+"x": 1351.6,
+"y": 397.2,
+"scale": 1,
+"stamp": {
+"text": "Freedom moves together.",
+"size": 36,
+"plain": {
+"color": "#E6C15A"
+}
+}
+},
+{
+"id": "nf-home-shop-81",
 "libId": "",
 "kitId": "panel",
 "x": 1393.2,
@@ -3263,7 +3805,7 @@
 "stretchY": 1.5532
 },
 {
-"id": "nf-home-t-61",
+"id": "nf-home-t-82",
 "libId": "",
 "x": 1351.0,
 "y": 496.8,
@@ -3277,7 +3819,7 @@
 }
 },
 {
-"id": "nf-home-t-62",
+"id": "nf-home-t-83",
 "libId": "",
 "x": 1548.8,
 "y": 499.7,
@@ -3291,20 +3833,29 @@
 }
 },
 {
-"id": "nf-home-win-63",
+"id": "nf-home-shopframe-84",
 "libId": "",
-"kitId": "placeholder",
-"x": 1437.0,
-"y": 654.0,
-"scale": 1.0,
-"stretch": 0.375,
-"stretchY": 0.375,
-"label": "portrait"
+"kitId": "copy-card-panel",
+"x": 1425.6,
+"y": 637.5,
+"scale": 0.2,
+"stretch": 1.0256,
+"stretchY": 1.7021
 },
 {
-"id": "nf-home-t-64",
+"id": "nf-home-shopart-85",
 "libId": "",
-"x": 1524.7,
+"x": 1442,
+"y": 660,
+"scale": 0.5625,
+"logo": {
+"aid": "uanfmansa"
+}
+},
+{
+"id": "nf-home-t-86",
+"libId": "",
+"x": 1530.7,
 "y": 567.6,
 "scale": 1,
 "stamp": {
@@ -3317,16 +3868,16 @@
 }
 },
 {
-"id": "nf-home-price-65",
+"id": "nf-home-price-87",
 "libId": "",
 "kitId": "currency",
-"x": 1584.5,
+"x": 1590.5,
 "y": 696.5,
 "scale": 0.5,
 "label": "400"
 },
 {
-"id": "nf-home-t-66",
+"id": "nf-home-t-88",
 "libId": "",
 "x": 1351.2,
 "y": 720.4,
@@ -3340,30 +3891,30 @@
 }
 },
 {
-"id": "nf-home-navbar-67",
+"id": "nf-home-navbar-89",
 "libId": "",
 "kitId": "copy-barp-panel",
-"x": 255.2,
-"y": 936.0,
-"scale": 0.6855,
-"stretch": 2.8866,
+"x": 245.2,
+"y": 885.9,
+"scale": 0.924,
+"stretch": 2.1417,
 "stretchY": 1.0,
 "ov": "strip"
 },
 {
-"id": "nf-home-nav-68",
+"id": "nf-home-nav-90",
 "libId": "",
 "kitId": "copy-navg-iconbtn",
 "x": 390.4,
-"y": 968.5,
+"y": 946.5,
 "scale": 0.35,
 "ov": "icon:cart"
 },
 {
-"id": "nf-home-t-69",
+"id": "nf-home-t-91",
 "libId": "",
 "x": 309.4,
-"y": 930.4,
+"y": 916.4,
 "scale": 1,
 "stamp": {
 "text": "Shop",
@@ -3374,19 +3925,19 @@
 }
 },
 {
-"id": "nf-home-nav-70",
+"id": "nf-home-nav-92",
 "libId": "",
 "kitId": "copy-navg-iconbtn",
 "x": 635.0,
-"y": 968.5,
+"y": 946.5,
 "scale": 0.35,
 "ov": "icon:scroll"
 },
 {
-"id": "nf-home-t-71",
+"id": "nf-home-t-93",
 "libId": "",
 "x": 501.3,
-"y": 930.4,
+"y": 916.4,
 "scale": 1,
 "stamp": {
 "text": "Collection",
@@ -3397,19 +3948,19 @@
 }
 },
 {
-"id": "nf-home-nav-72",
+"id": "nf-home-nav-94",
 "libId": "",
 "kitId": "copy-navg-iconbtn",
 "x": 1205.0,
-"y": 968.5,
+"y": 946.5,
 "scale": 0.35,
 "ov": "icon:map"
 },
 {
-"id": "nf-home-t-73",
+"id": "nf-home-t-95",
 "libId": "",
 "x": 1111.6,
-"y": 930.4,
+"y": 916.4,
 "scale": 1,
 "stamp": {
 "text": "Album",
@@ -3420,19 +3971,19 @@
 }
 },
 {
-"id": "nf-home-nav-74",
+"id": "nf-home-nav-96",
 "libId": "",
 "kitId": "copy-navg-iconbtn",
 "x": 1450.5,
-"y": 968.5,
+"y": 946.5,
 "scale": 0.35,
 "ov": "icon:trophy"
 },
 {
-"id": "nf-home-t-75",
+"id": "nf-home-t-97",
 "libId": "",
 "x": 1358.5,
-"y": 930.4,
+"y": 916.4,
 "scale": 1,
 "stamp": {
 "text": "Ranks",
@@ -3443,10 +3994,10 @@
 }
 },
 {
-"id": "nf-home-t-76",
+"id": "nf-home-t-98",
 "libId": "",
 "x": 699.3,
-"y": 930.4,
+"y": 916.4,
 "scale": 1,
 "stamp": {
 "text": "People. Places. Power.",

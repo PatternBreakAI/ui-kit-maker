@@ -13,3 +13,12 @@ first written, kept so the home board can be re-flowed by numbers instead of by 
 - `shot-board.mjs` loads the document into the running app the way a shipped kit loads and screenshots the board.
 
 `KIT_SCRATCH` holds `fonts/` (Literata_12pt-Bold.ttf, CrimsonPro-SemiBold.ttf, used only to measure stamps for centring).
+
+## The art
+
+`public/kit-art/nightfall/` is the game's own art (CripGod/legacygame, `public/art/…`), compressed for the sizes it
+paints at: the official logo (`landing/sob-logo.webp`), the night lake (`landing/board.jpg`, darkened with a vignette
+for the stage background), circular portraits (Harriet Tubman, Frederick Douglass), the three orisha cropped to the
+card frame's portrait window, Mansa Musa, Juneteenth, the Great Migration, the Ancestors, and three of the game's card
+frames at half size. The document's `userAssets` registry names each file with the pixels the board was authored
+against; `make-home-board.py` reads the frame's portrait window from the frame's own alpha.

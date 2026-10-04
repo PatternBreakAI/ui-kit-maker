@@ -73,8 +73,12 @@ kd["iconbtn"] = {"effects": {**c["effects"], "Bevel": "#D4AF37"}, "bevel": {"wid
 kd["avatarframe"] = {"effects": {**c["effects"], "Bevel": "#D4AF37"}, "bevel": {"width": 9, "softness": 30}}
 kd["currency"] = {"type": {**t, "fill": CREAM, "spacing": 2, "case": "none"}}
 kd["header"] = {"effects": {**c["effects"], "Inner Fill": "#0C1220"}, "type": {**t, "fill": INK_GOLD, "fill2": GOLD_HI, "spacing": 14, "size": 48}}
-kd["panel"] = {"transparency": {"frame": 100, "interior": 100, "content": 100},
-               "candy": {"pattern": {"type": "diamonds", "scale": 40, "angle": 0, "opacity": 4, "color": None, "zone": "face", "wall": {"type": "none", "scale": 9, "angle": 0, "opacity": 0, "color": None}}}}
+GLASS = {"gloss": {"on": True, "height": 34, "curve": 14, "opacity": 14, "softness": 92, "layer": "below", "fill": "highlight", "tint": "#FFFFFF", "tint2": "#FFFFFF"},
+         "specular": {**cd["specular"], "on": True, "mode": "line", "size": 30, "stretch": 14, "intensity": 22, "softness": 70, "angle": -18},
+         "innerEdge": {"strength": 62, "width": 2}, "innerGlow": {"opacity": 22, "size": 56, "color": GOLD}, "rim": {"width": 2.5, "brightness": 100},
+         "texture": {"amount": 10, "scale": 48},
+         "pattern": {"type": "diamonds", "scale": 40, "angle": 0, "opacity": 4, "color": None, "zone": "face", "wall": {"type": "none", "scale": 9, "angle": 0, "opacity": 0, "color": None}}}
+kd["panel"] = {"transparency": {"frame": 100, "interior": 100, "content": 100}, "candy": copy.deepcopy(GLASS)}
 kd["dialog"] = {"transparency": {"frame": 100, "interior": 100, "content": 100}}
 kd["datarow"] = {"effects": {"Bevel": "#3A4358", "Glow": "#6B7489", "Highlight": "#6B7489", "Shadow": SHADOW, "Inner Fill": "#0E1424"},
                  "candy": {"innerGlow": {"opacity": 0, "size": 40, "color": GOLD}, "extrusion": {"depth": 2, "darkness": 85, "glow": 0}},
@@ -93,6 +97,10 @@ kd["nameplate"] = {"type": {**t, "spacing": 4, "size": 50}}
 kd["copy-done-chip"] = {"effects": {"Bevel": "#4FD17A", "Glow": "#7CF0A0", "Highlight": "#A8F5C0", "Shadow": "#06301A", "Inner Fill": "#0F2419"},
                         "type": {**t, "fill": "#7CF0A0", "fill2": "#A8F5C0", "spacing": 2, "size": 44}}
 kd["copy-play-panel"] = copy.deepcopy(GOLD_FACE)
+kd["copy-play-panel"]["states"]["default"] = {"brightness": 2, "glow": 38, "lift": 0, "opacity": 100, "saturation": 4}
+kd["copy-card-panel"] = {"effects": {**c["effects"], "Bevel": "#D4AF37", "Highlight": "#FFF0B0"}, "bevel": {"width": 6, "softness": 30}, "candy": copy.deepcopy(GLASS)}
+kd["copy-avyu-avatarframe"] = copy.deepcopy(kd["avatarframe"])
+kd["copy-avop-avatarframe"] = copy.deepcopy(kd["avatarframe"])
 kd["copy-navg-iconbtn"] = {"transparency": {"frame": 0, "interior": 0, "content": 100}, "candy": {"extrusion": {"depth": 0, "darkness": 85, "glow": 0}, "contact": {"opacity": 0}, "specular": {**cd["specular"], "on": False}},
                           "shadow": {"distance": 0, "blur": 0, "opacity": 0}, "icon": {**c["icon"], "color": INK_GOLD, "size": 120},
                           "states": {"default": {"brightness": 0, "glow": 0, "lift": 0, "opacity": 100, "saturation": 0}, "hover": {"brightness": 8, "glow": 0, "lift": 0, "opacity": 100, "saturation": 0},
@@ -105,7 +113,10 @@ k["kitClones"] = {"copy-done-chip": {"base": "chip", "name": "mission-done", "ki
                   "copy-play-panel": {"base": "panel", "name": "play-plate", "kind": "Other", "createdAt": "2026-10-04T00:00:00.000Z"},
                   "copy-done-panel": {"base": "panel", "name": "row-done", "kind": "Other", "createdAt": "2026-10-04T00:00:00.000Z"},
                   "copy-rowp-panel": {"base": "panel", "name": "row", "kind": "Other", "createdAt": "2026-10-04T00:00:00.000Z"},
-                  "copy-barp-panel": {"base": "panel", "name": "nav-bar", "kind": "Other", "createdAt": "2026-10-04T00:00:00.000Z"}}
+                  "copy-barp-panel": {"base": "panel", "name": "nav-bar", "kind": "Other", "createdAt": "2026-10-04T00:00:00.000Z"},
+                  "copy-card-panel": {"base": "panel", "name": "card-frame", "kind": "Other", "createdAt": "2026-10-04T00:00:00.000Z"},
+                  "copy-avyu-avatarframe": {"base": "avatarframe", "name": "portrait-you", "kind": "Other", "createdAt": "2026-10-04T00:00:00.000Z"},
+                  "copy-avop-avatarframe": {"base": "avatarframe", "name": "portrait-opp", "kind": "Other", "createdAt": "2026-10-04T00:00:00.000Z"}}
 k["kitShapes"] = {"iconbtn": "pill", "avatarframe": "pill", "currency": "pill", "copy-navg-iconbtn": "pill", "dialoguebox": "speech"}
 GEAR = {"lib": "lucide", "name": "Settings", "viewBox": "0 0 24 24", "inner": "<path d=\"M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/>", "mode": "stroke"}
 CART = {"lib": "lucide", "name": "ShoppingCart", "viewBox": "0 0 24 24", "inner": "<circle cx=\"8\" cy=\"21\" r=\"1\"/><circle cx=\"19\" cy=\"21\" r=\"1\"/><path d=\"M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12\"/>", "mode": "stroke"}
@@ -120,10 +131,25 @@ k["kitTextOy"] = {}
 k["kitTextOx"] = {}
 k["kitLocks"] = {}
 k["kitBar"] = {}
-k["kitNoText"] = sob.get("kitNoText", {})
+k["kitNoText"] = {**sob.get("kitNoText", {}), "copy-avyu-avatarframe": True, "copy-avop-avatarframe": True}
 k["kitTextFill"] = {}
 k["kitSlotVals"] = sob.get("kitSlotVals", {})
-k["userAssets"] = []
+ART = "/kit-art/nightfall"
+k["userAssets"] = [
+    {"id": "uanflogo", "name": "Stand on Business logo", "ref": f"{ART}/sob-logo.webp", "w": 900, "h": 595},
+    {"id": "uanfyou", "name": "Portrait, Harriet Tubman", "ref": f"{ART}/you.webp", "w": 256, "h": 256},
+    {"id": "uanfopp", "name": "Portrait, Frederick Douglass", "ref": f"{ART}/opp.webp", "w": 256, "h": 256},
+    {"id": "uanfoshun", "name": "Oshun", "ref": f"{ART}/oshun.webp", "w": 512, "h": 370},
+    {"id": "uanfshango", "name": "Shango", "ref": f"{ART}/shango.webp", "w": 512, "h": 370},
+    {"id": "uanfogun", "name": "Ogun", "ref": f"{ART}/ogun.webp", "w": 512, "h": 370},
+    {"id": "uanfmansa", "name": "Mansa Musa", "ref": f"{ART}/mansa_musa.webp", "w": 512, "h": 512},
+    {"id": "uanfevent", "name": "Juneteenth", "ref": f"{ART}/event.webp", "w": 1024, "h": 776},
+    {"id": "uanfseason", "name": "The Great Migration", "ref": f"{ART}/season.webp", "w": 600, "h": 450},
+    {"id": "uanfmissions", "name": "The Ancestors", "ref": f"{ART}/missions.webp", "w": 1024, "h": 240},
+    {"id": "uanfframegold", "name": "Card frame, gold", "ref": f"{ART}/character-gold.webp", "w": 551, "h": 713},
+    {"id": "uanfframeamethyst", "name": "Card frame, amethyst", "ref": f"{ART}/character-amethyst.webp", "w": 551, "h": 713},
+    {"id": "uanfframeemerald", "name": "Card frame, emerald", "ref": f"{ART}/character-emerald.webp", "w": 551, "h": 713},
+]
 k["boards"] = []
 out = f"{W}/src/generator/kit-nightfall.json"
 json.dump(k, open(out, "w"), indent=0, ensure_ascii=False)
