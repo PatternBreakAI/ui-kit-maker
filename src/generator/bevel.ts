@@ -6808,8 +6808,13 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const amt = opts.label ?? Math.round(clamp(value ?? 0.125, 0, 1) * 9999).toLocaleString("en-US");
       const gidC = "cu" + UID++;
       // the semantic coin is marked swappable ink (maximum-editability law):
-      // the engine export strips it and ships it as a live Image child
-      const coin = `<g data-part="icon" data-icon="coin"><defs><radialGradient id="${gidC}" cx="0.35" cy="0.3" r="0.95"><stop offset="0" stop-color="#FFF3B0"/><stop offset="0.55" stop-color="#FACC15"/><stop offset="1" stop-color="#B45309"/></radialGradient></defs>
+      // the engine export strips it and ships it as a live Image child. A
+      // glyph picked for this piece (the Icons panel, a kit's kitIcons: the
+      // gem wallet beside the coin wallet, owner 2026-10-04) takes the coin's
+      // seat in the kit's icon colour; with no pick the coin draws as ever.
+      const icCu = opts.icon ?? null;
+      const coin = icCu ? `<g data-part="icon" data-icon="coin" data-icon-nick="Wallet glyph">${themedIcon(icCu, coinX - coinR, cy - coinR, coinR * 2, cfg.icon?.color ?? hexMix(glow, "#FFFFFF", 0.25), 2.2)}</g>`
+        : `<g data-part="icon" data-icon="coin"><defs><radialGradient id="${gidC}" cx="0.35" cy="0.3" r="0.95"><stop offset="0" stop-color="#FFF3B0"/><stop offset="0.55" stop-color="#FACC15"/><stop offset="1" stop-color="#B45309"/></radialGradient></defs>
         <circle cx="${coinX.toFixed(1)}" cy="${cy.toFixed(1)}" r="${coinR.toFixed(1)}" fill="url(#${gidC})" stroke="#92400E" stroke-width="1.6"/>
         <circle cx="${coinX.toFixed(1)}" cy="${cy.toFixed(1)}" r="${(coinR * 0.66).toFixed(1)}" fill="none" stroke="#92400E" stroke-width="1.1" opacity="0.6"/>
         ${STOCK_ICONS.star ? iconGroup(STOCK_ICONS.star, coinX - coinR * 0.45, cy - coinR * 0.45, coinR * 0.9, "#92400E", { strokeWidth: 2.4 * iconWK }) : ""}
