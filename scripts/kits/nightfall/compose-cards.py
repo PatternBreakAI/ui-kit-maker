@@ -9,7 +9,7 @@ import os
 from PIL import Image, ImageDraw, ImageFont
 
 S = os.environ.get("KIT_SCRATCH", os.path.expanduser("~/nightfall-kit"))
-GAME = os.environ.get("GAME_ROOT", "/home/user/legacygame")
+GAME = os.environ.get("GAME_ROOT", os.path.expanduser("~/legacygame"))
 MAKER = os.environ.get("MAKER_ROOT", os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
 OUT = os.environ.get("ART_OUT", os.path.join(MAKER, "public/kit-art/nightfall"))
 LIT_XB = f"{S}/fonts/Literata_12pt-ExtraBold.ttf"
@@ -21,6 +21,9 @@ CARDS = [
     ("oshun", "character-amethyst", "Oshun", 4, 4, 1, "A friend here +1 for good; each turn your weakest here grows +1.", "Mythic · Yoruba", 0.22),
     ("shango", "character-gold", "Shango", 6, 6, 6, "Thunder: knocks away every weaker opposing Gate Character here.", "Mythic · Yoruba", 0.18),
     ("ogun", "character-emerald", "Ogun", 5, 4, 6, "Fights every Threat here with +2 Force.", "Mythic · Yoruba", 0.22),
+    ("harriet_tubman", "character-silver", "Harriet Tubman", 3, 3, 3, "Carry one of yours straight Inside another Location, past any curfew.", "Historical · Railroad", 0.2),
+    ("frederick_douglass", "character-gold", "Frederick Douglass", 6, 6, 2, "Your other Characters here get +1 Influence.", "Historical · Orator", 0.18),
+    ("mansa_musa", "character-gold", "Mansa Musa", 6, 8, 3, "+1 Influence if played blind, and at African Locations.", "Historical · Mali", 0.2),
 ]
 INK, RULE_INK, HAIRLINE, CREAM = (20, 17, 12, 255), (42, 36, 24, 255), (201, 165, 58, 255), (243, 230, 200, 255)
 
@@ -106,3 +109,8 @@ for art, frame, name, cost, infl, force, summary, tag, fy in CARDS:
     card = card.resize((W // 2, H // 2), Image.LANCZOS)
     p = f"{OUT}/card-{art}.webp"; card.save(p, "WEBP", quality=84, method=6)
     print(os.path.basename(p), card.size, os.path.getsize(p) // 1024, "KB", "parchment", (px0, py0, px1, py1))
+
+# the game's card back, at the cards' half size
+back = Image.open(f"{GAME}/public/art/frames/card-back.webp").convert("RGBA")
+back = back.resize((back.width // 2, back.height // 2), Image.LANCZOS)
+p = f"{OUT}/card-back.webp"; back.save(p, "WEBP", quality=82, method=6); print("card-back.webp", back.size, os.path.getsize(p) // 1024, "KB")
