@@ -2296,7 +2296,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/function markedIconOnlySvgs\(svgIn: string[,)]/.test(src)
       || !/function stripMarkedIcons\(svgIn: string\)/.test(src))
     errors.push("the un-burn's marked-group hands (markedIconOnlySvgs / stripMarkedIcons) are missing from the export");
-  if (!/const iconSeatsU = isArt \? null : await iconSeatsOf\(uid, fullU[,)]/.test(src)
+  if (!/const iconSeatsU = isArt \? null : await iconSeatsOf\(uid, zeroSvgSeatU \?\? fullU[,)]/.test(src)
       || !/stripIconInk\(stripWordInk\(sSvg\)\.svg\)\.svg/.test(src))
     errors.push("the universal road stopped stripping marked icon ink (base and/or state skins) — burned swappables are back");
   if (!/const ibSeats = await iconSeatsOf\("iconbtn", ibFull\);/.test(src)
@@ -2877,7 +2877,7 @@ if (!/catch \(Exception\) \{ gti\.textureCompression = TextureImporterCompressio
   if (!/return stampTrack\(inject\(track, bullets \+ txt\), 39 \+ 16 \* k, 23 \* k\);/.test(bevelSrc)
       || !/return stampTrack\(inject\(shell\.replace\("<svg ", '<svg data-energymeter="1" '\), inner\), cellsX, cellsW\);/.test(bevelSrc))
     errors.push("the cell meters' zone stamps left bevel — the engine scissor cannot land in the gaps");
-  if (!/const cellRig = uid === "energymeter" \|\| uid === "ammo" \|\| uid === "magazine" \|\| uid === "streakmeter";/.test(src)
+  if (!/const cellRigU = uid === "energymeter" \|\| uid === "ammo" \|\| uid === "magazine" \|\| uid === "streakmeter";/.test(src)
       || !/await addPng\(`\$\{uid\}\/lit\.png`, litSvgU, \{/.test(src))
     errors.push("the cell-rig emission (empty base + full lit, one crop group) is gone");
   if (!/public class KitCellMeter : MonoBehaviour \{/.test(src)
@@ -3467,6 +3467,61 @@ if (!/const winT = Math\.max\(5, Math\.floor\(prof\.length \/ 10\)\);/.test(src)
     || !/const trendRatio = Math\.abs\(trend\[trend\.length - 1\] - trend\[0\]\) \/ \(mx - mn\);/.test(src)
     || !/const mode: "tiled" \| "sliced" = monotone >= 0\.5 \|\| trendRatio >= 0\.5 \? "sliced" : "tiled";/.test(src))
   errors.push("analyzeBarCenter must judge a ramp by its TREND as well as net-over-gross (10/1, the shallow-ramp tile seam)");
+
+/* ── 10/1 · THE LAYERS (the owner's Unity screenshots, thirteen pieces:
+   "in general do not burn the wells into the backgrounds but keep them as a
+   separate layer"). Two new seat flags on the marked-ink road: UNDER (a
+   well, disc or stripe lands at the bottom of the stack right over the
+   plate — fills, lit strips, portraits and words paint over it) and BEHIND
+   (a rarity aura lands under the plate itself, which takes the Body shape
+   so a sibling can draw beneath its art). Cell rigs measure their seats on
+   the v=0 render (the streak meter's cells are marked only unlit); the
+   rarity frame's aura cuts WHITE and tintable, so every tier row shares
+   one cut and records its own colour; a drop-shadow in the tint colour
+   whitens with the ink. Both the family prefabs and the posed board copies
+   stack the layers the same way. ── */
+{
+  if (!/under: gs0\[gi\]\.getAttribute\("data-icon-under"\) === "1",/.test(src)
+      || !/behind: gs0\[gi\]\.getAttribute\("data-icon-behind"\) === "1",/.test(src))
+    errors.push("markedIconOnlySvgs must read the data-icon-under and data-icon-behind flags (10/1 layers)");
+  if (!/\.\.\.\(mk\.under \? \{ under: true \} : \{\}\),\s*\n\s*\.\.\.\(mk\.behind \? \{ behind: true \} : \{\}\),/.test(src))
+    errors.push("iconSeatsOf must carry under/behind onto the manifest seat row (10/1 layers)");
+  if (!/\.\.\.\(cut\.under \? \{ under: true \} : \{\}\),\s*\n\s*\.\.\.\(cut\.behind \? \{ behind: true \} : \{\}\),/.test(src))
+    errors.push("the posed board copies must carry under/behind on their posedIcons (10/1 layers)");
+  if (!/\? `rgba\(255,255,255,\$\{a9\}\)` : m0\);/.test(src))
+    errors.push("the tint sweep must whiten a drop-shadow drawn in the tint colour (the rarity auras, 10/1)");
+  if (!/const iconSeatsU = isArt \? null : await iconSeatsOf\(uid, zeroSvgSeatU \?\? fullU, undefined, undefined, skillInkTint\);/.test(src))
+    errors.push("a cell rig's seats must be measured on the v=0 render, the base's own pose (10/1, the streak meter's cells)");
+  if (!/if \(i === 0\) seatsRF = await iconSeatsOf\("rarityframe", rfSvgI\);/.test(src)
+      || !/s9\.name === "glow" \? \{ \.\.\.s9, tint: tiersR\[i\]\.c \} : s9/.test(src)
+      || !/seatsI \? stripIconInk\(rfSvgI\)\.svg : rfSvgI,/.test(src))
+    errors.push("the rarity frame's tier rows must share one white glow cut, each row tinted its own tier colour, the bake stripped (10/1)");
+  if (!/public bool under; public bool behind;/.test(cs))
+    errors.push("PBIconChild must carry under/behind (10/1 layers)");
+  if (!/static int UnderTop\(GameObject go, PBAsset row\) \{/.test(cs)
+      || !/static void EnsureBodyShape\(GameObject go\) \{ RebodyCore\(go\); \}/.test(cs)
+      || !/else if \(ic\.behind\) \{ EnsureBodyShape\(go\); cgo\.transform\.SetSiblingIndex\(0\); \}/.test(cs)
+      || !/else if \(ic\.under\) \{ cgo\.transform\.SetSiblingIndex\(UnderTop\(go, row\)\); \}/.test(cs))
+    errors.push("WireIconChildrenRow must seat BEHIND children under a Body-shaped plate and UNDER children at the bottom of the stack (10/1 layers)");
+  if (!/lgoCM\.transform\.SetSiblingIndex\(UnderTop\(go, baseAsset\)\);/.test(cs))
+    errors.push("a cell meter's Lit strip must land over the under seats (the wells and unlit cells), not at index 0 (10/1 layers)");
+  if (!/if \(pIc\.behind\) pIcGo\.transform\.SetSiblingIndex\(artRt\.GetSiblingIndex\(\)\);/.test(cs)
+      || !/else if \(pIc\.under\) pIcGo\.transform\.SetSiblingIndex\(artRt\.GetSiblingIndex\(\) \+ 1 \+ underPlacedP\+\+\);/.test(cs))
+    errors.push("the posed board copies must stack behind/under children around the posed art like the prefabs (10/1 layers)");
+  // the thirteen pieces' marks, by nick (bevel.ts) — a wrapper lost is a well burned back in
+  const nicks10 = ["Well", "Avatar well", "Avatar ring", "Icon disc", "Status stripe", "Body well", "Cell ${i + 1}", "Rarity glow", "Hammer wedge", "Disc", "Hub plate"];
+  for (const nk of nicks10)
+    if (!bevelSrc.includes(`data-icon-nick="${nk}"`)) errors.push(`bevel.ts lost the "${nk}" layer mark (10/1 layers)`);
+  /* the wheel's RIM stays in the base: it is the outermost ink the sprite crops to, and a base
+     emptied of it shipped as a 1796px transparent root in the 10/1 proof export */
+  if (/data-icon-nick="Rim"/.test(bevelSrc)) errors.push("the weapon wheel's rim must stay in the base sprite (the crop driver); Disc, Hammer wedge and Hub plate are the wheel's layer children (10/1)");
+  const underN = (bevelSrc.match(/data-icon-under="1"/g) ?? []).length;
+  const behindN = (bevelSrc.match(/data-icon-behind="1"/g) ?? []).length;
+  if (underN < 16) errors.push(`bevel.ts carries ${underN} under marks; the 10/1 layers batch authored 16 (vitalbar, respawn, popmeter, questpanel, xpbar, unitplate ×2, techcard, validity, dialog, streakmeter ×2, rarityframe, rewardcard, weaponwheel ×2)`);
+  if (behindN < 2) errors.push(`bevel.ts carries ${behindN} behind marks; the rarity frame and the reward card auras make 2 (10/1 layers)`);
+  if (!/data-icon-nick="Rarity glow" data-icon-behind="1" data-icon-tint="\$\{tier\.c\}"/.test(bevelSrc))
+    errors.push("the rarity frame's aura must be marked behind AND tintable in the tier colour (10/1 layers)");
+}
 
 /* ── 9/30 · the ASSET STORE BUILD (the owner, on Jimi's "someone else's
    game" point): a second, admin-only Unity download that is the full kit
@@ -4436,7 +4491,7 @@ if (!/const winT = Math\.max\(5, Math\.floor\(prof\.length \/ 10\)\);/.test(src)
       errors.push("the white-cut grammar went back to reading/rewriting LEAF shapes only — a built glyph's ink lives on its group, so the flat road either never opens or ships an inked sprite under an absolute tint (round 61f, S53)");
     // A3 — the cut reaches the seat, and the seat tells the importer
     if (!/const tint = gs0\[gi\]\.getAttribute\("data-icon-tint"\) \|\| tintOverride\?\.\[nm0\] \|\| null;/.test(src)
-        || !/await iconSeatsOf\(uid, fullU, undefined, undefined, skillInkTint\)/.test(src))
+        || !/await iconSeatsOf\(uid, zeroSvgSeatU \?\? fullU, undefined, undefined, skillInkTint\)/.test(src))
       errors.push("the export-proved tintOverride no longer reaches markedIconOnlySvgs / the glyph seat — the flat road cuts nothing (round 61f, S53)");
     if (!/var gc = absoluteInk \? sk\.glyphInk/.test(src))
       errors.push("the glyph ink went back to a pure relative tint — a Learned glyph LIGHTER than Available is unreachable again (round 61f, S53)");

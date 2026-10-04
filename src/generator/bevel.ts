@@ -6213,7 +6213,11 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
       const title = contentText(titleTxt, 42 + w / 2, 33 + inset + 34 * k, fitFs(titleTxt, 38 * k * typeK, w - inset * 2 - 24 * k), { anchor: "middle" });
       const wellY = 33 + inset + 68 * k;
       const wellH = h - inset * 2 - 68 * k - 92 * k;
-      const well = `<path d="${roundRect(42 + inset + 8 * k, wellY, w - inset * 2 - 16 * k, wellH, 14 * k)}" fill="${wellFill}" opacity="0.85"/>`;
+      /* the body WELL is marked ink, under everything (the owner, 10/1:
+         "bkg should not be burned in but can be grouped") — its own live
+         "Body well" child under the placeholder rows and the words; the
+         plate ships bare, and a dev regroups or deletes it in one stroke */
+      const well = `<g data-part="icon" data-icon="bodywell" data-icon-nick="Body well" data-icon-under="1" data-icon-box="${(42 + inset + 8 * k - 1).toFixed(1)} ${(wellY - 1).toFixed(1)} ${(w - inset * 2 - 16 * k + 2).toFixed(1)} ${(wellH + 2).toFixed(1)}"><path d="${roundRect(42 + inset + 8 * k, wellY, w - inset * 2 - 16 * k, wellH, 14 * k)}" fill="${wellFill}" opacity="0.85"/></g>`;
       /* round 44 (owner: "quest complete fully wired") — the placeholder
          body rows are marked swappable ink: one live "Body placeholder"
          child a dev deletes (or re-arts) in a single stroke, leaving the
@@ -7394,7 +7398,11 @@ ${cardS}
       const cyV = 30 + hV / 2;
       const ovIcV = /^icon:([\w:]+)$/.exec(opts.overlay ?? "");
       const icV = ovIcV ? seatIconDef(ovIcV[1]) : opts.icon !== undefined ? opts.icon : (errV ? STOCK_ICONS.close : STOCK_ICONS.check);
-      const stripeV = `<rect x="${(39 + insetV + 9 * k).toFixed(1)}" y="${(30 + insetV + 9 * k).toFixed(1)}" width="${(5 * k).toFixed(1)}" height="${(hV - insetV * 2 - 18 * k).toFixed(1)}" rx="${(2.5 * k).toFixed(1)}" fill="${statusC}"${!dimV ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(statusC, 0.7)})"` : ""}/>`;
+      /* the status STRIPE is marked ink, under everything (the owner,
+         10/1: "little vertical navy bar on the left should not be burned
+         into the background") — its own live child; the glow bleed is
+         measured into its cut */
+      const stripeV = `<g data-part="icon" data-icon="stripe" data-icon-nick="Status stripe" data-icon-under="1"><rect x="${(39 + insetV + 9 * k).toFixed(1)}" y="${(30 + insetV + 9 * k).toFixed(1)}" width="${(5 * k).toFixed(1)}" height="${(hV - insetV * 2 - 18 * k).toFixed(1)}" rx="${(2.5 * k).toFixed(1)}" fill="${statusC}"${!dimV ? ` style="filter: drop-shadow(0 0 ${(4 * k).toFixed(1)}px ${hexRgba(statusC, 0.7)})"` : ""}/></g>`;
       const icX = 39 + insetV + 26 * k, icY = cyV - 14 * k, icS = 28 * k;
       const seatV = icV
         ? `<g data-part="icon" data-icon="glyph"${icV.lib === "glyph" ? ` data-icon-glyph="${icV.name}"` : ""}>${errV && !dimV
@@ -7459,8 +7467,13 @@ ${cardS}
       const tintName = opts.slots?.tint ?? "Glow";
       const tint = tintName === "Health" ? "#4ade80" : tintName === "Mana" ? "#38bdf8" : tintName === "Gold" ? "#fbbf24" : glow;
       const gidV = "vb" + UID++;
+      /* the WELL is marked ink, UNDER everything (the owner, 10/1: "in
+         general do not burn the wells into the backgrounds but keep them
+         as a separate layer") — the export cuts it as its own sprite and
+         the plate ships bare; the prefab wears it as a live Well child
+         under the fill */
       let inner = contentText((opts.slots?.readout ?? "1,250 / 1,500").slice(0, 18), barX + 2, labY, 21 * k * typeK, { keepCase: true }) +
-        `<rect x="${barX.toFixed(1)}" y="${barY.toFixed(1)}" width="${barW.toFixed(1)}" height="${barH.toFixed(1)}" rx="${(barH / 2).toFixed(1)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.8)}" stroke="rgba(0,0,0,0.35)" stroke-width="1"/>` +
+        `<g data-part="icon" data-icon="well" data-icon-nick="Well" data-icon-under="1" data-icon-box="${(barX - 1).toFixed(1)} ${(barY - 1).toFixed(1)} ${(barW + 2).toFixed(1)} ${(barH + 2).toFixed(1)}"><rect x="${barX.toFixed(1)}" y="${barY.toFixed(1)}" width="${barW.toFixed(1)}" height="${barH.toFixed(1)}" rx="${(barH / 2).toFixed(1)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.8)}" stroke="rgba(0,0,0,0.35)" stroke-width="1"/></g>` +
         `<defs><linearGradient id="${gidV}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(tint, 0.5)}"/><stop offset="0.45" stop-color="${tint}"/><stop offset="1" stop-color="${darken(tint, 0.28)}"/></linearGradient></defs>`;
       if (vV > 0.02) {
         // negative-space canon: mercury floats in the track with air all round
@@ -7582,11 +7595,17 @@ ${cardS}
         `<rect x="${(barX + barW * f - 1.1).toFixed(1)}" y="${(barY + 2).toFixed(1)}" width="2.2" height="${(barH - 4).toFixed(1)}" fill="rgba(0,0,0,0.38)"/>`).join("");
       let parts = infoText(`${Math.round(vX * 2000).toLocaleString("en-US")} / 2,000 XP`, barX + barW, labY, 19 * k, "end") +
         contentText("NEXT: LV " + (parseInt(lvl, 10) + 1 || "?"), barX + 2, labY, 19 * k * typeK) +
+        /* the notched WELL is marked ink, under everything (the owner,
+           10/1: "segmented well should not be burned into the
+           background"): track + its milestone notches ship as one live
+           Well child under the fill; the plate ships bare */
+        `<g data-part="icon" data-icon="well" data-icon-nick="Well" data-icon-under="1" data-icon-box="${(barX - 1).toFixed(1)} ${(barY - 1).toFixed(1)} ${(barW + 2).toFixed(1)} ${(barH + 2).toFixed(1)}">` +
         `<rect x="${barX.toFixed(1)}" y="${barY.toFixed(1)}" width="${barW.toFixed(1)}" height="${barH.toFixed(1)}" rx="${(barH / 2).toFixed(1)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.8)}" stroke="rgba(0,0,0,0.35)" stroke-width="1"/>` +
         // the notch UNDER-PASS keeps the track's milestone marks when the
         // mercury lifts out (round 44, item 45): where the fill covers
         // them the group's own copies take over, so the app pixels hold
         notches() +
+        `</g>` +
         `<defs><linearGradient id="${gidX}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(glow, 0.55)}"/><stop offset="0.45" stop-color="${glow}"/><stop offset="1" stop-color="${darken(glow, 0.28)}"/></linearGradient></defs>`;
       if (vX > 0.02) {
         /* negative-space canon: mercury floats in the track, no tip ball.
@@ -7697,7 +7716,8 @@ ${cardS}
       // round 44 (item 29c, RIG-1): the footer mercury is MARKED ink —
       // it ships as a Filled atom the rig drives in WHOLE THIRDS (the
       // app's own objectives law); the track stays anatomy
-      inner += `<rect x="${x0.toFixed(1)}" y="${fy.toFixed(1)}" width="${fw.toFixed(1)}" height="${fH.toFixed(1)}" rx="${(fH / 2).toFixed(1)}" fill="${wellFill}"/>` +
+      // the footer WELL is marked ink, under everything (10/1): its own sprite, a live Well child under the fill
+      inner += `<g data-part="icon" data-icon="well" data-icon-nick="Well" data-icon-under="1" data-icon-box="${(x0 - 1).toFixed(1)} ${(fy - 1).toFixed(1)} ${(fw + 2).toFixed(1)} ${(fH + 2).toFixed(1)}"><rect x="${x0.toFixed(1)}" y="${fy.toFixed(1)}" width="${fw.toFixed(1)}" height="${fH.toFixed(1)}" rx="${(fH / 2).toFixed(1)}" fill="${wellFill}"/></g>` +
         `<defs><linearGradient id="${gidQ}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(glow, 0.5)}"/><stop offset="1" stop-color="${darken(glow, 0.25)}"/></linearGradient></defs>` +
         (doneN > 0 ? `<g data-barfill="${(x0 + gQ).toFixed(1)} ${(fy + gQ).toFixed(1)} ${((fw - gQ * 2) * doneN / 3).toFixed(1)} ${mHQ.toFixed(1)}"><rect x="${(x0 + gQ).toFixed(1)}" y="${(fy + gQ).toFixed(1)}" width="${((fw - gQ * 2) * doneN / 3).toFixed(1)}" height="${mHQ.toFixed(1)}" rx="${(mHQ / 2).toFixed(1)}" fill="url(#${gidQ})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 3px ${hexRgba(glow, 0.6)})"` : ""}/></g>` : "") +
         infoText(`${doneN}/3`, xr, fy + fH / 2 + 1, 18 * k, "end");
@@ -7846,9 +7866,16 @@ ${cardS}
       const [sx, sy, sw, sh] = shellM[1].split(" ").map(Number);
       const tier = rarityOf(cfg, value, 0);
       const hotR9 = state === "hover" || state === "pressed";
-      const aura = `<rect x="${(sx - 5 * k).toFixed(1)}" y="${(sy - 5 * k).toFixed(1)}" width="${(sw + 10 * k).toFixed(1)}" height="${(sh + 10 * k).toFixed(1)}" rx="${(18 * k).toFixed(1)}" fill="none" stroke="${tier.c}" stroke-width="${((hotR9 ? 5.5 : 4) * k).toFixed(1)}" opacity="${state === "disabled" ? 0.3 : 0.95}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${((hotR9 ? 10 : 6) * k).toFixed(1)}px ${hexRgba(tier.c, 0.75)})"` : ""}/>`;
+      /* the 10/1 un-burn (the owner: "rarity color glow needs to be its
+         own layer not burned into the bkg", "make the well a separate
+         layer"): the aura is marked ink BEHIND the plate and TINTABLE —
+         it cuts white and the export records the tier color, so in Unity
+         the tier is one Image.color edit on the "Rarity glow" child; the
+         well is marked ink under everything. Inert wrappers; the app's
+         own draw is byte-identical. */
+      const aura = `<g data-part="icon" data-icon="glow" data-icon-nick="Rarity glow" data-icon-behind="1" data-icon-tint="${tier.c}"><rect x="${(sx - 5 * k).toFixed(1)}" y="${(sy - 5 * k).toFixed(1)}" width="${(sw + 10 * k).toFixed(1)}" height="${(sh + 10 * k).toFixed(1)}" rx="${(18 * k).toFixed(1)}" fill="none" stroke="${tier.c}" stroke-width="${((hotR9 ? 5.5 : 4) * k).toFixed(1)}" opacity="${state === "disabled" ? 0.3 : 0.95}"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${((hotR9 ? 10 : 6) * k).toFixed(1)}px ${hexRgba(tier.c, 0.75)})"` : ""}/></g>`;
       const inset = bw + 5;
-      const well = `<path d="${wellOf(s, s, inset)}" fill="${wellFill}" opacity="0.9"/>`;
+      const well = `<g data-part="icon" data-icon="well" data-icon-nick="Well" data-icon-under="1" data-icon-box="${(39 + inset - 1).toFixed(1)} ${(30 + inset - 1).toFixed(1)} ${(s - inset * 2 + 2).toFixed(1)} ${(s - inset * 2 + 2).toFixed(1)}"><path d="${wellOf(s, s, inset)}" fill="${wellFill}" opacity="0.9"/></g>`;
       const gem = STOCK_ICONS.gem ? iconGroup(STOCK_ICONS.gem, 39 + s / 2 - 27 * k, 30 + s / 2 - 33 * k, 54 * k, state === "disabled" ? "#A7AAB4" : lighten(tier.c, 0.15), { strokeWidth: 2.2 * iconWK }) : "";
       const tag = `<text x="${(39 + s / 2).toFixed(1)}" y="${(30 + s - inset - 12 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(12.5 * k).toFixed(1)}" font-weight="800" letter-spacing="0.14em" fill="${state === "disabled" ? "rgba(255,255,255,0.4)" : lighten(tier.c, 0.35)}" text-anchor="middle" dominant-baseline="central">${esc(tier.name)}</text>`;
       // overlay "frame": engine-export cut — tier-tinted frame + empty well;
@@ -8354,8 +8381,14 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       const cellsX = 39 + inset + 188 * k, cellsW = w - inset * 2 - 188 * k - 92 * k;
       const cellW9 = (cellsW - (nS9 - 1) * 6 * k) / nS9;
       /* negative-space canon: one sunken container, cells float inset */
+      /* the 10/1 un-burn (the owner: "segmented well needs to be expandable
+         changeable and not burned into the background"): the container
+         well and every UNLIT cell are marked ink, under everything — each
+         ships as its own live child (Well, Cell 1…5) a dev can move, recolor,
+         duplicate or delete. Lit cells stay unmarked so the Lit strip (the
+         v=1 render) keeps them; the base (v=0) marks all five. */
       let inner = contentText(opts.label ?? "STREAK", 39 + inset + 16 * k, cy + 1, 22 * k * typeK) +
-        `<rect x="${(cellsX - 6 * k).toFixed(1)}" y="${(cy - 19 * k).toFixed(1)}" width="${(cellsW + 12 * k).toFixed(1)}" height="${(38 * k).toFixed(1)}" rx="${(9 * k).toFixed(1)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.8)}" stroke="rgba(0,0,0,0.3)" stroke-width="1"/>` +
+        `<g data-part="icon" data-icon="well" data-icon-nick="Well" data-icon-under="1" data-icon-box="${(cellsX - 6 * k - 1).toFixed(1)} ${(cy - 19 * k - 1).toFixed(1)} ${(cellsW + 12 * k + 2).toFixed(1)} ${(38 * k + 2).toFixed(1)}"><rect x="${(cellsX - 6 * k).toFixed(1)}" y="${(cy - 19 * k).toFixed(1)}" width="${(cellsW + 12 * k).toFixed(1)}" height="${(38 * k).toFixed(1)}" rx="${(9 * k).toFixed(1)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.8)}" stroke="rgba(0,0,0,0.3)" stroke-width="1"/></g>` +
         `<defs><linearGradient id="${gidS9}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(glow, 0.45)}"/><stop offset="1" stop-color="${darken(glow, 0.25)}"/></linearGradient></defs>`;
       for (let i = 0; i < nS9; i++) {
         const cx9 = cellsX + i * (cellW9 + 6 * k);
@@ -8363,7 +8396,8 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
         /* round 44 (kit-wide mercury ruling): the cells wear the mercury's
            own rounding, so the streak's visible end reads like the XP
            bar's bead at any count */
-        inner += `<rect x="${cx9.toFixed(1)}" y="${(cy - 12 * k).toFixed(1)}" width="${cellW9.toFixed(1)}" height="${(24 * k).toFixed(1)}" rx="${Math.min(cellW9 / 2, 12 * k).toFixed(1)}" fill="${on ? `url(#${gidS9})` : "rgba(255,255,255,0.1)"}" stroke="${on ? darken(glow, 0.35) : "rgba(255,255,255,0.12)"}" stroke-width="1"${on && state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(3 * k).toFixed(1)}px ${hexRgba(glow, 0.5)})"` : ""}/>`;
+        const cellRect = `<rect x="${cx9.toFixed(1)}" y="${(cy - 12 * k).toFixed(1)}" width="${cellW9.toFixed(1)}" height="${(24 * k).toFixed(1)}" rx="${Math.min(cellW9 / 2, 12 * k).toFixed(1)}" fill="${on ? `url(#${gidS9})` : "rgba(255,255,255,0.1)"}" stroke="${on ? darken(glow, 0.35) : "rgba(255,255,255,0.12)"}" stroke-width="1"${on && state !== "disabled" ? ` style="filter: drop-shadow(0 0 ${(3 * k).toFixed(1)}px ${hexRgba(glow, 0.5)})"` : ""}/>`;
+        inner += on ? cellRect : `<g data-part="icon" data-icon="cell${i + 1}" data-icon-nick="Cell ${i + 1}" data-icon-under="1" data-icon-box="${(cx9 - 1).toFixed(1)} ${(cy - 12 * k - 1).toFixed(1)} ${(cellW9 + 2).toFixed(1)} ${(24 * k + 2).toFixed(1)}">${cellRect}</g>`;
       }
       const zapX = 39 + w - inset - 52 * k;
       // the ignition glyph is a content slot (owner ask) — Factory = zap,
@@ -8504,7 +8538,8 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       const inner = contentText(done ? (opts.slots?.goheading || "REDEPLOY").slice(0, 24) : (opts.label ?? "RESPAWN IN"), cxR9, 30 + inset + 20 * k, 19 * k * typeK, { anchor: "middle" }) +
         secsTxt +
         (barH9 > 0.5
-          ? `<rect x="${barX9.toFixed(1)}" y="${barY9.toFixed(1)}" width="${barW9.toFixed(1)}" height="${barH9.toFixed(1)}" rx="${(barH9 / 2).toFixed(1)}" fill="${wellFill}"/>` +
+          // the drain bar's WELL is marked ink, under everything (10/1): its own sprite, a live Well child
+          ? `<g data-part="icon" data-icon="well" data-icon-nick="Well" data-icon-under="1" data-icon-box="${(barX9 - 1).toFixed(1)} ${(barY9 - 1).toFixed(1)} ${(barW9 + 2).toFixed(1)} ${(barH9 + 2).toFixed(1)}"><rect x="${barX9.toFixed(1)}" y="${barY9.toFixed(1)}" width="${barW9.toFixed(1)}" height="${barH9.toFixed(1)}" rx="${(barH9 / 2).toFixed(1)}" fill="${wellFill}"/></g>` +
             `<defs><linearGradient id="${gidR9}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(barC, 0.45)}"/><stop offset="1" stop-color="${darken(barC, 0.25)}"/></linearGradient></defs>` +
             ((done ? 1 : vR9) > 0.03 && mHR9 > 0.5 ? `<g data-barfill="${(barX9 + gR9).toFixed(1)} ${(barY9 + gR9).toFixed(1)} ${Math.max(0, (barW9 - gR9 * 2) * (done ? 1 : vR9)).toFixed(1)} ${mHR9.toFixed(1)}"><rect x="${(barX9 + gR9).toFixed(1)}" y="${(barY9 + gR9).toFixed(1)}" width="${Math.max(0, (barW9 - gR9 * 2) * (done ? 1 : vR9)).toFixed(1)}" height="${mHR9.toFixed(1)}" rx="${(mHR9 / 2).toFixed(1)}" fill="url(#${gidR9})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 3px ${hexRgba(barC, 0.6)})"` : ""}/></g>` : "")
           : "");
@@ -8568,8 +8603,19 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       const innerR = rimR - rimW9;
       const wSpan = Math.PI / nW;
       let inner = "";
+      /* the 10/1 un-burn (the owner: "weapon wheel needs to be broken up
+         further to be useful, too much burned into the bkg"): the disc,
+         the hammer wedge and the hub plate are each marked ink (inert
+         wrappers, the draw byte-identical), so Unity gets them as live
+         children — Disc and Hammer wedge under everything, Hub plate in
+         its paint order — beside the Cylinder, the chamber glyphs and the
+         name tag that already ship live. The RIM stays in the base: it is
+         the piece's outermost ink and what the sprite crops to, and a base
+         with nothing left in it would hand the prefab an empty, uncropped
+         root (the 10/1 proof export showed exactly that). */
+      const innerBox = `data-icon-box="${(cW - innerR).toFixed(1)} ${(cW - innerR).toFixed(1)} ${(innerR * 2).toFixed(1)} ${(innerR * 2).toFixed(1)}"`;
       // fixed hammer wedge at 2 o'clock — the arming position
-      inner += `<path d="M ${cW} ${cW} L ${(cW + innerR * Math.cos(hamA - wSpan)).toFixed(1)} ${(cW + innerR * Math.sin(hamA - wSpan)).toFixed(1)} A ${innerR.toFixed(1)} ${innerR.toFixed(1)} 0 0 1 ${(cW + innerR * Math.cos(hamA + wSpan)).toFixed(1)} ${(cW + innerR * Math.sin(hamA + wSpan)).toFixed(1)} Z" fill="url(#${gidW9}w)"/>`;
+      inner += `<g data-part="icon" data-icon="hammer" data-icon-nick="Hammer wedge" data-icon-under="1" ${innerBox}><path d="M ${cW} ${cW} L ${(cW + innerR * Math.cos(hamA - wSpan)).toFixed(1)} ${(cW + innerR * Math.sin(hamA - wSpan)).toFixed(1)} A ${innerR.toFixed(1)} ${innerR.toFixed(1)} 0 0 1 ${(cW + innerR * Math.cos(hamA + wSpan)).toFixed(1)} ${(cW + innerR * Math.sin(hamA + wSpan)).toFixed(1)} Z" fill="url(#${gidW9}w)"/></g>`;
       /* round 44 (item 44, RIG-7): the CYLINDER — flutes + every quiet
          socket (the armed one's quiet socket included, drawn UNDER the
          armed dressing) — is ONE MARKED layer on a full-inner-disc frame
@@ -8651,8 +8697,8 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
   ${patW}
 </defs>
 <g opacity="${dim}">
-  <circle cx="${cW}" cy="${cW}" r="${(rimR - rimW9 / 2).toFixed(1)}" fill="url(#${gidW9}g)"/>
-  ${patW ? `<circle cx="${cW}" cy="${cW}" r="${(innerR - 1).toFixed(1)}" fill="url(#${gidW9}p)" opacity="${((PT!.opacity / 100) * 0.4).toFixed(2)}"/>` : ""}
+  <g data-part="icon" data-icon="disc" data-icon-nick="Disc" data-icon-under="1" data-icon-box="${(cW - rimR).toFixed(1)} ${(cW - rimR).toFixed(1)} ${(rimR * 2).toFixed(1)} ${(rimR * 2).toFixed(1)}"><circle cx="${cW}" cy="${cW}" r="${(rimR - rimW9 / 2).toFixed(1)}" fill="url(#${gidW9}g)"/>
+  ${patW ? `<circle cx="${cW}" cy="${cW}" r="${(innerR - 1).toFixed(1)}" fill="url(#${gidW9}p)" opacity="${((PT!.opacity / 100) * 0.4).toFixed(2)}"/>` : ""}</g>
   ${inner}
   <circle cx="${cW}" cy="${cW}" r="${rimR.toFixed(1)}" fill="none" stroke="url(#${gidW9}r)" stroke-width="${rimW9.toFixed(1)}"${live9 ? ` style="filter: drop-shadow(0 0 ${(rimW9 * 0.7).toFixed(1)}px ${hexRgba(glow, 0.5)})"` : ""}/>
   ${sweepArc}
@@ -8660,11 +8706,11 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
   ${armedSvg}
   ${glyphSvg}
   ${tagSvg}
-  <circle cx="${cW}" cy="${cW}" r="${hubR.toFixed(1)}" fill="url(#${gidW9}h)" stroke="${hexRgba(glow, 0.45)}" stroke-width="1.8"/>
+  <g data-part="icon" data-icon="hub" data-icon-nick="Hub plate" data-icon-box="${(cW - hubR - 2).toFixed(1)} ${(cW - hubR - 2).toFixed(1)} ${((hubR + 2) * 2).toFixed(1)} ${((hubR + 2) * 2).toFixed(1)}"><circle cx="${cW}" cy="${cW}" r="${hubR.toFixed(1)}" fill="url(#${gidW9}h)" stroke="${hexRgba(glow, 0.45)}" stroke-width="1.8"/>
   <ellipse cx="${cW}" cy="${(cW - hubR * 0.5).toFixed(1)}" rx="${(hubR * 0.66).toFixed(1)}" ry="${(hubR * 0.26).toFixed(1)}" fill="#FFFFFF" opacity="0.08"/>
+  <line x1="${(cW - hubR * 0.3).toFixed(1)}" y1="${(cW + hubR * 0.62).toFixed(1)}" x2="${(cW + hubR * 0.3).toFixed(1)}" y2="${(cW + hubR * 0.62).toFixed(1)}" stroke="${hexRgba(glow, 0.6)}" stroke-width="${(2 * k).toFixed(1)}"/></g>
   ${contentText(hubNm, cW, cW - 8 * k, dW * 0.056, { anchor: "middle", keepCase: true })}
   <text x="${cW}" y="${(cW + hubR * 0.4).toFixed(1)}" font-family="Inter, sans-serif" font-size="${(dW * 0.026).toFixed(1)}" font-weight="700" letter-spacing="0.18em" fill="rgba(255,255,255,0.45)" text-anchor="middle" dominant-baseline="central">${esc((opts.slots?.hint ?? "RELEASE TO EQUIP").slice(0, 24))}</text>
-  <line x1="${(cW - hubR * 0.3).toFixed(1)}" y1="${(cW + hubR * 0.62).toFixed(1)}" x2="${(cW + hubR * 0.3).toFixed(1)}" y2="${(cW + hubR * 0.62).toFixed(1)}" stroke="${hexRgba(glow, 0.6)}" stroke-width="${(2 * k).toFixed(1)}"/>
 </g>
 </svg>`;
     }
@@ -9385,10 +9431,17 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       const dimR = state === "disabled";
       const mystery = (opts.slots?.kind ?? "Revealed") === "Mystery" || opts.overlay === "mystery";
       const hotR = state === "hover" || state === "pressed";
-      const aura = `<rect x="${(sx - 5 * k).toFixed(1)}" y="${(sy - 5 * k).toFixed(1)}" width="${(sw + 10 * k).toFixed(1)}" height="${(sh + 10 * k).toFixed(1)}" rx="${(16 * k).toFixed(1)}" fill="none" stroke="${mystery ? "rgba(255,255,255,0.35)" : tier.c}" stroke-width="${((hotR ? 5 : 3.6) * k).toFixed(1)}" opacity="${dimR ? 0.3 : 0.95}"${!dimR && !mystery ? ` style="filter: drop-shadow(0 0 ${((hotR ? 9 : 5.5) * k).toFixed(1)}px ${hexRgba(tier.c, 0.7)})"` : ""}${mystery ? ` stroke-dasharray="${(7 * k).toFixed(1)} ${(6 * k).toFixed(1)}"` : ""}/>`;
+      /* the 10/1 un-burn (the owner: "orange color should not be burned
+         into the background", "well should be its own layer"): the aura
+         is marked ink BEHIND the plate — tintable on a revealed card (cut
+         white, tier color recorded; the mystery ring is its own white
+         dashes and stays as drawn) — and the well is marked ink under
+         everything. The legendary and mystery variants share this case,
+         so they un-burn in the same stroke. */
+      const aura = `<g data-part="icon" data-icon="glow" data-icon-nick="Rarity glow" data-icon-behind="1"${mystery ? "" : ` data-icon-tint="${tier.c}"`}><rect x="${(sx - 5 * k).toFixed(1)}" y="${(sy - 5 * k).toFixed(1)}" width="${(sw + 10 * k).toFixed(1)}" height="${(sh + 10 * k).toFixed(1)}" rx="${(16 * k).toFixed(1)}" fill="none" stroke="${mystery ? "rgba(255,255,255,0.35)" : tier.c}" stroke-width="${((hotR ? 5 : 3.6) * k).toFixed(1)}" opacity="${dimR ? 0.3 : 0.95}"${!dimR && !mystery ? ` style="filter: drop-shadow(0 0 ${((hotR ? 9 : 5.5) * k).toFixed(1)}px ${hexRgba(tier.c, 0.7)})"` : ""}${mystery ? ` stroke-dasharray="${(7 * k).toFixed(1)} ${(6 * k).toFixed(1)}"` : ""}/></g>`;
       const inset = bw + 6 * k;
       const wcx = sx + sw / 2;
-      const well = `<circle cx="${wcx.toFixed(1)}" cy="${(sy + sh * 0.38).toFixed(1)}" r="${(sw * 0.3).toFixed(1)}" fill="${wellFill}" opacity="0.9"/>`;
+      const well = `<g data-part="icon" data-icon="well" data-icon-nick="Well" data-icon-under="1" data-icon-box="${(wcx - sw * 0.3 - 1).toFixed(1)} ${(sy + sh * 0.38 - sw * 0.3 - 1).toFixed(1)} ${(sw * 0.6 + 2).toFixed(1)} ${(sw * 0.6 + 2).toFixed(1)}"><circle cx="${wcx.toFixed(1)}" cy="${(sy + sh * 0.38).toFixed(1)}" r="${(sw * 0.3).toFixed(1)}" fill="${wellFill}" opacity="0.9"/></g>`;
       const icR = opts.icon !== undefined ? opts.icon : STOCK_ICONS.gem;
       // the reward glyph is marked swappable ink (maximum-editability law):
       // the engine export strips it and ships it as a live Image child
@@ -9716,17 +9769,22 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       const gU = 2.5 * k, mHU = railH - gU * 2;
       const parts = `<defs><clipPath id="${gidU}"><circle cx="${pcx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${pr.toFixed(1)}"/></clipPath>
         <linearGradient id="${gidU}h" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(HPC, 0.4)}"/><stop offset="1" stop-color="${darken(HPC, 0.3)}"/></linearGradient></defs>
-        <circle cx="${pcx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${pr.toFixed(1)}" fill="${wellFill}"/>
+        <g data-part="icon" data-icon="avatarwell" data-icon-nick="Avatar well" data-icon-under="1" data-icon-box="${(pcx - pr - 2).toFixed(1)} ${(cy - pr - 2).toFixed(1)} ${(pr * 2 + 4).toFixed(1)} ${(pr * 2 + 4).toFixed(1)}"><circle cx="${pcx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${pr.toFixed(1)}" fill="${wellFill}"/></g>
         <g data-part="icon" data-icon="portrait" data-icon-well="${pcx.toFixed(1)} ${cy.toFixed(1)} ${pr.toFixed(1)}" clip-path="url(#${gidU})" opacity="${state === "disabled" ? 0.4 : 1}">
           <circle cx="${pcx.toFixed(1)}" cy="${(cy - pr * 0.28).toFixed(1)}" r="${(pr * 0.34).toFixed(1)}" fill="rgba(255,255,255,0.4)"/>
           <ellipse cx="${pcx.toFixed(1)}" cy="${(cy + pr * 0.75).toFixed(1)}" rx="${(pr * 0.62).toFixed(1)}" ry="${(pr * 0.5).toFixed(1)}" fill="rgba(255,255,255,0.4)"/>
         </g>
-        <circle cx="${pcx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${pr.toFixed(1)}" fill="none" stroke="${darken(bevel, 0.35)}" stroke-width="1.6"/>` +
+        <g data-part="icon" data-icon="avatarring" data-icon-nick="Avatar ring" data-icon-box="${(pcx - pr - 2).toFixed(1)} ${(cy - pr - 2).toFixed(1)} ${(pr * 2 + 4).toFixed(1)} ${(pr * 2 + 4).toFixed(1)}"><circle cx="${pcx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${pr.toFixed(1)}" fill="none" stroke="${darken(bevel, 0.35)}" stroke-width="1.6"/></g>` +
         /* fit-down guard: the name shares the squeezed text column, so at a
            hard margin it shrinks instead of overhanging the shell */
         (() => { const nm = opts.label ?? "VANGUARD"; const fsN0 = 23 * k * typeK;
           return contentText(nm, tx0, 30 + inset + 18 * k, fsN0 * Math.min(1, (txw + 8 * k) / Math.max(1, nm.length * fsN0 * 0.62)), { keepCase: true }); })() +
-        `<rect x="${tx0.toFixed(1)}" y="${railY.toFixed(1)}" width="${txw.toFixed(1)}" height="${railH.toFixed(1)}" rx="${(railH / 2).toFixed(1)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.8)}"/>` +
+        /* the avatar well, its ring and the HP WELL are marked ink (the
+           owner, 10/1: "well and avatar frame should not be burned into
+           the background") — each ships as its own live child; the well
+           and the disc land UNDER the portrait and the fill, the ring
+           over the portrait, the app's own stack */
+        `<g data-part="icon" data-icon="well" data-icon-nick="Well" data-icon-under="1" data-icon-box="${(tx0 - 1).toFixed(1)} ${(railY - 1).toFixed(1)} ${(txw + 2).toFixed(1)} ${(railH + 2).toFixed(1)}"><rect x="${tx0.toFixed(1)}" y="${railY.toFixed(1)}" width="${txw.toFixed(1)}" height="${railH.toFixed(1)}" rx="${(railH / 2).toFixed(1)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.8)}"/></g>` +
         // round 44 (item 42): the HP mercury is MARKED ink — it ships as
         // a Filled atom the rig drives; the track stays anatomy
         (vHP > 0.04 ? `<g data-barfill="${(tx0 + gU).toFixed(1)} ${(railY + gU).toFixed(1)} ${Math.max(0, (txw - gU * 2) * vHP).toFixed(1)} ${mHU.toFixed(1)}"><rect x="${(tx0 + gU).toFixed(1)}" y="${(railY + gU).toFixed(1)}" width="${Math.max(0, (txw - gU * 2) * vHP).toFixed(1)}" height="${mHU.toFixed(1)}" rx="${(mHU / 2).toFixed(1)}" fill="url(#${gidU}h)"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 2.5px ${hexRgba(HPC, 0.55)})"` : ""}/></g>` : "") +
@@ -9763,7 +9821,10 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       const stubY = (sy + sh / 2).toFixed(1);
       const stubs = `<g data-part="icon" data-icon="stub-left" data-icon-nick="Tree stub (left)"><line x1="${(sx - 26 * k).toFixed(1)}" y1="${stubY}" x2="${(sx - 4 * k).toFixed(1)}" y2="${stubY}" stroke="${done9 ? glow : "rgba(255,255,255,0.25)"}" stroke-width="${(8 * k).toFixed(1)}" stroke-linecap="round"${done9 && state !== "disabled" ? ` style="filter: drop-shadow(0 0 3px ${hexRgba(glow, 0.6)})"` : ""}/></g>
         <g data-part="icon" data-icon="stub-right" data-icon-nick="Tree stub (right)"><line x1="${(sx + sw + 4 * k).toFixed(1)}" y1="${stubY}" x2="${(sx + sw + 26 * k).toFixed(1)}" y2="${stubY}" stroke="rgba(255,255,255,0.25)" stroke-width="${(8 * k).toFixed(1)}" stroke-linecap="round"/></g>`;
-      let over = `<circle cx="${ccx.toFixed(1)}" cy="${cyM.toFixed(1)}" r="${mR.toFixed(1)}" fill="${wellFill}" stroke="rgba(255,255,255,0.25)" stroke-width="1.4"/>` +
+      /* the icon's DISC is marked ink, under the glyph (the owner, 10/1:
+         "gray circle should not be burned into the background") — its own
+         live child, the glyph child rides over it */
+      let over = `<g data-part="icon" data-icon="disc" data-icon-nick="Icon disc" data-icon-under="1" data-icon-box="${(ccx - mR - 2).toFixed(1)} ${(cyM - mR - 2).toFixed(1)} ${(mR * 2 + 4).toFixed(1)} ${(mR * 2 + 4).toFixed(1)}"><circle cx="${ccx.toFixed(1)}" cy="${cyM.toFixed(1)}" r="${mR.toFixed(1)}" fill="${wellFill}" stroke="rgba(255,255,255,0.25)" stroke-width="1.4"/></g>` +
         (ic ? (locked9
           ? `<g data-part="icon" data-icon="glyph">${iconGroup(ic, ccx - mR * 0.55, cyM - mR * 0.55, mR * 1.1, "#A7AAB4", { strokeWidth: 2 * iconWK })}</g>`
           : `<g data-part="icon" data-icon="glyph">${themedIcon(ic, ccx - mR * 0.55, cyM - mR * 0.55, mR * 1.1, hexMix(glow, "#FFFFFF", 0.25), 2.2)}</g>`) : "") +
@@ -9806,8 +9867,9 @@ ${contentText(g9, Wd / 2, Hd / 2, fsD, { anchor: "middle", keepCase: true })}
       const barX = 39 + inset + 12 * k, barW9 = w - inset * 2 - 24 * k, barH9 = 12 * k, barY9 = cy + 12 * k;
       const gidP1 = "pm" + UID++;
       const gP = 2.5 * k, mHP = barH9 - gP * 2;
+      // the WELL is marked ink, under everything (10/1): its own sprite, a live Well child under the fill
       const parts = usr + cnt +
-        `<rect x="${barX.toFixed(1)}" y="${barY9.toFixed(1)}" width="${barW9.toFixed(1)}" height="${barH9.toFixed(1)}" rx="${(barH9 / 2).toFixed(1)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.8)}" stroke="rgba(0,0,0,0.3)" stroke-width="1"/>` +
+        `<g data-part="icon" data-icon="well" data-icon-nick="Well" data-icon-under="1" data-icon-box="${(barX - 1).toFixed(1)} ${(barY9 - 1).toFixed(1)} ${(barW9 + 2).toFixed(1)} ${(barH9 + 2).toFixed(1)}"><rect x="${barX.toFixed(1)}" y="${barY9.toFixed(1)}" width="${barW9.toFixed(1)}" height="${barH9.toFixed(1)}" rx="${(barH9 / 2).toFixed(1)}" fill="${darken(effect(cfg.effects, "Inner Fill"), 0.8)}" stroke="rgba(0,0,0,0.3)" stroke-width="1"/></g>` +
         `<defs><linearGradient id="${gidP1}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lighten(barC, 0.4)}"/><stop offset="1" stop-color="${darken(barC, 0.25)}"/></linearGradient></defs>` +
         (vP0 > 0.03 ? `<g data-barfill="${(barX + gP).toFixed(1)} ${(barY9 + gP).toFixed(1)} ${Math.max(0, (barW9 - gP * 2) * vP0).toFixed(1)} ${mHP.toFixed(1)}"><rect x="${(barX + gP).toFixed(1)}" y="${(barY9 + gP).toFixed(1)}" width="${Math.max(0, (barW9 - gP * 2) * vP0).toFixed(1)}" height="${mHP.toFixed(1)}" rx="${(mHP / 2).toFixed(1)}" fill="url(#${gidP1})"${state !== "disabled" ? ` style="filter: drop-shadow(0 0 3px ${hexRgba(barC, 0.6)})"` : ""}/></g>` : "");
       return stampTrack(inject(shell.replace("<svg ", '<svg data-popmeter="1" '), parts), barX + gP, barW9 - gP * 2, barY9 + gP, mHP);
