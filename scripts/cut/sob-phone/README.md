@@ -14,3 +14,9 @@ Nothing here ships in the app; it is the cut's tooling, kept so a re-cut is a co
 6. Copy `deliver/mobile/` to the game repo's `docs/ui-kit-cut/mobile/` with the README kept there.
 
 `CHROMIUM_PATH` points Playwright at a browser when the default download is not present. Sizes are points; sprites are 3x.
+
+## Round 2 (Brightside colours, Literata faces)
+
+The same road with the `-2` scripts: `mobile-sob-2.mjs` (Brightside colourways, Literata labels, the ribbon banner through
+`renderKit`, the nameplate strip in the Stand on Business gold), `atoms-2.mjs`, `pack-2.py`, `preview-2.py`. Fonts in
+`cut2/fonts/` (Literata 12pt 600/700/800 + OFL). Delivered to the game repo's `docs/ui-kit-cut/mobile-2/`.
