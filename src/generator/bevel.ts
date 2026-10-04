@@ -6713,6 +6713,12 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
          untouched frame renders byte-for-byte as before. */
       const lvlTxt = opts.label ?? String(lvl);
       const fsA = 20 * k * (lvlTxt.length > 2 ? 0.8 : 1);
+      /* an EMPTY typed label clears the count ring and its number (the
+         Nightfall home board, owner: "no white circles with numbers under
+         the profile image frames"): the frame is then a plain portrait
+         ring. The dial is the label itself, so a board copy or a clone can
+         drop the chip without a new control. */
+      const noChip = opts.label === "";
       /* the PROFILE IMAGE is marked swappable ink (maximum-editability law):
          the engine export strips it from the frame bake and ships it as a
          live masked Image child — the well circle rides data-icon-well so
@@ -6730,8 +6736,8 @@ export function renderKit(cfg: GenConfig, id: KitComponentId, size: KitSize, sta
           <circle cx="${ccx.toFixed(1)}" cy="${(ccy - pr * 0.28).toFixed(1)}" r="${(pr * 0.34).toFixed(1)}" fill="rgba(255,255,255,0.4)"/>
           <ellipse cx="${ccx.toFixed(1)}" cy="${(ccy + pr * 0.75).toFixed(1)}" rx="${(pr * 0.62).toFixed(1)}" ry="${(pr * 0.5).toFixed(1)}" fill="rgba(255,255,255,0.4)"/>
         </g>
-        <g data-part="icon" data-icon="ring" data-icon-nick="Count ring">${candyKnob(ccx, sy + sh - 8 * k, 21 * k, knobC)}</g>
-        <text x="${ccx.toFixed(1)}" y="${(sy + sh - 7 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${fsA.toFixed(1)}" font-weight="900" fill="${darken(bevel, 0.55)}" text-anchor="middle" dominant-baseline="central" data-seat-rider="ring">${esc(lvlTxt)}</text>`;
+        ${noChip ? "" : `<g data-part="icon" data-icon="ring" data-icon-nick="Count ring">${candyKnob(ccx, sy + sh - 8 * k, 21 * k, knobC)}</g>
+        <text x="${ccx.toFixed(1)}" y="${(sy + sh - 7 * k).toFixed(1)}" font-family="Inter, sans-serif" font-size="${fsA.toFixed(1)}" font-weight="900" fill="${darken(bevel, 0.55)}" text-anchor="middle" dominant-baseline="central" data-seat-rider="ring">${esc(lvlTxt)}</text>`}`;
       return inject(shell.replace("<svg ", '<svg data-avatarframe="1" '), parts);
     }
     case "nameplate": {

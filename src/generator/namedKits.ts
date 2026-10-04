@@ -41,6 +41,7 @@
 
 import brightsideKit from "./kit-brightside.json";
 import standOnBusinessKit from "./kit-stand-on-business.json";
+import nightfallKit from "./kit-nightfall.json";
 import type { BoardDef, BoardItem } from "./store";
 
 /** One demo screen in the showcase strip, in the order a player meets it. */
@@ -147,9 +148,30 @@ const STAND_ON_BUSINESS: NamedKitDef = {
   payload: standOnBusinessKit as unknown as Record<string, unknown>,
 };
 
+
+/* Nightfall (round 81) — Stand on Business after dark, from the owner's
+   concept of the game's home screen: glass panels over the night with a
+   hairline of gold, a polished gold Play with angled ends, gold-ringed
+   round icon buttons, cream Cinzel small caps and Crimson Pro for reading.
+   STAGED until the owner releases it. One board, the home screen, on the
+   1920 × 1080 stage. NO EM DASHES in anything a visitor reads. */
+const NIGHTFALL: NamedKitDef = {
+  slug: "nightfall",
+  name: "Nightfall",
+  lede: "Stand on Business after dark: glass panels with a hairline of gold, a polished gold Play, cream small caps. One home screen, built from one kit.",
+  platform: "Composed for the phone in landscape · 1920 × 1080 stage, sized for 874 × 402 points",
+  storeUrl: null,
+  staged: true,
+  screens: [
+    { board: "home", title: "Home", caption: "The home screen: the player's portrait, name and collection bar, the wordmark window, wallet chips and the settings button up top; Season Pass and Missions down the left; the deck's three cards with their arrows, the opponent line and Play in the middle; the featured event and the daily shop down the right; the four tabs along the foot." },
+  ],
+  payload: nightfallKit as unknown as Record<string, unknown>,
+};
+
 export const NAMED_KITS: Record<string, NamedKitDef> = {
   [BRIGHTSIDE.slug]: BRIGHTSIDE,
   [STAND_ON_BUSINESS.slug]: STAND_ON_BUSINESS,
+  [NIGHTFALL.slug]: NIGHTFALL,
 };
 
 /** `#/kit/<slug>` → the slug, for any shipped kit. Anything else → null.
