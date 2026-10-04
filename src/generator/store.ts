@@ -3,6 +3,7 @@ import type { GenConfig, GenStateName, IconDef, KitComponentId, KitSize, GridSty
 import { defaultConfig, defaultCandy, applyPresetCandy, randomizeConfig, rollStatement, classicRack, presetById, PRESETS, PATTERN_TYPES, GAME_FONTS, customFontNames, ctaForFont, darken, hexMix, registerCustomFont, pickDesign, designDiff, deepMergeDesign, KIT_SHAPE, KIT_SLOTS, applyKitDesign, applyKitTextFill, setUserShapes, DESIGN_KEYS, effKitSize, migrateKitDesigns, migrateKitSlotVals, clampWeight, fontByName, sanitizeUnitySlug, baseOf, mintCloneId, CLONE_INELIGIBLE, isGlyphPiece, resolveKitIcon } from "./model";
 import { isCloneId, KIT_COMPONENTS } from "./model";
 import type { KitClone, KitPieceId } from "./model";
+import { stageDims, coerceStageId, stageIsPhone, type StageId } from "./stages";
 import { ensureFont, fontReady, awaitFonts } from "./fonts";
 import { delBgOriginal, getBgOriginal, putBgOriginal } from "./bgvault";
 import { isAssetRef, isBundledArt, resolveBgAsset, assetCloudBacked, bgAssetDisplayUrl, assetUrlNow, warmAssetUrl } from "./assets";
@@ -592,7 +593,7 @@ interface GenStore {
    *  beneath each board (owner: "plus signs beneath and to the right of
    *  boards so users can add boards as they wish"). Inherits the
    *  anchor's aspect unless told otherwise. */
-  addBoardAfter: (afterId: string, opts?: { aspect?: "169" | "mobile"; nl?: boolean }) => void;
+  addBoardAfter: (afterId: string, opts?: { aspect?: StageId; nl?: boolean }) => void;
   removeBoard: (id: string) => void;
   /** Copy a whole artboard — pieces, backdrop, darkroom and overlay dials —
    *  as "<name> copy" right after the source (owner: "a running start"). */
@@ -629,7 +630,7 @@ interface GenStore {
    *  so later = on top. */
   reorderBoardItem: (id: string, dir: "front" | "forward" | "backward" | "back") => void;
   /** Sets the ACTIVE board's aspect. */
-  setBoardAspect: (a: "169" | "mobile") => void;
+  setBoardAspect: (a: StageId) => void;
   boardSnap: boolean;
   setBoardSnap: (v: boolean) => void;
   /** Safety-area guides over every artboard (16:9: action/title safe;
@@ -1293,9 +1294,21 @@ export const artShortOf = (svg: string): number | undefined => {
  *  5% grant stays the hard bottom and 30% the hard top, so no floor can
  *  rise above what shipped. Without a measurement the old flat 30%
  *  stands. The 200% ceiling is shared. */
+/** The floor's pixel count on the ACTIVE board's stage: the 34 above on the
+ *  1920 × 1080 stage and anything as tall, scaled down with the stage's
+ *  short side on a device stage (a points stage is small — 874 × 402 for
+ *  a phone in landscape — and a 34-point minimum would make every slim
+ *  bar and list row of a phone screen illegal), never under 12. A floor
+ *  only ever falls from what shipped. */
+export const boardMinArtPx = (): number => {
+  const st = useGen.getState();
+  const act = st.boards.find((bd) => bd.id === st.activeBoard);
+  const [w, h] = stageDims(act?.aspect);
+  return Math.max(12, Math.min(BOARD_MIN_ART_PX, (BOARD_MIN_ART_PX * Math.min(w, h)) / 1080));
+};
 export const boardScaleMin = (b: Pick<BoardItem, "big" | "logo" | "kitId"> | null | undefined, artShort?: number): number =>
   (b?.big || b?.logo || (b?.kitId != null && isGlyphPiece(baseOf(b.kitId))) ? 0.05
-    : artShort && artShort > 0 ? Math.max(0.05, Math.min(0.3, BOARD_MIN_ART_PX / artShort))
+    : artShort && artShort > 0 ? Math.max(0.05, Math.min(0.3, boardMinArtPx() / artShort))
     : 0.3);
 
 /** What a board item's art measures RIGHT NOW, for the floor above. One
@@ -1590,7 +1603,7 @@ export function suppressCastShadow(cfg: GenConfig): GenConfig {
 export interface BoardDef {
   id: string;
   name: string;
-  aspect: "169" | "mobile";
+  aspect: StageId;
   /** Start a new row on the desk — set by the "+ below" tab so "beneath"
    *  means BENEATH even when the current row still has room. */
   nl?: boolean;
@@ -1804,7 +1817,7 @@ export async function importBoards(raw: unknown): Promise<boolean> {
     const b = JSON.parse(JSON.stringify(rb)) as BoardDef & { bgData?: string; bgRef?: string };
     b.id = claimId(b.id, boardIdOk, "ab" + stamp + bi.toString(36));
     b.name = typeof b.name === "string" ? b.name.slice(0, 40) : `Board ${bi + 1}`;
-    b.aspect = b.aspect === "mobile" ? "mobile" : "169";
+    b.aspect = coerceStageId(b.aspect);
     b.items = Array.isArray(b.items)
       ? b.items.filter((it) => it && typeof it === "object")
         .map((it, i) => ({ ...it, id: claimId((it as BoardItem).id, itemIdOk, "bd" + stamp + bi.toString(36) + "i" + i.toString(36)) }))
@@ -2026,7 +2039,7 @@ function loadBoards(): { boards: BoardDef[]; activeBoard: string } {
   const raw = loadJson<unknown>(BOARD_KEY, null);
   if (Array.isArray(raw)) {
     // v1 format: a single flat item list — wrap it as Board 1
-    const aspect: "169" | "mobile" = loadJson<string>("ui-generator-boardaspect", "169") === "mobile" ? "mobile" : "169";
+    const aspect = coerceStageId(loadJson<string>("ui-generator-boardaspect", "169"));
     return { boards: [{ id: "ab1", name: "Board 1", aspect, items: (raw as BoardItem[]).filter(Boolean) }], activeBoard: "ab1" };
   }
   if (raw && typeof raw === "object" && Array.isArray((raw as { boards?: unknown }).boards)) {
@@ -2703,7 +2716,7 @@ export const useGen = create<GenStore>((set, get) => ({
        can't see it"). Measure the real piece, shrink it until it fits
        the stage's width, then split the difference both ways. */
     const act = st.boards.find((b) => b.id === st.activeBoard);
-    const [W, H] = act?.aspect === "mobile" ? [390, 844] : [1920, 1080];
+    const [W, H] = stageDims(act?.aspect);
     /* a LIVE save-twin places the CLONE (kitId road) so the copy follows
        its edits; a frozen snapshot (old saves, deleted twin) places by
        libId as ever. Both land by the same centered/fit contract. */
@@ -2735,7 +2748,7 @@ export const useGen = create<GenStore>((set, get) => ({
     // starter templates and ghost drops: kit pieces, big-glyph tiles
     // (the Match-3 template's grid) or saved library assets
     const act = get().boards.find((b) => b.id === get().activeBoard);
-    const [W, H] = act?.aspect === "mobile" ? [390, 844] : [1920, 1080];
+    const [W, H] = stageDims(act?.aspect);
     const stamp = Date.now().toString(36);
     const add: BoardItem[] = items.map((it, i) => ({
       id: "bd" + stamp + i + Math.random().toString(36).slice(2, 5),
@@ -2756,8 +2769,11 @@ export const useGen = create<GenStore>((set, get) => ({
   addKitToBoard: (kitId, ov) => {
     const act = get().boards.find((b) => b.id === get().activeBoard);
     const n = act?.items.length ?? 0;
-    const mob = act?.aspect === "mobile";
-    const item: BoardItem = { id: "bd" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), libId: "", kitId, ...(ov ? { ov } : {}), x: (mob ? 60 : 640) + (n % 3) * (mob ? 30 : 90), y: (mob ? 240 : 420) + (n % 3) * 60 };
+    // the landing seat scales with the stage: a third of the way in on a wide stage, tighter on a phone
+    // (the same 640/420 on 16:9 and 60/240 on Mobile as before; every other device sits by the same fractions)
+    const [SW, SH] = stageDims(act?.aspect);
+    const mob = stageIsPhone(act?.aspect);
+    const item: BoardItem = { id: "bd" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), libId: "", kitId, ...(ov ? { ov } : {}), x: Math.round(SW * (mob ? 0.154 : 0.333)) + (n % 3) * (mob ? 30 : 90), y: Math.round(SH * (mob ? 0.284 : 0.389)) + (n % 3) * 60 };
     mutateBoards(get, set, null, (bs) => bs.map((b) => (b.id === get().activeBoard ? { ...b, items: [...b.items, item] } : b)));
     set({ boardSel: item.id });
   },
@@ -2841,7 +2857,7 @@ export const useGen = create<GenStore>((set, get) => ({
        the real specimen, shrink it until it fits the stage's width, then
        split the difference both ways. */
     const act = get().boards.find((b) => b.id === get().activeBoard);
-    const [W, H] = act?.aspect === "mobile" ? [390, 844] : [1920, 1080];
+    const [W, H] = stageDims(act?.aspect);
     let stamp: NonNullable<BoardItem["stamp"]> = plain
       ? { text: "Label text", size: 60, plain: { color: "#FFFFFF" } }
       : { text: "GAME TITLE", size: 100 };
@@ -2851,10 +2867,12 @@ export const useGen = create<GenStore>((set, get) => ({
     };
     /* the specimen's width is SUB-linear in the size knob (fixed padding
        and canvas floors) — one proportional pass undershoots, so iterate
-       until it truly fits or the knob bottoms out at its 25% floor */
+       until it truly fits or the knob bottoms out at its 15% floor (25%
+       until the device stages: an 11 pt caption on a points stage needs
+       about 18% of a 60 type size) */
     let [w, h] = measure();
-    for (let i = 0; i < 6 && w > W * 0.86 && stamp.size > 25; i++) {
-      stamp = { ...stamp, size: Math.max(25, Math.floor((stamp.size * W * 0.86) / w)) };
+    for (let i = 0; i < 6 && w > W * 0.86 && stamp.size > 15; i++) {
+      stamp = { ...stamp, size: Math.max(15, Math.floor((stamp.size * W * 0.86) / w)) };
       [w, h] = measure();
     }
     const item: BoardItem = {
@@ -2866,7 +2884,7 @@ export const useGen = create<GenStore>((set, get) => ({
     set({ phase: "board", boardSel: item.id });
   },
   setBoardItemStamp: (id, patch) => mutateItem(get, set, `stamp:${id}`, id, (b) => (
-    b.stamp ? { ...b, stamp: { ...b.stamp, ...patch, size: Math.max(25, Math.min(400, patch.size ?? b.stamp.size)) } } : b
+    b.stamp ? { ...b, stamp: { ...b.stamp, ...patch, size: Math.max(15, Math.min(400, patch.size ?? b.stamp.size)) } } : b
   )),
   addBigGlyphToBoard: (gid) => {
     const gl = bigGlyphById(gid);
@@ -2875,7 +2893,7 @@ export const useGen = create<GenStore>((set, get) => ({
        footprint, shrunk further if a huge glyph would swamp a mobile
        board — same landing contract as the type stamp */
     const act = get().boards.find((b) => b.id === get().activeBoard);
-    const [W, H] = act?.aspect === "mobile" ? [390, 844] : [1920, 1080];
+    const [W, H] = stageDims(act?.aspect);
     let k = BIG_GLYPH_BASE;
     while (gl.w * k > W * 0.86 && k > 0.1) k *= 0.8;
     const scale = Math.max(0.3, Math.min(2, Math.round((k / BIG_GLYPH_BASE) * 100) / 100));
@@ -2943,7 +2961,7 @@ export const useGen = create<GenStore>((set, get) => ({
     if (!ua) return;
     // the big glyph's landing contract: centered, shrunk to fit the stage
     const act = get().boards.find((b) => b.id === get().activeBoard);
-    const [W, H] = act?.aspect === "mobile" ? [390, 844] : [1920, 1080];
+    const [W, H] = stageDims(act?.aspect);
     let k = BIG_GLYPH_BASE;
     while (ua.w * k > W * 0.86 && k > 0.05) k *= 0.8;
     const scale = Math.max(0.05, Math.min(2, Math.round((k / BIG_GLYPH_BASE) * 100) / 100));
@@ -2992,7 +3010,7 @@ export const useGen = create<GenStore>((set, get) => ({
        stage, re-seat its corner at 24 (relative layout intact), then pin
        any straggler so a grabbable sliver always stays inside the edges. */
     const act = get().boards.find((b) => b.id === get().activeBoard);
-    const [W, H] = act?.aspect === "mobile" ? [390, 844] : [1920, 1080];
+    const [W, H] = stageDims(act?.aspect);
     const minX = Math.min(...items.map((it) => it.x));
     const minY = Math.min(...items.map((it) => it.y));
     const fits = (v: number, max: number) => v >= 0 && v <= max;

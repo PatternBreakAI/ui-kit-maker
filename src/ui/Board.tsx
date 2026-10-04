@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceBetween, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceBetween, ArrowDown, ArrowUp, BookmarkPlus, BringToFront, Copy, Download, Grid3x3, ImagePlus, LayoutTemplate, Lock, Monitor, Plus, RotateCcw, Search, SendToBack, Shield, Smartphone, SquarePen, Trash2, Type, X } from "lucide-react";
+import { stageOf, stageDims, stageIsPortrait, STAGE_GROUPS, type StageId } from "@/generator/stages";
 import { useGen, kitPicOf, findAsset, rehydrateBoardBgs, boardBgFilter, boardScaleMin, boardItemArtShort, drawBoardNoise, drawBoardOverlays, savedPromotable, stampFilter, stampSvg, warpStampRaster, importUserAssetFile, kitShadowFilter, suppressCastShadow } from "@/generator/store";
 import type { UserAsset, UserLogoFx } from "@/generator/store";
 import { normalizeShipCopy, captureVideoPoster } from "@/generator/bgvault";
@@ -197,7 +198,7 @@ type Tpl = {
   bg?: string;
   /** template is composed for a specific stage — applying it retunes the
    *  active board's aspect first (the Match-3 mobile grid) */
-  aspect?: "169" | "mobile";
+  aspect?: StageId;
   /** ov / v / label / rot ride the same instance fields the Inspector
    *  edits — a starter can pose a mystery card (`ov`), a legendary tier
    *  (`v`), its own words (`label`) or a turned trail bead (`rot`)
@@ -750,10 +751,9 @@ const STAGED_TEMPLATES = new Set<string>([
   "Mobile ops HUD", "Daily bonus", "Shop", "Base command", "Clan hall", "Loading",
 ]);
 
-const STAGE: Record<"169" | "mobile", [number, number, string]> = {
-  "169": [1920, 1080, "16:9"],
-  mobile: [390, 844, "Mobile"],
-};
+/* the stage table lives in generator/stages.ts (the device sizes, owner 2026-10-04); this keeps the Board's
+   [width, height, short name] shape for the many places that read it */
+const stageTriple = (id: string | undefined): [number, number, string] => { const s = stageOf(id); return [s.w, s.h, s.short]; };
 
 /* Tray thumbs are ~40px tall, so the state glows (authored for a piece at
    full size) would smear every tile into a haze — they render glow-less.
@@ -824,7 +824,7 @@ const CENTER_SCRIM = "radial-gradient(62% 62% at 50% 46%, rgba(4,7,14,0.85) 0%, 
    admins only until the owner releases it (standing rule); also absent
    when the app runs without cloud config (no bucket to serve from). */
 function BackdropLibrary({ aspect, current, apply }: {
-  aspect: "169" | "mobile";
+  aspect: StageId;
   current: string | null | undefined;
   apply: (url: string) => void;
 }) {
@@ -844,7 +844,7 @@ function BackdropLibrary({ aspect, current, apply }: {
   const words = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
   // the active board's orientation leads: 16:9 boards surface landscape
   // scenes first, mobile boards portrait — never hides the rest
-  const landFirst = aspect === "169";
+  const landFirst = !stageIsPortrait(aspect);
   const list = BACKDROP_LIBRARY
     .filter((e) => (!cat || e.cat === cat) && words.every((w) => e.hay.includes(w)))
     .sort((a, b) => (a.land === b.land ? 0 : a.land === landFirst ? -1 : 1));
@@ -994,7 +994,7 @@ const noop = () => {};
  *  of a screen. `fit` scales stage units to the frame the caller
  *  measured; the board's own aspect is never squashed. */
 export function LiveBoardStage({ bd, fit }: { bd: BoardDef; fit: number }) {
-  const [W, H] = STAGE[bd.aspect];
+  const [W, H] = stageTriple(bd.aspect);
   return (
     <div className="bd-stage bd-stage--read" style={{ width: W * fit, height: H * fit }}
       onScroll={(e) => {
@@ -1018,7 +1018,7 @@ export function LiveBoardStage({ bd, fit }: { bd: BoardDef; fit: number }) {
 /** The stage's true pixel size, per aspect — callers size their frames
  *  from this so a mobile-portrait screen keeps 390 × 844. */
 export function boardStageSize(aspect: BoardDef["aspect"]): [number, number] {
-  const [w, h] = STAGE[aspect];
+  const [w, h] = stageTriple(aspect);
   return [w, h];
 }
 
@@ -1063,8 +1063,8 @@ export function BoardView({ playing }: { playing: boolean }) {
   const dealStarterItems = (t: Tpl, bdId: string) => {
     const st = useGen.getState();
     const bd = st.boards.find((b) => b.id === bdId);
-    const retune = bd?.aspect === "mobile" && t.aspect !== "mobile";
-    const [SW, SH] = STAGE["169"], [TW, TH] = STAGE.mobile;
+    const retune = stageIsPortrait(bd?.aspect) && t.aspect !== "mobile";
+    const [SW, SH] = stageTriple("169"), [TW, TH] = stageTriple("mobile");
     const items = retune
       ? t.items.map((it) => ({
           ...it,
@@ -1081,7 +1081,7 @@ export function BoardView({ playing }: { playing: boolean }) {
     const st = useGen.getState();
     const bd = st.boards.find((b) => b.id === bdId);
     if (!bd) return;
-    const [TW, TH] = STAGE[bd.aspect];
+    const [TW, TH] = stageTriple(bd.aspect);
     const M = 12;
     const patches: { id: string; scale: number; x: number; y: number }[] = [];
     for (const it of bd.items.slice(fromIndex)) {
@@ -1120,7 +1120,8 @@ export function BoardView({ playing }: { playing: boolean }) {
     // a MOBILE-specific template still retunes the board first (the
     // Match-3 grid is composed for the 390×844 portrait); a 16:9-composed
     // starter dealt onto a mobile board reflows instead of flipping it
-    if (t.aspect && bd?.aspect !== t.aspect) st.setBoardAspect(t.aspect);
+    // a starter switches the stage only across orientations: a portrait starter on any portrait phone stays on that phone
+    if (t.aspect && stageIsPortrait(bd?.aspect) !== stageIsPortrait(t.aspect)) st.setBoardAspect(t.aspect);
     dealStarterItems(t, st.activeBoard);
     if (t.bg && (mode === "stack" || !(bd?.bgImage || bd?.bgVideo))) st.setBoardBg({ bgImage: t.bg, bgVideo: null, bgShow: true });
   };
@@ -1500,16 +1501,16 @@ export function BoardView({ playing }: { playing: boolean }) {
     const rows: BoardDef[][] = [];
     for (const b2 of bs) {
       const cur = rows[rows.length - 1];
-      const joins = cur && !b2.nl && b2.aspect === "mobile"
-        && cur.every((x) => x.aspect === "mobile") && cur.length < 3;
+      const joins = cur && !b2.nl && stageIsPortrait(b2.aspect)
+        && cur.every((x) => stageIsPortrait(x.aspect)) && cur.length < 3;
       if (joins) cur.push(b2); else rows.push([b2]);
     }
     return rows;
   };
   const rowFit = (row: BoardDef[]) => {
     const gaps = 20 * (row.length - 1);
-    const sumW = row.reduce((a, b2) => a + STAGE[b2.aspect][0], 0);
-    const hCap = Math.min(...row.map((b2) => 820 / STAGE[b2.aspect][1]));
+    const sumW = row.reduce((a, b2) => a + stageTriple(b2.aspect)[0], 0);
+    const hCap = Math.min(...row.map((b2) => 820 / stageTriple(b2.aspect)[1]));
     return Math.min((frameW - 56 - gaps) / sumW, hCap, 1) * zoom;
   };
   const fitOf = (bd: BoardDef) => rowFit(rowsOf(boards).find((r) => r.some((b2) => b2.id === bd.id)) ?? [bd]);
@@ -1733,7 +1734,7 @@ export function BoardView({ playing }: { playing: boolean }) {
      alpha from day one; this is the whole-board twin. */
   const exportPng = async (bd: BoardDef, opts?: { alpha?: boolean }) => {
     const alpha = !!opts?.alpha;
-    const [W, H] = STAGE[bd.aspect];
+    const [W, H] = stageTriple(bd.aspect);
     const cv = document.createElement("canvas");
     cv.width = W; cv.height = H;
     const ctx = cv.getContext("2d")!;
@@ -1989,7 +1990,7 @@ export function BoardView({ playing }: { playing: boolean }) {
       const cvs = boardEl.querySelector(".bd-canvas");
       if (!bd || !cvs) return;
       const r = cvs.getBoundingClientRect();
-      const f = r.width / STAGE[bd.aspect][0];
+      const f = r.width / stageTriple(bd.aspect)[0];
       const sv = (v: number) => (st.boardSnap ? Math.round(v / 16) * 16 : Math.round(v));
       st.setActiveBoard(bid);
       /* the drop point is the piece's intended CENTER-ish — snap THAT to
@@ -2309,12 +2310,19 @@ export function BoardView({ playing }: { playing: boolean }) {
       <div className="bd-main">
         <header className="bd-top">
           <div className="bd-title"><h2>The Board</h2><span>Arrange components across artboards.</span></div>
-          <div className="bd-aspect" role="radiogroup" aria-label="Active board aspect">
-            <button className={act?.aspect === "169" ? "on" : ""} role="radio" aria-checked={act?.aspect === "169"}
-              onClick={() => setBoardAspect("169")}><Monitor size={13} strokeWidth={2} /> 16:9</button>
-            <button className={act?.aspect === "mobile" ? "on" : ""} role="radio" aria-checked={act?.aspect === "mobile"}
-              onClick={() => setBoardAspect("mobile")}><Smartphone size={13} strokeWidth={2} /> Mobile</button>
-          </div>
+          {/* the stage pulldown: popular device sizes in their points (owner, 2026-10-04: "a pulldown with various
+              sizes from popular device types"), the 16:9 stage in its pixels; the table is generator/stages.ts */}
+          <label className="bd-aspect" title={`${stageOf(act?.aspect).name} · ${stageOf(act?.aspect).w} × ${stageOf(act?.aspect).h}${stageOf(act?.aspect).note ? ` · ${stageOf(act?.aspect).note}` : ""}. Sizes are the device's points; 16:9 is 1920 × 1080.`}>
+            {stageOf(act?.aspect).group === "Wide" ? <Monitor size={13} strokeWidth={2} /> : <Smartphone size={13} strokeWidth={2} />}
+            <select value={act?.aspect ?? "169"} aria-label="Active board stage"
+              onChange={(e) => setBoardAspect(e.target.value as StageId)}>
+              {STAGE_GROUPS.map((g) => (
+                <optgroup key={g.group} label={g.group}>
+                  {g.stages.map((s) => <option key={s.id} value={s.id}>{s.name} · {s.w} × {s.h}</option>)}
+                </optgroup>
+              ))}
+            </select>
+          </label>
           {/* the glow invites while the board is bare, then goes quiet */}
           <label className={`bd-tpl${act && act.items.length === 0 ? " glow" : ""}`}
             title="Add a full starter screen: pieces land pre-sized and pre-placed, backdrop included">
@@ -2376,11 +2384,11 @@ export function BoardView({ playing }: { playing: boolean }) {
             return (
               <div key={row[0].id} className="bd-row">
               {row.map((bd) => {
-                const [W, H, aspName] = STAGE[bd.aspect];
+                const [W, H, aspName] = stageTriple(bd.aspect);
                 /* the side + exists only where the rule allows a
                    neighbor: mobiles, in a row that isn't full — a 16:9
                    always stands alone (owner) */
-                const sideAspect = bd.aspect === "mobile" && row.length < 3 ? ("mobile" as const) : null;
+                const sideAspect = stageIsPortrait(bd.aspect) && row.length < 3 ? bd.aspect : null;
                 /* the active board always renders live (even before the
                    idle sweep records it) — activating a sleeping board
                    hydrates it on the spot */
@@ -2464,14 +2472,19 @@ export function BoardView({ playing }: { playing: boolean }) {
                       {/* center cross — the composition anchor, both aspects */}
                       <i className="bd-safe__centerv" />
                       <i className="bd-safe__centerh" />
-                      {bd.aspect === "169" ? (<>
+                      {stageOf(bd.aspect).group === "Wide" ? (<>
                         <i className="bd-safe__frame" style={{ inset: "2.5%" }}><b>action safe</b></i>
                         <i className="bd-safe__frame bd-safe__frame--title" style={{ inset: "5%" }}><b>title safe</b></i>
-                      </>) : (<>
-                        <i className="bd-safe__frame" style={{ top: (47 / 844 * 100) + "%", bottom: (34 / 844 * 100) + "%", left: (12 / 390 * 100) + "%", right: (12 / 390 * 100) + "%" }}><b>device safe</b></i>
-                        <i className="bd-safe__notch" />
-                        <i className="bd-safe__homebar" />
-                      </>)}
+                      </>) : (() => {
+                        /* the device's own safe-area insets from the stage table; the island pill rides the top in
+                           portrait and the left ear in landscape (iPhone only), the home indicator every phone and tablet */
+                        const s = stageOf(bd.aspect);
+                        return (<>
+                          <i className="bd-safe__frame" style={{ top: (s.safe.top / s.h * 100) + "%", bottom: (s.safe.bottom / s.h * 100) + "%", left: (s.safe.left / s.w * 100) + "%", right: (s.safe.right / s.w * 100) + "%" }}><b>device safe</b></i>
+                          {s.group === "iPhone" && <i className={`bd-safe__notch${s.h > s.w ? "" : " bd-safe__notch--side"}`} />}
+                          <i className="bd-safe__homebar" />
+                        </>);
+                      })()}
                     </div>
                   )}
                   <div className="bd-canvas" style={{ width: W, height: H, transform: `scale(${fit})` }}
@@ -2645,7 +2658,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                     fit, never scrolls), beneath starts the next row */}
                 {sideAspect && (
                   <button className="bd-addtab bd-addtab--r"
-                    title={`Add a ${sideAspect === "mobile" ? "mobile" : "16:9"} board beside ${bd.name}${sideAspect !== bd.aspect ? ". The row rescales so both fit" : ""}`}
+                    title={`Add a ${stageOf(sideAspect).short} board beside ${bd.name}${sideAspect !== bd.aspect ? ". The row rescales so both fit" : ""}`}
                     aria-label={`Add a board to the right of ${bd.name}`}
                     onClick={() => addBoardAfter(bd.id, { aspect: sideAspect })}>
                     <Plus size={14} strokeWidth={2.2} />
@@ -2681,8 +2694,8 @@ export function BoardView({ playing }: { playing: boolean }) {
             <div key={bd.id} className={`bd-page${bd.id === activeBoard ? " on" : ""}`} role="button" tabIndex={0}
               onClick={() => { setActiveBoard(bd.id); scrollToBoard(bd.id); }}
               onKeyDown={(e) => { if (e.key === "Enter") { setActiveBoard(bd.id); scrollToBoard(bd.id); } }}>
-              <span className={`bd-pagethumb${bd.aspect === "mobile" ? " mob" : ""}`}
-                style={bd.bgImage ? { backgroundImage: `url(${bd.bgImage})` } : undefined}>
+              <span className={`bd-pagethumb${stageIsPortrait(bd.aspect) ? " mob" : ""}`}
+                style={{ aspectRatio: `${stageDims(bd.aspect)[0]} / ${stageDims(bd.aspect)[1]}`, ...(bd.bgImage ? { backgroundImage: `url(${bd.bgImage})` } : {}) }}>
                 {bd.items.length}
               </span>
               <span className="bd-pagename">{bd.name}</span>
@@ -2915,7 +2928,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                   </label>
                 )}
                 <label className="bd-slider">Type size · {st.size}%
-                  <input type="range" min={25} max={400} value={st.size} onChange={(e) => patch({ size: +e.target.value })} />
+                  <input type="range" min={15} max={400} value={st.size} onChange={(e) => patch({ size: +e.target.value })} />
                 </label>
                 <label className="bd-slider">Hue · {st.hue ?? 0}°
                   <input type="range" min={-180} max={180} value={st.hue ?? 0} onChange={(e) => patch({ hue: +e.target.value })}
@@ -3267,7 +3280,7 @@ export function BoardView({ playing }: { playing: boolean }) {
                 onDoubleClick={() => setBoardBg({ ovCenter: 0 })} />
             </label>
             <div className="bd-h" style={{ marginTop: 18 }}>Stage</div>
-            <div className="bd-note">{act.name} · {STAGE[act.aspect][0]} × {STAGE[act.aspect][1]} · shown at {Math.round(fitOf(act) * 100)}% · Export renders at full resolution.</div>
+            <div className="bd-note">{act.name} · {stageTriple(act.aspect)[0]} × {stageTriple(act.aspect)[1]} · shown at {Math.round(fitOf(act) * 100)}% · Export renders at full resolution.</div>
           </>
         ) : null}
       </aside>
