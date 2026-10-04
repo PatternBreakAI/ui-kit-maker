@@ -101,26 +101,43 @@ kd["copy-play-panel"]["states"]["default"] = {"brightness": 2, "glow": 38, "lift
 kd["copy-card-panel"] = {"effects": {**c["effects"], "Bevel": "#D4AF37", "Highlight": "#FFF0B0"}, "bevel": {"width": 6, "softness": 30}, "candy": copy.deepcopy(GLASS)}
 kd["copy-avyu-avatarframe"] = copy.deepcopy(kd["avatarframe"])
 kd["copy-avop-avatarframe"] = copy.deepcopy(kd["avatarframe"])
+# the foot's plaques: slate glass for the screens you can go to, the gold face for the screen you are on
+kd["copy-navp-panel"] = {"effects": {**c["effects"], "Bevel": "#2A3450", "Highlight": "#55658A", "Glow": "#6B7489", "Inner Fill": "#0E1526"},
+                         "transparency": {"frame": 100, "interior": 100, "content": 100},
+                         "candy": {**copy.deepcopy(GLASS), "innerGlow": {"opacity": 14, "size": 56, "color": GOLD}, "rim": {"width": 2, "brightness": 90}}}
+kd["copy-hmep-panel"] = copy.deepcopy(GOLD_FACE)
+kd["copy-hmep-panel"]["states"]["default"] = {"brightness": 2, "glow": 30, "lift": 0, "opacity": 100, "saturation": 4}
 kd["copy-navg-iconbtn"] = {"transparency": {"frame": 0, "interior": 0, "content": 100}, "candy": {"extrusion": {"depth": 0, "darkness": 85, "glow": 0}, "contact": {"opacity": 0}, "specular": {**cd["specular"], "on": False}},
                           "shadow": {"distance": 0, "blur": 0, "opacity": 0}, "icon": {**c["icon"], "color": INK_GOLD, "size": 120},
                           "states": {"default": {"brightness": 0, "glow": 0, "lift": 0, "opacity": 100, "saturation": 0}, "hover": {"brightness": 8, "glow": 0, "lift": 0, "opacity": 100, "saturation": 0},
                                      "pressed": {"brightness": -6, "glow": 0, "lift": 1, "opacity": 100, "saturation": 0}, "disabled": {"brightness": -10, "glow": 0, "lift": 0, "opacity": 60, "saturation": -60}}}
+# the same bare glyph in ink, for the lit plaque
+kd["copy-nvgi-iconbtn"] = copy.deepcopy(kd["copy-navg-iconbtn"])
+kd["copy-nvgi-iconbtn"]["icon"] = {**kd["copy-nvgi-iconbtn"]["icon"], "color": "#2A1E05"}
 k["kitDesigns"] = kd
 
 k["kitName"] = "Nightfall"
 k["kitClones"] = {"copy-done-chip": {"base": "chip", "name": "mission-done", "kind": "Other", "createdAt": "2026-10-04T00:00:00.000Z"},
                   "copy-navg-iconbtn": {"base": "iconbtn", "name": "nav-glyph", "kind": "Other", "createdAt": "2026-10-04T00:00:00.000Z"},
+                  "copy-nvgi-iconbtn": {"base": "iconbtn", "name": "nav-glyph-ink", "kind": "Other", "createdAt": "2026-10-04T00:00:00.000Z"},
                   "copy-play-panel": {"base": "panel", "name": "play-plate", "kind": "Other", "createdAt": "2026-10-04T00:00:00.000Z"},
                   "copy-done-panel": {"base": "panel", "name": "row-done", "kind": "Other", "createdAt": "2026-10-04T00:00:00.000Z"},
                   "copy-rowp-panel": {"base": "panel", "name": "row", "kind": "Other", "createdAt": "2026-10-04T00:00:00.000Z"},
-                  "copy-barp-panel": {"base": "panel", "name": "nav-bar", "kind": "Other", "createdAt": "2026-10-04T00:00:00.000Z"},
+                  "copy-barp-panel": {"base": "panel", "name": "nav-ledge", "kind": "Other", "createdAt": "2026-10-04T00:00:00.000Z"},
+                  "copy-navp-panel": {"base": "panel", "name": "nav-plaque", "kind": "Other", "createdAt": "2026-10-04T00:00:00.000Z"},
+                  "copy-hmep-panel": {"base": "panel", "name": "nav-plaque-lit", "kind": "Other", "createdAt": "2026-10-04T00:00:00.000Z"},
                   "copy-card-panel": {"base": "panel", "name": "card-frame", "kind": "Other", "createdAt": "2026-10-04T00:00:00.000Z"},
                   "copy-avyu-avatarframe": {"base": "avatarframe", "name": "portrait-you", "kind": "Other", "createdAt": "2026-10-04T00:00:00.000Z"},
                   "copy-avop-avatarframe": {"base": "avatarframe", "name": "portrait-opp", "kind": "Other", "createdAt": "2026-10-04T00:00:00.000Z"}}
-k["kitShapes"] = {"iconbtn": "pill", "avatarframe": "pill", "currency": "pill", "copy-navg-iconbtn": "pill", "dialoguebox": "speech"}
+# the silhouettes with flavour: Play is a swallowtail standard, the foot a scroll ledge carrying faceted plaques
+# (env overrides let the author try the alternates side by side)
+PLAY_SHAPE, LEDGE_SHAPE, PLAQUE_SHAPE = os.environ.get("PLAY_SHAPE", "banner"), os.environ.get("LEDGE_SHAPE", "tavern"), os.environ.get("PLAQUE_SHAPE", "hex")
+k["kitShapes"] = {"iconbtn": "pill", "avatarframe": "pill", "currency": "pill", "copy-navg-iconbtn": "pill", "copy-nvgi-iconbtn": "pill", "dialoguebox": "speech",
+                  "copy-play-panel": PLAY_SHAPE, "copy-barp-panel": LEDGE_SHAPE, "copy-navp-panel": PLAQUE_SHAPE, "copy-hmep-panel": PLAQUE_SHAPE}
 GEAR = {"lib": "lucide", "name": "Settings", "viewBox": "0 0 24 24", "inner": "<path d=\"M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/>", "mode": "stroke"}
 CART = {"lib": "lucide", "name": "ShoppingCart", "viewBox": "0 0 24 24", "inner": "<circle cx=\"8\" cy=\"21\" r=\"1\"/><circle cx=\"19\" cy=\"21\" r=\"1\"/><path d=\"M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12\"/>", "mode": "stroke"}
-k["kitIcons"] = {"iconbtn": GEAR, "copy-navg-iconbtn": CART}
+HOME = {"lib": "lucide", "name": "Home", "viewBox": "0 0 24 24", "inner": "<path d=\"m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/><polyline points=\"9 22 9 12 15 12 15 22\"/>", "mode": "stroke"}
+k["kitIcons"] = {"iconbtn": GEAR, "copy-navg-iconbtn": CART, "copy-nvgi-iconbtn": HOME}
 k["kitLabels"] = {"primary": "Play", "secondary": "View all", "small": "Practice", "ghost": "Challenges", "header": "Season Pass", "chip": "Juneteenth Weekend", "copy-done-chip": "Break 2 Threats",
                   "toast": "Deck saved.", "currency": "1,250", "nameplate": "Silverlake Slayer", "badge": "Tier 12", "dialog": "Sit Down?", "setrow": "Music volume", "datarow": "Play 3 Events",
                   "tab": "PvP", "tabback": "Back", "input": "Search the Collection", "dropdown": "Railroad", "tooltip": "History plays different", "questpanel": "Missions", "movecounter": "47",
@@ -139,16 +156,13 @@ k["userAssets"] = [
     {"id": "uanflogo", "name": "Stand on Business logo", "ref": f"{ART}/sob-logo.webp", "w": 900, "h": 595},
     {"id": "uanfyou", "name": "Portrait, Harriet Tubman", "ref": f"{ART}/you.webp", "w": 256, "h": 256},
     {"id": "uanfopp", "name": "Portrait, Frederick Douglass", "ref": f"{ART}/opp.webp", "w": 256, "h": 256},
-    {"id": "uanfoshun", "name": "Oshun", "ref": f"{ART}/oshun.webp", "w": 512, "h": 370},
-    {"id": "uanfshango", "name": "Shango", "ref": f"{ART}/shango.webp", "w": 512, "h": 370},
-    {"id": "uanfogun", "name": "Ogun", "ref": f"{ART}/ogun.webp", "w": 512, "h": 370},
+    {"id": "uanfcardoshun", "name": "Oshun, the card", "ref": f"{ART}/card-oshun.webp", "w": 551, "h": 713},
+    {"id": "uanfcardshango", "name": "Shango, the card", "ref": f"{ART}/card-shango.webp", "w": 551, "h": 713},
+    {"id": "uanfcardogun", "name": "Ogun, the card", "ref": f"{ART}/card-ogun.webp", "w": 551, "h": 713},
     {"id": "uanfmansa", "name": "Mansa Musa", "ref": f"{ART}/mansa_musa.webp", "w": 512, "h": 512},
     {"id": "uanfevent", "name": "Juneteenth", "ref": f"{ART}/event.webp", "w": 1024, "h": 776},
     {"id": "uanfseason", "name": "The Great Migration", "ref": f"{ART}/season.webp", "w": 600, "h": 450},
     {"id": "uanfmissions", "name": "The Ancestors", "ref": f"{ART}/missions.webp", "w": 1024, "h": 240},
-    {"id": "uanfframegold", "name": "Card frame, gold", "ref": f"{ART}/character-gold.webp", "w": 551, "h": 713},
-    {"id": "uanfframeamethyst", "name": "Card frame, amethyst", "ref": f"{ART}/character-amethyst.webp", "w": 551, "h": 713},
-    {"id": "uanfframeemerald", "name": "Card frame, emerald", "ref": f"{ART}/character-emerald.webp", "w": 551, "h": 713},
 ]
 k["boards"] = []
 out = f"{W}/src/generator/kit-nightfall.json"

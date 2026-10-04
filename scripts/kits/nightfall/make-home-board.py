@@ -37,15 +37,18 @@ def piece(kitId, X, Y, scale=1.0, stretch=None, stretchY=None, label=None, ov=No
     items.append(it)
     return it
 
-def art(aid, X, Y, W, glow=None, glow_ink=None, shadow=None, tag="art"):
-    """A picture from the kit's shipped art: top-left at (X, Y), W wide; the height follows the art's aspect."""
+def art(aid, X, Y, W, glow=None, glow_ink=None, shadow=None, rot=None, tag="art"):
+    """A picture from the kit's shipped art: top-left at (X, Y) before any turn, W wide; the height follows the
+    art's aspect. rot turns it about its own centre, as the board does."""
     a = ASSETS[aid]
     scale = W / (a["w"] * BIG_GLYPH_BASE)
     lg = {"aid": aid}
     if glow: lg["glow"] = glow
     if glow_ink: lg["glowInk"] = glow_ink
     if shadow: lg["shadow"] = shadow
-    items.append({"id": nid(tag), "libId": "", "x": round(X, 1), "y": round(Y, 1), "scale": round(scale, 4), "logo": lg})
+    it = {"id": nid(tag), "libId": "", "x": round(X, 1), "y": round(Y, 1), "scale": round(scale, 4), "logo": lg}
+    if rot: it["rot"] = rot
+    items.append(it)
     return a["h"] * BIG_GLYPH_BASE * scale
 
 def text_w(text, fs, voice=None, spacing_em=0.06):
@@ -88,35 +91,11 @@ def portrait(cloneId, aid, X, Y, size):
     cx, cy = X + size / 2, Y + size / 2
     art(aid, cx - face / 2, cy - face / 2, face, tag="face")
 
-from PIL import Image
-def frame_zones(ref):
-    """The game's card frame, read from its own alpha: the portrait window (transparent), the name band and the
-    three orb seats, as fractions of the frame's width and height."""
-    im = Image.open(f"{MAKER}/public{ref}").convert("RGBA"); a = im.getchannel("A"); W, H = im.size
-    # the contiguous transparent run through the window's middle (the frame's outer margins are transparent too)
-    y = int(H * 0.3); x0 = x1 = W // 2
-    while x0 > 0 and a.getpixel((x0 - 1, y)) < 20: x0 -= 1
-    while x1 < W - 1 and a.getpixel((x1 + 1, y)) < 20: x1 += 1
-    x = W // 2; y0 = y1 = y
-    while y0 > 0 and a.getpixel((x, y0 - 1)) < 20: y0 -= 1
-    while y1 < H - 1 and a.getpixel((x, y1 + 1)) < 20: y1 += 1
-    return {"win": (x0 / W, y0 / H, (x1 - x0 + 1) / W, (y1 - y0 + 1) / H),
-            "name": (0.5, 0.925), "box": (0.5, 0.52, 0.86), "orbTL": (0.154, 0.105), "orbBL": (0.127, 0.879), "orbBR": (0.871, 0.879)}
-ZONES = frame_zones("/kit-art/nightfall/character-gold.webp")
-
-def card(aid, frame_aid, X, Y, W, name, cost, infl, force, line, hero=False):
-    """A real card: the portrait art in the frame's own window, the game's frame over it, the name on the frame's
-    bottom band, the cost and the two figures in its orb seats, a line of rules text on its parchment."""
-    fa = ASSETS[frame_aid]; H = W * fa["h"] / fa["w"]
-    wx, wy, ww, wh = ZONES["win"]
-    art(aid, X + wx * W, Y + wy * H, ww * W)
-    art(frame_aid, X, Y, W, shadow=35)
-    nx, ny = ZONES["name"]; name_fs = 44 if hero else 36
-    stamp(name, 0, Y + ny * H - 0.62 * TYPE_SIZE * name_fs / 100 / 2, name_fs, CREAM, cx=X + nx * W)
-    for (fx, fy), val, ink in ((ZONES["orbTL"], cost, "#F3E6C8"), (ZONES["orbBL"], infl, INK), (ZONES["orbBR"], force, "#F3E6C8")):
-        sz = 46 if hero else 38
-        stamp(str(val), 0, Y + fy * H - 0.62 * TYPE_SIZE * sz / 100 / 2, sz, ink, cx=X + fx * W)
-    # the parchment stays bare: the rules text is the game's, and the fan is a deck preview
+def fanned_card(aid, cx, cy, W, rot=0):
+    """One of the deck's pre-composed cards, centred at (cx, cy), W wide, turned rot degrees."""
+    a = ASSETS[aid]; H = W * a["h"] / a["w"]
+    art(aid, cx - W / 2, cy - H / 2, W, shadow=45, rot=rot, tag="card")
+    return H
 
 # ── the top bar ─────────────────────────────────────────────────────────────────────────────────────────
 portrait("copy-avyu-avatarframe", "uanfyou", 62, 40, 140)
@@ -125,8 +104,7 @@ stamp("Collection level 47", 230, 90, 40, DIM_GOLD)
 piece("progress", 230, 122, 0.31, stretch=240 / (BASE["progress"][0] * 0.31), v=0.78, tag="xp")
 stamp("2,340 / 3,000", 486, 124, 40, PALE)
 # the official logo, with a soft gold glow behind it
-logo_h = art("uanflogo", 959 - 170, 6, 340, glow=42, glow_ink="#F2C94C", tag="logo")
-stamp("History plays different", 0, 6 + logo_h + 6, 40, PALE, cx=959)
+logo_h = art("uanflogo", 959 - 170, 6, 340, tag="logo")
 piece("currency", 1420, 56, 0.54, label="1,250", tag="coins")
 piece("currency", 1606, 56, 0.54, label="38", tag="gems")
 piece("iconbtn", 1790, 46, 0.47, tag="settings")
@@ -136,7 +114,7 @@ panel_box("panel", 52, 216, 454, 178, tag="season")
 stamp("Season Pass", 80, 240, 42, GOLD)
 stamp("The Great Migration", 80, 276, 46, CREAM, voice="list")
 piece("progress", 80, 338, 0.31, stretch=180 / (BASE["progress"][0] * 0.31), v=0.62, tag="seasonbar")
-stamp("Tier 12", 0, 340, 40, GOLD, cx=306)
+stamp("Tier 12", 0, 340, 40, GOLD, cx=318)
 panel_box("copy-card-panel", 372, 236, 120, 96, scale=0.15, tag="seasonframe")
 art("uanfseason", 378, 242, 108, tag="seasonart")
 panel_box("panel", 52, 414, 454, 366, tag="missions")
@@ -152,22 +130,20 @@ for i, (txt, cnt, done) in enumerate(ROWS):
     stamp(cnt, 0, y + 17, 40, "#7CF0A0" if done else CREAM, cx=458)
 
 # ── centre: the deck as real cards, the opponent line, Play, the mode tabs ─────────────────────────────
-stamp("Your deck", 0, 266, 42, GOLD, cx=959)
-card("uanfoshun", "uanfframeamethyst", 648, 340, 170, "Oshun", 4, 4, 5, "Sweet water heals the row.")
-card("uanfogun", "uanfframeemerald", 1102, 340, 170, "Ogun", 5, 3, 6, "Iron clears the Gate.")
-card("uanfshango", "uanfframegold", 844, 302, 230, "Shango", 6, 6, 6, "Thunder: +2 Force at a Location you lead.", hero=True)
-piece("iconbtn", 556, 420, 0.47, ov="icon:back", tag="prev")
-piece("iconbtn", 1290, 420, 0.47, ov="icon:forward", tag="next")
-items.append({"id": nid("dots"), "libId": "", "kitId": "pagedots", "x": 959 - 124 * 0.45, "y": 612, "scale": 0.45})
-stamp("Three orisha with the church behind them,", 0, 636, 40, CREAM, voice="list", cx=959)
-stamp("Crowther brings a friend across and Seacole tends the Gates.", 0, 664, 40, CREAM, voice="list", cx=959)
-stamp("The Pantheon", 0, 698, 36, DIM_GOLD, cx=959)
-portrait("copy-avyu-avatarframe", "uanfyou", 664, 722, 72)
-piece("chip", 752, 728, 0.56, label="VS Harborlight · Railroad", tag="vs")
-portrait("copy-avop-avatarframe", "uanfopp", 1184, 722, 72)
-strip_box("copy-play-panel", 689, 800, 541, 88, tag="play")
-stamp("Play", 0, 820, 85, INK, cx=959, tag="playword")
-piece("segment", 788, 896, 0.48, label="PvP | Practice | Challenges", tag="modes")
+stamp("Your deck", 0, 262, 42, GOLD, cx=959)
+# the fan: the two flanking cards turned out and tucked behind, the hero bigger and in front
+fanned_card("uanfcardoshun", 959 - 196, 500, 206, rot=-9)
+fanned_card("uanfcardogun", 959 + 196, 500, 206, rot=9)
+hero_h = fanned_card("uanfcardshango", 959, 478, 256)
+stamp("Influence", 0, 478 + hero_h / 2 + 10, 36, GOLD, cx=959 - 92)
+stamp("Force", 0, 478 + hero_h / 2 + 10, 36, GOLD, cx=959 + 92)
+piece("iconbtn", 556, 440, 0.47, ov="icon:back", tag="prev")
+piece("iconbtn", 1290, 440, 0.47, ov="icon:forward", tag="next")
+items.append({"id": nid("dots"), "libId": "", "kitId": "pagedots", "x": 959 - 124 * 0.45, "y": 478 + hero_h / 2 + 46, "scale": 0.45})
+# Play: a gold standard (the swallowtail banner silhouette) with the word on its face
+strip_box("copy-play-panel", 669, 724, 580, 98, tag="play")
+stamp("Play", 0, 757, 85, INK, cx=959, tag="playword")
+piece("segment", 788, 842, 0.48, label="PvP | Practice | Challenges", tag="modes")
 
 # ── right column: the featured event as a full-bleed picture, the daily shop with its card ─────────────
 panel_box("panel", 1410, 216, 464, 352, tag="event")
@@ -188,12 +164,22 @@ stamp("Mansa Musa", 1616, 676, 54, CREAM, voice="list")
 piece("currency", 1610, 724, 0.5, label="400", tag="price")
 stamp("New cards and more", 1435, 836, 40, DIM_GOLD)
 
-# ── the foot: the nav bar with four glyph tabs ─────────────────────────────────────────────────────────
-strip_box("copy-barp-panel", 284, 956, 1352, 124, tag="navbar")
-for x, icon, word in ((430, "icon:cart", "Shop"), ((430 + 959) / 2 - 20, "icon:scroll", "Collection"), ((959 + 1490) / 2 + 20, "icon:map", "Album"), (1490, "icon:trophy", "Ranks")):
-    piece("copy-navg-iconbtn", x - 28, 972, 0.35, ov=icon, tag="nav")
-    stamp(word, 0, 1032, 40, GOLD, cx=x)
-stamp("People. Places. Power.", 0, 1032, 40, "#8C7A50", cx=959)
+# ── the foot: a scroll ledge carrying five faceted plaques; the screen you are on is the lit gold one ──
+NAV_STYLE = os.environ.get("NAV_STYLE", "ledge")  # "ledge" keeps the bar under the plaques, "bare" sets them on the night
+if NAV_STYLE == "ledge":
+    strip_box("copy-barp-panel", 284, 956, 1352, 124, tag="navbar")
+NAV = (("icon:cart", "Shop"), ("icon:scroll", "Collection"), ("icon:home", "Home"), ("icon:map", "Album"), ("icon:trophy", "Ranks"))
+STEP = 272
+for i, (icon, word) in enumerate(NAV):
+    cx = 959 + (i - 2) * STEP
+    lit = word == "Home"
+    W, H = (246, 106) if lit else (222, 92)
+    y = 1018 - H / 2
+    strip_box("copy-hmep-panel" if lit else "copy-navp-panel", cx - W / 2, y, W, H, tag="plaque")
+    gs = 0.46 if lit else 0.42  # the glyph button's box at board scale; its glyph draws about half the box
+    gbox = geom["iconbtn"]["shell"][2] * gs
+    piece("copy-nvgi-iconbtn" if lit else "copy-navg-iconbtn", cx - gbox / 2, y + (4 if lit else 2), gs, ov=icon, tag="nav", base="copy-navg-iconbtn")
+    stamp(word, 0, y + H - (30 if lit else 26), 40, INK if lit else GOLD, cx=cx)
 
 board = {"id": "nf-home", "name": "home", "aspect": "169", "bgShow": True, "bgImage": "/kit-art/nightfall/bg.webp", "items": items}
 k["boards"] = [board]
