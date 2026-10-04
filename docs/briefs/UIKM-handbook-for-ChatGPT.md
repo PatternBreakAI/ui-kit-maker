@@ -183,6 +183,42 @@ Adding a face is an engine change (list entry, static cuts for Unity, measured m
 
 ---
 
+## 6b. Two classes of UI, and the handcraft loop
+
+Chevon's rule (2026-10-04): the game has two classes of UI.
+
+1. **Handcrafted game assets**, mostly the board's own pieces (the influence meter, plates on the table, anything
+   rasterized and painted). ChatGPT generates the pieces as images; Claude and Chevon assemble them by hand into
+   layered, rigged assets.
+2. **Tool-made UI**, everything else, styled through UI Kit Maker and exported from it.
+
+**How a handcrafted asset gets built.** ChatGPT produces the pieces (one image per part on a transparent ground) and
+a reference of the finished thing. Claude measures every piece from its pixels, writes an assembly plan by numbers
+(a `plan.json`: canvas, each piece's scale, position and draw order, the fill rules), composes at the pieces' native
+resolution, verifies against the reference with independent reviewers, and packages: a full composite, variants at
+other values, every layer cropped with its offset, a manifest with draw order, nine-slice margins and fill anchors, and
+a README of the rig. The first one is the influence meter: frame, two wells with pins, two mercuries that grow from
+their pins toward the centre, a diamond that marks where they meet, and an ambient glow cast into the dark groove.
+
+**How to generate pieces that assemble cleanly** (what the meter taught us):
+- Draw every piece at one consistent scale against a stated unit (for a bar: "the bar frame is 1 unit tall; the wells
+  are 2.2 units across; the diamond 1.4 units"). The meter's wells and diamond came in about three times too large
+  against the bar and had to be scaled down, losing some of their paint.
+- One part per image where the part moves, fills, or might be recoloured: the fill separate from its track, a pin or
+  cap separate from the thing it sits on, a glow separate from what casts it. Baked-in glows cannot be dimmed later.
+- Transparent ground with clean alpha: no faint noise halos (one piece carried an alpha-8 haze 180 px past its edge),
+  no drop shadows unless the shadow is the design.
+- Fills as full-length bars with symmetric rounded caps, so a 9-slice can shorten them to any value.
+- Name the files by part (`frame`, `well-left`, `mercury-gold`), not by generation time.
+- Give the reference at the finished proportions and, when a treatment is optional (the groove glow), a second
+  reference showing it.
+
+**What a handcraft brief needs** beyond section 8: the list of pieces and what each is, which parts move and how (fill
+direction, anchor, marker rule), what the asset must do at its extremes (empty, full, uneven), where it ships (the game
+repo path, the point size on the phone), and whether the result should also become a kit piece in the tool later.
+
+---
+
 ## 7. The pieces, by family
 
 142 components. The families, with the ids you will meet most:
