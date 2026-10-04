@@ -1,16 +1,16 @@
 // Render the Nightfall kit's main pieces through renderKit (size m, default) on the kit worktree (vite :5203),
 // on the kit's own canvas colour, into a contact sheet; record every piece's shell size for the board author.
-import { chromium } from "playwright-core";
+import { chromium } from "../node_modules/playwright-core/index.mjs";
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
 const S = process.env.KIT_SCRATCH || `${process.env.HOME}/nightfall-kit`;
 mkdirSync(`${S}/kit/probe`, { recursive: true });
-const kit = JSON.parse(readFileSync(new URL("../../../src/generator/kit-nightfall.json", import.meta.url), "utf8"));
+const kit = JSON.parse(readFileSync(`${process.env.MAKER_ROOT || new URL("../../..", import.meta.url).pathname}/src/generator/kit-nightfall.json`, "utf8"));
 const SIZE = process.argv[3] || "m";
 const IDS = (process.argv[2] || "primary,secondary,small,ghost,iconbtn,copy-navg-iconbtn,avatarframe,nameplate,currency,header,panel,copy-play-panel,datarow,chip,copy-done-chip,badge,toast,tab,segment,progress,xpbar,toggle,dialog,coin,tooltip,input,dropdown,pagedots,placeholder").split(",");
-const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined, args: ["--no-sandbox"] });
+const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome", args: ["--no-sandbox"] });
 const page = await (await browser.newContext({ viewport: { width: 1600, height: 1000 }, deviceScaleFactor: 1 })).newPage();
 page.on("pageerror", (e) => console.log("PAGEERROR", String(e).slice(0, 300)));
-await page.goto(`http://127.0.0.1:${process.env.MAKER_PORT || 5173}/#/app`, { waitUntil: "load", timeout: 90000 });
+await page.goto("http://127.0.0.1:${process.env.MAKER_PORT || 5173}/#/app", { waitUntil: "load", timeout: 90000 });
 await page.waitForTimeout(1500);
 const out = await page.evaluate(async ({ kit, IDS, SIZE }) => {
   const b = await import("/src/generator/bevel.ts");

@@ -66,8 +66,10 @@ kd["ghost"] = {"effects": {**c["effects"], "Bevel": "#1E2638", "Highlight": "#3A
 # the secondary and ghost roads paint their face from the Bevel colour (darkened), so a slate wall gives a dark glass face
 kd["secondary"] = {"effects": {**c["effects"], "Bevel": "#2A3450", "Highlight": "#55658A", "Glow": "#6B7489"}, "face": {"mode": "light", "contrast": 30, "midpoint": 50}, "type": {**t, "fill": INK_GOLD, "fill2": GOLD_HI}}
 kd["copy-done-panel"] = {"effects": {"Bevel": "#4FD17A", "Glow": "#7CF0A0", "Highlight": "#A8F5C0", "Shadow": "#06301A", "Inner Fill": "#0F2419"}, "candy": {"innerGlow": {"opacity": 18, "size": 40, "color": "#7CF0A0"}}}
-kd["copy-rowp-panel"] = {"effects": {"Bevel": "#3A4358", "Glow": "#6B7489", "Highlight": "#6B7489", "Shadow": SHADOW, "Inner Fill": "#0E1424"}, "candy": {"innerGlow": {"opacity": 0, "size": 40, "color": GOLD}, "extrusion": {"depth": 2, "darkness": 85, "glow": 0}}}
-kd["copy-barp-panel"] = {"effects": {**c["effects"], "Bevel": "#2A3450", "Highlight": "#3A4860"}, "candy": {"innerGlow": {"opacity": 0, "size": 40, "color": GOLD}, "extrusion": {"depth": 0, "darkness": 85, "glow": 0}}}
+kd["copy-rowp-panel"] = {"effects": {"Bevel": "#3A4358", "Glow": "#6B7489", "Highlight": "#6B7489", "Shadow": SHADOW, "Inner Fill": "#0E1424"}, "candy": {"innerGlow": {"opacity": 0, "size": 40, "color": GOLD}, "extrusion": {"depth": 2, "darkness": 85, "glow": 0}}, "transparency": {"frame": 100, "interior": 68, "content": 100}}
+
+kd["copy-barp-panel"] = {"effects": {**c["effects"], "Bevel": "#2A3450", "Highlight": "#3A4860"}, "candy": {"innerGlow": {"opacity": 0, "size": 40, "color": GOLD}, "extrusion": {"depth": 0, "darkness": 85, "glow": 0}}, "transparency": {"frame": 100, "interior": 72, "content": 100}}
+
 kd["small"] = {"effects": dict(c["effects"])}
 kd["iconbtn"] = {"effects": {**c["effects"], "Bevel": "#D4AF37"}, "bevel": {"width": 7, "softness": 30}, "icon": {**c["icon"], "color": INK_GOLD}}
 kd["avatarframe"] = {"effects": {**c["effects"], "Bevel": "#D4AF37"}, "bevel": {"width": 9, "softness": 30}}
@@ -78,7 +80,10 @@ GLASS = {"gloss": {"on": True, "height": 34, "curve": 14, "opacity": 14, "softne
          "innerEdge": {"strength": 62, "width": 2}, "innerGlow": {"opacity": 22, "size": 56, "color": GOLD}, "rim": {"width": 2.5, "brightness": 100},
          "texture": {"amount": 10, "scale": 48},
          "pattern": {"type": "diamonds", "scale": 40, "angle": 0, "opacity": 4, "color": None, "zone": "face", "wall": {"type": "none", "scale": 9, "angle": 0, "opacity": 0, "color": None}}}
-kd["panel"] = {"transparency": {"frame": 100, "interior": 100, "content": 100}, "candy": copy.deepcopy(GLASS)}
+# the glass (owner's start-screen concept, 2026-10-04): the face lets the night through, a gold hairline holds it
+PANEL_GLASS = {**copy.deepcopy(GLASS), "gloss": {**GLASS["gloss"], "opacity": 9}, "innerGlow": {"opacity": 9, "size": 56, "color": GOLD}, "texture": {"amount": 0, "scale": 48},
+               "pattern": {**GLASS["pattern"], "opacity": 0}}
+kd["panel"] = {"transparency": {"frame": 100, "interior": 86, "content": 100}, "candy": PANEL_GLASS}
 kd["dialog"] = {"transparency": {"frame": 100, "interior": 100, "content": 100}}
 kd["datarow"] = {"effects": {"Bevel": "#3A4358", "Glow": "#6B7489", "Highlight": "#6B7489", "Shadow": SHADOW, "Inner Fill": "#0E1424"},
                  "candy": {"innerGlow": {"opacity": 0, "size": 40, "color": GOLD}, "extrusion": {"depth": 2, "darkness": 85, "glow": 0}},
@@ -107,6 +112,26 @@ kd["copy-navp-panel"] = {"effects": {**c["effects"], "Bevel": "#2A3450", "Highli
                          "candy": {**copy.deepcopy(GLASS), "innerGlow": {"opacity": 14, "size": 56, "color": GOLD}, "rim": {"width": 2, "brightness": 90}}}
 kd["copy-hmep-panel"] = copy.deepcopy(GOLD_FACE)
 kd["copy-hmep-panel"]["states"]["default"] = {"brightness": 2, "glow": 30, "lift": 0, "opacity": 100, "saturation": 4}
+# the landing's quiet plates: slate glass strips (the tutorial line in chamfers, Sign in as a pill), words ride as stamps
+kd["copy-tutp-panel"] = {"effects": {**c["effects"], "Bevel": "#3A4358", "Highlight": "#55658A", "Glow": "#6B7489", "Inner Fill": "#0E1526"},
+                         "transparency": {"frame": 100, "interior": 78, "content": 100},
+                         "candy": {**copy.deepcopy(GLASS), "innerGlow": {"opacity": 10, "size": 56, "color": GOLD}, "rim": {"width": 2, "brightness": 90}}}
+# the match screen: the opponent's blue glass (Harborlight's colour), the danger plate for Sit Down
+kd["copy-blup-panel"] = {"effects": {"Bevel": "#4A78C8", "Glow": "#7FB0FF", "Highlight": "#BFD8FF", "Shadow": SHADOW, "Inner Fill": "#0C1A33"},
+                         "transparency": {"frame": 100, "interior": 80, "content": 100},
+                         "candy": {**copy.deepcopy(GLASS), "innerGlow": {"opacity": 18, "size": 56, "color": "#7FB0FF"}, "rim": {"width": 2, "brightness": 95}}}
+kd["copy-dngp-panel"] = {"effects": {"Bevel": "#B8463C", "Glow": "#FF8A7A", "Highlight": "#FFC4B8", "Shadow": "#2A0A06", "Inner Fill": "#3A1210"},
+                         "transparency": {"frame": 100, "interior": 84, "content": 100},
+                         "candy": {**copy.deepcopy(GLASS), "innerGlow": {"opacity": 16, "size": 50, "color": "#FF8A7A"}, "rim": {"width": 2, "brightness": 95}}}
+# the turn tracker's unlit coin: the kit's coin, dimmed
+kd["copy-dimc-coin"] = {**copy.deepcopy(GOLD_FACE), "states": {"default": {"brightness": -14, "glow": 0, "lift": 0, "opacity": 42, "saturation": -50}, "hover": {"brightness": -8, "glow": 0, "lift": 0, "opacity": 50, "saturation": -50},
+                                                        "pressed": {"brightness": -14, "glow": 0, "lift": 1, "opacity": 42, "saturation": -50}, "disabled": {"brightness": -14, "glow": 0, "lift": 0, "opacity": 30, "saturation": -60}}}
+# the start screen's mode plates (PvP, Practice, Challenges): a gold hairline round a see-through face
+kd["copy-modp-panel"] = {"effects": {**c["effects"], "Bevel": INK_GOLD, "Highlight": GOLD_HI, "Glow": GOLD, "Inner Fill": "#0E1526"}, "bevel": {"width": 2, "softness": 20},
+                         "transparency": {"frame": 100, "interior": 70, "content": 100},
+                         "candy": {**copy.deepcopy(GLASS), "innerGlow": {"opacity": 12, "size": 50, "color": GOLD}, "rim": {"width": 1.5, "brightness": 90}}}
+# the gem wallet: the currency chip with the gem glyph in Harborlight blue
+kd["copy-gemc-currency"] = {**copy.deepcopy(kd["currency"]), "icon": {**c["icon"], "color": "#7FB0FF"}}
 kd["copy-navg-iconbtn"] = {"transparency": {"frame": 0, "interior": 0, "content": 100}, "candy": {"extrusion": {"depth": 0, "darkness": 85, "glow": 0}, "contact": {"opacity": 0}, "specular": {**cd["specular"], "on": False}},
                           "shadow": {"distance": 0, "blur": 0, "opacity": 0}, "icon": {**c["icon"], "color": INK_GOLD, "size": 120},
                           "states": {"default": {"brightness": 0, "glow": 0, "lift": 0, "opacity": 100, "saturation": 0}, "hover": {"brightness": 8, "glow": 0, "lift": 0, "opacity": 100, "saturation": 0},
@@ -119,6 +144,12 @@ k["kitDesigns"] = kd
 k["kitName"] = "Nightfall"
 k["kitClones"] = {"copy-done-chip": {"base": "chip", "name": "mission-done", "kind": "Other", "createdAt": "2026-10-04T00:00:00.000Z"},
                   "copy-navg-iconbtn": {"base": "iconbtn", "name": "nav-glyph", "kind": "Other", "createdAt": "2026-10-04T00:00:00.000Z"},
+                  "copy-modp-panel": {"base": "panel", "name": "mode-plate", "kind": "Other", "createdAt": "2026-10-04T00:00:00.000Z"},
+                  "copy-gemc-currency": {"base": "currency", "name": "gem-wallet", "kind": "Other", "createdAt": "2026-10-04T00:00:00.000Z"},
+                  "copy-dimc-coin": {"base": "coin", "name": "coin-unlit", "kind": "Other", "createdAt": "2026-10-04T00:00:00.000Z"},
+                  "copy-tutp-panel": {"base": "panel", "name": "quiet-plate", "kind": "Other", "createdAt": "2026-10-04T00:00:00.000Z"},
+                  "copy-blup-panel": {"base": "panel", "name": "rival-glass", "kind": "Other", "createdAt": "2026-10-04T00:00:00.000Z"},
+                  "copy-dngp-panel": {"base": "panel", "name": "danger-plate", "kind": "Other", "createdAt": "2026-10-04T00:00:00.000Z"},
                   "copy-nvgi-iconbtn": {"base": "iconbtn", "name": "nav-glyph-ink", "kind": "Other", "createdAt": "2026-10-04T00:00:00.000Z"},
                   "copy-play-panel": {"base": "panel", "name": "play-plate", "kind": "Other", "createdAt": "2026-10-04T00:00:00.000Z"},
                   "copy-done-panel": {"base": "panel", "name": "row-done", "kind": "Other", "createdAt": "2026-10-04T00:00:00.000Z"},
@@ -131,14 +162,16 @@ k["kitClones"] = {"copy-done-chip": {"base": "chip", "name": "mission-done", "ki
                   "copy-avop-avatarframe": {"base": "avatarframe", "name": "portrait-opp", "kind": "Other", "createdAt": "2026-10-04T00:00:00.000Z"}}
 # the silhouettes with flavour: Play is a swallowtail standard, the foot a scroll ledge carrying faceted plaques
 # (env overrides let the author try the alternates side by side)
-PLAY_SHAPE, LEDGE_SHAPE, PLAQUE_SHAPE = os.environ.get("PLAY_SHAPE", "banner"), os.environ.get("LEDGE_SHAPE", "tavern"), os.environ.get("PLAQUE_SHAPE", "hex")
-k["kitShapes"] = {"iconbtn": "pill", "avatarframe": "pill", "currency": "pill", "copy-navg-iconbtn": "pill", "copy-nvgi-iconbtn": "pill", "dialoguebox": "speech",
+PLAY_SHAPE, LEDGE_SHAPE, PLAQUE_SHAPE = os.environ.get("PLAY_SHAPE", "hex"), os.environ.get("LEDGE_SHAPE", "round"), os.environ.get("PLAQUE_SHAPE", "hex")
+k["kitShapes"] = {"iconbtn": "pill", "avatarframe": "pill", "currency": "pill", "copy-gemc-currency": "pill", "copy-navg-iconbtn": "pill", "copy-nvgi-iconbtn": "pill", "dialoguebox": "speech",
+                  "panel": "round", "copy-rowp-panel": "round", "copy-done-panel": "round", "copy-card-panel": "round", "copy-tutp-panel": "round", "copy-blup-panel": "round", "copy-dngp-panel": "round", "copy-modp-panel": "round",
                   "copy-play-panel": PLAY_SHAPE, "copy-barp-panel": LEDGE_SHAPE, "copy-navp-panel": PLAQUE_SHAPE, "copy-hmep-panel": PLAQUE_SHAPE}
 GEAR = {"lib": "lucide", "name": "Settings", "viewBox": "0 0 24 24", "inner": "<path d=\"M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/>", "mode": "stroke"}
 CART = {"lib": "lucide", "name": "ShoppingCart", "viewBox": "0 0 24 24", "inner": "<circle cx=\"8\" cy=\"21\" r=\"1\"/><circle cx=\"19\" cy=\"21\" r=\"1\"/><path d=\"M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12\"/>", "mode": "stroke"}
 HOME = {"lib": "lucide", "name": "Home", "viewBox": "0 0 24 24", "inner": "<path d=\"m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/><polyline points=\"9 22 9 12 15 12 15 22\"/>", "mode": "stroke"}
-k["kitIcons"] = {"iconbtn": GEAR, "copy-navg-iconbtn": CART, "copy-nvgi-iconbtn": HOME}
-k["kitLabels"] = {"primary": "Play", "secondary": "View all", "small": "Practice", "ghost": "Challenges", "header": "Season Pass", "chip": "Juneteenth Weekend", "copy-done-chip": "Break 2 Threats",
+GEM = {"lib": "lucide", "name": "Gem", "viewBox": "0 0 24 24", "inner": "<path d=\"M6 3h12l4 6-10 13L2 9Z\"/><path d=\"M11 3 8 9l4 13 4-13-3-6\"/><path d=\"M2 9h20\"/>", "mode": "stroke"}
+k["kitIcons"] = {"iconbtn": GEAR, "copy-navg-iconbtn": CART, "copy-nvgi-iconbtn": HOME, "copy-gemc-currency": GEM}
+k["kitLabels"] = {"primary": "Play", "secondary": "View all", "small": "Practice", "ghost": "Challenges", "header": "Season Pass", "chip": "Juneteenth Weekend", "copy-done-chip": "Break 2 Threats", "copy-gemc-currency": "38",
                   "toast": "Deck saved.", "currency": "1,250", "nameplate": "Silverlake Slayer", "badge": "Tier 12", "dialog": "Sit Down?", "setrow": "Music volume", "datarow": "Play 3 Events",
                   "tab": "PvP", "tabback": "Back", "input": "Search the Collection", "dropdown": "Railroad", "tooltip": "History plays different", "questpanel": "Missions", "movecounter": "47",
                   "segment": "PvP | Practice | Challenges", "achievetoast": "Stood on Business", "dialoguebox": "Freedom moves together.", "loottag": "Mansa Musa", "pricebtn": "400"}
@@ -154,13 +187,20 @@ k["kitSlotVals"] = sob.get("kitSlotVals", {})
 ART = "/kit-art/nightfall"
 k["userAssets"] = [
     {"id": "uanflogo", "name": "Stand on Business logo", "ref": f"{ART}/sob-logo.webp", "w": 900, "h": 595},
+    {"id": "uanflocharpers", "name": "Harpers Ferry (location)", "ref": f"{ART}/loc-harpers-ferry.webp", "w": 600, "h": 260},
+    {"id": "uanflocgreenwood", "name": "Greenwood (location)", "ref": f"{ART}/loc-greenwood.webp", "w": 600, "h": 260},
+    {"id": "uanflocmontgomery", "name": "Montgomery (location)", "ref": f"{ART}/loc-montgomery.webp", "w": 600, "h": 260},
+    {"id": "uanfcardtubman", "name": "Harriet Tubman, the card", "ref": f"{ART}/card-harriet_tubman.webp", "w": 551, "h": 713},
+    {"id": "uanfcarddouglass", "name": "Frederick Douglass, the card", "ref": f"{ART}/card-frederick_douglass.webp", "w": 551, "h": 713},
+    {"id": "uanfcardmansa", "name": "Mansa Musa, the card", "ref": f"{ART}/card-mansa_musa.webp", "w": 551, "h": 713},
+    {"id": "uanfcardback", "name": "Card back", "ref": f"{ART}/card-back.webp", "w": 551, "h": 713},
     {"id": "uanfyou", "name": "Portrait, Harriet Tubman", "ref": f"{ART}/you.webp", "w": 256, "h": 256},
     {"id": "uanfopp", "name": "Portrait, Frederick Douglass", "ref": f"{ART}/opp.webp", "w": 256, "h": 256},
     {"id": "uanfcardoshun", "name": "Oshun, the card", "ref": f"{ART}/card-oshun.webp", "w": 551, "h": 713},
     {"id": "uanfcardshango", "name": "Shango, the card", "ref": f"{ART}/card-shango.webp", "w": 551, "h": 713},
     {"id": "uanfcardogun", "name": "Ogun, the card", "ref": f"{ART}/card-ogun.webp", "w": 551, "h": 713},
     {"id": "uanfmansa", "name": "Mansa Musa", "ref": f"{ART}/mansa_musa.webp", "w": 512, "h": 512},
-    {"id": "uanfevent", "name": "Juneteenth", "ref": f"{ART}/event.webp", "w": 1024, "h": 776},
+    {"id": "uanfevent", "name": "Juneteenth", "ref": f"{ART}/event.webp", "w": 1024, "h": 480},
     {"id": "uanfseason", "name": "The Great Migration", "ref": f"{ART}/season.webp", "w": 600, "h": 450},
     {"id": "uanfmissions", "name": "The Ancestors", "ref": f"{ART}/missions.webp", "w": 1024, "h": 240},
 ]

@@ -153,17 +153,19 @@ const STAND_ON_BUSINESS: NamedKitDef = {
    concept of the game's home screen: glass panels over the night with a
    hairline of gold, a polished gold Play with angled ends, gold-ringed
    round icon buttons, cream Cinzel small caps and Crimson Pro for reading.
-   STAGED until the owner releases it. One board, the home screen, on the
-   1920 × 1080 stage. NO EM DASHES in anything a visitor reads. */
+   STAGED until the owner releases it. Two boards, the start screen and
+   the match, on the iPhone 18 Pro landscape stage (874 × 402 points).
+   NO EM DASHES in anything a visitor reads. */
 const NIGHTFALL: NamedKitDef = {
   slug: "nightfall",
   name: "Nightfall",
-  lede: "Stand on Business after dark: glass panels with a hairline of gold, a polished gold Play, cream small caps. One home screen, built from one kit.",
-  platform: "Composed for the phone in landscape · 1920 × 1080 stage, sized for 874 × 402 points",
+  lede: "Stand on Business after dark: see-through glass panels held by a hairline of gold, a pointed gold Play, cream small caps. The start screen and the match, built from one kit.",
+  platform: "Composed for iPhone 18 Pro in landscape · 874 × 402 points",
   storeUrl: null,
   staged: true,
   screens: [
-    { board: "home", title: "Home", caption: "The home screen: the player's portrait, name and collection bar, the wordmark window, wallet chips and the settings button up top; Season Pass and Missions down the left; the deck's three cards with their arrows, the opponent line and Play in the middle; the featured event and the daily shop down the right; the four tabs along the foot." },
+    { board: "start", title: "Start screen", caption: "The first screen: the player's portrait, name and collection bar, the wordmark and its line, the wallet chips and the gear up top; Season Pass and Missions down the left; the Pantheon's three cards fanned with Play on the pointed plate under them; the featured event and the daily shop down the right; one glass bar along the foot with the tabs and the PvP, Practice and Challenges plates." },
+    { board: "match", title: "Match", caption: "Turn 4 of 6 in the planning phase: both nameplates with their portraits and the Stand on Business plate between them; three Locations as framed plates with their art, name and both players' Influence; the opponent's cards above each Location, yours below; your hand fanned at the foot; Sit Down, the turn coins and energy at the left, Lock In with its timer at the right." },
   ],
   payload: nightfallKit as unknown as Record<string, unknown>,
 };

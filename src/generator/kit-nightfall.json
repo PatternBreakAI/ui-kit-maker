@@ -242,6 +242,42 @@
 "kind": "Other",
 "createdAt": "2026-10-04T00:00:00.000Z"
 },
+"copy-modp-panel": {
+"base": "panel",
+"name": "mode-plate",
+"kind": "Other",
+"createdAt": "2026-10-04T00:00:00.000Z"
+},
+"copy-gemc-currency": {
+"base": "currency",
+"name": "gem-wallet",
+"kind": "Other",
+"createdAt": "2026-10-04T00:00:00.000Z"
+},
+"copy-dimc-coin": {
+"base": "coin",
+"name": "coin-unlit",
+"kind": "Other",
+"createdAt": "2026-10-04T00:00:00.000Z"
+},
+"copy-tutp-panel": {
+"base": "panel",
+"name": "quiet-plate",
+"kind": "Other",
+"createdAt": "2026-10-04T00:00:00.000Z"
+},
+"copy-blup-panel": {
+"base": "panel",
+"name": "rival-glass",
+"kind": "Other",
+"createdAt": "2026-10-04T00:00:00.000Z"
+},
+"copy-dngp-panel": {
+"base": "panel",
+"name": "danger-plate",
+"kind": "Other",
+"createdAt": "2026-10-04T00:00:00.000Z"
+},
 "copy-nvgi-iconbtn": {
 "base": "iconbtn",
 "name": "nav-glyph-ink",
@@ -307,11 +343,20 @@
 "iconbtn": "pill",
 "avatarframe": "pill",
 "currency": "pill",
+"copy-gemc-currency": "pill",
 "copy-navg-iconbtn": "pill",
 "copy-nvgi-iconbtn": "pill",
 "dialoguebox": "speech",
-"copy-play-panel": "banner",
-"copy-barp-panel": "tavern",
+"panel": "round",
+"copy-rowp-panel": "round",
+"copy-done-panel": "round",
+"copy-card-panel": "round",
+"copy-tutp-panel": "round",
+"copy-blup-panel": "round",
+"copy-dngp-panel": "round",
+"copy-modp-panel": "round",
+"copy-play-panel": "hex",
+"copy-barp-panel": "round",
 "copy-navp-panel": "hex",
 "copy-hmep-panel": "hex"
 },
@@ -1446,6 +1491,11 @@
 "darkness": 85,
 "glow": 0
 }
+},
+"transparency": {
+"frame": 100,
+"interior": 68,
+"content": 100
 }
 },
 "copy-barp-panel": {
@@ -1467,6 +1517,11 @@
 "darkness": 85,
 "glow": 0
 }
+},
+"transparency": {
+"frame": 100,
+"interior": 72,
+"content": 100
 }
 },
 "small": {
@@ -1638,7 +1693,7 @@
 "panel": {
 "transparency": {
 "frame": 100,
-"interior": 100,
+"interior": 86,
 "content": 100
 },
 "candy": {
@@ -1646,7 +1701,7 @@
 "on": true,
 "height": 34,
 "curve": 14,
-"opacity": 14,
+"opacity": 9,
 "softness": 92,
 "layer": "below",
 "fill": "highlight",
@@ -1670,7 +1725,7 @@
 "width": 2
 },
 "innerGlow": {
-"opacity": 22,
+"opacity": 9,
 "size": 56,
 "color": "#F2C94C"
 },
@@ -1679,14 +1734,14 @@
 "brightness": 100
 },
 "texture": {
-"amount": 10,
+"amount": 0,
 "scale": 48
 },
 "pattern": {
 "type": "diamonds",
 "scale": 40,
 "angle": 0,
-"opacity": 4,
+"opacity": 0,
 "color": null,
 "zone": "face",
 "wall": {
@@ -2207,7 +2262,7 @@
 "questpanel": {
 "transparency": {
 "frame": 100,
-"interior": 100,
+"interior": 86,
 "content": 100
 },
 "candy": {
@@ -2215,7 +2270,7 @@
 "on": true,
 "height": 34,
 "curve": 14,
-"opacity": 14,
+"opacity": 9,
 "softness": 92,
 "layer": "below",
 "fill": "highlight",
@@ -2239,7 +2294,7 @@
 "width": 2
 },
 "innerGlow": {
-"opacity": 22,
+"opacity": 9,
 "size": 56,
 "color": "#F2C94C"
 },
@@ -2248,14 +2303,14 @@
 "brightness": 100
 },
 "texture": {
-"amount": 10,
+"amount": 0,
 "scale": 48
 },
 "pattern": {
 "type": "diamonds",
 "scale": 40,
 "angle": 0,
-"opacity": 4,
+"opacity": 0,
 "color": null,
 "zone": "face",
 "wall": {
@@ -2742,6 +2797,470 @@
 }
 }
 },
+"copy-tutp-panel": {
+"effects": {
+"Bevel": "#3A4358",
+"Glow": "#6B7489",
+"Highlight": "#55658A",
+"Shadow": "#05080F",
+"Inner Fill": "#0E1526"
+},
+"transparency": {
+"frame": 100,
+"interior": 78,
+"content": 100
+},
+"candy": {
+"gloss": {
+"on": true,
+"height": 34,
+"curve": 14,
+"opacity": 14,
+"softness": 92,
+"layer": "below",
+"fill": "highlight",
+"tint": "#FFFFFF",
+"tint2": "#FFFFFF"
+},
+"specular": {
+"on": true,
+"mode": "line",
+"size": 30,
+"stretch": 14,
+"intensity": 22,
+"softness": 70,
+"angle": -18,
+"gap": 300,
+"ox": 33,
+"oy": -30
+},
+"innerEdge": {
+"strength": 62,
+"width": 2
+},
+"innerGlow": {
+"opacity": 10,
+"size": 56,
+"color": "#F2C94C"
+},
+"rim": {
+"width": 2,
+"brightness": 90
+},
+"texture": {
+"amount": 10,
+"scale": 48
+},
+"pattern": {
+"type": "diamonds",
+"scale": 40,
+"angle": 0,
+"opacity": 4,
+"color": null,
+"zone": "face",
+"wall": {
+"type": "none",
+"scale": 9,
+"angle": 0,
+"opacity": 0,
+"color": null
+}
+}
+}
+},
+"copy-blup-panel": {
+"effects": {
+"Bevel": "#4A78C8",
+"Glow": "#7FB0FF",
+"Highlight": "#BFD8FF",
+"Shadow": "#05080F",
+"Inner Fill": "#0C1A33"
+},
+"transparency": {
+"frame": 100,
+"interior": 80,
+"content": 100
+},
+"candy": {
+"gloss": {
+"on": true,
+"height": 34,
+"curve": 14,
+"opacity": 14,
+"softness": 92,
+"layer": "below",
+"fill": "highlight",
+"tint": "#FFFFFF",
+"tint2": "#FFFFFF"
+},
+"specular": {
+"on": true,
+"mode": "line",
+"size": 30,
+"stretch": 14,
+"intensity": 22,
+"softness": 70,
+"angle": -18,
+"gap": 300,
+"ox": 33,
+"oy": -30
+},
+"innerEdge": {
+"strength": 62,
+"width": 2
+},
+"innerGlow": {
+"opacity": 18,
+"size": 56,
+"color": "#7FB0FF"
+},
+"rim": {
+"width": 2,
+"brightness": 95
+},
+"texture": {
+"amount": 10,
+"scale": 48
+},
+"pattern": {
+"type": "diamonds",
+"scale": 40,
+"angle": 0,
+"opacity": 4,
+"color": null,
+"zone": "face",
+"wall": {
+"type": "none",
+"scale": 9,
+"angle": 0,
+"opacity": 0,
+"color": null
+}
+}
+}
+},
+"copy-dngp-panel": {
+"effects": {
+"Bevel": "#B8463C",
+"Glow": "#FF8A7A",
+"Highlight": "#FFC4B8",
+"Shadow": "#2A0A06",
+"Inner Fill": "#3A1210"
+},
+"transparency": {
+"frame": 100,
+"interior": 84,
+"content": 100
+},
+"candy": {
+"gloss": {
+"on": true,
+"height": 34,
+"curve": 14,
+"opacity": 14,
+"softness": 92,
+"layer": "below",
+"fill": "highlight",
+"tint": "#FFFFFF",
+"tint2": "#FFFFFF"
+},
+"specular": {
+"on": true,
+"mode": "line",
+"size": 30,
+"stretch": 14,
+"intensity": 22,
+"softness": 70,
+"angle": -18,
+"gap": 300,
+"ox": 33,
+"oy": -30
+},
+"innerEdge": {
+"strength": 62,
+"width": 2
+},
+"innerGlow": {
+"opacity": 16,
+"size": 50,
+"color": "#FF8A7A"
+},
+"rim": {
+"width": 2,
+"brightness": 95
+},
+"texture": {
+"amount": 10,
+"scale": 48
+},
+"pattern": {
+"type": "diamonds",
+"scale": 40,
+"angle": 0,
+"opacity": 4,
+"color": null,
+"zone": "face",
+"wall": {
+"type": "none",
+"scale": 9,
+"angle": 0,
+"opacity": 0,
+"color": null
+}
+}
+}
+},
+"copy-dimc-coin": {
+"effects": {
+"Bevel": "#8A6410",
+"Glow": "#F2C94C",
+"Highlight": "#FFF0B0",
+"Shadow": "#2A1E05",
+"Inner Fill": "#E8B93A"
+},
+"face": {
+"mode": "light",
+"contrast": 55,
+"midpoint": 50
+},
+"candy": {
+"extrusion": {
+"depth": 8,
+"darkness": 80,
+"glow": 30
+},
+"gloss": {
+"on": true,
+"height": 42,
+"curve": 8,
+"opacity": 22,
+"softness": 90,
+"layer": "below",
+"fill": "highlight",
+"tint": "#FFFFFF",
+"tint2": "#FFFFFF"
+},
+"innerGlow": {
+"opacity": 35,
+"size": 50,
+"color": "#FFE08A"
+},
+"rim": {
+"width": 2.5,
+"brightness": 100
+},
+"aura": {
+"color": "#F2C94C"
+}
+},
+"transparency": {
+"frame": 100,
+"interior": 100,
+"content": 100
+},
+"type": {
+"fill": "#2A1E05",
+"fill2": "#4A3608",
+"shadow": {
+"on": false,
+"color": "#05080F",
+"x": 0,
+"y": 2,
+"blur": 2,
+"opacity": 70
+},
+"emboss": {
+"on": true,
+"strength": -18,
+"softness": 30,
+"hiOpacity": 40,
+"distance": 1,
+"shOpacity": 30,
+"hiColor": "#FFF6D0",
+"shColor": "#5A4208"
+}
+},
+"states": {
+"default": {
+"brightness": -14,
+"glow": 0,
+"lift": 0,
+"opacity": 42,
+"saturation": -50
+},
+"hover": {
+"brightness": -8,
+"glow": 0,
+"lift": 0,
+"opacity": 50,
+"saturation": -50
+},
+"pressed": {
+"brightness": -14,
+"glow": 0,
+"lift": 1,
+"opacity": 42,
+"saturation": -50
+},
+"disabled": {
+"brightness": -14,
+"glow": 0,
+"lift": 0,
+"opacity": 30,
+"saturation": -60
+}
+}
+},
+"copy-modp-panel": {
+"effects": {
+"Bevel": "#E6C15A",
+"Glow": "#F2C94C",
+"Highlight": "#F6DC8C",
+"Shadow": "#05080F",
+"Inner Fill": "#0E1526"
+},
+"bevel": {
+"width": 2,
+"softness": 20
+},
+"transparency": {
+"frame": 100,
+"interior": 70,
+"content": 100
+},
+"candy": {
+"gloss": {
+"on": true,
+"height": 34,
+"curve": 14,
+"opacity": 14,
+"softness": 92,
+"layer": "below",
+"fill": "highlight",
+"tint": "#FFFFFF",
+"tint2": "#FFFFFF"
+},
+"specular": {
+"on": true,
+"mode": "line",
+"size": 30,
+"stretch": 14,
+"intensity": 22,
+"softness": 70,
+"angle": -18,
+"gap": 300,
+"ox": 33,
+"oy": -30
+},
+"innerEdge": {
+"strength": 62,
+"width": 2
+},
+"innerGlow": {
+"opacity": 12,
+"size": 50,
+"color": "#F2C94C"
+},
+"rim": {
+"width": 1.5,
+"brightness": 90
+},
+"texture": {
+"amount": 10,
+"scale": 48
+},
+"pattern": {
+"type": "diamonds",
+"scale": 40,
+"angle": 0,
+"opacity": 4,
+"color": null,
+"zone": "face",
+"wall": {
+"type": "none",
+"scale": 9,
+"angle": 0,
+"opacity": 0,
+"color": null
+}
+}
+}
+},
+"copy-gemc-currency": {
+"type": {
+"font": "Literata",
+"customFonts": [],
+"size": 60,
+"weight": 700,
+"italic": false,
+"spacing": 2,
+"case": "none",
+"fillMode": "solid",
+"fill": "#F3E6C8",
+"fill2": "#E6C15A",
+"fillOpacity": 100,
+"outline": {
+"on": false,
+"color": "#0B1228",
+"color2": null,
+"width": 0.4
+},
+"shadow": {
+"on": true,
+"color": "#05080F",
+"x": 0,
+"y": 2,
+"blur": 2,
+"opacity": 70
+},
+"emboss": {
+"on": true,
+"strength": -14,
+"softness": 30,
+"hiOpacity": 20,
+"distance": 1,
+"shOpacity": 35,
+"hiColor": "#FFF6E0",
+"shColor": "#05091A"
+},
+"glow": {
+"on": false,
+"color": "#F2C94C",
+"size": 6,
+"opacity": 40
+},
+"preset": "candy",
+"listFont": "Crimson Pro",
+"listInk": "#F3E6C8",
+"infoInk": "#E6C15A"
+},
+"icon": {
+"show": true,
+"def": {
+"lib": "lucide",
+"name": "Play",
+"viewBox": "0 0 24 24",
+"inner": "<polygon points=\"6 3 20 12 6 21 6 3\"/>",
+"mode": "stroke"
+},
+"placement": "right",
+"only": false,
+"size": 100,
+"strokeWidth": 22,
+"color": "#7FB0FF",
+"outlineWidth": null,
+"opacity": 100,
+"rotation": 0,
+"gap": 18,
+"ox": 0,
+"oy": 0,
+"fx": {
+"shadow": false,
+"glow": false,
+"emboss": false
+}
+}
+},
 "copy-navg-iconbtn": {
 "transparency": {
 "frame": 0,
@@ -2932,6 +3451,7 @@
 "header": "Season Pass",
 "chip": "Juneteenth Weekend",
 "copy-done-chip": "Break 2 Threats",
+"copy-gemc-currency": "38",
 "toast": "Deck saved.",
 "currency": "1,250",
 "nameplate": "Silverlake Slayer",
@@ -2979,6 +3499,13 @@
 "name": "Home",
 "viewBox": "0 0 24 24",
 "inner": "<path d=\"m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/><polyline points=\"9 22 9 12 15 12 15 22\"/>",
+"mode": "stroke"
+},
+"copy-gemc-currency": {
+"lib": "lucide",
+"name": "Gem",
+"viewBox": "0 0 24 24",
+"inner": "<path d=\"M6 3h12l4 6-10 13L2 9Z\"/><path d=\"M11 3 8 9l4 13 4-13-3-6\"/><path d=\"M2 9h20\"/>",
 "mode": "stroke"
 }
 },
@@ -3033,6 +3560,55 @@
 "h": 595
 },
 {
+"id": "uanflocharpers",
+"name": "Harpers Ferry (location)",
+"ref": "/kit-art/nightfall/loc-harpers-ferry.webp",
+"w": 600,
+"h": 260
+},
+{
+"id": "uanflocgreenwood",
+"name": "Greenwood (location)",
+"ref": "/kit-art/nightfall/loc-greenwood.webp",
+"w": 600,
+"h": 260
+},
+{
+"id": "uanflocmontgomery",
+"name": "Montgomery (location)",
+"ref": "/kit-art/nightfall/loc-montgomery.webp",
+"w": 600,
+"h": 260
+},
+{
+"id": "uanfcardtubman",
+"name": "Harriet Tubman, the card",
+"ref": "/kit-art/nightfall/card-harriet_tubman.webp",
+"w": 551,
+"h": 713
+},
+{
+"id": "uanfcarddouglass",
+"name": "Frederick Douglass, the card",
+"ref": "/kit-art/nightfall/card-frederick_douglass.webp",
+"w": 551,
+"h": 713
+},
+{
+"id": "uanfcardmansa",
+"name": "Mansa Musa, the card",
+"ref": "/kit-art/nightfall/card-mansa_musa.webp",
+"w": 551,
+"h": 713
+},
+{
+"id": "uanfcardback",
+"name": "Card back",
+"ref": "/kit-art/nightfall/card-back.webp",
+"w": 551,
+"h": 713
+},
+{
 "id": "uanfyou",
 "name": "Portrait, Harriet Tubman",
 "ref": "/kit-art/nightfall/you.webp",
@@ -3079,7 +3655,7 @@
 "name": "Juneteenth",
 "ref": "/kit-art/nightfall/event.webp",
 "w": 1024,
-"h": 776
+"h": 480
 },
 {
 "id": "uanfseason",
@@ -3098,152 +3674,167 @@
 ],
 "boards": [
 {
-"id": "nf-home",
-"name": "home",
-"aspect": "169",
+"id": "nf-start",
+"name": "start",
+"aspect": "iphone-pro-l",
 "bgShow": true,
 "bgImage": "/kit-art/nightfall/bg.webp",
 "items": [
 {
-"id": "nf-home-portrait-1",
+"id": "nf-start-portrait-1",
 "libId": "",
-"kitId": "copy-avyu-avatarframe",
-"x": 36.6,
-"y": -16.2,
-"scale": 0.6521,
+"kitId": "copy-avop-avatarframe",
+"x": 61.6,
+"y": -12.5,
+"scale": 0.2143,
 "label": ""
 },
 {
-"id": "nf-home-face-2",
+"id": "nf-start-face-2",
 "libId": "",
-"x": 71.1,
-"y": 49.1,
-"scale": 0.9508,
+"x": 73.0,
+"y": 9.0,
+"scale": 0.3124,
 "logo": {
-"aid": "uanfyou"
+"aid": "uanfopp"
 }
 },
 {
-"id": "nf-home-t-3",
+"id": "nf-start-t-3",
 "libId": "",
-"x": 145.6,
-"y": -64.4,
+"x": 44.0,
+"y": -109.3,
 "scale": 1,
 "stamp": {
 "text": "Silverlake Slayer",
-"size": 46,
+"size": 20.0,
 "plain": {
 "color": "#F0D890"
 }
 }
 },
 {
-"id": "nf-home-t-4",
+"id": "nf-start-t-4",
 "libId": "",
-"x": 146.2,
-"y": -25.6,
+"x": 44.0,
+"y": -93.6,
 "scale": 1,
 "stamp": {
 "text": "Collection level 47",
-"size": 40,
+"size": 18.3,
 "plain": {
 "color": "#C9A24A"
 }
 }
 },
 {
-"id": "nf-home-xp-5",
+"id": "nf-start-xp-5",
 "libId": "",
 "kitId": "progress",
-"x": 217.9,
-"y": 106.4,
-"scale": 0.31,
-"stretch": 1.2204,
+"x": 120.0,
+"y": 32.3,
+"scale": 0.1537,
+"stretch": 1.0667,
 "v": 0.78
 },
 {
-"id": "nf-home-t-6",
+"id": "nf-start-t-6",
 "libId": "",
-"x": 402.2,
-"y": 8.4,
+"x": 156.0,
+"y": -79.6,
 "scale": 1,
 "stamp": {
 "text": "2,340 / 3,000",
-"size": 40,
+"size": 18.3,
 "plain": {
 "color": "#D8C8A0"
 }
 }
 },
 {
-"id": "nf-home-logo-7",
+"id": "nf-start-logo-7",
 "libId": "",
-"x": 789,
-"y": 6,
-"scale": 0.7556,
+"x": 362.0,
+"y": 0,
+"scale": 0.3333,
 "logo": {
 "aid": "uanflogo"
 }
 },
 {
-"id": "nf-home-coins-8",
+"id": "nf-start-tagline-8",
+"libId": "",
+"x": 278.1,
+"y": -18.4,
+"scale": 1,
+"stamp": {
+"text": "Battle for Influence",
+"size": 18.3,
+"plain": {
+"color": "#E6C15A"
+},
+"shadow": 60
+}
+},
+{
+"id": "nf-start-coins-9",
 "libId": "",
 "kitId": "currency",
-"x": 1398.9,
-"y": 26.2,
-"scale": 0.54,
+"x": 558.1,
+"y": -4.0,
+"scale": 0.2537,
 "label": "1,250"
 },
 {
-"id": "nf-home-gems-9",
+"id": "nf-start-gems-10",
 "libId": "",
-"kitId": "currency",
-"x": 1584.9,
-"y": 26.2,
-"scale": 0.54,
+"kitId": "copy-gemc-currency",
+"x": 656.1,
+"y": -4.0,
+"scale": 0.2537,
 "label": "38"
 },
 {
-"id": "nf-home-settings-10",
+"id": "nf-start-settings-11",
 "libId": "",
 "kitId": "iconbtn",
-"x": 1774.5,
-"y": 13.5,
-"scale": 0.47
+"x": 765.4,
+"y": -5.8,
+"scale": 0.1988
 },
 {
-"id": "nf-home-season-11",
+"id": "nf-start-season-12",
 "libId": "",
 "kitId": "panel",
-"x": 35.2,
-"y": 187.1,
-"scale": 0.4,
-"stretch": 1.4551,
-"stretchY": 0.9468
+"x": 62.4,
+"y": 47.0,
+"scale": 0.18,
+"stretch": 1.453,
+"stretchY": 0.7329
 },
 {
-"id": "nf-home-t-12",
+"id": "nf-start-t-13",
 "libId": "",
-"x": -4.0,
-"y": 124.8,
+"x": 0.0,
+"y": -51.6,
 "scale": 1,
 "stamp": {
 "text": "Season Pass",
-"size": 42,
+"size": 18.3,
 "plain": {
 "color": "#E6C15A"
 }
 }
 },
 {
-"id": "nf-home-t-13",
+"id": "nf-start-t-14",
 "libId": "",
-"x": -4.4,
-"y": 165.4,
+"x": 0.0,
+"y": -33.6,
 "scale": 1,
 "stamp": {
 "text": "The Great Migration",
-"size": 46,
+"size": 20.0,
 "plain": {
 "color": "#F3E6C8"
 },
@@ -3251,128 +3842,105 @@
 }
 },
 {
-"id": "nf-home-seasonbar-14",
+"id": "nf-start-seasonbar-15",
 "libId": "",
 "kitId": "progress",
-"x": 67.9,
-"y": 322.4,
-"scale": 0.31,
-"stretch": 0.9153,
+"x": 76.0,
+"y": 96.3,
+"scale": 0.1537,
+"stretch": 1.1077,
 "v": 0.62
 },
 {
-"id": "nf-home-t-15",
+"id": "nf-start-t-16",
 "libId": "",
-"x": 185.2,
-"y": 224.4,
+"x": 135.1,
+"y": -15.6,
 "scale": 1,
 "stamp": {
 "text": "Tier 12",
-"size": 40,
+"size": 18.3,
 "plain": {
 "color": "#E6C15A"
 }
 }
 },
 {
-"id": "nf-home-seasonframe-16",
-"libId": "",
-"kitId": "copy-card-panel",
-"x": 365.7,
-"y": 225.2,
-"scale": 0.15,
-"stretch": 1.0256,
-"stretchY": 1.3617
-},
-{
-"id": "nf-home-seasonart-17",
-"libId": "",
-"x": 378,
-"y": 242,
-"scale": 0.36,
-"logo": {
-"aid": "uanfseason"
-}
-},
-{
-"id": "nf-home-missions-18",
+"id": "nf-start-missions-17",
 "libId": "",
 "kitId": "panel",
-"x": 35.2,
-"y": 385.1,
-"scale": 0.4,
-"stretch": 1.4551,
-"stretchY": 1.9468
+"x": 62.4,
+"y": 117.0,
+"scale": 0.18,
+"stretch": 1.453,
+"stretchY": 2.4586
 },
 {
-"id": "nf-home-art-19",
+"id": "nf-start-t-18",
 "libId": "",
-"x": 60,
-"y": 422,
-"scale": 0.8555,
-"logo": {
-"aid": "uanfmissions"
-}
-},
-{
-"id": "nf-home-t-20",
-"libId": "",
-"x": -4.0,
-"y": 322.8,
+"x": 0.0,
+"y": 20.4,
 "scale": 1,
 "stamp": {
 "text": "Missions",
-"size": 42,
+"size": 18.3,
 "plain": {
 "color": "#E6C15A"
-},
-"shadow": 50
+}
 }
 },
 {
-"id": "nf-home-t-21",
+"id": "nf-start-t-19",
 "libId": "",
-"x": 278.7,
-"y": 326.4,
+"x": 104.1,
+"y": 20.4,
 "scale": 1,
 "stamp": {
 "text": "View all",
-"size": 40,
+"size": 18.3,
 "plain": {
 "color": "#D8C8A0"
-},
-"shadow": 50
+}
 }
 },
 {
-"id": "nf-home-row-22",
+"id": "nf-start-glyph-20",
+"libId": "",
+"kitId": "copy-navg-iconbtn",
+"x": 247.1,
+"y": 130.7,
+"scale": 0.087,
+"ov": "icon:forward"
+},
+{
+"id": "nf-start-row-21",
 "libId": "",
 "kitId": "copy-rowp-panel",
-"x": 55.4,
-"y": 512.4,
-"scale": 0.3726,
-"stretch": 1.65,
+"x": 69.4,
+"y": 143.2,
+"scale": 0.2534,
+"stretch": 1.063,
 "stretchY": 1.0,
 "ov": "strip"
 },
 {
-"id": "nf-home-rowglyph-23",
+"id": "nf-start-rowglyph-22",
 "libId": "",
 "kitId": "copy-navg-iconbtn",
-"x": 78.4,
-"y": 538.6,
-"scale": 0.17,
-"ov": "icon:zap"
+"x": 84.7,
+"y": 163.7,
+"scale": 0.0994,
+"ov": "icon:dot"
 },
 {
-"id": "nf-home-t-24",
+"id": "nf-start-t-23",
 "libId": "",
-"x": 42.0,
-"y": 442.3,
+"x": 28.0,
+"y": 54.9,
 "scale": 1,
 "stamp": {
 "text": "Play 3 Events",
-"size": 42,
+"size": 18.3,
 "plain": {
 "color": "#F3E6C8"
 },
@@ -3380,48 +3948,48 @@
 }
 },
 {
-"id": "nf-home-t-25",
+"id": "nf-start-t-24",
 "libId": "",
-"x": 355.7,
-"y": 441.4,
+"x": 157.0,
+"y": 54.4,
 "scale": 1,
 "stamp": {
 "text": "1/3",
-"size": 40,
+"size": 18.3,
 "plain": {
 "color": "#F3E6C8"
 }
 }
 },
 {
-"id": "nf-home-row-26",
+"id": "nf-start-row-25",
 "libId": "",
 "kitId": "copy-rowp-panel",
-"x": 55.4,
-"y": 570.4,
-"scale": 0.3726,
-"stretch": 1.65,
+"x": 69.4,
+"y": 185.2,
+"scale": 0.2534,
+"stretch": 1.063,
 "stretchY": 1.0,
 "ov": "strip"
 },
 {
-"id": "nf-home-rowglyph-27",
+"id": "nf-start-rowglyph-26",
 "libId": "",
 "kitId": "copy-navg-iconbtn",
-"x": 78.4,
-"y": 596.6,
-"scale": 0.17,
-"ov": "icon:zap"
+"x": 84.7,
+"y": 205.7,
+"scale": 0.0994,
+"ov": "icon:dot"
 },
 {
-"id": "nf-home-t-28",
+"id": "nf-start-t-27",
 "libId": "",
-"x": 42.0,
-"y": 500.3,
+"x": 28.0,
+"y": 96.9,
 "scale": 1,
 "stamp": {
 "text": "Win at Harpers Ferry",
-"size": 42,
+"size": 18.3,
 "plain": {
 "color": "#F3E6C8"
 },
@@ -3429,48 +3997,48 @@
 }
 },
 {
-"id": "nf-home-t-29",
+"id": "nf-start-t-28",
 "libId": "",
-"x": 354.5,
-"y": 499.4,
+"x": 156.0,
+"y": 96.4,
 "scale": 1,
 "stamp": {
 "text": "0/1",
-"size": 40,
+"size": 18.3,
 "plain": {
 "color": "#F3E6C8"
 }
 }
 },
 {
-"id": "nf-home-row-30",
+"id": "nf-start-row-29",
 "libId": "",
 "kitId": "copy-done-panel",
-"x": 55.4,
-"y": 629.1,
-"scale": 0.3726,
-"stretch": 1.65,
+"x": 69.4,
+"y": 227.7,
+"scale": 0.2534,
+"stretch": 1.063,
 "stretchY": 1.0,
 "ov": "strip"
 },
 {
-"id": "nf-home-rowglyph-31",
+"id": "nf-start-rowglyph-30",
 "libId": "",
 "kitId": "copy-navg-iconbtn",
-"x": 78.4,
-"y": 654.6,
-"scale": 0.17,
+"x": 84.7,
+"y": 247.7,
+"scale": 0.0994,
 "ov": "icon:check"
 },
 {
-"id": "nf-home-t-32",
+"id": "nf-start-t-31",
 "libId": "",
-"x": 42.0,
-"y": 558.3,
+"x": 28.0,
+"y": 138.9,
 "scale": 1,
 "stamp": {
 "text": "Break 2 Threats",
-"size": 42,
+"size": 18.3,
 "plain": {
 "color": "#7CF0A0"
 },
@@ -3478,48 +4046,48 @@
 }
 },
 {
-"id": "nf-home-t-33",
+"id": "nf-start-t-32",
 "libId": "",
-"x": 354.3,
-"y": 557.4,
+"x": 155.8,
+"y": 138.4,
 "scale": 1,
 "stamp": {
 "text": "2/2",
-"size": 40,
+"size": 18.3,
 "plain": {
 "color": "#7CF0A0"
 }
 }
 },
 {
-"id": "nf-home-row-34",
+"id": "nf-start-row-33",
 "libId": "",
 "kitId": "copy-rowp-panel",
-"x": 55.4,
-"y": 686.4,
-"scale": 0.3726,
-"stretch": 1.65,
+"x": 69.4,
+"y": 269.2,
+"scale": 0.2534,
+"stretch": 1.063,
 "stretchY": 1.0,
 "ov": "strip"
 },
 {
-"id": "nf-home-rowglyph-35",
+"id": "nf-start-rowglyph-34",
 "libId": "",
 "kitId": "copy-navg-iconbtn",
-"x": 78.4,
-"y": 712.6,
-"scale": 0.17,
-"ov": "icon:zap"
+"x": 84.7,
+"y": 289.7,
+"scale": 0.0994,
+"ov": "icon:dot"
 },
 {
-"id": "nf-home-t-36",
+"id": "nf-start-t-35",
 "libId": "",
-"x": 42.0,
-"y": 616.3,
+"x": 28.0,
+"y": 180.9,
 "scale": 1,
 "stamp": {
 "text": "Stand on Business once",
-"size": 42,
+"size": 18.3,
 "plain": {
 "color": "#F3E6C8"
 },
@@ -3527,39 +4095,40 @@
 }
 },
 {
-"id": "nf-home-t-37",
+"id": "nf-start-t-36",
 "libId": "",
-"x": 354.5,
-"y": 615.4,
+"x": 156.0,
+"y": 180.4,
 "scale": 1,
 "stamp": {
 "text": "0/1",
-"size": 40,
+"size": 18.3,
 "plain": {
 "color": "#F3E6C8"
 }
 }
 },
 {
-"id": "nf-home-t-38",
+"id": "nf-start-t-37",
 "libId": "",
-"x": 792.3,
-"y": 146.8,
+"x": 319.5,
+"y": 5.6,
 "scale": 1,
 "stamp": {
-"text": "Your deck",
-"size": 42,
+"text": "Pantheon",
+"size": 18.3,
 "plain": {
 "color": "#E6C15A"
-}
+},
+"shadow": 60
 }
 },
 {
-"id": "nf-home-card-39",
+"id": "nf-start-card-38",
 "libId": "",
-"x": 660.0,
-"y": 366.7,
-"scale": 0.7477,
+"x": 307.0,
+"y": 155.1,
+"scale": 0.3194,
 "logo": {
 "aid": "uanfcardoshun",
 "shadow": 45
@@ -3567,11 +4136,11 @@
 "rot": -9
 },
 {
-"id": "nf-home-card-40",
+"id": "nf-start-card-39",
 "libId": "",
-"x": 1052.0,
-"y": 366.7,
-"scale": 0.7477,
+"x": 479.0,
+"y": 155.1,
+"scale": 0.3194,
 "logo": {
 "aid": "uanfcardogun",
 "shadow": 45
@@ -3579,183 +4148,129 @@
 "rot": 9
 },
 {
-"id": "nf-home-card-41",
+"id": "nf-start-card-40",
 "libId": "",
-"x": 831.0,
-"y": 312.4,
-"scale": 0.9292,
+"x": 383.0,
+"y": 134.1,
+"scale": 0.392,
 "logo": {
 "aid": "uanfcardshango",
 "shadow": 45
 }
 },
 {
-"id": "nf-home-t-42",
-"libId": "",
-"x": 710.8,
-"y": 537.3,
-"scale": 1,
-"stamp": {
-"text": "Influence",
-"size": 36,
-"plain": {
-"color": "#E6C15A"
-}
-}
-},
-{
-"id": "nf-home-t-43",
-"libId": "",
-"x": 926.7,
-"y": 537.3,
-"scale": 1,
-"stamp": {
-"text": "Force",
-"size": 36,
-"plain": {
-"color": "#E6C15A"
-}
-}
-},
-{
-"id": "nf-home-prev-44",
-"libId": "",
-"kitId": "iconbtn",
-"x": 540.5,
-"y": 407.5,
-"scale": 0.47,
-"ov": "icon:back"
-},
-{
-"id": "nf-home-next-45",
-"libId": "",
-"kitId": "iconbtn",
-"x": 1274.5,
-"y": 407.5,
-"scale": 0.47,
-"ov": "icon:forward"
-},
-{
-"id": "nf-home-dots-46",
+"id": "nf-start-dots-41",
 "libId": "",
 "kitId": "pagedots",
-"x": 903.2,
-"y": 689.633393829401,
-"scale": 0.45
+"x": 406.0,
+"y": 278,
+"scale": 0.25
 },
 {
-"id": "nf-home-play-47",
+"id": "nf-start-play-42",
 "libId": "",
 "kitId": "copy-play-panel",
-"x": 640.5,
-"y": 682.2,
-"scale": 0.7303,
-"stretch": 1.1625,
+"x": 278.6,
+"y": 272.4,
+"scale": 0.3428,
+"stretch": 1.2384,
 "stretchY": 1.0,
 "ov": "strip"
 },
 {
-"id": "nf-home-playword-48",
+"id": "nf-start-playword-43",
 "libId": "",
-"x": 797.3,
-"y": 649.8,
+"x": 325.3,
+"y": 192.0,
 "scale": 1,
 "stamp": {
 "text": "Play",
-"size": 85,
+"size": 33.3,
 "plain": {
 "color": "#2A1E05"
 }
 }
 },
 {
-"id": "nf-home-modes-49",
+"id": "nf-start-playend-44",
 "libId": "",
-"kitId": "segment",
-"x": 769.3,
-"y": 811.3,
-"scale": 0.48,
-"label": "PvP | Practice | Challenges"
+"kitId": "copy-nvgi-iconbtn",
+"x": 313.5,
+"y": 303.6,
+"scale": 0.0745,
+"ov": "icon:back"
 },
 {
-"id": "nf-home-event-50",
+"id": "nf-start-playend-45",
+"libId": "",
+"kitId": "copy-nvgi-iconbtn",
+"x": 543.5,
+"y": 303.6,
+"scale": 0.0745,
+"ov": "icon:forward"
+},
+{
+"id": "nf-start-event-46",
 "libId": "",
 "kitId": "panel",
-"x": 1393.2,
-"y": 187.1,
-"scale": 0.4,
-"stretch": 1.4872,
-"stretchY": 1.8723
+"x": 592.4,
+"y": 47.0,
+"scale": 0.18,
+"stretch": 1.453,
+"stretchY": 1.9149
 },
 {
-"id": "nf-home-art-51",
+"id": "nf-start-t-47",
 "libId": "",
-"x": 1418,
-"y": 224,
-"scale": 0.875,
+"x": 530.0,
+"y": -51.6,
+"scale": 1,
+"stamp": {
+"text": "Featured event",
+"size": 18.3,
+"plain": {
+"color": "#E6C15A"
+}
+}
+},
+{
+"id": "nf-start-glyph-48",
+"libId": "",
+"kitId": "copy-navg-iconbtn",
+"x": 777.1,
+"y": 58.7,
+"scale": 0.087,
+"ov": "icon:forward"
+},
+{
+"id": "nf-start-eventframe-49",
+"libId": "",
+"kitId": "copy-card-panel",
+"x": 603.8,
+"y": 76.8,
+"scale": 0.1,
+"stretch": 2.4103,
+"stretchY": 1.9574
+},
+{
+"id": "nf-start-eventart-50",
+"libId": "",
+"x": 611,
+"y": 87,
+"scale": 0.3555,
 "logo": {
 "aid": "uanfevent"
 }
 },
 {
-"id": "nf-home-evhead-52",
+"id": "nf-start-t-51",
 "libId": "",
-"kitId": "copy-rowp-panel",
-"x": 1401.7,
-"y": 195.3,
-"scale": 0.3875,
-"stretch": 1.6923,
-"stretchY": 1.0,
-"ov": "strip"
-},
-{
-"id": "nf-home-t-53",
-"libId": "",
-"x": 1351.0,
-"y": 122.8,
-"scale": 1,
-"stamp": {
-"text": "Featured event",
-"size": 42,
-"plain": {
-"color": "#E6C15A"
-}
-}
-},
-{
-"id": "nf-home-t-54",
-"libId": "",
-"x": 1644.7,
-"y": 126.4,
-"scale": 1,
-"stamp": {
-"text": "View all",
-"size": 40,
-"plain": {
-"color": "#D8C8A0"
-}
-}
-},
-{
-"id": "nf-home-caption-55",
-"libId": "",
-"kitId": "copy-rowp-panel",
-"x": 1385.5,
-"y": 402.1,
-"scale": 0.775,
-"stretch": 0.8462,
-"stretchY": 1.0,
-"ov": "strip"
-},
-{
-"id": "nf-home-t-56",
-"libId": "",
-"x": 1350.3,
-"y": 361.5,
+"x": 530.0,
+"y": 64.4,
 "scale": 1,
 "stamp": {
 "text": "Juneteenth Weekend",
-"size": 48,
+"size": 20.0,
 "plain": {
 "color": "#F3E6C8"
 },
@@ -3763,100 +4278,109 @@
 }
 },
 {
-"id": "nf-home-t-57",
+"id": "nf-start-t-52",
 "libId": "",
-"x": 1640.6,
-"y": 361.2,
-"scale": 1,
-"stamp": {
-"text": "2d 14h 12m",
-"size": 36,
-"plain": {
-"color": "#D8C8A0"
-}
-}
-},
-{
-"id": "nf-home-t-58",
-"libId": "",
-"x": 1351.6,
-"y": 397.2,
+"x": 530.0,
+"y": 78.4,
 "scale": 1,
 "stamp": {
 "text": "Freedom moves together.",
-"size": 36,
+"size": 18.3,
 "plain": {
 "color": "#E6C15A"
 }
 }
 },
 {
-"id": "nf-home-shop-59",
+"id": "nf-start-glyph-53",
 "libId": "",
-"kitId": "panel",
-"x": 1393.2,
-"y": 559.1,
-"scale": 0.4,
-"stretch": 1.4872,
-"stretchY": 1.5532
+"kitId": "copy-navg-iconbtn",
+"x": 609.5,
+"y": 202.6,
+"scale": 0.0745,
+"ov": "icon:clock"
 },
 {
-"id": "nf-home-t-60",
+"id": "nf-start-t-54",
 "libId": "",
-"x": 1351.0,
-"y": 496.8,
+"x": 546.0,
+"y": 90.4,
 "scale": 1,
 "stamp": {
-"text": "Daily shop",
-"size": 42,
-"plain": {
-"color": "#E6C15A"
-}
-}
-},
-{
-"id": "nf-home-t-61",
-"libId": "",
-"x": 1548.8,
-"y": 499.7,
-"scale": 1,
-"stamp": {
-"text": "Refreshes in 12h",
-"size": 36,
+"text": "2d 14h 12m",
+"size": 18.3,
 "plain": {
 "color": "#D8C8A0"
 }
 }
 },
 {
-"id": "nf-home-shopframe-62",
+"id": "nf-start-shop-55",
 "libId": "",
-"kitId": "copy-card-panel",
-"x": 1425.6,
-"y": 637.5,
-"scale": 0.2,
-"stretch": 1.0256,
-"stretchY": 1.7021
+"kitId": "panel",
+"x": 592.4,
+"y": 217.0,
+"scale": 0.18,
+"stretch": 1.453,
+"stretchY": 1.2766
 },
 {
-"id": "nf-home-shopart-63",
+"id": "nf-start-t-56",
 "libId": "",
-"x": 1442,
-"y": 660,
-"scale": 0.5625,
+"x": 530.0,
+"y": 118.4,
+"scale": 1,
+"stamp": {
+"text": "Daily shop",
+"size": 18.3,
+"plain": {
+"color": "#E6C15A"
+}
+}
+},
+{
+"id": "nf-start-t-57",
+"libId": "",
+"x": 653.8,
+"y": 118.4,
+"scale": 1,
+"stamp": {
+"text": "12h left",
+"size": 18.3,
+"plain": {
+"color": "#D8C8A0"
+}
+}
+},
+{
+"id": "nf-start-shopframe-58",
+"libId": "",
+"kitId": "copy-card-panel",
+"x": 607.1,
+"y": 250.9,
+"scale": 0.07,
+"stretch": 0.989,
+"stretchY": 1.6413
+},
+{
+"id": "nf-start-shopart-59",
+"libId": "",
+"x": 613,
+"y": 259,
+"scale": 0.1875,
 "logo": {
 "aid": "uanfmansa"
 }
 },
 {
-"id": "nf-home-t-64",
+"id": "nf-start-t-60",
 "libId": "",
-"x": 1530.7,
-"y": 567.6,
+"x": 592.0,
+"y": 144.9,
 "scale": 1,
 "stamp": {
 "text": "Mansa Musa",
-"size": 54,
+"size": 21.7,
 "plain": {
 "color": "#F3E6C8"
 },
@@ -3864,206 +4388,956 @@
 }
 },
 {
-"id": "nf-home-price-65",
+"id": "nf-start-price-61",
 "libId": "",
 "kitId": "currency",
-"x": 1590.5,
-"y": 696.5,
-"scale": 0.5,
+"x": 662.1,
+"y": 268.0,
+"scale": 0.2537,
 "label": "400"
 },
 {
-"id": "nf-home-t-66",
+"id": "nf-start-t-62",
 "libId": "",
-"x": 1351.2,
-"y": 720.4,
+"x": 530.0,
+"y": 202.4,
 "scale": 1,
 "stamp": {
-"text": "New cards and more",
-"size": 40,
+"text": "New cards · Cosmetics",
+"size": 18.3,
 "plain": {
 "color": "#C9A24A"
 }
 }
 },
 {
-"id": "nf-home-navbar-67",
-"libId": "",
-"kitId": "copy-barp-panel",
-"x": 245.2,
-"y": 885.9,
-"scale": 0.924,
-"stretch": 2.1417,
-"stretchY": 1.0,
-"ov": "strip"
-},
-{
-"id": "nf-home-plaque-68",
-"libId": "",
-"kitId": "copy-navp-panel",
-"x": 277.3,
-"y": 932.8,
-"scale": 0.6855,
-"stretch": 0.474,
-"stretchY": 1.0,
-"ov": "strip"
-},
-{
-"id": "nf-home-nav-69",
+"id": "nf-start-glyph-63",
 "libId": "",
 "kitId": "copy-navg-iconbtn",
-"x": 367.3,
-"y": 943.3,
-"scale": 0.42,
+"x": 777.1,
+"y": 312.7,
+"scale": 0.087,
+"ov": "icon:forward"
+},
+{
+"id": "nf-start-navbar-64",
+"libId": "",
+"kitId": "copy-barp-panel",
+"x": -32.0,
+"y": 309.8,
+"scale": 0.4769,
+"stretch": 2.7561,
+"stretchY": 1.0,
+"ov": "strip"
+},
+{
+"id": "nf-start-tab-65",
+"libId": "",
+"kitId": "copy-navg-iconbtn",
+"x": 95.9,
+"y": 346.9,
+"scale": 0.1242,
 "ov": "icon:cart"
 },
 {
-"id": "nf-home-t-70",
+"id": "nf-start-tabword-66",
 "libId": "",
-"x": 294.4,
-"y": 922.4,
+"x": 11.1,
+"y": 262.4,
 "scale": 1,
 "stamp": {
 "text": "Shop",
-"size": 40,
+"size": 18.3,
 "plain": {
 "color": "#E6C15A"
 }
 }
 },
 {
-"id": "nf-home-plaque-71",
-"libId": "",
-"kitId": "copy-navp-panel",
-"x": 549.3,
-"y": 932.8,
-"scale": 0.6855,
-"stretch": 0.474,
-"stretchY": 1.0,
-"ov": "strip"
-},
-{
-"id": "nf-home-nav-72",
+"id": "nf-start-tab-67",
 "libId": "",
 "kitId": "copy-navg-iconbtn",
-"x": 639.3,
-"y": 943.3,
-"scale": 0.42,
+"x": 183.9,
+"y": 346.9,
+"scale": 0.1242,
 "ov": "icon:scroll"
 },
 {
-"id": "nf-home-t-73",
+"id": "nf-start-tabword-68",
 "libId": "",
-"x": 513.8,
-"y": 922.4,
+"x": 75.0,
+"y": 262.4,
 "scale": 1,
 "stamp": {
 "text": "Collection",
-"size": 40,
+"size": 18.3,
 "plain": {
 "color": "#E6C15A"
 }
 }
 },
 {
-"id": "nf-home-plaque-74",
+"id": "nf-start-tab-69",
 "libId": "",
-"kitId": "copy-hmep-panel",
-"x": 805.2,
-"y": 919.8,
-"scale": 0.7899,
-"stretch": 0.4559,
+"kitId": "copy-navg-iconbtn",
+"x": 661.9,
+"y": 346.9,
+"scale": 0.1242,
+"ov": "icon:map"
+},
+{
+"id": "nf-start-tabword-70",
+"libId": "",
+"x": 549.4,
+"y": 262.4,
+"scale": 1,
+"stamp": {
+"text": "Compendium",
+"size": 18.3,
+"plain": {
+"color": "#E6C15A"
+}
+}
+},
+{
+"id": "nf-start-tab-71",
+"libId": "",
+"kitId": "copy-navg-iconbtn",
+"x": 749.9,
+"y": 346.9,
+"scale": 0.1242,
+"ov": "icon:shield"
+},
+{
+"id": "nf-start-tabword-72",
+"libId": "",
+"x": 660.1,
+"y": 262.4,
+"scale": 1,
+"stamp": {
+"text": "Ranks",
+"size": 18.3,
+"plain": {
+"color": "#E6C15A"
+}
+}
+},
+{
+"id": "nf-start-mode-73",
+"libId": "",
+"kitId": "copy-modp-panel",
+"x": 273.1,
+"y": 342.5,
+"scale": 0.2534,
+"stretch": 0.7,
 "stretchY": 1.0,
 "ov": "strip"
 },
 {
-"id": "nf-home-nav-75",
+"id": "nf-start-modeword-74",
 "libId": "",
-"kitId": "copy-nvgi-iconbtn",
-"x": 906.8,
-"y": 935.4,
-"scale": 0.46,
-"ov": "icon:home"
-},
-{
-"id": "nf-home-t-76",
-"libId": "",
-"x": 833.9,
-"y": 925.4,
+"x": 241.0,
+"y": 251.0,
 "scale": 1,
 "stamp": {
-"text": "Home",
-"size": 40,
+"text": "PvP",
+"size": 18.3,
+"plain": {
+"color": "#E6C15A"
+}
+}
+},
+{
+"id": "nf-start-modeglyph-75",
+"libId": "",
+"kitId": "copy-navg-iconbtn",
+"x": 298.7,
+"y": 358.7,
+"scale": 0.0994,
+"ov": "icon:sword"
+},
+{
+"id": "nf-start-mode-76",
+"libId": "",
+"kitId": "copy-modp-panel",
+"x": 377.1,
+"y": 342.5,
+"scale": 0.2534,
+"stretch": 0.7,
+"stretchY": 1.0,
+"ov": "strip"
+},
+{
+"id": "nf-start-modeword-77",
+"libId": "",
+"x": 333.2,
+"y": 251.0,
+"scale": 1,
+"stamp": {
+"text": "Practice",
+"size": 18.3,
+"plain": {
+"color": "#E6C15A"
+}
+}
+},
+{
+"id": "nf-start-modeglyph-78",
+"libId": "",
+"kitId": "copy-navg-iconbtn",
+"x": 390.9,
+"y": 358.7,
+"scale": 0.0994,
+"ov": "icon:crosshair"
+},
+{
+"id": "nf-start-mode-79",
+"libId": "",
+"kitId": "copy-modp-panel",
+"x": 487.1,
+"y": 342.5,
+"scale": 0.2534,
+"stretch": 0.7,
+"stretchY": 1.0,
+"ov": "strip"
+},
+{
+"id": "nf-start-modeword-80",
+"libId": "",
+"x": 438.7,
+"y": 251.0,
+"scale": 1,
+"stamp": {
+"text": "Challenges",
+"size": 18.3,
+"plain": {
+"color": "#E6C15A"
+}
+}
+},
+{
+"id": "nf-start-modeglyph-81",
+"libId": "",
+"kitId": "copy-navg-iconbtn",
+"x": 496.5,
+"y": 358.7,
+"scale": 0.0994,
+"ov": "icon:trophy"
+},
+{
+"id": "nf-start-divider-82",
+"libId": "",
+"x": 63.3,
+"y": 247.6,
+"scale": 1,
+"stamp": {
+"text": "|",
+"size": 30.0,
+"plain": {
+"color": "#5A4A20"
+}
+}
+},
+{
+"id": "nf-start-divider-83",
+"libId": "",
+"x": 637.3,
+"y": 247.6,
+"scale": 1,
+"stamp": {
+"text": "|",
+"size": 30.0,
+"plain": {
+"color": "#5A4A20"
+}
+}
+}
+]
+},
+{
+"id": "nf-match",
+"name": "match",
+"aspect": "iphone-pro-l",
+"bgShow": true,
+"bgImage": "/kit-art/nightfall/match-bg.webp",
+"items": [
+{
+"id": "nf-match-np-you-1",
+"libId": "",
+"kitId": "copy-rowp-panel",
+"x": 59.4,
+"y": -10.8,
+"scale": 0.2534,
+"stretch": 1.0168,
+"stretchY": 1.0,
+"ov": "strip"
+},
+{
+"id": "nf-match-np-2",
+"libId": "",
+"x": -2.0,
+"y": -106.6,
+"scale": 1,
+"stamp": {
+"text": "Silverlake Slayer",
+"size": 18.3,
+"plain": {
+"color": "#F3E6C8"
+}
+}
+},
+{
+"id": "nf-match-np-3",
+"libId": "",
+"x": -2.0,
+"y": -91.6,
+"scale": 1,
+"stamp": {
+"text": "4/7 in hand · 12 in deck",
+"size": 18.3,
+"plain": {
+"color": "#D8C8A0"
+}
+}
+},
+{
+"id": "nf-match-portrait-4",
+"libId": "",
+"kitId": "copy-avyu-avatarframe",
+"x": 224.7,
+"y": -12.1,
+"scale": 0.1863,
+"label": ""
+},
+{
+"id": "nf-match-face-5",
+"libId": "",
+"x": 234.6,
+"y": 6.6,
+"scale": 0.2717,
+"logo": {
+"aid": "uanfyou"
+}
+},
+{
+"id": "nf-match-np-opp-6",
+"libId": "",
+"kitId": "copy-blup-panel",
+"x": 618.1,
+"y": -6.5,
+"scale": 0.2534,
+"stretch": 1.0168,
+"stretchY": 1.0,
+"ov": "strip"
+},
+{
+"id": "nf-match-np-7",
+"libId": "",
+"x": 617.7,
+"y": -106.6,
+"scale": 1,
+"stamp": {
+"text": "Harborlight",
+"size": 18.3,
+"plain": {
+"color": "#F3E6C8"
+}
+}
+},
+{
+"id": "nf-match-np-8",
+"libId": "",
+"x": 558.5,
+"y": -91.6,
+"scale": 1,
+"stamp": {
+"text": "5/7 in hand · 11 in deck",
+"size": 18.3,
+"plain": {
+"color": "#D8C8A0"
+}
+}
+},
+{
+"id": "nf-match-portrait-9",
+"libId": "",
+"kitId": "copy-avop-avatarframe",
+"x": 586.7,
+"y": -12.1,
+"scale": 0.1863,
+"label": ""
+},
+{
+"id": "nf-match-face-10",
+"libId": "",
+"x": 596.6,
+"y": 6.6,
+"scale": 0.2717,
+"logo": {
+"aid": "uanfopp"
+}
+},
+{
+"id": "nf-match-sob-11",
+"libId": "",
+"kitId": "copy-play-panel",
+"x": 340.3,
+"y": -6.8,
+"scale": 0.2235,
+"stretch": 1.1524,
+"stretchY": 1.0,
+"ov": "strip"
+},
+{
+"id": "nf-match-sobword-12",
+"libId": "",
+"x": 290.0,
+"y": -102.0,
+"scale": 1,
+"stamp": {
+"text": "Stand on Business",
+"size": 18.3,
 "plain": {
 "color": "#2A1E05"
 }
 }
 },
 {
-"id": "nf-home-plaque-77",
+"id": "nf-match-stakes-13",
 "libId": "",
-"kitId": "copy-navp-panel",
-"x": 1093.3,
-"y": 932.8,
-"scale": 0.6855,
-"stretch": 0.474,
+"x": 295.9,
+"y": -79.6,
+"scale": 1,
+"stamp": {
+"text": "Stakes 2 · Legacy",
+"size": 18.3,
+"plain": {
+"color": "#E6C15A"
+},
+"shadow": 60
+}
+},
+{
+"id": "nf-match-loc-14",
+"libId": "",
+"kitId": "copy-card-panel",
+"x": 119.0,
+"y": 105.3,
+"scale": 0.12,
+"stretch": 2.094,
+"stretchY": 2.3404
+},
+{
+"id": "nf-match-locart-15",
+"libId": "",
+"x": 128.0,
+"y": 118,
+"scale": 0.6267,
+"logo": {
+"aid": "uanflocharpers"
+}
+},
+{
+"id": "nf-match-locband-16",
+"libId": "",
+"kitId": "copy-rowp-panel",
+"x": 123.1,
+"y": 191.3,
+"scale": 0.1639,
+"stretch": 1.6429,
 "stretchY": 1.0,
 "ov": "strip"
 },
 {
-"id": "nf-home-nav-78",
+"id": "nf-match-locname-17",
 "libId": "",
-"kitId": "copy-navg-iconbtn",
-"x": 1183.3,
-"y": 943.3,
-"scale": 0.42,
-"ov": "icon:map"
-},
-{
-"id": "nf-home-t-79",
-"libId": "",
-"x": 1098.1,
-"y": 922.4,
+"x": 88.3,
+"y": 91.5,
 "scale": 1,
 "stamp": {
-"text": "Album",
-"size": 40,
+"text": "Harpers Ferry",
+"size": 18.3,
+"plain": {
+"color": "#F3E6C8"
+}
+}
+},
+{
+"id": "nf-match-inf-18",
+"libId": "",
+"x": 56.0,
+"y": 91.5,
+"scale": 1,
+"stamp": {
+"text": "7",
+"size": 21.7,
 "plain": {
 "color": "#E6C15A"
 }
 }
 },
 {
-"id": "nf-home-plaque-80",
+"id": "nf-match-inf-19",
 "libId": "",
-"kitId": "copy-navp-panel",
-"x": 1365.3,
-"y": 932.8,
-"scale": 0.6855,
-"stretch": 0.474,
+"x": 216.9,
+"y": 91.5,
+"scale": 1,
+"stamp": {
+"text": "5",
+"size": 21.7,
+"plain": {
+"color": "#7FB0FF"
+}
+}
+},
+{
+"id": "nf-match-loc-20",
+"libId": "",
+"kitId": "copy-card-panel",
+"x": 334.0,
+"y": 105.3,
+"scale": 0.12,
+"stretch": 2.094,
+"stretchY": 2.3404
+},
+{
+"id": "nf-match-locart-21",
+"libId": "",
+"x": 343.0,
+"y": 118,
+"scale": 0.6267,
+"logo": {
+"aid": "uanflocgreenwood"
+}
+},
+{
+"id": "nf-match-locband-22",
+"libId": "",
+"kitId": "copy-rowp-panel",
+"x": 338.1,
+"y": 191.3,
+"scale": 0.1639,
+"stretch": 1.6429,
 "stretchY": 1.0,
 "ov": "strip"
 },
 {
-"id": "nf-home-nav-81",
+"id": "nf-match-locname-23",
 "libId": "",
-"kitId": "copy-navg-iconbtn",
-"x": 1455.3,
-"y": 943.3,
-"scale": 0.42,
-"ov": "icon:trophy"
-},
-{
-"id": "nf-home-t-82",
-"libId": "",
-"x": 1371.5,
-"y": 922.4,
+"x": 313.3,
+"y": 91.5,
 "scale": 1,
 "stamp": {
-"text": "Ranks",
-"size": 40,
+"text": "Greenwood",
+"size": 18.3,
+"plain": {
+"color": "#F3E6C8"
+}
+}
+},
+{
+"id": "nf-match-inf-24",
+"libId": "",
+"x": 271.0,
+"y": 91.5,
+"scale": 1,
+"stamp": {
+"text": "4",
+"size": 21.7,
 "plain": {
 "color": "#E6C15A"
+}
+}
+},
+{
+"id": "nf-match-inf-25",
+"libId": "",
+"x": 431.4,
+"y": 91.5,
+"scale": 1,
+"stamp": {
+"text": "6",
+"size": 21.7,
+"plain": {
+"color": "#7FB0FF"
+}
+}
+},
+{
+"id": "nf-match-loc-26",
+"libId": "",
+"kitId": "copy-card-panel",
+"x": 549.0,
+"y": 105.3,
+"scale": 0.12,
+"stretch": 2.094,
+"stretchY": 2.3404
+},
+{
+"id": "nf-match-locart-27",
+"libId": "",
+"x": 558.0,
+"y": 118,
+"scale": 0.6267,
+"logo": {
+"aid": "uanflocmontgomery"
+}
+},
+{
+"id": "nf-match-locband-28",
+"libId": "",
+"kitId": "copy-rowp-panel",
+"x": 553.1,
+"y": 191.3,
+"scale": 0.1639,
+"stretch": 1.6429,
+"stretchY": 1.0,
+"ov": "strip"
+},
+{
+"id": "nf-match-locname-29",
+"libId": "",
+"x": 523.4,
+"y": 91.5,
+"scale": 1,
+"stamp": {
+"text": "Montgomery",
+"size": 18.3,
+"plain": {
+"color": "#F3E6C8"
+}
+}
+},
+{
+"id": "nf-match-inf-30",
+"libId": "",
+"x": 486.0,
+"y": 91.5,
+"scale": 1,
+"stamp": {
+"text": "2",
+"size": 21.7,
+"plain": {
+"color": "#E6C15A"
+}
+}
+},
+{
+"id": "nf-match-inf-31",
+"libId": "",
+"x": 647.0,
+"y": 91.5,
+"scale": 1,
+"stamp": {
+"text": "2",
+"size": 21.7,
+"plain": {
+"color": "#7FB0FF"
+}
+}
+},
+{
+"id": "nf-match-card-32",
+"libId": "",
+"x": 201.0,
+"y": 53.8,
+"scale": 0.1525,
+"logo": {
+"aid": "uanfcardback",
+"shadow": 30
+}
+},
+{
+"id": "nf-match-card-33",
+"libId": "",
+"x": 392.0,
+"y": 53.8,
+"scale": 0.1525,
+"logo": {
+"aid": "uanfcarddouglass",
+"shadow": 30
+}
+},
+{
+"id": "nf-match-card-34",
+"libId": "",
+"x": 440.0,
+"y": 53.8,
+"scale": 0.1525,
+"logo": {
+"aid": "uanfcardback",
+"shadow": 30
+}
+},
+{
+"id": "nf-match-card-35",
+"libId": "",
+"x": 631.0,
+"y": 53.8,
+"scale": 0.1525,
+"logo": {
+"aid": "uanfcardtubman",
+"shadow": 30
+}
+},
+{
+"id": "nf-match-card-36",
+"libId": "",
+"x": 201.0,
+"y": 248.8,
+"scale": 0.1525,
+"logo": {
+"aid": "uanfcardshango",
+"shadow": 30
+}
+},
+{
+"id": "nf-match-card-37",
+"libId": "",
+"x": 392.0,
+"y": 248.8,
+"scale": 0.1525,
+"logo": {
+"aid": "uanfcardoshun",
+"shadow": 30
+}
+},
+{
+"id": "nf-match-card-38",
+"libId": "",
+"x": 440.0,
+"y": 248.8,
+"scale": 0.1525,
+"logo": {
+"aid": "uanfcardogun",
+"shadow": 30
+}
+},
+{
+"id": "nf-match-slot-39",
+"libId": "",
+"kitId": "placeholder",
+"x": 631.0,
+"y": 248.8,
+"scale": 0.1359,
+"stretch": 0.7728,
+"label": ""
+},
+{
+"id": "nf-match-sitdown-40",
+"libId": "",
+"kitId": "copy-dngp-panel",
+"x": 61.9,
+"y": 300.1,
+"scale": 0.2086,
+"stretch": 0.7,
+"stretchY": 1.0,
+"ov": "strip"
+},
+{
+"id": "nf-match-sitword-41",
+"libId": "",
+"x": -0.3,
+"y": 203.0,
+"scale": 1,
+"stamp": {
+"text": "Sit Down",
+"size": 18.3,
+"plain": {
+"color": "#F3E6C8"
+}
+}
+},
+{
+"id": "nf-match-tracker-42",
+"libId": "",
+"kitId": "copy-rowp-panel",
+"x": 56.2,
+"y": 323.7,
+"scale": 0.3279,
+"stretch": 0.875,
+"stretchY": 1.0,
+"ov": "strip"
+},
+{
+"id": "nf-match-turn-43",
+"libId": "",
+"x": -2.0,
+"y": 234.4,
+"scale": 1,
+"stamp": {
+"text": "Turn 4 of 6",
+"size": 18.3,
+"plain": {
+"color": "#E6C15A"
+}
+}
+},
+{
+"id": "nf-match-turncoin-44",
+"libId": "",
+"kitId": "coin",
+"x": 80.0,
+"y": 372.0,
+"scale": 0.0501
+},
+{
+"id": "nf-match-turncoin-45",
+"libId": "",
+"kitId": "coin",
+"x": 100.0,
+"y": 372.0,
+"scale": 0.0501
+},
+{
+"id": "nf-match-turncoin-46",
+"libId": "",
+"kitId": "coin",
+"x": 120.0,
+"y": 372.0,
+"scale": 0.0501
+},
+{
+"id": "nf-match-turncoin-47",
+"libId": "",
+"kitId": "coin",
+"x": 140.0,
+"y": 372.0,
+"scale": 0.0501
+},
+{
+"id": "nf-match-turncoin-48",
+"libId": "",
+"kitId": "copy-dimc-coin",
+"x": 160.0,
+"y": 372.0,
+"scale": 0.0501
+},
+{
+"id": "nf-match-turncoin-49",
+"libId": "",
+"kitId": "copy-dimc-coin",
+"x": 180.0,
+"y": 372.0,
+"scale": 0.0501
+},
+{
+"id": "nf-match-energy-50",
+"libId": "",
+"x": 83.9,
+"y": 234.4,
+"scale": 1,
+"stamp": {
+"text": "Energy 3 of 5",
+"size": 18.3,
+"plain": {
+"color": "#D8C8A0"
+}
+}
+},
+{
+"id": "nf-match-log-51",
+"libId": "",
+"kitId": "iconbtn",
+"x": 164.4,
+"y": 300.2,
+"scale": 0.17,
+"ov": "icon:info"
+},
+{
+"id": "nf-match-card-52",
+"libId": "",
+"x": 340.0,
+"y": 333.3,
+"scale": 0.2033,
+"logo": {
+"aid": "uanfcardmansa",
+"shadow": 40
+},
+"rot": -9.0
+},
+{
+"id": "nf-match-card-53",
+"libId": "",
+"x": 386.0,
+"y": 328.3,
+"scale": 0.2033,
+"logo": {
+"aid": "uanfcarddouglass",
+"shadow": 40
+},
+"rot": -3.0
+},
+{
+"id": "nf-match-card-54",
+"libId": "",
+"x": 432.0,
+"y": 328.3,
+"scale": 0.2033,
+"logo": {
+"aid": "uanfcardtubman",
+"shadow": 40
+},
+"rot": 3.0
+},
+{
+"id": "nf-match-card-55",
+"libId": "",
+"x": 478.0,
+"y": 333.3,
+"scale": 0.2033,
+"logo": {
+"aid": "uanfcardoshun",
+"shadow": 40
+},
+"rot": 9.0
+},
+{
+"id": "nf-match-lockin-56",
+"libId": "",
+"kitId": "copy-play-panel",
+"x": 619.2,
+"y": 297.2,
+"scale": 0.3279,
+"stretch": 0.7679,
+"stretchY": 1.0,
+"ov": "strip"
+},
+{
+"id": "nf-match-lockword-57",
+"libId": "",
+"x": 595.3,
+"y": 215.0,
+"scale": 1,
+"stamp": {
+"text": "Lock in",
+"size": 28.3,
+"plain": {
+"color": "#2A1E05"
+}
+}
+},
+{
+"id": "nf-match-timer-58",
+"libId": "",
+"kitId": "progress",
+"x": 626.0,
+"y": 360.3,
+"scale": 0.1537,
+"stretch": 1.7641,
+"v": 0.62
+},
+{
+"id": "nf-match-clock-59",
+"libId": "",
+"x": 698.7,
+"y": 264.4,
+"scale": 1,
+"stamp": {
+"text": "0:19",
+"size": 18.3,
+"plain": {
+"color": "#D8C8A0"
 }
 }
 }
