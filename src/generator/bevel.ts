@@ -1730,6 +1730,19 @@ export function shapePath(shape: Shape, x: number, y: number, w: number, h: numb
     ];
     return polyRounded(v, 2 + softness * 0.24);
   }
+  /* the CUT road (the Stand on Business phone cut, 10/4): "sharp:<cut>" is
+     the sharp octagon with an EXPLICIT corner leg in design px, so a cut
+     piece can carry the notch the brief asks for (a 6-point notch on a
+     125-point panel) instead of the height-derived one. The inset ladder
+     (polyRoundedInset) offsets it in parallel like any sharp shell. */
+  if (shape.startsWith("sharp:")) {
+    const cutX = Math.max(0, Math.min(Number(shape.slice(6)) || 0, Math.min(w, h) / 2));
+    const vX: [number, number][] = [
+      [x + cutX, y], [x + w - cutX, y], [x + w, y + cutX], [x + w, y + h - cutX],
+      [x + w - cutX, y + h], [x + cutX, y + h], [x, y + h - cutX], [x, y + cutX],
+    ];
+    return polyRounded(vX, 1.5);
+  }
   const cut = shape === "sharp" ? Math.min(34, h * 0.22) : Math.min(28, h * 0.17);
   const r = shape === "sharp" ? 1.5 : 3 + softness * 0.3;
   const v: [number, number][] = [
@@ -4279,6 +4292,24 @@ export function renderBevel(cfg: GenConfig, state: GenStateName): string {
 /** Feasibility-lab entry: one shell at an exact frame size. Same build()
  *  pipeline as every production render — nothing here is shape-specific.
  *  `fs` is the pre-scale type size (build multiplies by type.size/52). */
+/** The CUT road (the Stand on Business phone cut, 10/4): ONE shell of an
+ *  exact size, an exact chamfer and an exact chrome scale, with an optional
+ *  word and glyph — build() with the dials a cut needs and nothing else.
+ *  w, h and cut are design px; tokenH scales the walls, rim and depth (168
+ *  is the button grammar: a 168-tall shell wears the kit's own wall width);
+ *  pinDesign keeps the default recipe under the pointer states (panels). */
+export function renderCutShell(cfg: GenConfig, state: GenStateName, o: {
+  w: number; h: number; cut?: number; tokenH?: number; label?: string; fs?: number;
+  iconDef?: IconDef | null; iconSize?: number; pinDesign?: boolean; shape?: Shape; textOy?: number;
+}): string {
+  setDocShapes(cfg.userShapes);
+  const shape = o.shape ?? (o.cut !== undefined ? (`sharp:${o.cut}` as Shape) : undefined);
+  return build(cfg, state, { x: 40, y: 32, h: o.h, fs: o.fs ?? 0, iconSize: o.iconSize ?? 0, tokenH: o.tokenH }, {
+    label: o.label ?? "", iconDef: o.iconDef === undefined ? null : o.iconDef, fixedW: o.w,
+    shapeOverride: shape, pinDesign: o.pinDesign, textOy: o.textOy,
+  });
+}
+
 export function renderShell(cfg: GenConfig, state: GenStateName, w: number, h: number, opts: { label?: string; iconDef?: IconDef | null; fs?: number } = {}): string {
   setDocShapes(cfg.userShapes);
   return build(cfg, state, { x: 40, y: 32, h, fs: opts.fs ?? h * 0.31, iconSize: h * 0.3 }, {
