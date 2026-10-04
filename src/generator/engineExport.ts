@@ -722,6 +722,19 @@ function turnPoint(x: number, y: number, turn: { a: number; cx: number; cy: numb
   const r = (turn.a * Math.PI) / 180, px = x - turn.cx, py = y - turn.cy;
   return [turn.cx + px * Math.cos(r) - py * Math.sin(r), turn.cy + px * Math.sin(r) + py * Math.cos(r)];
 }
+/* a POSED rider's ink (r111, the reward tray's ghost CLAIM): hex ships
+   as-is; a word drawn in rgba() (hexRgba's own form) ships as #RRGGBBAA,
+   which Unity's ColorUtility parses alpha and all, so a dim posed capsule
+   keeps its ghost word instead of a white one on a pale plate. Any other
+   paint ships no ink and the scene keeps its default, as before. */
+function posedRiderInk(fill: string | null): string | null {
+  const f = (fill ?? "").trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(f)) return f;
+  const m = /^rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)$/.exec(f);
+  if (!m) return null;
+  const a = m[4] === undefined ? 1 : Math.max(0, Math.min(1, +m[4]));
+  return "#" + [+m[1], +m[2], +m[3], Math.round(a * 255)].map((v) => Math.min(255, v).toString(16).padStart(2, "0")).join("").toUpperCase();
+}
 /* SVG paint INHERITS (round 61f). A built kit icon carries its ink on the
    wrapping <g> — iconGroup writes fill/stroke there and the Lucide inner
    markup states nothing — so a judge that reads only the leaf shape sees
@@ -936,6 +949,25 @@ function stripMarkedIcons(svgIn: string): { svg: string; iconsStripped: number }
     for (const g of gs) g.remove();
     return { svg: new XMLSerializer().serializeToString(dom.documentElement), iconsStripped: gs.length };
   } catch { return { svg: svgIn, iconsStripped: 0 }; }
+}
+/* the PLATE-LESS Lit strip for a family outside the cell-rig loop (r111 —
+   the segmented meter, whose base and lit atoms ship on their own road):
+   keep only the drawables stamped data-litcell (defs kept — the cell
+   gradient and the clips), on the same viewBox, width, height and root
+   stamps, so the strip shares the base's uncropped canvas and the
+   data-track zone is untouched. The r107 rule the cell-rig loop applies
+   inline; a render without the stamp ships unchanged. A bar-fx overlay
+   with a non-normal blend bakes against transparency here, the same
+   limitation the barRig fill atoms (barFillOnlySvg) accept. */
+function litCellsOnlySvg(svgIn: string): string {
+  try {
+    if (!/\sdata-litcell="1"/.test(svgIn)) return svgIn;
+    const dom = new DOMParser().parseFromString(svgIn, "image/svg+xml");
+    if (dom.querySelector("parsererror")) return svgIn;
+    for (const el of Array.from(dom.querySelectorAll(ICON_DRAWABLE_SEL)))
+      if (!el.closest("defs") && !el.closest('[data-litcell="1"]')) el.remove();
+    return new XMLSerializer().serializeToString(dom.documentElement);
+  } catch { return svgIn; }
 }
 
 const dataUrlBytes = (u: string): { bytes: Uint8Array; ext: string } | null => {
@@ -2279,7 +2311,8 @@ export async function collectExportBoards(st: {
               const fsR = parseFloat(tR.getAttribute("font-size") ?? "0");
               const wordR = (tR.textContent ?? "").replace(/\s+/g, " ").trim();
               if (!(fsR > 1) || !wordR) continue;
-              const fillR = /^#[0-9a-fA-F]{6}$/.exec(tR.getAttribute("fill") ?? "")?.[0] ?? null;
+              // r111: hex or rgba() ink (the reward tray's ghost CLAIM) — see posedRiderInk
+              const fillR = posedRiderInk(tR.getAttribute("fill"));
               // a TURNED rider (10/1, the AD ×2 ribbon): the word center is the turned point, the angle ships as wordRot
               const turnR = riderTurnOf(tR);
               let xR = parseFloat(tR.getAttribute("x") ?? "0"), yR = parseFloat(tR.getAttribute("y") ?? "0");
@@ -3820,7 +3853,14 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      — a border guarding baked-in art (the dropdown's caret cap) must
      never shrink below it; the pixel measurement estimates curvature,
      not intent. Queue-only: it never enters the manifest. */
-  const pngQueue: { path: string; svg: string; crop: boolean | number; group?: string; sliceMin?: { left?: number; right?: number; top?: number; bottom?: number } | null; meta: Omit<AssetMeta, "file" | "nativeW" | "nativeH" | "sha256"> }[] = [];
+  /* cropWith (r111): a FRAME DONOR for a tight-cropped bake — an svg in the
+     member's own viewBox whose reach is measured WITH the member's and
+     never shipped. The weapon wheel's rim halo was weaponwheel-base's crop
+     driver; now that it rides the Rim glow child, the stripped base crops
+     on the union of its own reach and the halo's, so the sprite keeps the
+     frame it has always had and a kept wheel's fraction-anchored children
+     (and the rig's orbit fractions) stay true. Queue-only. */
+  const pngQueue: { path: string; svg: string; crop: boolean | number; group?: string; cropWith?: string; sliceMin?: { left?: number; right?: number; top?: number; bottom?: number } | null; meta: Omit<AssetMeta, "file" | "nativeW" | "nativeH" | "sha256"> }[] = [];
   /* FINDABLE NAMES (dev field report: '"base" and "base-" + X being the
      naming convention for everything makes some assets hard to find' —
      Unity search showed sixteen identical "base" rows). Every filename now
@@ -3839,10 +3879,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      (margin 4); a NUMBER = tight crop with that margin — fx-carrying
      bakes hand the crop enough air that their halo's tail reaches true
      zero inside the file (round 27 — the socket's square glow edge). */
-  const addPng = (path: string, svg: string, meta: Omit<AssetMeta, "file" | "nativeW" | "nativeH" | "sha256">, crop: boolean | number = false, group?: string, extras?: { sliceMin?: { left?: number; right?: number; top?: number; bottom?: number } }): Promise<void> => {
+  const addPng = (path: string, svg: string, meta: Omit<AssetMeta, "file" | "nativeW" | "nativeH" | "sha256">, crop: boolean | number = false, group?: string, extras?: { sliceMin?: { left?: number; right?: number; top?: number; bottom?: number }; cropWith?: string }): Promise<void> => {
     // own copy of the slice — call sites share one object across variants,
     // and the post-crop clamp adjusts it per asset
-    pngQueue.push({ path: famPath(path), svg, crop, group, sliceMin: extras?.sliceMin ?? null, meta: { ...meta, nineSlice: meta.nineSlice ? { ...meta.nineSlice } : null } });
+    pngQueue.push({ path: famPath(path), svg, crop, group, ...(extras?.cropWith ? { cropWith: extras.cropWith } : {}), sliceMin: extras?.sliceMin ?? null, meta: { ...meta, nineSlice: meta.nineSlice ? { ...meta.nineSlice } : null } });
     return Promise.resolve();
   };
   /* ── THE UN-BURN (maximum-editability law, 2026-08-28) ──────────────
@@ -4305,6 +4345,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
       for (const q of pngQueue) {
         const wants = q.group ? !groupSliced.get(q.group) : (!!q.crop && !q.meta.nineSlice);
         if (wants) q.svg = padGlowCanvas(q.svg, 72);
+        // a frame donor shares its member's canvas — it pads in step (r111)
+        if (wants && q.cropWith) q.cropWith = padGlowCanvas(q.cropWith, 72);
       }
     }
     /* UNCROPPED bakes (the cooldown stack: fixed canvases their rigs
@@ -4369,9 +4411,15 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         const outs = await svgsToPngBytesTightUnion(idxs.map((i) => pngQueue[i].svg), PNG_SCALE, gMargin);
         idxs.forEach((i, j) => grouped.set(i, outs[j]));
       }
+      /* a FRAME DONOR (r111, the weapon wheel's halo): the member crops on
+         the union of its own reach and the donor's — the group road's own
+         helper, the donor's raster discarded. Like a group member it ships
+         no ink row (the wheel speaks a shell, so none is read anyway). */
       const raster: { bytes: Uint8Array; w: number; h: number; box?: CropBox; ink?: CropBox } =
         grouped.get(qi) ?? (q.crop
-          ? await svgToPngBytesTight(q.svg, PNG_SCALE, typeof q.crop === "number" ? q.crop : undefined)
+          ? q.cropWith
+            ? (await svgsToPngBytesTightUnion([q.svg, q.cropWith], PNG_SCALE, typeof q.crop === "number" ? q.crop : 4))[0]
+            : await svgToPngBytesTight(q.svg, PNG_SCALE, typeof q.crop === "number" ? q.crop : undefined)
           : await svgToPngBytes(q.svg, PNG_SCALE));
       const { bytes, w, h } = raster;
       /* shell-in-sprite, for shell-true scene sizing: the svg states its
@@ -5032,11 +5080,29 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
      hides under its body, so the growing end rounds at ANY value. */
   await addPng("progress/cap.png", shell("progress", { overlay: "cap" }, slim, 1), { component: "progress", part: "cap", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "LEGACY head (older importers park it on the growing end) — the width road's bordered stadium rounds its own end now, so fresh builds never mount this sprite." }, true);
   if (full) {
-  // segmented meter — empty well plus one lit cell; the engine tiles cells
-  // into the well at its own count/gap. The docked emblem socket ships as
-  // the icon-button base: same silhouette, drop any art in the well.
-  await addPng("segbar/base.png", shell("segbar", { bar: { segments: 5 } }, undefined, 0), { component: "segbar", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Segmented meter, empty — 5 ghost cells in the themed well. The SegmentMeter prefab layers the lit strip above, scissored per cell." });
-  await addPng("segbar/lit.png", shell("segbar", { bar: { segments: 5 } }, undefined, 1), { component: "segbar", part: "lit", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Segmented meter, full — the prefab's Lit layer scissors it per lit count (Filled/Horizontal snapped to cell edges); crop one cell for a tile if you build your own." });
+  /* segmented meter — r111 (the owner's SegmentMeter screenshot: "break
+     this up so it is more customizable; everything broken into layers"):
+     the base bakes at v=0, the pose where every socket is UNLIT, so the
+     well and all five sockets are marked ink there — the seats are
+     measured on that very render (the cell rigs' zeroSvgSeatU rule, which
+     this family's own road already satisfies) and the base ships as the
+     bare plate with Well and Cell 1…5 riding the prefab as live under
+     children. The Lit strip (v=1) ships PLATE-LESS from the data-litcell
+     stamps (the r107 rule) on the same uncropped canvas, so the scissor
+     zone is untouched and the strip never paints over the children
+     beneath it. The docked emblem socket ships as the icon-button base:
+     same silhouette, drop any art in the well. */
+  {
+    const sbZero = shell("segbar", { bar: { segments: 5 } }, undefined, 0);
+    const sbSeats = await iconSeatsOf("segbar", sbZero);
+    await addPng("segbar/base.png", sbSeats ? stripIconInk(sbZero).svg : sbZero, { component: "segbar", part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
+      usage: sbSeats
+        ? "Segmented meter plate, bare — the well and the 5 unlit sockets ride the SegmentMeter prefab as live Well / Cell 1…5 children (move, recolor, duplicate or delete them); the Lit strip layers above, scissored per cell."
+        : "Segmented meter, empty — 5 ghost cells in the themed well. The SegmentMeter prefab layers the lit strip above, scissored per cell.",
+      ...(sbSeats ? { iconSeats: sbSeats } : {}) });
+    const sbOne = shell("segbar", { bar: { segments: 5 } }, undefined, 1);
+    await addPng("segbar/lit.png", sbSeats ? litCellsOnlySvg(stripIconInk(sbOne).svg) : sbOne, { component: "segbar", part: "lit", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false, usage: "Segmented meter, all 5 cells LIT and nothing else — the prefab's Lit layer scissors it per lit count (Filled/Horizontal snapped to cell edges by KitCellMeter); crop one cell for a tile if you build your own." });
+  }
   /* the VS bar + emblem bar go LIVE (round 21, owner mandate: board bars
      arrive kit-dressed) — they used to travel as baked board stamps: the
      right look, dead value. They now ship the real component's rig
@@ -5531,7 +5597,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         avatarframe: "Avatar frame — the level chip's number is a LIVE seat and the portrait a LIVE masked Image child: drop YOUR sprite on the Portrait child and the frame clips it round. Display piece.",
         claimbtn: "Claim button — a REAL button (the Shop's Claim All presses and fires onClick); the word is a LIVE seat, the gift glyph a LIVE Image child, and CLAIM copies celebrate (ClaimBurst).",
         nameplate: "Nameplate — the name is a LIVE seat, the rank star a LIVE Image child, and the title ribbon a live plate child whose word RIDES it (move, restyle or delete plate + word as one). Display piece.",
-        stepper: "Stepper — a WORKING control: both caps are REAL Buttons (the + cap arms with the app's own hover ring) that step the cell strip by whole cells (KitStepper.StepUp/StepDown/SetValue; KitCellMeter snaps the cut into the gaps). The +/− glyphs ride their caps as live words. Two hits, never one.",
+        stepper: "Stepper — a WORKING control: both caps are REAL Buttons (the + cap arms with the app's own hover ring) that step the cell strip by whole cells (KitStepper.StepUp/StepDown/SetValue; KitCellMeter snaps the cut into the gaps). The +/− glyphs ride their caps as live words. The container well and the eight sockets are live children beneath the Lit strip (Well, Cell 1…8): move, recolor, duplicate or delete them. Two hits, never one.",
         notifydot: "Notification badge — the bell/scroll glyph is a LIVE Image child and the red counter a live plate child whose count RIDES it (delete the pair as one, or drive the count). Display piece.",
         loadbar: "Loading bar — LIVE: caption and percent are seats and the mercury is a bordered-stadium fill driven by KitBarFill — drag its Value slider or call SetValue(0..1); a raw fillAmount write still adopts. Display piece.",
         setrow: "Settings row — a WORKING control: the mini-slider is a real Unity Slider (drag the candy knob or set Slider.value; the mercury follows through the Slider's own onValueChanged → KitBarFill.SetValue listener). The knob scrubs the whole well, the mercury keeps its inset run inside it — the app's own two seats. The row label and value readout are LIVE seats — the readout is not wired to the slider, hook it to Slider.onValueChanged or retype it.",
@@ -5544,8 +5610,8 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         choicelist: "Dialogue choices — all three responses and their hotkey digits are LIVE seats; the active-choice marker AND the Choice highlight are LIVE children (slide highlight + marker a row pitch to move the selection). All capsules rest uniform underneath. Wire per-choice buttons over the capsules.",
         manarails: "Mana & stamina rails — LIVE: each rail is its own KitBarFill bar (each area's Value slider or SetValue) and each rail glyph a LIVE Image child. Display piece.",
         xpbar: "XP bar — LIVE: the NEXT line and XP readout are seats, the mercury is a KitBarFill bar (the Value slider or SetValue; the milestone notch cuts ride the fill), and the level knob is a live child whose number RIDES it. Display piece.",
-        invgrid: "Inventory grid — every cell glyph is a LIVE Image child (the app's cell pickers steer them) and the count chips are live plates with their numbers riding them. The selection ring is NOT baked: compose invgrid/cell-ring.png over any cell (the board scenes wire InvGridSelect for you). Display piece.",
-        partyframe: "Party frame — drop YOUR sprite on the Portrait child (the well clips it round); the name is a LIVE seat and the class glyph a LIVE Image child. HP and MP are each their own KitBarFill bar (each area's Value slider or SetValue), and the level bubble is a LIVE Level knob child with the number riding it. Display piece.",
+        invgrid: "Inventory grid — every cell well is its own LIVE Image child (Well 1…12, under everything: move, recolor, duplicate or delete them), every cell glyph is a LIVE Image child (the app's cell pickers steer them) and the count chips are live plates with their numbers riding them. The selection ring is NOT baked: compose invgrid/cell-ring.png over any cell (the board scenes wire InvGridSelect for you). Display piece.",
+        partyframe: "Party frame — drop YOUR sprite on the Portrait child (the well clips it round); the name is a LIVE seat and the class glyph a LIVE Image child. HP and MP are each their own KitBarFill bar (each area's Value slider or SetValue) riding over their own live HP well / MP well children (retint, resize or delete a track in the Inspector), and the level bubble is a LIVE Level knob child with the number riding it. Display piece.",
         compass: "Compass ribbon — the cardinal letters are LIVE seats, the Heading caret a LIVE child (restyle or delete it) and the tick strip a LIVE Ticks child cut at the staged heading (on the prefab, slide Ticks together with the letters to move the heading by hand; board copies keep their letters in the posed skin). Display piece.",
         dmgnumber: "Damage number — a DEV INSTRUMENT (round 47): PatternBreakDmgNumber.Show(n) composes the amount from the kit's own damage digits at the authored seat and plays the app's float-up-and-fade; Value 0 keeps the authored number byte-for-byte as a live, swappable child.",
         equipslot: "Equipment slot — the ghost silhouette showing what belongs is a LIVE Image child; the app's icon picker steers it and the Inspector swaps it. Display piece.",
@@ -5558,7 +5624,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         waypoint: "Waypoint — the objective letter and distance are LIVE seats on the diamond. Spatial piece: it reads over live footage. Display piece.",
         capturemeter: "Capture point — LIVE: the point letter is a LIVE seat and the capture ring a Radial360 rig (drive the Fill child's fillAmount or KitRingFill.SetValue — the end caps ride the head, clean at any value). Display piece.",
         respawn: "Respawn timer — LIVE: heading and seconds are seats and the drain bar is a KitBarFill bar (SetValue from the same countdown that writes the seconds). Display piece.",
-        weaponwheel: "Weapon wheel — DRIVABLE (round 44): PatternBreakWeaponWheel makes the rotation a dial (SetValue 0..1 spins the cylinder; ArmChamber(i) parks a chamber at the hammer; ArmedChamber() reads the pick). The Cylinder is a LIVE rotating child, all six glyphs orbit upright as swappable Image children with armed/quiet looks, the Armed chamber ring and Name tag are nick'd children, and the hub/tag words are LIVE seats — drive them from ArmedChamber(). Display piece.",
+        weaponwheel: "Weapon wheel — DRIVABLE (round 44): PatternBreakWeaponWheel makes the rotation a dial (SetValue 0..1 spins the cylinder; ArmChamber(i) parks a chamber at the hammer; ArmedChamber() reads the pick). The Cylinder is a LIVE rotating child, all six glyphs orbit upright as swappable Image children with armed/quiet looks, the Armed chamber ring and Name tag are nick'd children, the rim's halo is the live, tintable \"Rim glow\" child (its Image color carries the Glow — recolor, grow or delete the highlight without touching the rim), and the hub/tag words are LIVE seats — drive them from ArmedChamber(). Display piece.",
         crosshair: "Crosshair — shell-free spatial art with the dark understroke; scale freely (Preserve Aspect). Display piece.",
         hitmarker: "Hit marker — shell-free spatial art; flash it from your own hit events. Display piece.",
         dmgarc: "Damage direction arc — shell-free spatial art; rotate the piece to the threat bearing. Display piece.",
@@ -5581,7 +5647,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         emotewheel: "Emote wheel — DRIVABLE (round 44): the pick is a dial (PatternBreakEmoteWheel — SetSector, or SetValue 0..1, the app's own mapping). The Armed highlight is a LIVE full-disc wedge the rig parks by rotation, every sector's emote swaps ghost/armed on one fixed frame, and the hub mirrors the pick. All emotes stay swappable Inspector children. Display piece.",
         buildqueue: "Build queue — LIVE: the unit glyph is a LIVE Image child (editable down to the icon, as asked), name and queue line are seats, and the progress bar is a KitBarFill bar (the Value slider or SetValue). The glyph's dark square and the bar's track are live children (Icon well, Well) under the glyph and the fill. Display piece.",
         unitplate: "Unit plate — drop YOUR sprite on the Portrait child; the name and stat numbers are LIVE seats and the attack/defense glyphs LIVE Image children. The HP mercury is a KitBarFill bar (the Value slider or SetValue). Display piece.",
-        techcard: "Tech card (researchable) — the tech glyph is a LIVE Image child (editable down to the icon); the name and cost are LIVE seats and the cost gem its own LIVE Image child beside the number. Researched/locked poses ride per-copy posed skins. Display piece.",
+        techcard: "Tech card (researchable) — the tech glyph is a LIVE Image child (editable down to the icon); the name and cost are LIVE seats and the cost gem its own LIVE Image child beside the number; the researchable highlight ring is ONE live \"Highlight ring\" child over the plate (a white cut tinted the Glow role through Image.color: retint it in one edit, delete it for a plain card; the breathing pulse stays the app's). Researched/locked poses ride per-copy posed skins. Display piece.",
         popmeter: "Population meter — LIVE: the population glyph is a LIVE Image child, the count a seat, and the supply bar a KitBarFill bar (the Value slider or SetValue; the app's near-cap alarm red stays an app-side draw for now). Display piece.",
         pack: "Card pack — the pack art with its live word; open ceremonies are your game's (ClaimBurst fires on CLAIM-labeled copies). Display piece.",
         cardback: "Card back — the deck's face-down art with its live emblem child. Display piece.",
@@ -5589,7 +5655,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         orderticket: "Kitchen order ticket — a REAL button; dish name and recipe lines are LIVE seats, the dish glyph a LIVE Image child, and the countdown bar is LIVE (a KitBarFill bar — the Value slider or SetValue; the ≤25% alarm recolor + pulse are the game's runtime to add). Served poses ride per-copy posed skins.",
         chest: "Treasure chest — a REAL button; tier and gate poses ride per-copy posed skins.",
         giftbox: "Gift box — a REAL button; tag and readiness poses ride per-copy posed skins.",
-        rewardtray: "Reward tray — the multi-reward strip; title and quantities are LIVE seats and every revealed slot glyph is a LIVE Image child (swap any sprite in the Inspector; icons/* fit the seats). Reveal states ride posed skins. Display piece.",
+        rewardtray: "Reward tray — the multi-reward strip; title, quantities and the ? marks are LIVE seats, every slot well is its OWN Image child under them (Slot 1 well … Slot 4 well: move, recolor, duplicate or delete; a revealed well carries its glow rim), every revealed slot glyph is a LIVE Image child (swap any sprite in the Inspector; icons/* fit the seats), and the Claim plate is a live child with its CLAIM word riding it as live text. Reveal states ride posed skins (the wells stay in a posed copy's pixels). Display piece.",
         chestpanel: "Chest-opening ceremony panel — words are LIVE seats; stage poses ride posed skins. Display piece.",
         bottomnav: "Bottom nav bar — one placeable piece; the item words are LIVE seats and every tab glyph a LIVE Image child (swap any sprite in the Inspector). The Selected ring child IS the selection: move it a cell over (one cell pitch) or disable it. The Badge plate child carries its live count with it — move, restyle or delete the pair as one. Wire your own per-item buttons over it (the bar itself is not one button).",
         /* the card-battler set (round 80). No em dashes in these rows: they
@@ -5822,7 +5888,10 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
            so no cut is ever queued twice. */
         const cellRigU = uid === "energymeter" || uid === "ammo" || uid === "magazine" || uid === "streakmeter";
         let zeroSvgSeatU: string | null = null;
-        if (cellRigU && !isArt) { try { zeroSvgSeatU = stripLoopsU(shell(uid, uOpts, undefined, 0)); } catch { zeroSvgSeatU = null; } }
+        /* r111: the stepper bakes its base at v=0 on its own road below
+           (stepperOut) — its well and sockets, marked only unlit, are
+           measured on that same render too (the cell rigs' rule) */
+        if ((cellRigU || uid === "stepper") && !isArt) { try { zeroSvgSeatU = stripLoopsU(shell(uid, uOpts, undefined, 0)); } catch { zeroSvgSeatU = null; } }
         const iconSeatsU = isArt ? null : await iconSeatsOf(uid, zeroSvgSeatU ?? fullU, undefined, undefined, skillInkTint);
         let baseSvgU = iconSeatsU ? stripIconInk(strippedU.svg).svg : strippedU.svg;
         /* the inventory grid's family base ships RINGLESS (the posed
@@ -6230,16 +6299,33 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
                 w: r1s(mk9.half * 2), h: r1s(mk9.half * 2),
                 btn: true, nick: mk9.name === "minus" ? "Minus button" : "Plus button",
               }));
+              /* r111 (the owner's "bkg well items should not be baked into
+                 the panel"): the well and the unlit sockets are UNDER seats
+                 now (measured on sv0 — zeroSvgSeatU IS this render), so the
+                 base sheds them like every marked family, and the Lit strip
+                 ships PLATE-LESS from the data-litcell rects (the r107
+                 cell-rig rule): the importer parks Lit above the Well and
+                 Cell children, so a full-plate strip would paint its plate
+                 over them left of the cut. Same viewBox, size and root
+                 stamps, so the crop group shared with base and the
+                 data-track zone are untouched. */
+              const litSvgST = litCellsOnlySvg(stripWordInk(stripCapsS(sv1)).svg);
               stepperOut = {
-                lit: stripWordInk(stripCapsS(sv1)).svg,
+                lit: litSvgST,
                 caps: [
                   { part: "cap-minus", svg: cMinus }, { part: "cap-plus", svg: cPlus },
                   { part: "cap-plus-hover", svg: cPlusH }, { part: "cap-plus-disabled", svg: cPlusD },
                 ],
               };
-              baseSvgU = stripWordInk(stripCapsS(sv0)).svg;
+              baseSvgU = iconSeatsU ? stripIconInk(stripWordInk(stripCapsS(sv0)).svg).svg : stripWordInk(stripCapsS(sv0)).svg;
             }
           } catch { stepperOut = null; stepperSeats = null; }
+          /* r111: the seats speak the v=0 pose, so a cap road that fails
+             (stepperOut null — the caps stay baked as before) still bakes
+             its base from that pose with the marks shed; otherwise the live
+             Well and Cell children would sit over lit cells baked at the
+             staged value. */
+          if (!stepperOut && iconSeatsU && zeroSvgSeatU) baseSvgU = stripIconInk(stripWordInk(zeroSvgSeatU).svg).svg;
         }
         /* ── LIVES goes drivable (round 44, R6 — RIG-2 on the stepper's
            lit-overlay road): base re-bakes ALL HEARTS DIM, the lit strip
@@ -6305,6 +6391,15 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           }
           continue;
         }
+        /* r111 (the owner's Weaponwheel screenshot: the rim's highlight is
+           its own layer now): the halo was this base's CROP DRIVER — its
+           reach, not the rim's, framed weaponwheel-base.png, and every
+           child on the prefab is anchored as a fraction of that frame (the
+           rig's orbit fractions too). The halo-only cut rides along as a
+           frame donor: measured with the stripped base, never shipped, so
+           the sprite keeps its frame and a kept wheel's Armed chamber
+           ring, Name tag and glyph orbit stay on their sockets. */
+        const frameU = uid === "weaponwheel" ? markedIconOnlySvgs(fullU).find((c9) => c9.name === "rimglow")?.svg ?? null : null;
         await addPng(`${uid}/base.png`, baseSvgU, {
           component: uid, part: "base", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
           // a piece the app draws turned (round 80): the prefab's own rotation
@@ -6318,7 +6413,9 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
           ...(uLabelMeta ?? {}),
           ...(uWord !== undefined ? { labelText: uWord } : {}),
           ...(ringRig || buffRig ? {} : seatsU),
-          ...(iconSeatsU ? { iconSeats: iconSeatsU } : stepperSeats ? { iconSeats: stepperSeats } : {}),
+          /* r111: the stepper carries BOTH its marked seats (Well, Cell 1…8,
+             under) and its cap Buttons — seat order is paint order */
+          ...(iconSeatsU || stepperSeats ? { iconSeats: [...(iconSeatsU ?? []), ...(stepperSeats ?? [])] } : {}),
           ...(comboSeatG ?? {}),
         /* the worn-ground rigs (buff plate, stopwatch face, step plate)
            must share the base's crop frame — the union IS the base's own
@@ -6326,7 +6423,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         /* round 47 (item 2): the hearts' lit glow needs the wider crop
            margin (numeric crop = margin px) so its tail fades to zero
            inside the sprite — no hard rectangle on dark scenes */
-        }, livesOut ? 40 : true, interactive || buffRig || cellRig || stepperOut || livesOut || uid === "stopwatch" || uid === "steps" ? uid : undefined);
+        }, livesOut ? 40 : true, interactive || buffRig || cellRig || stepperOut || livesOut || uid === "stopwatch" || uid === "steps" ? uid : undefined, frameU ? { cropWith: frameU } : undefined);
         if (skillAtoms) {
           for (const at of skillAtoms) {
             /* crop:false — the atom's SVG is already its shipped window
@@ -6407,7 +6504,7 @@ export async function downloadEngineExport(st: EngineExportState, catalog?: () =
         if (stepperOut) {
           await addPng(`${uid}/lit.png`, stepperOut.lit, {
             component: uid, part: "lit", nineSlice: null, pivot: { x: 0.5, y: 0.5 }, tintable: false,
-            usage: "The cell strip, ALL EIGHT lit — the prefab's Lit layer scissors per whole cell (KitCellMeter snaps into the gaps; the +/− Buttons step it).",
+            usage: "The cell strip, ALL EIGHT lit — cells only (the well and the unlit sockets are the Well and Cell children beneath); the prefab's Lit layer scissors per whole cell (KitCellMeter snaps into the gaps; the +/− Buttons step it).",
             ringV: Math.max(0, Math.min(1, uVal ?? 0.62)),
           }, true, uid);
           for (const c9 of stepperOut.caps) {
@@ -14774,10 +14871,12 @@ it down in Play mode (timers read as time remaining; it clamps at 0:00
 and stops — hook your own reset). The words wear the kit's full label
 dress, so a restyle re-dresses them like every label.
 
-**SegmentMeter**: the dressed well with a **Lit** layer above it —
-a Filled image scissored to whole cells. Drive \`Lit\`'s *Fill Amount*
-(it snaps to fifths: 0.2 per cell) or scissor the raw strip yourself
-(segbar/segbar-lit.png ships beside the base as always).
+**SegmentMeter**: the bare plate with live **Well** and **Cell 1…5**
+children (the unlit sockets — move, recolor, duplicate or delete them)
+and a **Lit** layer above them, a Filled image of the lit cells alone,
+scissored to whole cells. Drive the Kit Cell Meter's *Value* (or
+\`Lit\`'s *Fill Amount*; it snaps to fifths: 0.2 per cell) or scissor the
+raw strip yourself (segbar/segbar-lit.png ships beside the base as always).
 
 **ProgressBar / EmblemBar / VsBar**: the real component's rig — the
 kit-dressed track with the mercury seated exactly on the app's well
@@ -22351,7 +22450,9 @@ namespace PatternBreak {
       if (litST == null || go.GetComponent<KitStepper>() != null) return;
       var lgoST = new GameObject("Lit", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
       lgoST.transform.SetParent(go.transform, false);
-      lgoST.transform.SetSiblingIndex(0); // over the base plate, under the caps and words
+      /* r111: over the base plate AND the Well / Cell children (the under
+         seats), under the caps and words — the cell meters' rule (10/1) */
+      lgoST.transform.SetSiblingIndex(UnderTop(go, baseRow));
       StretchFull((RectTransform)lgoST.transform);
       var liST = lgoST.GetComponent<Image>();
       liST.sprite = litST; liST.raycastTarget = false; liST.preserveAspect = false;
@@ -22723,6 +22824,13 @@ namespace PatternBreak {
       var baseSp = S(root + "/assets/segbar/segbar-base.png");
       if (baseSp == null) return false;
       var go = ImageObject("SegmentMeter", baseSp, pngScale);
+      /* r111 (the owner: "everything broken into layers on this asset"):
+         the well and the five unlit sockets ride as live UNDER children
+         (Well, Cell 1…5) seated by the base row — wired BEFORE the Lit
+         strip, so the strip lands above them in the paint order. An older
+         zip whose base row carries no seats wires nothing and builds as
+         before. */
+      WireIconChildren(go, root, m, "segbar");
       var lit = S(root + "/assets/segbar/segbar-lit.png");
       if (lit != null) {
         var lgo = ImageObject("Lit", lit, pngScale);
@@ -27740,6 +27848,15 @@ namespace PatternBreak {
               && S(root + "/assets/stepper/stepper-lit.png") != null) {
             var contentsST = PrefabUtility.LoadPrefabContents(path);
             try {
+              /* r111 review: stepper-base.png on disk is already the bare
+                 plate, so the Well, the sockets and the cap Buttons seed in
+                 THIS pass, the fresh build's own order (WireIconChildren
+                 before WireStepper, which then wires the caps it finds and
+                 parks Lit above the wells) — this graft continues past the
+                 un-burn seed below, and the next import would read their
+                 sprites as the dev's deletion. Ledgered like every child. */
+              var keyST = (path.StartsWith(root + "/") ? path.Substring(root.Length + 1) : path) + "|";
+              foreach (var nST in WireIconChildrenRow(contentsST, root, m, rowST, null)) unburnLedger.Add(keyST + nST);
               var imgST2 = BodyImage(contentsST);
               WireStepper(contentsST, imgST2 != null ? imgST2.sprite : null, rowST, root, m != null && m.pngScale > 0 ? m.pngScale : 2, m);
               PrefabUtility.SaveAsPrefabAsset(contentsST, path);
@@ -27763,6 +27880,14 @@ namespace PatternBreak {
           if (litSp != null) {
             var contentsSB = PrefabUtility.LoadPrefabContents(path);
             try {
+              /* r111 review: segbar-base.png on disk is already the bare
+                 plate, so the Well and the sockets must seed in THIS pass —
+                 this graft continues past the un-burn seed below, and on
+                 the next import their sprites would read as the dev's
+                 deletion. Ledgered like every seeded child; Lit lands after
+                 them, so it draws over the wells. */
+              var keySB = (path.StartsWith(root + "/") ? path.Substring(root.Length + 1) : path) + "|";
+              foreach (var nSB in WireIconChildrenRow(contentsSB, root, m, LabelRow(m, "segbar"), null)) unburnLedger.Add(keySB + nSB);
               var lgo = new GameObject("Lit", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
               lgo.transform.SetParent(contentsSB.transform, false);
               var li = lgo.GetComponent<Image>();
@@ -27840,6 +27965,13 @@ namespace PatternBreak {
                   if (famCMk == "lives" && litRowK != null && litRowK.railW > 0.5f) kcmK.cells = Mathf.RoundToInt(litRowK.railW);
                   if (!wantGraft && litI2.fillAmount > 0f) vK = Mathf.Clamp01(litI2.fillAmount);
                   kcmK.SetValue(vK);
+                  /* r111 review: this convergence continues past the
+                     un-burn seed, and the meter's base on disk is already
+                     the bare plate — seed the family's layer children (the
+                     well, the unlit sockets) now, ledgered, under the Lit
+                     strip (UnderTop keeps Lit above them). */
+                  var keyCM = (path.StartsWith(root + "/") ? path.Substring(root.Length + 1) : path) + "|";
+                  foreach (var nCM in WireIconChildrenRow(contentsCM, root, m, IconSeatRowOf(contentsCM, m, root, famCMk), null)) unburnLedger.Add(keyCM + nCM);
                   PrefabUtility.SaveAsPrefabAsset(contentsCM, path);
                   barRigged++;
                 }
